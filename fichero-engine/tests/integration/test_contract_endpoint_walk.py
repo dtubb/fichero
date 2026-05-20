@@ -29,23 +29,15 @@ os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
 from fichero.api.main import app, get_library_database  # noqa: E402
 from fichero.api.routes.providers import get_app_database  # noqa: E402
 from fichero.db import db_manager  # noqa: E402
-from fichero.models import Document  # noqa: E402
-from fichero.knowledge_models import (  # noqa: E402
-    ClaimType,
-    EpistemicStatus,
-    KnowledgeClaim,
-    KnowledgeEntity,
-)
 
 # Seeded IDs reused across path-param substitution so nested list endpoints
-# (e.g. /entities/{entity_id}/documents) reach their serialize path instead
-# of 404-ing before the response_model is exercised.
-SEED_DOC_ID = "walk-doc-1"
-SEED_ENTITY_ID = "walk-ent-1"
-SEED_CLAIM_ID = "walk-claim-1"
+# (e.g. /entities/{entity_id}/documents) reach their serialize path instead of
+# 404-ing before the response_model is exercised. Sourced from the shared
+# seeder (one ground-truth library for engine + CLI + Swift).
+SEED_DOC_ID = "test-doc-letter"
+SEED_ENTITY_ID = "test-ent-person"
+SEED_CLAIM_ID = "test-claim-1"
 
-# Path-param name → value. Known IDs hit seeded rows; everything else gets a
-# dummy that is expected to 404 (acceptable — only 500 is a failure).
 _PARAM_VALUES = {
     "doc_id": SEED_DOC_ID,
     "document_id": SEED_DOC_ID,
@@ -53,23 +45,6 @@ _PARAM_VALUES = {
     "claim_id": SEED_CLAIM_ID,
 }
 _PARAM_FALLBACK = "contract-walk-nonexistent"
-
-
-def _seed(db) -> None:
-    db.save(Document(id=SEED_DOC_ID, name="Contract Walk Doc", page_content="hello"))
-    db.save(KnowledgeEntity(id=SEED_ENTITY_ID, canonical_name="Contract Walk Entity"))
-    db.save(
-        KnowledgeClaim(
-            id=SEED_CLAIM_ID,
-            text="Contract walk claim",
-            source_document_id=SEED_DOC_ID,
-            source_ids=[SEED_DOC_ID],
-            claim_type=ClaimType.fact,
-            epistemic_status=EpistemicStatus.tentative,
-            confidence=0.8,
-            entity_ids=[SEED_ENTITY_ID],
-        )
-    )
 
 
 def _fill_path(template: str) -> str | None:
@@ -88,14 +63,10 @@ def _fill_path(template: str) -> str | None:
 
 @pytest.fixture
 def walk_client(tmp_path):
-    package_path = tmp_path / "walk.fichero"
-    package_path.mkdir()
-    (package_path / "lance").mkdir()
-    (package_path / "storage").mkdir()
-    (package_path / "files").mkdir()
+    from tests.integration._seedlib import seed
 
-    db = db_manager.get_database(package_path)
-    _seed(db)
+    package_path = tmp_path / "walk.fichero"
+    seed(package_path)  # builds the full deterministic library + closes the db
 
     from fichero.app_db import AppDatabase
     import fichero.app_db as _app_db_module
