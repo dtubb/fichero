@@ -76,7 +76,8 @@ class TestListActivities:
         with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
             r = client.get("/api/activity")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
+        assert r.json()["count"] == 0
 
     def test_returns_activities(self, client):
         act = _make_mock_activity()
@@ -84,8 +85,8 @@ class TestListActivities:
         with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
             r = client.get("/api/activity")
         assert r.status_code == 200
-        assert len(r.json()) == 1
-        assert r.json()[0]["id"] == "act-1"
+        assert len(r.json()["items"]) == 1
+        assert r.json()["items"][0]["id"] == "act-1"
 
     def test_invalid_activity_type_returns_400(self, client):
         tracker = _make_mock_tracker()
@@ -112,7 +113,7 @@ class TestGetRecentActivities:
         with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
             r = client.get("/api/activity/recent")
         assert r.status_code == 200
-        assert len(r.json()) == 1
+        assert len(r.json()["items"]) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -158,4 +159,5 @@ class TestWorkflowActivity:
         with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
             r = client.get("/api/activity/workflow/wf-123")
         assert r.status_code == 200
-        assert isinstance(r.json(), list)
+        assert "items" in r.json()
+        assert len(r.json()["items"]) >= 1

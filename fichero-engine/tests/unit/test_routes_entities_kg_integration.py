@@ -29,7 +29,7 @@ class TestEntitiesEndpointAfterExtractorWrite:
 
         r = client.get("/api/entities")
         assert r.status_code == 200
-        body = r.json()
+        body = r.json()["items"]
         names = {e["canonical_name"] for e in body}
         assert {"Juan Pérez", "María Angel", "Medellín"} <= names
 
@@ -40,13 +40,13 @@ class TestEntitiesEndpointAfterExtractorWrite:
 
         r_people = client.get("/api/entities?entity_type=person")
         assert r_people.status_code == 200
-        people = r_people.json()
+        people = r_people.json()["items"]
         assert len(people) == 1
         assert people[0]["canonical_name"] == "Juan"
 
         r_locations = client.get("/api/entities?entity_type=location")
         assert r_locations.status_code == 200
-        locations = r_locations.json()
+        locations = r_locations.json()["items"]
         assert len(locations) == 1
         assert locations[0]["canonical_name"] == "Medellín"
 
@@ -118,7 +118,7 @@ class TestClaimsEndpointAfterExtractorWrite:
         # Query claims for doc-1 only.
         r = client.get("/api/claims?source_document_id=doc-1")
         if r.status_code == 200:
-            claims = r.json()
+            claims = r.json()["items"]
             assert all(c["source_document_id"] == "doc-1" for c in claims)
             assert len(claims) == 2
         else:
@@ -126,7 +126,7 @@ class TestClaimsEndpointAfterExtractorWrite:
             # at minimum the unfiltered list should contain all three.
             r = client.get("/api/claims")
             assert r.status_code == 200
-            claims = r.json()
+            claims = r.json()["items"]
             doc_ids = {c["source_document_id"] for c in claims}
             assert {"doc-1", "doc-2"} <= doc_ids
 
@@ -140,7 +140,7 @@ class TestClaimsEndpointAfterExtractorWrite:
         )
         r = client.get("/api/claims")
         assert r.status_code == 200
-        claims = r.json()
+        claims = r.json()["items"]
         date_claims = [
             c for c in claims if c.get("metadata", {}).get("date_normalized")
         ]
@@ -157,6 +157,6 @@ class TestClaimsEndpointAfterExtractorWrite:
         )
         r = client.get("/api/claims")
         assert r.status_code == 200
-        claims = r.json()
+        claims = r.json()["items"]
         linked = [c for c in claims if person_id in c.get("entity_ids", [])]
         assert len(linked) == 1

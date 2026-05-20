@@ -189,8 +189,8 @@ class TestEntitiesRoutes:
 
         # List with filter
         results = await list_entities(q="Alpha", limit=50, db=db)
-        assert len(results) == 1
-        assert results[0].canonical_name == "Alpha Entity"
+        assert len(results.items) == 1
+        assert results.items[0].canonical_name == "Alpha Entity"
 
 
 class TestClaimsRoutes:
@@ -353,13 +353,13 @@ class TestClaimsRoutes:
 
         # Filter by claim type
         results = await list_claims(claim_type=ClaimType.fact, limit=200, offset=0, db=db)
-        assert len(results) == 1
-        assert results[0].claim_type == ClaimType.fact
+        assert len(results.items) == 1
+        assert results.items[0].claim_type == ClaimType.fact
 
         # Filter by curation state
         curated = await list_claims(curation_state=ClaimCurationState.curated, limit=200, offset=0, db=db)
-        assert len(curated) == 1
-        assert curated[0].curation_state == ClaimCurationState.curated
+        assert len(curated.items) == 1
+        assert curated.items[0].curation_state == ClaimCurationState.curated
 
 
 class TestClaimLinksRoutes:

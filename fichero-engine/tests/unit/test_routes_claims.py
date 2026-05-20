@@ -62,7 +62,8 @@ class TestListClaims:
     def test_empty_list(self, client):
         r = client.get("/api/claims")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
+        assert r.json()["count"] == 0
 
     def test_returns_saved_claims(self, client, db):
         doc = _make_document(db)
@@ -70,7 +71,7 @@ class TestListClaims:
         _make_claim(db, doc, "Claim B")
         r = client.get("/api/claims")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]) == 2
 
     def test_filter_by_source_document(self, client, db):
         doc1 = _make_document(db, "Doc 1")
@@ -79,8 +80,8 @@ class TestListClaims:
         _make_claim(db, doc2)
         r = client.get(f"/api/claims?source_document_id={doc1.id}")
         assert r.status_code == 200
-        assert len(r.json()) == 1
-        assert r.json()[0]["source_document_id"] == doc1.id
+        assert len(r.json()["items"]) == 1
+        assert r.json()["items"][0]["source_document_id"] == doc1.id
 
     def test_search_by_text(self, client, db):
         doc = _make_document(db)
@@ -88,7 +89,7 @@ class TestListClaims:
         _make_claim(db, doc, "Beta claim text")
         r = client.get("/api/claims?q=alpha")
         assert r.status_code == 200
-        data = r.json()
+        data = r.json()["items"]
         assert len(data) == 1
         assert "Alpha" in data[0]["text"]
 

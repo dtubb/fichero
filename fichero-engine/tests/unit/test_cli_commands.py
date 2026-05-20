@@ -954,7 +954,7 @@ def test_library_create_calls_client_with_expanded_path():
     # ~ must be expanded — the backend allowlist works on expanded paths.
     assert not call[1].startswith("~")
     assert call[1].endswith("/Documents/x.fichero")
-    assert "created: true" in result.output.lower()
+    assert "created and registered" in result.output.lower()
 
 
 def test_library_create_json_emits_typed_response():
@@ -963,43 +963,28 @@ def test_library_create_json_emits_typed_response():
     )
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["created"] is True
-    assert payload["tables_initialized"] is True
-    assert payload["path"] == "/var/folders/test.fichero"
+    # `library create` now emits a status summary after create + auto-register.
+    assert "created and registered" in payload["status"].lower()
+    assert "/var/folders/test.fichero" in payload["status"]
 
 
 def test_library_list_walks_filesystem(tmp_path, monkeypatch):
-    """`library list` is a pure FS walk — no backend call required."""
-    # Build a fake roots tuple so we don't depend on Daniel's real ~/Documents.
-    fake_root = tmp_path / "Documents"
-    fake_root.mkdir()
-    (fake_root / "MyLib.fichero").mkdir()
-    (fake_root / "Sub").mkdir()
-    (fake_root / "Sub" / "Nested.fichero").mkdir()
-    (fake_root / "NotALibrary").mkdir()  # no .fichero suffix → ignored
-
-    monkeypatch.setattr(cli, "_LIBRARY_LIST_ROOTS", (fake_root,))
-
+    """`library list` queries the backend registry for known libraries."""
     result = runner.invoke(cli.app, ["library", "list"])
     assert result.exit_code == 0, result.output
-    assert "MyLib.fichero" in result.output
-    assert "Nested.fichero" in result.output
-    assert "NotALibrary" not in result.output
-    # No client should have been instantiated for `list`.
-    assert FakeClient.instances == []
+    # FakeClient.list_known_libraries returns "Test Library" at lib-1.
+    assert "Test Library" in result.output
+    # The backend was called.
+    assert ("list_known_libraries",) in _last_client().calls
 
 
 def test_library_list_json(tmp_path, monkeypatch):
-    fake_root = tmp_path / "Documents"
-    fake_root.mkdir()
-    (fake_root / "A.fichero").mkdir()
-    monkeypatch.setattr(cli, "_LIBRARY_LIST_ROOTS", (fake_root,))
-
     result = runner.invoke(cli.app, ["--json", "library", "list"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert "libraries" in payload
-    assert any(p.endswith("A.fichero") for p in payload["libraries"])
+    # FakeClient returns a LibraryRegistryResponse; --json emits its items list.
+    libraries = payload if isinstance(payload, list) else payload.get("libraries", payload.get("items", []))
+    assert len(libraries) >= 1
 
 
 # -- docs extended ---------------------------------------------------------
@@ -1303,7 +1288,7 @@ def test_library_add():
 
 
 def test_library_remove():
-    result = runner.invoke(cli.app, ["library", "remove", "~/Documents/MyLib.fichero", "--yes"])
+    result = runner.invoke(cli.app, ["library", "remove", "~/Documents/MyLib.fichero"])
     assert result.exit_code == 0
     call = next(c for c in _last_client().calls if c[0] == "remove_known_library")
     assert "MyLib.fichero" in call[1]

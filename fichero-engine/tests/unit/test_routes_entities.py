@@ -36,21 +36,22 @@ class TestListEntities:
     def test_empty_list(self, client):
         r = client.get("/api/entities")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
+        assert r.json()["count"] == 0
 
     def test_returns_saved_entities(self, client, db):
         _make_entity(db, "Alice")
         _make_entity(db, "Bob")
         r = client.get("/api/entities")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]) == 2
 
     def test_filter_by_type(self, client, db):
         _make_entity(db, "Alice", EntityType.person)
         _make_entity(db, "London", EntityType.location)
         r = client.get("/api/entities?entity_type=person")
         assert r.status_code == 200
-        names = [e["canonical_name"] for e in r.json()]
+        names = [e["canonical_name"] for e in r.json()["items"]]
         assert "Alice" in names
         assert "London" not in names
 
@@ -59,7 +60,7 @@ class TestListEntities:
         _make_entity(db, "Bob Jones")
         r = client.get("/api/entities?q=alice")
         assert r.status_code == 200
-        data = r.json()
+        data = r.json()["items"]
         assert len(data) == 1
         assert data[0]["canonical_name"] == "Alice Smith"
 

@@ -93,8 +93,8 @@ class TestNodeCache:
         # Retrieve
         retrieved = cache.get(cache_key)
         assert retrieved is not None
-        assert retrieved["output"] == "test result"
-        assert retrieved["score"] == 0.95
+        assert retrieved.result["output"] == "test result"
+        assert retrieved.result["score"] == 0.95
 
     def test_set_overwrites(self, cache):
         """Test that set overwrites existing entries."""
@@ -120,7 +120,7 @@ class TestNodeCache:
 
         # Should get latest
         retrieved = cache.get(cache_key)
-        assert retrieved["version"] == 2
+        assert retrieved.result["version"] == 2
 
     def test_clear_workflow(self, cache):
         """Test clearing cache for a specific workflow."""
@@ -214,10 +214,10 @@ class TestNodeCache:
         cache.set("complex_key", complex_result, "wf", "n", "describe")
 
         retrieved = cache.get("complex_key")
-        assert retrieved["text"] == complex_result["text"]
-        assert len(retrieved["entities"]) == 2
-        assert retrieved["entities"][0]["name"] == "Person A"
-        assert retrieved["metadata"]["confidence"] == 0.87
+        assert retrieved.result["text"] == complex_result["text"]
+        assert len(retrieved.result["entities"]) == 2
+        assert retrieved.result["entities"][0]["name"] == "Person A"
+        assert retrieved.result["metadata"]["confidence"] == 0.87
 
 
 # =============================================================================
@@ -498,7 +498,7 @@ class TestCacheIntegration:
         # Second run: cache hit
         cached_result = cache.get(cache_key)
         assert cached_result is not None
-        assert cached_result["description"] == tool_result["description"]
+        assert cached_result.result["description"] == tool_result["description"]
 
         # Different config: cache miss
         new_config = {"prompt": "List objects in this photo", "detail": "low"}
