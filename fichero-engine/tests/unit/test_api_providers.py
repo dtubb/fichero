@@ -31,7 +31,7 @@ class TestProviderCatalog:
         response = client.get(f"{API_BASE}/providers/catalog")
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["items"]
         assert isinstance(data, list)
         assert len(data) >= 12  # We have 12+ providers
 
@@ -46,7 +46,7 @@ class TestProviderCatalog:
     def test_catalog_has_required_fields(self):
         """Test that each provider has all required fields."""
         response = client.get(f"{API_BASE}/providers/catalog")
-        data = response.json()
+        data = response.json()["items"]
 
         required_fields = [
             "type", "name", "description", "api_key_env", "api_key_url",
@@ -62,7 +62,7 @@ class TestProviderCatalog:
     def test_catalog_has_is_builtin_field(self):
         """Test that is_builtin field is present for Apple providers."""
         response = client.get(f"{API_BASE}/providers/catalog")
-        data = response.json()
+        data = response.json()["items"]
 
         for provider in data:
             assert "is_builtin" in provider, f"Missing is_builtin in {provider['type']}"
@@ -82,7 +82,7 @@ class TestProviderCatalog:
     def test_catalog_has_logo_asset_field(self):
         """Test that logo_asset field is present."""
         response = client.get(f"{API_BASE}/providers/catalog")
-        data = response.json()
+        data = response.json()["items"]
 
         for provider in data:
             assert "logo_asset" in provider, f"Missing logo_asset in {provider['type']}"
@@ -98,7 +98,7 @@ class TestProviderCatalog:
     def test_catalog_sorted_by_order(self):
         """Test that catalog is sorted by sort_order."""
         response = client.get(f"{API_BASE}/providers/catalog")
-        data = response.json()
+        data = response.json()["items"]
 
         # Get sort orders
         sort_orders = [p["sort_order"] for p in data]
@@ -113,7 +113,7 @@ class TestProviderCatalog:
     def test_catalog_local_providers(self):
         """Test local providers are correctly marked."""
         response = client.get(f"{API_BASE}/providers/catalog")
-        data = response.json()
+        data = response.json()["items"]
 
         local_types = {"apple", "ollama", "lmstudio"}
 
@@ -250,7 +250,7 @@ class TestModelsAPI:
         response = client.get(f"{API_BASE}/providers/models/openai")
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["items"]
         assert isinstance(data, list)
         # Should have at least some OpenAI models
         assert len(data) > 0
@@ -319,7 +319,7 @@ class TestHuggingFaceModelBrowser:
         response = client.get(f"{API_BASE}/models/huggingface/tasks")
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["items"]
         assert isinstance(data, list)
 
         if data:
@@ -340,13 +340,13 @@ class TestProviderCRUD:
         response = client.get(f"{API_BASE}/providers")
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["items"]
         assert isinstance(data, list)
 
     def test_provider_response_structure(self):
         """Test that provider response has correct structure."""
         response = client.get(f"{API_BASE}/providers")
-        data = response.json()
+        data = response.json()["items"]
 
         if data:
             provider = data[0]

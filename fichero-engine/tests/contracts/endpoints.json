@@ -1046,7 +1046,7 @@
           }
         ],
         "request_model": null,
-        "response_model": null
+        "response_model": "ChatConversationListResponse"
       },
       {
         "method": "GET",
@@ -1120,7 +1120,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ProviderInfo]"
+        "response_model": "ChatProviderListResponse"
       },
       {
         "method": "POST",
@@ -3802,7 +3802,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[ModelResponse]"
+        "response_model": "fichero__api__routes__provider_models__ModelListResponse"
       },
       {
         "method": "POST",
@@ -3870,7 +3870,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ProviderCatalogResponse]"
+        "response_model": "ProviderCatalogListResponse"
       },
       {
         "method": "GET",
@@ -3892,7 +3892,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ProviderResponse]"
+        "response_model": "ProviderListResponse"
       },
       {
         "method": "POST",
@@ -3912,7 +3912,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[ProviderRefResponse]"
+        "response_model": "ProviderRefListResponse"
       },
       {
         "method": "POST",
@@ -3994,7 +3994,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[UserModelResponse]"
+        "response_model": "UserModelListResponse"
       },
       {
         "method": "POST",
@@ -4057,7 +4057,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "[KeywordCloudEntry]"
+        "response_model": "KeywordCloudListResponse"
       },
       {
         "method": "POST",
@@ -4099,7 +4099,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[SavedSearchResponse]"
+        "response_model": "SavedSearchListResponse"
       },
       {
         "method": "PUT",
@@ -4419,7 +4419,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[HFTaskCategory]"
+        "response_model": "HFTaskListResponse"
       },
       {
         "method": "GET",
@@ -7142,7 +7142,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "ModelListResponse"
+        "response_model": "fichero__api__routes__model_comparison__ModelListResponse"
       },
       {
         "method": "POST",

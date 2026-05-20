@@ -25,7 +25,7 @@ class ModelServiceGenerated: ObservableObject {
         switch response {
         case .ok(let okResponse):
             let tasks = try okResponse.body.json
-            return tasks.map { convertToHFTaskCategory($0) }
+            return tasks.items.map { convertToHFTaskCategory($0) }
         case .undocumented(let statusCode, _):
             throw ModelServiceGeneratedError.unexpectedResponse(statusCode)
         }

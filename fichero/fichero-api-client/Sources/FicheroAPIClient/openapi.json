@@ -3672,12 +3672,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": true
-                  },
-                  "title": "Response List Conversations Api Chat Conversations Get"
+                  "$ref": "#/components/schemas/ChatConversationListResponse"
                 }
               }
             }
@@ -3990,11 +3985,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ProviderInfo"
-                  },
-                  "type": "array",
-                  "title": "Response List Providers Api Chat Providers Get"
+                  "$ref": "#/components/schemas/ChatProviderListResponse"
                 }
               }
             }
@@ -9222,11 +9213,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ModelResponse"
-                  },
-                  "title": "Response List Models For Provider Api Providers Models  Provider Type  Get"
+                  "$ref": "#/components/schemas/fichero__api__routes__provider_models__ModelListResponse"
                 }
               }
             }
@@ -9460,11 +9447,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ProviderCatalogResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Provider Catalog Api Providers Catalog Get"
+                  "$ref": "#/components/schemas/ProviderCatalogListResponse"
                 }
               }
             }
@@ -9529,11 +9512,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ProviderResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Providers Api Providers Get"
+                  "$ref": "#/components/schemas/ProviderListResponse"
                 }
               }
             }
@@ -9606,11 +9585,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ProviderRefResponse"
-                  },
-                  "title": "Response List Library Provider Refs Api Providers Refs Get"
+                  "$ref": "#/components/schemas/ProviderRefListResponse"
                 }
               }
             }
@@ -9951,11 +9926,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/UserModelResponse"
-                  },
-                  "title": "Response List Provider Models Api Providers  Provider Id  Models Get"
+                  "$ref": "#/components/schemas/UserModelListResponse"
                 }
               }
             }
@@ -10207,11 +10178,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KeywordCloudEntry"
-                  },
-                  "title": "Response Keyword Cloud Api Search Keywords Get"
+                  "$ref": "#/components/schemas/KeywordCloudListResponse"
                 }
               }
             }
@@ -10400,11 +10367,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SavedSearchResponse"
-                  },
-                  "title": "Response List Saved Searches Api Search Saved Get"
+                  "$ref": "#/components/schemas/SavedSearchListResponse"
                 }
               }
             }
@@ -11321,11 +11284,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/HFTaskCategory"
-                  },
-                  "type": "array",
-                  "title": "Response List Hf Tasks Api Models Huggingface Tasks Get"
+                  "$ref": "#/components/schemas/HFTaskListResponse"
                 }
               }
             }
@@ -26817,7 +26776,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ModelListResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__model_comparison__ModelListResponse"
                 }
               }
             }
@@ -31022,6 +30981,29 @@
         ],
         "title": "ChainStepResultInfo"
       },
+      "ChatConversationListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ChatConversationListResponse",
+        "description": "Envelope for a list of chat conversations.\n\nElements are plain dicts (the endpoint shapes the payload inline). Typed as\n``list[dict]`` (not ``list[Any]``) so the generated Swift client exposes\neach item as an object container the conversation decoder can read."
+      },
       "ChatMessage": {
         "properties": {
           "role": {
@@ -31040,6 +31022,28 @@
         ],
         "title": "ChatMessage",
         "description": "A single chat message."
+      },
+      "ChatProviderListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderInfo"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ChatProviderListResponse",
+        "description": "Envelope for a list of chat providers."
       },
       "ChatRequest": {
         "properties": {
@@ -35929,6 +35933,28 @@
         "title": "HFTaskCategory",
         "description": "Hugging Face task/pipeline category."
       },
+      "HFTaskListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HFTaskCategory"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "HFTaskListResponse",
+        "description": "Envelope for a list of Hugging Face task categories."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -37307,6 +37333,28 @@
         "title": "KeywordCloudEntry",
         "description": "Single entry in the keyword cloud \u2014 name + how many docs use it."
       },
+      "KeywordCloudListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/KeywordCloudEntry"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "KeywordCloudListResponse",
+        "description": "Envelope for the keyword cloud list."
+      },
       "KnowledgeClaim": {
         "properties": {
           "id": {
@@ -38609,22 +38657,22 @@
       },
       "MCPToolListResponse": {
         "properties": {
-          "tool_count": {
-            "type": "integer",
-            "title": "Tool Count"
-          },
-          "tools": {
+          "items": {
             "items": {
               "$ref": "#/components/schemas/MCPToolInfo"
             },
             "type": "array",
-            "title": "Tools"
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
           }
         },
         "type": "object",
         "required": [
-          "tool_count",
-          "tools"
+          "items",
+          "count"
         ],
         "title": "MCPToolListResponse",
         "description": "List of tools from one or all MCP servers."
@@ -39156,22 +39204,6 @@
         ],
         "title": "ModelInfo",
         "description": "Information about a model."
-      },
-      "ModelListResponse": {
-        "properties": {
-          "models": {
-            "items": {
-              "$ref": "#/components/schemas/ModelInfo"
-            },
-            "type": "array",
-            "title": "Models"
-          }
-        },
-        "type": "object",
-        "required": [
-          "models"
-        ],
-        "title": "ModelListResponse"
       },
       "ModelResponse": {
         "properties": {
@@ -41697,6 +41729,28 @@
         "title": "ProvenanceLayer",
         "description": "Where on a page the claim's source text lives.\n\nMarginalia and interlinear annotations were added by later readers and\ncarry different evidentiary weight than the main text. ``main_text``\nis the default; PDF-bbox heuristics (top/bottom margin offsets) flip\nto ``marginalia`` or ``footnote``."
       },
+      "ProviderCatalogListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderCatalogResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ProviderCatalogListResponse",
+        "description": "Envelope for a list of catalog providers."
+      },
       "ProviderCatalogResponse": {
         "properties": {
           "type": {
@@ -41856,6 +41910,28 @@
         "title": "ProviderInfo",
         "description": "Information about an LLM provider."
       },
+      "ProviderListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ProviderListResponse",
+        "description": "Envelope for a list of user-configured providers."
+      },
       "ProviderRefCreate": {
         "properties": {
           "provider_id": {
@@ -41869,6 +41945,28 @@
         ],
         "title": "ProviderRefCreate",
         "description": "Request to add a provider reference to a library."
+      },
+      "ProviderRefListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRefResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ProviderRefListResponse",
+        "description": "Envelope for a list of library provider references."
       },
       "ProviderRefResponse": {
         "properties": {
@@ -43182,6 +43280,28 @@
         ],
         "title": "SavedSearchCreate",
         "description": "Request to save a search."
+      },
+      "SavedSearchListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SavedSearchResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "SavedSearchListResponse",
+        "description": "Envelope for a list of saved searches."
       },
       "SavedSearchResponse": {
         "properties": {
@@ -46821,6 +46941,28 @@
         "title": "UpdateTriggerRequest",
         "description": "Request to update an existing file trigger."
       },
+      "UserModelListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UserModelResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "UserModelListResponse",
+        "description": "Envelope for a list of user-configured models."
+      },
       "UserModelResponse": {
         "properties": {
           "id": {
@@ -48010,19 +48152,40 @@
         "type": "object",
         "title": "NoteUpdateRequest"
       },
-      "fichero__api__routes__model_comparison__ToolListResponse": {
+      "fichero__api__routes__model_comparison__ModelListResponse": {
         "properties": {
-          "tools": {
+          "models": {
             "items": {
-              "$ref": "#/components/schemas/ComparisonToolInfo"
+              "$ref": "#/components/schemas/ModelInfo"
             },
             "type": "array",
-            "title": "Tools"
+            "title": "Models"
           }
         },
         "type": "object",
         "required": [
-          "tools"
+          "models"
+        ],
+        "title": "ModelListResponse"
+      },
+      "fichero__api__routes__model_comparison__ToolListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ComparisonToolInfo"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
         ],
         "title": "ToolListResponse"
       },
@@ -48135,6 +48298,28 @@
           "name"
         ],
         "title": "ProjectCreateRequest"
+      },
+      "fichero__api__routes__provider_models__ModelListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModelResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ModelListResponse",
+        "description": "Envelope for a list of discovered models."
       },
       "fichero__api__routes__research_crud__ProjectCreateRequest": {
         "properties": {

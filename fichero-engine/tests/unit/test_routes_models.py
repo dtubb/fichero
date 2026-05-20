@@ -78,7 +78,7 @@ class TestListHFTasks:
             r = client.get("/api/models/huggingface/tasks")
 
         assert r.status_code == 200
-        data = r.json()
+        data = r.json()["items"]
         assert isinstance(data, list)
         assert len(data) == 3
         assert data[0]["id"] == "text-generation"

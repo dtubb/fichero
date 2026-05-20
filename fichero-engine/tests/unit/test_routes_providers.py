@@ -47,14 +47,14 @@ class TestProviderCatalog:
     def test_returns_catalog_list(self, client):
         r = client.get("/api/providers/catalog")
         assert r.status_code == 200
-        data = r.json()
+        data = r.json()["items"]
         assert isinstance(data, list)
         assert len(data) > 0  # At least one built-in provider
 
     def test_catalog_has_required_fields(self, client):
         r = client.get("/api/providers/catalog")
         assert r.status_code == 200
-        first = r.json()[0]
+        first = r.json()["items"][0]
         assert "type" in first
         assert "name" in first
         assert "is_local" in first
@@ -79,14 +79,14 @@ class TestListProviders:
     def test_empty_list(self, client):
         r = client.get("/api/providers")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
 
     def test_returns_configured_providers(self, client, app_db):
         _make_provider(app_db, "Claude Provider")
         r = client.get("/api/providers")
         assert r.status_code == 200
-        assert len(r.json()) == 1
-        assert r.json()[0]["name"] == "Claude Provider"
+        assert len(r.json()["items"]) == 1
+        assert r.json()["items"][0]["name"] == "Claude Provider"
 
 
 # ---------------------------------------------------------------------------
@@ -175,4 +175,4 @@ class TestProviderRefs:
     def test_empty_refs_list(self, client):
         r = client.get("/api/providers/refs")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []

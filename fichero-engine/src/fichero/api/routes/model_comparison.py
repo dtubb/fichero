@@ -185,7 +185,8 @@ class ComparisonToolInfo(BaseModel):
 
 
 class ToolListResponse(BaseModel):
-    tools: list[ComparisonToolInfo]
+    items: list[ComparisonToolInfo]
+    count: int
 
 
 # =============================================================================
@@ -438,4 +439,4 @@ async def list_available_tools() -> ToolListResponse:
         if tool_def.uses_llm
     ]
 
-    return ToolListResponse(tools=tools)
+    return ToolListResponse(items=tools, count=len(tools))

@@ -25,9 +25,13 @@ from fichero.keychain import (
 )
 from fichero.api.routes.provider_models import (  # noqa: F401 (re-exported for tests)
     ProviderCatalogResponse,
+    ProviderCatalogListResponse,
     ProviderResponse,
+    ProviderListResponse,
     ModelResponse,
+    ModelListResponse,
     UserModelResponse,
+    UserModelListResponse,
     ProviderCreate,
     ProviderUpdate,
     ModelCreate,
@@ -129,8 +133,8 @@ def get_app_database() -> AppDatabase:
 # =============================================================================
 
 
-@router.get("/catalog")
-async def list_provider_catalog() -> list[ProviderCatalogResponse]:
+@router.get("/catalog", response_model=ProviderCatalogListResponse)
+async def list_provider_catalog() -> ProviderCatalogListResponse:
     """List all available providers from the catalog, sorted by sort_order."""
     result = []
     for info in list_catalog_providers():
@@ -155,7 +159,7 @@ async def list_provider_catalog() -> list[ProviderCatalogResponse]:
             )
         )
     result.sort(key=lambda x: x.sort_order)
-    return result
+    return ProviderCatalogListResponse(items=result, count=len(result))
 
 
 @router.get("/catalog/{provider_type}")
@@ -192,13 +196,13 @@ async def get_catalog_provider(provider_type: str) -> ProviderCatalogResponse:
 # =============================================================================
 
 
-@router.get("")
+@router.get("", response_model=ProviderListResponse)
 async def list_providers(
     app_db: AppDatabase = Depends(get_app_database),
-) -> list[ProviderResponse]:
+) -> ProviderListResponse:
     """List user's configured providers (app-wide)."""
     providers = app_db.list_providers()
-    return [
+    items = [
         ProviderResponse(
             id=p.id,
             name=p.name,
@@ -211,6 +215,7 @@ async def list_providers(
         )
         for p in providers
     ]
+    return ProviderListResponse(items=items, count=len(items))
 
 
 @router.post("")
@@ -310,11 +315,18 @@ class ProviderRefResponse(BaseModel):
     updated_at: datetime
 
 
-@router.get("/refs")
+class ProviderRefListResponse(BaseModel):
+    """Envelope for a list of library provider references."""
+
+    items: list[ProviderRefResponse]
+    count: int
+
+
+@router.get("/refs", response_model=ProviderRefListResponse)
 async def list_library_provider_refs(
     db: Database = Depends(get_library_database),
     app_db: AppDatabase = Depends(get_app_database),
-) -> list[ProviderRefResponse]:
+) -> ProviderRefListResponse:
     """List all provider references for this library."""
     refs = db.query(ProviderRef)
 
@@ -335,7 +347,7 @@ async def list_library_provider_refs(
                 )
             )
 
-    return response
+    return ProviderRefListResponse(items=response, count=len(response))
 
 
 @router.post("/refs")
@@ -503,18 +515,18 @@ async def delete_provider(
 # =============================================================================
 
 
-@router.get("/{provider_id}/models")
+@router.get("/{provider_id}/models", response_model=UserModelListResponse)
 async def list_provider_models(
     provider_id: str,
     app_db: AppDatabase = Depends(get_app_database),
-) -> list[UserModelResponse]:
+) -> UserModelListResponse:
     """List user's configured models for a provider."""
     provider = app_db.get_provider(provider_id)
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
     models = app_db.list_models(provider_id)
-    return [
+    items = [
         UserModelResponse(
             id=m.id,
             provider_id=m.provider_id,
@@ -528,6 +540,7 @@ async def list_provider_models(
         )
         for m in models
     ]
+    return UserModelListResponse(items=items, count=len(items))
 
 
 # Canonical capability map for built-in Apple model_ids. Kept in

@@ -7,7 +7,7 @@ RAG-style chat using LangChain for semantic search and LLM generation.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
@@ -127,6 +127,13 @@ class ProviderInfo(BaseModel):
     supports_vision: bool = False  # Whether provider supports vision/image input
 
 
+class ChatProviderListResponse(BaseModel):
+    """Envelope for a list of chat providers."""
+
+    items: list[ProviderInfo]
+    count: int
+
+
 class ConversationSummary(BaseModel):
     id: str
     title: str
@@ -135,6 +142,18 @@ class ConversationSummary(BaseModel):
     updated_at: str
     folder_path: str
     sort_order: int
+
+
+class ChatConversationListResponse(BaseModel):
+    """Envelope for a list of chat conversations.
+
+    Elements are plain dicts (the endpoint shapes the payload inline). Typed as
+    ``list[dict]`` (not ``list[Any]``) so the generated Swift client exposes
+    each item as an object container the conversation decoder can read.
+    """
+
+    items: list[dict[str, Any]]
+    count: int
 
 
 class ConversationDeletedResponse(BaseModel):
@@ -380,11 +399,11 @@ async def chat(
     )
 
 
-@router.get("/conversations")
+@router.get("/conversations", response_model=ChatConversationListResponse)
 async def list_conversations(
     folder_path: str = "/",
     db: Database = Depends(get_library_database),
-) -> list[dict]:
+) -> ChatConversationListResponse:
     """List all conversations, optionally filtered by folder."""
     # Query conversations from database
     convs = db.query(Conversation, folder_path=folder_path)
@@ -406,7 +425,7 @@ async def list_conversations(
     # Sort by sort_order, then by updated_at descending
     result.sort(key=lambda x: (x["sort_order"], x["updated_at"]), reverse=False)
 
-    return result
+    return ChatConversationListResponse(items=result, count=len(result))
 
 
 @router.get("/conversations/{conversation_id}")
@@ -548,10 +567,10 @@ def get_app_database() -> AppDatabase:
     return get_app_db()
 
 
-@router.get("/providers")
+@router.get("/providers", response_model=ChatProviderListResponse)
 async def list_providers(
     app_db: AppDatabase = Depends(get_app_database),
-) -> list[ProviderInfo]:
+) -> ChatProviderListResponse:
     """List available LLM providers and their models from user configuration.
 
     Providers are stored app-wide (not per-library), so we query the app database.
@@ -601,7 +620,7 @@ async def list_providers(
             )
         )
 
-    return result
+    return ChatProviderListResponse(items=result, count=len(result))
 
 
 # Text extraction endpoint

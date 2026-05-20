@@ -61,7 +61,7 @@ class SavedSearchServiceGenerated: ObservableObject {
         switch response {
         case .ok(let okResponse):
             let searches = try okResponse.body.json
-            return searches.map { convertToSavedSearchAPI($0) }
+            return searches.items.map { convertToSavedSearchAPI($0) }
         default:
             throw SavedSearchServiceError.unexpectedResponse
         }

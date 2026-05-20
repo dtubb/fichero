@@ -82,8 +82,8 @@ class MCPToolInfo(BaseModel):
 class MCPToolListResponse(BaseModel):
     """List of tools from one or all MCP servers."""
 
-    tool_count: int
-    tools: list[MCPToolInfo]
+    items: list[MCPToolInfo]
+    count: int
 
 
 class MCPToolRegistryResponse(BaseModel):
@@ -207,7 +207,7 @@ async def get_all_mcp_tools() -> MCPToolListResponse:
             )
 
         logger.info(f"Loaded {len(tools)} total tools from all servers")
-        return MCPToolListResponse(tool_count=len(tools), tools=tool_infos)
+        return MCPToolListResponse(items=tool_infos, count=len(tool_infos))
 
     except Exception as e:
         logger.exception(f"Failed to load all MCP tools: {e}")

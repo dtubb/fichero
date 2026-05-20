@@ -185,6 +185,13 @@ class ProviderCatalogResponse(BaseModel):
     sort_order: int  # Display order (lower = first)
 
 
+class ProviderCatalogListResponse(BaseModel):
+    """Envelope for a list of catalog providers."""
+
+    items: list[ProviderCatalogResponse]
+    count: int
+
+
 class ProviderResponse(BaseModel):
     """User-configured provider."""
 
@@ -196,6 +203,13 @@ class ProviderResponse(BaseModel):
     sort_order: int
     has_api_key: bool
     created_at: str
+
+
+class ProviderListResponse(BaseModel):
+    """Envelope for a list of user-configured providers."""
+
+    items: list[ProviderResponse]
+    count: int
 
 
 class ModelResponse(BaseModel):
@@ -237,6 +251,13 @@ class ModelResponse(BaseModel):
     provider: Optional[str] = None  # e.g., "openai", "anthropic"
 
 
+class ModelListResponse(BaseModel):
+    """Envelope for a list of discovered models."""
+
+    items: list[ModelResponse]
+    count: int
+
+
 class UserModelResponse(BaseModel):
     """User-configured model."""
 
@@ -249,6 +270,13 @@ class UserModelResponse(BaseModel):
     enabled: bool
     input_cost: Optional[float]
     output_cost: Optional[float]
+
+
+class UserModelListResponse(BaseModel):
+    """Envelope for a list of user-configured models."""
+
+    items: list[UserModelResponse]
+    count: int
 
 
 # =============================================================================
@@ -288,13 +316,13 @@ class ModelCreate(BaseModel):
 # =============================================================================
 
 
-@router.get("/models/{provider_type}")
+@router.get("/models/{provider_type}", response_model=ModelListResponse)
 async def list_models_for_provider(
     provider_type: str,
     search: Optional[str] = Query(None, description="Filter models by name"),
     vision_only: bool = Query(False, description="Only show vision-capable models"),
     sort_by: str = Query("name", description="Sort by: name, cost"),
-) -> list[ModelResponse]:
+) -> ModelListResponse:
     """List available models for a provider.
 
     For local providers (ollama, lmstudio, apple_vision, apple_intelligence),
@@ -498,4 +526,4 @@ async def list_models_for_provider(
             )
         )
 
-    return models
+    return ModelListResponse(items=models, count=len(models))

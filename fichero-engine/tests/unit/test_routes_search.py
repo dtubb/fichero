@@ -104,14 +104,14 @@ class TestListSavedSearches:
     def test_empty_list(self, client):
         r = client.get("/api/search/saved")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
 
     def test_returns_saved_searches(self, client, db):
         _make_saved_search(db, "query A")
         _make_saved_search(db, "query B")
         r = client.get("/api/search/saved")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +130,7 @@ class TestSaveSearch:
     def test_saved_search_appears_in_list(self, client):
         client.post("/api/search/saved", json={"query": "find this"})
         r = client.get("/api/search/saved")
-        queries = [s["query"] for s in r.json()]
+        queries = [s["query"] for s in r.json()["items"]]
         assert "find this" in queries
 
 
@@ -181,7 +181,7 @@ class TestDeleteSavedSearch:
         r = client.delete(f"/api/search/saved/{s.id}")
         assert r.status_code == 200
         r2 = client.get("/api/search/saved")
-        assert all(item["id"] != s.id for item in r2.json())
+        assert all(item["id"] != s.id for item in r2.json()["items"])
 
     def test_delete_missing_returns_404(self, client):
         r = client.delete("/api/search/saved/no-such-id")

@@ -28,7 +28,7 @@ class TestListConversations:
     def test_empty_list(self, client):
         r = client.get("/api/chat/conversations")
         assert r.status_code == 200
-        assert r.json() == []
+        assert r.json()["items"] == []
 
     def test_returns_conversations(self, client, db):
         db.save(_make_conv("c-1", "First Chat"))
@@ -36,7 +36,7 @@ class TestListConversations:
 
         r = client.get("/api/chat/conversations")
         assert r.status_code == 200
-        assert len(r.json()) == 2
+        assert len(r.json()["items"]) == 2
 
 
 # ---------------------------------------------------------------------------

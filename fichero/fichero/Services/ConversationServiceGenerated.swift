@@ -33,7 +33,7 @@ class ConversationServiceGenerated: ObservableObject {
         case .ok(let okResponse):
             let jsonArray = try okResponse.body.json
             // Parse untyped response into ConversationSummary
-            return try jsonArray.map { item in
+            return try jsonArray.items.map { item in
                 try parseConversationSummary(from: item.additionalProperties)
             }
         default:

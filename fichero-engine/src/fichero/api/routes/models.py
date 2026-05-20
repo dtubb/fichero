@@ -45,6 +45,13 @@ class HFTaskCategory(BaseModel):
     label: str  # e.g., "Text Generation"
 
 
+class HFTaskListResponse(BaseModel):
+    """Envelope for a list of Hugging Face task categories."""
+
+    items: list[HFTaskCategory]
+    count: int
+
+
 class ModelSearchResponse(BaseModel):
     """Paginated model search results."""
 
@@ -147,11 +154,14 @@ async def _fetch_hf_tasks() -> list[dict]:
 # =============================================================================
 
 
-@router.get("/huggingface/tasks")
-async def list_hf_tasks() -> list[HFTaskCategory]:
+@router.get("/huggingface/tasks", response_model=HFTaskListResponse)
+async def list_hf_tasks() -> HFTaskListResponse:
     """List available Hugging Face task categories for filtering."""
     tasks = await _fetch_hf_tasks()
-    return [HFTaskCategory(id=t["id"], label=t.get("label", t["id"])) for t in tasks]
+    items = [
+        HFTaskCategory(id=t["id"], label=t.get("label", t["id"])) for t in tasks
+    ]
+    return HFTaskListResponse(items=items, count=len(items))
 
 
 @router.get("/huggingface")

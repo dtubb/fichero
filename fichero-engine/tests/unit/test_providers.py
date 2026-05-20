@@ -262,7 +262,7 @@ class TestProviderAPIRoutes:
             response = client.get("/api/providers/catalog")
 
             assert response.status_code == 200
-            data = response.json()
+            data = response.json()["items"]
             assert isinstance(data, list)
             assert len(data) >= 10
 
@@ -329,7 +329,7 @@ class TestProviderAPIRoutes:
         response = client.get("/api/providers/models/openai")
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["items"]
         # Should return our curated list
         assert len(data) >= 5  # We have at least 5 OpenAI models
         model_ids = [m["model_id"] for m in data]
@@ -594,7 +594,7 @@ class TestProviderRefRoutes:
         """Test listing provider refs when none exist."""
         response = client.get("/api/providers/refs")
         assert response.status_code == 200
-        assert response.json() == []
+        assert response.json()["items"] == []
 
     def test_add_provider_ref(self, client, db, app_db):
         """Test adding a provider reference to a library."""
@@ -656,7 +656,7 @@ class TestProviderRefRoutes:
         # List references
         response = client.get("/api/providers/refs")
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["items"]
         assert len(data) == 2
 
     def test_update_provider_ref(self, client, db, app_db):
@@ -698,7 +698,7 @@ class TestProviderRefRoutes:
 
         # Verify deletion
         response = client.get("/api/providers/refs")
-        assert len(response.json()) == 0
+        assert len(response.json()["items"]) == 0
 
     def test_list_refs_excludes_deleted_providers(self, client, db, app_db):
         """Test that listing refs excludes references to deleted providers."""
@@ -716,7 +716,7 @@ class TestProviderRefRoutes:
         # List refs should return empty (provider no longer exists)
         response = client.get("/api/providers/refs")
         assert response.status_code == 200
-        assert len(response.json()) == 0
+        assert len(response.json()["items"]) == 0
 
 
 class TestCollapseDuplicateProviders:

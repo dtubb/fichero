@@ -587,11 +587,18 @@ class KeywordCloudEntry(BaseModel):
     count: int
 
 
-@router.get("/keywords")
+class KeywordCloudListResponse(BaseModel):
+    """Envelope for the keyword cloud list."""
+
+    items: list[KeywordCloudEntry]
+    count: int
+
+
+@router.get("/keywords", response_model=KeywordCloudListResponse)
 async def keyword_cloud(
     db: Database = Depends(get_library_database),
     limit: int = Query(50, ge=1, le=500),
-) -> list[KeywordCloudEntry]:
+) -> KeywordCloudListResponse:
     """Top-N keywords across the library, sorted by document frequency.
 
     Reads the 'keywords' artifacts emitted by extract_all and counts the
@@ -607,7 +614,7 @@ async def keyword_cloud(
         ).fetchall()
     except Exception as exc:  # noqa: BLE001
         logger.warning("keyword cloud query failed: %s", exc)
-        return []
+        return KeywordCloudListResponse(items=[], count=0)
 
     import json
     from collections import Counter
@@ -640,10 +647,11 @@ async def keyword_cloud(
             seen_in_doc.add(key)
             counter[term] += 1
 
-    return [
+    items = [
         KeywordCloudEntry(name=name, count=count)
         for name, count in counter.most_common(limit)
     ]
+    return KeywordCloudListResponse(items=items, count=len(items))
 
 
 @router.post("/reindex")
@@ -716,6 +724,13 @@ class SavedSearchResponse(BaseModel):
     created_at: str
 
 
+class SavedSearchListResponse(BaseModel):
+    """Envelope for a list of saved searches."""
+
+    items: list[SavedSearchResponse]
+    count: int
+
+
 @router.post("/saved")
 async def save_search(
     request: SavedSearchCreate, db: Database = Depends(get_library_database)
@@ -747,13 +762,13 @@ async def save_search(
     )
 
 
-@router.get("/saved")
+@router.get("/saved", response_model=SavedSearchListResponse)
 async def list_saved_searches(
     db: Database = Depends(get_library_database),
-) -> list[SavedSearchResponse]:
+) -> SavedSearchListResponse:
     """List all saved searches."""
     searches = db.all(SavedSearch)
-    return [
+    items = [
         SavedSearchResponse(
             id=s.id,
             query=s.query,
@@ -768,6 +783,7 @@ async def list_saved_searches(
         )
         for s in searches
     ]
+    return SavedSearchListResponse(items=items, count=len(items))
 
 
 class SavedSearchUpdate(BaseModel):

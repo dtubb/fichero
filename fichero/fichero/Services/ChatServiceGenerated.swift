@@ -65,7 +65,7 @@ class ChatServiceGenerated: ObservableObject {
         switch response {
         case .ok(let okResponse):
             let providers = try okResponse.body.json
-            return providers.map { convertToLLMProvider($0) }
+            return providers.items.map { convertToLLMProvider($0) }
         default:
             throw ChatServiceError.unexpectedResponse
         }

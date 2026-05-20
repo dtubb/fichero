@@ -33,7 +33,7 @@ class ProviderServiceGenerated: ObservableObject {
 
         switch response {
         case .ok(let okResponse):
-            return try okResponse.body.json
+            return try okResponse.body.json.items
         case .undocumented(let statusCode, _):
             throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
         }
@@ -64,7 +64,7 @@ class ProviderServiceGenerated: ObservableObject {
 
         switch response {
         case .ok(let okResponse):
-            return try okResponse.body.json
+            return try okResponse.body.json.items
         case .undocumented(let statusCode, _):
             throw ProviderServiceGeneratedError.unexpectedResponse(statusCode)
         }
@@ -236,7 +236,7 @@ class ProviderServiceGenerated: ObservableObject {
 
         switch response {
         case .ok(let okResponse):
-            return try okResponse.body.json
+            return try okResponse.body.json.items
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
@@ -289,7 +289,7 @@ class ProviderServiceGenerated: ObservableObject {
 
         switch response {
         case .ok(let okResponse):
-            return try okResponse.body.json
+            return try okResponse.body.json.items
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
@@ -374,7 +374,7 @@ class ProviderServiceGenerated: ObservableObject {
 
         switch response {
         case .ok(let okResponse):
-            return try okResponse.body.json
+            return try okResponse.body.json.items
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ProviderServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")

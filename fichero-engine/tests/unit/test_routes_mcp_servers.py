@@ -164,7 +164,7 @@ class TestMCPToolLoading:
         r = client.get("/api/mcp-servers/tools/all")
         assert r.status_code == 200
         data = r.json()
-        assert "tools" in data
+        assert "items" in data
 
     def test_load_into_registry(self, client):
         # The endpoint does a lazy import and calls load_mcp_tools_into_registry.

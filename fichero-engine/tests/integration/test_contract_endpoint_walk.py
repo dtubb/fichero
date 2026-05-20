@@ -196,19 +196,7 @@ def test_no_envelope_get_endpoint_returns_500(walk_client):
 # shrink to empty by the final commit; until then the guard asserts only that
 # NO NEW bare-array endpoint appears. Remove an entry the moment its endpoint
 # is converted so a regression that re-introduces a bare list is caught.
-_BARE_ARRAY_BACKLOG = {
-    # commit 3 — providers / search / chat / models
-    "/api/providers",
-    "/api/providers/catalog",
-    "/api/providers/models/{provider_type}",
-    "/api/providers/refs",
-    "/api/providers/{provider_id}/models",
-    "/api/search/keywords",
-    "/api/search/saved",
-    "/api/chat/conversations",
-    "/api/chat/providers",
-    "/api/models/huggingface/tasks",
-}
+_BARE_ARRAY_BACKLOG = set()
 
 
 def test_no_new_bare_array_get_endpoint():
