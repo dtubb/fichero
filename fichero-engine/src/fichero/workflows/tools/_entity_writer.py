@@ -634,6 +634,13 @@ def save_claim(
     subject_entity_id: Optional[str] = None,
     predicate_verb: Optional[str] = None,
     object_phrase: Optional[str] = None,
+    # #730 SVO aliases. Callers (extractors) pass these alongside the legacy
+    # subject_canonical/predicate_verb/object_phrase names; forward them to the
+    # model's svo_* fields, defaulting to the legacy values when not supplied so
+    # both naming sets stay consistent on every written claim.
+    svo_subject: Optional[str] = None,
+    svo_verb: Optional[str] = None,
+    svo_object: Optional[str] = None,
     provider: Optional[str] = None,
     model: Optional[str] = None,
     language: Optional[str] = None,
@@ -741,6 +748,9 @@ def save_claim(
         predicate_verb=sv,
         predicate_canonical=pred_canonical,
         object_phrase=so,
+        svo_subject=svo_subject if svo_subject is not None else sc,
+        svo_verb=svo_verb if svo_verb is not None else pred_canonical,
+        svo_object=svo_object if svo_object is not None else so,
         # Provider attribution (#1113) — which LLM (and any heuristic
         # post-processing) produced this claim. Surface in the inspector
         # so users can audit per-model claim quality.
