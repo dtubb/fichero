@@ -138,12 +138,12 @@
   completed_at: null
 
 - issue: 1052
-  status: pending
+  status: blocked
   title: "Color-code KG entities vs. searchable terms in the document/library view"
   files: [fichero/fichero/Views/Document/, fichero/fichero/Views/Library/]
   approach: "Assign distinct highlight colors per entity type (person/place/concept) in the document text view; add a legend chip in the toolbar."
   est_tokens: 16000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
