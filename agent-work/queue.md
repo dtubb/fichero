@@ -200,12 +200,12 @@
   completed_at: 2026-05-21
 
 - issue: 928
-  status: pending
+  status: blocked
   title: "PDF pages: surface the same loupe / magnifier / image-preview tools we have for images"
   files: [fichero/fichero/Views/Document/]
   approach: "Extend PDFViewer to host LoupeView overlay and image-preview toolbar, mirroring ImageViewer. Do after #1024 (zoom toolbar provides the PDF infra)."
   est_tokens: 16000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
