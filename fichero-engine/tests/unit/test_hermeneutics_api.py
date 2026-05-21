@@ -40,7 +40,7 @@ def test_framework_crud(client, db):
     # List
     list_resp = client.get("/api/hermeneutics/frameworks")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    assert list_resp.json()["count"] >= 1
 
     # Get
     get_resp = client.get(f"/api/hermeneutics/frameworks/{fw['id']}")
@@ -50,7 +50,7 @@ def test_framework_crud(client, db):
     # Filter by type
     filter_resp = client.get("/api/hermeneutics/frameworks?framework_type=historical")
     assert filter_resp.status_code == 200
-    historical = filter_resp.json()
+    historical = filter_resp.json()["items"]
     assert all(f["framework_type"] == "historical" for f in historical)
 
     # Update
@@ -114,7 +114,7 @@ def test_interpretation_crud(client, db):
     # List by framework
     list_resp = client.get(f"/api/hermeneutics/interpretations?framework_id={fw['id']}")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    assert list_resp.json()["count"] >= 1
 
     # Get
     get_resp = client.get(f"/api/hermeneutics/interpretations/{interp['id']}")
@@ -197,12 +197,12 @@ def test_pattern_crud(client, db):
     # List
     list_resp = client.get("/api/hermeneutics/patterns")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    assert list_resp.json()["count"] >= 1
 
     # Filter by status
     filter_resp = client.get("/api/hermeneutics/patterns?status=tentative")
     assert filter_resp.status_code == 200
-    assert all(p["status"] == "tentative" for p in filter_resp.json())
+    assert all(p["status"] == "tentative" for p in filter_resp.json()["items"])
 
     # Get
     get_resp = client.get(f"/api/hermeneutics/patterns/{pattern['id']}")
@@ -247,7 +247,7 @@ def test_circle_state_crud(client, db):
     # List by claim
     list_resp = client.get(f"/api/hermeneutics/circle-state?claim_id=test-claim-abc")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    assert list_resp.json()["count"] >= 1
 
     # Navigate whole→part, so focus moves TO part
     nav_resp = client.post(
@@ -305,9 +305,9 @@ def test_interpretation_suggestions(client, db):
     )
     assert sugg_resp.status_code == 200
     suggestions = sugg_resp.json()
-    assert len(suggestions) >= 1
-    assert suggestions[0]["framework_id"] == fw["id"]
-    assert suggestions[0]["framework_name"] == "Annales School"
+    assert suggestions["count"] >= 1
+    assert suggestions["items"][0]["framework_id"] == fw["id"]
+    assert suggestions["items"][0]["framework_name"] == "Annales School"
 
 
 def test_interpretation_suggestions_no_frameworks(client, db):
