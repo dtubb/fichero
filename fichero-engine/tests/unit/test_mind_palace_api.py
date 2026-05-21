@@ -1,5 +1,7 @@
 """Unit tests for Mind Palace API routes."""
 
+import pytest
+
 
 def test_room_crud(client, db):
     """Create, read, update, delete rooms."""

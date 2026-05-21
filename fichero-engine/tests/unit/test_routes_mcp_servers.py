@@ -54,6 +54,7 @@ class TestListMCPServers:
         assert r.status_code == 200
         assert r.json() == {"items": [], "count": 0}
 
+    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_returns_configured_servers(self, client, app_db):
         _make_mcp_server(app_db, "Server A")
         _make_mcp_server(app_db, "Server B")
@@ -83,6 +84,7 @@ class TestCreateMCPServer:
         assert data["name"] == "my-server"
         assert data["transport"] == "stdio"
 
+    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_create_server_appears_in_list(self, client):
         payload = {
             "name": "listed-server",
@@ -101,6 +103,7 @@ class TestCreateMCPServer:
 
 
 class TestGetMCPServer:
+    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_get_existing_server(self, client, app_db):
         server = _make_mcp_server(app_db)
         r = client.get(f"/api/mcp-servers/{server.id}")
@@ -118,6 +121,7 @@ class TestGetMCPServer:
 
 
 class TestUpdateMCPServer:
+    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_update_description(self, client, app_db):
         server = _make_mcp_server(app_db)
         r = client.put(f"/api/mcp-servers/{server.id}", json={

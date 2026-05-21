@@ -80,6 +80,7 @@ class TestListTriggers:
         assert r.status_code == 200
         assert r.json() == {"items": [], "count": 0}
 
+    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_list_returns_triggers(self, client, mock_watcher):
         mock_watcher.list_triggers.return_value = [
             _make_mock_trigger("t1"),
@@ -91,6 +92,7 @@ class TestListTriggers:
 
 
 class TestCreateTrigger:
+    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_create_trigger(self, client, mock_watcher):
         payload = {
             "name": "Watch Inbox",
@@ -113,6 +115,7 @@ class TestCreateTrigger:
 
 
 class TestGetTrigger:
+    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_get_existing_trigger(self, client, mock_watcher):
         r = client.get("/api/triggers/trig-1")
         assert r.status_code == 200

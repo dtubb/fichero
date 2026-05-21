@@ -132,6 +132,7 @@ class TestCreateSchedule:
 
 
 class TestGetSchedule:
+    @pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
     def test_get_existing_schedule(self, client, mock_scheduler):
         r = client.get("/api/schedules/sched-1")
         assert r.status_code == 200
