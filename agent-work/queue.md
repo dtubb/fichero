@@ -270,12 +270,12 @@
   completed_at: null
 
 - issue: 1101
-  status: pending
+  status: blocked
   title: "Bibliographic metadata: add canonical BibTeX field + import-time sidecar reader (.bib / .ris / .csl.json / Zotero)"
   files: [fichero-engine/src/fichero/ingest/, fichero-engine/src/fichero/models/document.py, fichero-engine/src/fichero/db.py]
   approach: "Add bibtex_raw column to Document via _ensure_table; parse .bib/.ris/.csl.json sidecars at ingest and store normalized BibTeX string."
   est_tokens: 25000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
