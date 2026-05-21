@@ -190,14 +190,14 @@
 # ── Priority 3: Larger features (20k+ tokens) ─────────────────────────────────
 
 - issue: 868
-  status: pending
+  status: done
   title: "Theme A: LLMProvider abstraction layer"
   files: [fichero-engine/src/fichero/api/routes/, fichero-engine/src/fichero/workflows/]
   approach: "Refactor LLMProvider into a provider interface + registry; centralise provider resolution so all workflow nodes use a single path. Gate for #1059 and unified picker."
   est_tokens: 22000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-21
 
 - issue: 928
   status: pending
