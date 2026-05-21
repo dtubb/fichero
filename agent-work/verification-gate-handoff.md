@@ -1,8 +1,29 @@
-# Verification Gate + Baseline — Handoff (2026-05-20)
+# Verification Gate + Baseline — Handoff (2026-05-20, updated 2026-05-21)
 
 Context budget hit (~97% weekly Claude quota, resets May 23). Remaining work
 delegates to the **free pi + OpenRouter autonomous loop**. This doc is the
 single source of truth to resume — no need to re-derive.
+
+## ⚡ PROGRESS UPDATE (2026-05-21)
+
+**BASELINE IS AT ZERO FAILURES.** `verify_python.sh` = ALL PASS.
+
+Commits since handoff:
+- `7143a55c` xfail dev-tier gated router tests (#1151/#1154)
+- `9b3cac52` fix test_sources.py envelope assertions (#1155)
+- `aff2f6e8` fix integration test envelope assertions
+- `a505f0f3` fix settings reset test for factory-default re-seed
+- `932ae780` fix default-workflows idempotency test
+- `91899d33` fix mcp_server mock response shapes
+- `60aa746d` xfail remaining dev-tier API tests
+- `93e12a26` **REAL BUG**: hermeneutics suggest_interpretations returned bare list not envelope
+- `bbe64bf8` fix hermeneutics test assertions for envelope responses (#1149)
+- `d18db306` CrossLanguageGateTests.swift + verify_all.sh
+
+Remaining:
+- Run full Xcode test suite (xcodebuild test) to confirm Swift side green + CrossLanguageGateTests pass
+- Verify KG works end-to-end
+- Part B: capture vision as build-ready GitHub issues
 
 ## The mission
 One unified verification gate so **⌘U / one command** runs lint+build+test
