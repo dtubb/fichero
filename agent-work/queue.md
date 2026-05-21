@@ -148,12 +148,12 @@
   completed_at: null
 
 - issue: 732
-  status: pending
+  status: blocked
   title: "Surface provider-side errors clearly in the UI (quota / 429 / model-not-found / auth)"
   files: [fichero-engine/src/fichero/api/routes/workflows.py, fichero/fichero/Views/WorkflowEditor/]
   approach: "Normalize provider error codes in API routes into structured error responses; surface as distinct labelled error messages in the workflow run UI."
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
