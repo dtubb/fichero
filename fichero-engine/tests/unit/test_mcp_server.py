@@ -178,7 +178,11 @@ def test_search_builds_post_body(monkeypatch):
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(json.loads(request.content))
-        return httpx.Response(200, json={"results": []})
+        return httpx.Response(200, json={
+            "query": "ledgers", "results": [], "count": 0,
+            "total_results": 0, "search_type": "hybrid",
+            "execution_time_ms": 0.0,
+        })
 
     with _mock_client(monkeypatch, handler=handler):
         mcp_server.fichero_search("ledgers", limit=3)
@@ -191,7 +195,16 @@ def test_search_builds_post_body(monkeypatch):
 def test_import_sends_multipart(monkeypatch, tmp_path):
     sample = tmp_path / "note.txt"
     sample.write_text("hello")
-    with _mock_client(monkeypatch) as seen:
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={
+            "name": "note.txt",
+            "expected_thumbnail_path": "",
+            "expected_display_path": "",
+        })
+
+    with _mock_client(monkeypatch, handler=handler) as seen:
         mcp_server.fichero_import(str(sample), parent_id="folder-1")
     assert seen[0].url.path == "/api/documents/import"
     assert dict(seen[0].url.params) == {"parent_id": "folder-1"}
