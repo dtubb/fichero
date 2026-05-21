@@ -230,12 +230,12 @@
   completed_at: null
 
 - issue: 1102
-  status: pending
+  status: blocked
   title: "User-extensible epistemic statuses + claim kinds (registry, companion to #874)"
   files: [fichero-engine/src/fichero/models/knowledge.py, fichero-engine/src/fichero/api/routes/kg.py, fichero-engine/src/fichero/db.py]
   approach: "Add EpistemicStatus and ClaimKind registry tables with seed defaults; CRUD endpoints; plumb into KnowledgeClaim model. Use _ensure_table (no ALTER TABLE). Do alongside/after #874."
   est_tokens: 20000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
