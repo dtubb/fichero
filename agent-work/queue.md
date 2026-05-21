@@ -220,12 +220,12 @@
   completed_at: null
 
 - issue: 874
-  status: pending
+  status: blocked
   title: "User-extensible entity types (registry + dynamic extraction + UI auto-generation)"
   files: [fichero-engine/src/fichero/models/knowledge.py, fichero-engine/src/fichero/api/routes/kg.py, fichero-engine/src/fichero/db.py]
   approach: "Add EntityTypeRegistry table via _ensure_table; CRUD endpoints; inject custom types into extraction prompt at runtime. Do before #916 and #1102."
   est_tokens: 22000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
