@@ -300,10 +300,8 @@ class TestSeedDefaultWorkflows:
         # include them here so the idempotency check stays accurate.
         db = self._mock_db(existing_names=[
             "Transcribe",
-            "Transcribe (Apple Vision)",
             "Catalogue",
-            "Catalogue (composable)",
-            "Catalogue (Apple Intelligence)",
+            "Catalogue Each",
             "Spanish Paleography (18th–19th C.)",
             "NER per-page (local)",
         ])
