@@ -531,9 +531,14 @@ def _poll_activity_for_terminal(
     )
     if not isinstance(payload, list):
         return None
+    from pydantic import BaseModel as _BaseModel
     for entry in payload:
-        if isinstance(entry, dict) and entry.get("type") in _TERMINAL_ACTIVITY_TYPES:
-            return entry
+        # The real client returns list[ActivityResponse] (model objects); only
+        # a not-yet-migrated path would yield dicts. Normalise to a dict so the
+        # terminal-type check and downstream _merge_terminal_payload both work.
+        data = entry.model_dump() if isinstance(entry, _BaseModel) else entry
+        if isinstance(data, dict) and data.get("type") in _TERMINAL_ACTIVITY_TYPES:
+            return data
     return None
 
 

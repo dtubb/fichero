@@ -65,6 +65,10 @@ class FakeClient:
     def list_documents(self, **kw):
         self.calls.append(("list_documents", kw))
         from fichero.models import DocumentListResponse
+        # Mirror the real FicheroClient: list_documents() returns list[Document]
+        # (it unwraps the {items,count} envelope via _expect_list). Reuse the
+        # envelope's validation, then hand back .items so the fake matches the
+        # real client's contract.
         return DocumentListResponse(
             items=[{
                 "id": "d1",
@@ -76,7 +80,7 @@ class FakeClient:
                 "updated_at": "2024-01-01T00:00:00"
             }],
             count=1
-        )
+        ).items
 
     def get_document(self, doc_id):
         self.calls.append(("get_document", doc_id))
@@ -125,9 +129,11 @@ class FakeClient:
         from fichero.models import ActivityListResponse
         # Mimic the executor: emit a workflow_completed event only after
         # the second poll, so the wait loop has to actually wait.
+        # Mirror the real FicheroClient: list_activities() returns
+        # list[ActivityResponse] (unwrapped from the envelope). Hand back .items.
         polls = [c for c in self.calls if c[0] == "list_activities"]
         if len(polls) < 2:
-            return ActivityListResponse(items=[], count=0)
+            return ActivityListResponse(items=[], count=0).items
         activity_data = {
             "id": "act-end",
             "type": "workflow_completed",
@@ -138,7 +144,7 @@ class FakeClient:
             "workflow_id": "wf-1",
             "metadata": {},
         }
-        return ActivityListResponse(items=[activity_data], count=1)
+        return ActivityListResponse(items=[activity_data], count=1).items
 
     def get_artifact(self, artifact_id):
         self.calls.append(("get_artifact", artifact_id))
