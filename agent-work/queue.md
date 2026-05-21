@@ -168,12 +168,12 @@
   completed_at: null
 
 - issue: 1044
-  status: pending
+  status: blocked
   title: "PDF per-page progress isn't visible during a workflow run — page-child rows don't spin"
   files: [fichero/fichero/Views/Activity/, fichero-engine/src/fichero/api/routes/workflow_execution.py]
   approach: "Emit per-page SSE progress events during transcription; display them as a sub-progress indicator under the parent document in Activity."
   est_tokens: 20000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
