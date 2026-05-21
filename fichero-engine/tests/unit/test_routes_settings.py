@@ -114,4 +114,16 @@ class TestResetAIDefaults:
         assert r.json()["status"] == "ok"
         r2 = client.get("/api/settings/ai-defaults")
         data = r2.json()
-        assert all(v == "" for v in data.values())
+        # After reset, factory defaults (Apple Intelligence) are re-seeded.
+        # Only fields without factory defaults remain empty.
+        non_empty_fields = {k: v for k, v in data.items() if v != ""}
+        assert all(
+            k.endswith(("_provider", "_model"))
+            for k in non_empty_fields
+        ), f"Unexpected non-empty fields after reset: {non_empty_fields}"
+        # Tier aliases + typed categories have Apple Intelligence defaults
+        for key in ("text_provider", "small_provider", "large_provider",
+                    "vision_provider", "audio_provider"):
+            assert data[key] == "apple", f"{key} should be 'apple' after reset"
+        for key in ("text_model", "small_model", "large_model"):
+            assert data[key] == "apple-intelligence", f"{key} should be 'apple-intelligence' after reset"
