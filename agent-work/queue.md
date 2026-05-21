@@ -178,12 +178,12 @@
   completed_at: null
 
 - issue: 1111
-  status: pending
+  status: blocked
   title: "KG: deterministic paragraph rendering with bidirectional citation links"
   files: [fichero-engine/src/fichero/kg/, fichero-engine/src/fichero/api/routes/kg.py]
   approach: "Build a renderer composing subject + slug_verb + object into deterministic prose paragraphs with source citations; expose via /kg/render endpoint. Reuse slug_verb from kg/_common.py."
   est_tokens: 18000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
