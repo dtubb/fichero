@@ -260,12 +260,12 @@
   completed_at: null
 
 - issue: 926
-  status: pending
+  status: blocked
   title: "Translation + modernization workflow nodes: archaic → modern, source → user language"
   files: [fichero-engine/src/fichero/workflows/nodes/, fichero-engine/src/fichero/workflows/tools/]
   approach: "Add translate_node and modernize_node using LLM with configurable source/target language; follow the existing node pattern (catalogue.py as template)."
   est_tokens: 22000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit', 'no_commit']"
   commit: null
   completed_at: null
 
