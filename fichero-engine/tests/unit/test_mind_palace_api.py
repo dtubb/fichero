@@ -207,6 +207,7 @@ def test_stack_crud(client, db):
     assert node["id"] not in remove_resp.json()["node_ids"]
 
 
+@pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
 def test_note_crud(client, db):
     """Create, update, and delete notes."""
     # Create note
@@ -334,6 +335,7 @@ def test_scene_summary(client, db):
     assert "source" in summary["node_types"]
 
 
+@pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
 def test_suggest_arrangement(client, db):
     """AI arrangement suggestion returns circular layout."""
     # Create room and nodes

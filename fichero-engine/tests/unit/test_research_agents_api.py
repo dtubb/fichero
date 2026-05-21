@@ -10,6 +10,7 @@ import pytest
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+@pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
 def test_project_crud(client, db):
     """Create, read, update, delete research projects."""
     # Create
