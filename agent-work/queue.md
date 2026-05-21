@@ -240,14 +240,14 @@
   completed_at: null
 
 - issue: 916
-  status: pending
+  status: done
   title: "KG: user-created entities / claims / annotations (full CRUD parity with extractor-emitted)"
   files: [fichero-engine/src/fichero/api/routes/kg.py, fichero-engine/src/fichero/models/knowledge.py, fichero/fichero/Views/KG/]
   approach: "Add POST/PATCH/DELETE endpoints for KnowledgeEntity and KnowledgeClaim alongside existing GET; plumb CRUD into the SwiftUI KG inspector panel. Do after #1102."
   est_tokens: 22000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-21
 
 - issue: 1059
   status: pending
