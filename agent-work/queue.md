@@ -97,14 +97,15 @@
   completed_at: "2026-05-19T12:28:00Z"
 
 - issue: 1071
-  status: in_progress
+  status: done
+  commit: dcb3a6fc
   title: "KG entities in document inspector: source-scoped aggregation + navigation + filter/search"
   files: [fichero/fichero/Views/Inspector/, fichero-engine/src/fichero/api/routes/kg.py]
   approach: "Add ?document_id filter to KG entities endpoint; wire inspector entity list to source-scoped query and navigation-to-entity tap. Companion to #1031."
   est_tokens: 18000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-21T07:44:57.620962
 
 - issue: 768
   status: done
@@ -117,14 +118,14 @@
   completed_at: 2026-05-21
 
 - issue: 797
-  status: pending
+  status: done
   title: "Workflow run context-menu: model picker submenu (Transcribe → Provider → Model)"
   files: [fichero/fichero/Views/WorkflowEditor/, fichero/fichero/Views/Library/]
   approach: "Add a nested submenu to the workflow context menu for per-node provider/model selection; wire to existing LLM config path. Do after #768."
   est_tokens: 15000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: dcb3a6fc
+  completed_at: 2026-05-21
 
 - issue: 735
   status: pending
