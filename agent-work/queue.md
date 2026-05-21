@@ -158,12 +158,12 @@
   completed_at: null
 
 - issue: 1085
-  status: pending
+  status: blocked
   title: "Maps importer: pair sidecar .iffy.json files with their image/PDF on ingest"
   files: [fichero-engine/src/fichero/ingest/]
   approach: "During ingest, detect sibling <name>.iffy.json and persist its contents as metadata on the Document; use _ensure_table pattern (0.0.x no-migration rule)."
   est_tokens: 18000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit', 'timed_out']"
   commit: null
   completed_at: null
 
