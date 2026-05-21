@@ -250,12 +250,12 @@
   completed_at: 2026-05-21
 
 - issue: 1059
-  status: pending
+  status: blocked
   title: "Consolidate model/provider selection — ~6 separate picker UIs, inconsistent behaviour"
   files: [fichero/fichero/Views/Settings/, fichero/fichero/Views/WorkflowEditor/]
   approach: "Audit all 6 provider/model picker sites; extract a single ModelProviderPicker component reused everywhere. Do after #768, #797, and #868."
   est_tokens: 22000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: []"
   commit: null
   completed_at: null
 
