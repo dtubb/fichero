@@ -97,7 +97,7 @@
   completed_at: "2026-05-19T12:28:00Z"
 
 - issue: 1071
-  status: pending
+  status: in_progress
   title: "KG entities in document inspector: source-scoped aggregation + navigation + filter/search"
   files: [fichero/fichero/Views/Inspector/, fichero-engine/src/fichero/api/routes/kg.py]
   approach: "Add ?document_id filter to KG entities endpoint; wire inspector entity list to source-scoped query and navigation-to-entity tap. Companion to #1031."
@@ -107,14 +107,14 @@
   completed_at: null
 
 - issue: 768
-  status: pending
+  status: done
   title: "Workflow editor: migrate provider picker from legacy LLMProvider to OpenAPI-typed ProviderResponse"
   files: [fichero/fichero/Views/WorkflowEditor/]
   approach: "Replace legacy LLMProvider enum binding in workflow editor provider picker with OpenAPI-typed ProviderResponse from the API client. Do before #797 and #1059."
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-21
 
 - issue: 797
   status: pending
