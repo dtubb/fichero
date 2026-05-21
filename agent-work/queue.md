@@ -210,12 +210,12 @@
   completed_at: null
 
 - issue: 1032
-  status: pending
+  status: blocked
   title: "Unify search into one always-visible top search bar with consistent scope (documents + vectors + KG)"
   files: [fichero/fichero/Views/Search/, fichero/fichero/Views/ContentView.swift]
   approach: "Add a single top-level SearchBar visible in all modes; route queries to the unified search endpoint with scope toggle chips."
   est_tokens: 20000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit', 'no_commit']"
   commit: null
   completed_at: null
 
