@@ -589,7 +589,7 @@ async def suggest_interpretations(
         )
         suggestions.append(suggestion)
 
-    return suggestions
+    return HermesSuggestionListResponse(items=suggestions, count=len(suggestions))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
