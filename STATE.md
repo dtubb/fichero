@@ -17,10 +17,10 @@
    - **Continue autoloop** — `~/code/autoloop/bin/worker-loop.sh ~/code/fichero-0.0.2 3` on the freshly-curated `agent-work/queue.md`. Next pending is **#984 SVO promotion** (tight scope, no-migration, well-bounded).
    - **Start the release** — #158 → #164 → #165 (merge 0.0.2 → main).
    - **SwiftUI work** — #1135 KG editor, #1133 AppleScript bridge.
-3. **Gotchas:**
-   - jcodemunch MCP session in chat may need `/reload-plugins` after long pause — session id can drift.
-   - Worker SKIPS `in_progress` issues from prior crashed runs. To retry, manually flip `status: in_progress` → `pending` in queue.md.
-   - `fichero/.claude/settings.local.json` cleared (was holding dead trace-mcp-worktree.sh refs).
+3. **ACTIVE THREAD — verification gate. Read `agent-work/verification-gate-handoff.md` FIRST.** Goal: ⌘U / one command runs lint+build+test across app+engine+CLI. `scripts/verify_python.sh` = single-source gate; `~/code/autoloop` `cascade_router.py` now calls it. Baseline 107→44 unit failures (2 real backend bugs already fixed: `save_claim` svo_*, CLI `workflow run --wait`). Get baseline to 0 before relying on the gate. Needs-Opus post-May-23: bucket F real 500s, `CrossLanguageGateTests.swift`, `verify_all.sh`, **verify KG works end-to-end** (reported broken).
+   - Cadence loop (free): `cd ~/code/autoloop && .venv/bin/python bin/cascade_loop.py ~/code/fichero-0.0.2 --with-curator --with-reconcile --iterations 20` (use `check_level=minimal` until baseline green).
+   - Vision roadmap (NOT rushing 0.0.2): GitHub #1153 — RAG agent, research agents+browser, RealityKit mind palace, KG browse, VisionPro/iPad, editing tools. Each needs its own spec before a free worker can build it.
+   - Gotchas: jcodemunch + Xcode MCP can disconnect mid-session (fall back to grep/xcodebuild); SourceKit "No such module" = false positive, trust xcodebuild.
 
 ## In Progress
 
@@ -30,7 +30,7 @@ None.
 
 - **#1054** (search relevance threshold) — pending, returns every page; needs scoring cutoff.
 - **#183** Phase H end-to-end test on LFH_AHJM folder — pending.
-- Anthropic Opus weekly limit — at 45% session end, resets May 23. Use Sonnet for subagents and curator when conserving.
+- Anthropic Opus weekly limit — **at ~97% (2026-05-20), resets May 23.** Until reset, delegate to the free pi/OpenRouter cascade loop (`~/code/autoloop`); reserve Opus for judgment work (real bugs, specs, KG reconnection).
 
 ## Don't Break (load-bearing invariants)
 

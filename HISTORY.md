@@ -2100,3 +2100,12 @@ Autonomous session-start-auto resumed to verify and complete #1139. Context: sta
 - Worker iter-1: hit max-turns trying to fix pytest failure (env rot, not code). $0.46, 98% cache hit. Edits sat in working tree, verified green after venv rebuild, then committed by hand as `22e96e6e`.
 
 **Lessons added to MEMORY.md:** jcodemunch migration; briefcase build/ exclusion; .venv symlink-rot diagnosis pattern; "MCP search returns zero — fall through immediately" worker recovery pattern.
+
+## 2026-05-20 — Session Summary (verification gate + baseline)
+
+- Built unified verification-gate scaffolding: shared seeder shim, contract walker unified on it, live CLI<->engine contract test, scripts/verify_python.sh (single-source Python gate).
+- Fixed 2 REAL backend bugs the gate surfaced: save_claim rejected svo_* kwargs (broke KG extraction); CLI 'workflow run --wait' never detected completion (isinstance dict on ActivityResponse objects).
+- Drove unit baseline 107 -> 44 failures (stale-test updates + spaCy en/es installed). Remaining 44 = dev-tier-gated-router tests to xfail (#1151), ~3 real route 500s, misc.
+- Wired ~/code/autoloop cascade_router.py verify node to call scripts/verify_python.sh (loop gate == project gate); fixed scheme fichero->Fichero.
+- Filed #1151 (feature-gate matrix), #1152 (model-management UI), #1153 (vision roadmap), #1154/#1155 (free-safe cleanup tasks).
+- Spec/plan: docs/superpowers/{specs,plans}/2026-05-20-unified-verification-gate*. Resume doc: agent-work/verification-gate-handoff.md.
