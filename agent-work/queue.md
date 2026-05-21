@@ -128,12 +128,12 @@
   completed_at: 2026-05-21
 
 - issue: 735
-  status: pending
+  status: blocked
   title: "Pre-run cost estimate on workflow execute button"
   files: [fichero/fichero/Views/WorkflowEditor/, fichero-engine/src/fichero/api/routes/workflows.py]
   approach: "Add a /workflows/{id}/estimate endpoint returning token/cost estimate from node configs; surface as an info badge on the run button."
   est_tokens: 16000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit', 'no_commit']"
   commit: null
   completed_at: null
 
