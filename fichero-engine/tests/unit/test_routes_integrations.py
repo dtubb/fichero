@@ -63,9 +63,9 @@ class TestListIntegrations:
             r = client.get("/api/integrations")
         assert r.status_code == 200
         data = r.json()
-        assert len(data) == 1
-        assert data[0]["name"] == "DEVONthink"
-        assert data[0]["bundle_id"] == "com.devon-technologies.think3"
+        assert data["count"] == 1
+        assert data["items"][0]["name"] == "DEVONthink"
+        assert data["items"][0]["bundle_id"] == "com.devon-technologies.think3"
 
 
 # ---------------------------------------------------------------------------
@@ -82,8 +82,8 @@ class TestListAvailableIntegrations:
             r = client.get("/api/integrations/available")
         assert r.status_code == 200
         data = r.json()
-        assert len(data) == 1
-        assert data[0]["status"] == "available"
+        assert data["count"] == 1
+        assert data["items"][0]["status"] == "available"
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +100,7 @@ class TestGetIntegration:
         with patch("fichero.api.routes.integrations.get_integration_registry", return_value=registry):
             r = client.get("/api/integrations/devonthink")
         assert r.status_code == 200
-        assert r.json()["items"]["name"] == "DEVONthink"
+        assert r.json()["name"] == "DEVONthink"
 
     def test_get_missing_integration_returns_404(self, client):
         registry = _make_registry()
