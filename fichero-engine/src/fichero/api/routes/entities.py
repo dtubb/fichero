@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database
+from fichero.knowledge_models import KnowledgeClaim
 from fichero.db import Database
 from fichero.knowledge_models import (
     EntityMergeOperationType,
@@ -182,15 +183,36 @@ async def upsert_entity(
 async def list_entities(
     q: Annotated[str | None, Query()] = None,
     entity_type: Annotated[EntityType | None, Query()] = None,
+    document_id: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 50,
     db: Database = Depends(get_library_database),
 ) -> EntityListResponse:
-    """List knowledge entities with optional filtering."""
-    entities = (
-        db.query(KnowledgeEntity, entity_type=entity_type)
-        if entity_type
-        else db.all(KnowledgeEntity)
-    )
+    """List knowledge entities with optional filtering.
+    
+    When `document_id` is provided, returns only entities mentioned by claims
+    from that document (source-scoped aggregation).
+    """
+    # If document_id filter, get entity IDs from claims first
+    if document_id:
+        # Get all claims for this document
+        all_claims = db.query(KnowledgeClaim)
+        doc_claims = [c for c in all_claims if c.source_document_id == document_id]
+        
+        # Extract entity IDs from those claims
+        entity_ids: set[str] = set()
+        for c in doc_claims:
+            entity_ids.update(c.entity_ids or [])
+        
+        # Fetch those entities
+        entities = [db.get(KnowledgeEntity, eid) for eid in entity_ids]
+        entities = [e for e in entities if e is not None]
+    else:
+        entities = (
+            db.query(KnowledgeEntity, entity_type=entity_type)
+            if entity_type
+            else db.all(KnowledgeEntity)
+        )
+    
     needle = _normalize_text(q)
     if needle:
         entities = [

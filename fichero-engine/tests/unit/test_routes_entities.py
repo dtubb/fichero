@@ -64,6 +64,48 @@ class TestListEntities:
         assert len(data) == 1
         assert data[0]["canonical_name"] == "Alice Smith"
 
+    def test_filter_by_document_id(self, client, db):
+        """Filter entities by document_id - returns only entities
+        mentioned in claims from that document."""
+        from fichero.knowledge_models import KnowledgeClaim
+        
+        # Create entities
+        entity1 = _make_entity(db, "Alice", EntityType.person)
+        entity2 = _make_entity(db, "Bob", EntityType.person)
+        entity3 = _make_entity(db, "Charlie", EntityType.person)
+        
+        # Create claims referencing only some entities
+        claim1 = KnowledgeClaim(
+            text="Alice did something",
+            source_document_id="doc-1",
+            entity_ids=[entity1.id],
+        )
+        claim2 = KnowledgeClaim(
+            text="Bob did something else",
+            source_document_id="doc-1",
+            entity_ids=[entity2.id],
+        )
+        claim3 = KnowledgeClaim(
+            text="Charlie was in doc-2",
+            source_document_id="doc-2",
+            entity_ids=[entity3.id],
+        )
+        db.save(claim1)
+        db.save(claim2)
+        db.save(claim3)
+        
+        # Filter by doc-1 should return Alice and Bob only
+        r = client.get("/api/entities?document_id=doc-1")
+        assert r.status_code == 200
+        names = {e["canonical_name"] for e in r.json()["items"]}
+        assert names == {"Alice", "Bob"}
+        
+        # Filter by doc-2 should return Charlie only
+        r = client.get("/api/entities?document_id=doc-2")
+        assert r.status_code == 200
+        names = {e["canonical_name"] for e in r.json()["items"]}
+        assert names == {"Charlie"}
+
 
 # ---------------------------------------------------------------------------
 # POST /api/entities (upsert)
