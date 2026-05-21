@@ -7,8 +7,9 @@ def test_list_sources_empty(client, db):
     response = client.get("/api/sources")
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
-    assert len(data) == 0
+    assert isinstance(data, dict)
+    assert data["items"] == []
+    assert data["count"] == 0
 
 
 def test_create_source(client, db):
@@ -129,7 +130,7 @@ def test_list_sources_includes_created(client, db):
     response = client.get("/api/sources")
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 2
-    titles = [s["title"] for s in data]
+    assert data["count"] == 2
+    titles = [s["title"] for s in data["items"]]
     assert "List Test Source 1" in titles
     assert "List Test Source 2" in titles
