@@ -24,13 +24,13 @@
 
 ## In Progress
 
-None.
+- **Cascade loop ready to run overnight** — verification gate complete (0 failures), free model working, vision issues created (#1156-1161, all `needs-design`).
 
 ## Blocked
 
 - **#1054** (search relevance threshold) — pending, returns every page; needs scoring cutoff.
 - **#183** Phase H end-to-end test on LFH_AHJM folder — pending.
-- Anthropic Opus weekly limit — **at ~97% (2026-05-20), resets May 23.** Until reset, delegate to the free pi/OpenRouter cascade loop (`~/code/autoloop`); reserve Opus for judgment work (real bugs, specs, KG reconnection).
+- **Vision issues blocked** — #1156-1161 created but require specs and design before free workers can build (labeled `needs-design`).
 
 ## Don't Break (load-bearing invariants)
 
