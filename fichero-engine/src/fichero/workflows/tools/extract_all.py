@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 
 from fichero.db import db_manager
 from fichero.llm import LLMConfig, chat_structured_with_fallback
-from fichero.models import Artifact
+from fichero.models import Artifact, Document, DocType, FileType
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_write_target
 from fichero.workflows.tools.extractors import (
@@ -217,6 +217,135 @@ _SYSTEMIC_SIGNATURES = (
 _SYSTEMIC_FAIL_FRACTION = 0.8
 
 
+def _record_text(record: Any) -> str:
+    if not isinstance(record, dict):
+        return ""
+    text = record.get("text")
+    return text.strip() if isinstance(text, str) else ""
+
+
+def _normalize_records(records: Any) -> list[dict[str, Any]]:
+    if not isinstance(records, list):
+        return []
+    normalized: list[dict[str, Any]] = []
+    for index, record in enumerate(records):
+        text = _record_text(record)
+        if not text:
+            continue
+        normalized.append({
+            "index": record.get("index", index) if isinstance(record, dict) else index,
+            "doc_id": str(record.get("doc_id") or "") if isinstance(record, dict) else "",
+            "text": text,
+        })
+    return normalized
+
+
+def _records_from_selected_documents(state: State) -> list[dict[str, Any]]:
+    """Recover selected PDF/page text when upstream transcription is empty."""
+    library_path = state.get("library_path", "")
+    selected_doc_ids = state.get("selected_doc_ids") or []
+    if not library_path or not selected_doc_ids:
+        return []
+
+    try:
+        db = db_manager.get_database(library_path)
+    except Exception as exc:
+        logger.warning("extract_all: could not open library for text recovery: %s", exc)
+        return []
+
+    records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def add_doc(doc: Document) -> None:
+        if doc.id in seen:
+            return
+        seen.add(doc.id)
+        text = (doc.page_content or "").strip()
+        if text:
+            records.append({
+                "index": len(records),
+                "doc_id": doc.id,
+                "text": text,
+            })
+
+    def visit(doc: Document) -> None:
+        if doc.doc_type == DocType.folder:
+            for child in db.query(Document, parent_id=doc.id):
+                visit(child)
+            return
+        if doc.file_type == FileType.pdf:
+            pages = db.query(Document, parent_id=doc.id, doc_type=DocType.page)
+            if pages:
+                for page in sorted(pages, key=lambda p: p.sequence or 0):
+                    add_doc(page)
+                return
+        add_doc(doc)
+
+    for doc_id in selected_doc_ids:
+        doc = db.get(Document, doc_id)
+        if doc is not None:
+            visit(doc)
+    return records
+
+
+def _recover_text_and_records(
+    inputs: dict[str, Any], state: State,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Return usable extraction text + per-page records from all known sources."""
+    records = _normalize_records(inputs.get("records"))
+    raw_text = inputs.get("text")
+    text = raw_text.strip() if isinstance(raw_text, str) else ""
+    if not text and records:
+        text = "\n\n".join(record["text"] for record in records)
+    if text:
+        return text, records
+
+    outputs = state.get("outputs", {}) or {}
+    for node_id in ("transcribe", "aggregate", "files-source"):
+        node_output = outputs.get(node_id)
+        if not isinstance(node_output, dict):
+            continue
+        records = _normalize_records(node_output.get("records"))
+        if records:
+            return "\n\n".join(record["text"] for record in records), records
+        node_text = node_output.get("text")
+        if isinstance(node_text, str) and node_text.strip():
+            return node_text.strip(), []
+
+    parallel_records: list[dict[str, Any]] = []
+    parallel = state.get("parallel_results", {}) or {}
+    for results in parallel.values():
+        if not isinstance(results, list):
+            continue
+        for item in sorted(
+            (r for r in results if isinstance(r, dict)),
+            key=lambda r: r.get("index", 0),
+        ):
+            if not item.get("success"):
+                continue
+            result = item.get("result")
+            if not isinstance(result, dict):
+                continue
+            page_records = _normalize_records(result.get("page_records"))
+            if page_records:
+                parallel_records.extend(page_records)
+                continue
+            node_text = result.get("text")
+            if isinstance(node_text, str) and node_text.strip():
+                parallel_records.append({
+                    "index": item.get("index", len(parallel_records)),
+                    "doc_id": "",
+                    "text": node_text.strip(),
+                })
+    if parallel_records:
+        return "\n\n".join(record["text"] for record in parallel_records), parallel_records
+
+    selected_records = _records_from_selected_documents(state)
+    if selected_records:
+        return "\n\n".join(record["text"] for record in selected_records), selected_records
+    return "", []
+
+
 def _classify_systemic_error(
     errors: list[str], n_chunks: int
 ) -> str | None:
@@ -262,7 +391,7 @@ async def extract_all(
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
     """Combined extractor — one LLM call per page returns all 6 types."""
-    text = inputs.get("text") or ""
+    text, recovered_records = _recover_text_and_records(inputs, state)
     if not text:
         return {"text": "", "value": {}, "error": "No text input"}
 
@@ -279,7 +408,7 @@ async def extract_all(
     container = _resolve_write_target(selected_doc_ids, library_path)
 
     # Per-page chunks via records (preferred) or text-split fallback.
-    records_input = inputs.get("records") or []
+    records_input = recovered_records
     page_doc_ids: list[str | None] = []
     if records_input and isinstance(records_input, list):
         chunks = []

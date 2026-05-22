@@ -288,12 +288,14 @@ class TestChatStructuredDispatch:
                 config=cfg,
                 system="be brief",
                 include_schema_in_prompt=False,
+                permissive_guardrails=True,
             )
         assert result == _Result(answer="hi")
         mock_apple.assert_awaited_once()
-        # include_schema_in_prompt threads through as a kwarg
+        # Apple-only structured options thread through as kwargs.
         kwargs = mock_apple.await_args.kwargs
         assert kwargs.get("include_schema_in_prompt") is False
+        assert kwargs.get("permissive_guardrails") is True
 
     @pytest.mark.asyncio
     async def test_non_apple_picks_json_schema_when_profile_advertises_it(self):

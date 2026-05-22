@@ -1290,6 +1290,7 @@ async def chat_structured(
     system: str | None = None,
     include_schema_in_prompt: bool | None = None,
     use_case: str | None = None,
+    permissive_guardrails: bool = False,
 ) -> BaseModel:
     """Provider-routed structured output. Returns a Pydantic instance.
 
@@ -1325,6 +1326,7 @@ async def chat_structured(
             prompt, schema, config, system,
             include_schema_in_prompt=include_schema_in_prompt,
             use_case=use_case,
+            permissive_guardrails=permissive_guardrails,
         )
 
     from langchain_core.messages import HumanMessage, SystemMessage
@@ -1894,6 +1896,7 @@ async def _apple_intelligence_structured(
     system: str | None = None,
     include_schema_in_prompt: bool | None = None,
     use_case: str | None = None,
+    permissive_guardrails: bool = False,
 ) -> BaseModel:
     """Subprocess fm-bridge in structured mode and return a Pydantic
     instance built from the grammar-constrained JSON output. Mirrors
@@ -1942,6 +1945,8 @@ async def _apple_intelligence_structured(
     # structured paths since chatModel is shared.
     if use_case in {"content_tagging"}:
         request["use_case"] = use_case
+    if permissive_guardrails:
+        request["guardrails"] = "permissive"
     if config.temperature is not None:
         request["temperature"] = config.temperature
     if config.max_tokens is not None and config.max_tokens > 0:

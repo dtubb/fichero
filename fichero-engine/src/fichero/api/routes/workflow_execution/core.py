@@ -5,10 +5,11 @@ Execute, stream, resume, and status-check workflows.
 """
 
 import asyncio
+import json
 import logging
 import queue
 import threading
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 from uuid import uuid4
 
 from fastapi import (
@@ -50,6 +51,23 @@ router = APIRouter()
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
+
+def _sanitize_for_json(value: Any) -> Any:
+    """Recursively convert LangGraph/runtime values to JSON-safe data."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): _sanitize_for_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_sanitize_for_json(v) for v in value]
+    if hasattr(value, "model_dump"):
+        return _sanitize_for_json(value.model_dump())
+    try:
+        json.dumps(value)
+        return value
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def _build_workflow_with_checkpointer(
@@ -343,7 +361,7 @@ async def resume_workflow(
             checkpoint_id=checkpoint_tuple.checkpoint["id"]
             if checkpoint_tuple
             else None,
-            current_state=final_state,
+            current_state=_sanitize_for_json(final_state),
             error=None,
         )
 
@@ -421,7 +439,7 @@ async def get_thread_status(
             workflow_name=workflow_name,
             status=status,
             checkpoint_id=checkpoint_tuple.checkpoint["id"],
-            current_state=current_state,
+            current_state=_sanitize_for_json(current_state),
             error=workflow_error,
         )
 

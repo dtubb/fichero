@@ -6,9 +6,11 @@ mocking for LangGraph-dependent paths.
 """
 
 import pytest
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from langgraph.types import Send
+
+from fichero.api.routes.workflow_execution.core import get_thread_status
 from fichero.models import Workflow
 
 
@@ -78,6 +80,37 @@ class TestGetThreadStatus:
         ):
             r = client.get("/api/workflow-execution/threads/nonexistent/status")
         assert r.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_sanitizes_langgraph_send_objects(self):
+        """#1166: status polling must not 500 on pending LangGraph Send values."""
+        checkpoint_tuple = MagicMock()
+        checkpoint_tuple.checkpoint = {
+            "id": "checkpoint-1",
+            "channel_values": {
+                "workflow_id": "unknown",
+                "__pregel_tasks": [
+                    Send("Transcribe each file_process", {"file": "/tmp/page.jpg"})
+                ],
+            },
+        }
+        checkpoint_tuple.metadata = {}
+        checkpoint_tuple.pending_writes = []
+
+        mock_cp = _make_mock_checkpointer()
+        mock_cp.aget_tuple = AsyncMock(return_value=checkpoint_tuple)
+        db = MagicMock()
+        db.path = "/tmp/test.fichero/fichero.duckdb"
+
+        with patch(
+            "fichero.api.routes.workflow_execution.core.AsyncDuckDBCheckpointer.from_db_path",
+            return_value=mock_cp,
+        ):
+            response = await get_thread_status("thread-1", db=db)
+
+        # Pydantic JSON serialization is the failure mode from the live CLI.
+        payload = response.model_dump_json()
+        assert "Transcribe each file_process" in payload
 
 
 # ---------------------------------------------------------------------------
