@@ -208,6 +208,33 @@ struct PDFThumbnailRenderingTests {
 @MainActor
 struct PDFPageViewZoomTests {
 
+    @Test("#1164 pageDidChange defers selection callback outside PDFKit notification")
+    func pageDidChangeDefersCallback() async throws {
+        let url = try PDFThumbnailRenderingTests.makeMultiPagePDF(pageColors: [.red, .green])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let view = PDFView()
+        guard let document = PDFDocument(url: url),
+              let secondPage = document.page(at: 1) else {
+            Issue.record("Test PDF should contain a second page")
+            return
+        }
+        view.document = document
+        view.go(to: secondPage)
+
+        var receivedIndex: Int?
+        let owner = PDFPageView(path: url.path, pageIndex: 0) { index in
+            receivedIndex = index
+        }
+        let coordinator = PDFPageView.Coordinator(owner: owner)
+
+        coordinator.pageDidChange(Notification(name: .PDFViewPageChanged, object: view))
+
+        #expect(receivedIndex == nil, "PDF page callbacks must not mutate SwiftUI selection synchronously")
+        await Task.yield()
+        #expect(receivedIndex == 1)
+    }
+
     @Test("#588 scaleDidChange disables autoScales so user pinch-zoom sticks")
     func scaleDidChangeDisablesAutoScales() throws {
         let url = try PDFThumbnailRenderingTests.makeMultiPagePDF(pageColors: [.red])

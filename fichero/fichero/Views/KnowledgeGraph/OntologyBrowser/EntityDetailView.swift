@@ -3,7 +3,7 @@ import SwiftUI
 
 // MARK: - Entity Detail View
 
-struct EntityDetailView: View {
+struct EntityDetailView: View { // swiftlint:disable:this type_body_length
     let entity: Components.Schemas.KnowledgeEntity
     let claims: [Components.Schemas.KnowledgeClaim]
     let isLoadingClaims: Bool

@@ -12,7 +12,7 @@ import SwiftUI
 /// Wires #498 — per-library Knowledge Graph view, peer to Workflows
 /// and Activity. Uses `EntityServiceGenerated` (\`/api/entities\` +
 /// \`/api/claims\`).
-struct OntologyBrowser: View {
+struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @State private var selectedEntityId: String?
     @State private var searchText = ""
@@ -893,7 +893,7 @@ import SwiftUI
 // Force-directed physics uses standard short names (i, j, dx, dy, fx, fy)
 // for clarity in the math. Re-enabled after the private struct
 // definitions at the end of the file.
-struct ForceDirectedGraphView: View {
+struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
     let entities: [Components.Schemas.KnowledgeEntity]
     @Binding var selectedEntityId: String?
 

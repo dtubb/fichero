@@ -247,8 +247,10 @@ struct PDFPageView: NSViewRepresentable {
                   let doc = view.document else { return }
             let index = doc.index(for: page)
             guard index != owner.pageIndex else { return }
-            // PDFViewPageChanged is always posted on the main thread.
-            owner.onPageIndexChange?(index)
+            // PDFKit can post PDFViewPageChanged while SwiftUI is updating
+            // the representable. Defer the callback so ContentView updates
+            // selection after the current view pass commits (#1164).
+            notifyPageIndexChanged(index)
         }
 
         /// #588: PDFKit's `autoScales` keeps re-fitting the document to the
@@ -314,13 +316,19 @@ struct PDFPageView: NSViewRepresentable {
             }
             guard let page = matchedPage, let pageIdx = matchedIndex else { return }
             view.go(to: page)
-            owner.onPageIndexChange?(pageIdx)
+            notifyPageIndexChanged(pageIdx)
 
             // Highlight overlay: if the caller passed sourceExcerpt
             // (the verbatim quote) or charStart/charEnd, drop a yellow
             // highlight on that span so the user immediately sees what
             // the claim is anchored to. (#995 wireframe Phase 4)
             highlightSpan(on: page, info: info)
+        }
+
+        func notifyPageIndexChanged(_ index: Int) {
+            Task { @MainActor [weak self] in
+                self?.owner.onPageIndexChange?(index)
+            }
         }
 
         /// Render a yellow highlight on a PDFPage for the claim's source

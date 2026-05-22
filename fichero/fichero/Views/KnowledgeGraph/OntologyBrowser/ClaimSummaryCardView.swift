@@ -3,7 +3,7 @@ import SwiftUI
 
 // MARK: - Claim Summary Card
 
-struct ClaimSummaryCard: View {
+struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
     let claim: Components.Schemas.KnowledgeClaim
 
     /// Expanded → reveals the verbatim source excerpt + fetches
