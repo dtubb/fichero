@@ -1441,13 +1441,13 @@ def entity_top(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
-    from fichero.cli.formatters import render_entity
+    from fichero.cli.formatters import render_top_entity
 
     if isinstance(entities, list):
         for entity in entities:
-            typer.echo(render_entity(entity))
+            typer.echo(render_top_entity(entity))
     else:
-        typer.echo(render_entity(entities))
+        typer.echo(render_top_entity(entities))
 
 
 @entity_app.command("documents")

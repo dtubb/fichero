@@ -951,6 +951,28 @@ def test_render_nested_dict():
     assert "pages: 3" in out
 
 
+def test_render_top_entity():
+    from fichero.cli.formatters import render_top_entity
+    from fichero.api.routes.entities import TopEntityRow
+
+    # Test with all fields
+    entity = TopEntityRow(
+        entity_id="e1", name="Bogotá", kind="place", claim_count=5
+    )
+    out = render_top_entity(entity)
+    assert "Bogotá" in out
+    assert "place" in out
+    assert "5" in out
+    # Should not show missing
+    assert "(missing)" not in out
+
+    # Test with missing optional kind
+    entity2 = TopEntityRow(entity_id="e2", name="Colombia", kind=None, claim_count=10)
+    out2 = render_top_entity(entity2)
+    assert "Colombia" in out2
+    assert "10" in out2
+
+
 # -- library create / list -------------------------------------------------
 def test_library_create_calls_client_with_expanded_path():
     """`library create ~/Foo.fichero` expands ~ before sending to client."""
@@ -1132,6 +1154,9 @@ def test_entity_top():
     result = runner.invoke(cli.app, ["entity", "top", "--limit", "5"])
     assert result.exit_code == 0
     assert ("top_entities", 5) in _last_client().calls
+    # Verify formatter shows entity name, not "(missing)"
+    assert "Bogotá" in result.output
+    assert "(missing)" not in result.output
 
 
 def test_entity_documents():

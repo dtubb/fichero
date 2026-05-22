@@ -317,3 +317,33 @@ def render_artifact(artifact: dict | Any, *, as_json: bool = False) -> str:
     document_id = artifact.get("document_id", "(missing)")
 
     return f"{artifact_type}: {title} (from doc: {document_id})"
+
+
+def render_top_entity(entity: dict | Any, *, as_json: bool = False) -> str:
+    """Render a TopEntityRow for display in the entity top table view.
+
+    Args:
+        entity: Entity dict or BaseModel with name, kind, claim_count
+        as_json: If True, return raw JSON instead of human-readable format
+
+    Returns:
+        Formatted string with name | kind | claim_count columns
+    """
+    if as_json:
+        if isinstance(entity, BaseModel):
+            data = entity.model_dump(mode="json")
+        else:
+            data = entity
+        return json.dumps(data, indent=2, default=str, sort_keys=True)
+
+    # Convert BaseModel to dict if needed
+    if isinstance(entity, BaseModel):
+        entity = entity.model_dump(mode="json")
+
+    name = _truncate(str(entity.get("name", "(missing)")), 30)
+    kind = _truncate(str(entity.get("kind", "(missing)")), 15)
+    claim_count = str(entity.get("claim_count", 0))
+
+    # Align 3 columns: 30, 15, 10
+    items = [(name, kind, claim_count)]
+    return _align_columns(items, [30, 15, 10])
