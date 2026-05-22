@@ -482,12 +482,12 @@
   completed_at: null
 
 - issue: 1092
-  status: pending
+  status: blocked
   title: "Multi-user with write permissions (the engine is single-user today)"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
