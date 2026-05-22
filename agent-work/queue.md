@@ -922,14 +922,14 @@
   completed_at: null
 
 - issue: 716
-  status: pending
+  status: done
   title: "Add 'Paleography Transcribe' workflow: multi-step reasoning transcription for old Spanish documents"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 715
   status: pending
