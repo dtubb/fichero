@@ -352,14 +352,14 @@
   completed_at: null
 
 - issue: 1144
-  status: pending
+  status: done
   title: "type envelope ListResponses with concrete element types (followup to #1075)"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-21
 
 - issue: 1142
   status: pending
