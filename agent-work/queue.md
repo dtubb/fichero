@@ -402,12 +402,12 @@
   completed_at: 2026-05-22
 
 - issue: 1118
-  status: pending
+  status: blocked
   title: "NER: multi-provider abstraction (LLM + spaCy + HuggingFace transformers) with per-claim provider attribution"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
