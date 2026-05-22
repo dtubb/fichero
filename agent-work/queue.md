@@ -692,12 +692,12 @@
   completed_at: null
 
 - issue: 801
-  status: pending
+  status: blocked
   title: "Chunk inputs to summarize_file / summarize_folder / summarize_collection / rewrite / analyze for on-device LLMs"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit', 'no_commit']"
   commit: null
   completed_at: null
 
