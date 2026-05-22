@@ -310,3 +310,683 @@
   blocked_reason: "Architecture review needed for cross-page dedup strategy; requires design for result merging to avoid duplicate entities/claims."
   commit: null
   completed_at: null
+
+- issue: 1148
+  status: blocked
+  title: "arch: unify Swift/CLI/engine on the OpenAPI contract (CLI bypasses it; generated Python client is dead code)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: "workers exhausted: []"
+  commit: null
+  completed_at: null
+
+- issue: 1147
+  status: pending
+  title: "test: contract test that every endpoint's response actually validates against its response_model"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1146
+  status: pending
+  title: "Embed MLX Swift for local Qwen3-VL 8B / Nanonets-OCR-s; investigate Chandra"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1145
+  status: pending
+  title: "Add OCR / HTR model options: Qwen3-VL 8B, Chandra, Nanonets-OCR-s, Gemini 3, GPT-5"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1144
+  status: pending
+  title: "type envelope ListResponses with concrete element types (followup to #1075)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1142
+  status: pending
+  title: "[security] Upgrade liquidjs to >=10.25.7 — CVE-2026-41311 (circular block DoS, high severity)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1135
+  status: pending
+  title: "SwiftUI KG editor: edit, delete, merge, split entities and claims in-app"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1133
+  status: pending
+  title: "AppleScript bridge: programmatic UI control for autonomous dev/test loop"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1124
+  status: pending
+  title: "Hermeneutics: controlled predicate vocabulary distinct from KG verbs (centers / decenters / contests_reading / etc)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1118
+  status: pending
+  title: "NER: multi-provider abstraction (LLM + spaCy + HuggingFace transformers) with per-claim provider attribution"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1115
+  status: pending
+  title: "Workflow architecture: make KG-write an explicit node (transcribe → extract → catalogue → kg_writer)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1103
+  status: pending
+  title: "References as first-class entities: DuckDB table + backend API + researcher-agent dispatch"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1100
+  status: pending
+  title: "Citation extraction workflow: port pdf2bib end-to-end + footnote/in-page citations + inspector panel"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1098
+  status: pending
+  title: "Catalogue: bulk 'catalogue each selected folder' fan-out (500 folders → 500 catalogues)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1095
+  status: pending
+  title: "Bidirectional client compute: SwiftUI clients claim work from a server queue and post back results"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1094
+  status: pending
+  title: "Web client calling the engine"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1093
+  status: pending
+  title: "iPad / iOS client app calling the engine"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1092
+  status: pending
+  title: "Multi-user with write permissions (the engine is single-user today)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1091
+  status: pending
+  title: "SwiftUI undo system that includes navigation undo (Cmd-Z restores prior view)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1090
+  status: pending
+  title: "Undo / rollback for artifacts"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1089
+  status: pending
+  title: "Changelog: per-artifact + per-document audit log"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1072
+  status: pending
+  title: "Audit the whole SwiftUI codebase for logic that belongs in the backend — frontend should only display"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 975
+  status: pending
+  title: "Structured transcript ingest: timecoded segments + speaker diarization as artifacts"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 974
+  status: pending
+  title: "Citation graph: link in-text citation → bibliography entry → claim, surfaced per-doc AND library-wide"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 973
+  status: pending
+  title: "Book-aware page numbering + chapter markers for PDFs and folders (Apple Intelligence detection)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 972
+  status: pending
+  title: "Core ML on-device personalization: classifiers that learn from user curation (merge / accept / type decisions)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 970
+  status: pending
+  title: "OCR bounding boxes: persist per-text-region bbox from Apple Vision + cloud OCR, tie KG claims to them"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 969
+  status: pending
+  title: "Future: more robust engine auth — design for remote (Tailscale / mTLS) and harden the local token path"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 968
+  status: pending
+  title: "iPad / iPhone client app talking to a remote Fichero engine (via Tailscale or similar)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 938
+  status: pending
+  title: "Transcribe-as-composable-workflow: multi-model ensemble + thinking step + add $thinking default tier"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 924
+  status: pending
+  title: "Citation + source-tier extraction with role-tagged entities (grammar-constrained)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 902
+  status: pending
+  title: "KG SwiftUI-native visualisation: force-directed graph + Charts + Map place layer"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 878
+  status: pending
+  title: "Semantic embedding map visualisation (2D projection of doc cloud)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 877
+  status: pending
+  title: "RAG Q&A workflow (Apple Intelligence + hybrid retrieval)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 876
+  status: pending
+  title: "Int8 quantization for LanceDB embeddings (100K+ doc scale)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 875
+  status: pending
+  title: "Hybrid BM25 + BGE-M3 retrieval (RRF beyond cosine)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 854
+  status: pending
+  title: "Apple Intelligence: proactive token budgeting (waiting on SDK 26.4)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 821
+  status: pending
+  title: "Foundation toolkit: Tool protocol — let Apple Intelligence call back into the KG"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 801
+  status: pending
+  title: "Chunk inputs to summarize_file / summarize_folder / summarize_collection / rewrite / analyze for on-device LLMs"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 799
+  status: pending
+  title: "fm-bridge: GenerationSchema for guaranteed structured output (per-extractor schemas)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 760
+  status: pending
+  title: "Bash-launched Fichero binary doesn't get window/scene activation on macOS 26"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 756
+  status: pending
+  title: "Analysis tool: Language identification"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 755
+  status: pending
+  title: "Analysis tool: Plagiarism / near-duplicate detection across library"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 754
+  status: pending
+  title: "Analysis tool: Sentiment classifier"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 753
+  status: pending
+  title: "Add 'Detect AI Text' workflow tool (desklib/ai-text-detector-v1.01)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 752
+  status: pending
+  title: "Settings → Local Models tab: enable + download/manage local model weights"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 751
+  status: pending
+  title: "Workflow context menu: group Run Workflow submenu by folder_path (#722 part 2)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 744
+  status: pending
+  title: "Tinderbox importer: link a .tbx file → ingest notes into vector DB + KG"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 741
+  status: pending
+  title: "Search v2.5: local RAG Q&A workflow (Apple Intelligence + hybrid retrieval)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 740
+  status: pending
+  title: "GraphRAG (parked): evaluate nano-graphrag with Apple Intelligence at corpus scale"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 739
+  status: pending
+  title: "Ingest: resumable corpus pass with content-hash skip (100K-scale)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 738
+  status: pending
+  title: "Search index: int8 quantization for LanceDB at 100K-doc scale"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 737
+  status: pending
+  title: "Search v2.1: alias-aware entity query expansion"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 736
+  status: pending
+  title: "Search v2: hybrid BM25 + BGE-M3 retrieval (reciprocal rank fusion)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 734
+  status: pending
+  title: "Surface ModelComparisonService — 'Compare models' workflow run UI"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 733
+  status: pending
+  title: "First-run wizard: 'Use the cheapest model that works' framing"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 721
+  status: pending
+  title: "Inspector shows parent folder's container artifacts (Dates/Events/Keywords/etc.) on selected child page"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 720
+  status: pending
+  title: "Catalogue (composable) workflow finishes without a combined catalogue artifact — only emits per-entity outputs"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 719
+  status: pending
+  title: "Eager-prefetch thumbnails for the *currently selected folder* only (not whole library)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 718
+  status: pending
+  title: "Icon list thumbnails snap to square aspect when only one row visible (should preserve image aspect ratio)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 717
+  status: pending
+  title: "Grid icon click: preview updates but selected-icon highlight doesn't move to clicked item"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 716
+  status: pending
+  title: "Add 'Paleography Transcribe' workflow: multi-step reasoning transcription for old Spanish documents"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 715
+  status: pending
+  title: "Inspector RTF text editor: standard macOS text-editing shortcuts (option-left/right, etc.) don't work"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 714
+  status: pending
+  title: "Workflow Templates 'Install Defaults' undercounts: alert says '2 installed' when 5 templates are present"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 713
+  status: pending
+  title: "Sidebar drag asymmetry: icon/name vs row-body produce different drag sessions inside DisclosureGroup"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 712
+  status: pending
+  title: "Remove center preview pane; folder inspector when nothing selected"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 711
+  status: pending
+  title: "Sidebar drag: unify icon/text + row-body drag paths via .draggable Transferable (#598 follow-up)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 710
+  status: pending
+  title: "Test: ArtifactPanel RTF encode/decode round-trip (#688 follow-up)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
