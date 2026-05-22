@@ -117,8 +117,8 @@ class DocumentStore: ObservableObject {
             // Load ALL documents so SidebarItemBuilder can construct full hierarchy from parent_id
             // No limit - load everything for complete tree structure
             let query = ["offset": "0"]
-            let fresh: [Document] = try await api.get("/documents", query: query)
-            collections = applyStatusOverrides(fresh)
+            let response: DocumentListResponse = try await api.get("/documents", query: query)
+            collections = applyStatusOverrides(response.items)
             isConnected = true
             logger.info("Loaded \(self.collections.count) documents total")
 
@@ -172,8 +172,8 @@ class DocumentStore: ObservableObject {
         logger.info("loadChildren called for document: \(document.id), library path: \(libraryPath)")
 
         do {
-            let fresh: [Document] = try await self.api.get("/documents/\(document.id)/children")
-            let children = applyStatusOverrides(fresh)
+            let response: DocumentListResponse = try await self.api.get("/documents/\(document.id)/children")
+            let children = applyStatusOverrides(response.items)
             self.childrenCache[document.id] = children
             self.currentDocuments = children
             logger.info("loadChildren succeeded, got \(children.count) children")
