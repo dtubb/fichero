@@ -762,12 +762,12 @@
   completed_at: null
 
 - issue: 752
-  status: pending
+  status: blocked
   title: "Settings → Local Models tab: enable + download/manage local model weights"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
