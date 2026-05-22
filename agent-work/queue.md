@@ -622,14 +622,14 @@
   completed_at: null
 
 - issue: 902
-  status: pending
+  status: done
   title: "KG SwiftUI-native visualisation: force-directed graph + Charts + Map place layer"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 878
   status: pending
