@@ -612,12 +612,12 @@
   completed_at: null
 
 - issue: 924
-  status: pending
+  status: blocked
   title: "Citation + source-tier extraction with role-tagged entities (grammar-constrained)"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
