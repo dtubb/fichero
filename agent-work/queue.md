@@ -822,12 +822,12 @@
   completed_at: null
 
 - issue: 738
-  status: pending
+  status: blocked
   title: "Search index: int8 quantization for LanceDB at 100K-doc scale"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
