@@ -542,14 +542,14 @@
   completed_at: null
 
 - issue: 974
-  status: pending
+  status: done
   title: "Citation graph: link in-text citation → bibliography entry → claim, surfaced per-doc AND library-wide"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 973
   status: pending
