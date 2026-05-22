@@ -842,12 +842,12 @@
   completed_at: null
 
 - issue: 736
-  status: pending
+  status: blocked
   title: "Search v2: hybrid BM25 + BGE-M3 retrieval (reciprocal rank fusion)"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
