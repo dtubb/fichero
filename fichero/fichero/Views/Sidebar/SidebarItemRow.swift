@@ -5,6 +5,10 @@ import UniformTypeIdentifiers
 
 let sidebarRowLogger = Logger(subsystem: "com.fichero.fichero", category: "SidebarRow")
 
+func sidebarSelectionFallback(current: String?, tapped: String) -> String? {
+    current == tapped ? nil : tapped
+}
+
 /// Transferable wrapper for sidebar row drags (#711).
 ///
 /// Two reasons this exists rather than `.draggable(item.id)` directly:
@@ -340,10 +344,11 @@ struct SidebarItemRow: View {
             // DisclosureGroup label and the row drag both watch mouse-down
             // and compete with List(selection:) for the tap event, causing
             // intermittent click failures on icon/text (#645). A
-            // simultaneousGesture forces the selection binding to update
-            // regardless of which other handler wins the gesture arena.
+            // simultaneousGesture keeps a fallback path, but the write is
+            // deferred/idempotent so it does not mutate List selection while
+            // SwiftUI/AppKit are still resolving the row click (#1165).
             .simultaneousGesture(TapGesture().onEnded {
-                selectedItemId = item.id
+                requestSelectionFallback(for: item.id)
             })
             // SwiftUI `Text` registers itself as an NSDraggingSource for
             // selectable text on macOS. That AppKit-level drag source
@@ -357,6 +362,17 @@ struct SidebarItemRow: View {
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
+    }
+
+    private func requestSelectionFallback(for id: String) {
+        guard sidebarSelectionFallback(current: selectedItemId, tapped: id) != nil else {
+            return
+        }
+        Task { @MainActor in
+            if let next = sidebarSelectionFallback(current: selectedItemId, tapped: id) {
+                selectedItemId = next
+            }
+        }
     }
 
     /// VoiceOver label — the row's displayed name plus its kind so users
