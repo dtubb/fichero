@@ -432,12 +432,12 @@
   completed_at: null
 
 - issue: 1100
-  status: pending
+  status: blocked
   title: "Citation extraction workflow: port pdf2bib end-to-end + footnote/in-page citations + inspector panel"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: []"
   commit: null
   completed_at: null
 
