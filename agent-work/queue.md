@@ -802,12 +802,12 @@
   completed_at: null
 
 - issue: 740
-  status: pending
+  status: blocked
   title: "GraphRAG (parked): evaluate nano-graphrag with Apple Intelligence at corpus scale"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: []"
   commit: null
   completed_at: null
 
