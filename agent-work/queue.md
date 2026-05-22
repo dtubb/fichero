@@ -832,12 +832,12 @@
   completed_at: null
 
 - issue: 737
-  status: pending
+  status: blocked
   title: "Search v2.1: alias-aware entity query expansion"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
