@@ -812,12 +812,12 @@
   completed_at: null
 
 - issue: 739
-  status: pending
+  status: blocked
   title: "Ingest: resumable corpus pass with content-hash skip (100K-scale)"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
