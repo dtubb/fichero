@@ -60,14 +60,14 @@ final class AppEngineContractTests: XCTestCase {
     /// DocumentStore.loadCollections() uses DocumentListResponse envelope.
     /// This test catches envelope mismatches early (cf. #742 decoding error).
     func test_documentStore_loadCollections_uses_envelope() async throws {
-        let store = DocumentStore(api: engine.client)
+        let store = DocumentStore(apiClient: engine.client)
         try await store.loadCollections()
         XCTAssertEqual(store.collections.count, try expected("collections"), "DocumentStore.loadCollections envelope")
     }
 
     /// DocumentStore.loadChildren() uses DocumentListResponse envelope.
     func test_documentStore_loadChildren_uses_envelope() async throws {
-        let store = DocumentStore(api: engine.client)
+        let store = DocumentStore(apiClient: engine.client)
         try await store.loadCollections()
         guard let first = store.collections.first else {
             throw XCTSkip("No collections loaded — cannot test loadChildren")
