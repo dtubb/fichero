@@ -452,12 +452,12 @@
   completed_at: 2026-05-22
 
 - issue: 1095
-  status: pending
+  status: blocked
   title: "Bidirectional client compute: SwiftUI clients claim work from a server queue and post back results"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
