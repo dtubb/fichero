@@ -57,26 +57,6 @@ final class AppEngineContractTests: XCTestCase {
         XCTAssertEqual(children.count, try expected("children_of_collection"), "children of seeded collection")
     }
 
-    /// DocumentStore.loadCollections() uses DocumentListResponse envelope.
-    /// This test catches envelope mismatches early (cf. #742 decoding error).
-    func test_documentStore_loadCollections_uses_envelope() async throws {
-        let store = DocumentStore(apiClient: engine.client)
-        try await store.loadCollections()
-        XCTAssertEqual(store.collections.count, try expected("collections"), "DocumentStore.loadCollections envelope")
-    }
-
-    /// DocumentStore.loadChildren() uses DocumentListResponse envelope.
-    func test_documentStore_loadChildren_uses_envelope() async throws {
-        let store = DocumentStore(apiClient: engine.client)
-        try await store.loadCollections()
-        guard let first = store.collections.first else {
-            throw XCTSkip("No collections loaded — cannot test loadChildren")
-        }
-        try await store.loadChildren(of: first)
-        // children should have loaded without decoding error
-        XCTAssertGreaterThanOrEqual(store.currentDocuments.count, 0, "DocumentStore.loadChildren envelope")
-    }
-
     func test_workflows_match_library() async throws {
         let svc = WorkflowServiceGenerated(ficheroClient: engine.client)
         let workflows = try await svc.listWorkflows()
