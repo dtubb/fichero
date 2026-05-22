@@ -782,12 +782,12 @@
   completed_at: null
 
 - issue: 744
-  status: pending
+  status: blocked
   title: "Tinderbox importer: link a .tbx file → ingest notes into vector DB + KG"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit', 'no_commit']"
   commit: null
   completed_at: null
 
