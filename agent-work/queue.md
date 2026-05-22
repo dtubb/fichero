@@ -522,14 +522,14 @@
   completed_at: null
 
 - issue: 1072
-  status: pending
+  status: done
   title: "Audit the whole SwiftUI codebase for logic that belongs in the backend — frontend should only display"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 975
   status: pending
