@@ -392,14 +392,14 @@
   completed_at: null
 
 - issue: 1124
-  status: pending
+  status: done
   title: "Hermeneutics: controlled predicate vocabulary distinct from KG verbs (centers / decenters / contests_reading / etc)"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 1118
   status: pending
