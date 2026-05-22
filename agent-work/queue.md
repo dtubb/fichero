@@ -792,12 +792,12 @@
   completed_at: null
 
 - issue: 741
-  status: pending
+  status: blocked
   title: "Search v2.5: local RAG Q&A workflow (Apple Intelligence + hybrid retrieval)"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: []"
   commit: null
   completed_at: null
 
