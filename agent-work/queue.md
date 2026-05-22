@@ -442,14 +442,14 @@
   completed_at: null
 
 - issue: 1098
-  status: pending
+  status: done
   title: "Catalogue: bulk 'catalogue each selected folder' fan-out (500 folders → 500 catalogues)"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 1095
   status: pending
