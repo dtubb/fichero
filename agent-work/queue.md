@@ -75,7 +75,7 @@
   completed_at: 2026-05-22
 
 - issue: 958
-  status: in_progress
+  status: pending
   title: "Artifacts inspector: structured outputs (NER, classifications) shouldn't be rendered as editable RTF"
   files: [fichero/fichero/Views/Inspector/]
   approach: "Detect artifact type in the inspector; route structured JSON artifacts to a read-only formatted view instead of the RTF editor."
