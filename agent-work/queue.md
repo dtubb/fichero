@@ -592,12 +592,12 @@
   completed_at: null
 
 - issue: 968
-  status: pending
+  status: blocked
   title: "iPad / iPhone client app talking to a remote Fichero engine (via Tailscale or similar)"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: []"
   commit: null
   completed_at: null
 
