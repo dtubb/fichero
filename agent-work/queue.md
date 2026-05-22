@@ -672,12 +672,12 @@
   completed_at: null
 
 - issue: 854
-  status: pending
+  status: blocked
   title: "Apple Intelligence: proactive token budgeting (waiting on SDK 26.4)"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
