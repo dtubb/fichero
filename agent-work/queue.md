@@ -652,12 +652,12 @@
   completed_at: null
 
 - issue: 876
-  status: pending
+  status: blocked
   title: "Int8 quantization for LanceDB embeddings (100K+ doc scale)"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
