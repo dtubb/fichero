@@ -742,14 +742,14 @@
   completed_at: null
 
 - issue: 754
-  status: pending
+  status: done
   title: "Analysis tool: Sentiment classifier"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 753
   status: pending
