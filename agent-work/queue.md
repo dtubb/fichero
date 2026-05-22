@@ -462,12 +462,12 @@
   completed_at: null
 
 - issue: 1094
-  status: pending
+  status: blocked
   title: "Web client calling the engine"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit', 'no_commit']"
   commit: null
   completed_at: null
 
