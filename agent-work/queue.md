@@ -22,7 +22,7 @@
   est_tokens: 12000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 1048
   status: blocked
@@ -62,7 +62,7 @@
   est_tokens: 14000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 1036
   status: done
@@ -72,7 +72,7 @@
   est_tokens: 13000
   blocked_reason: "workers exhausted: ['shipped']"
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 958
   status: in_progress
@@ -87,7 +87,7 @@
 # ── Priority 2: Medium bugs / contained features (15–20k tokens) ─────────────
 
 - issue: 1031
-  status: needs_review
+  status: done
   title: "KG viewer claim source link does nothing — page-child sourceDocumentId not resolved on navigation"
   files: [fichero/fichero/Views/KG/, fichero-engine/src/fichero/api/routes/documents.py]
   approach: "Resolve page-child sourceDocumentId to parent document ID before navigation; add /documents/{id}/parent endpoint if Swift cannot resolve alone."
@@ -512,12 +512,12 @@
   completed_at: null
 
 - issue: 1089
-  status: pending
+  status: blocked
   title: "Changelog: per-artifact + per-document audit log"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
@@ -952,14 +952,14 @@
   completed_at: null
 
 - issue: 713
-  status: pending
+  status: done
   title: "Sidebar drag asymmetry: icon/name vs row-body produce different drag sessions inside DisclosureGroup"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 712
   status: pending
