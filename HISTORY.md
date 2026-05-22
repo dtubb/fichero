@@ -2109,3 +2109,19 @@ Autonomous session-start-auto resumed to verify and complete #1139. Context: sta
 - Wired ~/code/autoloop cascade_router.py verify node to call scripts/verify_python.sh (loop gate == project gate); fixed scheme fichero->Fichero.
 - Filed #1151 (feature-gate matrix), #1152 (model-management UI), #1153 (vision roadmap), #1154/#1155 (free-safe cleanup tasks).
 - Spec/plan: docs/superpowers/{specs,plans}/2026-05-20-unified-verification-gate*. Resume doc: agent-work/verification-gate-handoff.md.
+
+## 2026-05-21 — DocumentListResponse Envelope Fix
+
+Fixed Swift decoding error where `DocumentStore` expected `[Document]` but backend returns `{items: [...], count: N}` envelope.
+
+**Completed:**
+- Added `DocumentListResponse` struct to `Document.swift`
+- Fixed 4 methods in `DocumentStore.swift`:
+  - `loadCollections()` - line 118
+  - `loadChildren()` - line 175
+  - `refreshPendingStatusesOnly()` - line 212
+  - `children(of:)` - line 247
+- Updated `.swiftlint.yml` paths for current project structure
+- Build + 245 tests pass
+
+**Key Learning:** DocumentStore uses `APIClient` type, not `FicheroClient`. Contract tests that instantiate DocumentStore directly need APIClient wrapper.

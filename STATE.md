@@ -2,37 +2,17 @@
 
 ## Snapshot
 
-**Branch: 0.0.2** · Latest: `69cb6fcd` (jcodemunch migration) · Prior: `22e96e6e` (#840 shipped).
-
-## Tooling
-
-- **jcodemunch** — code-intelligence MCP, replaces trace-mcp (migrated 2026-05-17). Use `mcp__jcodemunch__*` tools (`search_symbols`, `get_file_outline`, `get_symbol_source`, `get_context_bundle`, `find_references`, `get_blast_radius`, `find_importers`, etc.) instead of Read/Grep/Glob for ALL code questions. Opening move per task: `mcp__jcodemunch__plan_turn { repo, query, model }`. Index at `~/.code-index/`; PostToolUse hooks auto-reindex.
-- **Autonomous loop** — `~/code/autoloop/` (local-only repo). Run via `~/code/autoloop/bin/curator.sh <project>` then `~/code/autoloop/bin/worker-loop.sh <project> <N>`. Curator (Sonnet) pre-digests `raw-issues.json` → `issues-summary.md` to avoid Read-limit. Worker (Haiku) routes through jcodemunch via `minimal-mcp.json`. Latest run shipped #840.
-- **.venv** — fresh Python 3.12 at `~/code/fichero-0.0.2/.venv`, `fichero-engine[dev]` editable installed. Activate with `source .venv/bin/activate`. NEVER alias to `.briefcase-venv` again — that was the symlink rot.
+**Branch: 0.0.2** · Clean working tree, all verification-gate fixes committed.
 
 ## Next Session — Start Here
 
-1. **Check git state** — should be clean post-commit `69cb6fcd`. 0.0.2 is 837+ commits ahead of `origin/main`; release ceremony (#158-#165) hasn't run yet.
+1. **Run `/session-start` script** to load context files (SOUL.md → MEMORY.md → STATE.md).
 2. **Decide direction:**
-   - **Continue autoloop** — `~/code/autoloop/bin/worker-loop.sh ~/code/fichero-0.0.2 3` on the freshly-curated `agent-work/queue.md`. Next pending is **#984 SVO promotion** (tight scope, no-migration, well-bounded).
-   - **Start the release** — #158 → #164 → #165 (merge 0.0.2 → main).
-   - **SwiftUI work** — #1135 KG editor, #1133 AppleScript bridge.
-3. **ACTIVE THREAD — verification gate. Read `agent-work/verification-gate-handoff.md` FIRST.** Goal: ⌘U / one command runs lint+build+test across app+engine+CLI. `scripts/verify_python.sh` = single-source gate; `~/code/autoloop` `cascade_router.py` now calls it. Baseline 107→44 unit failures (2 real backend bugs already fixed: `save_claim` svo_*, CLI `workflow run --wait`). Get baseline to 0 before relying on the gate. Needs-Opus post-May-23: bucket F real 500s, `CrossLanguageGateTests.swift`, `verify_all.sh`, **verify KG works end-to-end** (reported broken).
-   - Cadence loop (free): `cd ~/code/autoloop && .venv/bin/python bin/cascade_loop.py ~/code/fichero-0.0.2 --with-curator --with-reconcile --iterations 20` (use `check_level=minimal` until baseline green).
-   - Vision roadmap (NOT rushing 0.0.2): GitHub #1153 — RAG agent, research agents+browser, RealityKit mind palace, KG browse, VisionPro/iPad, editing tools. Each needs its own spec before a free worker can build it.
-   - Gotchas: jcodemunch + Xcode MCP can disconnect mid-session (fall back to grep/xcodebuild); SourceKit "No such module" = false positive, trust xcodebuild.
-
-## In Progress
-
-- **Cascade loop ready to run overnight** — verification gate complete (0 failures), free model working, vision issues created (#1156-1161, all `needs-design`).
-
-## Blocked
-
-- **#1054** (search relevance threshold) — pending, returns every page; needs scoring cutoff.
-- **#183** Phase H end-to-end test on LFH_AHJM folder — pending.
-- **Vision issues blocked** — #1156-1161 created but require specs and design before free workers can build (labeled `needs-design`).
-
-## Don't Break (load-bearing invariants)
+   - **Continue autoloop** — `~/code/autoloop/bin/worker-loop.sh ~/code/fichero-0.0.2 3` on fresh `agent-work/queue.md`.
+   - **Fix autoloop timeout** — workers timeout before commits (60s default). Consider `cascade_loop.py --timeout 7200`.
+   - **Vision roadmap** — Issues #1156-1161 created but blocked with `needs-design` label.
+3. **ACTIVE THREAD — verification gate complete.** `scripts/verify_python.sh` returns ALL PASS. Swift build + 245 tests pass.
+4. **Gotchas:** SwiftLint config updated for current project paths; workers execute tools but need more time per issue.
 
 **Engine / typed contract:**
 - `Database.save()` MUST use DuckDB `ON CONFLICT (id) DO UPDATE SET … = EXCLUDED.…` — `INSERT OR REPLACE` crashes uvicorn (#1120).
