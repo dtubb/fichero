@@ -882,14 +882,14 @@
   completed_at: 2026-05-22
 
 - issue: 720
-  status: pending
+  status: done
   title: "Catalogue (composable) workflow finishes without a combined catalogue artifact — only emits per-entity outputs"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 719
   status: pending
