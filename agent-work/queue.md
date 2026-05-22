@@ -362,12 +362,12 @@
   completed_at: 2026-05-21
 
 - issue: 1142
-  status: pending
+  status: blocked
   title: "[security] Upgrade liquidjs to >=10.25.7 — CVE-2026-41311 (circular block DoS, high severity)"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit', 'no_commit']"
   commit: null
   completed_at: null
 
