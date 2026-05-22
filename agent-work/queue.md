@@ -372,12 +372,12 @@
   completed_at: null
 
 - issue: 1135
-  status: pending
+  status: blocked
   title: "SwiftUI KG editor: edit, delete, merge, split entities and claims in-app"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: []"
   commit: null
   completed_at: null
 
