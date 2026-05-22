@@ -582,12 +582,12 @@
   completed_at: null
 
 - issue: 969
-  status: pending
+  status: blocked
   title: "Future: more robust engine auth — design for remote (Tailscale / mTLS) and harden the local token path"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: []"
   commit: null
   completed_at: null
 
