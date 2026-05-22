@@ -702,14 +702,14 @@
   completed_at: null
 
 - issue: 799
-  status: pending
+  status: done
   title: "fm-bridge: GenerationSchema for guaranteed structured output (per-extractor schemas)"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 760
   status: pending
