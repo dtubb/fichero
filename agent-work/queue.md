@@ -902,14 +902,14 @@
   completed_at: null
 
 - issue: 718
-  status: pending
+  status: done
   title: "Icon list thumbnails snap to square aspect when only one row visible (should preserve image aspect ratio)"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 717
   status: pending
