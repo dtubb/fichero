@@ -209,7 +209,8 @@ class DocumentStore: ObservableObject {
         guard !pendingIds.isEmpty else { return }
 
         do {
-            let fresh: [Document] = try await api.get("/documents/\(parentId)/children")
+            let response: DocumentListResponse = try await api.get("/documents/\(parentId)/children")
+            let fresh = response.items
             let freshById = Dictionary(uniqueKeysWithValues: fresh.map { ($0.id, $0) })
 
             // Walk currentDocuments. For each pending row whose status
@@ -244,10 +245,10 @@ class DocumentStore: ObservableObject {
         }
 
         do {
-            let fresh: [Document] = try await api.get("/documents/\(documentId)/children")
-            let children = applyStatusOverrides(fresh)
-            childrenCache[documentId] = children
-            return children
+            let response: DocumentListResponse = try await api.get("/documents/\(documentId)/children")
+            let fresh = response.items
+            childrenCache[documentId] = applyStatusOverrides(fresh)
+            return childrenCache[documentId] ?? []
         } catch {
             return []
         }
