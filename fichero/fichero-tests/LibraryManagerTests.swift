@@ -14,6 +14,9 @@ final class LibraryManagerTests: XCTestCase {
         libraryManager.openLibraries = []
         libraryManager.currentLibraryId = nil
         libraryManager.untitledCounter = 1
+        libraryManager.backendIsReady = false
+        libraryManager.loadedLibraryIds = []
+        libraryManager.loadingLibraryIds = []
 
         // Create a temporary test directory
         tempDirectory = FileManager.default.temporaryDirectory
@@ -27,6 +30,9 @@ final class LibraryManagerTests: XCTestCase {
         libraryManager.openLibraries = []
         libraryManager.currentLibraryId = nil
         libraryManager.untitledCounter = 1
+        libraryManager.backendIsReady = false
+        libraryManager.loadedLibraryIds = []
+        libraryManager.loadingLibraryIds = []
 
         // Clean up temporary test directory
         if FileManager.default.fileExists(atPath: tempDirectory.path) {
@@ -75,6 +81,22 @@ final class LibraryManagerTests: XCTestCase {
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: contentsDir.path), "Contents directory should exist")
         XCTAssertTrue(FileManager.default.fileExists(atPath: infoPlist.path), "Info.plist should exist")
+    }
+
+    func testLibraryLoadDefersUntilBackendReady() async throws {
+        // When
+        let library = libraryManager.createNewLibrary()
+
+        // Then
+        XCTAssertFalse(libraryManager.backendIsReady, "Backend should not be marked ready during plain library creation")
+        XCTAssertFalse(
+            libraryManager.loadedLibraryIds.contains(library.id),
+            "Library data should not be marked loaded before backend readiness"
+        )
+        XCTAssertFalse(
+            libraryManager.loadingLibraryIds.contains(library.id),
+            "Library data load should not start before backend readiness"
+        )
     }
 
     // MARK: - Save Tests

@@ -22,6 +22,14 @@ class LibraryManager: ObservableObject {
     /// Counter for unsaved library numbering (Untitled, Untitled 2, Untitled 3, etc.)
     var untitledCounter: Int = 1
 
+    /// Library data loads are deferred until the backend is confirmed running.
+    /// FicheroApp restores libraries before EmbeddedBackendService finishes its
+    /// startup probe; firing document/workflow/search requests during that
+    /// window creates noisy Network.framework path-check errors on launch (#1163).
+    var backendIsReady = false
+    var loadedLibraryIds: Set<UUID> = []
+    var loadingLibraryIds: Set<UUID> = []
+
     /// Represents an open library with its associated resources
     /// Each library has one instance of each service, shared across all windows/tabs viewing this library
     @MainActor
@@ -179,12 +187,7 @@ class LibraryManager: ObservableObject {
 
         libraryManagerLogger.info("Loaded Global library at: \(globalURL.path)")
 
-        // Initialize backend database, load data, then ensure Inbox folder exists
-        Task { @MainActor in
-            await initializeBackendDatabase(for: library)
-            await loadLibraryData(for: library)
-            await ensureInboxFolder(for: library)
-        }
+        scheduleLoadWhenBackendReady(for: library)
     }
 
     /// Get the Global library (always available)

@@ -115,6 +115,7 @@ struct FicheroApp: App {
                         try await backendService.start()
                         let backendMs = Date().timeIntervalSince(backendStart) * 1000
                         logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
+                        await libraryManager.backendDidBecomeReady()
                     } catch {
                         logger.error("Failed to start backend: \(error.localizedDescription)")
                         await showBackendError(error)

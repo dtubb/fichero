@@ -53,12 +53,7 @@ extension LibraryManager {
         // Save open libraries for restoration on next launch
         saveOpenLibraryPaths()
 
-        // Initialize the backend database connection, load data, and ensure Inbox
-        Task { @MainActor in
-            await initializeBackendDatabase(for: library)
-            await loadLibraryData(for: library)
-            await ensureInboxFolder(for: library)
-        }
+        scheduleLoadWhenBackendReady(for: library)
 
         return library
     }
@@ -103,12 +98,7 @@ extension LibraryManager {
         // Persist open libraries so newly-created databases can be restored on next launch.
         saveOpenLibraryPaths()
 
-        // Initialize the backend database, load data, and ensure Inbox
-        Task { @MainActor in
-            await initializeBackendDatabase(for: library)
-            await loadLibraryData(for: library)
-            await ensureInboxFolder(for: library)
-        }
+        scheduleLoadWhenBackendReady(for: library)
 
         return library
     }
@@ -236,9 +226,8 @@ extension LibraryManager {
             // If we moved from temp, backend will reconnect automatically on next request
             // If we created new (Save As on already-saved library), initialize the database
             if !isTempLibrary {
-                Task { @MainActor in
-                    await initializeBackendDatabase(for: library)
-                }
+                loadedLibraryIds.remove(library.id)
+                scheduleLoadWhenBackendReady(for: library)
             }
 
         } catch {

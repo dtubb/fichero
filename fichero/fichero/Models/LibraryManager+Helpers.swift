@@ -23,6 +23,47 @@ extension LibraryManager {
 
     // MARK: - Internal Helpers
 
+    /// Called after EmbeddedBackendService has connected to either the external
+    /// development engine or the bundled engine. Until this point, restored
+    /// libraries exist as UI state only and do not fire API requests (#1163).
+    func backendDidBecomeReady() async {
+        backendIsReady = true
+        for library in openLibraries {
+            await loadLibraryDataIfNeeded(for: library)
+        }
+    }
+
+    /// Starts a library load immediately when the backend is ready, otherwise
+    /// leaves it queued for backendDidBecomeReady().
+    func scheduleLoadWhenBackendReady(for library: LibraryReference) {
+        guard backendIsReady else {
+            libraryManagerLogger.info("Deferring library load until backend ready: \(library.displayName)")
+            return
+        }
+
+        Task { @MainActor in
+            await loadLibraryDataIfNeeded(for: library)
+        }
+    }
+
+    /// Initialize the backend database, load app data, and create Inbox once
+    /// per library. Re-entrant guards avoid duplicate startup tasks when the
+    /// window, restore, and backend-ready paths all observe the same library.
+    func loadLibraryDataIfNeeded(for library: LibraryReference) async {
+        guard !loadedLibraryIds.contains(library.id),
+              !loadingLibraryIds.contains(library.id) else {
+            return
+        }
+
+        loadingLibraryIds.insert(library.id)
+        defer { loadingLibraryIds.remove(library.id) }
+
+        await initializeBackendDatabase(for: library)
+        await loadLibraryData(for: library)
+        await ensureInboxFolder(for: library)
+        loadedLibraryIds.insert(library.id)
+    }
+
     /// Create the .fichero package directory structure
     func createPackageStructure(at url: URL) {
         let fileManager = FileManager.default
