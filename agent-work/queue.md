@@ -552,12 +552,12 @@
   completed_at: 2026-05-22
 
 - issue: 973
-  status: pending
+  status: blocked
   title: "Book-aware page numbering + chapter markers for PDFs and folders (Apple Intelligence detection)"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: []"
   commit: null
   completed_at: null
 
