@@ -732,12 +732,12 @@
   completed_at: null
 
 - issue: 755
-  status: pending
+  status: blocked
   title: "Analysis tool: Plagiarism / near-duplicate detection across library"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
