@@ -342,12 +342,12 @@
   completed_at: null
 
 - issue: 1145
-  status: pending
+  status: blocked
   title: "Add OCR / HTR model options: Qwen3-VL 8B, Chandra, Nanonets-OCR-s, Gemini 3, GPT-5"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
