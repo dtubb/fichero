@@ -2125,3 +2125,19 @@ Fixed Swift decoding error where `DocumentStore` expected `[Document]` but backe
 - Build + 245 tests pass
 
 **Key Learning:** DocumentStore uses `APIClient` type, not `FicheroClient`. Contract tests that instantiate DocumentStore directly need APIClient wrapper.
+
+## 2026-05-22 — Autoloop Repair, Bug/Feature Capture, Codex Skill Wiring
+
+- Reviewed `/session-start` state and `agent-work/queue.md`; confirmed `0.0.2` clean at start and queue had `#958` stranded `in_progress`, with older pending issues behind it.
+- Pushed `origin/0.0.2`; branch was already up to date after the other agent's `d97608ab` liquidjs security fix and `10888de9` state update.
+- Repaired `~/code/autoloop` loop behavior:
+  - `cascade_loop.py` now uses the project cwd for `gh issue list`, takes the same `.cascade.lock` as the router, initializes validation state, and advances a copied queue during dry-runs so multi-iteration diagnostics do not reprocess the first item.
+  - `cascade_router.py` queue status flips now return booleans, fixing reconcile counts.
+  - pi worker launches now explicitly load `/fs_autoloop:session-worker` with `--only-skills --allow-skill`, and skip the default end phase.
+  - `agent-autonomous-loop.py` now imports modules required by cleanup paths and resolves plugin-qualified skill refs like `/fs_autoloop:session-worker`.
+- Verified dry-run loop advances across multiple issues (`#715` → `#714` → `#712`) and confirmed the old live loop failure was pi treating the slash skill as prose.
+- Ran a live loop long enough to confirm it continued past iteration 1; stopped before a trusted commit because the first old-code worker had already shown broken skill loading. `#715` was marked blocked by the loop; `#714` remains pending.
+- Filed new GitHub issues from Daniel's live testing:
+  - `#1167` — artifact inspector shows `CancellationError` when rapidly switching PDF pages.
+  - `#1168` — KG browser visual hierarchy / graph neighborhood view.
+- Installed missing high-use Codex skill symlinks under `~/.codex/skills`: `bug`, `feature`, `feature-future`, `autonomous-loop`, `extract-bib`.

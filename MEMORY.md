@@ -1,5 +1,13 @@
 # Durable Lessons Learned / Decisions
 
+## Codex skill discovery needs `SKILL.md`; Claude plugin-qualified skills can use `skill.md` — 2026-05-22
+
+Claude's plugin marketplace can expose skills like `/fs_session:bug` from `plugins/fs_session/skills/bug/skill.md`, but Codex's local skill loader expects `~/.codex/skills/<name>/SKILL.md`. If a skill exists in `fichero-skills` but is missing from Codex's session skill list, install a symlink under `~/.codex/skills/<name>/SKILL.md` pointing at the canonical plugin skill. Added symlinks for `bug`, `feature`, `feature-future`, `autonomous-loop`, and `extract-bib`. A Codex restart is required for automatic trigger discovery; within an existing session, read the skill file manually and follow it.
+
+## Autoloop pi workers need explicit skill loading — 2026-05-22
+
+`agent-autonomous-loop.py --agent pi` does not honor Claude-style `--plugin-dir` skill loading. To make `/fs_autoloop:session-worker` execute as a real skill instead of prose, launch pi workers with `--only-skills --allow-skill /fs_autoloop:session-worker`. Also pass `--skip-end-phase`; otherwise the runner may invoke its default `/session-end` after the worker path and burn context reading broad project history. `cascade_loop.py` dry-runs should use a copied queue and advance simulated statuses, or diagnostics misleadingly reprocess the first pending item forever.
+
 ## Migrated from trace-mcp to jcodemunch — 2026-05-17
 
 Code-intelligence MCP server replaced. **Why:** trace-mcp's `search` returned zero results on the parent monorepo index despite 246k indexed symbols — a real upstream bug, not a configuration issue (CLI worked, MCP didn't). Migrated to `jcodemunch-mcp` (`pipx install`, `uvx jcodemunch-mcp init`). Tool-name mapping: `search` → `search_symbols`, `get_outline` → `get_file_outline`, `get_symbol` → `get_symbol_source`, `find_usages` → `find_references`, `get_change_impact` → `get_blast_radius`. Same tree-sitter approach, same persistence model, ~95% token savings vs Read/Grep. Backups of trace-mcp state preserved at `/tmp/trace-mcp-*` (30d TTL). Worker's `minimal-mcp.json` now points at jcodemunch — if you re-enable trace-mcp later, restore that file too.
