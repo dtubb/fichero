@@ -382,12 +382,12 @@
   completed_at: null
 
 - issue: 1133
-  status: pending
+  status: blocked
   title: "AppleScript bridge: programmatic UI control for autonomous dev/test loop"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
