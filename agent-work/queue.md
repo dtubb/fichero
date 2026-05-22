@@ -332,12 +332,12 @@
   completed_at: null
 
 - issue: 1146
-  status: pending
+  status: blocked
   title: "Embed MLX Swift for local Qwen3-VL 8B / Nanonets-OCR-s; investigate Chandra"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
