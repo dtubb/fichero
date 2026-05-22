@@ -712,12 +712,12 @@
   completed_at: 2026-05-22
 
 - issue: 760
-  status: pending
+  status: blocked
   title: "Bash-launched Fichero binary doesn't get window/scene activation on macOS 26"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit', 'no_commit']"
   commit: null
   completed_at: null
 
