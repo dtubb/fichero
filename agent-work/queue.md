@@ -932,12 +932,12 @@
   completed_at: 2026-05-22
 
 - issue: 715
-  status: pending
+  status: blocked
   title: "Inspector RTF text editor: standard macOS text-editing shortcuts (option-left/right, etc.) don't work"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit', 'no_commit']"
   commit: null
   completed_at: null
 
