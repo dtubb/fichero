@@ -1,7 +1,7 @@
 included:
-  - fichero-swiftui/fichero-swiftui
+  - fichero/fichero
 
 excluded:
-  - fichero-swiftui/fichero-swiftui/Services/*Generated.swift
-  - fichero-swiftui/fichero-swiftui/fichero-api-client
-  - fichero-swiftui/fichero-swiftui/Views/Library/ImageViewer
+  - fichero/fichero/Services/*Generated.swift
+  - fichero/fichero/fichero-api-client
+  - fichero/fichero/Views/Library/ImageViewer
