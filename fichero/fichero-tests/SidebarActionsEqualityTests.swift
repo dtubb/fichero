@@ -94,7 +94,7 @@ struct SidebarActionsEqualityTests {
 
 // MARK: - SidebarSelectionInfo Equality
 
-/// SidebarSelectionInfo is Equatable (compiler-synthesized) so
+/// SidebarSelectionInfo is Equatable so
 /// `.focusedValue(\.sidebarSelectionInfo, ...)` short-circuits when the
 /// selection, rename-availability, and delete-availability all match
 /// the previously-published value. Without Equatable, every body
@@ -119,11 +119,46 @@ struct SidebarSelectionInfoEqualityTests {
         )
     }
 
+    private func makeItem(id: String, name: String, children: [SidebarItem]?) -> SidebarItem {
+        SidebarItem(
+            id: id,
+            name: name,
+            icon: "doc",
+            category: .folder,
+            itemType: .folder(folderPath: "/\(name)"),
+            children: children,
+            progress: nil,
+            showProgress: false,
+            libraryId: nil,
+            folderPath: "/",
+            sortOrder: 0,
+            isFolder: true
+        )
+    }
+
     @Test("Same selection + same capability flags → equal")
     func sameValuesAreEqual() {
         let itemA = makeItem(id: "doc:1", name: "One")
         let info1 = SidebarSelectionInfo(selectedItem: itemA, canRename: true, canDelete: false)
         let info2 = SidebarSelectionInfo(selectedItem: itemA, canRename: true, canDelete: false)
+        #expect(info1 == info2)
+    }
+
+    @Test("#1162 child loading does not republish the same sidebar selection")
+    func sameSelectionIdWithLoadedChildrenIsEqual() {
+        let itemBeforeChildrenLoad = makeItem(id: "doc:1", name: "One", children: nil)
+        let child = makeItem(id: "doc:child", name: "Child")
+        let itemAfterChildrenLoad = makeItem(id: "doc:1", name: "One", children: [child])
+        let info1 = SidebarSelectionInfo(
+            selectedItem: itemBeforeChildrenLoad,
+            canRename: true,
+            canDelete: false
+        )
+        let info2 = SidebarSelectionInfo(
+            selectedItem: itemAfterChildrenLoad,
+            canRename: true,
+            canDelete: false
+        )
         #expect(info1 == info2)
     }
 

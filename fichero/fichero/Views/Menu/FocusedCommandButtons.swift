@@ -59,6 +59,12 @@ struct SidebarSelectionInfo: Equatable {
     let selectedItem: SidebarItem?
     let canRename: Bool
     let canDelete: Bool
+
+    static func == (lhs: SidebarSelectionInfo, rhs: SidebarSelectionInfo) -> Bool {
+        lhs.selectedItem?.id == rhs.selectedItem?.id
+            && lhs.canRename == rhs.canRename
+            && lhs.canDelete == rhs.canDelete
+    }
 }
 
 /// FocusedValue key for sidebar actions

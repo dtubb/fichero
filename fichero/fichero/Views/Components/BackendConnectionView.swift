@@ -91,9 +91,9 @@ struct BackendConnectionView: View {
                     .frame(width: 72, height: 72)
 
                 HStack(spacing: 6) {
-                    ForEach(0..<3, id: \.self) { i in
+                    ForEach(0..<3, id: \.self) { dotIndex in
                         Circle()
-                            .fill(dotPhase == i ? Color.accentColor : Color.secondary.opacity(0.3))
+                            .fill(dotPhase == dotIndex ? Color.accentColor : Color.secondary.opacity(0.3))
                             .frame(width: 8, height: 8)
                     }
                 }

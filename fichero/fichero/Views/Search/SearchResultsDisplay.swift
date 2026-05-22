@@ -45,8 +45,8 @@ struct SearchResultsDisplay: View {
     ) -> CGFloat {
         let counts = cloud.map(\.count)
         guard let lo = counts.min(), let hi = counts.max(), hi > lo else { return 12 }
-        let t = CGFloat(entry.count - lo) / CGFloat(hi - lo)
-        return 11 + t * 6
+        let interpolation = CGFloat(entry.count - lo) / CGFloat(hi - lo)
+        return 11 + interpolation * 6
     }
 
     var body: some View {

@@ -176,11 +176,11 @@ struct EntityDetailView: View {
             return (subject, verb, object)
         }
         guard let dict = claim.metadata?.additionalProperties.value else { return nil }
-        let s = (dict["subject"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let v = (dict["verb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let o = (dict["object"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !s.isEmpty, !v.isEmpty, !o.isEmpty else { return nil }
-        return (s, v, o)
+        let metadataSubject = (dict["subject"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let metadataVerb = (dict["verb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let metadataObject = (dict["object"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !metadataSubject.isEmpty, !metadataVerb.isEmpty, !metadataObject.isEmpty else { return nil }
+        return (metadataSubject, metadataVerb, metadataObject)
     }
 
     /// Pronoun to use after the first mention. Defaults to "they" for
