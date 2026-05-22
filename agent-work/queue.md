@@ -532,12 +532,12 @@
   completed_at: 2026-05-22
 
 - issue: 975
-  status: pending
+  status: blocked
   title: "Structured transcript ingest: timecoded segments + speaker diarization as artifacts"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
