@@ -872,14 +872,14 @@
   completed_at: null
 
 - issue: 721
-  status: pending
+  status: done
   title: "Inspector shows parent folder's container artifacts (Dates/Events/Keywords/etc.) on selected child page"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-22
 
 - issue: 720
   status: pending
