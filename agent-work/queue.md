@@ -572,12 +572,12 @@
   completed_at: null
 
 - issue: 970
-  status: pending
+  status: blocked
   title: "OCR bounding boxes: persist per-text-region bbox from Apple Vision + cloud OCR, tie KG claims to them"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
