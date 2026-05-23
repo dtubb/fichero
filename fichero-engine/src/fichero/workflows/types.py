@@ -412,7 +412,10 @@ class EdgeDef(BaseModel):
         default="", description="Unique edge identifier (auto-generated if empty)"
     )
     source: str = Field(..., description="Source node ID")
-    target: str = Field(..., description="Target node ID")
+    target: str = Field(
+        default="",
+        description="Target node ID (empty for route_map edges that fan to multiple targets)",
+    )
 
     # Port connections (specific ports on each node)
     source_port: str = Field(
@@ -426,6 +429,16 @@ class EdgeDef(BaseModel):
     condition: str | None = Field(
         default=None,
         description="Condition expression (e.g., '$.nodes.classify.category == \"invoice\"'), empty for unconditional",
+    )
+
+    # Multi-way routing (mutually exclusive with condition)
+    route_key: str | None = Field(
+        default=None,
+        description="Path expression whose resolved value is used to select a route (e.g. '$.nodes.classify.script_type')",
+    )
+    route_map: dict[str, str] | None = Field(
+        default=None,
+        description="Maps resolved route_key values to target node IDs (e.g. {'typescript': 'transcribe-ts'})",
     )
 
     # Visual styling
@@ -475,7 +488,10 @@ class WorkflowDef(BaseModel):
 
     def get_entry_nodes(self) -> list[str]:
         """Find nodes with no incoming edges (entry points)."""
-        targets = {e.target for e in self.edges}
+        targets = {e.target for e in self.edges if e.target}
+        for e in self.edges:
+            if e.route_map:
+                targets.update(e.route_map.values())
         return [n.id for n in self.nodes if n.id not in targets]
 
     def get_exit_nodes(self) -> list[str]:

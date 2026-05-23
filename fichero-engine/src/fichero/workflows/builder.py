@@ -277,6 +277,27 @@ def build_graph(
     valid_node_ids = {node.id for node in workflow.nodes}
     filtered_edges = []
     for edge in workflow.edges:
+        if edge.route_map:
+            # Route-map edges have no single target — validate route_map values instead
+            if not edge.source or not edge.route_key or not edge.route_map:
+                logger.warning(
+                    "Skipping route_map edge with missing source/route_key/route_map (source=%r)",
+                    edge.source,
+                )
+                continue
+            if edge.source not in valid_node_ids:
+                logger.warning(
+                    "Skipping route_map edge: source=%r not in known nodes", edge.source
+                )
+                continue
+            unknown_targets = [v for v in edge.route_map.values() if v not in valid_node_ids]
+            if unknown_targets:
+                logger.warning(
+                    "Skipping route_map edge: targets %s not in known nodes", unknown_targets
+                )
+                continue
+            filtered_edges.append(edge)
+            continue
         if not edge.source or not edge.target:
             logger.warning(
                 "Skipping edge with empty endpoint (source=%r, target=%r) — "
@@ -295,9 +316,11 @@ def build_graph(
         filtered_edges.append(edge)
     workflow.edges = filtered_edges
 
-    # Build edge lookup for auto-wiring
+    # Build edge lookup for auto-wiring (route_map edges have no single target)
     edges_by_target = {}
     for edge in workflow.edges:
+        if edge.route_map or not edge.target:
+            continue
         if edge.target not in edges_by_target:
             edges_by_target[edge.target] = []
         edges_by_target[edge.target].append(
@@ -375,6 +398,14 @@ def build_graph(
     # Add non-parallel edges
     for edge in workflow.edges:
         source_name = node_names[edge.source]
+
+        if edge.route_map:
+            # Multi-way routing: one conditional edge maps string values to node names
+            route_fn = _make_route_function(edge.route_key, edge.route_map, node_names)
+            path_map = {node_names[tid]: node_names[tid] for tid in edge.route_map.values()}
+            graph.add_conditional_edges(source_name, route_fn, path_map)
+            continue
+
         target_name = node_names[edge.target]
 
         if (edge.source, edge.target) in parallel_edges:
@@ -1148,6 +1179,41 @@ def _make_condition_function(
         return evaluate_condition(condition, state, workflow_config)
 
     return evaluate
+
+
+def _make_route_function(
+    route_key: str,
+    route_map: dict[str, str],
+    node_names: dict[str, str],
+):
+    """Create a routing function for multi-way conditional edges.
+
+    Resolves route_key from state, looks up the result in route_map (value →
+    node ID), and returns the corresponding graph node name.  Falls back to the
+    first route_map entry when the resolved value is unknown so the workflow
+    never silently stalls.
+
+    NOTE: no return type annotation — add_conditional_edges calls
+    get_type_hints() in the module namespace where local imports are not
+    defined.  See the fan_out function for the same pattern.
+    """
+    from fichero.workflows.resolver import resolve_value  # noqa: PLC0415
+
+    first_node_name = node_names.get(next(iter(route_map.values()), ""), "")
+
+    def route(state: State):
+        val = resolve_value(route_key, state, None)
+        val_str = str(val) if val is not None else ""
+        target_id = route_map.get(val_str)
+        if target_id and target_id in node_names:
+            return node_names[target_id]
+        logger.warning(
+            "route_map: key %r resolved to unknown value %r; falling back to %s",
+            route_key, val_str, first_node_name,
+        )
+        return first_node_name
+
+    return route
 
 
 async def execute_workflow(

@@ -128,3 +128,82 @@ async def test_parallel_aggregate_auto_wires_downstream_inputs(monkeypatch):
     assert captured_extract_inputs["records"] == [
         {"doc_id": "doc-1", "text": "transcribed page text"}
     ]
+
+
+def test_build_graph_handles_route_map_edge():
+    """A route_map edge (no single target) builds without crashing."""
+    workflow = WorkflowDef(
+        name="RouteTest",
+        nodes=[
+            NodeDef(id="files", tool="files", config={}),
+            NodeDef(id="classify", tool="classify_script", config={}),
+            NodeDef(id="transcribe-ts", tool="transcribe", config={}),
+            NodeDef(id="transcribe-ms", tool="transcribe", config={}),
+        ],
+        edges=[
+            EdgeDef(source="files", target="classify", source_port="files", target_port="files"),
+            EdgeDef(
+                source="classify",
+                target="",
+                route_key="$.nodes.classify.script_type",
+                route_map={"typescript": "transcribe-ts", "manuscript": "transcribe-ms"},
+            ),
+        ],
+    )
+    app = build_graph(workflow, enable_parallel=False)
+    assert app is not None
+
+
+def test_route_map_entry_nodes_excludes_branch_targets():
+    """Nodes reachable only via route_map must not be detected as entry nodes
+    (which would connect them directly to START and run all branches)."""
+    from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
+
+    workflow = WorkflowDef(
+        name="RouteEntryTest",
+        nodes=[
+            NodeDef(id="files", tool="files", config={}),
+            NodeDef(id="classify", tool="classify_script", config={}),
+            NodeDef(id="transcribe-ts", tool="transcribe", config={}),
+            NodeDef(id="transcribe-ms", tool="transcribe", config={}),
+        ],
+        edges=[
+            EdgeDef(source="files", target="classify", source_port="files", target_port="files"),
+            EdgeDef(
+                source="classify",
+                target="",
+                route_key="$.nodes.classify.script_type",
+                route_map={"typescript": "transcribe-ts", "manuscript": "transcribe-ms"},
+            ),
+        ],
+    )
+    entry_nodes = workflow.get_entry_nodes()
+    # Only files-source should be an entry node; classify is wired from files,
+    # transcribe-ts/ms are wired via route_map.
+    assert "files" in entry_nodes
+    assert "classify" not in entry_nodes
+    assert "transcribe-ts" not in entry_nodes
+    assert "transcribe-ms" not in entry_nodes
+
+
+def test_route_map_invalid_target_skipped():
+    """A route_map edge whose targets are not in the node list is filtered out."""
+    workflow = WorkflowDef(
+        name="RouteBadTarget",
+        nodes=[
+            NodeDef(id="files", tool="files", config={}),
+            NodeDef(id="classify", tool="classify_script", config={}),
+        ],
+        edges=[
+            EdgeDef(source="files", target="classify", source_port="files", target_port="files"),
+            EdgeDef(
+                source="classify",
+                target="",
+                route_key="$.nodes.classify.script_type",
+                route_map={"typescript": "nonexistent-node"},
+            ),
+        ],
+    )
+    # Should build without crashing; the bad route_map edge is dropped.
+    app = build_graph(workflow, enable_parallel=False)
+    assert app is not None

@@ -288,6 +288,58 @@ class TestLoadPresetFiles:
             )
 
 
+    def test_auto_detect_preset_wiring(self):
+        """Auto-detect preset: classify_script node + route_map edge covering all 4 profiles."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        ad = presets["Transcribe (Auto-Detect)"]
+
+        node_tools = {n["tool"] for n in ad["nodes"]}
+        assert "classify_script" in node_tools
+        assert "transcribe" in node_tools
+        assert "transcribe_review" in node_tools
+
+        # Must have exactly one route_map edge
+        route_edges = [e for e in ad["edges"] if e.get("route_map")]
+        assert len(route_edges) == 1, "auto-detect must have exactly one route_map edge"
+
+        rmap = route_edges[0]["route_map"]
+        assert set(rmap.keys()) == {"typescript", "manuscript", "htr", "paleography"}
+
+        # All route_map target node IDs must exist in nodes
+        node_ids = {n["id"] for n in ad["nodes"]}
+        for key, target_id in rmap.items():
+            assert target_id in node_ids, f"route_map[{key!r}] → {target_id!r} not in nodes"
+
+        # Two-pass branches (HTR, paleography) must have a review node downstream
+        htr_transcribe_id = rmap["htr"]
+        paleo_transcribe_id = rmap["paleography"]
+        htr_review_id = rmap.get("htr_review")  # not a key — find via edges
+        # Find review nodes connected from htr/paleo transcribe nodes
+        htr_review_edges = [e for e in ad["edges"] if e.get("source") == htr_transcribe_id and e.get("target_port") == "context"]
+        paleo_review_edges = [e for e in ad["edges"] if e.get("source") == paleo_transcribe_id and e.get("target_port") == "context"]
+        assert htr_review_edges, "HTR branch must chain to a review node via context port"
+        assert paleo_review_edges, "Paleography branch must chain to a review node via context port"
+
+    def test_auto_detect_branch_nodes_have_files_input(self):
+        """Branch transcribe/review nodes pull files explicitly from files-source
+        via inputs (not edges) since they are not directly wired from files-source."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        ad = presets["Transcribe (Auto-Detect)"]
+
+        route_edges = [e for e in ad["edges"] if e.get("route_map")]
+        routed_ids = set(route_edges[0]["route_map"].values())
+
+        for node in ad["nodes"]:
+            if node["id"] not in routed_ids:
+                continue
+            inputs = node.get("inputs", {})
+            assert "files" in inputs, (
+                f"branch node {node['id']!r} must declare inputs.files "
+                f"to receive files without a direct graph edge"
+            )
+            assert inputs["files"] == "$.nodes.files-source.files"
+
+
 def _node_id(preset: dict, tool: str) -> str:
     for node in preset["nodes"]:
         if node["tool"] == tool:
