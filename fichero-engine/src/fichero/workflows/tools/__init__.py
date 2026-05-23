@@ -26,6 +26,7 @@ from fichero.workflows.tools import transcribe
 from fichero.workflows.tools import transcribe_review  # noqa: F401  (registers the tool via @register_tool)
 from fichero.workflows.tools import describe
 from fichero.workflows.tools import classify
+from fichero.workflows.tools import classify_script  # noqa: F401  (registers classify_script tool)
 from fichero.workflows.tools import caption
 from fichero.workflows.tools import analyze
 from fichero.workflows.tools import tags
@@ -88,6 +89,7 @@ __all__ = [
     "transcribe",
     "describe",
     "classify",
+    "classify_script",
     "caption",
     "analyze",
     "tags",

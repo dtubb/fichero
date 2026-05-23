@@ -1,0 +1,47 @@
+{
+  "name": "Transcribe Paleography",
+  "description": "Paleography transcription profile for archaic scripts with non-standard letterforms (pre-18th century or specialist scripts). Uses cloud LLM with extended thinking. For language-specific presets, duplicate and customise the prompt.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Transcribe",
+  "tags": ["preset", "transcribe", "paleography", "archaic", "manuscript"],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "transcribe",
+      "tool": "transcribe",
+      "label": "Transcribe (paleography)",
+      "position_x": 280,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "vision_mode": "llm",
+        "language": "en",
+        "update_page_content": true,
+        "thinking_mode": "high",
+        "prompt": "You are a paleographer reading archaic handwriting. Transcribe what is visible on the page — nothing more.\n\nExpected script characteristics:\n- Non-standard letterforms, ligatures, and letter-spacing from archaic scribal practice.\n- Heavy abbreviation via suspension (final letters dropped), contraction (medial letters dropped), and superscription.\n- Specialist vocabulary: legal, ecclesiastical, notarial, or chancery formulae depending on document type.\n- Mixed scripts possible (text + marginalia in different hands).\n\nRules:\n- Output ONLY the transcription. No headings, preamble, commentary, summary, or notes.\n- Preserve original layout, line breaks, and paragraph structure.\n- Preserve original spelling and capitalisation exactly as written. Never modernise.\n- Expand abbreviations only when unambiguous; mark uncertain expansions with [?expansion].\n- Archaic letterforms: render as their modern equivalents (long-s → s, etc.).\n- Rubrics, paraphs, and decorative elements: note as [rubric], [paraph] inline.\n- For text you cannot confidently read, write [illegible] at that position. Do not guess.\n- Damaged, obscured, or lost text: mark [damaged], [obscured], or [lacuna].\n- Crossed-out text: transcribe inside [deleted: ...].\n- Above-line insertions: transcribe inline at the insertion point.\n- If the image contains no legible text, output [no text].\n\nNote: if you recognise the language (Latin, Spanish, French, Arabic, etc.), apply language-appropriate paleographic conventions."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-files-transcribe",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "files",
+      "target_port": "files"
+    }
+  ]
+}
