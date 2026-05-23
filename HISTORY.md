@@ -2156,3 +2156,23 @@ Fixed Swift decoding error where `DocumentStore` expected `[Document]` but backe
 - Created and corrected GitHub issues:
   - #1177 (small-batch CLI verification harness),
   - #1178 (workflow model routing + profile/classifier gate).
+
+## 2026-05-23 — Paleography Pipeline + Two-Pass Transcription Workflows
+
+Two sessions continuing #1178 (transcription profiles) and paleography pipeline quality.
+
+**Completed:**
+- ✅ Fix #1169: catalogue narrative failure now isolated from KG extraction success — uses `result["warning"]` instead of `result["error"]` when `has_kg_data=True`, so the workflow builder doesn't hard-abort on partial success
+- ✅ Fix: FolderAccessManager skips bookmarking transient drag-and-drop temp paths (`fichero-drop-*`, `/var/folders/`, `/tmp/`) and prunes stale bookmark entries on restore
+- ✅ Feat #1178: 4 new transcription profile workflow presets — Transcribe Typescript, Transcribe Manuscript, Transcribe HTR, Transcribe Paleography — each tuned to document type with appropriate `vision_mode` and `thinking_mode`
+- ✅ Feat #1178: `classify_script` tool — vision tool that classifies typescript/manuscript/HTR/paleography with confidence score and `needs_human_selection` flag
+- ✅ Feat #1178: Upgraded Transcribe HTR and Transcribe Paleography to two-pass workflows (Pass 1 draft + Pass 2 comparison-method review) with Haggard 1941 techniques baked into prompts
+- ✅ Test: `test_idempotent_second_run_seeds_nothing` now auto-discovers preset names via `_load_preset_files()` instead of a hardcoded list
+- ✅ Filed #1179: RAG-assisted transcription review (query LanceDB reference corpus to resolve [?word] markers in Pass 2)
+
+**Key Technical Decisions:**
+- Two-pass wiring: `files → transcribe.files`, `files → transcribe_review.files`, `transcribe.text → transcribe_review.context` — review node needs original images AND prior text
+- Haggard 1941 (Ch. II, V, Appendix B/C): comparison-method identification, two-tier uncertainty markers ([?word] vs [illegible]), script identification header in Pass 1, glyph confusion tables per period (rn/m, c/e, long-s/f, digit 1/7 etc.)
+- Paleography Pass 1 `update_page_content: false` so only the reviewed Pass 2 output updates page text in the DB
+
+**Commits:** 95028f02, 9822a3c9
