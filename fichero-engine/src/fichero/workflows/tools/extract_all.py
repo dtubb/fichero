@@ -1,17 +1,17 @@
 """
-Combined entity extractor — one LLM call per page returns all six entity
-types (people, places, organizations, dates, events, keywords) as a
-single JSON payload.
+Combined entity extractor — ONE-SHOT AND TWO-STAGE MODES
 
-Replaces the six separate extractor nodes (people_extract, places_extract,
-…) for the speed-optimised default Catalogue preset. On Apple Intelligence
-this is the single biggest win: 6× fewer LLM calls per page, same output
-shape going into the rest of the pipeline (writes per-type KG claims +
-per-page artifacts that the existing folder_cleanup tools consume).
+ONE-SHOT MODE (default): One LLM call per page returns all six entity types (people,
+places, organizations, dates, events, keywords) as a single JSON payload. This is the
+speed-optimised default for Catalogue preset.
 
-Per-page records flow honored: when the upstream Aggregate node passes
-records=[{doc_id, text}, ...], we save claims+artifacts to each page
-doc_id. Falls back to container.id when records absent (legacy path).
+TWO-STAGE MODE (experimental): First pass extracts entity names only (no SVO pressure);
+second pass runs per-entity claim extraction for grounded SVO + quotes. Better for Apple
+Intelligence where the one-shot prompt often produces weak/chatty SVO output.
+
+Both modes produce the same output shape (people/places/organizations/dates/events/quotes
+as lists of items with verb/object/source_text) so downstream tools (folder_cleanup, KG
+writer) work unchanged.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from fichero.db import db_manager
-from fichero.llm import LLMConfig, chat_structured_with_fallback
+from fichero.llm import LLMConfig, chat_structured, chat_structured_with_fallback, resolve_model_alias
 from fichero.models import Artifact, Document, DocType, FileType
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_write_target
@@ -45,6 +45,21 @@ from fichero.workflows.tools.llm_base import (
 from fichero.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
+
+
+# Two-stage extraction configuration
+TWO_STAGE_CONFIG = {
+    "extraction_mode": {
+        "type": "string",
+        "enum": ["oneshot", "twostage"],
+        "default": "oneshot",
+        "description": (
+            "Extraction mode. 'oneshot' uses one LLM call per page for all "
+            "entity types. 'twostage' first extracts entity names only, then "
+            "runs per-entity claim extraction for grounded SVO output."
+        ),
+    },
+}
 
 
 # Sub-chunk budget — small on-device models (Apple Intelligence's ~4K
@@ -99,20 +114,13 @@ _LANGUAGE_CONFIG = {
 # single-section path. (#1113 — without this the combined call left
 # claim.predicate_verb / object_phrase NULL on every row.)
 _VERB = Field(
-    default="",
-    description=(
-        "Predicate verb or verb phrase. The entity name is the implicit "
-        "subject — do NOT repeat it. Examples: 'is', 'was', 'served as', "
-        "'wrote', 'founded', 'is located in'."
-    ),
+    description="Specific predicate verb phrase.",
 )
 _OBJ = Field(
-    default="",
-    description=(
-        "Rest of the predicate after the verb — a noun phrase or "
-        "clause. Examples: 'the alcalde of Popayán', 'a gold-mining "
-        "region in the Chocó', 'the deed of sale'."
-    ),
+    description="Specific object or complement.",
+)
+_SRC = Field(
+    description="Short exact supporting quote.",
 )
 
 
@@ -120,6 +128,7 @@ class _Person(BaseModel):
     name: str
     verb: str = _VERB
     object: str = _OBJ
+    source_text: str = _SRC
 
 
 class _Place(BaseModel):
@@ -127,6 +136,7 @@ class _Place(BaseModel):
     alternative_spellings: list[str] = Field(default_factory=list)
     verb: str = _VERB
     object: str = _OBJ
+    source_text: str = _SRC
 
 
 class _Organization(BaseModel):
@@ -134,22 +144,32 @@ class _Organization(BaseModel):
     alternative_spellings: list[str] = Field(default_factory=list)
     verb: str = _VERB
     object: str = _OBJ
+    source_text: str = _SRC
 
 
 class _DateItem(BaseModel):
-    date: str = Field(description="as written in the document")
+    date: str = Field(description="as written")
     date_normalized: str = Field(
-        description="YYYY-MM-DD (range YYYY-MM-DD/YYYY-MM-DD; month-only YYYY-MM; year-only YYYY)"
+        description="YYYY-MM-DD, YYYY-MM, YYYY, or range"
     )
     verb: str = _VERB
     object: str = _OBJ
+    source_text: str = _SRC
 
 
 class _Event(BaseModel):
-    event: str = Field(description="Title Case noun phrase naming the event")
-    date: str | None = Field(default=None, description="YYYY-MM-DD when stated, else null")
+    event: str = Field(description="event noun phrase")
+    date: str | None = Field(default=None, description="date if stated")
     verb: str = _VERB
     object: str = _OBJ
+    source_text: str = _SRC
+
+
+class _Quote(BaseModel):
+    name: str | None = Field(default=None, description="speaker name, or null")
+    verb: str = Field(default="said", description="attribution verb")
+    object: str = Field(description="exact quote")
+    source_text: str = Field(description="short exact source phrase")
 
 
 class _Extraction(BaseModel):
@@ -161,9 +181,229 @@ class _Extraction(BaseModel):
     organizations: list[_Organization] = Field(default_factory=list)
     dates: list[_DateItem] = Field(default_factory=list)
     events: list[_Event] = Field(default_factory=list)
+    quotes: list[_Quote] = Field(
+        default_factory=list,
+        description="relevant direct quotes only",
+    )
     keywords: list[str] = Field(
         default_factory=list,
-        description="descriptive keywords capturing themes, subjects, time periods, and concepts",
+        description="book-index terms",
+    )
+
+
+# =============================================================================
+# Two-Stage Extraction Schemas
+# =============================================================================
+#
+# Stage 1: Entity-only extraction (no SVO pressure)
+# These compact schemas get good name coverage from Apple Intelligence.
+# Stage 2 runs per-entity claim extraction for grounded SVO.
+
+class _EntityOnly(BaseModel):
+    """Compact entity representation for Stage 1 (NER-only pass)."""
+    name: str
+    aliases: list[str] = Field(default_factory=list)
+    entity_type: str  # "person", "place", "organization", etc.
+
+
+class _EntitiesOnly(BaseModel):
+    """Stage 1 result: all entity names extracted."""
+    people: list[_EntityOnly] = Field(default_factory=list)
+    places: list[_EntityOnly] = Field(default_factory=list)
+    organizations: list[_EntityOnly] = Field(default_factory=list)
+    dates: list[_EntityOnly] = Field(default_factory=list)
+    events: list[_EntityOnly] = Field(default_factory=list)
+
+
+class _SVOClaim(BaseModel):
+    """Per-entity claim for Stage 2 extraction."""
+    subject: str
+    verb: str = Field(description="Specific predicate verb phrase.")
+    object: str = Field(description="Specific object or complement.")
+    source_text: str = Field(description="Verbatim quote from source.")
+    epistemic_status: str = Field(default="tentative", description="confirmed/tentative/rejected")
+    claim_type: str = Field(default="fact", description="fact/analysis/interpretation/argument")
+
+
+class _EntityClaims(BaseModel):
+    """Stage 2 result: grounded claims for a single entity."""
+    subject: str
+    claims: list[_SVOClaim] = Field(default_factory=list)
+
+
+# =============================================================================
+# Two-Stage Extraction Helpers
+# =============================================================================
+
+def _build_entity_only_instructions(output_language: str) -> str:
+    """Stage 1 instructions - extract entity names only, no SVO pressure."""
+    return (
+        f"You are an expert archivist extracting entity names from a document. "
+        f"Extract ONLY the entity names - no facts, no claims, just the names. "
+        f"Write in {output_language}.\n\n"
+        f"Sections to extract:\n"
+        f"- people: named people (proper names only)\n"
+        f"- places: named places, regions, geographic areas\n"
+        f"- organizations: named organizations, institutions, companies\n"
+        f"- dates: dates as stated in the text (YYYY-MM-DD, YYYY-MM, or YYYY)\n"
+        f"- events: named or described occurrences\n"
+        f"\nReturn the entity names and any alternative spellings found."
+    )
+
+
+def _build_per_entity_claim_instructions(output_language: str) -> str:
+    """Stage 2 instructions - extract grounded SVO claims for a specific entity."""
+    return (
+        f"You are extracting facts about a specific entity from a document. "
+        f"Extract specific SVO (Subject-Verb-Object) claims about this entity. "
+        f"For each claim, provide:\n"
+        f"1. The predicate verb (e.g., 'served as', 'located in', 'wrote')\n"
+        f"2. The object/complement (e.g., 'alcalde of Popayán', 'a mining region')\n"
+        f"3. The exact source text where this claim appears\n"
+        f"Write in {output_language}. Only include facts directly supported by the text."
+    )
+
+
+async def _extract_entities_only(
+    chunk_text: str,
+    llm_config: LLMConfig,
+    instructions: str,
+    extraction_sem: asyncio.Semaphore,
+    chunk_timings: list[float],
+) -> _EntitiesOnly:
+    """Stage 1: Extract entity names only (no SVO pressure)."""
+    call_start = time.monotonic()
+    try:
+        async with extraction_sem:
+            extraction = await chat_structured(
+                prompt=chunk_text,
+                schema=_EntitiesOnly,
+                config=llm_config,
+                system=instructions,
+                include_schema_in_prompt=False,
+                permissive_guardrails=True,
+            )
+    except Exception as exc:
+        elapsed = time.monotonic() - call_start
+        chunk_timings.append(elapsed)
+        logger.error(f"Stage 1 entity extraction failed: {exc}")
+        raise
+    elapsed = time.monotonic() - call_start
+    chunk_timings.append(elapsed)
+    return extraction
+
+
+async def _extract_claims_for_entity(
+    chunk_text: str,
+    entity_name: str,
+    entity_type: str,
+    llm_config: LLMConfig,
+    instructions: str,
+    extraction_sem: asyncio.Semaphore,
+) -> list[dict]:
+    """Stage 2: Extract grounded claims for a single entity."""
+    entity_prompt = (
+        f"Entity: {entity_name}\n"
+        f"Type: {entity_type}\n\n"
+        f"Document text:\n{chunk_text[:2000]}\n\n"
+        f"Extract claims about '{entity_name}' from the text above."
+    )
+    try:
+        async with extraction_sem:
+            result = await chat_structured(
+                prompt=entity_prompt,
+                schema=_EntityClaims,
+                config=llm_config,
+                system=instructions,
+                include_schema_in_prompt=False,
+                permissive_guardrails=True,
+            )
+        return [
+            {
+                "name": entity_name,
+                "verb": claim.verb,
+                "object": claim.object,
+                "source_text": claim.source_text,
+                "epistemic_status": claim.epistemic_status,
+                "claim_type": claim.claim_type,
+            }
+            for claim in result.claims
+        ]
+    except Exception as exc:
+        logger.warning(f"Stage 2 claim extraction failed for {entity_name}: {exc}")
+        return []
+
+
+def _convert_entities_to_extraction(
+    entities: _EntitiesOnly,
+    claims_by_entity: dict[str, list[dict]],
+) -> _Extraction:
+    """Convert two-stage results back to _Extraction format for compatibility."""
+    people = []
+    places = []
+    organizations = []
+    dates = []
+    events = []
+
+    for entity in entities.people:
+        claims = claims_by_entity.get(entity.name, [])
+        for c in claims:
+            people.append(_Person(
+                name=entity.name,
+                verb=c.get("verb", ""),
+                object=c.get("object", ""),
+                source_text=c.get("source_text", ""),
+            ))
+
+    for entity in entities.places:
+        claims = claims_by_entity.get(entity.name, [])
+        for c in claims:
+            places.append(_Place(
+                name=entity.name,
+                alternative_spellings=entity.aliases,
+                verb=c.get("verb", ""),
+                object=c.get("object", ""),
+                source_text=c.get("source_text", ""),
+            ))
+
+    for entity in entities.organizations:
+        claims = claims_by_entity.get(entity.name, [])
+        for c in claims:
+            organizations.append(_Organization(
+                name=entity.name,
+                alternative_spellings=entity.aliases,
+                verb=c.get("verb", ""),
+                object=c.get("object", ""),
+                source_text=c.get("source_text", ""),
+            ))
+
+    for entity in entities.dates:
+        claims = claims_by_entity.get(entity.name, [])
+        for c in claims:
+            dates.append(_DateItem(
+                date=entity.name,
+                date_normalized=entity.name,
+                verb=c.get("verb", ""),
+                object=c.get("object", ""),
+                source_text=c.get("source_text", ""),
+            ))
+
+    for entity in entities.events:
+        claims = claims_by_entity.get(entity.name, [])
+        for c in claims:
+            events.append(_Event(
+                event=entity.name,
+                verb=c.get("verb", ""),
+                object=c.get("object", ""),
+                source_text=c.get("source_text", ""),
+            ))
+
+    return _Extraction(
+        people=people,
+        places=places,
+        organizations=organizations,
+        dates=dates,
+        events=events,
     )
 
 
@@ -176,25 +416,52 @@ def _build_instructions(output_language: str) -> str:
     - the don't-invent / cover-every-occurrence policy
     - per-section prose conventions reused from the individual extractors.
     """
-    section_lines: list[str] = []
-    for section in _SECTIONS:
-        if section["name"] in {
-            "rivers_extract",
-            "mines_extract",
-            "properties_extract",
-            "legal_references_extract",
-        }:
-            continue
-        section_lines.append(
-            f"- {section['schema_key']}: {section['instruction']}"
-        )
-    section_block = "\n".join(section_lines)
+    section_block = "\n".join([
+        "- people: named people or named groups only. Extract specific "
+        "facts about what they did, used, worked, produced, relied on, "
+        "valued, or experienced. Do not use reporting verbs unless the "
+        "text directly quotes or attributes speech.",
+        "- places: named places or geographic regions with a specific "
+        "relationship stated by the text. This includes geographic and "
+        "land-use CATEGORIES, not just proper names: 'agricultural zones', "
+        "'mining districts', 'territories' all belong here. If a term "
+        "denotes a location or land area — even a generic one — it is a "
+        "place, NOT a keyword/concept.",
+        "- organizations: named organizations only.",
+        "- dates: dates stated in the text, with the event or condition "
+        "attached to that date.",
+        "- events: occurrences explicitly stated by the text. This includes "
+        "unnamed/generic occurrences: 'accident', 'flood', 'death', 'fire' "
+        "are events, NOT keywords/concepts. If a term denotes something "
+        "that happened, it is an event.",
+        "- quotes: direct quotations only, where the source gives quoted "
+        "words or an explicit speaker/writer attribution.",
+        "- keywords: the 5-8 MOST SALIENT, distinctive keywords for "
+        "ABSTRACT ideas only — themes, subjects, time periods, ideologies. "
+        "Do NOT put places, events, people, or organizations here. If a term "
+        "names a location (even 'agricultural zones') it belongs in places; "
+        "if it names an occurrence (like 'accident' or 'flood') it belongs "
+        "in events. Keywords are concepts, not concrete entities.",
+    ])
 
     return (
         f"You are an expert archivist extracting structured entities "
-        f"from a document. Cover every occurrence in the source. Only "
+        f"from a document. Extract evidence, not ontology labels. Do "
+        f"NOT emit generic claims like 'Pedro is a person', 'Colombia "
+        f"is a location', or 'cash is a concept'. Entity type is "
+        f"metadata only. For each useful entity or index term, extract "
+        f"specific SVO facts grounded in nearby text, with source_text "
+        f"as a short exact quote from the page. Cover repeated useful "
+        f"facts for the same entity when the text supports them. Only "
         f"include facts the text supports — do not speculate or invent. "
-        f"Write prose fields in {output_language}.\n\n"
+        f"Keywords are book-index terms for finding this page later: "
+        f"include relevant concepts, subjects, and names only when they "
+        f"help locate the passage; do not pad to a quota. Write prose "
+        f"fields in {output_language}. Use verbs from the page context "
+        f"for ordinary claims. Reserve reporting verbs (said, stated, "
+        f"declared, asserted, claimed, testified, petitioned, reported, "
+        f"argued, wrote, denied, requested) for direct quotations or "
+        f"explicitly attributed statements only.\n\n"
         f"Section-specific guidance:\n{section_block}"
     )
 
@@ -260,7 +527,36 @@ def _records_from_selected_documents(state: State) -> list[dict[str, Any]]:
         if doc.id in seen:
             return
         seen.add(doc.id)
-        text = (doc.page_content or "").strip()
+        metadata = doc.metadata if isinstance(doc.metadata, dict) else {}
+        raw_transcription = metadata.get("transcription")
+        expected_text_length = metadata.get("text_length")
+        if (
+            isinstance(raw_transcription, str)
+            and isinstance(expected_text_length, int)
+            and expected_text_length > len(raw_transcription.strip()) + 50
+            and doc.parent_id
+        ):
+            try:
+                parent = db.get(Document, doc.parent_id)
+                if parent and parent.path and parent.path.lower().endswith(".pdf"):
+                    from fichero.workflows.tools.vision_base import _try_pdf_text_layer
+
+                    page_texts = _try_pdf_text_layer(parent.path)
+                    page_number = doc.sequence or metadata.get("page_number") or 1
+                    page_index = int(page_number) - 1
+                    if page_texts and 0 <= page_index < len(page_texts):
+                        raw_transcription = page_texts[page_index]
+            except Exception as exc:
+                logger.debug(
+                    "extract_all: could not recover full PDF page text for %s: %s",
+                    doc.id,
+                    exc,
+                )
+        text = (
+            raw_transcription
+            if isinstance(raw_transcription, str) and raw_transcription.strip()
+            else doc.page_content or ""
+        ).strip()
         if text:
             records.append({
                 "index": len(records),
@@ -385,12 +681,274 @@ def _classify_systemic_error(
     return None
 
 
+_GENERIC_TYPE_OBJECTS = {
+    "a person", "person",
+    "a location", "location",
+    "a place", "place",
+    "an organization", "organization",
+    "an organisation", "organisation",
+    "an event", "event",
+    "a concept", "concept",
+    "a keyword", "keyword",
+}
+
+
+def _item_has_grounded_svo(item: Any) -> bool:
+    if not isinstance(item, BaseModel):
+        return False
+    verb = str(getattr(item, "verb", "") or "").strip().casefold()
+    obj = str(getattr(item, "object", "") or "").strip().casefold()
+    source_text = str(getattr(item, "source_text", "") or "").strip()
+    if not verb or not obj:
+        return False
+    if verb in {"is", "are", "was", "were"} and obj in _GENERIC_TYPE_OBJECTS:
+        return False
+    return bool(source_text)
+
+
+def _extraction_is_empty(extraction: _Extraction) -> bool:
+    return not any((
+        extraction.people,
+        extraction.places,
+        extraction.organizations,
+        extraction.dates,
+        extraction.events,
+        extraction.quotes,
+        extraction.keywords,
+    ))
+
+
+def _extraction_is_thin(extraction: _Extraction, source_text: str = "") -> bool:
+    """Reject name-list outputs that would become generic type claims."""
+    if _extraction_is_empty(extraction) and len(source_text.strip()) > 200:
+        return True
+    items: list[BaseModel] = [
+        *extraction.people,
+        *extraction.places,
+        *extraction.organizations,
+        *extraction.dates,
+        *extraction.events,
+    ]
+    if len(items) < 2:
+        return False
+    grounded = sum(1 for item in items if _item_has_grounded_svo(item))
+    return grounded / len(items) < 0.5
+
+
+async def _retry_thin_extraction_with_large(
+    extraction: _Extraction,
+    *,
+    prompt: str,
+    config: LLMConfig,
+    system: str,
+    include_schema_in_prompt: bool,
+) -> _Extraction:
+    """If Apple returns only entity names, retry on the configured $large."""
+    if config.provider != "apple" or not _extraction_is_thin(extraction, prompt):
+        return extraction
+    try:
+        large_provider, large_model = resolve_model_alias("$large", "")
+    except ValueError:
+        raise RuntimeError(
+            "Apple returned thin SVO output and $large is not configured. "
+            "Set Settings → AI Defaults → Default large model to enable "
+            "grounded extraction fallback."
+        )
+    if large_provider == config.provider and large_model == config.model:
+        return extraction
+    fallback_config = LLMConfig(
+        provider=large_provider,
+        model=large_model,
+        temperature=config.temperature,
+        max_tokens=config.max_tokens,
+        timeout=config.timeout,
+        extra=dict(config.extra),
+    )
+    logger.warning(
+        "extract_all: Apple returned thin SVO output; retrying on "
+        "$large = %s/%s for grounded claims.",
+        large_provider,
+        large_model,
+    )
+    try:
+        fallback_extraction = await chat_structured(
+            prompt=prompt,
+            schema=_Extraction,
+            config=fallback_config,
+            system=system,
+            include_schema_in_prompt=include_schema_in_prompt,
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            f"$large retry after thin Apple SVO output failed: {exc}"
+        )
+    if _extraction_is_thin(fallback_extraction, prompt):
+        raise RuntimeError(
+            "$large retry after thin Apple SVO output also returned empty "
+            "or ungrounded extraction."
+        )
+    return fallback_extraction
+
+
+async def _run_two_stage(
+    text: str,
+    recovered_records: list[dict[str, Any]],
+    state: State,
+    llm_config: LLMConfig,
+    output_language: str,
+    inputs: dict[str, Any],
+) -> dict[str, Any]:
+    """Two-stage extraction: entity names first, then per-entity claims.
+    
+    Stage 1: Extract entity names only (NER pass, no SVO pressure)
+    Stage 2: For each discovered entity, extract grounded SVO claims
+    
+    This produces more reliable grounded claims on Apple Intelligence
+    where the one-shot prompt often produces weak/chatty SVO output.
+    """
+    library_path = state.get("library_path", "")
+    selected_doc_ids = state.get("selected_doc_ids") or []
+    container = _resolve_write_target(selected_doc_ids, library_path)
+
+    # Build chunks
+    records_input = recovered_records
+    page_doc_ids: list[str | None] = []
+    if records_input and isinstance(records_input, list):
+        chunks = []
+        for rec in records_input:
+            if not isinstance(rec, dict):
+                continue
+            chunks.append(str(rec.get("text") or ""))
+            page_doc_ids.append(str(rec.get("doc_id") or "") or None)
+        if not chunks:
+            chunks = _split_into_pages(text)
+            page_doc_ids = [None] * len(chunks)
+    else:
+        chunks = _split_into_pages(text)
+        page_doc_ids = [None] * len(chunks)
+
+    is_per_page = any(pid for pid in page_doc_ids)
+    entity_instructions = _build_entity_only_instructions(output_language)
+    claim_instructions = _build_per_entity_claim_instructions(output_language)
+
+    import os
+    max_in_flight = int(os.environ.get("FICHERO_EXTRACT_MAX_IN_FLIGHT", "3"))
+    extraction_sem = asyncio.Semaphore(max_in_flight)
+
+    chunk_timings: list[float] = []
+    chunk_errors: list[str] = []
+
+    async def _run_stage1_one(idx: int, chunk_text: str) -> _EntitiesOnly:
+        call_start = time.monotonic()
+        try:
+            async with extraction_sem:
+                extraction = await chat_structured(
+                    prompt=chunk_text,
+                    schema=_EntitiesOnly,
+                    config=llm_config,
+                    system=entity_instructions,
+                    include_schema_in_prompt=False,
+                    permissive_guardrails=True,
+                )
+        except Exception as exc:
+            elapsed = time.monotonic() - call_start
+            chunk_timings.append(elapsed)
+            chunk_errors.append(str(exc))
+            logger.error(f"Stage 1 chunk {idx} failed: {exc}")
+            return _EntitiesOnly()
+        elapsed = time.monotonic() - call_start
+        chunk_timings.append(elapsed)
+        logger.info(f"Stage 1 chunk {idx}: found {sum(len(getattr(extraction, f, [])) for f in ['people', 'places', 'organizations', 'dates', 'events'])} entities")
+        return extraction
+
+    # Stage 1: Extract all entity names
+    logger.info(f"Stage 1: Extracting entity names from {len(chunks)} chunks")
+    stage1_results = await asyncio.gather(
+        *[_run_stage1_one(i, c) for i, c in enumerate(chunks)]
+    )
+
+    # Collect all unique entities
+    all_entities: dict[str, list[_EntityOnly]] = {
+        "people": [],
+        "places": [],
+        "organizations": [],
+        "dates": [],
+        "events": [],
+    }
+    for result in stage1_results:
+        for key in all_entities:
+            for entity in getattr(result, key, []):
+                if entity.name and entity.name not in [e.name for e in all_entities[key]]:
+                    all_entities[key].append(entity)
+
+    # Stage 2: Extract claims for each entity
+    logger.info(f"Stage 2: Extracting claims for {sum(len(v) for v in all_entities.values())} entities")
+    
+    all_claims: dict[str, list[dict]] = {}
+    for section_key, entities in all_entities.items():
+        for entity in entities:
+            claims = await _extract_claims_for_entity(
+                text, entity.name, section_key.rstrip("s"), llm_config,
+                claim_instructions, extraction_sem
+            )
+            all_claims[entity.name] = claims
+
+    # Convert to extraction format
+    combined_entities = _EntitiesOnly(
+        people=all_entities["people"],
+        places=all_entities["places"],
+        organizations=all_entities["organizations"],
+        dates=all_entities["dates"],
+        events=all_entities["events"],
+    )
+    extraction = _convert_entities_to_extraction(combined_entities, all_claims)
+
+    # Use the same output format as oneshot mode
+    return {
+        "text": _render_extraction_markdown(extraction),
+        "value": {
+            "people": [p.model_dump(mode="json") for p in extraction.people],
+            "places": [p.model_dump(mode="json") for p in extraction.places],
+            "organizations": [o.model_dump(mode="json") for o in extraction.organizations],
+            "dates": [d.model_dump(mode="json") for d in extraction.dates],
+            "events": [e.model_dump(mode="json") for e in extraction.events],
+            "quotes": [],
+            "keywords": [],
+        },
+        "cached": False,
+    }
+
+
+def _render_extraction_markdown(extraction: _Extraction) -> str:
+    """Render an extraction result as markdown."""
+    parts = []
+    for key, items in [
+        ("people", extraction.people),
+        ("places", extraction.places),
+        ("organizations", extraction.organizations),
+        ("dates", extraction.dates),
+        ("events", extraction.events),
+    ]:
+        if items:
+            items_text = "\n".join(
+                f"- {item.name if hasattr(item, 'name') else item.event}: {item.verb} {item.object}".strip()
+                for item in items
+            )
+            parts.append(f"## {key.title()}\n{items_text}")
+    return "\n\n".join(parts) if parts else ""
+
+
 async def extract_all(
     inputs: dict[str, Any],
     state: State,
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
-    """Combined extractor — one LLM call per page returns all 6 types."""
+    """Combined extractor — one LLM call per page returns all 6 types.
+    
+    Supports two modes:
+    - oneshot (default): One LLM call per page for all entity types
+    - twostage: First extracts entity names, then per-entity claims
+    """
     text, recovered_records = _recover_text_and_records(inputs, state)
     if not text:
         return {"text": "", "value": {}, "error": "No text input"}
@@ -400,11 +958,18 @@ async def extract_all(
         inputs.get("output_language"), text, default="English"
     )
 
+    # Determine extraction mode
+    extraction_mode = inputs.get("extraction_mode") or "oneshot"
+    
+    if extraction_mode == "twostage":
+        return await _run_two_stage(
+            text, recovered_records, state, llm_config,
+            output_language, inputs
+        )
+
+    # Onshot mode (existing behavior)
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
-    # Use the write-target helper so single-file selections still get
-    # KG entities/claims persisted on the file itself (#1105). Variable
-    # kept as `container` for diff-friendliness.
     container = _resolve_write_target(selected_doc_ids, library_path)
 
     # Per-page chunks via records (preferred) or text-split fallback.
@@ -497,6 +1062,13 @@ async def extract_all(
                     include_schema_in_prompt=False,
                     permissive_guardrails=True,
                 )
+                extraction = await _retry_thin_extraction_with_large(
+                    extraction,
+                    prompt=chunk_text,
+                    config=llm_config,
+                    system=instructions,
+                    include_schema_in_prompt=False,
+                )
         except Exception as exc:
             elapsed = time.monotonic() - call_start
             chunk_timings.append(elapsed)
@@ -528,6 +1100,7 @@ async def extract_all(
             ],
             "dates": [d.model_dump(mode="json") for d in extraction.dates],
             "events": [e.model_dump(mode="json") for e in extraction.events],
+            "quotes": [q.model_dump(mode="json") for q in extraction.quotes],
             "keywords": list(extraction.keywords),
         }
 
@@ -725,7 +1298,9 @@ register_tool(
     supports_structured_output=True,
     input_ports=_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
-    config_schema=merge_config_schema(BASE_CONFIG_SCHEMA, _LANGUAGE_CONFIG),
+    config_schema=merge_config_schema(
+        BASE_CONFIG_SCHEMA, _LANGUAGE_CONFIG, TWO_STAGE_CONFIG
+    ),
     default_prompt=_build_instructions("English"),
     sort_order=5,
 )(extract_all)

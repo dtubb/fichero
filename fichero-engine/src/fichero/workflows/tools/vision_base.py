@@ -897,13 +897,62 @@ async def process_vision(
     existing_text_by_index: list[str] = []
     page_doc_id_by_index: list[str | None] = []
     if documents:
-        for doc in documents:
+        for index, doc in enumerate(documents):
             if isinstance(doc, dict):
+                metadata = doc.get("metadata") if isinstance(doc.get("metadata"), dict) else {}
+                raw_transcription = metadata.get("transcription")
+                doc_id = doc.get("id")
+                if (
+                    (not isinstance(raw_transcription, str) or not raw_transcription.strip())
+                    and library_path
+                    and doc_id
+                ):
+                    try:
+                        from fichero.db import db_manager
+                        from fichero.models import Document
+
+                        db = db_manager.get_database(library_path)
+                        live_doc = db.get(Document, str(doc_id))
+                        live_metadata = live_doc.metadata if live_doc else {}
+                        if isinstance(live_metadata, dict):
+                            raw_transcription = live_metadata.get("transcription")
+                    except Exception as exc:
+                        logger.debug(
+                            "process_vision: could not reload transcription "
+                            "metadata for %s: %s",
+                            doc_id,
+                            exc,
+                        )
                 pc = doc.get("page_content")
-                existing_text_by_index.append(
-                    pc if isinstance(pc, str) and pc.strip() else ""
+                expected_text_length = metadata.get("text_length")
+                raw_is_truncated = (
+                    isinstance(raw_transcription, str)
+                    and isinstance(expected_text_length, int)
+                    and expected_text_length > len(raw_transcription.strip()) + 50
                 )
-                page_doc_id_by_index.append(doc.get("id"))
+                if raw_is_truncated and index < len(files):
+                    file_path = str(files[index])
+                    sequence = doc.get("sequence") or metadata.get("page_number")
+                    try:
+                        page_index = int(sequence) - 1
+                    except (TypeError, ValueError):
+                        page_index = -1
+                    if file_path.lower().endswith(".pdf") and page_index >= 0:
+                        page_texts = _try_pdf_text_layer(file_path)
+                        if page_texts and page_index < len(page_texts):
+                            raw_transcription = page_texts[page_index]
+                # Page content can be overwritten by later narrative/catalogue
+                # tools. For transcribe passthrough, prefer the raw extracted
+                # PDF/OCR text stored in metadata so Extract All Entities sees
+                # the source page, not a previous summary.
+                existing = (
+                    raw_transcription
+                    if isinstance(raw_transcription, str) and raw_transcription.strip()
+                    else pc if isinstance(pc, str) and pc.strip()
+                    else ""
+                )
+                existing_text_by_index.append(existing)
+                page_doc_id_by_index.append(doc_id)
             else:
                 existing_text_by_index.append("")
                 page_doc_id_by_index.append(None)

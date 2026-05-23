@@ -6536,7 +6536,7 @@
           "entities"
         ],
         "summary": "List Entities",
-        "description": "List knowledge entities with optional filtering.",
+        "description": "List knowledge entities with optional filtering.\n\nWhen `document_id` is provided, returns only entities mentioned by claims\nfrom that document (source-scoped aggregation).",
         "operationId": "list_entities_api_entities_get",
         "parameters": [
           {
@@ -6557,6 +6557,16 @@
               "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
               "nullable": true,
               "title": "Entity Type"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Document Id"
             }
           },
           {
