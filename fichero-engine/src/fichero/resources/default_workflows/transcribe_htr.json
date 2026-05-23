@@ -1,13 +1,13 @@
 {
   "name": "Transcribe HTR",
-  "description": "Handwritten Text Recognition (HTR) profile for historical documents (16th–19th century). Uses cloud LLM vision with a prompt tuned for archaic letterforms, abbreviations, and period conventions.",
+  "description": "Two-pass Handwritten Text Recognition for historical documents (16th-19th C.). Pass 1 drafts the transcription; Pass 2 reviews against the image with period-specific error correction using medium extended thinking.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
   "folder_path": "/Transcribe",
-  "tags": ["preset", "transcribe", "htr", "historical", "handwriting"],
+  "tags": ["preset", "transcribe", "htr", "historical", "handwriting", "two-pass"],
   "config": {
-    "preset_version": 1
+    "preset_version": 2
   },
   "nodes": [
     {
@@ -22,16 +22,31 @@
     {
       "id": "transcribe",
       "tool": "transcribe",
-      "label": "Transcribe (HTR)",
-      "position_x": 280,
+      "label": "Transcribe — Pass 1 (Draft)",
+      "position_x": 300,
       "position_y": 200,
       "inputs": {},
       "config": {
         "vision_mode": "llm",
         "language": "en",
+        "update_page_content": false,
+        "thinking_mode": "low",
+        "prompt": "You are performing Handwritten Text Recognition (HTR) on a historical document (16th-19th C.). Produce a DRAFT transcription — this is Pass 1 of 2. Favour coverage over perfection; a reviewer will correct errors in Pass 2.\n\n**Before transcribing, note in a single bracketed line:**\n[Script: <itálica / cortesana / procesal / redonda / alemana / other>; century: <approx. range>; language: <Spanish/Latin/other>]\n\nThen output ONLY the transcription.\n\n**Rules:**\n- Output ONLY the transcription. No headings, preamble, or commentary.\n- Preserve original layout, line breaks, and paragraph structure.\n- Preserve original spelling, capitalisation, and punctuation exactly. Do NOT modernise, normalise, or correct.\n- Archaic letterforms → modern equivalents: long-s → s, thorn → th, yogh → y/g.\n- Abbreviations: expand only when unambiguous; expanded letters in [brackets]. When uncertain, transcribe the abbreviation literally. Common 16th-19th C. abbreviations: Vmd (Vuestra Merced), dho/dha (dicho/dicha), q̄ (que), tpo (tiempo), Sr. (Señor), S.M. (Su Majestad).\n- Two-tier uncertainty: [?word] for a plausible reading; [illegible] for truly unreadable text.\n- Include all visible text: headers, body, marginalia, stamps, signatures.\n- Signatures: transcribe as written.\n- Crossed-out text: [deleted: <text>].\n- Inserted text above the line: include inline at the insertion point.\n- Marginalia: include at their position prefixed with [M.N.].\n- Rubric/flourish below a signature: [Rúbrica].\n- Seals and stamps: [Sello] or [Estampilla].\n- No legible text: [sin texto]."
+      }
+    },
+    {
+      "id": "transcribe_review",
+      "tool": "transcribe_review",
+      "label": "Transcribe — Pass 2 (Review)",
+      "position_x": 540,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "vision_mode": "llm",
+        "language": "auto",
         "update_page_content": true,
         "thinking_mode": "medium",
-        "prompt": "You are performing Handwritten Text Recognition (HTR) on a historical document (16th–19th century). Transcribe what is on the page exactly — nothing more.\n\nRules:\n- Output ONLY the transcription. No headings, preamble, commentary, summary, or notes.\n- Preserve original layout, line breaks, and paragraph structure.\n- Preserve original spelling, capitalisation, and punctuation exactly as written. Do NOT modernise, normalise, or correct.\n- Preserve archaic letterforms as their modern equivalent (long-s → s, thorn → th, yogh → y/g as appropriate).\n- Expand abbreviations only when the expansion is unambiguous; otherwise transcribe the abbreviation literally.\n- For superscript letters and suspension marks, render as compact modern abbreviation (e.g. w̃ → wth, y̾ → yor).\n- Include every visible text element — headers, body, marginalia, stamps, signatures (transcribe as written), annotations.\n- For text you cannot confidently read, write [illegible] inline at that position. Do not guess.\n- Do NOT invent or fill in content. If a passage is damaged or obscured, mark [damaged] or [obscured].\n- If a line is crossed out by the original writer, transcribe it inside [deleted: ...].\n- If text is inserted above the line, transcribe it inline at the insertion point.\n- If the image contains no legible text, output [no text]."
+        "prompt": "You are reviewing a draft HTR transcription against its original manuscript image.\n\nThe draft appears in the Context section above. Use the **comparison method** to resolve uncertainties: identify a few clearly legible words, then use their letters as reference standards to measure ambiguous characters elsewhere on the page.\n\n**Common HTR error patterns to check:**\n\nCursive confusions (all periods):\n- rn → m (or vice versa), c → e, u → n, v → u, i → e\n- Long-s mistaken for f; t confused with l\n- Ligatured pairs (ct, st) read as single letters\n\n16th-17th C. (procesal / cortesana):\n- Heavily abbreviated line-endings: check that expansions are plausible\n- Baseline-stretched letters and knotty connections hiding word boundaries\n- Digit confusions: 1/7, 0/o, 5/6\n- Common abbreviated forms: Vmd, dho, dha, q̄, tpo, mrd, qta, Sor\n\n18th-19th C. (itálica):\n- Words not uniformly separated (itálica writes fast, spacing irregular)\n- Superscript abbreviations: verify the expanded word matches the period\n- Names and places: check spelling character-by-character against the image\n\nAll scripts:\n- Marginalia, stamps, rubrics, or crossed-out text the draft skipped\n- Inserted words above the line the draft dropped\n- Numbers and dates: verify every digit\n\n**Rules:**\n- Output ONLY the corrected transcription. No commentary, diff, or preamble.\n- Keep the script identification line from the draft (update if wrong).\n- Preserve original orthography. Do NOT modernise.\n- If the draft is already correct, return it verbatim.\n- Keep conventions: [?word], [illegible], [deleted: ...], [M.N.], [Rúbrica], [Sello]."
       }
     }
   ],
@@ -42,6 +57,20 @@
       "target": "transcribe",
       "source_port": "files",
       "target_port": "files"
+    },
+    {
+      "id": "edge-files-review",
+      "source": "files-source",
+      "target": "transcribe_review",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-transcribe-review",
+      "source": "transcribe",
+      "target": "transcribe_review",
+      "source_port": "text",
+      "target_port": "context"
     }
   ]
 }
