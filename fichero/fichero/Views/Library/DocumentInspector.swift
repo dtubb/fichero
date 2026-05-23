@@ -1019,6 +1019,8 @@ struct DocumentInspectorContentV2: View {
                 includeDescendants: false
             )
             loadError = nil
+        } catch is CancellationError {
+            // Task superseded by a newer page selection — not a load failure.
         } catch {
             loadError = "Couldn't load artifacts: \(error.localizedDescription)"
         }

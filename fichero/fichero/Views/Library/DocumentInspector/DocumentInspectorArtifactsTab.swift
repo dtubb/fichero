@@ -850,6 +850,8 @@ struct KnowledgeGraphInspectorSection: View {
                 }
             }
             entitiesById = fetched
+        } catch is CancellationError {
+            // Task superseded by a newer page selection — not a load failure.
         } catch {
             loadError = "Couldn't load: \(error.localizedDescription)"
             claims = []
