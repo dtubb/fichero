@@ -305,7 +305,7 @@ async def _extract_claims_for_entity(
     entity_prompt = (
         f"Entity: {entity_name}\n"
         f"Type: {entity_type}\n\n"
-        f"Document text:\n{chunk_text[:2000]}\n\n"
+        f"Document text:\n{chunk_text}\n\n"
         f"Extract claims about '{entity_name}' from the text above."
     )
     try:
@@ -867,7 +867,7 @@ async def _run_two_stage(
         *[_run_stage1_one(i, c) for i, c in enumerate(chunks)]
     )
 
-    # Collect all unique entities
+    # Collect unique entities + track which chunks each appeared in.
     all_entities: dict[str, list[_EntityOnly]] = {
         "people": [],
         "places": [],
@@ -875,20 +875,32 @@ async def _run_two_stage(
         "dates": [],
         "events": [],
     }
-    for result in stage1_results:
+    # entity_name → set of chunk indices where it was found
+    entity_chunk_indices: dict[str, set[int]] = {}
+    for chunk_idx, result in enumerate(stage1_results):
         for key in all_entities:
             for entity in getattr(result, key, []):
-                if entity.name and entity.name not in [e.name for e in all_entities[key]]:
+                if not entity.name:
+                    continue
+                if entity.name not in [e.name for e in all_entities[key]]:
                     all_entities[key].append(entity)
+                entity_chunk_indices.setdefault(entity.name, set()).add(chunk_idx)
 
-    # Stage 2: Extract claims for each entity
+    # Stage 2: Extract claims for each entity using only the chunks it appeared in.
+    # This avoids passing the full concatenated document and caps context to what
+    # is actually relevant, giving the model the right page text for each entity.
     logger.info(f"Stage 2: Extracting claims for {sum(len(v) for v in all_entities.values())} entities")
-    
+
     all_claims: dict[str, list[dict]] = {}
     for section_key, entities in all_entities.items():
         for entity in entities:
+            relevant_indices = sorted(entity_chunk_indices.get(entity.name, set()))
+            if relevant_indices:
+                entity_context = "\n\n".join(chunks[i] for i in relevant_indices)
+            else:
+                entity_context = text
             claims = await _extract_claims_for_entity(
-                text, entity.name, section_key.rstrip("s"), llm_config,
+                entity_context, entity.name, section_key.rstrip("s"), llm_config,
                 claim_instructions, extraction_sem
             )
             all_claims[entity.name] = claims
@@ -958,9 +970,11 @@ async def extract_all(
         inputs.get("output_language"), text, default="English"
     )
 
-    # Determine extraction mode
-    extraction_mode = inputs.get("extraction_mode") or "oneshot"
-    
+    # Determine extraction mode. Default to two-stage for Apple Intelligence
+    # so the NER→SVO split runs automatically without requiring explicit config.
+    default_mode = "twostage" if llm_config.provider == "apple" else "oneshot"
+    extraction_mode = inputs.get("extraction_mode") or default_mode
+
     if extraction_mode == "twostage":
         return await _run_two_stage(
             text, recovered_records, state, llm_config,
