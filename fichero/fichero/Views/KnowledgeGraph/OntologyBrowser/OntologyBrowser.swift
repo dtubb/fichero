@@ -406,6 +406,7 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     }
 
     @State private var entities: [Components.Schemas.KnowledgeEntity] = []
+    @State private var claimCounts: [String: Int] = [:]
     @State private var loadError: String?
     @State private var isLoading = false
 
@@ -447,7 +448,7 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
                 .listRowBackground(Color.clear)
             } else {
                 ForEach(filteredEntities, id: \.id) { entity in
-                    EntityRow(entity: entity)
+                    EntityRow(entity: entity, claimCount: claimCounts[entity.id ?? ""] ?? 0)
                         .tag(entity.id)
                         .contextMenu {
                             Button("Edit entity…") {
@@ -486,7 +487,10 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
         do {
             let library = LibraryManager.shared.globalLibrary!
             let service = library.entityService
-            entities = try await service.listEntities(limit: 100)
+            async let entityList = service.listEntities(limit: 100)
+            async let counts = service.fetchClaimCounts()
+            entities = try await entityList
+            claimCounts = (try? await counts) ?? [:]
         } catch {
             loadError = error.localizedDescription
         }

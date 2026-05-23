@@ -2053,6 +2053,16 @@
       },
       {
         "method": "GET",
+        "path": "/entities/claim-counts",
+        "operation_id": "entity_claim_counts_api_entities_claim_counts_get",
+        "summary": "Entity Claim Counts",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ClaimCountsResponse"
+      },
+      {
+        "method": "GET",
         "path": "/entities/{entity_id}",
         "operation_id": "get_entity_api_entities__entity_id__get",
         "summary": "Get Entity",

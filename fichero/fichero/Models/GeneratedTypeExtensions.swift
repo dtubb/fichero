@@ -30,14 +30,14 @@ extension Components.Schemas.NodeDefInput {
 extension Components.Schemas.EdgeDef {
     /// Stable identifier for SwiftUI (handles optional id)
     public var stableId: String {
-        self.id ?? "edge-\(source)-\(target)"
+        self.id ?? "edge-\(source)-\(target ?? "")"
     }
 
     /// Bridge: sourceNodeId property name (views use this)
     public var sourceNodeId: String { source }
 
     /// Bridge: targetNodeId property name (views use this)
-    public var targetNodeId: String { target }
+    public var targetNodeId: String { target ?? "" }
 
     /// Bridge: sourcePortId with default (views use this)
     public var sourcePortId: String { sourcePort ?? "output" }

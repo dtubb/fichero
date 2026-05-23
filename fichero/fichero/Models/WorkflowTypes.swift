@@ -250,12 +250,19 @@ struct WorkflowEdge: Codable, Identifiable, Equatable {
     let condition: String?
     let label: String?
     let animated: Bool
+    // Multi-way routing (EdgeDef.route_key / route_map from the engine).
+    // route_key is a JSONPath expression evaluated against workflow state;
+    // route_map maps resolved values to target node IDs.
+    let routeKey: String?
+    let routeMap: [String: String]?
 
     // Backend expects source/target/source_port/target_port, UI uses different names
     private enum CodingKeys: String, CodingKey {
         case id, source, target, condition, label, animated
         case sourcePort = "source_port"
         case targetPort = "target_port"
+        case routeKey = "route_key"
+        case routeMap = "route_map"
     }
 
     // Custom decoder to handle both sourceNodeId (UI) and source (backend)
@@ -272,6 +279,8 @@ struct WorkflowEdge: Codable, Identifiable, Equatable {
         condition = try? container.decodeIfPresent(String.self, forKey: .condition)
         label = try? container.decodeIfPresent(String.self, forKey: .label)
         animated = (try? container.decodeIfPresent(Bool.self, forKey: .animated)) ?? false
+        routeKey = try? container.decodeIfPresent(String.self, forKey: .routeKey)
+        routeMap = try? container.decodeIfPresent([String: String].self, forKey: .routeMap)
     }
 
     // Custom encoder to always write backend format (source/target)
@@ -285,6 +294,8 @@ struct WorkflowEdge: Codable, Identifiable, Equatable {
         try container.encodeIfPresent(condition, forKey: .condition)
         try container.encodeIfPresent(label, forKey: .label)
         try container.encode(animated, forKey: .animated)
+        try container.encodeIfPresent(routeKey, forKey: .routeKey)
+        try container.encodeIfPresent(routeMap, forKey: .routeMap)
     }
 
     init(
@@ -295,7 +306,9 @@ struct WorkflowEdge: Codable, Identifiable, Equatable {
         targetPortId: String = "input",
         condition: String? = nil,
         label: String? = nil,
-        animated: Bool = false
+        animated: Bool = false,
+        routeKey: String? = nil,
+        routeMap: [String: String]? = nil
     ) {
         self.id = id
         self.sourceNodeId = sourceNodeId
@@ -305,6 +318,8 @@ struct WorkflowEdge: Codable, Identifiable, Equatable {
         self.condition = condition
         self.label = label
         self.animated = animated
+        self.routeKey = routeKey
+        self.routeMap = routeMap
     }
 }
 

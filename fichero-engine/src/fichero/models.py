@@ -1184,6 +1184,12 @@ class TopEntityListResponse(BaseModel):
     count: int
 
 
+class ClaimCountsResponse(BaseModel):
+    """Per-entity claim counts for badge display in the entity browser."""
+
+    counts: dict[str, int]
+
+
 class ArtifactTypeListResponse(BaseModel):
     """Standardized envelope for GET /api/artifacts/types."""
 
@@ -1424,6 +1430,7 @@ __all__ = [
     "EntityCoOccurrenceListResponse",
     "EntityDocumentListResponse",
     "EntityAuditListResponse",
+    "ClaimCountsResponse",
     "HermeneuticsListResponse",
     "IntegrationListResponse",
     "KGInclusionListResponse",

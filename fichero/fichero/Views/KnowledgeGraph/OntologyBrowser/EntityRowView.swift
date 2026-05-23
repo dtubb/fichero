@@ -5,6 +5,7 @@ import SwiftUI
 
 struct EntityRow: View {
     let entity: Components.Schemas.KnowledgeEntity
+    var claimCount: Int = 0
 
     var body: some View {
         HStack(spacing: 8) {
@@ -26,6 +27,16 @@ struct EntityRow: View {
             }
 
             Spacer(minLength: 6)
+
+            if claimCount > 0 {
+                Text("\(claimCount)")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.75))
+                    .clipShape(Capsule())
+            }
 
             Text(entityTypeLabel)
                 .font(.caption2)

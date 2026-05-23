@@ -626,12 +626,14 @@ extension WorkflowServiceGenerated {
         WorkflowEdge(
             id: edge.id ?? UUID().uuidString,
             sourceNodeId: edge.source,
-            targetNodeId: edge.target,
+            targetNodeId: edge.target ?? "",
             sourcePortId: edge.sourcePort ?? "output",
             targetPortId: edge.targetPort ?? "input",
             condition: edge.condition,
             label: edge.label,
-            animated: edge.animated ?? false
+            animated: edge.animated ?? false,
+            routeKey: edge.routeKey,
+            routeMap: edge.routeMap?.additionalProperties
         )
     }
 }

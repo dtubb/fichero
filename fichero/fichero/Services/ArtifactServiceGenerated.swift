@@ -407,6 +407,21 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    /// Fetch per-entity claim counts for badge display in the entity browser.
+    func fetchClaimCounts() async throws -> [String: Int] {
+        let response = try await client.api.entityClaimCountsApiEntitiesClaimCountsGet(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.counts.additionalProperties
+        case .unprocessableContent:
+            return [:]
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     /// Get a single entity by ID.
     func getEntity(
         _ entityId: String

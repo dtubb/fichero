@@ -21,7 +21,7 @@ from fichero.knowledge_models import (
     EntityType,
     KnowledgeEntity,
 )
-from fichero.models import EntityListResponse, EntityCoOccurrenceListResponse, EntityDocumentListResponse, TopEntityListResponse
+from fichero.models import ClaimCountsResponse, EntityListResponse, EntityCoOccurrenceListResponse, EntityDocumentListResponse, TopEntityListResponse
 
 logger = logging.getLogger(__name__)
 
@@ -380,6 +380,40 @@ async def top_entities(
         if len(out) >= limit:
             break
     return TopEntityListResponse(items=out, count=len(out))
+
+
+@router.get("/claim-counts", response_model=ClaimCountsResponse)
+async def entity_claim_counts(
+    db: Database = Depends(get_library_database),
+) -> ClaimCountsResponse:
+    """Return per-entity claim counts for badge display in the entity browser.
+
+    Tallies how many KnowledgeClaims reference each entity_id across the
+    library, using the same entity_ids array column approach as /entities/top.
+    """
+    import json as _json
+    from collections import Counter
+
+    counter: Counter[str] = Counter()
+    try:
+        rows = db.conn.execute("SELECT entity_ids FROM knowledgeclaims").fetchall()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("entity-claim-counts lookup failed: %s", exc)
+        return ClaimCountsResponse(counts={})
+
+    for (raw,) in rows:
+        if not raw:
+            continue
+        try:
+            ids = _json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError):
+            continue
+        if isinstance(ids, list):
+            for eid in ids:
+                if isinstance(eid, str) and eid:
+                    counter[eid] += 1
+
+    return ClaimCountsResponse(counts=dict(counter))
 
 
 @router.get("/{entity_id}", response_model=KnowledgeEntity)
