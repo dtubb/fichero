@@ -235,6 +235,29 @@ class _EntityClaims(BaseModel):
 # Two-Stage Extraction Helpers
 # =============================================================================
 
+# Pronouns that may appear as the subject in a verbatim source_text excerpt
+# when the LLM copies the quote directly. Detecting these lets us prepend the
+# resolved entity name using archival bracket notation: [Entity Name] He had...
+_SUBJECT_PRONOUNS = frozenset({
+    "he", "she", "it", "they", "him", "her", "them",
+    "his", "hers", "its", "their", "theirs",
+    "i", "we", "us", "our", "ours",
+})
+
+
+def _annotate_pronoun_source(source_text: str, entity_name: str) -> str:
+    """Prepend [Entity Name] when a source excerpt starts with a pronoun.
+
+    Follows the archival convention where editors mark resolved references with
+    square brackets so the excerpt is self-contained without altering the quote.
+    """
+    if not source_text or not entity_name:
+        return source_text
+    first_word = source_text.split()[0].rstrip(".,;:!?\"'").casefold()
+    if first_word in _SUBJECT_PRONOUNS:
+        return f"[{entity_name}] {source_text}"
+    return source_text
+
 def _build_entity_only_instructions(output_language: str) -> str:
     """Stage 1 instructions - extract entity names only, no SVO pressure."""
     return (
@@ -323,7 +346,7 @@ async def _extract_claims_for_entity(
                 "name": entity_name,
                 "verb": claim.verb,
                 "object": claim.object,
-                "source_text": claim.source_text,
+                "source_text": _annotate_pronoun_source(claim.source_text, entity_name),
                 "epistemic_status": claim.epistemic_status,
                 "claim_type": claim.claim_type,
             }

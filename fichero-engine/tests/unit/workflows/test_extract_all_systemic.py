@@ -9,7 +9,10 @@ minority of sparse pages) must still warn-and-continue.
 
 from __future__ import annotations
 
-from fichero.workflows.tools.extract_all import _classify_systemic_error
+from fichero.workflows.tools.extract_all import (
+    _annotate_pronoun_source,
+    _classify_systemic_error,
+)
 
 
 class TestClassifySystemicError:
@@ -66,3 +69,48 @@ class TestClassifySystemicError:
         # transient blip, not a systemic break.
         errors = ["connection reset"]
         assert _classify_systemic_error(errors, 15) is None
+
+
+class TestAnnotatePronounSource:
+    def test_he_gets_bracketed(self):
+        result = _annotate_pronoun_source(
+            "He had met his wife in Manizales.", "Aon Alfonso"
+        )
+        assert result == "[Aon Alfonso] He had met his wife in Manizales."
+
+    def test_she_gets_bracketed(self):
+        result = _annotate_pronoun_source("She wrote the letter.", "María")
+        assert result == "[María] She wrote the letter."
+
+    def test_they_gets_bracketed(self):
+        result = _annotate_pronoun_source("They left at dawn.", "Los mineros")
+        assert result == "[Los mineros] They left at dawn."
+
+    def test_non_pronoun_unchanged(self):
+        result = _annotate_pronoun_source(
+            "Don Alfonso visited Manizales.", "Don Alfonso"
+        )
+        assert result == "Don Alfonso visited Manizales."
+
+    def test_already_bracketed_not_doubled(self):
+        # If the LLM already resolved it, no double annotation.
+        result = _annotate_pronoun_source(
+            "[Aon Alfonso] He arrived.", "Aon Alfonso"
+        )
+        # "[" is not a pronoun word — no change.
+        assert result == "[Aon Alfonso] He arrived."
+
+    def test_empty_source_text_unchanged(self):
+        assert _annotate_pronoun_source("", "Entity") == ""
+
+    def test_empty_entity_name_unchanged(self):
+        assert _annotate_pronoun_source("He left.", "") == "He left."
+
+    def test_pronoun_with_trailing_punctuation_stripped(self):
+        # "Him," at start — comma should not block detection.
+        result = _annotate_pronoun_source("Him, they found in the square.", "Juan")
+        assert result == "[Juan] Him, they found in the square."
+
+    def test_capitalization_insensitive(self):
+        result = _annotate_pronoun_source("HE departed at noon.", "General Vargas")
+        assert result == "[General Vargas] HE departed at noon."
