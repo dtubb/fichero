@@ -273,3 +273,119 @@ async def test_save_to_db_false_skips_artifact_persistence(tmp_path: Path) -> No
 
     assert mock_save.await_count == 0
     assert result["text"] == "hello"
+
+
+# ---------------------------------------------------------------------------
+# Truncated / absent page transcription fallback (#1170)
+# ---------------------------------------------------------------------------
+
+_PDF_LAYER_FULL = "Full text of page one — " + "word " * 50  # 250+ chars
+
+
+@pytest.mark.asyncio
+async def test_truncated_transcription_falls_back_to_pdf_text_layer(tmp_path: Path) -> None:
+    """When metadata.transcription is shorter than metadata.text_length by >50 chars,
+    process_vision replaces it with the PDF text layer for that page."""
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"%PDF stub")
+
+    documents = [{
+        "id": "page-1",
+        "path": str(pdf),
+        "page_content": "short stub",
+        "sequence": 1,
+        "metadata": {
+            "transcription": "truncated short",  # 15 chars
+            "text_length": 300,                  # expected 300 chars
+        },
+    }]
+
+    with (
+        patch("fichero.workflows.tools.vision_base.save_artifact", new=AsyncMock(return_value=None)),
+        patch("fichero.workflows.tools.vision_base._try_pdf_text_layer", return_value=[_PDF_LAYER_FULL]),
+    ):
+        result = await process_vision(
+            files=[str(pdf)],
+            documents=documents,
+            prompt="Transcribe.",
+            llm_config=_make_llm_config(),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+        )
+
+    assert _PDF_LAYER_FULL in result["text"], "expected PDF text layer to replace truncated metadata"
+
+
+@pytest.mark.asyncio
+async def test_absent_transcription_falls_back_to_pdf_text_layer(tmp_path: Path) -> None:
+    """When metadata.transcription is None but text_length > 50, use PDF text layer."""
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"%PDF stub")
+
+    documents = [{
+        "id": "page-1",
+        "path": str(pdf),
+        "page_content": "",
+        "sequence": 1,
+        "metadata": {
+            # No "transcription" key — None after dict.get()
+            "text_length": 300,
+        },
+    }]
+
+    with (
+        patch("fichero.workflows.tools.vision_base.save_artifact", new=AsyncMock(return_value=None)),
+        patch("fichero.workflows.tools.vision_base._try_pdf_text_layer", return_value=[_PDF_LAYER_FULL]),
+    ):
+        result = await process_vision(
+            files=[str(pdf)],
+            documents=documents,
+            prompt="Transcribe.",
+            llm_config=_make_llm_config(),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+        )
+
+    assert _PDF_LAYER_FULL in result["text"], "expected PDF text layer for page with no stored transcription"
+
+
+@pytest.mark.asyncio
+async def test_matching_transcription_not_replaced(tmp_path: Path) -> None:
+    """When stored transcription matches text_length, PDF layer is not consulted."""
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"%PDF stub")
+    full_text = "word " * 60  # 300 chars
+
+    documents = [{
+        "id": "page-1",
+        "path": str(pdf),
+        "page_content": full_text,
+        "sequence": 1,
+        "metadata": {
+            "transcription": full_text,
+            "text_length": len(full_text),
+        },
+    }]
+
+    mock_layer = patch("fichero.workflows.tools.vision_base._try_pdf_text_layer")
+    with (
+        patch("fichero.workflows.tools.vision_base.save_artifact", new=AsyncMock(return_value=None)),
+        mock_layer as ml,
+    ):
+        result = await process_vision(
+            files=[str(pdf)],
+            documents=documents,
+            prompt="Transcribe.",
+            llm_config=_make_llm_config(),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+        )
+
+    ml.assert_not_called()
+    assert full_text.strip() in result["text"]

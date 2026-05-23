@@ -936,6 +936,10 @@ async def process_vision(
                         live_metadata = live_doc.metadata if live_doc else {}
                         if isinstance(live_metadata, dict):
                             raw_transcription = live_metadata.get("transcription")
+                            # Refresh text_length from live record; the payload
+                            # metadata may be from an older snapshot.
+                            if live_metadata.get("text_length") is not None:
+                                metadata = {**metadata, "text_length": live_metadata["text_length"]}
                     except Exception as exc:
                         logger.debug(
                             "process_vision: could not reload transcription "
@@ -945,10 +949,17 @@ async def process_vision(
                         )
                 pc = doc.get("page_content")
                 expected_text_length = metadata.get("text_length")
+                transcription_text = (
+                    raw_transcription.strip()
+                    if isinstance(raw_transcription, str)
+                    else ""
+                )
+                # Trigger PDF text-layer fallback when the stored transcription
+                # is shorter than expected (truncated) OR completely absent while
+                # text_length indicates the page has real content.
                 raw_is_truncated = (
-                    isinstance(raw_transcription, str)
-                    and isinstance(expected_text_length, int)
-                    and expected_text_length > len(raw_transcription.strip()) + 50
+                    isinstance(expected_text_length, int)
+                    and expected_text_length > len(transcription_text) + 50
                 )
                 if raw_is_truncated and index < len(files):
                     file_path = str(files[index])
@@ -960,7 +971,18 @@ async def process_vision(
                     if file_path.lower().endswith(".pdf") and page_index >= 0:
                         page_texts = _try_pdf_text_layer(file_path)
                         if page_texts and page_index < len(page_texts):
-                            raw_transcription = page_texts[page_index]
+                            layer_text = page_texts[page_index]
+                            logger.info(
+                                "process_vision: transcription for doc %s "
+                                "has %d chars (expected ~%d) — replacing with "
+                                "PDF text layer page %d (%d chars)",
+                                doc_id,
+                                len(transcription_text),
+                                expected_text_length or 0,
+                                page_index + 1,
+                                len(layer_text),
+                            )
+                            raw_transcription = layer_text
                 # Page content can be overwritten by later narrative/catalogue
                 # tools. For transcribe passthrough, prefer the raw extracted
                 # PDF/OCR text stored in metadata so Extract All Entities sees
