@@ -477,6 +477,10 @@ async def catalogue(
     # (per Daniel's "we don't need anything in the text" — body is just
     # the paragraph). It's used only to surface entities to the LLM.
     data: dict[str, Any] | None = None
+    # Track whether KG data (entities/claims) already exists from extract_all.
+    # When True, a narrative-only failure is a partial success (KG data
+    # landed) and should be reported as a warning, not a hard abort (#1169).
+    has_kg_data: bool = False
     if container and library_path:
         try:
             data = _build_data_from_claims(container.id, library_path)
@@ -484,6 +488,7 @@ async def catalogue(
             logger.warning(f"Catalogue: claim read failed ({exc}); falling through")
             data = None
         if data is not None:
+            has_kg_data = True
             claim_context = _format_claims_as_context(
                 data, cap_overrides=inputs.get("claim_context_caps"),
             )
@@ -655,26 +660,42 @@ async def catalogue(
     # Surface upstream LLM failures (quota / auth / rate-limit / model
     # down) so Activity / inspector can show an alert instead of a
     # silent empty narrative. Pick the most actionable message.
+    #
+    # #1169: When KG data already exists from extract_all (has_kg_data),
+    # a narrative-only failure is partial success — abort signal ("error")
+    # would roll back a successful extraction run. Use "warning" instead
+    # so the workflow completes with KG data intact.
     if not markdown and catalogue_errors:
         actionable = next(
             (e for e in catalogue_errors
              if any(k in e.lower() for k in ("quota", "limit", "401", "403", "402"))),
             catalogue_errors[0],
         )
-        result["error"] = (
+        msg = (
             f"Catalogue: {len(catalogue_errors)} LLM call(s) failed — "
             f"{actionable}"
         )
+        if has_kg_data:
+            result["warning"] = msg + " (KG extraction data was written successfully)"
+            logger.warning("catalogue: narrative failed but KG data exists — partial success: %s", actionable)
+        else:
+            result["error"] = msg
     elif not markdown and not saved_artifact_ids:
         # #1011: catch the "ran successfully but produced nothing"
         # case. Without an explicit error, the workflow appears to
         # succeed but the inspector finds no catalogue artifact —
         # the most confusing failure mode.
-        result["error"] = (
-            "Catalogue: LLM produced no narrative — no catalogue "
-            "artifact was saved. Check provider/model availability "
-            "and retry."
-        )
+        if has_kg_data:
+            result["warning"] = (
+                "Catalogue: narrative was not generated. "
+                "KG extraction data is available — retry to add narrative."
+            )
+        else:
+            result["error"] = (
+                "Catalogue: LLM produced no narrative — no catalogue "
+                "artifact was saved. Check provider/model availability "
+                "and retry."
+            )
 
     # Auto-refresh derived KG stores after a successful catalogue run
     # (#899). Writes <library>/kg.nt and ensures every entity has its

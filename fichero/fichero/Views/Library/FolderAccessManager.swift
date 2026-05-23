@@ -75,6 +75,14 @@ class FolderAccessManager: ObservableObject {
 
     /// Save a security-scoped bookmark
     func saveBookmark(for url: URL) {
+        // Never bookmark transient temp paths — they're cleaned up after ingest
+        // and will always fail to resolve on next launch, producing noisy errors.
+        guard !url.path.contains("/fichero-drop-"),
+              !url.path.hasPrefix("/var/folders/"),
+              !url.path.hasPrefix("/tmp/") else {
+            logger.debug("Skipping bookmark for transient path: \(url.path)")
+            return
+        }
         do {
             // Start accessing to create bookmark
             _ = url.startAccessingSecurityScopedResource()
@@ -116,11 +124,19 @@ class FolderAccessManager: ObservableObject {
 
     /// Restore bookmarks on app launch
     private func restoreBookmarks() {
-        guard let bookmarks = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] else {
+        guard var bookmarks = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] else {
             return
         }
 
+        var changed = false
         for (path, bookmarkData) in bookmarks {
+            // Prune any transient paths that slipped in from prior versions.
+            if path.contains("/fichero-drop-") || path.hasPrefix("/var/folders/") || path.hasPrefix("/tmp/") {
+                logger.debug("Removing stale transient bookmark: \(path)")
+                bookmarks.removeValue(forKey: path)
+                changed = true
+                continue
+            }
             do {
                 var isStale = false
                 let url = try URL(
@@ -143,7 +159,14 @@ class FolderAccessManager: ObservableObject {
                 }
             } catch {
                 logger.error("Failed to restore bookmark for \(path): \(error.localizedDescription)")
+                // Remove the unresolvable bookmark so it doesn't log on every launch.
+                bookmarks.removeValue(forKey: path)
+                changed = true
             }
+        }
+
+        if changed {
+            UserDefaults.standard.set(bookmarks, forKey: bookmarksKey)
         }
     }
 
