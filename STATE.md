@@ -14,8 +14,10 @@
 
 - Image pipeline improvements (#1176: non-destructive parametric pipeline + transient cache).
 - CLI verification harness for batched corpora checks (#1177).
-- KG sidebar/detail visual polish (entity row readability + OCR-garbage suppression).
+- KG sidebar/detail visual polish (entity row readability + OCR-garbage suppression, #1168).
 - RAG-assisted transcription review (#1179: query LanceDB reference corpus in Pass 2).
+- Verification gate tasks #253/#254/#255/#256 (verify_python.sh → CrossLanguageGateTests → verify_all.sh → docs).
+- Baseline cleanup #257 (stale test updates) + #258 (3 real route 500s).
 
 ## Blocked
 
@@ -24,8 +26,8 @@
 
 ## Next Session — Start Here
 
-1. **Paleography + image pipeline**: continue #1176 (non-destructive image pipeline) and #1175 (stageable chains A/B/C). Two-pass HTR/paleography presets are live — test on a real folder.
-2. **Classify-then-route**: build the "Transcribe (Auto-Detect)" workflow — `files → classify_script → [route to appropriate transcription profile]`. The `classify_script` tool is registered; needs a routing/conditional node wired up.
-3. **RAG reference corpus** (#1179): design the `vector_search` node or a `reference` port on `transcribe_review` to inject period vocabulary from LanceDB.
-4. **Haggard PDF**: still worth reading pages 40–108 (Chapters III–IV: Procedure + Special Aids for abbreviation glossaries) to enrich the prompts further.
-5. Backend tests: 2909 passing, 21 skipped, 21 xfailed — baseline is healthy.
+1. **Build is green** (commit `6b6273e1`): entity claim count badges + WorkflowEdge routeKey/routeMap sync are shipped.
+2. **KG visual polish** (#1168): entity row readability and OCR-garbage suppression are next in the KG browser — check the issue for specifics.
+3. **RAG transcription review** (#1179): design `vector_search` node or `reference` port on `transcribe_review` to inject period vocabulary from LanceDB.
+4. **Verification gate** (#253–#256): `verify_python.sh` → `CrossLanguageGateTests.swift` → `verify_all.sh` — pick up from task #253.
+5. Backend tests baseline: 2926 passed, 21 skipped, 21 xfailed — healthy.

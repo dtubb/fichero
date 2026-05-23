@@ -2176,3 +2176,16 @@ Two sessions continuing #1178 (transcription profiles) and paleography pipeline 
 - Paleography Pass 1 `update_page_content: false` so only the reviewed Pass 2 output updates page text in the DB
 
 **Commits:** 95028f02, 9822a3c9
+
+## 2026-05-23 (afternoon) — Model sync + entity claim count badges
+
+- ✅ Added `ClaimCountsResponse` model + `GET /api/entities/claim-counts` endpoint (per-entity claim counts, no KnowledgeEntity schema change)
+- ✅ Added `fetchClaimCounts()` Swift service method, parallel-fetched alongside entity list in OntologyBrowser
+- ✅ Added claim count capsule badge to `EntityRow` in OntologyBrowser
+- ✅ Synced `WorkflowEdge` with Python `EdgeDef`: added `routeKey`/`routeMap` fields + encode/decode
+- ✅ Fixed `convertEdgeDefToWorkflowEdge` to preserve `route_key`/`route_map`
+- ✅ Fixed `EdgeDef.target` optional handling (`String?` for route_map fan-out edges)
+- ✅ Fixed `GeneratedTypeExtensions` EdgeDef `targetNodeId`/`stableId` bridges for optional target
+- ✅ Fixed exhaustive switch: `fetchClaimCounts()` missing `.unprocessableContent` case
+- ✅ Fixed `OntologyBrowser`: `entity.id` is `String?`, needs `entity.id ?? ""` as dict key
+- Commit: 6b6273e1 — 11 files, 264 insertions
