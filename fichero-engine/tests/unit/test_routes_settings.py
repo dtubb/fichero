@@ -19,6 +19,8 @@ class TestGetAIDefaults:
             "audio_provider", "audio_model",
             "video_provider", "video_model",
             "embeddings_provider", "embeddings_model",
+            "small_provider", "small_model",
+            "large_provider", "large_model",
             "temperature", "max_tokens",
             "prompt_prefix",
         }
@@ -45,6 +47,10 @@ class TestSetAIDefaults:
             "video_model": "",
             "embeddings_provider": "",
             "embeddings_model": "",
+            "small_provider": "apple",
+            "small_model": "apple-intelligence",
+            "large_provider": "openrouter",
+            "large_model": "openrouter/free",
             "temperature": "0.7",
             "max_tokens": "1000",
             "prompt_prefix": "",
@@ -65,6 +71,10 @@ class TestSetAIDefaults:
             "video_model": "",
             "embeddings_provider": "openai",
             "embeddings_model": "text-embedding-3-small",
+            "small_provider": "apple",
+            "small_model": "apple-intelligence",
+            "large_provider": "openrouter",
+            "large_model": "openrouter/free",
             "temperature": "",
             "max_tokens": "",
             "prompt_prefix": "",
@@ -77,6 +87,10 @@ class TestSetAIDefaults:
         assert data["vision_model"] == "gpt-4o"
         assert data["embeddings_provider"] == "openai"
         assert data["embeddings_model"] == "text-embedding-3-small"
+        assert data["small_provider"] == "apple"
+        assert data["small_model"] == "apple-intelligence"
+        assert data["large_provider"] == "openrouter"
+        assert data["large_model"] == "openrouter/free"
 
     def test_empty_values_clear_setting(self, client):
         # Set then clear
@@ -86,6 +100,8 @@ class TestSetAIDefaults:
             "audio_provider": "", "audio_model": "",
             "video_provider": "", "video_model": "",
             "embeddings_provider": "", "embeddings_model": "",
+            "small_provider": "apple", "small_model": "apple-intelligence",
+            "large_provider": "openrouter", "large_model": "openrouter/free",
             "temperature": "", "max_tokens": "",
             "prompt_prefix": "",
         }
@@ -93,8 +109,14 @@ class TestSetAIDefaults:
         payload_clear = {k: "" for k in payload_set}
         client.put("/api/settings/ai-defaults", json=payload_clear)
         r = client.get("/api/settings/ai-defaults")
-        assert r.json()["vision_provider"] == ""
-        assert r.json()["vision_model"] == ""
+        data = r.json()
+        assert data["vision_provider"] == ""
+        assert data["vision_model"] == ""
+        # Tier aliases are intentionally preserved when empty payloads are sent.
+        assert data["small_provider"] == "apple"
+        assert data["small_model"] == "apple-intelligence"
+        assert data["large_provider"] == "openrouter"
+        assert data["large_model"] == "openrouter/free"
 
 
 class TestResetAIDefaults:

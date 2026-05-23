@@ -24,6 +24,16 @@ struct EntityRow: View {
                         .lineLimit(1)
                 }
             }
+
+            Spacer(minLength: 6)
+
+            Text(entityTypeLabel)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.secondary.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         .padding(.vertical, 4)
     }
@@ -37,6 +47,18 @@ struct EntityRow: View {
         case .event: return "calendar.circle.fill"
         case .concept: return "lightbulb.fill"
         case .other: return "circle.fill"
+        }
+    }
+
+    private var entityTypeLabel: String {
+        guard let type = entity.entityType else { return "other" }
+        switch type {
+        case .person: return "person"
+        case .organization: return "org"
+        case .location: return "place"
+        case .event: return "event"
+        case .concept: return "concept"
+        case .other: return "other"
         }
     }
 }

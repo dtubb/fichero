@@ -14,7 +14,7 @@ import asyncio
 import json
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from fastapi import (
@@ -43,6 +43,14 @@ from fichero.models import ActivityListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/activity", tags=["activity"])
+
+
+def _parse_iso_to_naive_utc(value: str) -> datetime:
+    """Parse ISO-8601 timestamps and normalize to naive UTC for DuckDB."""
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 
 # Pydantic models for API
@@ -167,15 +175,14 @@ async def list_activities(
     until_dt = None
     if since:
         try:
-            # Replace Z with +00:00 for fromisoformat compatibility
-            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            since_dt = _parse_iso_to_naive_utc(since)
         except ValueError:
             raise HTTPException(
                 status_code=400, detail="Invalid 'since' datetime format"
             )
     if until:
         try:
-            until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
+            until_dt = _parse_iso_to_naive_utc(until)
         except ValueError:
             raise HTTPException(
                 status_code=400, detail="Invalid 'until' datetime format"

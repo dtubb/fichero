@@ -2141,3 +2141,18 @@ Fixed Swift decoding error where `DocumentStore` expected `[Document]` but backe
   - `#1167` — artifact inspector shows `CancellationError` when rapidly switching PDF pages.
   - `#1168` — KG browser visual hierarchy / graph neighborhood view.
 - Installed missing high-use Codex skill symlinks under `~/.codex/skills`: `bug`, `feature`, `feature-future`, `autonomous-loop`, `extract-bib`.
+
+## 2026-05-23 — Session Summary
+
+- Repaired paleography workflow model routing so transcription no longer hard-codes `$large`; transcribe now follows configured vision defaults.
+- Added fail-fast provider/quota classification in vision processing and coverage tests to prevent hidden retry masking.
+- Verified small-batch CLI runs (Tiny + Medium pages) end-to-end:
+  - Spanish Paleography transcription produced artifacts for both test pages.
+  - Catalogue completed on sampled page and produced extract/entity outputs.
+- Fixed `/api/activity` time-filter parsing for `since/until` ISO `Z` timestamps by normalizing to naive UTC; added route regression test.
+- Started KG visual cleanup pass in SwiftUI:
+  - improved entity row presentation (type badge, tighter scanability),
+  - suppressed unreadable OCR-garbage strings in entity detail + claim excerpt display paths.
+- Created and corrected GitHub issues:
+  - #1177 (small-batch CLI verification harness),
+  - #1178 (workflow model routing + profile/classifier gate).

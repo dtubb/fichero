@@ -241,9 +241,7 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
                 .help("Search for '\(svo.object)' in library")
             }
             .padding(.vertical, 4)
-        } else if let excerpt = claim.sourceExcerpt?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                  !excerpt.isEmpty {
+        } else if let excerpt = cleanedDisplayText(claim.sourceExcerpt) {
             // SVO missing → surface the verbatim source excerpt as the
             // card body so it isn't content-empty. The "regenerate KG"
             // hint moves to a small footer line so the user still
@@ -359,8 +357,7 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
         // Verbatim source quote — moved into the expanded drawer so the
         // collapsed card stays tight. Tapping the quote runs a library
         // text-search via the existing entity-lozenge pathway. (#979)
-        if let excerpt = claim.sourceExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !excerpt.isEmpty,
+        if let excerpt = cleanedDisplayText(claim.sourceExcerpt),
            excerpt != claim.text {
             Button {
                 NotificationCenter.default.post(
@@ -416,6 +413,17 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
                 }
             }
         }
+    }
+
+    private func cleanedDisplayText(_ value: String?) -> String? {
+        guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else { return nil }
+        let replacementGlyphs = raw.filter { $0 == "\u{FFFD}" || $0 == "□" || $0 == "�" }
+        if !raw.isEmpty {
+            let ratio = Double(replacementGlyphs.count) / Double(raw.count)
+            if ratio > 0.08 { return nil }
+        }
+        return raw
     }
 
     private func loadDetails() async {

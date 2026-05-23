@@ -26,7 +26,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from fichero.db import db_manager
-from fichero.llm import LLMConfig, chat_structured, chat_structured_with_fallback, resolve_model_alias
+from fichero.llm import LLMConfig, chat_structured, resolve_model_alias
 from fichero.models import Artifact, Document, DocType, FileType
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_write_target
@@ -808,7 +808,7 @@ async def _run_two_stage(
     """
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
-    container = _resolve_write_target(selected_doc_ids, library_path)
+    _ = _resolve_write_target(selected_doc_ids, library_path)  # for write compatibility
 
     # Build chunks
     records_input = recovered_records
@@ -827,7 +827,7 @@ async def _run_two_stage(
         chunks = _split_into_pages(text)
         page_doc_ids = [None] * len(chunks)
 
-    is_per_page = any(pid for pid in page_doc_ids)
+    _ = any(pid for pid in page_doc_ids)  # is_per_page info not needed in Stage 2
     entity_instructions = _build_entity_only_instructions(output_language)
     claim_instructions = _build_per_entity_claim_instructions(output_language)
 
@@ -1044,12 +1044,13 @@ async def extract_all(
         # decoder cannot emit invalid JSON — the entire prompt-and-parse
         # failure class (Unterminated string, single-quoted JSON, prose
         # before/after the object) is gone (#799/#819 / #838 follow-up).
-        # chat_structured_with_fallback escapes to $large on Apple's
-        # on-device guardrail refusal, keeping the local-first default.
+        # Single-model structured extraction only.
+        # Do not auto-fallback here: fallback chains can hide model
+        # quality/config errors and produce silent degradations.
         call_start = time.monotonic()
         try:
             async with extraction_sem:
-                extraction = await chat_structured_with_fallback(
+                extraction = await chat_structured(
                     prompt=chunk_text,
                     schema=_Extraction,
                     config=llm_config,
@@ -1060,15 +1061,11 @@ async def extract_all(
                     # instructions cover behavior; let the grammar carry the
                     # shape (#843).
                     include_schema_in_prompt=False,
-                    permissive_guardrails=True,
                 )
-                extraction = await _retry_thin_extraction_with_large(
-                    extraction,
-                    prompt=chunk_text,
-                    config=llm_config,
-                    system=instructions,
-                    include_schema_in_prompt=False,
-                )
+                if _extraction_is_thin(extraction, chunk_text):
+                    raise RuntimeError(
+                        "thin structured extraction output (no auto-fallback enabled)"
+                    )
         except Exception as exc:
             elapsed = time.monotonic() - call_start
             chunk_timings.append(elapsed)

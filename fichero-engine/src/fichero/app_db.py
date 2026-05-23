@@ -439,7 +439,11 @@ class AppDatabase:
         self.conn.commit()
 
     def get_ai_defaults(self) -> dict[str, str]:
-        """Get all AI default settings as a dict."""
+        """Get all AI default settings as a dict.
+
+        Use one set-based query rather than N per-key lookups so reads
+        remain stable under concurrent workflow/API traffic.
+        """
         keys = [
             "default_vision_provider",
             "default_vision_model",
@@ -459,12 +463,12 @@ class AppDatabase:
             "default_max_tokens",
             "default_prompt_prefix",
         ]
-        result = {}
-        for key in keys:
-            val = self.get_setting(key)
-            if val:
-                result[key] = val
-        return result
+        placeholders = ",".join(["?"] * len(keys))
+        rows = self.conn.execute(
+            f"SELECT key, value FROM settings WHERE key IN ({placeholders})",
+            keys,
+        ).fetchall()
+        return {key: value for key, value in rows if value}
 
     def get_default_model_for_category(self, category: str) -> tuple[str, str] | None:
         """Get default (provider_type, model_id) for a tool category.

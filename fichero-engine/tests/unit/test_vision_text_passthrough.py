@@ -14,7 +14,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from fichero.llm import LLMConfig
-from fichero.workflows.tools.vision_base import VisionToolConfig, process_vision
+from fichero.workflows.tools.vision_base import (
+    VisionToolConfig,
+    _is_non_retriable_provider_error,
+    process_vision,
+)
 
 
 def _make_llm_config() -> LLMConfig:
@@ -120,6 +124,12 @@ async def test_pdf_with_existing_page_content_skips_vision(tmp_path: Path) -> No
     assert result["texts"] == [result["text"]]
     # The artifact write fires once (text persists)
     assert mock_save.await_count == 1
+
+
+def test_non_retriable_provider_error_detection() -> None:
+    assert _is_non_retriable_provider_error("Error code: 403 - key limit exceeded")
+    assert _is_non_retriable_provider_error("401 Unauthorized")
+    assert not _is_non_retriable_provider_error("timed out waiting for response")
 
 
 @pytest.mark.asyncio

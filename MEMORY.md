@@ -258,6 +258,14 @@ Confirmed via `grep -A 3 "PBXFileSystemSynchronizedRootGroup" *.xcodeproj/projec
 
 The two-stack OpenAPI round-trip has three known failure modes that are all *silent* (no exception, no failing test, just data that disappears or filters that hide rows). All three are the same underlying shape: **schema and data drift apart**. Treat them as load-bearing rules.
 
+## Activity API time filters must normalize ISO Z timestamps to naive UTC — 2026-05-23
+
+`/api/activity` can receive `since/until` as ISO-8601 with `Z` (UTC). DuckDB filter queries in this codepath use naive datetimes; mixing aware+naive can surface as route-level 500s in live polling. Route layer should parse and normalize to **naive UTC** before building `ActivityFilter` (e.g. `dt.astimezone(timezone.utc).replace(tzinfo=None)`), and keep a unit test for `since=...Z`.
+
+## xcodebuild scheme name is case-sensitive in this repo — 2026-05-23
+
+The project scheme is `Fichero`, not `fichero`. Using lowercase scheme silently breaks build/test automation with "project does not contain a scheme named ...". Any scripts/autoloop checks should use `-scheme Fichero`.
+
 **1. Pydantic field must be declared.** `extra="allow"` lets unknown keys *write* to the DB at runtime, but `model_dump()` only serializes declared fields, so the next read drops them. When adding a column, ship (a) the DB migration, (b) the Pydantic model field, (c) the OpenAPI request/response schema field — in the same commit. See `commit 31fc4141`, `feedback_pydantic_field_must_be_declared.md`, and the user-edit timestamp pattern at `MEMORY.md:79`.
 
 **2. OpenAPI-typed fields, not `additionalProperties`, in Swift wrappers.** When a Swift `Services/*Generated.swift` wrapper builds a request body, every field declared in `openapi.json` must be set via the typed `Components.Schemas.*` field. Stuffing declared fields into `additionalProperties` compiles, round-trips through `extra="allow"`, and is then dropped by Pydantic — write lost, no error. See `docs/architecture/swiftui/api_client.md`.

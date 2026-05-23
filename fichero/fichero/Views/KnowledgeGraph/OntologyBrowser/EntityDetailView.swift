@@ -313,7 +313,7 @@ struct EntityDetailView: View { // swiftlint:disable:this type_body_length
                 .help("Search the library for \"\(entity.canonicalName)\"")
             }
 
-            if let description = entity.description {
+            if let description = cleanedDisplayText(entity.description) {
                 Text(description)
                     .font(.body)
                     .foregroundStyle(.secondary)
@@ -578,5 +578,19 @@ struct EntityDetailView: View { // swiftlint:disable:this type_body_length
         var set = Self.parseCSV(csv)
         if set.contains(key) { set.remove(key) } else { set.insert(key) }
         csv = set.sorted().joined(separator: ",")
+    }
+
+    /// Hide visually-degraded OCR strings that are mostly replacement
+    /// glyphs; keeps the detail panel readable when extraction quality
+    /// is poor on a page.
+    private func cleanedDisplayText(_ value: String?) -> String? {
+        guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else { return nil }
+        let replacementGlyphs = raw.filter { $0 == "\u{FFFD}" || $0 == "□" || $0 == "�" }
+        if !raw.isEmpty {
+            let ratio = Double(replacementGlyphs.count) / Double(raw.count)
+            if ratio > 0.08 { return nil }
+        }
+        return raw
     }
 }

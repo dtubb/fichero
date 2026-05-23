@@ -166,6 +166,35 @@ class TestLoadPresetFiles:
                     "default — aliasing it to $small breaks Apple Vision OCR"
                 )
 
+    def test_spanish_paleography_extract_uses_dollar_large(self):
+        """Paleography baseline preset is transcription-first only."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        paleography = presets["Spanish Paleography (18th–19th C.)"]
+        extract_nodes = [n for n in paleography["nodes"] if n["tool"] == "extract_all"]
+        assert not extract_nodes
+
+    def test_spanish_paleography_wires_extract_from_transcribe(self):
+        """Spanish paleography baseline keeps transcribe-only wiring."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        paleography = presets["Spanish Paleography (18th–19th C.)"]
+        node_tools = {n["tool"] for n in paleography["nodes"]}
+        assert "transcribe_review" not in node_tools
+        assert "extract_all" not in node_tools
+        transcribe_node = next(n for n in paleography["nodes"] if n["tool"] == "transcribe")
+        assert "provider_name" not in transcribe_node.get("config", {}), (
+            "paleography transcribe must use vision defaults (no hard-coded "
+            "provider alias) so Settings controls model selection"
+        )
+
+    def test_spanish_paleography_files_to_transcribe_uses_documents_port(self):
+        presets = {p["name"]: p for p in _load_preset_files()}
+        paleography = presets["Spanish Paleography (18th–19th C.)"]
+        edges = paleography["edges"]
+        file_edge = next(e for e in edges if e["id"] == "edge-files-transcribe")
+        assert file_edge["source_port"] == "files"
+        assert file_edge["target_port"] == "files"
+
+
     def test_catalogue_inputs_route_via_transcribe_not_user_aggregate(self):
         """Catalogue + extract_all + merge_extracts read directly from
         `transcribe`, NOT through a user-defined `aggregate` (Marshal

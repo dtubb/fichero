@@ -965,8 +965,8 @@ class FicheroClient:
         current = self.get_settings()
         current_dict = current.model_dump() if hasattr(current, 'model_dump') else current
         merged = {**current_dict, **fields}
-        raw = self.request("PUT", "/api/settings/ai-defaults", json=merged)
-        return AIDefaults.model_validate(raw or {})
+        self.request("PUT", "/api/settings/ai-defaults", json=merged)
+        return self.get_settings()
 
     # -- providers ---------------------------------------------------------
     def list_providers(self) -> list[ProviderResponse]:

@@ -82,6 +82,26 @@ from fichero.workflows.tools.llm_base import (
 logger = logging.getLogger(__name__)
 
 
+def _is_non_retriable_provider_error(message: str) -> bool:
+    """Provider errors that should fail immediately without retries."""
+    msg = (message or "").lower()
+    return any(
+        token in msg
+        for token in (
+            "key limit exceeded",
+            "insufficient_quota",
+            "insufficient quota",
+            "quota",
+            "invalid api key",
+            "unauthorized",
+            "authentication",
+            "401",
+            "402",
+            "403",
+        )
+    )
+
+
 # =============================================================================
 # Vision-Specific Port and Config Schemas
 # =============================================================================
@@ -1378,9 +1398,18 @@ async def process_vision(
             )
 
         except Exception as e:
-            logger.error(f"Vision processing failed for {file_path}: {e}")
+            err = str(e)
+            if _is_non_retriable_provider_error(err):
+                logger.error(
+                    "Vision processing failed for %s with non-retriable "
+                    "provider/auth/quota error: %s",
+                    file_path,
+                    err,
+                )
+            else:
+                logger.error(f"Vision processing failed for {file_path}: {e}")
             results.append(
-                {"file": file_path, "text": "", "value": None, "error": str(e)}
+                {"file": file_path, "text": "", "value": None, "error": err}
             )
             texts.append("")
             values.append(None)

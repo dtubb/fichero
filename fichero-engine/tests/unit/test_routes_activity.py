@@ -100,6 +100,16 @@ class TestListActivities:
             r = client.get("/api/activity?levels=bogus")
         assert r.status_code == 400
 
+    def test_since_z_is_normalized_for_query_filter(self, client):
+        tracker = _make_mock_tracker()
+        with patch("fichero.api.routes.activity.get_activity_tracker", return_value=tracker):
+            r = client.get("/api/activity?since=2026-05-16T14:32:06Z")
+        assert r.status_code == 200
+        assert tracker.query.await_count == 1
+        filter_arg = tracker.query.await_args.args[0]
+        assert filter_arg.since is not None
+        assert filter_arg.since.tzinfo is None
+
 
 # ---------------------------------------------------------------------------
 # GET /api/activity/recent
