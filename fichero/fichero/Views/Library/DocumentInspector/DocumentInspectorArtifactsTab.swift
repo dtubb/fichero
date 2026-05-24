@@ -655,6 +655,9 @@ struct KnowledgeGraphInspectorSection: View {
     /// Default: all kinds visible.
     @AppStorage("inspector.kg.hiddenKinds") private var hiddenKindsCSV: String = ""
 
+    /// Text = dense semicolon prose per entity; List = grouped disclosure rows.
+    @AppStorage("inspector.kg.displayMode") private var displayMode: KGDisplayMode = .text
+
     private var hiddenKinds: Set<EntityKind> {
         Set(
             hiddenKindsCSV
@@ -749,6 +752,103 @@ struct KnowledgeGraphInspectorSection: View {
             }
     }
 
+    // MARK: - Text digest data
+
+    private struct TextDigestEntry {
+        let displayName: String
+        let kind: EntityKind
+        // Each element is "verb objectPhrase" or bare claim text.
+        let svoLines: [String]
+    }
+
+    private var textDigest: [(EntityKind, [TextDigestEntry])] {
+        // key → (kind, displayName, accumulated SVO strings)
+        var byEntity: [String: (EntityKind, String, [String])] = [:]
+        let hidden = hiddenKinds
+
+        for claim in claims {
+            let entityId = claim.entityIds?.first
+            let entity = entityId.flatMap { entitiesById[$0] }
+
+            if let merged = entity?.mergedIntoId, !merged.isEmpty { continue }
+
+            let predVerb = (claim.predicateVerb ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let objPhrase = (claim.objectPhrase ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if predVerb == "is" && (objPhrase.hasPrefix("a ") || objPhrase.hasPrefix("an ")) { continue }
+
+            let kind = entity.flatMap { EntityKind(apiType: $0.entityType) } ?? .date
+            guard !hidden.contains(kind) else { continue }
+
+            let displayName = entity?.canonicalName ?? claim.text
+            let key = entityId ?? displayName
+
+            let svo: String
+            if !predVerb.isEmpty && !objPhrase.isEmpty {
+                svo = "\(predVerb) \(objPhrase)"
+            } else if !predVerb.isEmpty {
+                svo = predVerb
+            } else if !claim.text.isEmpty {
+                svo = claim.text
+            } else {
+                continue
+            }
+
+            if byEntity[key] == nil {
+                byEntity[key] = (kind, displayName, [svo])
+            } else {
+                byEntity[key]!.2.append(svo)
+            }
+        }
+
+        var byKind: [EntityKind: [TextDigestEntry]] = [:]
+        for (_, (kind, name, svos)) in byEntity {
+            let entry = TextDigestEntry(displayName: name, kind: kind, svoLines: svos)
+            byKind[kind, default: []].append(entry)
+        }
+
+        return EntityKind.displayOrder.compactMap { kind in
+            guard !hidden.contains(kind) else { return nil }
+            guard let entries = byKind[kind], !entries.isEmpty else { return nil }
+            return (kind, entries.sorted { $0.displayName < $1.displayName })
+        }
+    }
+
+    // MARK: - Text digest view
+
+    @ViewBuilder
+    private var textDigestView: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if textDigest.isEmpty {
+                Text("No knowledge-graph entries for this document yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(textDigest, id: \.0) { kind, entries in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label(kind.label.uppercased(), systemImage: kind.systemImage)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        ForEach(entries, id: \.displayName) { entry in
+                            let prose = entry.svoLines.joined(separator: "; ")
+                            // SwiftUI markdown bold for the entity name.
+                            let raw = "**\(entry.displayName)** \(prose)"
+                            if let attributed = try? AttributedString(markdown: raw) {
+                                Text(attributed)
+                                    .font(.caption)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            } else {
+                                Text(raw)
+                                    .font(.caption)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeader
@@ -763,6 +863,8 @@ struct KnowledgeGraphInspectorSection: View {
                 Text("No knowledge-graph entries for this document yet.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            } else if displayMode == .text {
+                textDigestView
             } else {
                 ForEach(grouped, id: \.0) { kind, items in
                     EntityKindBlock(
@@ -812,6 +914,23 @@ struct KnowledgeGraphInspectorSection: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help("Pick which knowledge-graph kinds to show")
+            // Text / List mode toggle
+            Button {
+                displayMode = .text
+            } label: {
+                Image(systemName: "text.alignleft")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(displayMode == .text ? Color.accentColor : Color.secondary)
+            .help("Text digest")
+            Button {
+                displayMode = .list
+            } label: {
+                Image(systemName: "list.bullet")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(displayMode == .list ? Color.accentColor : Color.secondary)
+            .help("List view")
             Button {
                 Task { await load() }
             } label: {
@@ -894,6 +1013,12 @@ private struct GroupedItem: Identifiable {
     }
     var extraClaims: [ExtraClaim] = []
     var id: String { claimId }
+}
+
+/// Toggle between dense prose digest and grouped disclosure list.
+private enum KGDisplayMode: String {
+    case text
+    case list
 }
 
 /// Local enum mirroring the API EntityType plus a "date" bucket for
