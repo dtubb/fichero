@@ -991,14 +991,14 @@
   completed_at: 2026-05-22
 
 - issue: 712
-  status: pending
+  status: done
   title: "Remove center preview pane; folder inspector when nothing selected"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-24
 
 - issue: 711
   status: pending
