@@ -5,14 +5,11 @@
 # ── Priority 0: Entity platform — backend-only, autonomous-safe ──────────────
 
 - issue: 1185
-  status: in_progress
+  status: done
   title: "Add claim_location, temporal_context, claim_speaker fields to KnowledgeClaim"
-  files: [fichero-engine/src/fichero/models/knowledge.py, fichero-engine/src/fichero/db/db.py]
-  approach: "Add three Optional[str] fields to the KnowledgeClaim Pydantic model. Add corresponding columns to _ensure_table in db.py. No migration needed (0.0.x no-migration rule). Regenerate openapi.json via scripts/sync_openapi_schema.sh. Run verify_python.sh gate."
-  est_tokens: 10000
-  blocked_reason: null
-  commit: null
-  completed_at: null
+  files: [fichero-engine/src/fichero/knowledge_models.py]
+  commit: c366b2c4
+  completed_at: "2026-05-24"
 
 - issue: 1192
   status: pending
