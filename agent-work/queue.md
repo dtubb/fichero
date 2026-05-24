@@ -1031,12 +1031,12 @@
   completed_at: null
 
 - issue: 1198
-  status: pending
+  status: blocked
   title: "Export: entity digest as PDF, Markdown, and plain text"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit']"
   commit: null
   completed_at: null
 
