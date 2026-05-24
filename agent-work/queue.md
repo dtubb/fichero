@@ -1021,13 +1021,13 @@
   completed_at: null
 
 - issue: 1200
-  status: pending
+  status: needs_review
   title: "Model browser: searchable OpenRouter catalogue with context/price/MLX filters in Settings"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
-  commit: null
+  blocked_reason: "flagged by cascade reviewer"
+  commit: 1e2cd451
   completed_at: null
 
 - issue: 1198
