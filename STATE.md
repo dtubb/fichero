@@ -8,13 +8,6 @@
 
 Entity Platform — SwiftUI implementation of five-pane reading layout, KG inspector modes, bidirectional sync.
 
-## Completed This Session
-
-- **#1199** (14eef9d5): Persistent inspector — window-level HStack sibling, stable across all views
-- **#1189** (33f0338a): Five-pane reading layout — auto-activates when PDF has page children
-- **#1190** (797ff7d0): KG inspector Text mode — bold-name + semicolon SVO prose digest, Text/List toggle
-- **Autoloop** updated: now defaults to `pi --provider openrouter --model qwen/qwen3-coder:free` (no more Anthropic models)
-
 ## In Progress
 
 - Autoloop running in `tmux:fichero → autoloop` with pi+openrouter (qwen3-coder:free)

@@ -2189,3 +2189,10 @@ Two sessions continuing #1178 (transcription profiles) and paleography pipeline 
 - ✅ Fixed exhaustive switch: `fetchClaimCounts()` missing `.unprocessableContent` case
 - ✅ Fixed `OntologyBrowser`: `entity.id` is `String?`, needs `entity.id ?? ""` as dict key
 - Commit: 6b6273e1 — 11 files, 264 insertions
+
+## 2026-05-24 — Session Summary
+
+- Archived completed work from active state tracker into history.
+- Completed #1199 (persistent inspector), #1189 (five-pane reading layout), and #1190 (KG inspector Text mode) as recorded in STATE.
+- Updated autoloop default runtime to `pi --provider openrouter --model qwen/qwen3-coder:free`.
+- No additional code changes were made in this wrap-up step.
