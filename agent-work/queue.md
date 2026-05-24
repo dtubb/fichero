@@ -1051,7 +1051,7 @@
   completed_at: 2026-05-24
 
 - issue: 1196
-  status: pending
+  status: in_progress
   title: "Page-scoped KG graph in inspector Map tab (default: current page)"
   files: []
   approach: ""

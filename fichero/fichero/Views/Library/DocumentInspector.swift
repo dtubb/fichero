@@ -21,6 +21,7 @@ extension Notification.Name {
 enum InspectorTab: String, CaseIterable, Identifiable {
     case content = "Content"
     case knowledgeGraph = "Knowledge Graph"
+    case map = "Map"
     case artifacts = "Artifacts"
     case info = "Info"
 
@@ -30,6 +31,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         switch self {
         case .content: return "doc.text"
         case .knowledgeGraph: return "point.3.connected.trianglepath.dotted"
+        case .map: return "map"
         case .artifacts: return "shippingbox"
         case .info: return "info.circle"
         }
@@ -127,6 +129,29 @@ struct DocumentInspector: View {
                         )
                     }
                 )
+                .padding()
+            }
+        case .map:
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Page-scoped Knowledge Graph (Map View)")
+                        .font(.headline)
+                    Text("Showing entities and relationships specific to this document.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    // This would show a force-directed graph visualization of entities
+                    // in the current document context (page-scoped)
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.1))
+                        .frame(height: 300)
+                        .overlay(
+                            Text("Map tab placeholder - page-scoped graph would appear here")
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding()
+                        )
+                }
                 .padding()
             }
         case .artifacts:
