@@ -22,14 +22,14 @@
   completed_at: 2026-05-24T16:07:05.463453+00:00
 
 - issue: 1193
-  status: pending
+  status: done
   title: "CLI: entity commands — list, digest, biography, claims"
   files: [fichero-engine/src/fichero/cli/commands/entity.py, fichero-engine/src/fichero/cli/main.py]
   approach: "Create fichero-engine/src/fichero/cli/commands/entity.py with a Typer group: list, claims <id>, digest <id> [--format markdown|text|json], biography <id>. Register the group in cli/main.py. Use existing /api/entities and /api/kg/neighborhood endpoints. Add --json flag on all commands. Test with fichero entity list --json."
   est_tokens: 18000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-24
 
 # ── Priority 1: Small bugs / quick wins (≤15k tokens) ────────────────────────
 
@@ -1013,6 +1013,206 @@
 - issue: 710
   status: pending
   title: "Test: ArtifactPanel RTF encode/decode round-trip (#688 follow-up)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1200
+  status: pending
+  title: "Model browser: searchable OpenRouter catalogue with context/price/MLX filters in Settings"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1198
+  status: pending
+  title: "Export: entity digest as PDF, Markdown, and plain text"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1197
+  status: pending
+  title: "Bidirectional three-pane sync: claim highlight across PDF, Content, and Inspector simultaneously"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1196
+  status: pending
+  title: "Page-scoped KG graph in inspector Map tab (default: current page)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1195
+  status: pending
+  title: "Multi-speaker claims: '3 voices ›' badge + side-by-side speaker comparison"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1194
+  status: pending
+  title: "Book reading view: typeset document with inline claim highlights and source popovers"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1191
+  status: pending
+  title: "Entity digest page: standalone two-column entity index with source annotations"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1188
+  status: pending
+  title: "Page Content as standalone resizable pane alongside PDF viewer"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1187
+  status: pending
+  title: "Source-tied notes: per-claim annotation layer stored and searchable"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1186
+  status: pending
+  title: "Navigation history: back/forward toolbar buttons + Cmd+' shortcut"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1183
+  status: pending
+  title: "Entity profile view in document inspector: source-grouped dense claims with click-through to PDF"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1182
+  status: pending
+  title: "Platform expansion: web UI + iOS/iPad client sharing FastAPI backend models"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1181
+  status: pending
+  title: "JSON artifacts: render as editable structured inspector instead of raw text"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1180
+  status: pending
+  title: "Document inspector: Page Content height jumps; add Tinderbox-style attribute panel at top"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1179
+  status: pending
+  title: "RAG-assisted transcription review: query reference corpus during Pass 2"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1176
+  status: pending
+  title: "Paleography: Non-destructive parametric image pipeline + transient cache"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1175
+  status: pending
+  title: "Workflow Chains: Stageable paleography pipelines (A transcription, B extraction/NER, C catalogue)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1174
+  status: pending
+  title: "SwiftUI: Lightroom-style non-destructive Document Inspector for stage variants"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1173
+  status: pending
+  title: "KG: antecedent resolution for pronouns in claims (coreference to canonical entity names)"
+  files: []
+  approach: ""
+  est_tokens: 15000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1168
+  status: pending
+  title: "KG browser: visual hierarchy / graph neighborhood view"
   files: []
   approach: ""
   est_tokens: 15000
