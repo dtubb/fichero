@@ -48,6 +48,9 @@ def enum_value(x: Any) -> str:
 def slug_verb(verb: str) -> str:
     """Canonical predicate slug for an SVO verb.
 
+    Preserves multi-word predicates (including prepositions) by converting
+    spaces and non-alphanumeric characters to dashes.
+
     Rules (must match what ``triples._predicate_uri`` produces after
     the namespace strip — the RDF predicate URI and the triangulation
     aggregation key are the same string):
@@ -57,6 +60,10 @@ def slug_verb(verb: str) -> str:
     - Collapse runs of dashes; trim leading/trailing dashes.
     - Leading-digit slugs get a ``v-`` prefix so they're valid URI
       fragments.
+    - Multi-word verbs with prepositions are fully preserved:
+      - ``"entered into"`` → ``"entered-into"``
+      - ``"funded trips to"`` → ``"funded-trips-to"``
+      - ``"is located in"`` → ``"is-located-in"``
     """
     if not verb or not verb.strip():
         return "assertedAbout"

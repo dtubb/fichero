@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from fichero.kg._common import CANONICAL_VERBS, canonical_verb
+from fichero.kg._common import CANONICAL_VERBS, canonical_verb, slug_verb
 
 
 # ---------------------------------------------------------------------------
@@ -230,3 +230,50 @@ class TestSaveClaimPopulatesPredicateCanonical:
             )
             loaded = db.get(KnowledgeClaim, claim_id)
             assert loaded.predicate_canonical is None
+
+
+# ---------------------------------------------------------------------------
+# slug_verb predicate slugging — multi-word verb preservation
+# ---------------------------------------------------------------------------
+
+
+class TestSlugVerbMultiWordPredicates:
+    """Tests for slug_verb with multi-word predicates including prepositions.
+
+    slug_verb must preserve full multi-word verbs (with prepositions) by
+    converting spaces/non-alphanumeric to dashes. This enables SPARQL queries
+    and aggregation to work on multi-word predicates like "entered into",
+    "funded trips to", "is located in".
+    """
+
+    def test_single_word_verb(self):
+        """Simple verbs without spaces slug to lowercase."""
+        assert slug_verb("is") == "is"
+        assert slug_verb("Was") == "was"
+        assert slug_verb("founded") == "founded"
+
+    def test_two_word_verb_with_preposition(self):
+        """Two-word verbs with prepositions preserve both words."""
+        assert slug_verb("served as") == "served-as"
+        assert slug_verb("located in") == "located-in"
+        assert slug_verb("entered into") == "entered-into"
+        assert slug_verb("transferred to") == "transferred-to"
+        assert slug_verb("appointed as") == "appointed-as"
+
+    def test_three_word_verb_with_preposition(self):
+        """Three-word verb phrases preserve all three words."""
+        assert slug_verb("funded trips to") == "funded-trips-to"
+        assert slug_verb("is located in") == "is-located-in"
+        assert slug_verb("was appointed as") == "was-appointed-as"
+
+    def test_whitespace_normalization(self):
+        """Extra whitespace is collapsed to single dashes."""
+        assert slug_verb("entered  into") == "entered-into"
+        assert slug_verb("  entered into  ") == "entered-into"
+        assert slug_verb("is   located   in") == "is-located-in"
+
+    def test_case_insensitive_slugging(self):
+        """Verb phrases are converted to lowercase."""
+        assert slug_verb("ENTERED INTO") == "entered-into"
+        assert slug_verb("Served As") == "served-as"
+        assert slug_verb("Is Located In") == "is-located-in"

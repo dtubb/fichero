@@ -141,8 +141,10 @@ _SECTIONS: list[dict[str, Any]] = [
             "so the claim text composes as a real sentence: "
             "f'{name} {verb} {object}.' — name is the implicit subject, "
             "do NOT repeat it inside verb or object. "
-            "Example: name='Eugenio Córdoba', verb='served as', "
-            "object='the alcalde of Popayán'. Aliases are spelling "
+            "Always include prepositions in multi-word verbs. "
+            "Examples: name='Eugenio Córdoba', verb='served as', "
+            "object='the alcalde of Popayán'; or verb='entered into', "
+            "object='partnership with the mining company'. Aliases are spelling "
             "variants of the SAME named person; never group different "
             "unnamed referents under one entry."
         ),
@@ -171,8 +173,10 @@ _SECTIONS: list[dict[str, Any]] = [
             "'alternative_spellings' = spelling variants in the text. "
             "Predicate split into 'verb' + 'object' so the claim text "
             "composes as 'f'{name} {verb} {object}.' — name is the "
-            "implicit subject. Example: name='Chocó', verb='is', "
-            "object='the region where artisanal mining occurs'."
+            "implicit subject. Always include prepositions in multi-word verbs. "
+            "Examples: name='Chocó', verb='is', object='the region where artisanal mining occurs'; "
+            "or name='Atrato', verb='drains', object='westward to the Caribbean'; "
+            "or name='Popayán', verb='served as', object='the center of colonial mining operations'."
         ),
     },
     {
@@ -193,9 +197,12 @@ _SECTIONS: list[dict[str, Any]] = [
             "places, materials, occupations, and generic groups. 'name' "
             "in Title Case (preserve original spelling and accents). "
             "'alternative_spellings' = spelling variants in the text. "
-            "Predicate split into 'verb' + 'object'. Example: "
+            "Predicate split into 'verb' + 'object'. Always include prepositions "
+            "in multi-word verbs. Examples: "
             "name='Imprenta Oficial', verb='published', "
-            "object='the official gazette of the Republic'."
+            "object='the official gazette of the Republic'; "
+            "or name='Banking Authority', verb='entered into', object='agreements with the Crown'; "
+            "or name='Ministry of Mines', verb='funded exploration', object='in the Atrato basin'."
         ),
     },
     {
@@ -217,8 +224,11 @@ _SECTIONS: list[dict[str, Any]] = [
             "month-only YYYY-MM; year-only YYYY). The predicate describes "
             "what the document records for that date, split into 'verb' "
             "+ 'object'. The date is the implicit subject: claim text "
-            "composes as 'f'{date}: {verb} {object}.' Example: "
-            "verb='records', object='the filing of a mining petition by the heirs'."
+            "composes as 'f'{date}: {verb} {object}.' Always include prepositions "
+            "in multi-word verbs. Examples: "
+            "verb='records', object='the filing of a mining petition by the heirs'; "
+            "or verb='was filed', object='a petition to enter into partnerships'; "
+            "or verb='marks', object='the transfer of ownership to the Crown'."
         ),
     },
     {
@@ -407,8 +417,10 @@ _SVO_VERB_FIELD = Field(
     default="",
     description=(
         "Predicate verb or verb phrase. The entity name is the implicit "
-        "subject — do NOT repeat it. Examples: 'is', 'was', 'served as', "
-        "'wrote', 'founded', 'is located in'."
+        "subject — do NOT repeat it. Always include prepositions in "
+        "multi-word verbs. Examples: 'is', 'was', 'served as', 'wrote', "
+        "'founded', 'is located in', 'entered into', 'funded trips to', "
+        "'was appointed as', 'transferred to'."
     ),
 )
 _SVO_OBJECT_FIELD = Field(
