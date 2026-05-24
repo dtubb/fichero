@@ -1051,14 +1051,14 @@
   completed_at: 2026-05-24
 
 - issue: 1196
-  status: in_progress
+  status: done
   title: "Page-scoped KG graph in inspector Map tab (default: current page)"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-24
 
 - issue: 1195
   status: pending
