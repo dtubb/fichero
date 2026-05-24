@@ -1011,12 +1011,12 @@
   completed_at: 2026-05-24
 
 - issue: 710
-  status: pending
+  status: blocked
   title: "Test: ArtifactPanel RTF encode/decode round-trip (#688 follow-up)"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit', 'no_commit']"
   commit: null
   completed_at: null
 
