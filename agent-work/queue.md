@@ -1001,14 +1001,14 @@
   completed_at: 2026-05-24
 
 - issue: 711
-  status: pending
+  status: done
   title: "Sidebar drag: unify icon/text + row-body drag paths via .draggable Transferable (#598 follow-up)"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-24
 
 - issue: 710
   status: pending
