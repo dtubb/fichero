@@ -36,7 +36,7 @@ from fichero.api.routes.entities import (
     EntityAuditResponse,
     EntityCoOccurrence,
     EntityDocumentLink,
-    EntityListResponse,
+    EntityDrillDownResponse,
     EntityResolutionResponse,
     TopEntityRow,
 )
@@ -58,6 +58,7 @@ from fichero.api.routes.workflow_execution.threads import (
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.models import (
     Artifact,
+    ClaimListResponse,
     Document,
     KnownLibrary,
     LibraryCreateResponse,
@@ -893,16 +894,6 @@ class FicheroClient:
             EntityCoOccurrence.model_validate(r)
             for r in _expect_list(raw, path)
         ]
-
-    def list_entities(self, *, limit: int = 50, entity_type: str | None = None, q: str | None = None) -> EntityListResponse:
-        """List entities with optional filtering."""
-        params = {"limit": limit}
-        if entity_type:
-            params["entity_type"] = entity_type
-        if q:
-            params["q"] = q
-        raw = self.request("GET", "/api/entities", params=params)
-        return EntityListResponse.model_validate(raw)
 
     def get_entity_claims(self, entity_id: str, *, limit: int = 200) -> ClaimListResponse:
         """Get all claims associated with an entity."""

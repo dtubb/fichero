@@ -48,7 +48,7 @@ struct DocumentInspector: View {
     @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .content
     @EnvironmentObject private var entityService: EntityServiceGenerated
     @ObservedObject private var featureManager = FeatureManager.shared
-    @StateObject private var claimFocusState = ClaimFocusState.shared
+    @ObservedObject private var claimFocusState = ClaimFocusState.shared
 
     var body: some View {
         Group {
@@ -59,9 +59,6 @@ struct DocumentInspector: View {
             }
         }
         .frame(minWidth: 220, maxWidth: .infinity)
-        .onReceive(NotificationCenter.default.publisher(for: .claimFocusChanged)) { _ in
-            // Ensure inspector responds to claim focus changes for sync
-        }
     }
 
     // MARK: - Document Detail
