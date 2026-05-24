@@ -971,12 +971,12 @@
   completed_at: null
 
 - issue: 714
-  status: pending
+  status: blocked
   title: "Workflow Templates 'Install Defaults' undercounts: alert says '2 installed' when 5 templates are present"
   files: []
   approach: ""
   est_tokens: 15000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit', 'no_commit']"
   commit: null
   completed_at: null
 
