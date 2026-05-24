@@ -55,6 +55,12 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     @AppStorage("inspector.kg.hiddenKinds")
     private var hiddenKindsCSV: String = ""
 
+    /// When true, entities whose canonical name looks like OCR noise are
+    /// hidden from the list and graph (#1168). Persisted so the user's
+    /// preference survives restarts.
+    @AppStorage("ontology.suppressOcrGarbage")
+    private var suppressOcrGarbage: Bool = true
+
     private var hiddenKinds: Set<String> {
         Self.parseHiddenKinds(hiddenKindsCSV)
     }
@@ -67,6 +73,17 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
                 .map { String($0) }
                 .filter { !$0.isEmpty }
         )
+    }
+
+    /// Returns true if `name` looks like OCR noise rather than a meaningful
+    /// entity name. Heuristics: single character, all-numeric, or fewer than
+    /// half the characters are letters (#1168).
+    static func isOcrGarbage(_ name: String) -> Bool {
+        let t = name.trimmingCharacters(in: .whitespaces)
+        guard t.count >= 2 else { return true }
+        if t.allSatisfy({ !$0.isLetter }) { return true }
+        let letterRatio = Double(t.filter(\.isLetter).count) / Double(t.count)
+        return letterRatio < 0.5
     }
 
     /// Pure helper for applying the kind filter to an entity list.
@@ -108,7 +125,11 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     ]
 
     private var filteredEntities: [Components.Schemas.KnowledgeEntity] {
-        Self.filterEntities(entities, hidden: hiddenKinds)
+        var result = Self.filterEntities(entities, hidden: hiddenKinds)
+        if suppressOcrGarbage {
+            result = result.filter { !Self.isOcrGarbage($0.canonicalName) }
+        }
+        return result
     }
 
     var body: some View {
@@ -357,6 +378,8 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
                     .sorted()
                     .joined(separator: ",")
             }
+            Divider()
+            Toggle("Suppress OCR noise", isOn: $suppressOcrGarbage)
         } label: {
             Image(systemName: hiddenKinds.isEmpty
                   ? "line.3.horizontal.decrease.circle"
@@ -882,9 +905,6 @@ struct NewEntitySheet: View {
     }
     .listStyle(.sidebar)
 }
-import FicheroAPIClient
-import SwiftUI
-
 /// Force-directed graph over entities and their co-occurrence in claims.
 ///
 /// Nodes = entities (filtered by `hiddenKinds` upstream), edges = "appear

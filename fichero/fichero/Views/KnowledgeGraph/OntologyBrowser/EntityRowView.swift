@@ -10,18 +10,18 @@ struct EntityRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: iconForEntityType)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(colorForEntityType)
                 .frame(width: 16)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(entity.canonicalName)
-                    .font(.subheadline)
+                    .font(.subheadline.weight(.medium))
                     .lineLimit(1)
 
                 if let aliases = entity.aliases, !aliases.isEmpty {
-                    Text(aliases.prefix(2).joined(separator: ", "))
+                    Text(aliases.prefix(2).joined(separator: " · "))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
             }
@@ -47,6 +47,18 @@ struct EntityRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         .padding(.vertical, 4)
+    }
+
+    private var colorForEntityType: Color {
+        guard let type = entity.entityType else { return .secondary }
+        switch type {
+        case .person: return .blue
+        case .organization: return .orange
+        case .location: return .green
+        case .event: return .red
+        case .concept: return .purple
+        case .other: return .secondary
+        }
     }
 
     private var iconForEntityType: String {
