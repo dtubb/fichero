@@ -36,6 +36,7 @@ from fichero.api.routes.entities import (
     EntityAuditResponse,
     EntityCoOccurrence,
     EntityDocumentLink,
+    EntityListResponse,
     EntityResolutionResponse,
     TopEntityRow,
 )
@@ -892,6 +893,27 @@ class FicheroClient:
             EntityCoOccurrence.model_validate(r)
             for r in _expect_list(raw, path)
         ]
+
+    def list_entities(self, *, limit: int = 50, entity_type: str | None = None, q: str | None = None) -> EntityListResponse:
+        """List entities with optional filtering."""
+        params = {"limit": limit}
+        if entity_type:
+            params["entity_type"] = entity_type
+        if q:
+            params["q"] = q
+        raw = self.request("GET", "/api/entities", params=params)
+        return EntityListResponse.model_validate(raw)
+
+    def get_entity_claims(self, entity_id: str, *, limit: int = 200) -> ClaimListResponse:
+        """Get all claims associated with an entity."""
+        params = {"limit": limit, "entity_id": entity_id}
+        raw = self.request("GET", "/api/claims", params=params)
+        return ClaimListResponse.model_validate(raw)
+
+    def get_entity_drill_down(self, entity_id: str) -> EntityDrillDownResponse:
+        """Get the full drill-down information for an entity."""
+        raw = self.request("GET", f"/api/entities/{entity_id}/drill-down")
+        return EntityDrillDownResponse.model_validate(raw)
 
     def resolve_entity(self, name: str) -> EntityResolutionResponse:
         """Resolve a name/alias to a canonical entity."""
