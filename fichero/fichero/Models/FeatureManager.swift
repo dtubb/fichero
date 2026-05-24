@@ -297,6 +297,28 @@ class ClaimFocusState: ObservableObject {
     }
 
     func isClaimSelected(_ claimId: String) -> Bool { selectedClaimId == claimId }
+    
+    /// Synchronize claim focus across all panes (PDF, Content, Inspector)
+    /// This method ensures that when a claim is selected in one pane,
+    /// it's properly synced to all other panes for a unified experience
+    func syncClaimFocus(
+        to documentId: String,
+        claimId: String,
+        claimText: String? = nil,
+        pageLabel: String? = nil,
+        charStart: Int? = nil,
+        charEnd: Int? = nil
+    ) {
+        // Select the claim across all panes
+        selectClaim(
+            claimId: claimId,
+            claimText: claimText,
+            sourceDocumentId: documentId,
+            pageLabel: pageLabel,
+            charStart: charStart,
+            charEnd: charEnd
+        )
+    }
 }
 
 extension Notification.Name {
