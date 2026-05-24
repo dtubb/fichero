@@ -158,6 +158,7 @@ Full architecture: `docs/CLAUDE.md`, `docs/architecture/`
 7. Never create per-task branches — commit all work to the milestone branch directly.
 8. Never start a milestone more than one ahead of what Daniel is currently testing.
 9. **0.0.x is no-migration**: schema changes go directly into `db.py` `_ensure_table` (via the Pydantic model field). Never add an `ALTER TABLE ADD COLUMN` migration function for a column that's already in the model — fresh databases pick it up automatically. Only historical structural migrations (table renames, data backfills) belong in `db_migrations.py`. Once 0.1.0 ships to real users, this rule changes.
+10. **New .swift files must be registered with `scripts/add-swift-file.rb`**: The `Fichero` main target uses traditional PBX file references — a file written to disk is invisible to the compiler until registered. Always run `ruby scripts/add-swift-file.rb <path>` after creating any new `.swift` file. The `xcodeproj` gem is installed at `~/.gem/ruby/2.6.0/gems/xcodeproj-1.27.0/`. Test-target files are the exception (sync'd groups). Never edit `project.pbxproj` by hand. The build gate (`bash scripts/verify_all.sh`) will catch unregistered files as "Cannot find type" errors.
 
 ## Before editing backend or API-client code
 

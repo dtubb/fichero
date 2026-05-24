@@ -733,6 +733,12 @@ class APIClient: ObservableObject {
 - **Backend dependency**: Swift app cannot function without Python backend running
 - **PYTHONPATH**: MUST be set to `fichero-engine/src` when running backend or tests
 - **Archived tests**: ALWAYS ignore `fichero-engine/tests/unit/_archived` directory
+- **New .swift files require pbxproj registration**: The `Fichero` main target uses traditional PBX file references (NOT `PBXFileSystemSynchronizedRootGroup`). A new `.swift` file written to disk is invisible to the compiler until registered. Use the helper script:
+  ```bash
+  # Write the file first, then register it:
+  ruby scripts/add-swift-file.rb fichero/fichero/Views/MyFolder/MyView.swift
+  ```
+  `scripts/add-swift-file.rb` uses the `xcodeproj` Ruby gem (already installed at `~/.gem/ruby/2.6.0/gems/xcodeproj-1.27.0/`). Do NOT edit `project.pbxproj` by hand. Test-target files are the exception — those use sync'd groups and just work.
 
 ### SwiftUI Anti-Patterns
 - **Don't use DispatchQueue.main**: Use `@MainActor` instead for Swift 6 concurrency
