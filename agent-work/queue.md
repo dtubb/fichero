@@ -1061,14 +1061,14 @@
   completed_at: 2026-05-24
 
 - issue: 1195
-  status: pending
+  status: done
   title: "Multi-speaker claims: '3 voices ›' badge + side-by-side speaker comparison"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 14505e85
+  completed_at: 2026-05-24
 
 - issue: 1194
   status: pending
