@@ -1041,14 +1041,14 @@
   completed_at: null
 
 - issue: 1197
-  status: pending
+  status: done
   title: "Bidirectional three-pane sync: claim highlight across PDF, Content, and Inspector simultaneously"
   files: []
   approach: ""
   est_tokens: 15000
   blocked_reason: null
   commit: null
-  completed_at: null
+  completed_at: 2026-05-24
 
 - issue: 1196
   status: pending
