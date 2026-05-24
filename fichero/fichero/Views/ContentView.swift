@@ -81,6 +81,8 @@ struct ContentView: View {
     @AppStorage("contentWidth") var contentWidth: Double = 600
     @AppStorage("inspectorWidth") var inspectorWidth: Double = 300
     @AppStorage("widescreenContentPaneWidth") var widescreenContentPaneWidth: Double = 320
+    @AppStorage("pageListWidth") var pageListWidth: Double = 120
+    @AppStorage("pageContentPaneWidth") var pageContentPaneWidth: Double = 200
     @SceneStorage("showSidebar") var showSidebar: Bool = true
     @SceneStorage("showInspectorSidebar") var showInspectorSidebar: Bool = true
     @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool = true
