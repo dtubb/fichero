@@ -2206,3 +2206,13 @@ Two sessions continuing #1178 (transcription profiles) and paleography pipeline 
 - Cascade loop refactored to N-tier LangGraph architecture (autoloop repo)
 - Decided: route Python/backend/architectural issues to Claude Sonnet directly; cheap cascade only for scoped SwiftUI tweaks
 - Partial #1188 SwiftUI work (PDFReadingView + selectedPageIndex) committed as starting point
+
+## 2026-05-24 — Session 2 Summary
+
+- Refactored autoloop cascade from 2-tier to N-tier LangGraph (autoloop repo)
+- Fixed cascade router bugs: IndexError in route_after_verify, node_resume_worker flag mirroring, final_status dual-use
+- Deleted legacy bash orchestration scripts from autoloop/bin/
+- Observed Gemma 4 31B stall (86 tool calls, 0 edits on #1188) — decided: use Claude Sonnet directly for all non-trivial work
+- Committed partial #1188 SwiftUI skeleton: PDFReadingView + selectedPageIndex
+- Reset #1188, #1191, #1194 from in_progress → pending (cascade abandoned them)
+- Stopped all cascade/loop processes — switching to direct interactive Claude work

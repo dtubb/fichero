@@ -10,18 +10,15 @@ Entity Platform — SwiftUI implementation of five-pane reading layout, KG inspe
 
 ## In Progress
 
-- Nothing currently running. Ready to restart with Claude Sonnet as direct worker.
+Nothing. All loops stopped. Working interactively with Claude directly.
 
 ## Next Session — Start Here
 
-1. **Restart autonomous loop** — use Claude Sonnet directly (not cheap cascade):
-   ```bash
-   tmux new-session -d -s fichero
-   tmux send-keys -t fichero "python3 /Users/danieltubb/code/fichero-skills/agent-autonomous-loop.py /Users/danieltubb/code/fichero-0.0.2 --agent claude --iterations 20 --max-tasks 1" Enter
-   ```
-2. **Priority issues in queue**: #1197 (bidirectional 3-pane sync), #1196 (page-scoped KG graph), #1194 (book reading view), #1191 (entity digest), #1188 (resizable content pane — partial SwiftUI work already committed)
-3. **Autoloop model strategy**: Python/backend/architectural → Claude Sonnet directly; narrow scoped SwiftUI polish only → cheap cascade (see MEMORY.md cascade model selection)
-4. **queue.md clean**: #1188, #1191, #1194 reset to pending — cascade abandoned them without commits
+1. **Start with #1188** — `PDFReadingView` + `selectedPageIndex` skeleton already committed (`ecd25614`). Needs: editable `PageContentPane` with auto-save wired to the existing `savePageContent()` in DocumentInspector, plus claim highlighting. Read `fichero/fichero/Views/Library/PDFThumbnailView.swift:637` and `fichero/fichero/Views/ContentView+ViewBuilders.swift`.
+2. **Then #1197** — bidirectional 3-pane sync via `ClaimFocusState` at window level
+3. **Then #1196** — page-scoped KG graph in Map tab
+4. **Do NOT use cheap OpenRouter cascade for SwiftUI/backend work** — run Claude directly (interactive or `--agent claude` loop). See MEMORY.md cascade model selection.
+5. **Build gate**: swiftlint + xcodebuild + RunAllTests before marking any issue done.
 
 ## Blocked
 
