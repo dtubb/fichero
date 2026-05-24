@@ -1,6 +1,38 @@
 # Worker Queue — 0.0.2 autonomous loop
-# Generated: 2026-05-18 (Round 2 curator pass)
+# Generated: 2026-05-18 (Round 2 curator pass) + 2026-05-24 (entity platform additions)
 # Done this round: #743 #1061 #764 #1038
+
+# ── Priority 0: Entity platform — backend-only, autonomous-safe ──────────────
+
+- issue: 1185
+  status: pending
+  title: "Add claim_location, temporal_context, claim_speaker fields to KnowledgeClaim"
+  files: [fichero-engine/src/fichero/models/knowledge.py, fichero-engine/src/fichero/db/db.py]
+  approach: "Add three Optional[str] fields to the KnowledgeClaim Pydantic model. Add corresponding columns to _ensure_table in db.py. No migration needed (0.0.x no-migration rule). Regenerate openapi.json via scripts/sync_openapi_schema.sh. Run verify_python.sh gate."
+  est_tokens: 10000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1192
+  status: pending
+  title: "KG extractor: always include preposition in svo_verb (e.g. 'entered into', 'funded trips to')"
+  files: [fichero-engine/src/fichero/kg/_common.py, fichero-engine/src/fichero/kg/]
+  approach: "Update slug_verb() in _common.py to preserve multi-word predicates (join with underscore or hyphen rather than taking first token). Update _SECTIONS instruction strings to include preposition examples. Add 5 unit tests for multi-word verb slugging. Run backend tests."
+  est_tokens: 12000
+  blocked_reason: null
+  commit: null
+  completed_at: null
+
+- issue: 1193
+  status: pending
+  title: "CLI: entity commands — list, digest, biography, claims"
+  files: [fichero-engine/src/fichero/cli/commands/entity.py, fichero-engine/src/fichero/cli/main.py]
+  approach: "Create fichero-engine/src/fichero/cli/commands/entity.py with a Typer group: list, claims <id>, digest <id> [--format markdown|text|json], biography <id>. Register the group in cli/main.py. Use existing /api/entities and /api/kg/neighborhood endpoints. Add --json flag on all commands. Test with fichero entity list --json."
+  est_tokens: 18000
+  blocked_reason: null
+  commit: null
+  completed_at: null
 
 # ── Priority 1: Small bugs / quick wins (≤15k tokens) ────────────────────────
 

@@ -1,5 +1,5 @@
 # Worker Digest — 0.0.2 autonomous loop
-# Generated: 2026-05-18 (Round 2 curator pass)
+# Generated: 2026-05-18 (Round 2 curator pass) + 2026-05-24 (entity platform additions)
 
 ## Branch + Milestone Context
 
