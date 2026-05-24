@@ -12,10 +12,10 @@ class ClaimFocusState: ObservableObject {
     static let shared = ClaimFocusState()
     
     /// The ID of the currently selected claim, or nil if no claim is selected
-    @Published var selectedClaimId: String? = nil
-    
+    @Published var selectedClaimId: String?
+
     /// The document ID of the currently selected document
-    @Published var selectedDocumentId: String? = nil
+    @Published var selectedDocumentId: String?
     
     /// Whether a claim is currently selected (for quick checks)
     var isClaimSelected: Bool {
