@@ -104,12 +104,12 @@
   completed_at: 2026-05-22
 
 - issue: 958
-  status: pending
+  status: blocked
   title: "Artifacts inspector: structured outputs (NER, classifications) shouldn't be rendered as editable RTF"
   files: [fichero/fichero/Views/Inspector/]
   approach: "Detect artifact type in the inspector; route structured JSON artifacts to a read-only formatted view instead of the RTF editor."
   est_tokens: 14000
-  blocked_reason: null
+  blocked_reason: "workers exhausted: ['no_commit', 'no_commit']"
   commit: null
   completed_at: null
 
