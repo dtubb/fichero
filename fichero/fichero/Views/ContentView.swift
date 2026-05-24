@@ -235,37 +235,16 @@ struct ContentView: View {
     /// Main app content (when backend is connected)
     @ViewBuilder
     private var mainContentView: some View {
+        // Inspector is a window-level sibling of NavigationSplitView so it
+        // persists across all view modes (#1199). The HStack wrapper keeps the
+        // inspector column stable while NavigationSplitView handles sidebar +
+        // content navigation entirely within its detail column.
+        HStack(spacing: 0) {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarContent
         } detail: {
-            // Single Finder-style search field in the toolbar
-            // (magnifying-glass collapses by default, expands when
-            // clicked). .searchable MUST be attached to a view inside
-            // the NavigationSplitView's column on macOS — placing it on
-            // the outer view raises an NSException at runtime
-            // ("_crashOnException" via AppKit's exception filter).
-            // Submitting routes through runToolbarSearch which creates a
-            // saved search and switches the sidebar into search mode.
-            HStack(spacing: 0) {
-                centerContent
-                    .frame(minWidth: CGFloat(ContentView.contentMinWidth), maxWidth: .infinity)
-                if showInspectorSidebar && showInspectorForCurrentMode {
-                    ResizableDivider(
-                        width: $inspectorWidth,
-                        minWidth: ContentView.inspectorMinWidth,
-                        maxWidth: ContentView.inspectorMaxWidth
-                    )
-                    detailView
-                        .frame(width: CGFloat(inspectorWidth))
-                }
-            }
-            // Each mode-specific view owns its own .searchable when it needs
-            // one (SearchView, WorkflowLibraryView, ActionLibraryView,
-            // WorkflowChainListView). The single SwiftUI/AppKit toolbar can
-            // only host one search item at a time — letting the active mode
-            // own that slot is the idiomatic SwiftUI pattern and avoids the
-            // NSToolbar duplicate-identifier exception we hit when stacking
-            // a root-level .searchable on top of a mode-specific one.
+            centerContent
+                .frame(minWidth: CGFloat(ContentView.contentMinWidth), maxWidth: .infinity)
         }
         // Avoid duplicate generic per-column title pills in macOS split view.
         .navigationTitle(toolbarTitle)
@@ -805,6 +784,17 @@ struct ContentView: View {
                 handleFileDrop: handleFileDrop
             )
         )
+
+        if showInspectorSidebar {
+            ResizableDivider(
+                width: $inspectorWidth,
+                minWidth: ContentView.inspectorMinWidth,
+                maxWidth: ContentView.inspectorMaxWidth
+            )
+            detailView
+                .frame(width: CGFloat(inspectorWidth))
+        }
+        } // end HStack — inspector is window-level, not inside NavigationSplitView (#1199)
     }
 }
 

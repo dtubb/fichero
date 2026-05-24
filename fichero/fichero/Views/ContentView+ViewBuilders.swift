@@ -9,21 +9,6 @@ extension ContentView {
         CGFloat(min(max(widescreenContentPaneWidth, 180), 900))
     }
 
-    /// Inspector only applies for modes that have inspectable content.
-    /// Activity, batch, and automation views manage their own detail pane.
-    /// Ontology (KG) has no inspector content wired yet (#1014) — empty
-    /// "No inspector content" placeholder is worse than no panel, so hide
-    /// the column entirely until Phase 6 plumbs the entity → source-doc
-    /// inspector through.
-    var showInspectorForCurrentMode: Bool {
-        switch viewMode {
-        case .activity, .batches, .batch, .automation, .schedule, .trigger, .ontology:
-            return false
-        default:
-            return true
-        }
-    }
-
     var effectiveCenterIdealWidth: Double {
         // .inspector() is now a sibling of NavigationSplitView, not nested inside the detail
         // column. The split view gets whatever width the inspector leaves, so the content
@@ -329,11 +314,23 @@ extension ContentView {
                 }
             )
 
-        case .batches, .batch, .automation, .schedule, .trigger, .activity, .ontology:
+        case .ontology:
+            // Entity inspector placeholder — wired in #1190/#1196
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Entity Inspector")
+                    .font(.headline)
+                Text("Select an entity in the Knowledge Graph to see its profile.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+            }
+            .padding()
+
+        case .batches, .batch, .automation, .schedule, .trigger, .activity:
             VStack(alignment: .leading, spacing: 8) {
                 Text("Inspector")
                     .font(.headline)
-                Text("No inspector content for this view.")
+                Text("Select an item to inspect.")
                     .foregroundStyle(.secondary)
                 Spacer()
             }
