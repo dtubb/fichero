@@ -517,7 +517,44 @@ struct PDFPageWithToolbar: View {
     }
 }
 
+// MARK: - PDF Reading View (#1188)
+
+/// Combines a PDF page viewer and its corresponding content pane with a resizable divider.
+struct PDFReadingView: View {
+    let document: Document?
+    let pdfPath: String
+    let pageIndex: Int
+    @Binding var contentWidth: Double
+    var onPageIndexChange: ((Int) -> Void)?
+
+    var body: some View {
+        HStack(spacing: 0) {
+            PDFPageWithToolbar(
+                path: pdfPath,
+                pageIndex: pageIndex,
+                onPageIndexChange: onPageIndexChange
+            )
+            .overlay {
+                // We can't easily use paneFocusIndicator here as it's a method on ContentView,
+                // but we can wrap this in a focusable view if needed.
+            }
+            .frame(maxWidth: .infinity)
+
+            ResizableDivider(
+                width: $contentWidth,
+                minWidth: 160,
+                maxWidth: 600,
+                edge: .trailing
+            )
+
+            PageContentPane(document: document)
+                .frame(width: CGFloat(contentWidth))
+        }
+    }
+}
+
 // MARK: - Document Page List View (#1189)
+
 
 /// Vertical thumbnail strip showing all pages of a multi-page PDF document.
 struct DocumentPageListView: View {

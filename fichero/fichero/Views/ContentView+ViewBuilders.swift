@@ -188,15 +188,28 @@ extension ContentView {
                                 edge: .leading
                             )
 
-                            EditorView(
-                                document: detailDocument,
-                                showHeader: false,
-                                onPDFPageIndexChange: { index in
-                                    syncGridSelectionToPDFPage(index: index)
-                                }
-                            )
-                            .overlay { paneFocusIndicator(for: .preview) }
-                            .frame(maxWidth: .infinity)
+                            if let pdfPath = detailPDFPath {
+                                PDFReadingView(
+                                    document: detailDocument,
+                                    pdfPath: pdfPath,
+                                    pageIndex: selectedPageIndex,
+                                    contentWidth: $pageContentPaneWidth,
+                                    onPageIndexChange: { index in
+                                        syncGridSelectionToPDFPage(index: index)
+                                    }
+                                )
+                                .overlay { paneFocusIndicator(for: .preview) }
+                            } else {
+                                EditorView(
+                                    document: detailDocument,
+                                    showHeader: false,
+                                    onPDFPageIndexChange: { index in
+                                        syncGridSelectionToPDFPage(index: index)
+                                    }
+                                )
+                                .overlay { paneFocusIndicator(for: .preview) }
+                                .frame(maxWidth: .infinity)
+                            }
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -240,7 +253,16 @@ extension ContentView {
         return nil
     }
 
+    /// Current PDF page index for the previewed document.
+    var selectedPageIndex: Int {
+        if let doc = detailDocument, doc.docType == .page {
+            return max(0, (doc.sequence ?? 1) - 1)
+        }
+        return 0
+    }
+
     /// Page-child documents for the previewed PDF, sorted by sequence.
+
     var pdfDocPages: [Document] {
         documentStore.currentDocuments
             .filter { $0.docType == .page }
