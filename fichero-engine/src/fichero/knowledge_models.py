@@ -1220,6 +1220,32 @@ class KnowledgeClaim(BaseModel):
             "birthplace."
         ),
     )
+    claim_location: str | None = Field(
+        default=None,
+        description=(
+            "Free-text location where this claim's events occurred or are "
+            "spatially scoped to. Complements claim_geo for human-readable "
+            "place names when exact coordinates are unavailable."
+        ),
+    )
+    temporal_context: str | None = Field(
+        default=None,
+        description=(
+            "Contextual notes about the temporal scope beyond the "
+            "time_start/time_end range. Example: 'during the rainy season' "
+            "or 'following the 1933 decree'. Captures imprecise temporal "
+            "modifiers that don't fit ISO 8601."
+        ),
+    )
+    claim_speaker: str | None = Field(
+        default=None,
+        description=(
+            "The speaker or source voice of the claim within the source text. "
+            "Distinct from speaker_name (which may be a witness in testimony); "
+            "claim_speaker is the direct voice articulating the claim. Example: "
+            "'the petitioner' or 'the scribe's annotation'."
+        ),
+    )
 
     # --- quality / confidence layer ---
     confidence_source: str | None = Field(

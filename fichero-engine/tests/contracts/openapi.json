@@ -37766,6 +37766,24 @@
             "nullable": true,
             "description": "Spatial scope of the claim \u2014 distinct from entity locations. 'Pedro left Popay\u00e1n for Quito' has claim_geo pinned to the journey path's midpoint, not Pedro's birthplace."
           },
+          "claim_location": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Location",
+            "description": "Free-text location where this claim's events occurred or are spatially scoped to. Complements claim_geo for human-readable place names when exact coordinates are unavailable."
+          },
+          "temporal_context": {
+            "type": "string",
+            "nullable": true,
+            "title": "Temporal Context",
+            "description": "Contextual notes about the temporal scope beyond the time_start/time_end range. Example: 'during the rainy season' or 'following the 1933 decree'. Captures imprecise temporal modifiers that don't fit ISO 8601."
+          },
+          "claim_speaker": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Speaker",
+            "description": "The speaker or source voice of the claim within the source text. Distinct from speaker_name (which may be a witness in testimony); claim_speaker is the direct voice articulating the claim. Example: 'the petitioner' or 'the scribe's annotation'."
+          },
           "confidence_source": {
             "type": "string",
             "nullable": true,

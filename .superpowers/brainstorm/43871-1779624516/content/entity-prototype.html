@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Inspector Panel Prototype</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #e5e5ea;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px;
+  gap: 20px;
+  min-height: 100vh;
+}
+
+/* ── Document pane (left) ── */
+.doc-pane {
+  width: 500px; height: 740px;
+  background: #fff; border-radius: 8px;
+  box-shadow: 0 2px 16px rgba(0,0,0,.12);
+  overflow: hidden; flex-shrink: 0;
+  display: flex; flex-direction: column;
+}
+.doc-toolbar {
+  background: #f2f2f7; border-bottom: 1px solid #d1d1d6;
+  padding: 7px 14px; font-size: 11px; color: #636366;
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}
+.doc-body {
+  flex: 1; overflow-y: auto;
+  padding: 36px 48px;
+  font-family: Georgia, serif; font-size: 13.5px;
+  line-height: 1.9; color: #1a1a1a;
+}
+.doc-body h2 {
+  font-size: 16px; text-align: center; margin-bottom: 22px;
+  font-family: 'Palatino Linotype', Georgia, serif;
+}
+.doc-body p { margin-bottom: 14px; }
+.hl {
+  background: #fde68a; border-radius: 2px;
+  cursor: pointer; padding: 0 1px;
+  border-bottom: 1.5px solid #f59e0b;
+  transition: background .1s;
+}
+.hl:hover, .hl.active { background: #fbbf24; }
+
+/* ── Inspector panel (right) ── */
+.inspector {
+  width: 370px; height: 740px;
+  background: #fff; border-radius: 8px;
+  box-shadow: 0 2px 16px rgba(0,0,0,.12);
+  overflow: hidden; display: flex; flex-direction: column;
+  flex-shrink: 0;
+}
+
+/* Top icon tabs */
+.itabs {
+  display: flex; border-bottom: 1px solid #d1d1d6;
+  background: #f9f9fb; flex-shrink: 0;
+}
+.itab {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; padding: 7px 4px 5px;
+  cursor: pointer; border-bottom: 2px solid transparent;
+  font-size: 10px; color: #8e8e93; gap: 3px; transition: all .15s;
+}
+.itab svg { width: 17px; height: 17px; }
+.itab.active { color: #6366f1; border-bottom-color: #6366f1; }
+
+/* Scrollable body */
+.ibody { flex: 1; overflow-y: auto; }
+
+/* ── KG entity list ── */
+.kg-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 14px 6px; border-bottom: none;
+  font-size: 12px; font-weight: 600; color: #1c1c1e;
+}
+
+/* Scope selector */
+.scope-bar {
+  display: flex; gap: 5px; padding: 0 14px 9px;
+  border-bottom: 1px solid #f0f0f2;
+}
+.scope-pill {
+  display: flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 12px;
+  font-size: 10.5px; font-weight: 500; cursor: pointer;
+  border: 1px solid #e5e5ea; background: #f9f9fb;
+  color: #636366; transition: all .1s; white-space: nowrap;
+}
+.scope-pill:hover { border-color: #c7c7cc; color: #1c1c1e; }
+.scope-pill.active {
+  background: #6366f1; color: #fff; border-color: #6366f1; font-weight: 600;
+}
+.scope-pill .sc { font-size: 9.5px; opacity: .75; }
+
+.section-hdr {
+  padding: 5px 14px 3px;
+  font-size: 10px; font-weight: 700; color: #8e8e93;
+  letter-spacing: .05em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 5px;
+}
+.count-pill {
+  background: #e5e5ea; color: #636366;
+  border-radius: 8px; padding: 1px 6px;
+  font-size: 9.5px; font-weight: 600;
+}
+.erow {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px; border-bottom: 1px solid #f2f2f7;
+  cursor: pointer; transition: background .1s;
+}
+.erow:hover { background: #f5f5f7; }
+.eicon {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0;
+}
+.ip { background: #dbeafe; } .il { background: #dcfce7; }
+.ie { background: #fee2e2; } .ic { background: #f3e8ff; }
+.einfo { flex: 1; min-width: 0; }
+.ename {
+  font-size: 13px; font-weight: 600; color: #1c1c1e;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.edesc {
+  font-size: 11px; color: #8e8e93; margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ebadge {
+  background: #e5e5ea; color: #48484a;
+  font-size: 10px; font-weight: 700;
+  border-radius: 10px; padding: 2px 7px; flex-shrink: 0;
+}
+.earrow { color: #c7c7cc; font-size: 14px; flex-shrink: 0; }
+
+/* ── Entity profile ── */
+#screen-entity { display: none; }
+.enav {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 14px; border-bottom: 1px solid #f0f0f2;
+  background: #f9f9fb; flex-shrink: 0;
+}
+.back-btn {
+  display: flex; align-items: center; gap: 3px;
+  font-size: 13px; color: #6366f1; cursor: pointer;
+  background: none; border: none;
+}
+.eheader { padding: 12px 14px 0; }
+.etitle { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.ename-lg { font-size: 17px; font-weight: 700; font-family: Georgia, serif; }
+.tbadge { font-size: 10px; font-weight: 600; border-radius: 10px; padding: 2px 8px; }
+.tb-person { background: #dbeafe; color: #1d4ed8; }
+.tb-place  { background: #dcfce7; color: #15803d; }
+.emeta { font-size: 11px; color: #8e8e93; margin-bottom: 10px; }
+
+/* Mode toggle + group-by row */
+.mode-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px; border-bottom: 1px solid #e5e7eb;
+  background: #f9f9fb;
+}
+.mode-toggle {
+  display: flex; gap: 0; border: 1px solid #d1d1d6; border-radius: 6px; overflow: hidden;
+}
+.mtab {
+  padding: 4px 12px; font-size: 11px; font-weight: 500;
+  color: #636366; cursor: pointer; background: #fff;
+  border-right: 1px solid #d1d1d6; transition: all .1s;
+}
+.mtab:last-child { border-right: none; }
+.mtab.active { background: #6366f1; color: #fff; font-weight: 600; }
+.groupby {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10.5px; color: #8e8e93;
+}
+.groupby select {
+  font-size: 10.5px; border: 1px solid #d1d1d6;
+  border-radius: 4px; padding: 2px 4px; color: #374151;
+  background: #fff; cursor: pointer;
+}
+
+/* ── Text mode ── */
+#mode-text { display: block; padding: 12px 14px; }
+.src-group { margin-bottom: 16px; }
+.src-group-hdr {
+  font-size: 10px; font-weight: 700; color: #6366f1;
+  letter-spacing: .05em; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.src-group-hdr .prange {
+  color: #9ca3af; font-weight: 400; text-transform: none;
+  font-size: 10px; margin-left: 4px; letter-spacing: 0;
+}
+.dense {
+  font-family: Georgia, serif; font-size: 12.5px;
+  line-height: 1.85; color: #1a1a1a;
+}
+.ename-inline { font-weight: 700; font-family: Georgia, serif; }
+.dc {
+  cursor: pointer; border-radius: 2px;
+  padding: 0 1px; transition: background .1s;
+}
+.dc:hover { background: #fef9c3; }
+.dc.open { background: #fde68a; }
+.cite-trail {
+  display: block; margin-top: 5px;
+  font-size: 10px; color: #9ca3af; font-style: italic;
+  font-family: -apple-system, sans-serif;
+}
+
+/* Inline claim card */
+.icard {
+  display: none; background: #f8f9ff;
+  border: 1px solid #e0e7ff; border-radius: 7px;
+  padding: 9px 11px; margin: 6px 0 4px;
+  font-family: -apple-system, sans-serif;
+}
+.icard.open { display: block; }
+.icard-kind { font-size: 9px; color: #6366f1; font-weight: 700; letter-spacing: .05em; margin-bottom: 5px; }
+.chips { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 7px; }
+.chip { padding: 3px 8px; border-radius: 5px; font-size: 10.5px; font-weight: 600; }
+.cs { background: #1e40af; color: #fff; }
+.cv { background: #7c3aed; color: #fff; }
+.co { background: #374151; color: #fff; }
+.excerpt {
+  background: #fff; border-left: 3px solid #6366f1;
+  border-radius: 0 4px 4px 0; padding: 6px 8px;
+  font-family: Georgia, serif; font-size: 11px;
+  color: #374151; font-style: italic; line-height: 1.55;
+  margin-bottom: 7px;
+}
+.srcrow {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #f1f5f9; border-radius: 5px; padding: 5px 8px;
+}
+.srcref { font-size: 10.5px; font-weight: 600; color: #334155; }
+.srcsub { font-size: 9.5px; color: #94a3b8; }
+.jbtn {
+  background: #6366f1; color: #fff; border: none;
+  border-radius: 5px; padding: 4px 9px;
+  font-size: 10px; font-weight: 700; cursor: pointer;
+}
+.jbtn:hover { background: #4f46e5; }
+
+/* ── List mode ── */
+#mode-list { display: none; }
+.ltable-hdr {
+  display: grid; grid-template-columns: 46px 1fr 1fr 54px;
+  padding: 6px 12px; background: #f9f9fb;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 9px; font-weight: 700; color: #9ca3af;
+  letter-spacing: .05em; text-transform: uppercase;
+  position: sticky; top: 0;
+}
+.lrow {
+  display: grid; grid-template-columns: 46px 1fr 1fr 54px;
+  padding: 8px 12px; border-bottom: 1px solid #f2f2f7;
+  cursor: pointer; align-items: start; gap: 3px;
+  transition: background .1s;
+}
+.lrow:hover { background: #f5f5f7; }
+.kbadge {
+  font-size: 9px; font-weight: 700; padding: 2px 5px;
+  border-radius: 3px; display: inline-block; width: fit-content;
+}
+.kfact  { background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; }
+.kquote { background: #fdf4ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+.lverb { font-size: 11.5px; font-weight: 600; color: #6366f1; line-height: 1.4; }
+.lobj  { font-size: 11px; color: #374151; line-height: 1.4; }
+.lsrc  { font-size: 9.5px; color: #9ca3af; line-height: 1.4; }
+
+/* Date grouping */
+.date-group-hdr {
+  font-size: 10px; font-weight: 700; color: #d97706;
+  letter-spacing: .05em; text-transform: uppercase;
+  margin: 12px 0 5px; display: flex; align-items: center; gap: 5px;
+}
+</style>
+</head>
+<body>
+
+<!-- ── Left: document view ── -->
+<div class="doc-pane">
+  <div class="doc-toolbar">
+    <span>📄</span> tubb2020shift · Chapter 1.pdf · Page 1
+  </div>
+  <div class="doc-body">
+    <h2>Gold and the Household Economy</h2>
+    <p>A few weeks before Christmas 2011, Don Alfonso, Pedro's spry elderly neighbor, and I went to work his family mine. While <span class="hl" onclick="syncHighlight('c-work', this)">Don Alfonso worked artisanally</span>, his technique was different from Martina and Pedro's.</p>
+    <p>For one thing, he did not dig, because he was too old and too tired. Instead, he let the water wash down a trench in the jungle from a reservoir that an excavator had carved into the landscape above his mine three years before.</p>
+    <p>More so than Pedro, <span class="hl" onclick="syncHighlight('c-cash', this)">Don Alfonso habitually entered into the wider cash economy</span> by selling gold. Along with mining and his gardens, Don Alfonso had other sources of income.</p>
+    <p><span class="hl" onclick="syncHighlight('c-fund', this)">Don Alfonso would fund his trips to Medellín or Pereira from the sale of gold from his mine</span>, calling these shopping trips his <em>rebusque</em>.</p>
+    <p>He lived through the <em>rebusque</em>. Unlike Pedro, who seldom left the village, <span class="hl" onclick="syncHighlight('c-andes', this)">Don Alfonso had gone over the Andes to the Eje Cafetero to look for work</span> — picking coffee or engaging in petty trading.</p>
+  </div>
+</div>
+
+<!-- ── Right: inspector ── -->
+<div class="inspector">
+
+  <!-- Top icon tabs -->
+  <div class="itabs">
+    <div class="itab" onclick="switchItab('info')">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="14" height="14" rx="2"/><line x1="7" y1="7" x2="13" y2="7"/><line x1="7" y1="10" x2="13" y2="10"/><line x1="7" y1="13" x2="11" y2="13"/></svg>
+      Info
+    </div>
+    <div class="itab active" onclick="switchItab('kg')">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="2.5"/><circle cx="4" cy="6" r="1.5"/><circle cx="16" cy="6" r="1.5"/><circle cx="4" cy="14" r="1.5"/><circle cx="16" cy="14" r="1.5"/><line x1="7.5" y1="8.5" x2="5" y2="7"/><line x1="12.5" y1="8.5" x2="15" y2="7"/><line x1="7.5" y1="11.5" x2="5" y2="13"/><line x1="12.5" y1="11.5" x2="15" y2="13"/></svg>
+      KG
+    </div>
+    <div class="itab" onclick="switchItab('artifacts')">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 3l7 4v6l-7 4-7-4V7l7-4z"/></svg>
+      Artifacts
+    </div>
+    <div class="itab" onclick="switchItab('meta')">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><line x1="10" y1="9" x2="10" y2="14"/><circle cx="10" cy="7" r=".5" fill="currentColor"/></svg>
+      Meta
+    </div>
+  </div>
+
+  <div class="ibody">
+
+    <!-- ── KG entity list ── -->
+    <div id="screen-kg">
+      <div class="kg-bar">
+        <span>Knowledge Graph</span>
+      </div>
+
+      <!-- Scope selector -->
+      <div class="scope-bar">
+        <div class="scope-pill active" onclick="setScope('page', this)">
+          📄 Page 1 <span class="sc">· 7</span>
+        </div>
+        <div class="scope-pill" onclick="setScope('folder', this)">
+          📁 Chapter 1 <span class="sc">· 14</span>
+        </div>
+        <div class="scope-pill" onclick="setScope('collection', this)">
+          📚 All <span class="sc">· 32</span>
+        </div>
+      </div>
+
+      <!-- Entity list — rendered by JS based on scope -->
+      <div id="entity-list-page">
+        <div class="section-hdr">👤 People <span class="count-pill">4</span></div>
+        <div class="erow" onclick="showEntity()">
+          <div class="eicon ip">👤</div>
+          <div class="einfo">
+            <div class="ename">Don Alfonso</div>
+            <div class="edesc">"Don Alfonso worked artisanally…"</div>
+          </div>
+          <div class="ebadge">8</div>
+          <div class="earrow">›</div>
+        </div>
+        <div class="erow">
+          <div class="eicon ip">👤</div>
+          <div class="einfo"><div class="ename">Pedro</div><div class="edesc">is a person</div></div>
+          <div class="ebadge">5</div><div class="earrow">›</div>
+        </div>
+        <div class="erow">
+          <div class="eicon ip">👤</div>
+          <div class="einfo"><div class="ename">Martina</div><div class="edesc">is a person</div></div>
+          <div class="ebadge">3</div><div class="earrow">›</div>
+        </div>
+        <div class="erow">
+          <div class="eicon ip">👤</div>
+          <div class="einfo"><div class="ename">Javier</div><div class="edesc">is a person</div></div>
+          <div class="ebadge">2</div><div class="earrow">›</div>
+        </div>
+        <div class="section-hdr">📍 Places <span class="count-pill">3</span></div>
+        <div class="erow">
+          <div class="eicon il">📍</div>
+          <div class="einfo"><div class="ename">Medellín</div><div class="edesc">destination for shopping trips</div></div>
+          <div class="ebadge">2</div><div class="earrow">›</div>
+        </div>
+        <div class="erow">
+          <div class="eicon il">📍</div>
+          <div class="einfo"><div class="ename">Eje Cafetero</div><div class="edesc">coffee region, Andes</div></div>
+          <div class="ebadge">1</div><div class="earrow">›</div>
+        </div>
+        <div class="erow">
+          <div class="eicon il">📍</div>
+          <div class="einfo"><div class="ename">Chocó highlands</div><div class="edesc">mining region</div></div>
+          <div class="ebadge">1</div><div class="earrow">›</div>
+        </div>
+      </div>
+
+      <div id="entity-list-folder" style="display:none">
+        <div class="section-hdr">👤 People <span class="count-pill">6</span></div>
+        <div class="erow" onclick="showEntity()">
+          <div class="eicon ip">👤</div>
+          <div class="einfo"><div class="ename">Don Alfonso</div><div class="edesc">worked artisanally · rebusque</div></div>
+          <div class="ebadge">22</div><div class="earrow">›</div>
+        </div>
+        <div class="erow"><div class="eicon ip">👤</div><div class="einfo"><div class="ename">Pedro</div><div class="edesc">is a person</div></div><div class="ebadge">14</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon ip">👤</div><div class="einfo"><div class="ename">Martina</div><div class="edesc">is a person</div></div><div class="ebadge">9</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon ip">👤</div><div class="einfo"><div class="ename">Javier</div><div class="edesc">is a person</div></div><div class="ebadge">6</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon ip">👤</div><div class="einfo"><div class="ename">Rosario</div><div class="edesc">is a person</div></div><div class="ebadge">4</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon ip">👤</div><div class="einfo"><div class="ename">Daniel Tubb</div><div class="edesc">author, researcher</div></div><div class="ebadge">3</div><div class="earrow">›</div></div>
+        <div class="section-hdr">📍 Places <span class="count-pill">5</span></div>
+        <div class="erow"><div class="eicon il">📍</div><div class="einfo"><div class="ename">Medellín</div><div class="edesc">destination for shopping trips</div></div><div class="ebadge">5</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon il">📍</div><div class="einfo"><div class="ename">Eje Cafetero</div><div class="edesc">coffee region, Andes</div></div><div class="ebadge">3</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon il">📍</div><div class="einfo"><div class="ename">Chocó highlands</div><div class="edesc">mining region</div></div><div class="ebadge">3</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon il">📍</div><div class="einfo"><div class="ename">Pereira</div><div class="edesc">market town</div></div><div class="ebadge">2</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon il">📍</div><div class="einfo"><div class="ename">Quibdó</div><div class="edesc">regional capital</div></div><div class="ebadge">2</div><div class="earrow">›</div></div>
+        <div class="section-hdr">💡 Concepts <span class="count-pill">3</span></div>
+        <div class="erow"><div class="eicon ic">💡</div><div class="einfo"><div class="ename">rebusque</div><div class="edesc">shopping trips · wholesale trade</div></div><div class="ebadge">7</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon ic">💡</div><div class="einfo"><div class="ename">artisanal mining</div><div class="edesc">gold · subsistence</div></div><div class="ebadge">5</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon ic">💡</div><div class="einfo"><div class="ename">dual household economy</div><div class="edesc">mining + subsistence production</div></div><div class="ebadge">3</div><div class="earrow">›</div></div>
+      </div>
+
+      <div id="entity-list-collection" style="display:none">
+        <div class="section-hdr">👤 People <span class="count-pill">9</span></div>
+        <div class="erow" onclick="showEntity()">
+          <div class="eicon ip">👤</div>
+          <div class="einfo"><div class="ename">Don Alfonso</div><div class="edesc">worked artisanally · Shifting Livelihoods</div></div>
+          <div class="ebadge">72</div><div class="earrow">›</div>
+        </div>
+        <div class="erow"><div class="eicon ip">👤</div><div class="einfo"><div class="ename">Pedro</div><div class="edesc">is a person</div></div><div class="ebadge">31</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon ip">👤</div><div class="einfo"><div class="ename">Martina</div><div class="edesc">is a person</div></div><div class="ebadge">14</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon ip">👤</div><div class="einfo"><div class="ename">Javier</div><div class="edesc">is a person</div></div><div class="ebadge">8</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon ip">👤</div><div class="einfo"><div class="ename">Rosario</div><div class="edesc">is a person</div></div><div class="ebadge">6</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon ip">👤</div><div class="einfo"><div class="ename">Daniel Tubb</div><div class="edesc">author, researcher</div></div><div class="ebadge">5</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon ip">👤</div><div class="einfo"><div class="ename">Alfonso's daughter-in-law</div><div class="edesc">family member, Medellín</div></div><div class="ebadge">3</div><div class="earrow">›</div></div>
+        <div style="padding:5px 14px 3px;font-size:10px;color:#9ca3af;cursor:pointer">+ 2 more people…</div>
+        <div class="section-hdr">📍 Places <span class="count-pill">8</span></div>
+        <div class="erow"><div class="eicon il">📍</div><div class="einfo"><div class="ename">Medellín</div><div class="edesc">destination for shopping trips</div></div><div class="ebadge">12</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon il">📍</div><div class="einfo"><div class="ename">Saudi Arabia</div><div class="edesc">international work destination</div></div><div class="ebadge">5</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon il">📍</div><div class="einfo"><div class="ename">Eje Cafetero</div><div class="edesc">coffee region, Andes</div></div><div class="ebadge">4</div><div class="earrow">›</div></div>
+        <div style="padding:5px 14px 3px;font-size:10px;color:#9ca3af;cursor:pointer">+ 5 more places…</div>
+        <div class="section-hdr">💡 Concepts <span class="count-pill">6</span></div>
+        <div class="erow"><div class="eicon ic">💡</div><div class="einfo"><div class="ename">rebusque</div><div class="edesc">shopping trips · wholesale trade</div></div><div class="ebadge">11</div><div class="earrow">›</div></div>
+        <div class="erow"><div class="eicon ic">💡</div><div class="einfo"><div class="ename">artisanal mining</div><div class="edesc">gold · subsistence</div></div><div class="ebadge">9</div><div class="earrow">›</div></div>
+        <div style="padding:5px 14px 3px;font-size:10px;color:#9ca3af;cursor:pointer">+ 4 more concepts…</div>
+      </div>
+    </div>
+
+    <!-- ── Entity profile ── -->
+    <div id="screen-entity">
+
+      <!-- Back -->
+      <div class="enav">
+        <button class="back-btn" onclick="goBack()">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 4l-6 6 6 6"/></svg>
+          KG
+        </button>
+        <span style="font-size:11px;color:#8e8e93">/ Don Alfonso</span>
+      </div>
+
+      <!-- Header -->
+      <div class="eheader">
+        <div class="etitle">
+          <span style="font-size:19px">👤</span>
+          <span class="ename-lg">Don Alfonso</span>
+          <span class="tbadge tb-person">person</span>
+        </div>
+        <div class="emeta">3 source documents · <em>Shifting Livelihoods</em></div>
+      </div>
+
+      <!-- Mode toggle + group-by -->
+      <div class="mode-row">
+        <div class="mode-toggle">
+          <div class="mtab active" onclick="switchMode('text', this)">Text</div>
+          <div class="mtab" onclick="switchMode('list', this)">List</div>
+        </div>
+        <div class="groupby" id="groupby-row">
+          Group by
+          <select onchange="switchGroup(this.value)">
+            <option value="source">Source</option>
+            <option value="date">Date</option>
+            <option value="type">Type</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Text mode — grouped by source -->
+      <div id="mode-text">
+
+        <!-- Group: Ch.1 pp.12–31 -->
+        <div class="src-group">
+          <div class="src-group-hdr">
+            TUBB2020SHIFT · CH. 1
+            <span class="prange">pp. 12–31</span>
+          </div>
+          <div class="dense">
+            <span class="ename-inline">Don Alfonso</span>
+            <span class="dc" onclick="openCard('c-is', this)">is a person</span>;
+            <span class="dc" onclick="openCard('c-work', this)">worked artisanally</span>;
+            <span class="dc" onclick="openCard('c-dual', this)">relied on a dual household economy of subsistence production and mining, more so than Pedro</span>;
+            <span class="dc" onclick="openCard('c-cash', this)">habitually entered the wider cash economy more than Pedro</span>;
+            <span class="dc" onclick="openCard('c-fund', this)">funded his trips to Medellín or Pereira from sales from his mine</span>;
+            <span class="dc" onclick="openCard('c-rbs', this)">called these shopping trips his <em>rebusque</em></span>;
+            <span class="dc" onclick="openCard('c-lived', this)">lived through the rebusque</span>;
+            <span class="dc" onclick="openCard('c-mine', this)">used his mine to fund it</span>;
+            <span class="dc" onclick="openCard('c-sell', this)">sold gold to enter the cash economy</span>;
+            <span class="dc" onclick="openCard('c-garden', this)">maintained kitchen gardens alongside mining</span>;
+            <span class="dc" onclick="openCard('c-water', this)">used water to wash gold from a trench</span>;
+            <span class="dc" onclick="openCard('c-exc', this)">had an excavator-cut reservoir above his mine</span>;
+            <span class="dc" onclick="openCard('c-old', this)">did not dig because he was too old and too tired</span>;
+            <span class="dc" onclick="openCard('c-diff', this)">used a technique different from Martina and Pedro's</span>.
+            <span style="font-size:11px;color:#636366;font-family:-apple-system,sans-serif"> In his own words: </span><span class="dc" onclick="openCard('c-quote', this)">"I've been there."</span>
+            <span class="cite-trail">— Tubb (2020), <em>Shifting Livelihoods</em>, Ch. 1, pp. 12–31</span>
+          </div>
+
+          <!-- Claim cards for Ch.1 -->
+          <div class="icard" id="c-is">
+            <div class="icard-kind">CLAIM · FACT · Tentative</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">is</span><span class="chip co">a person</span></div>
+            <div class="excerpt">"Don Alfonso, Pedro's spry elderly neighbor…"</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 12</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-work">
+            <div class="icard-kind">CLAIM · FACT · Tentative</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">worked</span><span class="chip co">artisanally</span></div>
+            <div class="excerpt">"While Don Alfonso worked artisanally, his technique was different from Martina and Pedro's."</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 19</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-dual">
+            <div class="icard-kind">CLAIM · FACT · Tentative</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">relied on</span><span class="chip co">dual household economy</span></div>
+            <div class="excerpt">"Don Alfonso relied on a dual household economy of subsistence production and mining, more so than Pedro."</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 31</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-cash">
+            <div class="icard-kind">CLAIM · FACT · Tentative</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">entered</span><span class="chip co">wider cash economy · more than Pedro</span></div>
+            <div class="excerpt">"More so than Pedro, Don Alfonso habitually entered into the wider cash economy by selling gold."</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 31</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-fund">
+            <div class="icard-kind">CLAIM · FACT · Tentative</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">funded trips to</span><span class="chip co">Medellín · mine sales</span></div>
+            <div class="excerpt">"Don Alfonso would fund his trips to Medellín or Pereira from the sale of gold from his mine…"</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 23 · chars 1240–1312</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-rbs">
+            <div class="icard-kind">CLAIM · FACT · Tentative</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">called shopping trips</span><span class="chip co">rebusque</span></div>
+            <div class="excerpt">"Don Alfonso called these shopping trips to buy wholesale his <em>rebusque</em>."</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 25</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-lived">
+            <div class="icard-kind">CLAIM · FACT · Tentative</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">lived through</span><span class="chip co">rebusque</span></div>
+            <div class="excerpt">"He lived through the rebusque."</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 26</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-mine">
+            <div class="icard-kind">CLAIM · FACT · Tentative</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">used</span><span class="chip co">his mine · fund rebusque</span></div>
+            <div class="excerpt">"He used his mine to fund his rebusque."</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 26</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-sell">
+            <div class="icard-kind">CLAIM · FACT</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">sold</span><span class="chip co">gold · enter cash economy</span></div>
+            <div class="excerpt">"Along with mining and his gardens, Don Alfonso had other sources of income."</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 31</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-garden">
+            <div class="icard-kind">CLAIM · FACT</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">maintained</span><span class="chip co">kitchen gardens · alongside mining</span></div>
+            <div class="excerpt">"Along with mining and his gardens, Don Alfonso had other sources of income."</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 31</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-water">
+            <div class="icard-kind">CLAIM · FACT</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">used water to wash</span><span class="chip co">gold from trench</span></div>
+            <div class="excerpt">"Instead, he let the water wash down a trench in the jungle from a reservoir…"</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 20</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-exc">
+            <div class="icard-kind">CLAIM · FACT</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">had</span><span class="chip co">excavator-cut reservoir · above mine</span></div>
+            <div class="excerpt">"…a reservoir that an excavator had carved into the landscape above his mine three years before."</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 20</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-old">
+            <div class="icard-kind">CLAIM · FACT</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">did not dig</span><span class="chip co">too old and tired</span></div>
+            <div class="excerpt">"For one thing, he did not dig, because he was too old and too tired."</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 20</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-diff">
+            <div class="icard-kind">CLAIM · FACT</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">used technique different from</span><span class="chip co">Martina · Pedro</span></div>
+            <div class="excerpt">"While Don Alfonso worked artisanally, his technique was different from Martina and Pedro's."</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 19</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-quote">
+            <div class="icard-kind">CLAIM · QUOTE · Direct</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">said</span><span class="chip co">"I've been there."</span></div>
+            <div class="excerpt">"I've been there." [Don Alfonso, speaking of his travels and work in Medellín and Saudi Arabia]</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 1</div><div class="srcsub">p. 22</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+        </div>
+
+        <!-- Group: Ch.2 pp.4–16 -->
+        <div class="src-group">
+          <div class="src-group-hdr">
+            TUBB2020SHIFT · CH. 2
+            <span class="prange">pp. 4–16</span>
+          </div>
+          <div class="dense">
+            <span class="ename-inline">Don Alfonso</span>
+            <span class="dc" onclick="openCard('c-andes', this)">gone over the Andes to the Eje Cafetero to look for work — picking coffee or engaging in petty trading</span>;
+            <span class="dc" onclick="openCard('c-saudi', this)">went to Saudi Arabia as a young man</span>;
+            <span class="dc" onclick="openCard('c-bus', this)">traveled by bus from Quibdó to Medellín</span>;
+            <span class="dc" onclick="openCard('c-dial', this)">called his daughter-in-law from Medellín</span>;
+            <span class="dc" onclick="openCard('c-apt', this)">rented an apartment in Medellín</span>;
+            <span class="dc" onclick="openCard('c-shop', this)">shopped bulk packages of inexpensive merchandise</span>;
+            <span class="dc" onclick="openCard('c-compare', this)">compared prices at several wholesale shops before buying</span>;
+            <span class="dc" onclick="openCard('c-tools', this)">bought machetes and household tools for resale</span>;
+            <span class="dc" onclick="openCard('c-lunch', this)">did not want to spend much money on a bad lunch (mundongo)</span>;
+            <span class="dc" onclick="openCard('c-food', this)">bought food that day and on the trip back to Quibdó</span>;
+            <span class="dc" onclick="openCard('c-contact', this)">had a regular contact among merchants in Medellín</span>;
+            <span class="dc" onclick="openCard('c-recog', this)">was recognized by a shopkeeper from a previous visit</span>;
+            <span class="dc" onclick="openCard('c-trust', this)">knew which wholesale vendors to trust</span>;
+            <span class="dc" onclick="openCard('c-credit', this)">mistrusted credit arrangements with merchants</span>;
+            <span class="dc" onclick="openCard('c-gold', this)">counted his gold dust at a jewelry shop in the centro</span>;
+            <span class="dc" onclick="openCard('c-hostal', this)">stayed in a cheap hostal near the central market</span>;
+            <span class="dc" onclick="openCard('c-carry', this)">carried merchandise on the bus back to Quibdó</span>;
+            <span class="dc" onclick="openCard('c-resell', this)">resold goods in his village at a small profit</span>;
+            <span class="dc" onclick="openCard('c-distrib', this)">distributed some goods to neighbors on return</span>;
+            <span class="dc" onclick="openCard('c-news', this)">brought news from the city back to the community</span>;
+            <span class="dc" onclick="openCard('c-teach', this)">considered the rebusque a skill worth teaching younger men</span>;
+            <span class="dc" onclick="openCard('c-pride', this)">took pride in his self-sufficiency and knowledge of the city</span>;
+            <span class="dc" onclick="openCard('c-pereira', this)">compared Pereira favorably with Medellín for certain goods</span>;
+            <span class="dc" onclick="openCard('c-accounts', this)">kept careful mental accounts of his expenditures</span>;
+            <span class="dc" onclick="openCard('c-cof', this)">worked coffee in the Eje Cafetero</span>;
+            <span class="dc" onclick="openCard('c-bags', this)">pushed bags at a market depot</span>;
+            <span class="dc" onclick="openCard('c-ham', this)">rested in his hammock after the journey</span>;
+            <span class="dc" onclick="openCard('c-identity', this)">described himself as someone who knew how to move between worlds</span>;
+            <span class="dc" onclick="openCard('c-chaotic', this)">described the bus station in Medellín as chaotic but manageable</span>.
+            <span class="cite-trail">— Tubb (2020), <em>Shifting Livelihoods</em>, Ch. 2, pp. 4–16</span>
+          </div>
+
+          <!-- Claim cards for Ch.2 -->
+          <div class="icard" id="c-andes">
+            <div class="icard-kind">CLAIM · FACT · Tentative</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">gone over Andes</span><span class="chip co">Eje Cafetero · petty trading</span></div>
+            <div class="excerpt">"Don Alfonso had gone over the Andes to the Eje Cafetero, or Coffee Axis, to look for work by picking coffee or engaging in petty trading."</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 4 · chars 890–980</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-saudi">
+            <div class="icard-kind">CLAIM · FACT · Tentative</div>
+            <div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">went to</span><span class="chip co">Saudi Arabia</span></div>
+            <div class="excerpt">"Ever since he had been a young man and gone to Saudi Arabia…"</div>
+            <div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 8</div></div><button class="jbtn">Jump →</button></div>
+          </div>
+          <div class="icard" id="c-bus"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">traveled by bus</span><span class="chip co">Quibdó to Medellín</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 9</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-dial"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">called</span><span class="chip co">his daughter-in-law · from Medellín</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 11</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-apt"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">rented</span><span class="chip co">apartment · Medellín</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 12</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-shop"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">shopped</span><span class="chip co">bulk packages · inexpensive merchandise</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 13</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-compare"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">compared prices at</span><span class="chip co">several wholesale shops</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 13</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-tools"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">bought</span><span class="chip co">machetes · household tools · for resale</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 13</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-lunch"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">did not want to spend</span><span class="chip co">much money on bad lunch · mundongo</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 13</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-food"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">bought food</span><span class="chip co">that day · trip back to Quibdó</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 13</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-contact"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">had regular contact among</span><span class="chip co">merchants · Medellín</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 14</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-recog"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">recognized by</span><span class="chip co">shopkeeper · previous visit</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 14</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-trust"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">knew which</span><span class="chip co">wholesale vendors · to trust</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 14</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-credit"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">mistrusted</span><span class="chip co">credit arrangements</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 14</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-gold"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">counted gold dust at</span><span class="chip co">jewelry shop · centro</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 11</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-hostal"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">stayed in</span><span class="chip co">cheap hostal · central market</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 12</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-carry"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">carried merchandise on</span><span class="chip co">bus back to Quibdó</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 15</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-resell"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">resold goods in</span><span class="chip co">his village · small profit</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 15</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-distrib"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">distributed goods to</span><span class="chip co">neighbors · on return</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 15</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-news"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">brought news from</span><span class="chip co">city · back to community</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 16</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-teach"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">considered rebusque</span><span class="chip co">a skill worth teaching</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 16</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-pride"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">took pride in</span><span class="chip co">self-sufficiency · knowledge of city</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 16</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-pereira"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">compared Pereira favorably</span><span class="chip co">certain goods · vs Medellín</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 13</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-accounts"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">kept</span><span class="chip co">mental accounts · of expenditures</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 13</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-cof"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">worked</span><span class="chip co">coffee · Eje Cafetero</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 14</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-bags"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">pushed</span><span class="chip co">bags · market depot</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 15</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-ham"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">rested in</span><span class="chip co">his hammock · after journey</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 16</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-identity"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">described himself as</span><span class="chip co">someone who knew how to move between worlds</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 16</div></div><button class="jbtn">Jump →</button></div></div>
+          <div class="icard" id="c-chaotic"><div class="icard-kind">CLAIM · FACT</div><div class="chips"><span class="chip cs">Don Alfonso</span><span class="chip cv">described bus station as</span><span class="chip co">chaotic but manageable · Medellín</span></div><div class="srcrow"><div><div class="srcref">tubb2020shift · Ch. 2</div><div class="srcsub">p. 10</div></div><button class="jbtn">Jump →</button></div></div>
+        </div>
+
+        <!-- Date grouping (hidden by default) -->
+        <div id="group-date" style="display:none;padding:0 0 14px">
+          <div style="font-size:11px;color:#8e8e93;font-style:italic;margin-bottom:10px;font-family:-apple-system,sans-serif">Temporal context extracted from source text</div>
+          <div class="date-group-hdr">Christmas 2011 <span style="color:#9ca3af;font-weight:400;text-transform:none;font-size:9.5px">2 claims</span></div>
+          <div class="dense" style="margin-bottom:12px">
+            <span class="ename-inline">Don Alfonso</span>
+            <span class="dc" onclick="openCard('c-work',this)">worked artisanally at the family mine</span>;
+            <span class="dc" onclick="openCard('c-dual',this)">relied on a dual household economy</span>.
+          </div>
+          <div class="date-group-hdr">Before 2011 (young man) <span style="color:#9ca3af;font-weight:400;text-transform:none;font-size:9.5px">2 claims</span></div>
+          <div class="dense" style="margin-bottom:12px">
+            <span class="dc" onclick="openCard('c-saudi',this)">went to Saudi Arabia</span>;
+            <span class="dc" onclick="openCard('c-andes',this)">gone over the Andes to the Eje Cafetero</span>.
+          </div>
+          <div class="date-group-hdr">Before Christmas 2011 (three years prior) <span style="color:#9ca3af;font-weight:400;text-transform:none;font-size:9.5px">1 claim</span></div>
+          <div class="dense" style="margin-bottom:12px">
+            <span class="dc" onclick="openCard('c-exc',this)">had an excavator-cut reservoir above his mine</span>.
+          </div>
+          <div class="date-group-hdr">Recurring / habitual <span style="color:#9ca3af;font-weight:400;text-transform:none;font-size:9.5px">8 claims</span></div>
+          <div class="dense">
+            <span class="dc" onclick="openCard('c-fund',this)">funded his trips to Medellín from mine sales</span>;
+            <span class="dc" onclick="openCard('c-rbs',this)">called these shopping trips his rebusque</span>;
+            <span class="dc" onclick="openCard('c-cash',this)">habitually entered the wider cash economy</span>;
+            <span class="dc" onclick="openCard('c-shop',this)">shopped bulk packages of inexpensive merchandise</span>;
+            <span class="dc" onclick="openCard('c-resell',this)">resold goods in his village at a small profit</span>;
+            <span class="dc" onclick="openCard('c-accounts',this)">kept careful mental accounts of his expenditures</span>.
+          </div>
+          <div style="margin-top:8px;font-size:10px;color:#9ca3af;font-style:italic;font-family:-apple-system,sans-serif">58 claims lack explicit date — shown in Source view</div>
+        </div>
+
+        <div style="padding:8px 14px;font-size:10px;color:#9ca3af;border-top:1px solid #f0f0f2;font-family:-apple-system,sans-serif">
+          hover any phrase · click to see source
+        </div>
+      </div>
+
+      <!-- List mode -->
+      <div id="mode-list">
+        <div class="ltable-hdr">
+          <span>KIND</span><span>VERB</span><span>OBJECT</span><span>SOURCE</span>
+        </div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">is</span><span class="lobj">a person</span><span class="lsrc">Ch.1 · 12</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">worked</span><span class="lobj">artisanally</span><span class="lsrc">Ch.1 · 19</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">did not dig</span><span class="lobj">too old and tired</span><span class="lsrc">Ch.1 · 20</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">used water to wash</span><span class="lobj">gold from trench</span><span class="lsrc">Ch.1 · 20</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">had excavator-cut reservoir</span><span class="lobj">above mine · three years prior</span><span class="lsrc">Ch.1 · 20</span></div>
+        <div class="lrow"><span><span class="kbadge kquote">quote</span></span><span class="lverb">said</span><span class="lobj">"I've been there."</span><span class="lsrc">Ch.1 · 22</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">funded trips to Medellín</span><span class="lobj">sales from his mine</span><span class="lsrc">Ch.1 · 23</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">called shopping trips</span><span class="lobj">rebusque</span><span class="lsrc">Ch.1 · 25</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">lived through</span><span class="lobj">the rebusque</span><span class="lsrc">Ch.1 · 26</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">used mine to fund</span><span class="lobj">rebusque</span><span class="lsrc">Ch.1 · 26</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">maintained</span><span class="lobj">kitchen gardens · alongside mining</span><span class="lsrc">Ch.1 · 31</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">sold gold to enter</span><span class="lobj">cash economy</span><span class="lsrc">Ch.1 · 31</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">relied on</span><span class="lobj">dual household economy</span><span class="lsrc">Ch.1 · 31</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">habitually entered</span><span class="lobj">wider cash economy · more than Pedro</span><span class="lsrc">Ch.1 · 31</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">traveled by bus</span><span class="lobj">Quibdó to Medellín</span><span class="lsrc">Ch.2 · 9</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">counted gold dust at</span><span class="lobj">jewelry shop · centro</span><span class="lsrc">Ch.2 · 11</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">called</span><span class="lobj">his daughter-in-law</span><span class="lsrc">Ch.2 · 11</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">rented</span><span class="lobj">apartment · Medellín</span><span class="lsrc">Ch.2 · 12</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">stayed in</span><span class="lobj">cheap hostal · central market</span><span class="lsrc">Ch.2 · 12</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">shopped</span><span class="lobj">bulk packages · inexpensive merchandise</span><span class="lsrc">Ch.2 · 13</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">compared prices at</span><span class="lobj">several wholesale shops</span><span class="lsrc">Ch.2 · 13</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">compared Pereira favorably</span><span class="lobj">certain goods vs Medellín</span><span class="lsrc">Ch.2 · 13</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">did not want to spend</span><span class="lobj">much money on bad lunch · mundongo</span><span class="lsrc">Ch.2 · 13</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">bought</span><span class="lobj">machetes · household tools · for resale</span><span class="lsrc">Ch.2 · 13</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">kept</span><span class="lobj">mental accounts of expenditures</span><span class="lsrc">Ch.2 · 13</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">bought food</span><span class="lobj">that day · trip back to Quibdó</span><span class="lsrc">Ch.2 · 13</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">had regular contact among</span><span class="lobj">merchants · Medellín</span><span class="lsrc">Ch.2 · 14</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">recognized by</span><span class="lobj">shopkeeper · previous visit</span><span class="lsrc">Ch.2 · 14</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">knew which</span><span class="lobj">wholesale vendors to trust</span><span class="lsrc">Ch.2 · 14</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">mistrusted</span><span class="lobj">credit arrangements</span><span class="lsrc">Ch.2 · 14</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">worked</span><span class="lobj">coffee · Eje Cafetero</span><span class="lsrc">Ch.2 · 14</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">gone over Andes to look for work</span><span class="lobj">picking coffee · petty trading</span><span class="lsrc">Ch.2 · 4</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">went to</span><span class="lobj">Saudi Arabia · young man</span><span class="lsrc">Ch.2 · 8</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">carried merchandise on</span><span class="lobj">bus back to Quibdó</span><span class="lsrc">Ch.2 · 15</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">pushed</span><span class="lobj">bags · market depot</span><span class="lsrc">Ch.2 · 15</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">resold goods in</span><span class="lobj">his village · small profit</span><span class="lsrc">Ch.2 · 15</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">distributed goods to</span><span class="lobj">neighbors on return</span><span class="lsrc">Ch.2 · 15</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">rested in</span><span class="lobj">his hammock</span><span class="lsrc">Ch.2 · 16</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">brought news from</span><span class="lobj">city · back to community</span><span class="lsrc">Ch.2 · 16</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">considered rebusque</span><span class="lobj">a skill worth teaching</span><span class="lsrc">Ch.2 · 16</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">took pride in</span><span class="lobj">self-sufficiency · knowledge of city</span><span class="lsrc">Ch.2 · 16</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">described himself as</span><span class="lobj">someone who moves between worlds</span><span class="lsrc">Ch.2 · 16</span></div>
+        <div class="lrow"><span><span class="kbadge kfact">fact</span></span><span class="lverb">described bus station as</span><span class="lobj">chaotic but manageable</span><span class="lsrc">Ch.2 · 10</span></div>
+      </div>
+
+    </div><!-- /screen-entity -->
+  </div><!-- /ibody -->
+</div><!-- /inspector -->
+
+<script>
+  function switchItab(tab) {
+    document.querySelectorAll('.itab').forEach((t, i) =>
+      t.classList.toggle('active', ['info','kg','artifacts','meta'][i] === tab));
+  }
+
+  function setScope(scope, el) {
+    document.querySelectorAll('.scope-pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('entity-list-page').style.display = scope === 'page' ? 'block' : 'none';
+    document.getElementById('entity-list-folder').style.display = scope === 'folder' ? 'block' : 'none';
+    document.getElementById('entity-list-collection').style.display = scope === 'collection' ? 'block' : 'none';
+  }
+
+  function showEntity() {
+    document.getElementById('screen-kg').style.display = 'none';
+    document.getElementById('screen-entity').style.display = 'block';
+  }
+
+  function goBack() {
+    document.getElementById('screen-entity').style.display = 'none';
+    document.getElementById('screen-kg').style.display = 'block';
+    closeAll();
+  }
+
+  function switchMode(mode, el) {
+    document.querySelectorAll('.mtab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('mode-text').style.display = mode === 'text' ? 'block' : 'none';
+    document.getElementById('mode-list').style.display = mode === 'list' ? 'block' : 'none';
+    document.getElementById('groupby-row').style.display = mode === 'text' ? 'flex' : 'none';
+  }
+
+  function switchGroup(val) {
+    document.getElementById('group-date').style.display = val === 'date' ? 'block' : 'none';
+    document.querySelectorAll('.src-group').forEach(g =>
+      g.style.display = val === 'date' ? 'none' : 'block');
+    closeAll();
+  }
+
+  function closeAll() {
+    document.querySelectorAll('.icard').forEach(c => c.classList.remove('open'));
+    document.querySelectorAll('.dc').forEach(c => c.classList.remove('open'));
+    document.querySelectorAll('.hl').forEach(h => h.classList.remove('active'));
+  }
+
+  function openCard(id, el) {
+    const card = document.getElementById(id);
+    const isOpen = card.classList.contains('open');
+    closeAll();
+    if (!isOpen) {
+      card.classList.add('open');
+      el.classList.add('open');
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  function syncHighlight(id, el) {
+    showEntity();
+    setTimeout(() => {
+      const card = document.getElementById(id);
+      if (!card) return;
+      closeAll();
+      card.classList.add('open');
+      document.querySelectorAll('.dc').forEach(dc => {
+        if (dc.getAttribute('onclick') && dc.getAttribute('onclick').includes("'" + id + "'")) {
+          dc.classList.add('open');
+          dc.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
+      el.classList.add('active');
+    }, 50);
+  }
+</script>
+</body>
+</html>

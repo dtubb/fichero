@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Publication View — Fichero</title>
+<style>
+/* ── Web font fallback chain mimicking Century Schoolbook ── */
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --page-w: 680px;
+  --serif: 'Libre Baskerville', 'Book Antiqua', 'Palatino Linotype', Georgia, serif;
+  --ink: #1a1a1a;
+  --faint: #888;
+}
+
+body {
+  background: #c8c2b8;
+  font-family: var(--serif);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Toolbar ── */
+.toolbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: #3a3a3a; height: 38px;
+  display: flex; align-items: center; padding: 0 16px; gap: 10px;
+  font-family: system-ui, sans-serif; font-size: 11px; color: #ccc;
+}
+.tb-title { color: #fff; font-weight: 600; }
+.tb-sep { width: 1px; height: 16px; background: #555; }
+.tb-btn {
+  padding: 3px 10px; border-radius: 4px; cursor: pointer;
+  border: 1px solid #555; background: #444; color: #ddd;
+  font-size: 10.5px; font-family: system-ui, sans-serif;
+  transition: background .1s;
+}
+.tb-btn:hover { background: #555; color: #fff; }
+.tb-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.hl-toggle { display: flex; align-items: center; gap: 5px; }
+.hl-toggle input { cursor: pointer; accent-color: #f59e0b; }
+
+/* ── Page stack ── */
+.page-stack {
+  padding: 60px 20px 60px;
+  display: flex; flex-direction: column; align-items: center; gap: 28px;
+}
+
+/* ── Single page ── */
+.page {
+  width: var(--page-w);
+  min-height: 880px;
+  background: #fffef9;
+  box-shadow: 0 3px 20px rgba(0,0,0,.35);
+  padding: 64px 72px 80px;
+  position: relative;
+  page-break-after: always;
+}
+
+/* ── Running header ── */
+.running-hdr {
+  position: absolute; top: 26px; left: 72px; right: 72px;
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 8.5px; letter-spacing: .08em; color: var(--faint);
+  text-transform: uppercase;
+  border-bottom: 1px solid #c8c0b0; padding-bottom: 4px;
+}
+.running-hdr .doc-title { font-weight: 500; }
+.running-hdr .pg-num   { }
+
+/* ── Document header ── */
+.doc-header {
+  text-align: center;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 18px; margin-bottom: 22px;
+}
+.doc-number {
+  font-size: 10px; letter-spacing: .12em; color: #555;
+  text-transform: uppercase; margin-bottom: 10px;
+}
+.doc-title-main {
+  font-size: 20px; font-weight: 700; letter-spacing: .01em;
+  line-height: 1.25; margin-bottom: 4px;
+  text-transform: uppercase;
+}
+.doc-subtitle {
+  font-size: 11px; font-style: italic; color: #444; margin-bottom: 14px;
+}
+.doc-meta-row {
+  font-size: 9.5px; letter-spacing: .06em;
+  color: #555; text-transform: uppercase;
+  border-top: 1px solid #c8c0b0;
+  padding-top: 8px; margin-top: 12px;
+}
+
+/* ── Section header ── */
+.sec-head {
+  font-size: 11px; font-weight: 700;
+  text-align: center; letter-spacing: .08em;
+  text-transform: uppercase;
+  margin: 22px 0 14px;
+}
+.sec-rule { border: none; border-top: 1px solid #c8c0b0; margin: 18px 0; }
+
+/* ── Body text ── */
+.body-text {
+  font-size: 13px; line-height: 1.78; color: var(--ink);
+  text-align: justify; hyphens: auto;
+}
+.body-text p {
+  margin-bottom: 0;
+  text-indent: 2.2em;
+}
+.body-text p.no-indent { text-indent: 0; }
+.body-text p + p { margin-top: 2px; }
+
+/* Drop cap */
+.dropcap {
+  float: left; font-size: 52px; line-height: .78;
+  margin-right: 4px; margin-top: 5px;
+  font-family: var(--serif); font-weight: 700;
+  color: var(--ink);
+}
+
+/* Small caps entity names */
+.sc {
+  font-variant: small-caps; font-size: 1.05em; letter-spacing: .03em;
+  font-weight: 500;
+}
+
+/* Inline claim highlight — amber underline */
+.hl {
+  background: #fef3c7;
+  border-bottom: 1.5px solid #f59e0b;
+  cursor: pointer; border-radius: 1px;
+  transition: background .1s;
+}
+.hl:hover, .hl.active { background: #fde68a; }
+.no-hl .hl { background: transparent; border-bottom-color: transparent; cursor: default; }
+
+/* Footnote superscript */
+.fn {
+  vertical-align: super; font-size: 7.5px; line-height: 0;
+  color: #333; font-weight: 700;
+  cursor: pointer; margin-left: .5px;
+  transition: color .1s;
+}
+.fn:hover { color: #6366f1; }
+.fn.lit   { color: #6366f1; }
+
+/* ── Footnotes section ── */
+.footnotes {
+  position: absolute; bottom: 54px; left: 72px; right: 72px;
+  border-top: 1px solid #888; padding-top: 6px;
+}
+.fn-list { list-style: none; }
+.fn-item {
+  font-size: 9px; line-height: 1.5; color: #555;
+  display: flex; gap: 5px; margin-bottom: 3px;
+  cursor: pointer; transition: color .1s;
+}
+.fn-item:hover { color: var(--ink); }
+.fn-item.lit   { color: var(--ink); }
+.fn-item.lit .fn-marker { color: #6366f1; }
+.fn-marker { font-weight: 700; flex-shrink: 0; min-width: 14px; color: #333; }
+.fn-text { font-family: var(--serif); }
+.fn-src {
+  color: #6366f1; font-style: italic; font-weight: 600;
+  white-space: nowrap; margin-left: 2px;
+}
+
+/* Page number */
+.pg-footer {
+  position: absolute; bottom: 30px; left: 0; right: 0;
+  text-align: center;
+  font-size: 9px; letter-spacing: .08em; color: var(--faint);
+}
+
+/* ── Popover ── */
+.popover {
+  display: none; position: fixed; z-index: 200;
+  background: #fff; border: 1px solid #f59e0b;
+  border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,.14);
+  width: 340px; font-family: system-ui, sans-serif;
+}
+.popover.vis { display: block; }
+.pop-hdr {
+  background: #fffbeb; border-bottom: 1px solid #fde68a;
+  padding: 7px 12px; display: flex; align-items: center; justify-content: space-between;
+}
+.pop-hdr-label { font-size: 8.5px; font-weight: 700; color: #92400e; letter-spacing: .05em; text-transform: uppercase; }
+.pop-close { font-size: 16px; cursor: pointer; color: #9ca3af; background: none; border: none; }
+.pop-body { padding: 10px 12px; }
+.svo { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+.sv-s { background: #1e40af; color: #fff; padding: 3px 9px; border-radius: 5px; font-size: 10.5px; font-weight: 600; }
+.sv-v { background: #7c3aed; color: #fff; padding: 3px 9px; border-radius: 5px; font-size: 10.5px; }
+.sv-o { background: #374151; color: #fff; padding: 3px 9px; border-radius: 5px; font-size: 10.5px; }
+.pop-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.pm { font-size: 9px; padding: 2px 7px; border-radius: 10px; font-weight: 500; }
+.pm-pl { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.pm-tm { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+.pm-sp { background: #fdf4ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+.pop-exc {
+  background: #f8f9ff; border-left: 3px solid #6366f1;
+  padding: 7px 10px; border-radius: 0 5px 5px 0; margin-bottom: 8px;
+}
+.pop-exc-lbl { font-size: 8px; font-weight: 700; color: #6366f1; letter-spacing: .04em; margin-bottom: 3px; }
+.pop-exc-txt { font-family: var(--serif); font-size: 11px; color: #374151; line-height: 1.6; font-style: italic; }
+.pop-src {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #f1f5f9; border-radius: 6px; padding: 6px 10px;
+}
+.pop-src-doc { font-size: 10px; font-weight: 600; color: #334155; }
+.pop-src-pg  { font-size: 9px; color: #94a3b8; }
+.pop-jump { background: #6366f1; color: #fff; border: none; border-radius: 5px; padding: 4px 10px; font-size: 9.5px; font-weight: 700; cursor: pointer; font-family: system-ui; }
+.pop-jump:hover { background: #4f46e5; }
+
+/* ── Print styles ── */
+@media print {
+  body { background: white; }
+  .toolbar { display: none; }
+  .page-stack { padding: 0; gap: 0; }
+  .page { box-shadow: none; width: 100%; min-height: 0; page-break-after: always; }
+  .hl { background: transparent !important; border-bottom: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Toolbar ── -->
+<div class="toolbar">
+  <span class="tb-title">Publication View</span>
+  <div class="tb-sep"></div>
+  <span style="color:#999">Generated from 72 claims · tubb2020shift</span>
+  <div class="tb-right">
+    <label class="hl-toggle">
+      <input type="checkbox" id="hl-toggle" checked onchange="toggleHl(this)"> Show claims
+    </label>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" onclick="window.print()">Export PDF</button>
+    <button class="tb-btn" onclick="copyMarkdown()">Copy Markdown</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- PAGE 1                                                  -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="page-stack" id="page-stack">
+<div class="page" id="p1">
+  <div class="running-hdr">
+    <span class="doc-title">SHIFTING LIVELIHOODS: GOLD MINING AND SUBSISTENCE</span>
+    <span class="pg-num">483</span>
+  </div>
+
+  <div class="doc-header">
+    <div class="doc-number">Knowledge Graph Report · tubb2020shift · Generated 2026-05-24</div>
+    <div class="doc-title-main">Shifting Livelihoods:<br>Gold Mining and Subsistence<br>in the Colombian Pacific Lowlands</div>
+    <div class="doc-subtitle">A knowledge-graph report synthesised from 196 extracted claims across 3 source documents</div>
+    <div class="doc-meta-row">Daniel J. Tubb · 2020 · Chocó, Colombia · 7 entities · 196 claims</div>
+  </div>
+
+  <div class="sec-head">I. Don Alfonso — Person</div>
+
+  <div class="body-text">
+    <p class="no-indent"><span class="dropcap">D</span><sc class="sc">on Alfonso</sc> is an artisanal gold miner and itinerant trader from a village in the Colombian Pacific lowlands. His livelihood rested on a dual household economy of subsistence production and mining, which distinguished him markedly from his neighbour <span class="sc">Pedro</span>.<span class="fn" data-fn="1" onclick="litFn(1,event)">1</span> More so than <span class="sc">Pedro</span>, he <span class="hl" data-id="c-cash" onclick="openClaim('c-cash',event)">habitually entered into the wider cash economy</span><span class="fn" data-fn="2" onclick="litFn(2,event)">2</span> by selling the gold extracted from his mine.</p>
+
+    <p><span class="sc">Don Alfonso</span> <span class="hl" data-id="c-fund" onclick="openClaim('c-fund',event)">funded his trips to Medellín and Pereira from the sale of gold from his mine</span>,<span class="fn" data-fn="3" onclick="litFn(3,event)">3</span> calling these commercial expeditions his <em>rebusque</em>.<span class="fn" data-fn="4" onclick="litFn(4,event)">4</span> The word — from the verb <em>rebuscar</em>, to forage or rummage — carried connotations of resourceful self-reliance that <span class="sc">Don Alfonso</span> treated as a transmissible skill requiring city knowledge and trusted merchant contacts.<span class="fn" data-fn="5" onclick="litFn(5,event)">5</span></p>
+
+    <p>Over the course of his adult life, <span class="sc">Don Alfonso</span> <span class="hl" data-id="c-andes" onclick="openClaim('c-andes',event)">gone over the Andes to the Eje Cafetero to look for work — picking coffee or engaging in petty trading</span>.<span class="fn" data-fn="6" onclick="litFn(6,event)">6</span> He also <span class="hl" data-id="c-saudi" onclick="openClaim('c-saudi',event)">went to Saudi Arabia as a young man</span>,<span class="fn" data-fn="7" onclick="litFn(7,event)">7</span> one of the older Chocoano migrants to the Gulf before the wave of the 2000s. These movements constituted a geography of labour that extended well beyond the Pacific lowlands.</p>
+
+    <p>On his commercial trips to <span class="sc">Medellín</span>, <span class="sc">Don Alfonso</span> exhibited a careful economic rationality: he <span class="hl" data-id="c-compare" onclick="openClaim('c-compare',event)">compared prices at several wholesale shops before buying</span>,<span class="fn" data-fn="8" onclick="litFn(8,event)">8</span> <span class="hl" data-id="c-trust" onclick="openClaim('c-trust',event)">knew which wholesale vendors to trust</span>,<span class="fn" data-fn="9" onclick="litFn(9,event)">9</span> and <span class="hl" data-id="c-cred" onclick="openClaim('c-cred',event)">mistrusted credit arrangements with merchants</span>.<span class="fn" data-fn="10" onclick="litFn(10,event)">10</span> Before departure he <span class="hl" data-id="c-gold" onclick="openClaim('c-gold',event)">counted his gold dust at a jewelry shop in the centro</span><span class="fn" data-fn="11" onclick="litFn(11,event)">11</span> and <span class="hl" data-id="c-hostal" onclick="openClaim('c-hostal',event)">stayed in a cheap hostal near the central market</span>.<span class="fn" data-fn="12" onclick="litFn(12,event)">12</span></p>
+  </div>
+
+  <!-- Footnotes -->
+  <div class="footnotes">
+    <ul class="fn-list">
+      <li class="fn-item" id="fn1" data-fn="1" onclick="litFn(1,event)"><span class="fn-marker">1.</span><span class="fn-text">On the dual household economy: <span class="fn-src">tubb2020shift, Ch. 1, p. 31.</span></span></li>
+      <li class="fn-item" id="fn2" data-fn="2" onclick="litFn(2,event)"><span class="fn-marker">2.</span><span class="fn-text">"More so than Pedro, Don Alfonso habitually entered into the wider cash economy by selling gold." <span class="fn-src">Ibid., p. 31.</span></span></li>
+      <li class="fn-item" id="fn3" data-fn="3" onclick="litFn(3,event)"><span class="fn-marker">3.</span><span class="fn-text">"Don Alfonso would fund his trips to Medellín or Pereira from the sale of gold from his mine." <span class="fn-src">Ibid., p. 23, chars. 1240–1312.</span></span></li>
+      <li class="fn-item" id="fn4" data-fn="4" onclick="litFn(4,event)"><span class="fn-marker">4.</span><span class="fn-text">"…calling these shopping trips his <em>rebusque</em>." <span class="fn-src">Ibid., p. 25.</span></span></li>
+      <li class="fn-item" id="fn5" data-fn="5" onclick="litFn(5,event)"><span class="fn-marker">5.</span><span class="fn-text">On <em>rebusque</em> as a teachable skill: <span class="fn-src">Ibid., Ch. 3, p. 11.</span></span></li>
+      <li class="fn-item" id="fn6" data-fn="6" onclick="litFn(6,event)"><span class="fn-marker">6.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 2, p. 8.</span></span></li>
+      <li class="fn-item" id="fn7" data-fn="7" onclick="litFn(7,event)"><span class="fn-marker">7.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 2, p. 11.</span></span></li>
+      <li class="fn-item" id="fn8" data-fn="8" onclick="litFn(8,event)"><span class="fn-marker">8.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 1, p. 22.</span></span></li>
+      <li class="fn-item" id="fn9" data-fn="9" onclick="litFn(9,event)"><span class="fn-marker">9.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 3, p. 6.</span></span></li>
+      <li class="fn-item" id="fn10" data-fn="10" onclick="litFn(10,event)"><span class="fn-marker">10.</span><span class="fn-text">"I do not buy on credit here. Credit is a trap." <span class="fn-src">Ibid., Ch. 3, p. 7.</span></span></li>
+      <li class="fn-item" id="fn11" data-fn="11" onclick="litFn(11,event)"><span class="fn-marker">11.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 1, p. 23.</span></span></li>
+      <li class="fn-item" id="fn12" data-fn="12" onclick="litFn(12,event)"><span class="fn-marker">12.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 1, p. 19.</span></span></li>
+    </ul>
+  </div>
+  <div class="pg-footer">483</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- PAGE 2                                                  -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="page" id="p2">
+  <div class="running-hdr">
+    <span class="doc-title">SHIFTING LIVELIHOODS · KNOWLEDGE REPORT</span>
+    <span class="pg-num">484</span>
+  </div>
+
+  <div class="body-text">
+    <p class="no-indent">On his return journeys, <span class="sc">Don Alfonso</span> <span class="hl" data-id="c-carry" onclick="openClaim('c-carry',event)">carried merchandise on the bus back to Quibdó</span><span class="fn" data-fn="13" onclick="litFn(13,event)">13</span> and subsequently <span class="hl" data-id="c-resell" onclick="openClaim('c-resell',event)">resold goods in his village at a small profit</span>.<span class="fn" data-fn="14" onclick="litFn(14,event)">14</span> He <span class="hl" data-id="c-news" onclick="openClaim('c-news',event)">brought news from the city back to the community</span> — prices, politics, who had been seen — functioning as an informal information broker as much as a commercial one.<span class="fn" data-fn="15" onclick="litFn(15,event)">15</span></p>
+
+    <p><span class="sc">Don Alfonso</span> <span class="hl" data-id="c-teach" onclick="openClaim('c-teach',event)">considered the <em>rebusque</em> a skill worth teaching</span> and <span class="hl" data-id="c-pride" onclick="openClaim('c-pride',event)">took pride in his self-sufficiency and knowledge of the city</span>.<span class="fn" data-fn="16" onclick="litFn(16,event)">16</span> He spoke of the city with a proprietorial familiarity, as if it were a space he had made his own through years of repeated negotiation.</p>
+  </div>
+
+  <hr class="sec-rule">
+  <div class="sec-head">II. Pedro — Person</div>
+
+  <div class="body-text">
+    <p class="no-indent"><span class="dropcap">P</span><sc class="sc">edro</sc> represents the more rooted pole of the livelihood spectrum in the same village. Unlike <span class="sc">Don Alfonso</span>, he <span class="hl" data-id="p-village" onclick="openClaim('p-village',event)">seldom left the village</span><span class="fn" data-fn="17" onclick="litFn(17,event)">17</span> and <span class="hl" data-id="p-subsist" onclick="openClaim('p-subsist',event)">relied almost entirely on subsistence farming and garden produce</span>.<span class="fn" data-fn="18" onclick="litFn(18,event)">18</span> His world was organised around the village and the forest rather than the wider cash economy.</p>
+
+    <p><span class="sc">Pedro</span> <span class="hl" data-id="p-mine" onclick="openClaim('p-mine',event)">had a smaller artisanal mine than <span class="sc">Don Alfonso</span></span><span class="fn" data-fn="19" onclick="litFn(19,event)">19</span> and, when cash was tight, <span class="hl" data-id="p-kin" onclick="openClaim('p-kin',event)">depended on kin networks for cash inputs during lean months</span><span class="fn" data-fn="20" onclick="litFn(20,event)">20</span> rather than commercial circuits. He <span class="hl" data-id="p-garden" onclick="openClaim('p-garden',event)">maintained an extensive household garden with plantains and corn</span><span class="fn" data-fn="21" onclick="litFn(21,event)">21</span> and <span class="hl" data-id="p-tools" onclick="openClaim('p-tools',event)">bought tools locally through the village store rather than Medellín wholesalers</span>.<span class="fn" data-fn="22" onclick="litFn(22,event)">22</span></p>
+
+    <p>Taken together, <span class="sc">Don Alfonso</span> and <span class="sc">Pedro</span> represent two differentiated — though not opposed — strategies of livelihood within the same household economy. The <em>rebusque</em> is not available to all; it requires capital, contacts, knowledge, and a tolerance for mobility that not all residents possess equally.</p>
+  </div>
+
+  <hr class="sec-rule">
+  <div class="sec-head">III. Rebusque — Concept</div>
+
+  <div class="body-text">
+    <p class="no-indent">The <em>rebusque</em> — from the verb <em>rebuscar</em>, to rummage or forage — describes <span class="hl" data-id="reb-def" onclick="openClaim('reb-def',event)">an informal economy practice of buying low and selling higher through petty commerce</span>.<span class="fn" data-fn="23" onclick="litFn(23,event)">23</span> For <span class="sc">Don Alfonso</span>, it <span class="hl" data-id="reb-dignity" onclick="openClaim('reb-dignity',event)">carried a sense of dignity and self-sufficiency distinct from wage labour or welfare dependence</span>.<span class="fn" data-fn="24" onclick="litFn(24,event)">24</span> It was, in short, a mark of self-reliance, not a last resort.</p>
+  </div>
+
+  <div class="footnotes">
+    <ul class="fn-list">
+      <li class="fn-item" id="fn13" data-fn="13" onclick="litFn(13,event)"><span class="fn-marker">13.</span><span class="fn-text"><span class="fn-src">tubb2020shift, Ch. 1, p. 26.</span></span></li>
+      <li class="fn-item" id="fn14" data-fn="14" onclick="litFn(14,event)"><span class="fn-marker">14.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 3, p. 8.</span></span></li>
+      <li class="fn-item" id="fn15" data-fn="15" onclick="litFn(15,event)"><span class="fn-marker">15.</span><span class="fn-text">"He returned not only with goods but with news." <span class="fn-src">Ibid., Ch. 3, p. 9.</span></span></li>
+      <li class="fn-item" id="fn16" data-fn="16" onclick="litFn(16,event)"><span class="fn-marker">16.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 3, pp. 11–12.</span></span></li>
+      <li class="fn-item" id="fn17" data-fn="17" onclick="litFn(17,event)"><span class="fn-marker">17.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 1, p. 31.</span></span></li>
+      <li class="fn-item" id="fn18" data-fn="18" onclick="litFn(18,event)"><span class="fn-marker">18.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 1, p. 32.</span></span></li>
+      <li class="fn-item" id="fn19" data-fn="19" onclick="litFn(19,event)"><span class="fn-marker">19.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 1, p. 34.</span></span></li>
+      <li class="fn-item" id="fn20" data-fn="20" onclick="litFn(20,event)"><span class="fn-marker">20.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 2, p. 2.</span></span></li>
+      <li class="fn-item" id="fn21" data-fn="21" onclick="litFn(21,event)"><span class="fn-marker">21.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 1, p. 33.</span></span></li>
+      <li class="fn-item" id="fn22" data-fn="22" onclick="litFn(22,event)"><span class="fn-marker">22.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 1, p. 35.</span></span></li>
+      <li class="fn-item" id="fn23" data-fn="23" onclick="litFn(23,event)"><span class="fn-marker">23.</span><span class="fn-text"><span class="fn-src">Ibid., Ch. 1, p. 25.</span></span></li>
+      <li class="fn-item" id="fn24" data-fn="24" onclick="litFn(24,event)"><span class="fn-marker">24.</span><span class="fn-text">"For Don Alfonso the <em>rebusque</em> was a mark of self-reliance, not a last resort." <span class="fn-src">Ibid., Ch. 3, p. 13.</span></span></li>
+    </ul>
+  </div>
+  <div class="pg-footer">484</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- PAGE 3 — Entity index / claim table                    -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="page" id="p3">
+  <div class="running-hdr">
+    <span class="doc-title">SHIFTING LIVELIHOODS · ENTITY INDEX</span>
+    <span class="pg-num">485</span>
+  </div>
+
+  <div class="sec-head">Appendix — Entity & Claim Index</div>
+
+  <div class="body-text" style="font-size:11.5px;line-height:1.65">
+    <p class="no-indent" style="margin-bottom:10px">The following index lists all entities extracted from <em>tubb2020shift</em> with their total claim counts. Each entity name is followed by a semicolon-delimited précis of all claims attributed to it in the knowledge graph.</p>
+  </div>
+
+  <!-- Index table -->
+  <div style="margin-top:12px;font-size:10.5px;line-height:1.7">
+
+    <div style="display:grid;grid-template-columns:170px 1fr;border-top:1.5px solid #888;padding:6px 0;font-size:9px;letter-spacing:.07em;font-weight:700;text-transform:uppercase;color:#555">
+      <div>Entity (type)</div><div>Claims précis</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:170px 1fr;border-top:1px solid #ccc;padding:7px 0;align-items:start">
+      <div style="padding-right:12px"><strong class="sc" style="font-size:11px">Don Alfonso</strong><br><span style="font-size:9px;color:#666;font-style:italic">person · 72 claims</span></div>
+      <div style="font-family:var(--serif);font-size:11px;line-height:1.7;text-align:justify">gone over the Andes to the Eje Cafetero to look for work; went to Saudi Arabia as a young man; traveled by bus from Quibdó to Medellín; funded his trips from mine sales; called shopping trips his <em>rebusque</em>; relied on a dual household economy; habitually entered into the wider cash economy; compared prices at wholesale shops; mistrusted credit arrangements; counted gold dust at a jewelry shop; stayed in a cheap hostal; carried merchandise back to Quibdó; resold goods at a small profit; brought news from the city; considered the <em>rebusque</em> a skill worth teaching; took pride in his self-sufficiency and knowledge of the city.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:170px 1fr;border-top:1px solid #ccc;padding:7px 0;align-items:start">
+      <div style="padding-right:12px"><strong class="sc" style="font-size:11px">Pedro</strong><br><span style="font-size:9px;color:#666;font-style:italic">person · 31 claims</span></div>
+      <div style="font-family:var(--serif);font-size:11px;line-height:1.7;text-align:justify">seldom left the village; relied almost entirely on subsistence farming; had a smaller artisanal mine than Don Alfonso; depended on kin networks for cash; maintained an extensive household garden; used a mining technique different from Don Alfonso's; bought tools locally rather than from Medellín wholesalers.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:170px 1fr;border-top:1px solid #ccc;padding:7px 0;align-items:start">
+      <div style="padding-right:12px"><strong class="sc" style="font-size:11px">Rebusque</strong><br><span style="font-size:9px;color:#666;font-style:italic">concept · 18 claims</span></div>
+      <div style="font-family:var(--serif);font-size:11px;line-height:1.7;text-align:justify">an informal economy practice of buying low and selling higher through petty commerce; treated by Don Alfonso as a transmissible skill requiring city knowledge and merchant contacts; carried a sense of dignity distinct from wage labour; functioned as the cash complement to subsistence production; a widespread Afro-Colombian economic strategy.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:170px 1fr;border-top:1px solid #ccc;padding:7px 0;align-items:start">
+      <div style="padding-right:12px"><strong class="sc" style="font-size:11px">Medellín</strong><br><span style="font-size:9px;color:#666;font-style:italic">place · 22 claims</span></div>
+      <div style="font-family:var(--serif);font-size:11px;line-height:1.7;text-align:justify">site of the wholesale district for lowland traders; connected to Quibdó by an overnight bus; centro contained jewelry shops where miners exchanged gold dust; cheap hostals near the central market served itinerant traders; a source of urban knowledge brought back to village economies.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:170px 1fr;border-top:1px solid #ccc;padding:7px 0;align-items:start">
+      <div style="padding-right:12px"><strong class="sc" style="font-size:11px">Quibdó</strong><br><span style="font-size:9px;color:#666;font-style:italic">place · 28 claims</span></div>
+      <div style="font-family:var(--serif);font-size:11px;line-height:1.7;text-align:justify">capital of the Chocó department; regional hub connecting river villages to national markets; linked to Medellín by overnight bus; village stores re-stocked using goods brought by traders like Don Alfonso.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:170px 1fr;border-top:1px solid #ccc;padding:7px 0;align-items:start">
+      <div style="padding-right:12px"><strong class="sc" style="font-size:11px">Eje Cafetero</strong><br><span style="font-size:9px;color:#666;font-style:italic">place · 14 claims</span></div>
+      <div style="font-family:var(--serif);font-size:11px;line-height:1.7;text-align:justify">coffee-growing highland region to the east; seasonal wage labour destination for lowland men; includes the cities of Pereira and Armenia; reached by crossing the Western Cordillera.</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:170px 1fr;border-top:1px solid #ccc;border-bottom:1.5px solid #888;padding:7px 0;align-items:start">
+      <div style="padding-right:12px"><strong class="sc" style="font-size:11px">Don Alfonso's Wife</strong><br><span style="font-size:9px;color:#666;font-style:italic">person · 11 claims</span></div>
+      <div style="font-family:var(--serif);font-size:11px;line-height:1.7;text-align:justify">lived in Medellín for a period; brought Don Alfonso's daughter-in-law to the village; managed the household garden during his absences; communicated household needs ahead of his Medellín trips.</div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;font-size:9px;color:#888;font-family:system-ui,sans-serif;text-align:center;letter-spacing:.05em">
+    GENERATED BY FICHERO · tubb2020shift · 196 CLAIMS · 2026-05-24
+  </div>
+
+  <div class="pg-footer">485</div>
+</div>
+</div><!-- /page-stack -->
+
+<!-- ── Claim popover ── -->
+<div class="popover" id="popover">
+  <div class="pop-hdr">
+    <span class="pop-hdr-label" id="pop-type">CLAIM · FACT</span>
+    <button class="pop-close" onclick="closePopover()">×</button>
+  </div>
+  <div class="pop-body">
+    <div class="svo" id="pop-svo"></div>
+    <div class="pop-meta" id="pop-meta"></div>
+    <div class="pop-exc">
+      <div class="pop-exc-lbl">SOURCE EXCERPT</div>
+      <div class="pop-exc-txt" id="pop-exc"></div>
+    </div>
+    <div class="pop-src">
+      <div>
+        <div class="pop-src-doc" id="pop-src-doc"></div>
+        <div class="pop-src-pg"  id="pop-src-pg"></div>
+      </div>
+      <button class="pop-jump">Jump to source →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Claim data ────────────────────────────────────────────────────────────────
+const CLAIMS = {
+  'c-cash':    { type:'Fact', subj:'Don Alfonso', verb:'entered into', obj:'wider cash economy', place:'Upper valley', speaker:'Tubb (narrator)', exc:'"More so than Pedro, Don Alfonso habitually entered into the wider cash economy by selling gold."', src:'tubb2020shift · Ch. 1', pg:'p. 31' },
+  'c-fund':    { type:'Fact', subj:'Don Alfonso', verb:'funded trips to', obj:'Medellín · mine sales', place:'Medellín / Pereira', time:'habitual', speaker:'Tubb (narrator)', exc:'"Don Alfonso would fund his trips to Medellín or Pereira from the sale of gold from his mine…"', src:'tubb2020shift · Ch. 1', pg:'p. 23' },
+  'c-andes':   { type:'Fact', subj:'Don Alfonso', verb:'gone over the Andes to', obj:'Eje Cafetero · work', place:'Eje Cafetero', time:'periodic', speaker:'Tubb (narrator)', exc:'"Don Alfonso had gone over the Andes to the Eje Cafetero to look for work, picking coffee or engaging in petty trading."', src:'tubb2020shift · Ch. 2', pg:'p. 8' },
+  'c-saudi':   { type:'Fact', subj:'Don Alfonso', verb:'went to', obj:'Saudi Arabia', place:'Saudi Arabia', time:'as a young man', speaker:'Don Alfonso', exc:'"He had been to Saudi Arabia as a young man."', src:'tubb2020shift · Ch. 2', pg:'p. 11' },
+  'c-compare': { type:'Fact', subj:'Don Alfonso', verb:'compared prices at', obj:'several wholesale shops', place:'Medellín', time:'October 2014', speaker:'Tubb (narrator)', exc:'"He did not rush. He walked the length of the street comparing prices before he committed."', src:'tubb2020shift · Ch. 1', pg:'p. 22' },
+  'c-trust':   { type:'Fact', subj:'Don Alfonso', verb:'knew which vendors', obj:'to trust', place:'Medellín', speaker:'Tubb (narrator)', exc:'"His knowledge of who to trust was the product of years of these trips."', src:'tubb2020shift · Ch. 3', pg:'p. 6' },
+  'c-cred':    { type:'Fact · Quote', subj:'Don Alfonso', verb:'mistrusted', obj:'credit arrangements', speaker:'Don Alfonso (direct speech)', exc:'"I do not buy on credit here. Credit is a trap."', src:'tubb2020shift · Ch. 3', pg:'p. 7' },
+  'c-gold':    { type:'Fact', subj:'Don Alfonso', verb:'counted gold dust at', obj:'jewelry shop · centro', place:'Medellín centro', time:'October 2014', speaker:'Tubb (narrator)', exc:'"He handed the small cloth packet to the jeweler, who weighed it on a small scale."', src:'tubb2020shift · Ch. 1', pg:'p. 23' },
+  'c-hostal':  { type:'Fact', subj:'Don Alfonso', verb:'stayed in', obj:'cheap hostal · central market', place:'Medellín', time:'October 2014', speaker:'Tubb (narrator)', exc:'"The hostal cost twelve thousand pesos a night and was within walking distance of the wholesale district."', src:'tubb2020shift · Ch. 1', pg:'p. 19' },
+  'c-carry':   { type:'Fact', subj:'Don Alfonso', verb:'carried merchandise on', obj:'bus back to Quibdó', place:'Medellín→Quibdó bus', speaker:'Tubb (narrator)', exc:'"He loaded two large bags and a smaller rucksack into the bus hold."', src:'tubb2020shift · Ch. 1', pg:'p. 26' },
+  'c-resell':  { type:'Fact', subj:'Don Alfonso', verb:'resold goods in', obj:'village · small profit', place:'Village, Chocó', speaker:'Tubb (narrator)', exc:'"The margin was small but reliable — enough to fund the next trip."', src:'tubb2020shift · Ch. 3', pg:'p. 8' },
+  'c-news':    { type:'Fact', subj:'Don Alfonso', verb:'brought news from', obj:'city · community', place:'Village, Chocó', speaker:'Tubb (narrator)', exc:'"He returned not only with goods but with news."', src:'tubb2020shift · Ch. 3', pg:'p. 9' },
+  'c-teach':   { type:'Fact · Quote', subj:'Don Alfonso', verb:'considered rebusque', obj:'skill worth teaching', speaker:'Don Alfonso (direct speech)', exc:'"This is something you learn. I am teaching my grandson."', src:'tubb2020shift · Ch. 3', pg:'p. 11' },
+  'c-pride':   { type:'Fact', subj:'Don Alfonso', verb:'took pride in', obj:'self-sufficiency · city knowledge', speaker:'Tubb (narrator)', exc:'"He spoke of the city with a proprietorial familiarity."', src:'tubb2020shift · Ch. 3', pg:'p. 12' },
+  'p-village': { type:'Fact', subj:'Pedro', verb:'seldom left', obj:'the village', speaker:'Tubb (narrator)', exc:'"Unlike Don Alfonso, Pedro rarely left the village for more than a day."', src:'tubb2020shift · Ch. 1', pg:'p. 31' },
+  'p-subsist': { type:'Fact', subj:'Pedro', verb:'relied on', obj:'subsistence farming', speaker:'Tubb (narrator)', exc:'"Pedro\'s household economy was almost entirely subsistence-based."', src:'tubb2020shift · Ch. 1', pg:'p. 32' },
+  'p-mine':    { type:'Fact', subj:'Pedro', verb:'had smaller mine than', obj:'Don Alfonso', speaker:'Tubb (narrator)', exc:'"His mine was smaller and less productive than Don Alfonso\'s."', src:'tubb2020shift · Ch. 1', pg:'p. 34' },
+  'p-kin':     { type:'Fact', subj:'Pedro', verb:'depended on', obj:'kin networks · cash inputs', speaker:'Tubb (narrator)', exc:'"When cash was tight Pedro turned to family rather than the market."', src:'tubb2020shift · Ch. 2', pg:'p. 2' },
+  'p-garden':  { type:'Fact', subj:'Pedro', verb:'maintained', obj:'extensive garden · plantains and corn', speaker:'Tubb (narrator)', exc:'"His garden was extensive — plantain, corn, some fruit trees."', src:'tubb2020shift · Ch. 1', pg:'p. 33' },
+  'p-tools':   { type:'Fact', subj:'Pedro', verb:'bought tools through', obj:'village store', speaker:'Tubb (narrator)', exc:'"Pedro bought his tools from the village store, not from the wholesale districts of Medellín."', src:'tubb2020shift · Ch. 1', pg:'p. 35' },
+  'reb-def':   { type:'Definition', subj:'Rebusque', verb:'is', obj:'informal economy practice · petty commerce', speaker:'Tubb (narrator)', exc:'"Rebusque — from the verb rebuscar, to rummage or forage…"', src:'tubb2020shift · Ch. 1', pg:'p. 25' },
+  'reb-dignity':{ type:'Interpretation', subj:'Rebusque', verb:'carried sense of', obj:'dignity · self-sufficiency', speaker:'Tubb (narrator)', exc:'"For Don Alfonso the rebusque was a mark of self-reliance, not a last resort."', src:'tubb2020shift · Ch. 3', pg:'p. 13' },
+};
+
+// ── Highlight toggle ──────────────────────────────────────────────────────────
+function toggleHl(cb) {
+  document.getElementById('page-stack').classList.toggle('no-hl', !cb.checked);
+}
+
+// ── Footnote lit ─────────────────────────────────────────────────────────────
+let activeFn = null;
+function litFn(n, e) {
+  if (e) e.stopPropagation();
+  if (activeFn === n) { unlitFn(); return; }
+  unlitFn();
+  activeFn = n;
+  document.querySelectorAll(`[data-fn="${n}"]`).forEach(el => {
+    if (el.classList.contains('fn')) el.classList.add('lit');
+    if (el.classList.contains('fn-item')) { el.classList.add('lit'); el.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+  });
+}
+function unlitFn() {
+  if (!activeFn) return;
+  document.querySelectorAll(`[data-fn="${activeFn}"]`).forEach(el => el.classList.remove('lit'));
+  activeFn = null;
+}
+
+// ── Claim popover ─────────────────────────────────────────────────────────────
+let activeClaimId = null;
+function openClaim(id, e) {
+  e.stopPropagation();
+  const c = CLAIMS[id];
+  if (!c) return;
+  if (activeClaimId) document.querySelector(`.hl[data-id="${activeClaimId}"]`)?.classList.remove('active');
+  activeClaimId = id;
+  document.querySelector(`.hl[data-id="${id}"]`)?.classList.add('active');
+  document.getElementById('pop-type').textContent = `CLAIM · ${c.type}`;
+  document.getElementById('pop-svo').innerHTML = `<span class="sv-s">${c.subj}</span><span class="sv-v">${c.verb}</span><span class="sv-o">${c.obj}</span>`;
+  let pills = '';
+  if (c.place)   pills += `<span class="pm pm-pl">📍 ${c.place}</span>`;
+  if (c.time)    pills += `<span class="pm pm-tm">⏱ ${c.time}</span>`;
+  if (c.speaker) pills += `<span class="pm pm-sp">🗣 ${c.speaker}</span>`;
+  document.getElementById('pop-meta').innerHTML = pills;
+  document.getElementById('pop-exc').innerHTML = c.exc || '';
+  document.getElementById('pop-src-doc').textContent = c.src || '';
+  document.getElementById('pop-src-pg').textContent = c.pg || '';
+  const pop = document.getElementById('popover');
+  pop.classList.add('vis');
+  const r = e.target.getBoundingClientRect(), pw = 340, ph = 260;
+  let top = r.bottom + 8, left = r.left;
+  if (left + pw > window.innerWidth - 12) left = window.innerWidth - pw - 12;
+  if (top + ph > window.innerHeight - 12) top = r.top - ph - 8;
+  pop.style.top = top + 'px'; pop.style.left = left + 'px';
+}
+function closePopover() {
+  document.getElementById('popover').classList.remove('vis');
+  if (activeClaimId) { document.querySelector(`.hl[data-id="${activeClaimId}"]`)?.classList.remove('active'); activeClaimId = null; }
+}
+document.addEventListener('click', e => { if (!e.target.closest('.hl') && !e.target.closest('.popover')) closePopover(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePopover(); unlitFn(); } });
+
+// ── Export markdown ───────────────────────────────────────────────────────────
+function copyMarkdown() {
+  const lines = ['# Shifting Livelihoods: Knowledge Graph Report\n\n*Generated by Fichero from tubb2020shift · 196 claims · 7 entities*\n'];
+  document.querySelectorAll('.body-text p').forEach(p => {
+    lines.push(p.textContent.trim().replace(/\s+/g,' ') + '\n');
+  });
+  navigator.clipboard.writeText(lines.join('\n')).then(() => alert('Copied Markdown'));
+}
+</script>
+</body>
+</html>
