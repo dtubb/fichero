@@ -2196,3 +2196,13 @@ Two sessions continuing #1178 (transcription profiles) and paleography pipeline 
 - Completed #1199 (persistent inspector), #1189 (five-pane reading layout), and #1190 (KG inspector Text mode) as recorded in STATE.
 - Updated autoloop default runtime to `pi --provider openrouter --model qwen/qwen3-coder:free`.
 - No additional code changes were made in this wrap-up step.
+
+## 2026-05-24 — Session Summary
+
+- Entity claim count badges + WorkflowEdge routeKey/routeMap sync (#1173)
+- Batch verification harness for paleography pipeline (#1177)
+- Pronoun antecedent annotation in two-stage extraction (#1173)
+- swiftlint fixes: implicit_optional_initialization + trailing_newline (ClaimFocusState/FeatureManager)
+- Cascade loop refactored to N-tier LangGraph architecture (autoloop repo)
+- Decided: route Python/backend/architectural issues to Claude Sonnet directly; cheap cascade only for scoped SwiftUI tweaks
+- Partial #1188 SwiftUI work (PDFReadingView + selectedPageIndex) committed as starting point
