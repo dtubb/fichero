@@ -39,6 +39,7 @@ struct ContentView: View {
     @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
+    @EnvironmentObject var claimFocusState: ClaimFocusState
 
     // MARK: - State (synced with @SceneStorage for persistence)
 
@@ -797,6 +798,11 @@ struct ContentView: View {
                 .frame(width: CGFloat(inspectorWidth))
         }
         } // end HStack — inspector is window-level, not inside NavigationSplitView (#1199)
+        
+        // Listen for claim selection from inspector and sync to other panes
+        .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { _ in
+            // This is handled by the individual panes through their own ClaimFocusState observation
+        }
     }
 }
 

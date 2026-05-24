@@ -7,7 +7,35 @@ import SwiftUI
 
 private let logger = Logger(subsystem: "com.fichero.fichero", category: "ContentView")
 
+// MARK: - Notification Names
+
+extension Notification.Name {
+    /// Posted when a page should be scrolled to in the PDF view
+    static let scrollToPage = Notification.Name("scrollToPage")
+}
+
 extension ContentView {
+
+    // MARK: - Document and Navigation Helpers
+    
+    /// Select a document by ID
+    private func selectDocument(withId documentId: String) {
+        if let doc = documentStore.currentDocuments.first(where: { $0.id == documentId }) {
+            detailDocument = doc
+            browserSelection = [documentId]
+        }
+    }
+    
+    /// Scroll to a specific page in the PDF
+    private func scrollToPage(pageLabel: String) {
+        // This will be implemented in the PDFPageView component
+        // For now, we'll post a notification that the PDF view can listen to
+        NotificationCenter.default.post(
+            name: .scrollToPage,
+            object: self,
+            userInfo: ["pageLabel": pageLabel]
+        )
+    }
 
     // MARK: - Pane Focus Cycling
 
@@ -32,6 +60,49 @@ extension ContentView {
         } else {
             focusedPane = panes[(idx + 1) % panes.count]
         }
+    }
+
+    // MARK: - Claim Selection Sync
+
+    /// Handle claim selection from any pane and sync to all other panes
+    func syncClaimSelection(
+        claimId: String,
+        claimText: String? = nil,
+        sourceDocumentId: String? = nil,
+        pageLabel: String? = nil,
+        charStart: Int? = nil,
+        charEnd: Int? = nil
+    ) {
+        // Only sync if the feature is enabled
+        guard FeatureManager.shared.isClaimHighlightSyncEnabled else { return }
+        
+        logger.debug("Syncing claim selection: \(claimId)")
+        
+        // Update the global claim focus state
+        claimFocusState.selectClaim(
+            claimId: claimId,
+            claimText: claimText,
+            sourceDocumentId: sourceDocumentId,
+            pageLabel: pageLabel,
+            charStart: charStart,
+            charEnd: charEnd
+        )
+        
+        // If the claim has a source document, select it in the grid
+        if let sourceDocId = sourceDocumentId, sourceDocId != inspectorDocument?.id {
+            selectDocument(withId: sourceDocId)
+        }
+        
+        // If the claim has page information, scroll to it in the PDF
+        if let pageLabel = pageLabel {
+            scrollToPage(pageLabel: pageLabel)
+        }
+    }
+    
+    /// Clear the claim selection
+    func clearClaimSelection() {
+        guard FeatureManager.shared.isClaimHighlightSyncEnabled else { return }
+        claimFocusState.clearSelection()
     }
 
     var showsPreviewPane: Bool {

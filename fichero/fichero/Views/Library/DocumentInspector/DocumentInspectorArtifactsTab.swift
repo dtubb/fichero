@@ -644,11 +644,14 @@ struct KnowledgeGraphInspectorSection: View {
     /// navigate (typically: select the parent file in the grid). Optional
     /// so previews and standalone uses still compile. (#833)
     var onNavigateToSource: ((String) -> Void)?
+    /// Called when the user clicks on a claim to select it for highlighting
+    var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
     @State private var entitiesById: [String: Components.Schemas.KnowledgeEntity] = [:]
     @State private var isLoading = false
     @State private var loadError: String?
+    @EnvironmentObject private var claimFocusState: ClaimFocusState
 
     /// Comma-joined raw values of EntityKinds the user has hidden from the
     /// KG list. Persisted across launches so the filter survives restarts.
@@ -870,7 +873,8 @@ struct KnowledgeGraphInspectorSection: View {
                     EntityKindBlock(
                         kind: kind,
                         items: items,
-                        onNavigateToSource: onNavigateToSource
+                        onNavigateToSource: onNavigateToSource,
+                        onClaimSelect: onClaimSelect
                     )
                 }
             }
@@ -1097,6 +1101,7 @@ private struct EntityKindBlock: View {
     let kind: EntityKind
     let items: [GroupedItem]
     var onNavigateToSource: ((String) -> Void)?
+    var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
     @AppStorage("inspector.kg.expandedKinds") private var expandedKindsCSV: String = ""
 
@@ -1159,7 +1164,8 @@ private struct EntityKindBlock: View {
                         EntityKindRow(
                             item: item,
                             kind: kind,
-                            onNavigateToSource: onNavigateToSource
+                            onNavigateToSource: onNavigateToSource,
+                            onClaimSelect: onClaimSelect
                         )
                     }
                 }
@@ -1192,10 +1198,13 @@ private struct EntityKindRow: View {
     let item: GroupedItem
     let kind: EntityKind
     var onNavigateToSource: ((String) -> Void)?
+    var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
+    
+    @EnvironmentObject private var claimFocusState: ClaimFocusState
 
     var body: some View {
         // Layout:
-        //   line 1: [name button]  (aka alias1, alias2)  (p. label)   → arrow
+        //   line 1: [name button]  (aka alias1, alias2)  (p. label)   → arrow  [select claim]
         //   line 2: context  (when non-empty, non-redundant)
         // Name is its own Button so a tap doesn't have to compete with
         // textSelection on the rest of the row.
@@ -1204,7 +1213,7 @@ private struct EntityKindRow: View {
                 Button(action: fireEntitySearch) {
                     Text(item.displayName)
                         .font(.body)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(claimFocusState.isClaimSelected(item.claimId) ? Color.accentColor : Color.primary)
                 }
                 .buttonStyle(.plain)
                 .help("Search for \"\(item.displayName)\"")
@@ -1213,6 +1222,26 @@ private struct EntityKindRow: View {
                 trailingText
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
+
+                // Claim selection button for bidirectional sync
+                if let onClaimSelect = onClaimSelect {
+                    Button(action: {
+                        onClaimSelect(
+                            item.claimId,
+                            item.sourceExcerpt,
+                            item.sourceDocumentId,
+                            item.sourcePageLabel,
+                            nil, // charStart - would need to parse from text
+                            nil  // charEnd - would need to parse from text
+                        )
+                    }) {
+                        Image(systemName: claimFocusState.isClaimSelected(item.claimId) ? "star.fill" : "star")
+                            .font(.system(size: 12))
+                            .foregroundStyle(claimFocusState.isClaimSelected(item.claimId) ? Color.accentColor : Color.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(claimFocusState.isClaimSelected(item.claimId) ? "Claim selected for highlighting" : "Select claim for highlighting")
+                }
 
                 if let sourceId = item.sourceDocumentId,
                    let navigate = onNavigateToSource {

@@ -36,3 +36,4 @@ Entity Platform — SwiftUI implementation of five-pane reading layout, KG inspe
 ## Blocked
 
 - OpenRouter weekly key quota can hard-stop remote vision/extraction runs (`403 Key limit exceeded`) on some libraries.
+- 2026-05-24: `/session-start-auto` blocked by dirty source working tree (`fichero/fichero/Models/FeatureManager.swift`, `fichero/fichero/Views/ContentView+Actions.swift`, `fichero/fichero/Views/ContentView.swift`, plus untracked `fichero/fichero/Models/ClaimFocusState.swift`). Clean or commit these changes before autonomous task execution.

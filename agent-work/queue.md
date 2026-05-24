@@ -12,14 +12,14 @@
   completed_at: "2026-05-24"
 
 - issue: 1192
-  status: pending
+  status: done
   title: "KG extractor: always include preposition in svo_verb (e.g. 'entered into', 'funded trips to')"
   files: [fichero-engine/src/fichero/kg/_common.py, fichero-engine/src/fichero/kg/]
   approach: "Update slug_verb() in _common.py to preserve multi-word predicates (join with underscore or hyphen rather than taking first token). Update _SECTIONS instruction strings to include preposition examples. Add 5 unit tests for multi-word verb slugging. Run backend tests."
   est_tokens: 12000
   blocked_reason: null
-  commit: null
-  completed_at: null
+  commit: 5c014477
+  completed_at: 2026-05-24T16:07:05.463453+00:00
 
 - issue: 1193
   status: pending

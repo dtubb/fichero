@@ -95,6 +95,8 @@ class FeatureManager: ObservableObject {
     private var workflowRunOnSelectionEnabledInternal: Bool = false
     @AppStorage("fichero.features.pdf_scroll_grid_sync")
     private var pdfScrollGridSyncEnabledInternal: Bool = false
+    @AppStorage("fichero.features.claim_highlight_sync")
+    private var claimHighlightSyncEnabledInternal: Bool = false
     @AppStorage("fichero.features.release_profile_version")
     private var releaseProfileVersionApplied: Int = 0
 
@@ -159,6 +161,8 @@ class FeatureManager: ObservableObject {
     /// PDF scroll → grid/inspector sync. Defaulted OFF; enable via Settings or `FICHERO_ALL_FEATURES=1`.
     /// Guards the NSScrollView live-scroll observer added in PDFPageView (#591/#592).
     var isPdfScrollGridSyncEnabled: Bool { allFeaturesEnabled || pdfScrollGridSyncEnabledInternal }
+    /// Bidirectional claim highlight sync across PDF, Content, and Inspector panes. Defaulted OFF.
+    var isClaimHighlightSyncEnabled: Bool { allFeaturesEnabled || claimHighlightSyncEnabledInternal }
 
     private init() {
         applyReleaseProfileDefaultsIfNeeded()
@@ -249,4 +253,52 @@ extension View {
             self
         }
     }
+}
+
+// MARK: - ClaimFocusState
+
+/// Observable state for bidirectional claim highlighting across PDF, Content, and Inspector panes.
+@MainActor
+class ClaimFocusState: ObservableObject {
+    static let shared = ClaimFocusState()
+
+    @Published var selectedClaimId: String?
+    @Published var selectedClaimText: String?
+    @Published var selectedClaimSourceDocumentId: String?
+    @Published var selectedClaimPageLabel: String?
+    @Published var selectedClaimCharStart: Int?
+    @Published var selectedClaimCharEnd: Int?
+
+    func selectClaim(
+        claimId: String,
+        claimText: String? = nil,
+        sourceDocumentId: String? = nil,
+        pageLabel: String? = nil,
+        charStart: Int? = nil,
+        charEnd: Int? = nil
+    ) {
+        selectedClaimId = claimId
+        selectedClaimText = claimText
+        selectedClaimSourceDocumentId = sourceDocumentId
+        selectedClaimPageLabel = pageLabel
+        selectedClaimCharStart = charStart
+        selectedClaimCharEnd = charEnd
+        NotificationCenter.default.post(name: .claimFocusChanged, object: self)
+    }
+
+    func clearSelection() {
+        selectedClaimId = nil
+        selectedClaimText = nil
+        selectedClaimSourceDocumentId = nil
+        selectedClaimPageLabel = nil
+        selectedClaimCharStart = nil
+        selectedClaimCharEnd = nil
+        NotificationCenter.default.post(name: .claimFocusChanged, object: self)
+    }
+
+    func isClaimSelected(_ claimId: String) -> Bool { selectedClaimId == claimId }
+}
+
+extension Notification.Name {
+    static let claimFocusChanged = Notification.Name("claimFocusChanged")
 }

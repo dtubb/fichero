@@ -7,6 +7,13 @@
 // split into their own files at that point.
 import SwiftUI
 
+// MARK: - Notification Names
+
+extension Notification.Name {
+    /// Posted when a claim is selected in the inspector
+    static let claimSelectedInInspector = Notification.Name("claimSelectedInInspector")
+}
+
 /// Tab selection for document inspector. Order matters — left-to-right is
 /// content / knowledge graph / info, per Daniel's mental model:
 /// "the document itself" → "the structured world inside it" → "metadata
@@ -102,7 +109,22 @@ struct DocumentInspector: View {
                 KnowledgeGraphInspectorSection(
                     documentId: doc.id,
                     entityService: entityService,
-                    onNavigateToSource: onNavigateToSource
+                    onNavigateToSource: onNavigateToSource,
+                    onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
+                        // Notify the content view to sync claim selection
+                        NotificationCenter.default.post(
+                            name: .claimSelectedInInspector,
+                            object: nil,
+                            userInfo: [
+                                "claimId": claimId,
+                                "claimText": claimText as Any,
+                                "sourceDocumentId": sourceDocId as Any,
+                                "pageLabel": pageLabel as Any,
+                                "charStart": charStart as Any,
+                                "charEnd": charEnd as Any
+                            ]
+                        )
+                    }
                 )
                 .padding()
             }
