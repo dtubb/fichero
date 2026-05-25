@@ -9,9 +9,23 @@
 Daniel testing 0.0.2. If passes, release checklist (#157–#165) in order.
 Multi-agent split active: frontend Claude (#1202/#1204/#1181), backend Codex (#1054/#1173/#1198), pi CLI (imports).
 
-**Manager CONSOLIDATION PLAN (2026-05-25 ~12:40p) — RESUME HERE (switch me to Sonnet 4.6 200k first; Opus runs out of context).**
-All 3 workers session-ended (pi_worker done; codex_worker + claude_worker session-ending). pi_cli
-report at `~/code/fichero-pi/fichero_processing_report.md` (read it — informed bugs #1207/#1208).
+**POST-INTEGRATION STATUS (2026-05-25 ~12:55p) — RESUME HERE (run manager on Sonnet 4.6 200k; Opus burns tokens).**
+✅ BOTH lanes MERGED into trunk: pi (`231900db`: #1205 + #1085) and codex (`ffe2625b`: #1198, #1118 NER,
+#1115 kg_writer, #1111 paragraph, #1206 test-iso, #1179, #1145, #1098). claude frontend (#1180 + 8 closed)
+was already on trunk. Coordination-doc conflicts resolved to trunk's version (--ours).
+Sonnet review + verify ran. **2 FIX-FORWARD items + 1 open bug remain — DO THESE FIRST on restart:**
+1. ❌ `test_validate_simple_workflow` fails (workflow-validation regression from codex's new kg_writer/NER
+   node types) — investigate `test_tool_registry.py::TestWorkflowValidation` + the new node defs; fix-forward.
+2. ❌ OpenAPI schema drift — run `./fichero-engine/scripts/sync_openapi_schema.sh` + commit the regenerated
+   `openapi.json`/`endpoints.json` (new `kg_render.py` route not in committed contract).
+3. 🔴 **#1207 NER runaway still UNFIXED** (codex didn't guard it) — fix direction in the issue comment:
+   cap items/section/page in `_write_kg_rows`, dedup by normalized name, validate count in `LLMNERProvider`.
+THEN: re-run verify (green) → restart `:8765` (backend changed) → forward-sync lanes
+(`git -C ~/code/fichero-codex merge 0.0.2`; same for pi) → clear worker contexts → start next run.
+Also filed today: #1206 (codex FIXED it), #1207, #1208 (vision fallback). Backend `:8765` is RUNNING on
+slightly-stale code (pre-merge) — restart after fix-forward.
+
+--- (original consolidation plan, mostly executed) ---
 Execute this sequence ON RESTART, COMMIT-BY-COMMIT, claude/pi lanes FIRST then codex (it worked most):
 
 1. **Snapshot each lane**: `git log 0.0.2..pi`, `git log 0.0.2..codex`, and trunk `git log` (claude_worker
