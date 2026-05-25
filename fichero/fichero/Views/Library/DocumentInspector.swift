@@ -60,7 +60,7 @@ struct DocumentInspector: View {
                 emptyState
             }
         }
-        .frame(minWidth: 220, maxWidth: .infinity)
+        .frame(minWidth: 220, maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Document Detail
@@ -70,7 +70,9 @@ struct DocumentInspector: View {
             tabBar
             Divider()
             tabContent(for: doc)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxHeight: .infinity)
     }
 
     /// Xcode-style icon-only tab bar
