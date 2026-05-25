@@ -6,7 +6,7 @@ import SwiftUI
 @MainActor
 class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
-    private static let releaseProfileVersion = 24
+    private static let releaseProfileVersion = 25
     private static let workflowV001EnabledTools =
         "files,collection,folder,aggregate,transcribe,catalogue,"
         + "extract_entities,key_people,timeline,keywords,summarize_file,"
@@ -179,7 +179,7 @@ class FeatureManager: ObservableObject {
         libraryIconZoomControlsEnabledInternal = true // 0.0.3 #517: zoom controls re-enabled
         workflowsEnabledInternal = true
         workflowEditorAdvancedViewsEnabled = false
-        workflowChainsEnabledInternal = false
+        workflowChainsEnabledInternal = true
         batchesEnabledInternal = false
         chatEnabledInternal = false
         agentsEnabledInternal = false

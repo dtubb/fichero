@@ -815,6 +815,9 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (hermeneutics.router, "/api/hermeneutics", ["knowledge-graph"]),
     # Canonical KG URL prefix — same router, different mount point (#1126).
     (hermeneutics.router, "/api/kg/interpretations", ["knowledge-graph"]),
+    # Workflow chains: multi-step sequenced pipelines with output mappings.
+    # Promoted from dev-tier to core for 0.0.2 (#1151).
+    (chains.router, "/api", ["chains"]),
 ]
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
@@ -828,7 +831,6 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (iiif.router, "/api/iiif", ["iiif"]),
     # Staged routes — feature-gated behind dev tier
     (actions.router, "/api", ["actions"]),
-    (chains.router, "/api", ["chains"]),
     (integrations.router, "/api", ["integrations"]),
     (local_models.router, "/api", ["local-models"]),
     (mcp_servers.router, "/api", ["mcp-servers"]),
