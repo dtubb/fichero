@@ -2287,3 +2287,11 @@ Two sessions continuing #1178 (transcription profiles) and paleography pipeline 
 - ✅ Closed #1032 with evidence — `.searchable(text: $toolbarQuery, placement: .toolbar)` already present
 - ⏭ #1045, #1048, #928 confirmed real — deferred to next frontend session
 - ⏭ #702, #721 are 0.0.3 milestone; #330 is old milestone — skipped
+
+## 2026-05-25 — SwiftLint file_length cleanup (frontend Claude)
+
+- ✅ Split `APIClient.swift` (451→395 lines): extracted `ErrorResponse`, `APIError`, and `URLRequest.addEngineAuth` into `APIClient+Types.swift`.
+- ✅ Fix-forward: updated `NodeDef` references in `GeneratedTypeExtensions.swift` and `WorkflowServiceGenerated.swift` to use correct generated variant names (`NodeDefOutput` read path, `NodeDefInput` write path) after a full recompile exposed a latent build break from the schema split.
+- ✅ Split `QuickLookComponents.swift` (402→301 lines): extracted `SmartPreviewView`, `QuickLookPreviewView`, `SwipeSiblingNavigator` into `QuickLookPreviewViews.swift`.
+- All `file_length` violations resolved. Build green on both commits (`8bfbf4c2`, `7d1a3eb9`).
+- Remaining non-file_length violation: `SearchResultsDisplay.swift` `type_body_length` (335 lines, pre-existing, not assigned).

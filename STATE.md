@@ -8,6 +8,7 @@
 
 Daniel testing 0.0.2. If passes, release checklist (#157–#165) in order.
 Multi-agent split active: frontend Claude (#1202/#1204/#1181), backend Codex (#1054/#1173/#1198), pi CLI (imports).
+SwiftLint file_length violations: **ALL CLEARED** (8 files split across 2 sessions). Build green. NodeDef schema variant fix committed.
 
 **POST-INTEGRATION STATUS (2026-05-25 ~12:55p) — RESUME HERE (run manager on Sonnet 4.6 200k; Opus burns tokens).**
 ✅ BOTH lanes MERGED into trunk: pi (`231900db`: #1205 + #1085) and codex (`ffe2625b`: #1198, #1118 NER,
