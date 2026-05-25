@@ -547,7 +547,7 @@ extension WorkflowServiceGenerated {
         )
     }
 
-    private func convertNodeDefToWorkflowNode(_ node: Components.Schemas.NodeDef) -> WorkflowNode {
+    private func convertNodeDefToWorkflowNode(_ node: Components.Schemas.NodeDefOutput) -> WorkflowNode {
         // Convert input ports
         let inputPorts: [PortInfo] = (node.inputPorts ?? []).map { port in
             PortInfo(
@@ -663,7 +663,7 @@ extension WorkflowServiceGenerated {
         )
     }
 
-    private func createNodeDef(from node: WorkflowNode) -> Components.Schemas.NodeDef {
+    private func createNodeDef(from node: WorkflowNode) -> Components.Schemas.NodeDefInput {
         let inputPorts = node.inputPorts.map { createPortDef(from: $0) }
         let outputPorts = node.outputPorts.map { createPortDef(from: $0) }
 
@@ -678,24 +678,24 @@ extension WorkflowServiceGenerated {
             }
 
         // Convert inputs to OpenAPIObjectContainer
-        var inputsPayload: Components.Schemas.NodeDef.InputsPayload?
+        var inputsPayload: Components.Schemas.NodeDefInput.InputsPayload?
         if let inputs = node.inputs, !inputs.isEmpty {
             do {
                 let inputsDict = convertAnyCodableValueToDict(inputs)
                 let container = try OpenAPIObjectContainer(unvalidatedValue: inputsDict)
-                inputsPayload = Components.Schemas.NodeDef.InputsPayload(additionalProperties: container)
+                inputsPayload = Components.Schemas.NodeDefInput.InputsPayload(additionalProperties: container)
             } catch {
                 logger.warning("Failed to convert node inputs: \(error)")
             }
         }
 
         // Convert config to OpenAPIObjectContainer
-        var configPayload: Components.Schemas.NodeDef.ConfigPayload?
+        var configPayload: Components.Schemas.NodeDefInput.ConfigPayload?
         if let config = node.config, !config.isEmpty {
             do {
                 let configDict = convertAnyCodableValueToDict(config)
                 let container = try OpenAPIObjectContainer(unvalidatedValue: configDict)
-                configPayload = Components.Schemas.NodeDef.ConfigPayload(additionalProperties: container)
+                configPayload = Components.Schemas.NodeDefInput.ConfigPayload(additionalProperties: container)
             } catch {
                 logger.warning("Failed to convert node config: \(error)")
             }
@@ -716,7 +716,7 @@ extension WorkflowServiceGenerated {
             }
         }
 
-        return Components.Schemas.NodeDef(
+        return Components.Schemas.NodeDefInput(
             id: node.id,
             tool: node.tool,
             inputPorts: inputPorts,

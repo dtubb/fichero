@@ -9,7 +9,7 @@ import SwiftUI
 
 // MARK: - NodeDef Extensions
 
-extension Components.Schemas.NodeDef {
+extension Components.Schemas.NodeDefOutput {
     /// Stable identifier for SwiftUI (handles optional id)
     public var stableId: String {
         self.id ?? "node-\(tool)-\(Int(positionX ?? 0))-\(Int(positionY ?? 0))"

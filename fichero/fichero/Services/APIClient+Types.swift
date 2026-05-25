@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 // MARK: - Response Types
