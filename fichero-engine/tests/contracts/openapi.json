@@ -16098,6 +16098,60 @@
         }
       }
     },
+    "/api/kg/render/paragraph": {
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Render a deterministic KG paragraph",
+        "description": "Compose KnowledgeClaim rows into deterministic prose with bidirectional citation metadata. Consecutive claims sharing the same subject and verb are folded into one sentence, while the response preserves marker offsets and source provenance for each citation.",
+        "operationId": "render_paragraph_api_kg_render_paragraph_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParagraphRenderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParagraphRenderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/pykeen/train": {
       "post": {
         "tags": [
@@ -39985,108 +40039,7 @@
         ],
         "title": "NodeCreateRequest"
       },
-      "NodeDef-Input": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id",
-            "description": "Unique node identifier"
-          },
-          "tool": {
-            "type": "string",
-            "title": "Tool",
-            "description": "Tool function name from registry"
-          },
-          "input_ports": {
-            "items": {
-              "$ref": "#/components/schemas/PortDef"
-            },
-            "type": "array",
-            "title": "Input Ports",
-            "description": "Input connection ports (populated from registry, not stored)"
-          },
-          "output_ports": {
-            "items": {
-              "$ref": "#/components/schemas/PortDef"
-            },
-            "type": "array",
-            "title": "Output Ports",
-            "description": "Output connection ports (populated from registry, not stored)"
-          },
-          "input_mappings": {
-            "items": {
-              "$ref": "#/components/schemas/InputMapping"
-            },
-            "type": "array",
-            "title": "Input Mappings",
-            "description": "Maps input ports to data sources from previous nodes"
-          },
-          "inputs": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Inputs",
-            "description": "Input values for the tool (supports path resolution)"
-          },
-          "config": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Config",
-            "description": "Static tool configuration (not resolved)"
-          },
-          "output_schema": {
-            "$ref": "#/components/schemas/OutputSchema",
-            "nullable": true,
-            "description": "JSON Schema for structured LLM output"
-          },
-          "position_x": {
-            "type": "number",
-            "title": "Position X",
-            "default": 0.0
-          },
-          "position_y": {
-            "type": "number",
-            "title": "Position Y",
-            "default": 0.0
-          },
-          "label": {
-            "type": "string",
-            "title": "Label",
-            "default": ""
-          },
-          "description": {
-            "type": "string",
-            "title": "Description",
-            "default": ""
-          },
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled",
-            "default": true
-          },
-          "provider_name": {
-            "type": "string",
-            "title": "Provider Name",
-            "default": ""
-          },
-          "model_name": {
-            "type": "string",
-            "title": "Model Name",
-            "default": ""
-          },
-          "uses_llm": {
-            "type": "boolean",
-            "title": "Uses Llm",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "tool"
-        ],
-        "title": "NodeDef",
-        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
-      },
-      "NodeDef-Output": {
+      "NodeDef": {
         "properties": {
           "id": {
             "type": "string",
@@ -40703,6 +40656,151 @@
         ],
         "title": "OutputSchema",
         "description": "JSON Schema for structured output from LLM nodes.\n\nWhen specified, the LLM will be instructed to return\ndata matching this schema exactly (using structured output mode).\n\nExample for named entity extraction:\n{\n    \"type\": \"object\",\n    \"properties\": {\n        \"people\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"organizations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"dates\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n    },\n    \"required\": [\"people\", \"organizations\", \"dates\"]\n}"
+      },
+      "ParagraphCitation": {
+        "properties": {
+          "marker_index": {
+            "type": "integer",
+            "title": "Marker Index"
+          },
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "source_page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Page Label"
+          },
+          "source_excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Excerpt"
+          },
+          "source_bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Source Bbox"
+          },
+          "source_char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char Start"
+          },
+          "source_char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "marker_index",
+          "claim_id",
+          "source_document_id"
+        ],
+        "title": "ParagraphCitation",
+        "description": "Source metadata for one rendered citation marker."
+      },
+      "ParagraphMarker": {
+        "properties": {
+          "marker_index": {
+            "type": "integer",
+            "title": "Marker Index"
+          },
+          "start": {
+            "type": "integer",
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "title": "End"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "marker_index",
+          "start",
+          "end",
+          "token"
+        ],
+        "title": "ParagraphMarker",
+        "description": "Marker offsets in the rendered text."
+      },
+      "ParagraphRenderRequest": {
+        "properties": {
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Claim Ids"
+          },
+          "style": {
+            "$ref": "#/components/schemas/ParagraphStyle",
+            "default": "narrative"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_ids"
+        ],
+        "title": "ParagraphRenderRequest",
+        "description": "Request body for KG paragraph rendering."
+      },
+      "ParagraphRenderResponse": {
+        "properties": {
+          "style": {
+            "$ref": "#/components/schemas/ParagraphStyle"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/ParagraphCitation"
+            },
+            "type": "array",
+            "title": "Citations"
+          },
+          "markers": {
+            "items": {
+              "$ref": "#/components/schemas/ParagraphMarker"
+            },
+            "type": "array",
+            "title": "Markers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "style",
+          "text"
+        ],
+        "title": "ParagraphRenderResponse",
+        "description": "Response body for KG paragraph rendering."
+      },
+      "ParagraphStyle": {
+        "type": "string",
+        "enum": [
+          "narrative",
+          "list",
+          "footnoted"
+        ],
+        "title": "ParagraphStyle",
+        "description": "Supported paragraph render styles."
       },
       "PathResponse": {
         "properties": {
@@ -44187,7 +44285,8 @@
           "content_preview",
           "metadata"
         ],
-        "title": "SearchResult"
+        "title": "SearchResult",
+        "description": "Search result with score and document reference."
       },
       "SearchSource": {
         "properties": {
@@ -47525,7 +47624,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef-Input"
+              "$ref": "#/components/schemas/NodeDef"
             },
             "type": "array",
             "title": "Nodes"
@@ -47759,7 +47858,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef-Output"
+              "$ref": "#/components/schemas/NodeDef"
             },
             "type": "array",
             "title": "Nodes"

@@ -2486,6 +2486,16 @@
       },
       {
         "method": "POST",
+        "path": "/kg/render/paragraph",
+        "operation_id": "render_paragraph_api_kg_render_paragraph_post",
+        "summary": "Render a deterministic KG paragraph",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ParagraphRenderRequest",
+        "response_model": "ParagraphRenderResponse"
+      },
+      {
+        "method": "POST",
         "path": "/kg/pykeen/train",
         "operation_id": "train_api_kg_pykeen_train_post",
         "summary": "Train a PyKEEN link-prediction model on the library's claims",
