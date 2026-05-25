@@ -97,7 +97,7 @@ struct ActivityOverviewView: View {
 
             if !execution.documentProgress.isEmpty {
                 Divider()
-                documentProgressList(execution)
+                docStepGrid(execution)
             }
         }
         .padding()
@@ -105,53 +105,87 @@ struct ActivityOverviewView: View {
     }
 
     @ViewBuilder
-    private func documentProgressList(_ execution: WorkflowExecution) -> some View {
-        Text("Files")
-            .font(.subheadline.bold())
-            .foregroundStyle(.secondary)
+    // swiftlint:disable:next function_body_length
+    private func docStepGrid(_ execution: WorkflowExecution) -> some View {
+        let docs = execution.orderedDocumentProgress
+        let stepNames = Array(Set(docs.flatMap { Array($0.stepStatuses.keys) })).sorted()
 
-        ForEach(execution.orderedDocumentProgress.prefix(8)) { doc in
-            HStack(spacing: 6) {
-                docStatusIcon(doc)
-                Text(doc.documentName)
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Files × Steps")
+                .font(.subheadline.bold())
+                .foregroundStyle(.secondary)
+
+            if stepNames.isEmpty {
+                Text("No step data yet")
                     .font(.caption)
-                    .lineLimit(1)
-                Spacer()
-            }
-        }
+                    .foregroundStyle(.tertiary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Header row
+                        HStack(spacing: 0) {
+                            Text("Document")
+                                .font(.caption2.bold())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 140, alignment: .leading)
+                            ForEach(stepNames, id: \.self) { step in
+                                Text(step)
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .frame(width: 44)
+                            }
+                        }
+                        .padding(.bottom, 4)
 
-        if execution.documentProgress.count > 8 {
-            Text("+ \(execution.documentProgress.count - 8) more")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                        Divider()
+
+                        // Document rows
+                        ForEach(docs.prefix(20)) { doc in
+                            HStack(spacing: 0) {
+                                Text(doc.documentName)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .frame(width: 140, alignment: .leading)
+                                ForEach(stepNames, id: \.self) { step in
+                                    stepCell(doc.stepStatuses[step])
+                                        .frame(width: 44)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+
+                        if docs.count > 20 {
+                            Text("+ \(docs.count - 20) more")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .padding(.top, 4)
+                        }
+                    }
+                }
+            }
         }
     }
 
     @ViewBuilder
-    private func docStatusIcon(_ doc: DocumentProgress) -> some View {
-        let hasFailed = doc.stepStatuses.values.contains {
-            if case .failed = $0 { return true }
-            return false
-        }
-        let isRunning = doc.stepStatuses.values.contains {
-            if case .running = $0 { return true }
-            return false
-        }
-        if hasFailed {
-            Image(systemName: "xmark.circle.fill")
-                .foregroundStyle(.red)
+    private func stepCell(_ status: StepStatus?) -> some View {
+        switch status {
+        case .none, .pending:
+            Image(systemName: "circle")
+                .foregroundStyle(.tertiary)
                 .font(.caption)
-        } else if isRunning {
+        case .running:
             ProgressView()
                 .scaleEffect(0.5)
-                .frame(width: 12, height: 12)
-        } else if !doc.stepStatuses.isEmpty {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .frame(width: 16, height: 16)
+        case .completed(_, let cached):
+            Image(systemName: cached ? "bolt.circle.fill" : "checkmark.circle.fill")
+                .foregroundStyle(cached ? .blue : .green)
                 .font(.caption)
-        } else {
-            Image(systemName: "circle")
-                .foregroundStyle(.secondary)
+        case .failed:
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(.red)
                 .font(.caption)
         }
     }
@@ -271,10 +305,55 @@ struct ActivityOverviewView: View {
         )
     ]
 
+    let mockExecution = WorkflowExecution(
+        id: "wf-preview",
+        name: "Transcribe",
+        threadId: "th-preview",
+        startTime: Date().addingTimeInterval(-90),
+        status: .running,
+        nodeStates: [:],
+        documentProgress: [
+            "letter_001.pdf": DocumentProgress(
+                id: "letter_001.pdf",
+                documentName: "letter_001.pdf",
+                stepStatuses: [
+                    "transcribe": .completed(duration: 2300, cached: false),
+                    "extract": .running,
+                    "catalogue": .pending
+                ]
+            ),
+            "letter_002.pdf": DocumentProgress(
+                id: "letter_002.pdf",
+                documentName: "letter_002.pdf",
+                stepStatuses: [
+                    "transcribe": .completed(duration: 1800, cached: true),
+                    "extract": .pending,
+                    "catalogue": .pending
+                ]
+            ),
+            "letter_003.pdf": DocumentProgress(
+                id: "letter_003.pdf",
+                documentName: "letter_003.pdf",
+                stepStatuses: [
+                    "transcribe": .failed(error: "timeout"),
+                    "extract": .pending,
+                    "catalogue": .pending
+                ]
+            )
+        ],
+        currentFilePath: "letter_001.pdf",
+        currentNodeId: "extract",
+        currentNodeName: "Extract",
+        isRunning: true,
+        workflowError: nil,
+        totalFiles: 3,
+        processedFiles: 0
+    )
+
     ActivityOverviewView(
         selectedRun: selectedRun,
         activityItems: mockItems,
-        liveExecution: nil,
+        liveExecution: mockExecution,
         errorCount: 0
     )
     .frame(width: 600, height: 500)
