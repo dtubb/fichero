@@ -448,9 +448,9 @@ struct InspectorButton: View {
 
 // MARK: - Show Ruler
 
-/// Toggles the inspector's text-editor ruler globally. Lives in Format > Text
-/// in spirit but attaches to the View menu (FicheroApp wires this in).
-/// AppStorage key matches the editor's `editor.rulersVisible` flag.
+// Toggles the inspector's text-editor ruler globally. Lives in Format > Text
+// in spirit but attaches to the View menu (FicheroApp wires this in).
+// AppStorage key matches the editor's `editor.rulersVisible` flag.
 // MARK: - Go Up (Cmd+`)
 
 // Walks one level up the folder hierarchy via the focused window's

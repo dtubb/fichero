@@ -17,25 +17,21 @@ struct SearchResultsDisplay: View {
     var indexedCount: Int?
     var isReindexing: Bool = false
     var onReindex: (() -> Void)?
-
     /// Did-you-mean suggestions surfaced by the backend when results=0
     /// and the query looks substantive. Each is clickable — taps run a
     /// fresh search for that suggested term via onSuggestionTap.
     var suggestions: [String] = []
     var onSuggestionTap: ((String) -> Void)?
-
     /// User's recent successful queries (most recent first). Surfaced
     /// in the empty state when no query is typed so the user can re-run
     /// past searches with one click. Persisted in @SceneStorage by the
     /// caller (SearchView).
     var recentSearches: [String] = []
     var onRecentSearchTap: ((String) -> Void)?
-
     /// Top-N keywords for browse-by-tag. Each pill click runs a search
     /// for that keyword. Sized by frequency for visual hierarchy.
     var keywordCloud: [KeywordCloudEntryDTO] = []
     var onKeywordTap: ((String) -> Void)?
-
     /// Size keyword-cloud pill text by its document-frequency rank. The
     /// most-used tag in the cloud renders biggest; rare tags stay small.
     /// Linear interpolation between 11pt and 17pt over the count range
@@ -44,11 +40,12 @@ struct SearchResultsDisplay: View {
         for entry: KeywordCloudEntryDTO, cloud: [KeywordCloudEntryDTO]
     ) -> CGFloat {
         let counts = cloud.map(\.count)
-        guard let lo = counts.min(), let hi = counts.max(), hi > lo else { return 12 }
-        let interpolation = CGFloat(entry.count - lo) / CGFloat(hi - lo)
+        guard let lowerBound = counts.min(),
+              let upperBound = counts.max(),
+              upperBound > lowerBound else { return 12 }
+        let interpolation = CGFloat(entry.count - lowerBound) / CGFloat(upperBound - lowerBound)
         return 11 + interpolation * 6
     }
-
     var body: some View {
         if searchResults.isEmpty {
             emptyState
@@ -118,7 +115,11 @@ struct SearchResultsDisplay: View {
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
-                Text("This runs in the background; you can keep using\nthe rest of the app. Search will return results\nonce indexing completes.")
+                Text("""
+                This runs in the background; you can keep using
+                the rest of the app. Search will return results
+                once indexing completes.
+                """)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)

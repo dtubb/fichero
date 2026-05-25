@@ -1240,7 +1240,11 @@ private struct EntityKindRow: View {
                             .foregroundStyle(claimFocusState.isClaimSelected(item.claimId) ? Color.accentColor : Color.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help(claimFocusState.isClaimSelected(item.claimId) ? "Claim selected for highlighting" : "Select claim for highlighting")
+                    .help(
+                        claimFocusState.isClaimSelected(item.claimId)
+                            ? "Claim selected for highlighting"
+                            : "Select claim for highlighting"
+                    )
                 }
 
                 if let sourceId = item.sourceDocumentId,
