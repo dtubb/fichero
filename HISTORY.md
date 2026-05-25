@@ -1,3 +1,18 @@
+## 2026-05-25 — Overnight 4-phase plan (Claude watchdog + Codex)
+
+- ✅ Phase 1: bumped `liquidjs` ≥ 10.25.7 via `overrides` in `site/package.json` (Dependabot high-severity).
+- ✅ Phase 2: SwiftLint zero warnings across 334 Swift files — 6 Codex commits (`b3f008c5`, `6f69f03c`, `cbd6e3c0`, `128ff4e8`, `6fc4a7af`, `201d0652`).
+- ✅ Phase 3: OpenAPI freshness gate added to `verify_python.sh` step 7; NodeDef-Input variant removed from Python contracts + Swift client openapi.json; issue #1201 closed.
+- ✅ Phase 4: `entity inspector` CLI command + `getEntityInspector()` Swift service method + `EntitySourceGroupsView` (dense prose grouped by source doc/page) wired into `EntityDetailView` as a mode toggle; issues #1183/#1191 closed.
+- Fixed `scripts/add-swift-file.rb`: xcodeproj 1.27.0 monkey-patch for Xcode 16+ Array shellScript, plus path-stripping bug for `fichero/fichero/` prefix.
+- `verify_all.sh` confirmed passing on final state.
+
+## 2026-05-25 — SwiftLint batch cleanup (Codex)
+
+- Cleaned a first set of SwiftLint warnings in small batches and kept the canonical gate green after each batch.
+- Fixed comment/formatting issues in `WorkflowStore.swift`, `ViewMenuCommands.swift`, `OntologyBrowser.swift`, `PDFThumbnailView.swift`, `EmbeddedBackendService.swift`, `WorkflowEditor.swift`, `SearchResultsDisplay.swift`, and `DocumentInspectorArtifactsTab.swift`.
+- Resolved one transient Xcode `database is locked` failure by stopping overlapping `xcodebuild` processes and rerunning the gate once cleanly.
+
 ## 2026-05-24 — Docs & Repo Hygiene (Claude session)
 
 - Deduped agent docs: removed the jCodemunch-policy duplication from the project `CLAUDE.md` + `AGENTS.md`; deleted the shipped `docs/architecture/typed_entity_storage.md`.

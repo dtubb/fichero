@@ -1,5 +1,17 @@
 # Durable Lessons Learned / Decisions
 
+## xcodeproj 1.27.0 needs a monkey-patch for Xcode 16+ projects — 2026-05-25
+
+xcodeproj 1.27.0 raises `RuntimeError: Type checking error: got 'Array'` when opening any Xcode 16+ project because those projects store `shellScript` as an Array. Fix: monkey-patch `Xcodeproj::Project::Object::AbstractObjectAttribute#validate_value` to warn instead of raise when `type == :simple` and the value class is unexpected. This patch is already baked into `scripts/add-swift-file.rb`. Also: when calling the script with `fichero/fichero/Views/...`, the script now strips the outer `fichero/` prefix so it navigates the existing group tree instead of creating a duplicate `fichero > fichero` hierarchy.
+
+## Batch SwiftLint cleanup in small groups, not single-file gates — 2026-05-25
+
+For warning-only cleanup work, 5-10 small fixes per `bash scripts/verify_all.sh` run is the right cadence. It keeps feedback tight without wasting a full Xcode/Python gate on every single line wrap or comment conversion.
+
+## Never overlap `xcodebuild` gate runs in the same build tree — 2026-05-25
+
+The Xcode build database under `fichero/build/xcode/Intermediates/XCBuildData/` locks if two `xcodebuild test` processes share the same workspace. If a gate fails with `database is locked`, check for stray `xcodebuild` processes and kill the overlap before rerunning. This is a tooling issue, not necessarily a code regression.
+
 ## Codex skill discovery needs `SKILL.md`; Claude plugin-qualified skills can use `skill.md` — 2026-05-22
 
 Claude's plugin marketplace can expose skills like `/fs_session:bug` from `plugins/fs_session/skills/bug/skill.md`, but Codex's local skill loader expects `~/.codex/skills/<name>/SKILL.md`. If a skill exists in `fichero-skills` but is missing from Codex's session skill list, install a symlink under `~/.codex/skills/<name>/SKILL.md` pointing at the canonical plugin skill. Added symlinks for `bug`, `feature`, `feature-future`, `autonomous-loop`, and `extract-bib`. A Codex restart is required for automatic trigger discovery; within an existing session, read the skill file manually and follow it.
