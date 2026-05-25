@@ -16,16 +16,33 @@ Multi-agent split active: frontend Claude (#1202/#1204/#1181), backend Codex (#1
 option b; live `test_cli_engine_contract.py`). Filed **#1205** (chore/backend) to delete the
 now-dead generated Python CLI client + its regen step — leftover from #1148's option (b).
 
-## Agent split (2026-05-25)
+## Agent split + worktree topology (2026-05-25)
 
-Issues are labelled `frontend` / `backend` / `both` on GitHub.
+Issues labelled `frontend` / `backend` / `both` / `agent:pi` on GitHub.
 
-| Agent | Does | Filter |
-|---|---|---|
-| **Claude (this session)** | SwiftUI: entity biography #1202, click-to-sync #1204, JSON inspector #1181, KG polish | `label:frontend` |
-| **Backend Claude / Codex** | Python/FastAPI: pronoun coreference #1173, search relevance #1054, entity digest export #1198 | `label:backend` |
+| Agent | Worktree / branch | Does | Filter |
+|---|---|---|---|
+| **Frontend Claude** | `~/code/fichero-0.0.2` / `0.0.2` (shared trunk) | SwiftUI: #1202, #1204, #1181, KG polish | `label:frontend` |
+| **Manager Claude** (me) | `~/code/fichero-0.0.2` / `0.0.2` (shared trunk) | Coordinate, own :8765, review+merge lanes. No code. | n/a |
+| **Backend Codex** | `~/code/fichero-0.0.2-engine` / `0.0.2-engine` | Python: #1173, #1054, #1198 | `label:backend` |
+| **pi worker** | `~/code/fichero-0.0.2-pi` / `0.0.2-pi` | Simple code fixes (#1205 first) | `label:agent:pi` |
+| **pi CLI** | no worktree → talks to :8765 | data ops / imports, no code | n/a |
 
-Start a backend session with: `gh issue list --label backend --state open`
+**Manager protocol (survives memory-runout — also in auto-memory `multiagent-coordination`):**
+1. Own `:8765` — ONE persistent backend on trunk code + real lib. Agents never bind :8765;
+   they verify in-process (pytest/EngineHarness) or on :8766 + scratch lib.
+2. Lane done → agent commits on its branch + drops `.ai/inbox/done-<lane>-DATE.md`.
+3. Manager: `git diff 0.0.2...0.0.2-<lane>` → review subagents (`code-reviewer` +
+   `silent-failure-hunter`, +backend/contract for Python) + targeted tests →
+   ALIGNED → `git merge --no-ff 0.0.2-<lane>` (restart :8765 if backend changed);
+   MISALIGNED → kick back via `.ai/inbox/review-<lane>-DATE.md`.
+4. Resync: `git -C ~/code/fichero-0.0.2-<lane> merge 0.0.2` (disjoint files → no conflicts).
+5. Frontend commits straight to trunk (un-gated, self-verifies 3-leg Swift check); ask it
+   to commit before I integrate (shared working tree).
+
+Full plan: `agent-work/proposals/four-agent-worktree-topology.md`.
+Start sessions: frontend `/session-start-swiftui`, backend `/session-start-engine`,
+manager `/session-start-manager`, pi CLI `/session-start-cli`.
 
 ## Completed this session (2026-05-25 morning)
 
