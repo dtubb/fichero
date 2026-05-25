@@ -183,9 +183,12 @@ struct WorkflowEditor: View {
         }
         .onChange(of: editingWorkflow) { _, newValue in
             let firstNode = newValue.nodes.first
-            actionsLogger.info(
-                "[autosave] editingWorkflow changed — id=\(newValue.id), nodes=\(newValue.nodes.count), first node provider=\(firstNode?.providerName ?? "nil"), model=\(firstNode?.modelName ?? "nil")"
-            )
+            actionsLogger.info("""
+            [autosave] editingWorkflow changed — id=\(newValue.id), \
+            nodes=\(newValue.nodes.count), \
+            first node provider=\(firstNode?.providerName ?? "nil"), \
+            model=\(firstNode?.modelName ?? "nil")
+            """)
             autosaveTask?.cancel()
             autosaveTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(300))

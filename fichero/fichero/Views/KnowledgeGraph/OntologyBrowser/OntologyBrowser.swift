@@ -905,14 +905,14 @@ struct NewEntitySheet: View {
     }
     .listStyle(.sidebar)
 }
-/// Force-directed graph over entities and their co-occurrence in claims.
-///
-/// Nodes = entities (filtered by `hiddenKinds` upstream), edges = "appear
-/// together in the same claim" with weight = co-occurrence count. Layout
-/// is a Coulomb/Hooke simulation that converges in ~4 seconds and then
-/// freezes — no continued CPU after that. Click within ~18pt of a node to
-/// select it; the binding flows back to OntologyBrowser so the detail
-/// pane updates. (#902, partial #889)
+// Force-directed graph over entities and their co-occurrence in claims.
+//
+// Nodes = entities (filtered by `hiddenKinds` upstream), edges = "appear
+// together in the same claim" with weight = co-occurrence count. Layout
+// is a Coulomb/Hooke simulation that converges in ~4 seconds and then
+// freezes — no continued CPU after that. Click within ~18pt of a node to
+// select it; the binding flows back to OntologyBrowser so the detail
+// pane updates. (#902, partial #889)
 // swiftlint:disable identifier_name
 // Force-directed physics uses standard short names (i, j, dx, dy, fx, fy)
 // for clarity in the math. Re-enabled after the private struct
@@ -1259,7 +1259,7 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
         if let hit = bestEdge {
             var info: [String: Any] = [
                 "documentId": hit.edge.sourceDocumentId,
-                "claimId": hit.edge.claimId,
+                "claimId": hit.edge.claimId
             ]
             if let pageLabel = hit.edge.pageLabel, !pageLabel.isEmpty {
                 info["pageLabel"] = pageLabel

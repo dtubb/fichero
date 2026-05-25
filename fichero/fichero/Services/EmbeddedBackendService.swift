@@ -380,7 +380,8 @@ enum BackendError: LocalizedError {
         case .bundleNotFound:
             return "App bundle resources not found"
         case .backendAppNotFound:
-            return "Backend app not found in bundle. Build the engine with: briefcase build macOS --app engine (in fichero-engine/), then rebuild Fichero in Xcode."
+            return "Backend app not found in bundle. Build the engine with: " +
+                "briefcase build macOS --app engine (in fichero-engine/), then rebuild Fichero in Xcode."
         case .launchFailed(let error):
             return "Failed to launch backend app: \(error.localizedDescription)"
         case .timeout:

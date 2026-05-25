@@ -554,8 +554,6 @@ struct PDFReadingView: View {
 }
 
 // MARK: - Document Page List View (#1189)
-
-
 /// Vertical thumbnail strip showing all pages of a multi-page PDF document.
 struct DocumentPageListView: View {
     let pdfPath: String
