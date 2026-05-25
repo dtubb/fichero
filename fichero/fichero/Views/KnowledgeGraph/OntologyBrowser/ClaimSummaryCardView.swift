@@ -10,10 +10,10 @@ struct ClaimSummaryCard: View {
     /// contradictions + evidence-chain. Collapsed by default to keep
     /// the card tight. Was previously rendering excerpt always +
     /// duplicating claim.text — see #979.
-    @State private var isExpanded: Bool = false
-    @State private var contradictions: [Components.Schemas.ContradictionEvidence]?
-    @State private var evidenceChain: Components.Schemas.EvidenceChain?
-    @State private var isLoadingDetails: Bool = false
+    @State var isExpanded: Bool = false
+    @State var contradictions: [Components.Schemas.ContradictionEvidence]?
+    @State var evidenceChain: Components.Schemas.EvidenceChain?
+    @State var isLoadingDetails: Bool = false
 
     private struct SVOTriple {
         let subject: String

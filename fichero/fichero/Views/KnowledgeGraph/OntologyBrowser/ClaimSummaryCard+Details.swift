@@ -75,7 +75,7 @@ extension ClaimSummaryCard {
                     userInfo: ["name": excerpt]
                 )
             } label: {
-                Text(""\(excerpt)"")
+                Text("\"\(excerpt)\"")
                     .font(.caption2)
                     .italic()
                     .foregroundStyle(.secondary)
