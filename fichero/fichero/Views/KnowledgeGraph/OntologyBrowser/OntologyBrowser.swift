@@ -15,6 +15,8 @@ import SwiftUI
 struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @State private var selectedEntityId: String?
+    @State private var navHistory = NavigationHistoryManager()
+    @State private var isNavigatingHistory = false
     @State private var searchText = ""
     @State private var isSearching = false
 
@@ -215,6 +217,24 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
         // tappable, did nothing). Toolbar now leads straight with
         // actions, ending in the View picker on the right.
         MiniToolbar {
+            // Back / forward navigation (#1186)
+            Button {
+                applyHistoryEntry(navHistory.goBack())
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .buttonStyle(.plain)
+            .disabled(!navHistory.canGoBack)
+            .help("Go back (⌘')")
+            .keyboardShortcut("'", modifiers: .command)
+            Button {
+                applyHistoryEntry(navHistory.goForward())
+            } label: {
+                Image(systemName: "chevron.right")
+            }
+            .buttonStyle(.plain)
+            .disabled(!navHistory.canGoForward)
+            .help("Go forward")
             Spacer(minLength: 0)
             if let status = toolStatus {
                 Text(status)
@@ -501,6 +521,30 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
                 await runHeuristicPredictions()
             }
         }
+        // Push navigation history on entity selection (#1186).
+        // isNavigatingHistory prevents re-push while history navigation is driving.
+        .onChange(of: selectedEntityId) { _, newValue in
+            guard !isNavigatingHistory else { return }
+            if let id = newValue {
+                navHistory.push(.entityProfile(entityId: id))
+            } else {
+                navHistory.push(.entityList)
+            }
+        }
+    }
+
+    private func applyHistoryEntry(_ entry: NavigationHistoryManager.Entry?) {
+        guard let entry else { return }
+        isNavigatingHistory = true
+        switch entry {
+        case .entityList:
+            selectedEntityId = nil
+        case .entityProfile(let entityId):
+            selectedEntityId = entityId
+        case .claimJump, .pdfPage:
+            break
+        }
+        isNavigatingHistory = false
     }
 
     private func loadEntities() async {
