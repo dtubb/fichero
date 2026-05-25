@@ -1,5 +1,20 @@
 # done-codex-2026-05-25
 
+Verified backend issue `#1173` on the `codex` branch.
+
+What I checked:
+- The pronoun/antecedent handling already exists in `fichero/workflows/tools/extract_all.py` via `_annotate_pronoun_source`.
+- The dedicated systemic workflow test suite already covers pronoun annotation behavior, including punctuation and case variants.
+
+Verification performed:
+- `PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/workflows/test_extract_all_systemic.py -q`
+- `PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/fichero/workflows/tools/extract_all.py fichero-engine/tests/unit/workflows/test_extract_all_systemic.py`
+
+Notes:
+- No backend source edits were needed for this issue; it was already implemented in the current branch history.
+
+# done-codex-2026-05-25
+
 Verified backend issue `#1179` on the `codex` branch.
 
 What changed:
