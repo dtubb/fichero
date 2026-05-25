@@ -140,15 +140,11 @@ Infra is built; the job now is the gate + merges. On cold start:
 
 ## Next Session — Start Here (frontend Claude)
 
-**IDLE — #1224 complete, waiting for manager assignment.**
+**PAUSED — manager consolidating before context reset. Resume after manager clears backend gate.**
 
-**Just completed (2026-05-25 ~7:17p):**
-- ✅ #1224 — Activity Viewer file path → document name mapping (commit 2e31abbd)
-
-**14-issue queue status (2026-05-25 ~10:35a, partially updated):**
+**14-issue queue status (2026-05-25 ~10:35a):**
 - ✅ #1180 fixed + pushed (`2dca41f0`) — `DisplayAttributesStrip` wired into `documentDetail`
-- ✅ #1224 fixed + pushed (`2e31abbd`) — Activity Viewer shows user-facing document names
-- ✅ Closed with evidence: #605, #958, #718, #1044, #717, #715, #1032
+- ✅ Closed with evidence: #605 (startup clean in Swift), #958 (structured output already rendered), #718 (portrait aspect), #1044 (processing spinner), #717 (handleTap), #715 (NSTextView shortcuts native), #1032 (searchable toolbar)
 - 🔴 **#1045** REAL — `documentProgressList` is flat file list, needs doc×step grid in `ActivityOverviewView.swift`
 - 🔴 **#1048** REAL — no timing summary UI in any Activity view
 - ❓ **#928** NEEDS VERIFY — loupe exists for images; check PDF page children coverage
@@ -156,8 +152,10 @@ Infra is built; the job now is the gate + merges. On cold start:
 - ⏳ **#330** — old milestone, skip
 
 **On resume:**
-1. Await manager assignment (per user instruction: one issue at a time)
-2. Three-leg check: swiftlint + Xcode build; CAUTION do NOT RunAllTests (Daniel live-testing :8765)
+1. Fix #1045 first (ActivityOverviewView.swift — replace flat file list with doc×step grid)
+2. Fix #1048 (add timing summary to activity stats card)
+3. Verify #928 (PDF page loupe)
+4. Three-leg check: swiftlint + Xcode build; CAUTION do NOT RunAllTests (Daniel live-testing :8765)
 
 ## Next Session — Start Here (backend Claude / Codex)
 
