@@ -1,5 +1,19 @@
 # done-codex-2026-05-25
 
+Completed backend issue `#1118` on the `codex` branch.
+
+What changed:
+- Added a shared NER contract in `fichero/kg/ner.py` for normalised entity records and provider adapters.
+- Added workflow-side NER providers for `llm`, `spacy`, and `transformers` backends under `fichero/workflows/ner/`.
+- Added a selectable `ner` workflow tool and wired the extractor pre-pass to consume the provider abstraction instead of hardcoding spaCy.
+
+Verification performed:
+- `PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/fichero/kg/ner.py fichero-engine/src/fichero/workflows/ner/__init__.py fichero-engine/src/fichero/workflows/ner/providers.py fichero-engine/src/fichero/workflows/tools/ner.py fichero-engine/src/fichero/workflows/tools/extractors.py fichero-engine/src/fichero/workflows/tools/__init__.py fichero-engine/src/fichero/kg/__init__.py fichero-engine/tests/unit/workflows/test_ner_providers.py`
+- `PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/workflows/test_ner_providers.py fichero-engine/tests/unit/kg/test_spacy_ner.py -q`
+
+Notes:
+- The existing workspace has unrelated local edits in `AGENTS.md`, `CLAUDE.md`, `HISTORY.md`, `MEMORY.md`, and `STATE.md`; I left those alone.
+
 Completed backend review follow-up for `#1198` on the `codex` branch.
 
 What changed:

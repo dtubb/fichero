@@ -52,6 +52,7 @@ from fichero.workflows.tools import entities
 from fichero.workflows.tools import timeline
 from fichero.workflows.tools import key_people
 from fichero.workflows.tools import catalogue
+from fichero.workflows.tools import ner
 from fichero.workflows.tools import rewrite
 from fichero.workflows.tools import sentiment
 from fichero.workflows.tools import keywords
@@ -114,6 +115,7 @@ __all__ = [
     "timeline",
     "key_people",
     "catalogue",
+    "ner",
     "rewrite",
     "sentiment",
     "keywords",

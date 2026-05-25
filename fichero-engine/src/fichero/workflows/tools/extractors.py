@@ -1123,18 +1123,19 @@ async def _run_extractor(
     # have much larger windows but extra splits are cheap and parallel.
     _MAX_CHUNK_CHARS = 3000
 
-    # spaCy NER pre-pass (#899 Phase C). For people / places /
-    # organizations / events sections we run spaCy first and pass the
-    # detected mention list as a hint in the LLM prompt. Two wins:
+    # NER pre-pass (#899 Phase C). For people / places /
+    # organizations / events sections we run a selectable NER backend
+    # first and pass the detected mention list as a hint in the LLM
+    # prompt. Two wins:
     # 1. Sub-chunk dedup: even when we split a long page at 3000 chars,
     #    both sub-chunks see the same span list, so they produce one
     #    canonical entity name across them (down with the #896
-    #    Davidson × 6 pattern). spaCy runs on the full chunk before
-    #    splitting.
-    # 2. Boundary consistency: the LLM trusts spaCy's PERSON / ORG /
-    #    GPE / EVENT calls — no more "Eugenio Córdoba" vs "Mr Córdoba"
-    #    drift between calls.
-    # Sections without a matching spaCy label (dates, keywords, etc.)
+    #    Davidson × 6 pattern). The provider runs on the full chunk
+    #    before splitting.
+    # 2. Boundary consistency: the LLM trusts the provider's PERSON /
+    #    ORG / GPE / EVENT calls — no more "Eugenio Córdoba" vs "Mr
+    #    Córdoba" drift between calls.
+    # Sections without a matching entity label (dates, keywords, etc.)
     # bypass the hint and continue working unchanged.
     _SPACY_HINT_TYPES = {
         "people_extract": "person",
@@ -1146,21 +1147,28 @@ async def _run_extractor(
     spacy_target = _SPACY_HINT_TYPES.get(section.get("name", ""))
     if spacy_target:
         try:
-            from fichero.kg import spacy_ner
+            from fichero.workflows.ner.providers import get_ner_provider
 
-            all_spans = spacy_ner.extract_entities(text)
-            relevant = [s for s in all_spans if s.fichero_type == spacy_target]
-            clusters = spacy_ner.cluster_aliases(relevant)
-            for canonical, aliases in clusters.items():
-                if aliases:
+            ner_provider_name = inputs.get("ner_provider", "spacy")
+            ner_model_name = inputs.get("ner_model") or None
+            ner_provider = get_ner_provider(ner_provider_name, ner_model_name)
+            all_spans = await ner_provider.extract(
+                text,
+                state=state,
+                llm_config=llm_config,
+                inputs=inputs,
+            )
+            relevant = [s for s in all_spans if s.type == spacy_target]
+            for span in relevant:
+                if span.aliases:
                     spacy_hint_lines.append(
-                        f"- {canonical.text} (aliases: {', '.join(aliases)})"
+                        f"- {span.name} (aliases: {', '.join(span.aliases)})"
                     )
                 else:
-                    spacy_hint_lines.append(f"- {canonical.text}")
+                    spacy_hint_lines.append(f"- {span.name}")
         except Exception as exc:
             # Don't take down the catalogue if spaCy is unhealthy.
-            logger.warning("%s: spaCy pre-pass failed: %s", section["name"], exc)
+            logger.warning("%s: NER pre-pass failed: %s", section["name"], exc)
 
     async def _extract_chunk(chunk_text: str) -> list[Any]:
         # Split a single page into sub-chunks if it exceeds the model's
