@@ -2295,3 +2295,24 @@ Two sessions continuing #1178 (transcription profiles) and paleography pipeline 
 - ✅ Split `QuickLookComponents.swift` (402→301 lines): extracted `SmartPreviewView`, `QuickLookPreviewView`, `SwipeSiblingNavigator` into `QuickLookPreviewViews.swift`.
 - All `file_length` violations resolved. Build green on both commits (`8bfbf4c2`, `7d1a3eb9`).
 - Remaining non-file_length violation: `SearchResultsDisplay.swift` `type_body_length` (335 lines, pre-existing, not assigned).
+
+## 2026-05-25 — SwiftUI Session (Evening)
+
+- ✅ Task 1 complete: PDF loupe state management and storage properties added to PDFPageView
+  - Added 4 @AppStorage properties for loupe settings (enabled, magnification, size, locked)
+  - Added 2 @State properties for cursor position tracking
+  - Updated makeCoordinator to pass loupe bindings to Coordinator
+  - Updated Coordinator init to accept and store bindings
+  - Two-stage review (spec compliance + code quality) proved effective for catching implementation gaps
+  - Issue #928 loupe support for PDFs in progress
+
+
+## 2026-05-25 — PDF Loupe Tasks 3–6 (frontend Claude session)
+
+- ✅ Task 2 verified already complete (cursor tracking via NSTrackingArea was done in prior session)
+- ✅ Task 3: Created `PDFLoupeOverlay.swift` — new `NSViewRepresentable` rendering magnified circle overlay using `PDFPage.thumbnail(of:for:)` with path+pageIndex cache
+- ✅ Task 4: Wired loupe into `PDFPageWithToolbar` — inline toolbar adds loupe toggle, lock button, magnification slider; `ZStack` overlays `PDFLoupeOverlay` on `PDFPageView`; `onCursorMoved` callback threads cursor position from `PDFPageView.Coordinator.mouseMoved` up to `PDFPageWithToolbar`
+- ✅ Task 5: Verified image loupe coordinate handling is already correct (TrackingImageView.mouseMoved accounts for centering offset; fix from #783 is still valid)
+- ✅ Task 6: Zero SwiftLint violations; compiles (only pre-existing NodeDefOutput/NodeDefInput schema drift errors remain)
+- ✅ Bug fix: removed spurious `override` on `Coordinator.mouseMoved` — NSObject informal protocol receives mouse events via `@objc`, no override declaration needed
+- Task 7 (manual testing) left for Daniel

@@ -140,22 +140,19 @@ Infra is built; the job now is the gate + merges. On cold start:
 
 ## Next Session — Start Here (frontend Claude)
 
-**MANAGER CONSOLIDATING — resume #928 PDF loupe after backend gate clears.**
+**#928 PDF loupe — Tasks 1–6 complete. Task 7 = Daniel's manual test.**
 
-**Queue Status (2026-05-25 ~7:38p):**
-- 🟣 **#928 PDF loupe** — 1/7 tasks done (loupe state management + storage); Task 2 (cursor tracking) ready to resume
-  - Task 1 ✅: PDFPageView loupe state, @AppStorage properties, Coordinator bindings
-  - Task 2 ⏳: Cursor tracking via NSTrackingArea + mouseMoved handler (spec + code review ready)
-  - Tasks 3-7: Loupe overlay, toolbar integration, image loupe fixes, build+lint, manual test
-- ✅ **#1045** — discovered already closed (activity grid already implemented)
-- ✅ **#1048** — discovered already closed (timing summary already in place)
-- ❓ **#1046, #1047** (related KG inspector) — not assigned, may be priority if manager approves
+**Queue Status (2026-05-25 ~8:00p):**
+- ✅ **#928 PDF loupe** — Tasks 1–6 done; committed `11c118ab`
+  - Toggle loupe button in PDFPageWithToolbar toolbar; loupe overlay renders on PDF
+  - Lock/unlock, magnification slider wired; AppStorage syncs settings across views
+  - Task 7 (manual test): Daniel opens PDF, toggles loupe, verifies cursor tracking + lock + magnification
+- Pre-existing build errors (NodeDefOutput/NodeDefInput OpenAPI drift) still present — not introduced by loupe work
 
 **On resume:**
-1. Manager merges codex/pi lanes into trunk, restarts :8765
-2. Resume Task 2: dispatch implementer subagent with cursor tracking instructions (ready-to-go from interruption)
-3. Continue Tasks 3-7 (loupe overlay, toolbar, image coordinate fixes)
-4. Three-leg check: swiftlint + Xcode build; CAUTION do NOT RunAllTests (Daniel live-testing :8765)
+1. Confirm Daniel tested Task 7 (manual loupe test on real PDF)
+2. If #928 passes testing → close the issue
+3. Next frontend priority: pick from `label:frontend` open issues (see list in State below)
 
 ## Next Session — Start Here (backend Claude / Codex)
 

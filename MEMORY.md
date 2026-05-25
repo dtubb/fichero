@@ -1,5 +1,13 @@
 # Durable Lessons Learned / Decisions
 
+## NSTrackingArea owner mouseMoved must be @objc, not override — 2026-05-25
+
+When `NSObject` (not `NSResponder`) owns a tracking area, AppKit delivers mouse events via Objective-C informal protocol — the owner just needs an `@objc func mouseMoved(with event: NSEvent)` method. Using `override` is a compile error since `NSObject` doesn't declare `mouseMoved`. Pattern used in `PDFPageView.Coordinator` for PDF loupe cursor tracking.
+
+## Shared AppStorage keys auto-sync across separate SwiftUI views — 2026-05-25
+
+Two views with `@AppStorage("same.key")` in separate structs (e.g. `PDFPageView` and `PDFPageWithToolbar`) share the same underlying UserDefaults value and stay in sync automatically. Use this pattern to avoid threading state manually when both a rendering view and its toolbar wrapper need to read the same persistent setting.
+
 ## Subagent-driven development: two-stage review (spec + quality) — 2026-05-25
 
 When executing implementation plans via superpowers:subagent-driven-development, the two-stage review pattern (spec compliance reviewer → code quality reviewer) is highly effective for catching both requirement gaps and quality issues before code quality review. Implementer may report DONE prematurely; spec reviewer catches missing code. If spec reviewer checks before implementer has applied edits, the check will report gaps — re-dispatch the same spec reviewer after implementer completes the fixes. Moved implementer to Task 2 (cursor tracking) after both reviews passed Task 1 (loupe state management in PDFPageView).
