@@ -44,6 +44,7 @@
 		150 /* ChainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151 /* ChainEditorView.swift */; };
 		154 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152 /* ScheduleCreationSheet.swift */; };
 		155 /* TriggerCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153 /* TriggerCreationSheet.swift */; };
+		1BA428828543A7D4091C0A98 /* ActivityOverviewView+Cards.swift in Sources */ = {isa = PBXBuildFile; fileRef = D661A54EFC8800F710E16A23 /* ActivityOverviewView+Cards.swift */; };
 		200BCF2C2F3D501800D7851A /* ContentView+State.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF2B2F3D501800D7851A /* ContentView+State.swift */; };
 		200BCF362F3D547F00D7851A /* ContentView+ViewBuilders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */; };
 		200BCF382F3D548000D7851A /* ContentView+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200BCF372F3D548000D7851A /* ContentView+Persistence.swift */; };
@@ -698,6 +699,7 @@
 		C340001100000000PROMPT01 /* PromptPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptPreviewPanel.swift; sourceTree = "<group>"; };
 		C69898938F25CFEA64385A16 /* TriggerDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TriggerDetailView.swift; sourceTree = "<group>"; };
 		CE9 /* SidebarItemBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemBuilder.swift; sourceTree = "<group>"; };
+		D661A54EFC8800F710E16A23 /* ActivityOverviewView+Cards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ActivityOverviewView+Cards.swift"; sourceTree = "<group>"; };
 		DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorInfoTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorInfoTab.swift; sourceTree = SOURCE_ROOT; };
 		E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorMetadataTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorMetadataTab.swift; sourceTree = SOURCE_ROOT; };
 		EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Operations.swift"; sourceTree = "<group>"; };
@@ -1180,6 +1182,7 @@
 				20D8ED4E2F48E2C1006950A3 /* ActivityProgressView+LiveProgress.swift */,
 				20D8ED562F48E2D7006950A3 /* ActivityProgressView+HistoricalProgress.swift */,
 				20D8ED582F48E2DE006950A3 /* ActivityProgressView+DataLoading.swift */,
+				D661A54EFC8800F710E16A23 /* ActivityOverviewView+Cards.swift */,
 			);
 			path = Activity;
 			sourceTree = "<group>";
@@ -1933,6 +1936,7 @@
 				AA1DB6B1BCD300BF5D523EF2 /* SpeakerComparisonView.swift in Sources */,
 				122B14F33BEDA95169037201 /* SpeakerComparisonView+Preview.swift in Sources */,
 				FEEDCE2D38A6FE7E36FEC8A0 /* NavigationHistoryManager.swift in Sources */,
+				1BA428828543A7D4091C0A98 /* ActivityOverviewView+Cards.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

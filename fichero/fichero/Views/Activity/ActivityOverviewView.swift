@@ -19,6 +19,7 @@ struct ActivityOverviewView: View {
                 if let execution = liveExecution,
                    execution.isRunning || !execution.documentProgress.isEmpty || execution.overallProgress != nil {
                     liveStatsCard(execution)
+                    timingStatsCard(execution)
                 } else {
                     historicalStatsCard
                 }
@@ -102,92 +103,6 @@ struct ActivityOverviewView: View {
         }
         .padding()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    @ViewBuilder
-    // swiftlint:disable:next function_body_length
-    private func docStepGrid(_ execution: WorkflowExecution) -> some View {
-        let docs = execution.orderedDocumentProgress
-        let stepNames = Array(Set(docs.flatMap { Array($0.stepStatuses.keys) })).sorted()
-
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Files × Steps")
-                .font(.subheadline.bold())
-                .foregroundStyle(.secondary)
-
-            if stepNames.isEmpty {
-                Text("No step data yet")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        // Header row
-                        HStack(spacing: 0) {
-                            Text("Document")
-                                .font(.caption2.bold())
-                                .foregroundStyle(.secondary)
-                                .frame(width: 140, alignment: .leading)
-                            ForEach(stepNames, id: \.self) { step in
-                                Text(step)
-                                    .font(.caption2.bold())
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .frame(width: 44)
-                            }
-                        }
-                        .padding(.bottom, 4)
-
-                        Divider()
-
-                        // Document rows
-                        ForEach(docs.prefix(20)) { doc in
-                            HStack(spacing: 0) {
-                                Text(doc.documentName)
-                                    .font(.caption)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .frame(width: 140, alignment: .leading)
-                                ForEach(stepNames, id: \.self) { step in
-                                    stepCell(doc.stepStatuses[step])
-                                        .frame(width: 44)
-                                }
-                            }
-                            .padding(.vertical, 2)
-                        }
-
-                        if docs.count > 20 {
-                            Text("+ \(docs.count - 20) more")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                                .padding(.top, 4)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func stepCell(_ status: StepStatus?) -> some View {
-        switch status {
-        case .none, .pending:
-            Image(systemName: "circle")
-                .foregroundStyle(.tertiary)
-                .font(.caption)
-        case .running:
-            ProgressView()
-                .scaleEffect(0.5)
-                .frame(width: 16, height: 16)
-        case .completed(_, let cached):
-            Image(systemName: cached ? "bolt.circle.fill" : "checkmark.circle.fill")
-                .foregroundStyle(cached ? .blue : .green)
-                .font(.caption)
-        case .failed:
-            Image(systemName: "xmark.circle.fill")
-                .foregroundStyle(.red)
-                .font(.caption)
-        }
     }
 
     @ViewBuilder
