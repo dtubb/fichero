@@ -234,7 +234,8 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
             }
             .buttonStyle(.plain)
             .disabled(!navHistory.canGoForward)
-            .help("Go forward")
+            .help("Go forward (⌘⇧')")
+            .keyboardShortcut("'", modifiers: [.command, .shift])
             Spacer(minLength: 0)
             if let status = toolStatus {
                 Text(status)
