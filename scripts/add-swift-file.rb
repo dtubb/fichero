@@ -56,8 +56,14 @@ proj = Xcodeproj::Project.open(proj_path)
 target = proj.targets.find { |t| t.name == 'Fichero' }
 abort "ERROR: target 'Fichero' not found" unless target
 
-# Build the group hierarchy, creating missing groups
+# Build the group hierarchy, creating missing groups.
+# The project sits inside fichero/ so paths like "fichero/fichero/Views/..."
+# have a redundant outer "fichero/" prefix — strip it so we navigate the
+# existing group tree correctly without creating a duplicate nested group.
 parts = file_path.split('/')
+# Drop the leading repo-relative "fichero" (Xcode project directory) component
+# when the next component is also the app-target directory name.
+parts.shift if parts[0] == 'fichero' && parts[1] == 'fichero'
 filename = parts.pop
 group = proj.main_group
 parts.each do |part|
