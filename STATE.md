@@ -69,8 +69,19 @@ manager `/session-start-manager`, pi CLI `/session-start-cli`, pi worker `/sessi
 ## Next Session — Start Here (MANAGER)
 
 Infra is built; the job now is the gate + merges. On cold start:
+0. **FIRST — check in on codex + pi worker** (left running autonomous queues at 2026-05-25 ~10:30a):
+   capture their tmux panes (`tmux capture-pane -t f_codex_worker -p -S -15`, same for `f_pi_worker`)
+   and check `~/code/fichero-codex/.ai/inbox/` + `~/code/fichero-pi/.ai/inbox/` for fresh `done-*.md`.
+   - **codex** queue: push #1198 conftest fix (register `_digest_library_database` in
+     `dependency_overrides`), then #1118 → #1115 → #1111 (KG/workflow lane).
+   - **pi** queue: push #1205 fix (`head-30` → `head -30` in `sync_openapi_schema.sh`), then #1085
+     (maps importer, ingest lane — disjoint from codex).
+   - **claude_worker**: paused (frontend 0.0.2 largely clear); **pi_cli/pi_worker on `qwen/qwen3-coder`**.
+   Then gate any lane that reports done (step 1). Relaunch the lane-inbox watcher
+   (`find ~/code/fichero-{codex,pi}/.ai/inbox -name 'done-*.md'`, 30s poll, 10-min tick).
 1. **Watch `.ai/inbox/`** for `done-<lane>-DATE.md` (codex/pi). For each: `git diff 0.0.2...<lane>`
    → review subagents (`code-reviewer` + `silent-failure-hunter`) → `git merge --no-ff <lane>` →
+   **post-merge integration verify on trunk (test-runner subagent, SERIAL)** →
    restart `:8765` if backend changed → tell the lane to resync (`git merge 0.0.2`).
 2. **You own `:8765`** (Daniel starts it). Agents never bind it.
 3. **Bugs/features** filed via `/bug` `/feature` auto-label the lane (`frontend`/`backend`/`agent:pi`/`both`)
