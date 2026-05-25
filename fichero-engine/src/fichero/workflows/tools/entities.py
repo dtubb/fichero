@@ -8,6 +8,7 @@ Inherits from llm_base.py for shared config and processing.
 from __future__ import annotations
 
 import logging
+import unicodedata
 from typing import Any
 
 from fichero.workflows.types import State, PortDef, DataType
@@ -25,6 +26,16 @@ from fichero.workflows.tools.llm_base import (
 from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_entity_name(value: Any) -> str:
+    """Normalize entity labels for stable deduplication."""
+    text = " ".join(str(value or "").split()).strip()
+    if not text:
+        return ""
+    decomposed = unicodedata.normalize("NFKD", text)
+    folded = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return " ".join(folded.casefold().split())
 
 
 # =============================================================================
@@ -243,6 +254,14 @@ async def extract_entities(
     if not isinstance(entities, dict):
         entities = {}
 
+    max_items = inputs.get("max_items")
+    try:
+        max_items = int(max_items) if max_items is not None else None
+    except (TypeError, ValueError):
+        max_items = None
+    if max_items is not None and max_items <= 0:
+        max_items = None
+
     # Ensure all requested types exist
     for entity_type in entity_types:
         if entity_type not in entities:
@@ -256,11 +275,33 @@ async def extract_entities(
                 seen = set()
                 unique = []
                 for item in entities[entity_type]:
-                    item_key = str(item).lower() if isinstance(item, str) else str(item)
+                    if isinstance(item, dict):
+                        item_key = (
+                            item.get("name")
+                            or item.get("entity")
+                            or item.get("canonical_name")
+                            or item.get("value")
+                            or str(item)
+                        )
+                    else:
+                        item_key = item
+                    item_key = _normalize_entity_name(item_key)
                     if item_key not in seen:
                         seen.add(item_key)
                         unique.append(item)
                 entities[entity_type] = unique
+
+    if max_items is not None:
+        for entity_type in list(entities):
+            items = entities.get(entity_type)
+            if isinstance(items, list) and len(items) > max_items:
+                logger.warning(
+                    "extract_entities: truncated %s from %d to %d items",
+                    entity_type,
+                    len(items),
+                    max_items,
+                )
+                entities[entity_type] = items[:max_items]
 
     return {
         "entities": entities,
