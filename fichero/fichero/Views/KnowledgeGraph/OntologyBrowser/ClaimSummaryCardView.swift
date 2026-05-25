@@ -96,6 +96,7 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
         .padding(10)
         .background(Color(.windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+        .onTapGesture { openClaimSource() }
         .contextMenu {
             // Status sub-menu — set epistemic_status via PATCH.
             // Confirmed / Tentative / Rejected are the three states the
@@ -288,27 +289,7 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
             .first(where: { $0.id == docId })?
             .name
         if let docName, !docName.isEmpty {
-            Button {
-                var info: [String: Any] = ["documentId": docId]
-                if let pageLabel, !pageLabel.isEmpty {
-                    info["pageLabel"] = pageLabel
-                }
-                if let start = claim.sourceCharStart { info["charStart"] = start }
-                if let end = claim.sourceCharEnd { info["charEnd"] = end }
-                if let claimId = claim.id { info["claimId"] = claimId }
-                // Forward the verbatim excerpt so the PDF highlight
-                // overlay can findString it on the target page (#995).
-                if let excerpt = claim.sourceExcerpt?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                   !excerpt.isEmpty {
-                    info["excerpt"] = excerpt
-                }
-                NotificationCenter.default.post(
-                    name: .ficheroOpenClaimSource,
-                    object: nil,
-                    userInfo: info
-                )
-            } label: {
+            Button { openClaimSource() } label: {
                 // Render as a link, not a label: accent color + underline
                 // + pointing-hand cursor + trailing chevron all advertise
                 // tappability. Daniel: "we only have one source, can't
@@ -437,6 +418,37 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
         let chain = await evidenceChainAsync
         contradictions = cons
         evidenceChain = chain
+    }
+
+    /// Post ficheroOpenClaimSource for this claim. Called on card tap and
+    /// from the sourceLine button so both paths share the same logic.
+    private func openClaimSource() {
+        let docId = claim.sourceDocumentId
+        guard !docId.isEmpty,
+              LibraryManager.shared.globalLibrary?
+                  .documentStore
+                  .currentDocuments
+                  .contains(where: { $0.id == docId }) == true
+        else { return }
+        var info: [String: Any] = ["documentId": docId]
+        if let pageLabel = claim.sourcePageLabel?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !pageLabel.isEmpty {
+            info["pageLabel"] = pageLabel
+        }
+        if let start = claim.sourceCharStart { info["charStart"] = start }
+        if let end = claim.sourceCharEnd { info["charEnd"] = end }
+        if let claimId = claim.id { info["claimId"] = claimId }
+        if let excerpt = claim.sourceExcerpt?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !excerpt.isEmpty {
+            info["excerpt"] = excerpt
+        }
+        NotificationCenter.default.post(
+            name: .ficheroOpenClaimSource,
+            object: nil,
+            userInfo: info
+        )
     }
 
     fileprivate func deleteClaim() {
