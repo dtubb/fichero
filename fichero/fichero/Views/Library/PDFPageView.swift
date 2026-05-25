@@ -45,9 +45,24 @@ struct PDFPageView: NSViewRepresentable {
     var onPageIndexChange: ((Int) -> Void)?
     /// Optional zoom controller — set by PDFPageWithToolbar to sync the toolbar.
     var zoomController: PDFZoomController?
+    
+    // MARK: - Loupe State
+    
+    @AppStorage("pdfPreview.loupeEnabled") private var loupeEnabled = false
+    @AppStorage("pdfPreview.loupeMagnification") private var loupeMagnification: Double = 3.0
+    @AppStorage("pdfPreview.loupeSize") private var loupeSize: Double = 150.0
+    @AppStorage("pdfPreview.loupeLocked") private var loupeLocked = false
+    
+    @State private var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
+    @State private var lockedPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(owner: self)
+        Coordinator(
+            owner: self,
+            loupeEnabled: $loupeEnabled,
+            cursorPosition: $cursorPosition,
+            lockedPosition: $lockedPosition
+        )
     }
 
     func makeNSView(context: Context) -> PDFView {
@@ -139,9 +154,23 @@ struct PDFPageView: NSViewRepresentable {
         var zoomController: PDFZoomController?
         // Accumulated horizontal translation for the current pan gesture.
         private var panAccumulated: CGFloat = 0
+        
+        // MARK: - Loupe Bindings
+        
+        var loupeEnabled: Binding<Bool>
+        var cursorPosition: Binding<CGPoint>
+        var lockedPosition: Binding<CGPoint>
 
-        init(owner: PDFPageView) {
+        init(
+            owner: PDFPageView,
+            loupeEnabled: Binding<Bool>,
+            cursorPosition: Binding<CGPoint>,
+            lockedPosition: Binding<CGPoint>
+        ) {
             self.owner = owner
+            self.loupeEnabled = loupeEnabled
+            self.cursorPosition = cursorPosition
+            self.lockedPosition = lockedPosition
         }
 
         @objc
