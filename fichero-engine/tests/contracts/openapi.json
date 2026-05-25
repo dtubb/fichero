@@ -27916,6 +27916,30 @@
             "description": "Filter by entity type"
           },
           {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Filter by document ID",
+              "title": "Document Id"
+            },
+            "description": "Filter by document ID"
+          },
+          {
+            "name": "artifact_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Filter by artifact ID",
+              "title": "Artifact Id"
+            },
+            "description": "Filter by artifact ID"
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -29699,6 +29723,16 @@
             "nullable": true,
             "title": "Entity Id"
           },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Artifact Id"
+          },
           "state": {
             "type": "string",
             "title": "State"
@@ -29771,6 +29805,8 @@
           "operation",
           "entity_type",
           "entity_id",
+          "document_id",
+          "artifact_id",
           "state",
           "policy_action",
           "policy_rule_id",
@@ -29847,6 +29883,16 @@
             "type": "string",
             "nullable": true,
             "title": "Entity Id"
+          },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Artifact Id"
           },
           "payload": {
             "additionalProperties": true,

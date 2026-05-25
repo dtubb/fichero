@@ -75,6 +75,8 @@ class AgentWriteRequestInput(BaseModel):
     operation: str
     entity_type: str
     entity_id: str | None = None
+    document_id: str | None = None
+    artifact_id: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     sources: list[str] = Field(default_factory=list)
@@ -121,6 +123,8 @@ class AgentWriteRecordResponse(BaseModel):
     operation: str
     entity_type: str
     entity_id: str | None
+    document_id: str | None
+    artifact_id: str | None
     state: str
     policy_action: str | None
     policy_rule_id: str | None
@@ -197,6 +201,8 @@ def _record_to_response(record: AgentWriteRecord) -> AgentWriteRecordResponse:
         operation=record.request.operation,
         entity_type=record.request.entity_type,
         entity_id=record.request.entity_id,
+        document_id=record.request.document_id,
+        artifact_id=record.request.artifact_id,
         state=record.state.value,
         policy_action=record.policy_action.value if record.policy_action else None,
         policy_rule_id=record.policy_rule_id,
@@ -394,6 +400,8 @@ async def submit_agent_write(
         operation=request.operation,
         entity_type=request.entity_type,
         entity_id=request.entity_id,
+        document_id=request.document_id,
+        artifact_id=request.artifact_id,
         payload=request.payload,
         confidence=request.confidence,
         sources=request.sources,
@@ -460,6 +468,8 @@ async def get_agent_write_audit(
     agent_id: str | None = Query(None, description="Filter by agent ID"),
     state: ApprovalState | None = Query(None, description="Filter by approval state"),
     entity_type: str | None = Query(None, description="Filter by entity type"),
+    document_id: str | None = Query(None, description="Filter by document ID"),
+    artifact_id: str | None = Query(None, description="Filter by artifact ID"),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ) -> AgentWriteRecordsListResponse:
@@ -469,6 +479,8 @@ async def get_agent_write_audit(
         agent_id=agent_id,
         state=state,
         entity_type=entity_type,
+        document_id=document_id,
+        artifact_id=artifact_id,
         limit=limit,
         offset=offset,
     )

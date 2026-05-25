@@ -93,6 +93,8 @@ class AgentWriteRequest(BaseModel):
     operation: str  # "create", "update", "delete"
     entity_type: str  # "claim", "entity", "interpretation"
     entity_id: str | None = None  # For updates/deletes
+    document_id: str | None = None
+    artifact_id: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     sources: list[str] = Field(default_factory=list)
@@ -336,6 +338,8 @@ class PolicyEngine:
         agent_id: str | None = None,
         state: ApprovalState | None = None,
         entity_type: str | None = None,
+        document_id: str | None = None,
+        artifact_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[AgentWriteRecord]:
@@ -348,6 +352,10 @@ class PolicyEngine:
             records = [r for r in records if r.state == state]
         if entity_type:
             records = [r for r in records if r.request.entity_type == entity_type]
+        if document_id:
+            records = [r for r in records if r.request.document_id == document_id]
+        if artifact_id:
+            records = [r for r in records if r.request.artifact_id == artifact_id]
 
         # Sort by created_at descending
         records.sort(key=lambda r: r.created_at, reverse=True)
