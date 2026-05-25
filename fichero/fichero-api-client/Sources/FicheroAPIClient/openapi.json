@@ -8391,6 +8391,157 @@
         }
       }
     },
+    "/api/libraries/{lib}/entity-types": {
+      "get": {
+        "tags": [
+          "library",
+          "library"
+        ],
+        "summary": "List Library Entity Types",
+        "description": "List entity types enabled for a library.\n\nArgs:\n    lib: URL-encoded library path\n\nReturns:\n    List of LibraryEntityType entries for this library.",
+        "operationId": "list_library_entity_types_api_libraries__lib__entity_types_get",
+        "parameters": [
+          {
+            "name": "lib",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Lib"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryEntityTypeListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "library",
+          "library"
+        ],
+        "summary": "Add Library Entity Type",
+        "description": "Add an entity type to a library's enabled set.\n\nArgs:\n    lib: URL-encoded library path\n    entity_type_key: Machine-readable entity type key from ClassificationValue\n    enabled: Whether this type is active for extraction (default: True)\n\nReturns:\n    The created LibraryEntityType entry.",
+        "operationId": "add_library_entity_type_api_libraries__lib__entity_types_post",
+        "parameters": [
+          {
+            "name": "lib",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Lib"
+            }
+          },
+          {
+            "name": "entity_type_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Type Key"
+            }
+          },
+          {
+            "name": "enabled",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Enabled"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryEntityType"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/libraries/{lib}/entity-types/{entity_type_key}": {
+      "delete": {
+        "tags": [
+          "library",
+          "library"
+        ],
+        "summary": "Remove Library Entity Type",
+        "description": "Remove an entity type from a library's enabled set.\n\nArgs:\n    lib: URL-encoded library path\n    entity_type_key: Machine-readable entity type key to remove",
+        "operationId": "remove_library_entity_type_api_libraries__lib__entity_types__entity_type_key__delete",
+        "parameters": [
+          {
+            "name": "lib",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Lib"
+            }
+          },
+          {
+            "name": "entity_type_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Type Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/migrations/migrations": {
       "get": {
         "tags": [
@@ -39193,6 +39344,68 @@
         ],
         "title": "LibraryCreateResponse",
         "description": "Response from ``POST /api/library``.\n\n``created`` is False when the package already existed (idempotent\nre-creation is a no-op). ``tables_initialized`` is True when the\nDuckDB schema is in place \u2014 for both the freshly-created and the\npre-existing case \u2014 so a CLI caller can immediately issue queries.\n``path`` is the absolute, expanded path that was operated on."
+      },
+      "LibraryEntityType": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "library_id": {
+            "type": "string",
+            "title": "Library Id",
+            "description": "Reference to the Library."
+          },
+          "entity_type_key": {
+            "type": "string",
+            "title": "Entity Type Key",
+            "description": "Machine-readable entity type key from ClassificationValue."
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "Whether this type is active for extraction in this library.",
+            "default": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "library_id",
+          "entity_type_key"
+        ],
+        "title": "LibraryEntityType",
+        "description": "Per-library entity type customization (#874).\n\nLinks a library to the entity_type ClassificationValue keys it allows.\nEnables each library to define its own extraction taxonomy without\ncode changes. The extraction layer reads this table at runtime to\nvalidate and filter entity types."
+      },
+      "LibraryEntityTypeListResponse": {
+        "properties": {
+          "items": {
+            "items": {},
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "LibraryEntityTypeListResponse",
+        "description": "Standardized envelope for GET /api/libraries/{lib}/entity-types list endpoints."
       },
       "LibraryListResponse": {
         "properties": {

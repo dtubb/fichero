@@ -598,6 +598,30 @@ class ClassificationValue(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
+class LibraryEntityType(BaseModel):
+    """Per-library entity type customization (#874).
+
+    Links a library to the entity_type ClassificationValue keys it allows.
+    Enables each library to define its own extraction taxonomy without
+    code changes. The extraction layer reads this table at runtime to
+    validate and filter entity types.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    library_id: str = Field(description="Reference to the Library.")
+    entity_type_key: str = Field(
+        description="Machine-readable entity type key from ClassificationValue."
+    )
+    enabled: bool = Field(
+        default=True,
+        description="Whether this type is active for extraction in this library.",
+    )
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
 class DocumentCitation(BaseModel):
     """One document citing another (#906).
 

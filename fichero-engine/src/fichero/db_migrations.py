@@ -505,3 +505,30 @@ def migrate_reference_provenance_table(conn) -> None:
         logger.info("Reference provenance table migration completed")
     except Exception as e:
         logger.warning("Reference provenance table migration failed: %s", e)
+
+
+def migrate_library_entity_types_table(conn) -> None:
+    """Ensure library_entity_types table exists (#874).
+
+    Per-library entity type customization: links each library to the
+    entity_type ClassificationValue keys it allows for extraction.
+    """
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS library_entity_types (
+                id VARCHAR PRIMARY KEY,
+                library_id VARCHAR NOT NULL,
+                entity_type_key VARCHAR NOT NULL,
+                enabled BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                UNIQUE(library_id, entity_type_key)
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_library_entity_types_library
+            ON library_entity_types(library_id)
+        """)
+        logger.info("Library entity types table migration completed")
+    except Exception as e:
+        logger.warning("Library entity types table migration failed: %s", e)

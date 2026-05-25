@@ -710,6 +710,7 @@ from fichero.api.routes import (  # noqa: E402
     kg_sparql,
     kg_triangulation,
     library,
+    library_entity_types,
     library_registry,
     local_models,
     mcp_servers,
@@ -771,6 +772,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # /api/registry — known library registry persistence (#1131).
     # CLI list/switch uses these endpoints to manage the set of known libraries.
     (library_registry.router, "/api", ["library"]),
+    # /api/libraries/{lib}/entity-types — per-library entity type customization (#874).
+    (library_entity_types.router, "/api", ["library"]),
     (migrations.router, "/api/migrations", ["migrations"]),
     (mcp_tools.router, "/api/mcp/tools", ["mcp"]),
     (multilingual.router, "/api", ["multilingual"]),

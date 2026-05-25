@@ -1268,6 +1268,13 @@ class ContradictionListResponse(BaseModel):
     count: int
 
 
+class LibraryEntityTypeListResponse(BaseModel):
+    """Standardized envelope for GET /api/libraries/{lib}/entity-types list endpoints."""
+
+    items: list[Any]  # Typically LibraryEntityType
+    count: int
+
+
 class MCPServerListResponse(BaseModel):
     """Standardized envelope for GET /api/mcp-servers list endpoints."""
 

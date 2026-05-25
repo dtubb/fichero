@@ -3627,6 +3627,56 @@
         "response_model": null
       }
     ],
+    "libraries": [
+      {
+        "method": "GET",
+        "path": "/libraries/{lib}/entity-types",
+        "operation_id": "list_library_entity_types_api_libraries__lib__entity_types_get",
+        "summary": "List Library Entity Types",
+        "path_params": [
+          "lib"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LibraryEntityTypeListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/libraries/{lib}/entity-types",
+        "operation_id": "add_library_entity_type_api_libraries__lib__entity_types_post",
+        "summary": "Add Library Entity Type",
+        "path_params": [
+          "lib"
+        ],
+        "query_params": [
+          {
+            "name": "entity_type_key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "enabled",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
+        "request_model": null,
+        "response_model": "LibraryEntityType"
+      },
+      {
+        "method": "DELETE",
+        "path": "/libraries/{lib}/entity-types/{entity_type_key}",
+        "operation_id": "remove_library_entity_type_api_libraries__lib__entity_types__entity_type_key__delete",
+        "summary": "Remove Library Entity Type",
+        "path_params": [
+          "lib",
+          "entity_type_key"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
     "migrations": [
       {
         "method": "GET",
