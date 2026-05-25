@@ -29,23 +29,23 @@ def _get_db_manager() -> DatabaseManager:
     return db_manager
 
 
-def _get_library_db(lib_encoded: str, db_manager: DatabaseManager) -> Database:
+def _get_library_db(lib_encoded: str, db_mgr: DatabaseManager) -> Database:
     """Resolve library path from URL parameter and return its database."""
     lib_path = unquote(lib_encoded)
     try:
-        return db_manager.get_database(lib_path)
+        return db_mgr.get_database(lib_path)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=f"Library not found: {lib_path}") from e
 
 
 @router.get(
-    "/libraries/{lib}/entity-types",
+    "/libraries/{lib:path}/entity-types",
     response_model=LibraryEntityTypeListResponse,
     tags=["library"],
 )
 def list_library_entity_types(
     lib: str,
-    db_manager: DatabaseManager = Depends(_get_db_manager),
+    db_mgr: DatabaseManager = Depends(_get_db_manager),
 ) -> LibraryEntityTypeListResponse:
     """List entity types enabled for a library.
 
@@ -55,19 +55,18 @@ def list_library_entity_types(
     Returns:
         List of LibraryEntityType entries for this library.
     """
-    db = _get_library_db(lib, db_manager)
+    lib_path = unquote(lib)
+    db = _get_library_db(lib, db_mgr)
     try:
-        items = db.query(LibraryEntityType).filter(
-            LibraryEntityType.library_id == lib
-        ).all()
+        items = db.query(LibraryEntityType, library_id=lib_path)
         return LibraryEntityTypeListResponse(items=items, count=len(items))
     except Exception as e:
-        logger.error("Failed to list entity types for library %s: %s", lib, e)
+        logger.error("Failed to list entity types for library %s: %s", lib_path, e)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post(
-    "/libraries/{lib}/entity-types",
+    "/libraries/{lib:path}/entity-types",
     response_model=LibraryEntityType,
     tags=["library"],
 )
@@ -75,7 +74,7 @@ def add_library_entity_type(
     lib: str,
     entity_type_key: str,
     enabled: bool = True,
-    db_manager: DatabaseManager = Depends(_get_db_manager),
+    db_mgr: DatabaseManager = Depends(_get_db_manager),
 ) -> LibraryEntityType:
     """Add an entity type to a library's enabled set.
 
@@ -87,50 +86,49 @@ def add_library_entity_type(
     Returns:
         The created LibraryEntityType entry.
     """
-    db = _get_library_db(lib, db_manager)
+    lib_path = unquote(lib)
+    db = _get_library_db(lib, db_mgr)
     try:
         # Check if already exists
-        existing = db.query(LibraryEntityType).filter(
-            LibraryEntityType.library_id == lib,
-            LibraryEntityType.entity_type_key == entity_type_key,
-        ).first()
-        if existing:
+        matches = db.query(
+            LibraryEntityType,
+            library_id=lib_path,
+            entity_type_key=entity_type_key,
+        )
+        if matches:
+            existing = matches[0]
             # Update enabled status if re-adding
             existing.enabled = enabled
-            db.session.add(existing)
-            db.session.commit()
-            db.session.refresh(existing)
+            db.save(existing)
             return existing
 
         # Create new entry
         item = LibraryEntityType(
-            library_id=lib,
+            library_id=lib_path,
             entity_type_key=entity_type_key,
             enabled=enabled,
         )
-        db.session.add(item)
-        db.session.commit()
-        db.session.refresh(item)
+        db.save(item)
         return item
     except Exception as e:
         logger.error(
             "Failed to add entity type %s to library %s: %s",
             entity_type_key,
-            lib,
+            lib_path,
             e,
         )
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.delete(
-    "/libraries/{lib}/entity-types/{entity_type_key}",
+    "/libraries/{lib:path}/entity-types/{entity_type_key}",
     status_code=204,
     tags=["library"],
 )
 def remove_library_entity_type(
     lib: str,
     entity_type_key: str,
-    db_manager: DatabaseManager = Depends(_get_db_manager),
+    db_mgr: DatabaseManager = Depends(_get_db_manager),
 ) -> None:
     """Remove an entity type from a library's enabled set.
 
@@ -138,26 +136,27 @@ def remove_library_entity_type(
         lib: URL-encoded library path
         entity_type_key: Machine-readable entity type key to remove
     """
-    db = _get_library_db(lib, db_manager)
+    lib_path = unquote(lib)
+    db = _get_library_db(lib, db_mgr)
     try:
-        item = db.query(LibraryEntityType).filter(
-            LibraryEntityType.library_id == lib,
-            LibraryEntityType.entity_type_key == entity_type_key,
-        ).first()
-        if not item:
+        matches = db.query(
+            LibraryEntityType,
+            library_id=lib_path,
+            entity_type_key=entity_type_key,
+        )
+        if not matches:
             raise HTTPException(
                 status_code=404,
                 detail=f"Entity type {entity_type_key} not found for library",
             )
-        db.session.delete(item)
-        db.session.commit()
+        db.delete(matches[0])
     except HTTPException:
         raise
     except Exception as e:
         logger.error(
             "Failed to remove entity type %s from library %s: %s",
             entity_type_key,
-            lib,
+            lib_path,
             e,
         )
         raise HTTPException(status_code=500, detail=str(e)) from e
