@@ -67,6 +67,8 @@ struct DocumentInspector: View {
 
     private func documentDetail(_ doc: Document) -> some View {
         VStack(spacing: 0) {
+            DisplayAttributesStrip(document: doc)
+            Divider()
             tabBar
             Divider()
             tabContent(for: doc)
