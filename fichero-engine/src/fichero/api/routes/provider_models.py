@@ -74,6 +74,13 @@ def generate_model_description(model_data: dict) -> str:
 # All other info (description, pricing, capabilities) comes from LiteLLM.
 RECOMMENDED_MODELS: dict[str, list[dict]] = {
     "openai": [
+        {
+            "model_id": "gpt-5",
+            "is_recommended": True,
+            "supports_vision": True,
+            "supports_pdf_input": True,
+            "description": "General-purpose multimodal model for OCR, handwriting, and structured extraction.",
+        },
         {"model_id": "gpt-4.1", "is_recommended": True},
         {"model_id": "gpt-4.1-mini", "is_recommended": True},
         {"model_id": "gpt-4.1-nano", "is_recommended": True},
@@ -93,6 +100,13 @@ RECOMMENDED_MODELS: dict[str, list[dict]] = {
         {"model_id": "claude-3-haiku-20240307"},
     ],
     "google": [
+        {
+            "model_id": "gemini-3-pro-preview",
+            "is_recommended": True,
+            "supports_vision": True,
+            "supports_pdf_input": True,
+            "description": "Preview Gemini 3 multimodal model for OCR, handwriting, and document understanding.",
+        },
         {"model_id": "gemini-2.0-flash-exp", "is_recommended": True},
         {"model_id": "gemini-1.5-pro", "is_recommended": True},
         {"model_id": "gemini-1.5-flash"},
@@ -148,6 +162,29 @@ RECOMMENDED_MODELS: dict[str, list[dict]] = {
         },
         {"model_id": "accounts/fireworks/models/mixtral-8x22b-instruct"},
         {"model_id": "accounts/fireworks/models/qwen2-vl-72b-instruct"},
+    ],
+    "huggingface": [
+        {
+            "model_id": "Qwen/Qwen3-VL-8B-Instruct",
+            "is_recommended": True,
+            "supports_vision": True,
+            "supports_pdf_input": True,
+            "description": "Qwen3-VL 8B Instruct for OCR, handwriting, and general document reasoning.",
+        },
+        {
+            "model_id": "datalab-to/chandra-ocr-2",
+            "is_recommended": True,
+            "supports_vision": True,
+            "supports_pdf_input": True,
+            "description": "Chandra OCR model for high-accuracy document and handwriting extraction.",
+        },
+        {
+            "model_id": "nanonets/Nanonets-OCR-s",
+            "is_recommended": True,
+            "supports_vision": True,
+            "supports_pdf_input": True,
+            "description": "Nanonets OCR-S model for OCR and layout-aware document transcription.",
+        },
     ],
     "cohere": [
         {"model_id": "command-r-plus", "is_recommended": True},
@@ -472,15 +509,19 @@ async def list_models_for_provider(
 
         raw_models = llm_list_models(provider_type)
         litellm_models = {m["model_id"]: m for m in raw_models}
-
-        curated_ids = set()
-        if provider_type in RECOMMENDED_MODELS:
-            for m in RECOMMENDED_MODELS[provider_type]:
-                curated_ids.add(m["model_id"])
+        curated_models = {
+            m["model_id"]: m for m in RECOMMENDED_MODELS.get(provider_type, [])
+        }
 
         for model_id, model_data in litellm_models.items():
-            if model_id in curated_ids:
+            curated = curated_models.get(model_id)
+            if curated:
                 model_data["is_recommended"] = True
+                if curated.get("description") and not model_data.get("description"):
+                    model_data["description"] = curated["description"]
+                for key in ("supports_vision", "supports_pdf_input", "mode", "provider"):
+                    if key in curated and curated[key] is not None:
+                        model_data.setdefault(key, curated[key])
 
             if not model_data.get("description"):
                 model_data["description"] = generate_model_description(model_data)
@@ -488,15 +529,12 @@ async def list_models_for_provider(
             models.append(ModelResponse(**model_data))
 
         litellm_ids = set(litellm_models.keys())
-        for m in RECOMMENDED_MODELS.get(provider_type, []):
-            if m["model_id"] not in litellm_ids:
-                models.append(
-                    ModelResponse(
-                        model_id=m["model_id"],
-                        full_name=m["model_id"],
-                        is_recommended=m.get("is_recommended", False),
-                    )
-                )
+        for model_id, model_data in curated_models.items():
+            if model_id not in litellm_ids:
+                data = dict(model_data)
+                data.setdefault("full_name", model_id)
+                data.setdefault("provider", provider_type)
+                models.append(ModelResponse(**data))
 
     # Apply filters
     if search:

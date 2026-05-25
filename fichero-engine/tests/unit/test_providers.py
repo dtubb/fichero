@@ -5,7 +5,7 @@ Tests providers.py, llm.py, and the provider API routes.
 """
 
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch
 
 
 # =============================================================================
@@ -339,6 +339,31 @@ class TestProviderAPIRoutes:
         gpt4o = next(m for m in data if m["model_id"] == "gpt-4o")
         assert gpt4o["is_recommended"] is True
         assert gpt4o["supports_vision"] is True
+
+        openai_curated = next(m for m in data if m["model_id"] == "gpt-5")
+        assert openai_curated["is_recommended"] is True
+        assert openai_curated["supports_vision"] is True
+        assert openai_curated["supports_pdf_input"] is True
+
+        google_response = client.get("/api/providers/models/google")
+        assert google_response.status_code == 200
+        google_data = google_response.json()["items"]
+        gemini3 = next(m for m in google_data if m["model_id"] == "gemini-3-pro-preview")
+        assert gemini3["is_recommended"] is True
+        assert gemini3["supports_vision"] is True
+        assert gemini3["supports_pdf_input"] is True
+
+        hf_response = client.get("/api/providers/models/huggingface")
+        assert hf_response.status_code == 200
+        hf_data = hf_response.json()["items"]
+        hf_ids = {m["model_id"] for m in hf_data}
+        assert "Qwen/Qwen3-VL-8B-Instruct" in hf_ids
+        assert "datalab-to/chandra-ocr-2" in hf_ids
+        assert "nanonets/Nanonets-OCR-s" in hf_ids
+        qwen3 = next(m for m in hf_data if m["model_id"] == "Qwen/Qwen3-VL-8B-Instruct")
+        assert qwen3["is_recommended"] is True
+        assert qwen3["supports_vision"] is True
+        assert qwen3["supports_pdf_input"] is True
 
     def test_api_key_status(self, client):
         """Test GET /api/providers/{provider_type}/api-key/status"""

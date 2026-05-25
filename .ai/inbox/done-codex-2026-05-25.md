@@ -1,5 +1,21 @@
 # done-codex-2026-05-25
 
+Verified backend issue `#1145` on the `codex` branch.
+
+What changed:
+- Added curated OCR/HTR model entries for `gpt-5`, `gemini-3-pro-preview`, `Qwen/Qwen3-VL-8B-Instruct`, `datalab-to/chandra-ocr-2`, and `nanonets/Nanonets-OCR-s`.
+- Propagated curated metadata into the provider model API so those models surface with vision/PDF support and recommended ranking in the picker.
+- Extended the provider-model route regression coverage to assert the new OpenAI, Google, and Hugging Face entries are returned.
+
+Verification performed:
+- `PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_providers.py -q`
+- `PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/fichero/api/routes/provider_models.py fichero-engine/tests/unit/test_providers.py`
+
+Notes:
+- This stayed in the backend provider-model surface and did not touch ingest code.
+
+# done-codex-2026-05-25
+
 Verified backend issue `#1173` on the `codex` branch.
 
 What I checked:
