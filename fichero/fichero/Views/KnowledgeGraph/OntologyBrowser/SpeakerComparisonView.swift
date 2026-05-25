@@ -52,7 +52,7 @@ struct SpeakerComparisonView: View {
             .padding(.vertical)
         }
     }
-}
+} // SpeakerComparisonView
 
 // MARK: - Speaker Group View
 

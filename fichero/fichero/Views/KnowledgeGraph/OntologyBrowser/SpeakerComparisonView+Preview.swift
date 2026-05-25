@@ -55,4 +55,4 @@ struct SpeakerComparisonView_Previews: PreviewProvider {
         .padding()
     }
 }
-#endif
+#endif // DEBUG
