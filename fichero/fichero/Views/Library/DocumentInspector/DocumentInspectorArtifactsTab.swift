@@ -182,27 +182,8 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
                 .help("Save to file…")
             }
 
-            // Content preview — when the type's section is expanded, render
-            // the full text at its natural height so the whole artifact is
-            // readable (the parent inspector scrolls). Truncating the
-            // narrative to 10 lines or list previews to 3 hides exactly the
-            // content the user just clicked to see. RTF source ({\rtf1...})
-            // is decoded so the Info tab doesn't dump raw markup.
             if let content = artifact.content, !content.isEmpty {
-                // Long-prose artifacts (transcription, catalogue.narrative)
-                // need to grow to natural height; without the explicit
-                // .fixedSize(vertical:) the parent VStack inside the
-                // DisclosureGroup inside the inspector ScrollView negotiates
-                // a smaller height and the Text gets visually capped (#822).
-                Text(plainProjection(of: content))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .background(Color(.textBackgroundColor))
-                    .cornerRadius(4)
-                    .textSelection(.enabled)
+                ArtifactContentView(content: content)
             }
 
             // Structured data preview — each catalogue artifact type
@@ -253,7 +234,7 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
         case "places", "organizations":
             CatalogueArtifactPreviews.nameContext(data, primaryKey: "nombre", entityType: type)
         default:
-            EmptyView()
+            GenericJSONInspector(anyCodable: data)
         }
     }
 
@@ -626,6 +607,190 @@ extension Notification.Name {
     /// path, the preview owns the page-scroll path.
     static let ficheroNavigateToPage = Notification.Name("ficheroNavigateToPage")
 }
+
+// MARK: - Artifact Content View
+
+/// Renders artifact `content` string as a structured JSON inspector when
+/// the content is valid JSON, or as plain text otherwise.
+/// Owns the "View Raw" toggle independently per artifact.
+private struct ArtifactContentView: View {
+    let content: String
+
+    @State private var showRaw = false
+
+    var body: some View {
+        if let parsed = parseJSON(content) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Spacer()
+                    Button(showRaw ? "Structured" : "Raw") { showRaw.toggle() }
+                        .font(.caption2)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                }
+                if showRaw {
+                    Text(content)
+                        .font(.caption2.monospaced())
+                        .foregroundColor(.secondary)
+                        .padding(6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .background(Color(.textBackgroundColor))
+                        .cornerRadius(4)
+                        .textSelection(.enabled)
+                } else {
+                    GenericJSONInspector(value: parsed)
+                }
+            }
+        } else {
+            Text(plainText)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(Color(.textBackgroundColor))
+                .cornerRadius(4)
+                .textSelection(.enabled)
+        }
+    }
+
+    private var plainText: String {
+        guard content.hasPrefix("{\\rtf"),
+              let data = content.data(using: .utf8),
+              let attr = try? NSAttributedString(
+                  data: data,
+                  options: [.documentType: NSAttributedString.DocumentType.rtf],
+                  documentAttributes: nil
+              ) else {
+            return content
+        }
+        return attr.string
+    }
+
+    private func parseJSON(_ string: String) -> Any? {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("{") || trimmed.hasPrefix("["),
+              let data = string.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) else {
+            return nil
+        }
+        return obj
+    }
+}
+
+// MARK: - Generic JSON Inspector
+
+/// Renders a JSON value (dict or array) as a compact structured panel.
+/// Used for artifact `data` dicts of unknown types and parsed JSON content.
+struct GenericJSONInspector: View {
+    let value: Any
+
+    init(value: Any) {
+        self.value = value
+    }
+
+    init(anyCodable: [String: AnyCodable]) {
+        self.value = anyCodable.reduce(into: [String: Any]()) { $0[$1.key] = $1.value.value }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let dict = value as? [String: Any] {
+                ForEach(Array(dict.keys.sorted()), id: \.self) { key in
+                    if let val = dict[key] {
+                        GenericJSONRow(label: key, value: val)
+                    }
+                }
+            } else if let arr = value as? [Any] {
+                GenericJSONValueView(value: arr)
+            }
+        }
+        .padding(6)
+        .background(Color(.textBackgroundColor))
+        .cornerRadius(4)
+    }
+}
+
+private struct GenericJSONRow: View {
+    let label: String
+    let value: Any
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(label.replacingOccurrences(of: "_", with: " ").capitalized + ":")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 70, alignment: .leading)
+            GenericJSONValueView(value: value)
+        }
+    }
+}
+
+struct GenericJSONValueView: View {
+    let value: Any
+
+    var body: some View {
+        if let strArr = value as? [String] {
+            FlowLayout(spacing: 3) {
+                ForEach(Array(strArr.enumerated()), id: \.offset) { _, item in
+                    Text(item)
+                        .font(.caption2)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color.accentColor.opacity(0.10))
+                        .foregroundStyle(Color.accentColor)
+                        .cornerRadius(3)
+                }
+            }
+        } else if let arr = value as? [Any] {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(Array(arr.prefix(10).enumerated()), id: \.offset) { _, item in
+                    if let dict = item as? [String: Any] {
+                        let preview = dict.values.compactMap { $0 as? String }.first
+                            ?? String(describing: item)
+                        Text("• \(preview)")
+                            .font(.caption2)
+                            .foregroundStyle(.primary)
+                    } else {
+                        Text("• \(String(describing: item))")
+                            .font(.caption2)
+                            .foregroundStyle(.primary)
+                    }
+                }
+                if arr.count > 10 {
+                    Text("+ \(arr.count - 10) more")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } else if let dict = value as? [String: Any] {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(Array(dict.keys.sorted().prefix(5)), id: \.self) { key in
+                    HStack(spacing: 4) {
+                        Text(key + ":")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(String(describing: dict[key]!))
+                            .font(.caption2)
+                            .foregroundStyle(.primary)
+                            .textSelection(.enabled)
+                    }
+                }
+                if dict.count > 5 {
+                    Text("+ \(dict.count - 5) more keys")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } else {
+            Text(String(describing: value))
+                .font(.caption2)
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+        }
+    }
+}
 import FicheroAPIClient
 
 /// Inspector section that shows knowledge-graph entities and claims for
@@ -636,7 +801,7 @@ import FicheroAPIClient
 /// This is the typed-view counterpart to the existing markdown-artifact
 /// previews in `DocumentInspectorArtifactsTab`. Both render side-by-side
 /// for now (dual-write era) — markdown for debug, typed view for query.
-struct KnowledgeGraphInspectorSection: View {
+struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_body_length
     let documentId: String
     let entityService: EntityServiceGenerated
     /// Called when the user clicks the source-page arrow on an entity row.
