@@ -1093,15 +1093,15 @@ struct DocumentInspectorContentV2: View {
     private func clearPageContent() async {
         // page_content is a Document field, not an artifact — clearing it
         // means a normal updateDocument call with pageContent: "".
-        do {
-            let updated = try await documentService.updateDocument(
-                document.id,
-                pageContent: ""
-            )
-            documentStore.refreshLocalContent(updated)
+        if let error = await persistPageContent(
+            document: document,
+            content: "",
+            documentService: documentService,
+            documentStore: documentStore
+        ) {
+            actionError = "Couldn't clear page content: \(error)"
+        } else {
             actionError = nil
-        } catch {
-            actionError = "Couldn't clear page content: \(error.localizedDescription)"
         }
     }
 
@@ -1124,15 +1124,30 @@ struct DocumentInspectorContentV2: View {
     }
 
     private func savePageContent(_ content: String) async {
-        do {
-            let updated = try await documentService.updateDocument(
-                document.id,
-                pageContent: content
-            )
-            documentStore.refreshLocalContent(updated)
-            actionError = nil
-        } catch {
-            actionError = "Couldn't save: \(error.localizedDescription)"
-        }
+        actionError = await persistPageContent(
+            document: document,
+            content: content,
+            documentService: documentService,
+            documentStore: documentStore
+        ).map { "Couldn't save: \($0)" }
+    }
+}
+
+@MainActor
+func persistPageContent(
+    document: Document,
+    content: String,
+    documentService: DocumentServiceGenerated,
+    documentStore: DocumentStore
+) async -> String? {
+    do {
+        let updated = try await documentService.updateDocument(
+            document.id,
+            pageContent: content
+        )
+        documentStore.refreshLocalContent(updated)
+        return nil
+    } catch {
+        return error.localizedDescription
     }
 }

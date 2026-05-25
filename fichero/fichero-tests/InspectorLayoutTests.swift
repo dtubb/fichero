@@ -7,23 +7,25 @@ import Testing
 
 struct InspectorTabTests {
 
-    @Test("InspectorTab has four cases after Inspector V2: content, knowledgeGraph, artifacts, info")
+    @Test("InspectorTab has five cases after Inspector V2: content, knowledgeGraph, map, artifacts, info")
     func allCases() {
         // Inspector V2 (#155) added knowledgeGraph + artifacts tabs.
+        // The Map tab was added later for the page-scoped KG view.
         // Order in the enum drives left-to-right tab-bar rendering;
         // assertions below lock that ordering.
-        #expect(InspectorTab.allCases.count == 4)
+        #expect(InspectorTab.allCases.count == 5)
         #expect(InspectorTab.allCases.contains(.content))
         #expect(InspectorTab.allCases.contains(.knowledgeGraph))
+        #expect(InspectorTab.allCases.contains(.map))
         #expect(InspectorTab.allCases.contains(.artifacts))
         #expect(InspectorTab.allCases.contains(.info))
     }
 
-    @Test("InspectorTab order: content, knowledgeGraph, artifacts, info")
+    @Test("InspectorTab order: content, knowledgeGraph, map, artifacts, info")
     func ordering() {
         // Tab bar reads .allCases left-to-right. If someone reorders
         // the enum cases, every user's muscle memory breaks. Lock it.
-        let expected: [InspectorTab] = [.content, .knowledgeGraph, .artifacts, .info]
+        let expected: [InspectorTab] = [.content, .knowledgeGraph, .map, .artifacts, .info]
         #expect(InspectorTab.allCases == expected)
     }
 
@@ -38,6 +40,7 @@ struct InspectorTabTests {
     func icons() {
         #expect(InspectorTab.content.icon == "doc.text")
         #expect(InspectorTab.knowledgeGraph.icon == "point.3.connected.trianglepath.dotted")
+        #expect(InspectorTab.map.icon == "map")
         #expect(InspectorTab.artifacts.icon == "shippingbox")
         #expect(InspectorTab.info.icon == "info.circle")
     }
@@ -46,6 +49,7 @@ struct InspectorTabTests {
     func rawValues() {
         #expect(InspectorTab.content.rawValue == "Content")
         #expect(InspectorTab.knowledgeGraph.rawValue == "Knowledge Graph")
+        #expect(InspectorTab.map.rawValue == "Map")
         #expect(InspectorTab.artifacts.rawValue == "Artifacts")
         #expect(InspectorTab.info.rawValue == "Info")
     }
@@ -326,6 +330,50 @@ struct DocumentInspectorStateTests {
 
         let doc = firstId.flatMap { id in docs.first { $0.id == id } }
         #expect(doc == nil)
+    }
+}
+
+// MARK: - Page Content Pane Edit State Tests (#1188)
+
+struct PageContentPaneEditStateTests {
+
+    @Test("Editing seeds the draft from the current page content")
+    func beginEditingSeedsDraft() {
+        var state = PageContentPaneEditState()
+        state.synchronize(with: "Initial text")
+        state.beginEditing(from: "Initial text")
+
+        #expect(state.isEditing)
+        #expect(state.draftContent == "Initial text")
+        #expect(state.savedContent == "Initial text")
+        #expect(!state.hasUnsavedChanges)
+    }
+
+    @Test("Blur only triggers a save when the draft changed")
+    func saveOnlyWhenDraftChanged() {
+        var state = PageContentPaneEditState()
+        state.beginEditing(from: "Initial text")
+        state.draftContent = "Updated text"
+
+        #expect(!state.shouldSaveOnBlur(isFocused: true))
+        #expect(state.shouldSaveOnBlur(isFocused: false))
+
+        state.markSaved()
+        #expect(!state.hasUnsavedChanges)
+        #expect(!state.shouldSaveOnBlur(isFocused: false))
+    }
+
+    @Test("Document refresh does not overwrite an active edit")
+    func synchronizeSkipsActiveEditing() {
+        var state = PageContentPaneEditState()
+        state.synchronize(with: "Original")
+        state.beginEditing(from: "Original")
+        state.draftContent = "User draft"
+
+        state.synchronize(with: "Backend refresh")
+
+        #expect(state.draftContent == "User draft")
+        #expect(state.savedContent == "Original")
     }
 }
 
