@@ -1,5 +1,9 @@
 # Durable Lessons Learned / Decisions
 
+## Subagent-driven development: two-stage review (spec + quality) — 2026-05-25
+
+When executing implementation plans via superpowers:subagent-driven-development, the two-stage review pattern (spec compliance reviewer → code quality reviewer) is highly effective for catching both requirement gaps and quality issues before code quality review. Implementer may report DONE prematurely; spec reviewer catches missing code. If spec reviewer checks before implementer has applied edits, the check will report gaps — re-dispatch the same spec reviewer after implementer completes the fixes. Moved implementer to Task 2 (cursor tracking) after both reviews passed Task 1 (loupe state management in PDFPageView).
+
 ## Backend lane verification stays targeted; manager owns the full gate — 2026-05-25
 
 For backend lane work on `codex`, run only the targeted ruff pass on changed backend files plus the single regression test for the issue being touched. The manager owns the authoritative serial `verify_python.sh` + full suite at merge/post-merge, so repeating the full gate in the lane creates DuckDB single-writer contention without adding signal. Keep backend commits small and issue-scoped.

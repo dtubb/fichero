@@ -140,21 +140,21 @@ Infra is built; the job now is the gate + merges. On cold start:
 
 ## Next Session — Start Here (frontend Claude)
 
-**PAUSED — manager consolidating before context reset. Resume after manager clears backend gate.**
+**MANAGER CONSOLIDATING — resume #928 PDF loupe after backend gate clears.**
 
-**14-issue queue status (2026-05-25 ~10:35a):**
-- ✅ #1180 fixed + pushed (`2dca41f0`) — `DisplayAttributesStrip` wired into `documentDetail`
-- ✅ Closed with evidence: #605 (startup clean in Swift), #958 (structured output already rendered), #718 (portrait aspect), #1044 (processing spinner), #717 (handleTap), #715 (NSTextView shortcuts native), #1032 (searchable toolbar)
-- 🔴 **#1045** REAL — `documentProgressList` is flat file list, needs doc×step grid in `ActivityOverviewView.swift`
-- 🔴 **#1048** REAL — no timing summary UI in any Activity view
-- ❓ **#928** NEEDS VERIFY — loupe exists for images; check PDF page children coverage
-- ⏳ **#702, #721** — 0.0.3 milestone, skip
-- ⏳ **#330** — old milestone, skip
+**Queue Status (2026-05-25 ~7:38p):**
+- 🟣 **#928 PDF loupe** — 1/7 tasks done (loupe state management + storage); Task 2 (cursor tracking) ready to resume
+  - Task 1 ✅: PDFPageView loupe state, @AppStorage properties, Coordinator bindings
+  - Task 2 ⏳: Cursor tracking via NSTrackingArea + mouseMoved handler (spec + code review ready)
+  - Tasks 3-7: Loupe overlay, toolbar integration, image loupe fixes, build+lint, manual test
+- ✅ **#1045** — discovered already closed (activity grid already implemented)
+- ✅ **#1048** — discovered already closed (timing summary already in place)
+- ❓ **#1046, #1047** (related KG inspector) — not assigned, may be priority if manager approves
 
 **On resume:**
-1. Fix #1045 first (ActivityOverviewView.swift — replace flat file list with doc×step grid)
-2. Fix #1048 (add timing summary to activity stats card)
-3. Verify #928 (PDF page loupe)
+1. Manager merges codex/pi lanes into trunk, restarts :8765
+2. Resume Task 2: dispatch implementer subagent with cursor tracking instructions (ready-to-go from interruption)
+3. Continue Tasks 3-7 (loupe overlay, toolbar, image coordinate fixes)
 4. Three-leg check: swiftlint + Xcode build; CAUTION do NOT RunAllTests (Daniel live-testing :8765)
 
 ## Next Session — Start Here (backend Claude / Codex)

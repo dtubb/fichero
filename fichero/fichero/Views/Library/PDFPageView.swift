@@ -109,6 +109,14 @@ struct PDFPageView: NSViewRepresentable {
         )
         pan.delegate = context.coordinator
         view.addGestureRecognizer(pan)
+        // Register for tracking area updates
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.updateTrackingAreas(_:)),
+            name: NSView.frameDidChangeNotification,
+            object: view
+        )
+        context.coordinator.updateTrackingAreas(NSNotification(name: NSView.frameDidChangeNotification, object: view))
         loadAndNavigate(view)
         return view
     }
@@ -122,6 +130,7 @@ struct PDFPageView: NSViewRepresentable {
 
     static func dismantleNSView(_ view: PDFView, coordinator: Coordinator) {
         NotificationCenter.default.removeObserver(coordinator)
+        view.trackingAreas.forEach { view.removeTrackingArea($0) }
     }
 
     /// Load the PDF document (if not already loaded) and navigate to the
@@ -171,6 +180,38 @@ struct PDFPageView: NSViewRepresentable {
             self.loupeEnabled = loupeEnabled
             self.cursorPosition = cursorPosition
             self.lockedPosition = lockedPosition
+        }
+
+        @objc
+        func updateTrackingAreas(_ notification: Notification) {
+            guard let pdfView = pdfView else { return }
+            
+            // Remove old tracking areas
+            pdfView.trackingAreas.forEach { pdfView.removeTrackingArea($0) }
+            
+            // Add new tracking area that covers the entire PDFView
+            let tracking = NSTrackingArea(
+                rect: pdfView.bounds,
+                options: [.activeInKeyWindow, .mouseMoved, .inVisibleRect],
+                owner: self,
+                userInfo: nil
+            )
+            pdfView.addTrackingArea(tracking)
+        }
+
+        override func mouseMoved(with event: NSEvent) {
+            guard loupeEnabled.wrappedValue else { return }
+            guard let pdfView = pdfView, pdfView.bounds.width > 0, pdfView.bounds.height > 0 else { return }
+            
+            let locationInView = pdfView.convert(event.locationInWindow, from: nil)
+            
+            // Normalize to 0-1 range (PDFView coordinates: origin bottom-left)
+            let normalized = CGPoint(
+                x: locationInView.x / pdfView.bounds.width,
+                y: locationInView.y / pdfView.bounds.height
+            )
+            
+            cursorPosition.wrappedValue = normalized
         }
 
         @objc
