@@ -9,12 +9,30 @@
 Daniel testing 0.0.2. If passes, release checklist (#157–#165) in order.
 Multi-agent split active: frontend Claude (#1202/#1204/#1181), backend Codex (#1054/#1173/#1198), pi CLI (imports).
 
-**Manager triage (2026-05-25 8:13a):** inbox empty, no BLOCK. Labelled 5 orphan issues —
-#1175→both, #1145→backend, #1146→frontend.
-✅ Verified-and-closed via read-only subagent: **#1147** (contract endpoint-walk test —
-`test_contract_endpoint_walk.py`, 2 passed) and **#1148** (CLI = in-process engine consumer,
-option b; live `test_cli_engine_contract.py`). Filed **#1205** (chore/backend) to delete the
-now-dead generated Python CLI client + its regen step — leftover from #1148's option (b).
+**Manager gate status (2026-05-25 10:25a) — RESUME HERE:**
+Two lanes are mid-gate, each with ONE small fix kicked back (workers fixing on their branches):
+- **codex / #1198** (entity digest export): 3 review blockers RESOLVED (route exposed in OpenAPI,
+  uses shared `get_library_database` resolver, negative-path tests). Last fix: register
+  `_digest_library_database` in `conftest.py` `dependency_overrides` (or use `get_library_database`
+  directly in `Depends()`) — positive tests currently pass by a db-cache coincidence, not isolation.
+  Commits on `codex`: 0436ddd8 + 49ff32f5. #1173/#1054 verified already-fixed (no change).
+- **pi / #1205** (delete dead Python CLI client): correct EXCEPT a typo — `head -30` → `head-30`
+  on the swift-build line of `sync_openapi_schema.sh`. Restore the space. Commit on `pi`: 971586dd.
+
+Next: when both refresh their done-notes → re-confirm diffs → `git merge --no-ff` BOTH into trunk →
+run ONE integration verify on trunk (test-runner subagent, serial) → restart :8765 (backend changed)
+→ resync codex/pi (`git merge 0.0.2`) → clear worker contexts.
+
+**Testing division (confirmed with Daniel 2026-05-25):** workers write code + a single targeted
+check only — they do NOT run `verify_python.sh`/full suite (separate worktrees + DuckDB single-writer
+= concurrent runs DEADLOCK → false RED; filed **#1206** for per-run temp-DB isolation). The MANAGER
+owns audit (review subagents) + the authoritative full verify, run SERIALLY at integration time.
+
+**Earlier triage (8:13a):** labelled #1175→both/#1145→backend/#1146→frontend; verified-and-closed
+#1147/#1148; filed #1205. **All 255 open issues now lane-labelled** (subagent): FE 87 / BE 115 /
+both 53 — note this OVER-includes roadmap/legacy/release, so hand-feed in-scope bugs (don't trust raw
+`label:frontend`). Frontend 0.0.2 priority bugs: #1180 #1032 #605 #721 #718 #717 #715 #702 #928 #958
+#1048 #1045 #1044 #330.
 
 ## Agent split + worktree topology (2026-05-25)
 
