@@ -146,8 +146,10 @@
 		4EBA402FBE51F9F56366C3A5 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		64574A29B56CBA1F27542556 /* BackendSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */; };
+		650278DC2930567D10469587 /* ContentViewHelperViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00B5245346C7E0A399A7A82A /* ContentViewHelperViews.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
 		7C874A46B0C0C85ACD9F23AA /* DocumentInspectorArtifactsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */; };
+		7D8F36CB01DB7346C305CA3C /* ContentView+ReadingLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6650E28284D750D9076B0612 /* ContentView+ReadingLayout.swift */; };
 		832 /* Workflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 462 /* Workflow.swift */; };
 		836 /* CacheModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4119 /* CacheModel.swift */; };
 		838 /* PerformanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4121 /* PerformanceService.swift */; };
@@ -379,6 +381,7 @@
 
 /* Begin PBXFileReference section */
 		004167806445469D9A3595E4 /* AttributedTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AttributedTextEditor.swift; path = fichero/Views/Library/DocumentInspector/AttributedTextEditor.swift; sourceTree = SOURCE_ROOT; };
+		00B5245346C7E0A399A7A82A /* ContentViewHelperViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentViewHelperViews.swift; sourceTree = "<group>"; };
 		034677F6AF68D5DCA5CB3E8C /* SpeakerComparisonView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpeakerComparisonView.swift; sourceTree = "<group>"; };
 		04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DynamicConfigView.swift; sourceTree = "<group>"; };
 		0F11A721FF01A4F5A66A4568 /* EntityRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityRowView.swift; sourceTree = "<group>"; };
@@ -534,6 +537,7 @@
 		599CF5FBD9D2B619B9353BC7 /* SpeakerComparisonView+Preview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SpeakerComparisonView+Preview.swift"; sourceTree = "<group>"; };
 		5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TriggerEditorPreviewPanel.swift; path = fichero/Views/Automation/TriggerEditorView/TriggerEditorPreviewPanel.swift; sourceTree = SOURCE_ROOT; };
 		63B044A60D5A8C7BA256FF24 /* NavigationHistoryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NavigationHistoryManager.swift; sourceTree = "<group>"; };
+		6650E28284D750D9076B0612 /* ContentView+ReadingLayout.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+ReadingLayout.swift"; sourceTree = "<group>"; };
 		74515FA0260E31DB7F74A1D3 /* PDFReadingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFReadingView.swift; sourceTree = "<group>"; };
 		747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderContentsGrid.swift; sourceTree = "<group>"; };
 		75371C597B1E4689B6E1803F /* TriggerEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerEditorView.swift; sourceTree = "<group>"; };
@@ -912,6 +916,8 @@
 				4116 /* Workflow */,
 				20D8EE432F4BE22F006950A3 /* Actions */,
 				923BD592D3257176C51CAC1C /* ContentView+WorkflowActions.swift */,
+				6650E28284D750D9076B0612 /* ContentView+ReadingLayout.swift */,
+				00B5245346C7E0A399A7A82A /* ContentViewHelperViews.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1973,6 +1979,8 @@
 				23CB922EB4868B4EF1C20215 /* PDFReadingView.swift in Sources */,
 				F14D9A1A889055137785068A /* PageContentPane.swift in Sources */,
 				EEE878CB5349F5D321517F55 /* ContentView+WorkflowActions.swift in Sources */,
+				7D8F36CB01DB7346C305CA3C /* ContentView+ReadingLayout.swift in Sources */,
+				650278DC2930567D10469587 /* ContentViewHelperViews.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
