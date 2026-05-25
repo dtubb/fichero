@@ -33,13 +33,25 @@ os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
 # so app_db_path resolves under a per-process tmp dir.
 import tempfile as _tempfile
 import pathlib as _pathlib
-_test_base = _pathlib.Path(_tempfile.gettempdir()) / "fichero-tests-base"
-_test_base.mkdir(parents=True, exist_ok=True)
+
+def _make_test_base_path() -> _pathlib.Path:
+    """Create a per-process base path for test-only app storage.
+
+    Concurrent verifier runs must never point at the same DuckDB path,
+    or they can deadlock on the exclusive database lock.
+    """
+
+    return _pathlib.Path(
+        _tempfile.mkdtemp(prefix=f"fichero-tests-{os.getpid()}-")
+    )
+
+
+_test_base = _make_test_base_path()
 os.environ.setdefault("FICHERO_BASE_PATH", str(_test_base))
 
-from fichero.api.main import app
-from fichero.db import db_manager
-from fichero.app_db import AppDatabase
+from fichero.api.main import app  # noqa: E402
+from fichero.db import db_manager  # noqa: E402
+from fichero.app_db import AppDatabase  # noqa: E402
 
 
 def pytest_collection_modifyitems(items):

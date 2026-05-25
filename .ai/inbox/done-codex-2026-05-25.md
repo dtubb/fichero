@@ -1,5 +1,21 @@
 # done-codex-2026-05-25
 
+Verified backend issue `#1206` on the `codex` branch.
+
+What changed:
+- Made the test-only `FICHERO_BASE_PATH` unique per pytest process in `fichero-engine/tests/conftest.py` so concurrent verifier runs no longer collide on the same DuckDB path.
+- Added a regression test that checks the helper creates distinct per-process temp directories.
+
+Verification performed:
+- `PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_conftest_base_path.py -q`
+- `PYTHONPATH=fichero-engine/src bash -lc 'set -e; .venv/bin/pytest fichero-engine/tests/unit/test_api_providers.py -q >/tmp/fichero-api-providers-1.log 2>&1 & p1=$!; .venv/bin/pytest fichero-engine/tests/unit/test_api_providers.py -q >/tmp/fichero-api-providers-2.log 2>&1 & p2=$!; wait $p1 $p2; cat /tmp/fichero-api-providers-1.log; printf "\n---\n"; cat /tmp/fichero-api-providers-2.log'`
+- `PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/tests/conftest.py fichero-engine/tests/unit/test_conftest_base_path.py`
+
+Notes:
+- This was a backend test-harness fix only; no production code paths changed.
+
+# done-codex-2026-05-25
+
 Verified backend queue items `#1118` and `#1115` on the `codex` branch.
 
 What I checked:
