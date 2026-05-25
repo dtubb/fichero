@@ -1,7 +1,7 @@
 # Frontend Overview
 
-**Last Updated**: February 22, 2026
-**Status**: ✅ Swift 6 Compatible | ✅ 100% Pure SwiftUI
+**Last Updated**: 2026-05-24
+**Status**: ✅ Swift 6 Compatible | SwiftUI-first (AppKit only behind contained `NSViewRepresentable` bridges — see `SWIFTUI_PRINCIPLES.md` §8)
 
 ## What Fichero Frontend Does
 
@@ -49,18 +49,21 @@ SwiftUI Views → @Observable State → API Client (HTTP) → FastAPI Backend (p
                                                     DuckDB (metadata) + LanceDB (vectors)
 ```
 
-### Three-Column Layout
+### Resizable Multi-Pane Layout
+
+The window is a resizable multi-pane reading layout (pane widths persist via `@SceneStorage`).
+Panes adapt to the active mode — not all are shown at once.
 ```
-┌─────────────┬──────────────────────┬─────────────────┐
-│   Sidebar   │   Content Area       │   Inspector     │
-│   (modes)   │   (view-dependent)   │   (contextual)  │
-├─────────────┼──────────────────────┼─────────────────┤
-│ • Navigate  │ • Library Grid/List  │ • Doc Metadata  │
-│ • Search    │ • Chat Interface     │ • Chat Settings │
-│ • Chat      │ • Workflow Canvas    │ • Tool Palette  │
-│ • Workflows │ • Search Results     │ • Search Filters│
-│ • Activity  │ • Provider Settings  │                 │
-└─────────────┴──────────────────────┴─────────────────┘
+┌──────────┬───────────────┬─────────────────────┬────────────────────┐
+│ Sidebar  │ Document list │ Content / reading   │ Inspector (tabbed) │
+│ (modes)  │ (grid/list)   │ pane                │                    │
+├──────────┼───────────────┼─────────────────────┼────────────────────┤
+│ Navigate │ • documents   │ • PDF / page view   │ • Info             │
+│ Search   │ • folders     │ • image / preview   │ • Metadata         │
+│ Chat     │ • search hits │ • chat interface    │ • Content (edit)   │
+│ Workflows│               │ • workflow canvas   │ • Artifacts        │
+│ Activity │               │                     │ • Knowledge Graph  │
+└──────────┴───────────────┴─────────────────────┴────────────────────┘
 ```
 
 ### Key Components

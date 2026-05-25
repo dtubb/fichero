@@ -1,17 +1,24 @@
-# SwiftUI-Only Development Principles
+# SwiftUI-First Development Principles
 
-**Last Updated:** 2025-12-31
+**Last Updated:** 2026-05-24
 **Status:** Mandatory Guidelines | ✅ Swift 6 Compatible
 
 ---
 
 ## Core Philosophy
 
-Fichero's Swift frontend is **100% SwiftUI**. We do NOT use:
-- ❌ AppKit views or controls
-- ❌ NSView wrapping
-- ❌ UIViewRepresentable (except for absolutely unavoidable cases)
-- ❌ Custom drawing that can be done with SwiftUI
+Fichero's Swift frontend is **SwiftUI-first**. Default to SwiftUI for everything; drop to AppKit
+only where SwiftUI genuinely can't do the job, and isolate it behind an `NSViewRepresentable` /
+`NSViewControllerRepresentable` bridge (see §8). The app ships ~8 such bridges today — PDFKit, the
+image magnifier, scroll-wheel zoom, Quick Look, and rich/plain-text editors — plus an `NSEvent`
+swipe monitor. That is the bar: a documented, contained bridge for a real capability gap, not
+AppKit sprinkled through view code.
+
+Avoid — SwiftUI has the answer:
+- ❌ AppKit views/controls where a SwiftUI view already exists
+- ❌ `NotificationCenter` for state changes → `@FocusedValue` / `@Published` / Combine
+- ❌ Manual `DispatchQueue.main` → `@MainActor`
+- ❌ Custom drawing that SwiftUI `Canvas` / `Shape` can do
 - ❌ Legacy Cocoa patterns
 
 **If something seems hard in SwiftUI, the solution is to:**
@@ -262,15 +269,18 @@ struct NSViewWrapper: NSViewRepresentable { ... }  // ❌ Only if unavoidable
 NSLayoutConstraint.activate(...)  // ❌ Use SwiftUI layout
 ```
 
-**When AppKit IS Required:**
-- Native system file pickers (use .fileImporter)
-- Advanced text editing (use TextEditor first)
-- System integrations not available in SwiftUI
+**When AppKit IS Required (sanctioned bridges in this codebase):**
+- **PDFKit** — `PDFThumbnailView`, `PDFZoomController` (no SwiftUI PDF view with the control needed)
+- **Image magnifier / cursor tracking / scroll-wheel zoom** — `MagnifierPanel`, `ImageWithCursorTracking`, `ScrollWheelZoom`
+- **Quick Look previews** — `QuickLookComponents`
+- **Rich / plain-text editing** — `AttributedTextEditor`, `MacPlainTextEditor` (SwiftUI `TextEditor` lacks attributed text)
+- **Trackpad swipe** — `NSEvent.addLocalMonitorForEvents(matching: .swipe)` (no SwiftUI equivalent on macOS 15)
+- Native file pickers use SwiftUI `.fileImporter` — do NOT bridge those.
 
-**Before using AppKit:**
-1. Check Sosumi MCP for SwiftUI equivalent
+**Before adding a NEW AppKit bridge:**
+1. Check Sosumi MCP for a SwiftUI equivalent
 2. Search Ref MCP for documentation
-3. Ask if there's a SwiftUI-native way
+3. Confirm a genuine capability gap, then wrap it in an `NSViewRepresentable`
 
 ---
 
@@ -780,7 +790,7 @@ Before committing Swift code, verify:
 ## Summary
 
 **Golden Rules:**
-1. **SwiftUI-only** - Avoid AppKit unless unavoidable
+1. **SwiftUI-first** - AppKit only behind a contained `NSViewRepresentable` bridge for a real capability gap
 2. **Use MCP tools** - Sosumi & Ref before guessing
 3. **Proper state** - @Observable, @FocusedValue, @EnvironmentObject
 4. **Cache expensive work** - Don't rebuild on every update

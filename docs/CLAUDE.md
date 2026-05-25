@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**Last Updated:** 2026-04-13
+**Last Updated:** 2026-05-24
 **Status:** Canonical Agent Guidance
 
 This file provides guidance to coding agents when working with code in this repository.
@@ -16,16 +16,15 @@ Fichero is a macOS document management application with AI processing capabiliti
 - Integration with 100+ LLM providers (local and commercial)
 
 **Architecture:**
-- **Swift/SwiftUI frontend** (`fichero/`) - 100% pure SwiftUI native macOS app
+- **Swift/SwiftUI frontend** (`fichero/`) - SwiftUI-first native macOS app; AppKit via `NSViewRepresentable` where SwiftUI can't reach (PDFKit, image magnifier/zoom, rich-text editing)
 - **Python/FastAPI backend** (`fichero-engine/src/fichero/`) - Document processing, AI workflows, and data storage
 - **Dual database system**: DuckDB for metadata + LanceDB for vector embeddings
 - **Communication**: HTTP/REST on localhost:8765 with type-safe Swift client
 
 **Key Statistics:**
-- 189 Swift files (44 services, 118 views, 27 models)
-- 16 auto-generated service files from OpenAPI schema
+- ~330 Swift files (~49 services, ~234 views, ~42 models); 14 auto-generated service wrappers from the OpenAPI schema
 - Multi-window, multi-library support with per-library service instances
-- Three-column layout (Sidebar | Content | Inspector)
+- Resizable multi-pane layout: sidebar · document list · content/PDF reading view · tabbed inspector (Info / Metadata / Content / Artifacts / Knowledge Graph)
 
 ## Development Commands
 
@@ -126,7 +125,7 @@ The Swift app is a **pure UI layer** - all business logic, data persistence, and
 **Entry Point:**
 - **`FicheroApp.swift`** (223 lines): App lifecycle, backend startup, library manager, command menu structure, window management
 
-**Models Layer (`Models/`, 29 files):**
+**Models Layer (`Models/`, ~42 files):**
 - **`Document.swift`**: Core data model with DocType, FileType, Status enums
 - **`DocumentStore.swift`** (185 lines): Document hierarchy, CRUD operations, file import, folder ingestion
 - **`LibraryManager.swift`** (198 lines): Multi-library management, per-library service instances
@@ -135,15 +134,15 @@ The Swift app is a **pure UI layer** - all business logic, data persistence, and
 - **`FicheroDocument.swift`**: Per-window document state
 - **`WorkflowStore.swift`**: Workflow list, create, update, duplicate, export operations
 
-**Service Layer (`Services/`, 44 files):**
+**Service Layer (`Services/`, ~49 files):**
 - **`APIClient.swift`** (396 lines): HTTP client with library path injection, per-window instances
-- **16 Generated Services** (`*Generated.swift`): Auto-generated from OpenAPI (Workflow, Provider, Search, Chat, Document, etc.)
+- **14 Generated Services** (`*Generated.swift`): Auto-generated from OpenAPI (Workflow, Provider, Search, Chat, Document, etc.)
 - **`WorkflowStreamService.swift`** (294 lines): Server-Sent Events for real-time workflow execution
 - **`EmbeddedBackendService.swift`**: Backend process management
 - **`ProviderService.swift`**: Provider validation wrapper around generated service
 
-**Views Layer (`Views/`, 118 files in 14 feature domains):**
-- **`ContentView.swift`**: Three-column layout with 5 extensions (State, ViewBuilders, Navigation, Actions, Persistence)
+**Views Layer (`Views/`, ~234 files across ~19 feature domains — incl. `KnowledgeGraph/`, `ModelComparison/`, `MCPServers/`, `Settings/`):**
+- **`ContentView.swift`**: Resizable multi-pane layout with 6 extensions (State, ViewBuilders, Navigation, Actions, Persistence) + `ContentViewModifiers`
 - **`DocumentTabView.swift`**: Per-window entry point, service initialization
 - **`Sidebar/`** (14 files, 868 lines main): Multi-mode navigation (Library, Search, Chat, Workflows, Activity, Automation, Batches)
 - **`Library/`** (13 files, 805 lines main): Document browser, grid/list/table views, inspector
@@ -201,16 +200,14 @@ See `docs/ingest_api.md` for detailed API documentation.
 
 ## Code Quality Standards
 
-### Swift - 100% SwiftUI (MANDATORY)
+### Swift - SwiftUI-first (AppKit only where SwiftUI can't reach)
 
-**⚠️ CRITICAL: Pure SwiftUI - NO AppKit**
+**Default to SwiftUI. Reach for AppKit only when SwiftUI genuinely lacks the capability** — and isolate it in an `NSViewRepresentable` / `NSViewControllerRepresentable` bridge, never sprinkled through view code. Sanctioned bridges today (≈8 conformers, ~18 files `import AppKit`): PDFKit rendering + zoom (`PDFThumbnailView`, `PDFZoomController`), the image magnifier / cursor tracking (`MagnifierPanel`, `ImageWithCursorTracking`), scroll-wheel zoom (`ScrollWheelZoom`), Quick Look previews, and rich/plain-text editors (`AttributedTextEditor`, `MacPlainTextEditor`). Trackpad-swipe detection uses `NSEvent.addLocalMonitorForEvents` (no SwiftUI equivalent on macOS 15).
 
-This project uses **100% SwiftUI**. We do NOT use:
-- ❌ AppKit views or controls
-- ❌ NSView wrapping or UIViewRepresentable
-- ❌ NotificationCenter for state changes
-- ❌ Manual `DispatchQueue.main` dispatching
-- ❌ Custom drawing that can be done with SwiftUI
+Still avoid these — SwiftUI has the answer:
+- ❌ `NotificationCenter` for state changes → use `@FocusedValue` / `@Published` / Combine
+- ❌ Manual `DispatchQueue.main` dispatching → use `@MainActor`
+- ❌ Reaching for AppKit when a SwiftUI view/control already exists — check Apple docs (sosumi) first
 
 **Before implementing anything, check Apple docs:**
 - Use `sosumi.searchAppleDocumentation()` for SwiftUI equivalents FIRST
@@ -255,11 +252,6 @@ DispatchQueue.main.async {  // ❌ Use @MainActor instead
 - **Hard Limit:** < 1,000 lines (MUST split if exceeded)
 - **Type Body:** < 250 lines per struct/class
 - **Functions:** < 50 lines each
-
-**Refactoring Status (Feb 2026):**
-- 35/37 oversized files refactored to target sizes
-- SwiftLint violations: 330 → 69
-- See `agents/progress.md` for full tracker
 
 **Other Requirements:**
 - **SwiftLint is MANDATORY** - run before every commit
@@ -384,7 +376,7 @@ PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/
 - [ ] Ruff passes with zero errors (`ruff check fichero-engine/src/ fichero-engine/tests/`)
 - [ ] All tests pass (Python unit/integration + Swift tests)
 - [ ] OpenAPI schema synced if backend API changed
-- [ ] TODO.md updated with task status
+- [ ] GitHub issue / milestone status updated (issues are the source of truth)
 - [ ] Commit message follows conventions
 - [ ] No debug code or commented-out blocks
 - [ ] File sizes within guidelines (< 400 lines recommended)
@@ -591,9 +583,9 @@ The `docs/` folder contains detailed API documentation:
 - `ingest_overview.md` - High-level system overview
 - `supported_file_types.md` - Complete list of supported file formats
 
-### Disconnected Servers
+### GitHub
 
-- **github** - Currently not connected (authentication required)
+- **github** MCP - connected; use for issues, PRs, and milestone queries (the `gh` CLI is also available)
 
 ### Typical Swift Development Workflow
 
@@ -622,7 +614,7 @@ LibraryManager (singleton)
       ├── WorkflowStore
       ├── SearchServiceGenerated
       ├── ChatServiceGenerated
-      └── ... (16 other generated services)
+      └── ... (other generated services — 14 total)
 
 ContentView (per window)
   ├── ViewSettings
@@ -646,7 +638,7 @@ The project uses **Swift OpenAPI Generator** for type-safe API clients:
 
 1. **Source of Truth:** Python FastAPI exports OpenAPI schema (`fichero-engine/tests/contracts/openapi.json`)
 2. **Generation:** Swift OpenAPI Generator creates `Client.swift` and `Types.swift`
-3. **Generated Services:** 16 `*Generated.swift` files wrap generated client with typed methods
+3. **Generated Services:** 14 `*Generated.swift` files wrap generated client with typed methods
 4. **Manual Extensions:** Business logic goes in manual service wrappers (e.g., `ProviderService` wraps `ProviderServiceGenerated`)
 
 **Pattern Example:**
@@ -754,7 +746,7 @@ class APIClient: ObservableObject {
 - **Database access**: NEVER query DuckDB/LanceDB directly - always use `db.py`
 
 ### Development Workflow
-- **TODO.md updates**: NEVER rewrite entire file - use targeted search/replace edits only
+- **Status tracking**: update task state in GitHub Issues / Project board, not local files
 - **SwiftLint**: Run before EVERY commit - zero warnings required
 - **File sizes**: Keep files < 400 lines (hard limit: 1,000 lines)
 - **Session defaults**: Set project/workspace and scheme with `session-set-defaults` before using MCP build tools
@@ -773,8 +765,8 @@ class APIClient: ObservableObject {
 - **`docs/architecture/swiftui/api_migration_guide.md`** - OpenAPI client migration guide
 - **`docs/architecture/swiftui/development_standards.md`** - File size limits, Swift 6 guidelines
 - **`docs/architecture/api/development_standards.md`** - Backend development standards
-- **`docs/agent-workflow/TODO.md`** - Master task list
-- **`docs/agent-workflow/workflows/INBOX_WORKFLOW.md`** - Task processing workflow
+- **GitHub Issues + Milestones + Project board** - task backlog & source of truth (`gh issue list`)
+- **`docs/agent-workflow/TODO.md`** - legacy local task notes (non-authoritative)
 - **`README.md`** - User-facing setup and run instructions
 
 ### Critical Swift Files (Frequently Modified)
@@ -782,7 +774,7 @@ class APIClient: ObservableObject {
 - **`DocumentStore.swift`** (185 lines) - Document CRUD, state management
 - **`LibraryManager.swift`** (198 lines) - Multi-library orchestration
 - **`APIClient.swift`** (396 lines) - HTTP client with library path injection
-- **`ContentView.swift`** - Three-column layout (split into 5 extensions)
+- **`ContentView.swift`** - Resizable multi-pane layout (split into 6 extensions)
 - **`WorkflowTypes.swift`** (272 lines) - Workflow data models
 
 ### Critical Python Files (Backend)
@@ -795,11 +787,8 @@ class APIClient: ObservableObject {
 
 ### Generated Files (DO NOT EDIT MANUALLY)
 - **`fichero/fichero-api-client/`** - Generated Swift OpenAPI client
-- **`fichero/Services/*Generated.swift`** - 16 generated service wrappers
+- **`fichero/Services/*Generated.swift`** - 14 generated service wrappers
 - **`fichero-engine/tests/contracts/openapi.json`** - OpenAPI schema (regenerated from Python)
-
-### Refactoring Complete
-All 35 oversized files refactored to target sizes (completed Feb 2026).
 
 ## Additional Resources
 
