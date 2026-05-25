@@ -271,6 +271,51 @@ class TestPerPageProvenance:
         assert page_labels == {"Page 1", "Page 2"}
 
     @pytest.mark.asyncio
+    async def test_overlap_context_captures_entities_spanning_pages(
+        self, db, test_package, container_doc, llm_config
+    ):
+        """When an entity name spans a page boundary (e.g., "Juan" ends
+        page 1, "Pérez" starts page 2), overlap context (#971) prepends
+        the tail of page 1 to page 2 so the LLM sees the full name.
+        Without overlap, the entity would be truncated and missed."""
+        from fichero.workflows.tools.extractors import _run_extractor, _SECTIONS
+
+        people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
+
+        # Entity spans page boundary: last word of page 1 is first word of page 2
+        page1 = "On the first page, the attorney Juan"
+        page2 = "Pérez reviewed the document carefully."
+        aggregated = f"{page1}\n\n---\n\n{page2}"
+
+        # Mock the LLM to extract the full name only when it sees both
+        # parts (via overlap). Without overlap, would extract truncated.
+        def fake_chat_with_overlap(prompt, **kwargs):
+            # If prompt contains "Juan Pérez", we saw the overlap
+            if "Juan" in prompt and "Pérez" in prompt:
+                response_json = '{"people": [{"name": "Juan Pérez", "context": "attorney"}]}'
+            else:
+                # Truncated name when no overlap
+                response_json = '{"people": []}'  # missed the entity
+            return _pydantic_from_json_response(response_json)
+
+        with patch(
+            "fichero.workflows.tools.extractors.chat_structured_with_fallback",
+            new=AsyncMock(side_effect=fake_chat_with_overlap),
+        ):
+            state = {
+                "library_path": str(test_package),
+                "selected_doc_ids": [container_doc.id],
+            }
+            result = await _run_extractor(
+                people_section, {"text": aggregated}, state, llm_config
+            )
+
+        # With overlap context, "Juan Pérez" should be extracted
+        people = db.query(KnowledgeEntity, entity_type=EntityType.person)
+        assert len(people) == 1
+        assert people[0].canonical_name == "Juan Pérez"
+
+    @pytest.mark.asyncio
     async def test_single_chunk_no_separator_no_page_label(
         self, db, test_package, container_doc, llm_config
     ):

@@ -1171,19 +1171,33 @@ async def _run_extractor(
             # Don't take down the catalogue if spaCy is unhealthy.
             logger.warning("%s: NER pre-pass failed: %s", section["name"], exc)
 
-    async def _extract_chunk(chunk_text: str) -> list[Any]:
+    async def _extract_chunk(chunk_text: str, chunk_idx: int = 0) -> list[Any]:
         # Split a single page into sub-chunks if it exceeds the model's
         # context budget. Each sub-chunk gets its own LLM call; results
         # concatenate.
-        if len(chunk_text) > _MAX_CHUNK_CHARS:
+        #
+        # Overlap context (#971): prepend tail of previous chunk to provide
+        # entity context when they span page boundaries. Example: if "Eugenio
+        # Córdoba" spans pages, page 2's extraction will include "...Eugenio"
+        # from the previous chunk, giving the LLM full context. This helps
+        # when NER mentions span pages or quotes continue across boundaries.
+        _OVERLAP_CHARS = 200
+        extraction_text = chunk_text
+        if chunk_idx > 0 and chunk_idx < len(chunks):
+            prev_chunk = chunks[chunk_idx - 1]
+            overlap_tail = prev_chunk[-_OVERLAP_CHARS:] if len(prev_chunk) > _OVERLAP_CHARS else prev_chunk
+            if overlap_tail:
+                extraction_text = overlap_tail + " " + chunk_text
+
+        if len(extraction_text) > _MAX_CHUNK_CHARS:
             sub_chunks = []
-            for start in range(0, len(chunk_text), _MAX_CHUNK_CHARS):
-                sub_chunks.append(chunk_text[start:start + _MAX_CHUNK_CHARS])
+            for start in range(0, len(extraction_text), _MAX_CHUNK_CHARS):
+                sub_chunks.append(extraction_text[start:start + _MAX_CHUNK_CHARS])
             sub_results = await asyncio.gather(
                 *[_extract_one(s) for s in sub_chunks]
             )
             return [item for sub in sub_results for item in sub]
-        return await _extract_one(chunk_text)
+        return await _extract_one(extraction_text)
 
     # Track per-chunk LLM errors so we can distinguish "the document
     # genuinely has no entities" from "every LLM call hit a 403 / timeout
@@ -1259,7 +1273,7 @@ async def _run_extractor(
         return [item.model_dump(mode="json") for item in getattr(result, "items", [])]
 
     chunk_results: list[list[Any]] = await asyncio.gather(
-        *[_extract_chunk(c) for c in chunks]
+        *[_extract_chunk(c, idx) for idx, c in enumerate(chunks)]
     )
 
     # Flatten for the markdown artifact (legacy view); attach per-page
