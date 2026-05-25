@@ -1,5 +1,17 @@
 # Durable Lessons Learned / Decisions
 
+## Backend lane verification stays targeted; manager owns the full gate — 2026-05-25
+
+For backend lane work on `codex`, run only the targeted ruff pass on changed backend files plus the single regression test for the issue being touched. The manager owns the authoritative serial `verify_python.sh` + full suite at merge/post-merge, so repeating the full gate in the lane creates DuckDB single-writer contention without adding signal. Keep backend commits small and issue-scoped.
+
+## KG paragraph rendering should be SVO-first, citation-preserving, and deterministic — 2026-05-25
+
+When composing KG prose for any surface, prefer structured claim fields (`subject_canonical` / `predicate_verb` / `object_phrase` or SVO aliases) over legacy `text`, and preserve source provenance on every citation marker (`source_document_id`, `source_page_label`, `source_excerpt`, `source_char_start/end`, `source_bbox`). If consecutive claims share the same subject and verb, fold them into a single sentence instead of emitting repeated subjects. This keeps the renderer deterministic while still round-tripping exact source metadata for downstream arrows, footnotes, and inspectors.
+
+## Digest route tests must override the exact dependency path — 2026-05-25
+
+When a route uses a dependency wrapper around `get_library_database`, positive tests can accidentally pass through same-thread `db_manager` cache reuse instead of the intended isolated fixture path. Prefer either reusing `get_library_database` directly or registering the exact wrapper in the test fixture's `dependency_overrides` so the test client exercises the same dependency chain as production.
+
 ## xcodeproj 1.27.0 needs a monkey-patch for Xcode 16+ projects — 2026-05-25
 
 xcodeproj 1.27.0 raises `RuntimeError: Type checking error: got 'Array'` when opening any Xcode 16+ project because those projects store `shellScript` as an Array. Fix: monkey-patch `Xcodeproj::Project::Object::AbstractObjectAttribute#validate_value` to warn instead of raise when `type == :simple` and the value class is unexpected. This patch is already baked into `scripts/add-swift-file.rb`. Also: when calling the script with `fichero/fichero/Views/...`, the script now strips the outer `fichero/` prefix so it navigates the existing group tree instead of creating a duplicate `fichero > fichero` hierarchy.

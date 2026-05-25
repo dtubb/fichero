@@ -2,12 +2,11 @@
 
 ## Snapshot
 
-**Branch:** `0.0.2`
+**Branch:** `codex`
 
 ## Current Focus
 
-Daniel testing 0.0.2. If passes, release checklist (#157–#165) in order.
-Multi-agent split active: frontend Claude (#1202/#1204/#1181), backend Codex (#1054/#1173/#1198), pi CLI (imports).
+Backend queue on `codex` continues in issue order. `#1111` is complete and committed; next backend work is `#1118`, then `#1115`.
 
 **Manager triage (2026-05-25 8:13a):** inbox empty, no BLOCK. Labelled 5 orphan issues —
 #1175→both, #1145→backend, #1146→frontend.
@@ -64,41 +63,14 @@ manager `/session-start-manager`, pi CLI `/session-start-cli`.
 3. ✅ **Phase 3 — #1201 OpenAPI freshness gate** — step 7 in `verify_python.sh`; gate implemented and issue closed.
 4. ✅ **Phase 4 — KG entity library (#1183/#1191)** — `entity inspector` CLI command + `getEntityInspector()` Swift service method + `EntitySourceGroupsView` wired into `EntityDetailView`.
 
-## Next Session — Start Here (frontend Claude)
-
-**Daniel is testing 0.0.2.** Fix any bugs found. If testing passes, work release checklist in order.
-
-**Two things to verify first:**
-1. Entity source-groups mode: KG panel → pick entity → magnifying-glass icon in Claims header → should show prose grouped by source doc
-2. `fichero entity inspector <entity-id>` in the CLI — should return JSON with source-grouped claims
-
-**If 0.0.2 passes testing — release checklist in order:**
-- #157 Site pages audit (printouts)
-- #158/#159 App Store Connect API key + Sparkle EdDSA key verification  ← likely blocker, tackle first
-- #160 Signed Release app + DMG build
-- #161 Notarize + staple
-- #162 Sparkle-sign + GitHub release + tag
-- #163 Deploy site
-- #164 Smoke test on clean Mac account
-- #165 Merge 0.0.2 → main
-
-**If bugs found — prioritize fixes, then re-verify, then resume checklist.**
-
-Pending frontend issues (lower priority until release checklist clear):
-- #1202 Entity biography text view (EntityDetailView.swift, `/api/entities/{id}/claims`)
-- #1204 Click-to-sync (claim row onTapGesture → Jump to source page)
-- #1181 JSON artifact inspector (verify GenericJSONInspector is still in DocumentInspectorArtifactsTab.swift)
-
 ## Next Session — Start Here (backend Claude / Codex)
 
-```bash
-gh issue list --label backend --state open --limit 20
-```
+Work the backend queue in order, with verify-first per issue and only targeted checks in the lane:
+1. `#1118` NER multi-provider abstraction in `fichero/kg/` and `fichero/workflows/`
+2. `#1115` make KG-write an explicit workflow node in `fichero/workflows/`
+3. `#1111` is already complete; skip it
 
-Top priorities:
-- **#1054** search relevance threshold — `fichero-engine/src/fichero/api/search.py`, add min-score filter
-- **#1173** KG pronoun coreference — post-extraction resolver in `fichero-engine/src/fichero/kg/`
-- **#1198** entity digest export (PDF/MD/text) — new endpoint + CLI command
+Start by reading the issue, checking for an already-fixed implementation, then run the single targeted regression test for the touched area plus `ruff` on the changed backend files. Stay out of `ingest/`; pi owns that lane.
 
 ## Known issues / gotchas
 
