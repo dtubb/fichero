@@ -2264,3 +2264,16 @@ Two sessions continuing #1178 (transcription profiles) and paleography pipeline 
 - ✅ tmux sessions renamed to `f_` scheme: f_claude_manager, f_claude_worker, f_codex_worker, f_backend, f_pi_cli, f_pi_worker, f_autoloop (parked).
 - ✅ Created `session-start-pi-worker` skill + updated `session-start-manager` with topology/protocol; pushed to fichero-skills (`fbf5eaf`). Symlinked the per-lane skills into `~/.codex/skills/` (codex was missing them; pi gets them via whole-plugin symlink).
 - ✅ Fixed jcodemunch MCP everywhere: single-source per tool at pipx `~/.local/bin/jcodemunch-mcp` (Claude user scope; codex config.toml; pi mcp.json). Removed Claude's conflicting local+project scopes; cleared pi's stale cache. Root cause: `uvx jcodemunch-mcp` fails during PyPI quarantine.
+
+## 2026-05-25 — Frontend session (14-bug queue, verify-first sweep)
+
+- ✅ #1180: Wired `DisplayAttributesStrip` into `documentDetail` in `DocumentInspector.swift` — commit `2dca41f0`; pushed to `origin/0.0.2`
+- ✅ Closed #605 with evidence — Swift startup path clean; engine cold-start is Python backend concern
+- ✅ Closed #958 with evidence — structured output rendering already implemented in `ArtifactPanel`
+- ✅ Closed #718 with evidence — portrait aspect ratio already in `DocumentThumbnailView` (.aspectRatio 3/4)
+- ✅ Closed #1044 with evidence — processing spinner already in `statusIndicator` for all doc types
+- ✅ Closed #717 with evidence — `handleTap` in `LibraryView+FilterAndBatch.swift:178` sets `selection = [doc.id]`
+- ✅ Closed #715 with evidence — `AttributedTextEditor.Coordinator` has no key intercept; `NSTextView` handles shortcuts natively
+- ✅ Closed #1032 with evidence — `.searchable(text: $toolbarQuery, placement: .toolbar)` already present
+- ⏭ #1045, #1048, #928 confirmed real — deferred to next frontend session
+- ⏭ #702, #721 are 0.0.3 milestone; #330 is old milestone — skipped

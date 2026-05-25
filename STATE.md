@@ -110,28 +110,22 @@ Infra is built; the job now is the gate + merges. On cold start:
 
 ## Next Session — Start Here (frontend Claude)
 
-**Daniel is testing 0.0.2.** Fix any bugs found. If testing passes, work release checklist in order.
+**PAUSED — manager consolidating before context reset. Resume after manager clears backend gate.**
 
-**Two things to verify first:**
-1. Entity source-groups mode: KG panel → pick entity → magnifying-glass icon in Claims header → should show prose grouped by source doc
-2. `fichero entity inspector <entity-id>` in the CLI — should return JSON with source-grouped claims
+**14-issue queue status (2026-05-25 ~10:35a):**
+- ✅ #1180 fixed + pushed (`2dca41f0`) — `DisplayAttributesStrip` wired into `documentDetail`
+- ✅ Closed with evidence: #605 (startup clean in Swift), #958 (structured output already rendered), #718 (portrait aspect), #1044 (processing spinner), #717 (handleTap), #715 (NSTextView shortcuts native), #1032 (searchable toolbar)
+- 🔴 **#1045** REAL — `documentProgressList` is flat file list, needs doc×step grid in `ActivityOverviewView.swift`
+- 🔴 **#1048** REAL — no timing summary UI in any Activity view
+- ❓ **#928** NEEDS VERIFY — loupe exists for images; check PDF page children coverage
+- ⏳ **#702, #721** — 0.0.3 milestone, skip
+- ⏳ **#330** — old milestone, skip
 
-**If 0.0.2 passes testing — release checklist in order:**
-- #157 Site pages audit (printouts)
-- #158/#159 App Store Connect API key + Sparkle EdDSA key verification  ← likely blocker, tackle first
-- #160 Signed Release app + DMG build
-- #161 Notarize + staple
-- #162 Sparkle-sign + GitHub release + tag
-- #163 Deploy site
-- #164 Smoke test on clean Mac account
-- #165 Merge 0.0.2 → main
-
-**If bugs found — prioritize fixes, then re-verify, then resume checklist.**
-
-Pending frontend issues (lower priority until release checklist clear):
-- #1202 Entity biography text view (EntityDetailView.swift, `/api/entities/{id}/claims`)
-- #1204 Click-to-sync (claim row onTapGesture → Jump to source page)
-- #1181 JSON artifact inspector (verify GenericJSONInspector is still in DocumentInspectorArtifactsTab.swift)
+**On resume:**
+1. Fix #1045 first (ActivityOverviewView.swift — replace flat file list with doc×step grid)
+2. Fix #1048 (add timing summary to activity stats card)
+3. Verify #928 (PDF page loupe)
+4. Three-leg check: swiftlint + Xcode build; CAUTION do NOT RunAllTests (Daniel live-testing :8765)
 
 ## Next Session — Start Here (backend Claude / Codex)
 
