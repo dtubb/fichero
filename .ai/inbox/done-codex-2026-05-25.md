@@ -1,5 +1,21 @@
 # done-codex-2026-05-25
 
+Verified backend issue `#1179` on the `codex` branch.
+
+What changed:
+- Added a `search` input port so workflows can feed a dynamically resolved query into corpus search.
+- Wired the shipped transcription presets to insert a reference-corpus search node between Pass 1 and Pass 2.
+- Routed the search hits into the review step as metadata so Pass 2 sees both the draft transcription and the reference corpus.
+
+Verification performed:
+- `PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/workflows/test_default_workflows.py -q`
+- `PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/fichero/workflows/tools/sources.py fichero-engine/tests/unit/workflows/test_default_workflows.py`
+
+Notes:
+- This stayed in the backend workflow layer only; no ingest code was touched.
+
+# done-codex-2026-05-25
+
 Verified backend issue `#1206` on the `codex` branch.
 
 What changed:

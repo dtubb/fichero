@@ -227,6 +227,51 @@ class TestLoadPresetFiles:
         assert file_edge["source_port"] == "files"
         assert file_edge["target_port"] == "files"
 
+    def test_transcribe_presets_query_reference_corpus_on_pass_two(self):
+        """The shipped transcription presets feed Pass 1 into corpus search.
+
+        Pass 2 should receive the search hits as metadata so the review
+        prompt can inspect the reference corpus alongside the draft.
+        """
+        presets = {p["name"]: p for p in _load_preset_files()}
+        preset_specs = [
+            ("Transcribe HTR", "transcribe", "transcribe_review", "reference-search"),
+            (
+                "Transcribe Paleography",
+                "transcribe",
+                "transcribe_review",
+                "reference-search",
+            ),
+            ("Transcribe (Auto-Detect)", "transcribe-htr", "review-htr", "reference-search-htr"),
+            (
+                "Transcribe (Auto-Detect)",
+                "transcribe-paleo",
+                "review-paleo",
+                "reference-search-paleo",
+            ),
+        ]
+
+        for preset_name, transcribe_id, review_id, search_id in preset_specs:
+            preset = presets[preset_name]
+            node_ids = {n["id"] for n in preset["nodes"]}
+            assert search_id in node_ids, f"{preset_name} must include {search_id}"
+
+            transcribe_to_search = next(
+                e
+                for e in preset["edges"]
+                if e["source"] == transcribe_id and e["target"] == search_id
+            )
+            assert transcribe_to_search["source_port"] == "text"
+            assert transcribe_to_search["target_port"] == "query"
+
+            search_to_review = next(
+                e
+                for e in preset["edges"]
+                if e["source"] == search_id and e["target"] == review_id
+            )
+            assert search_to_review["source_port"] == "documents"
+            assert search_to_review["target_port"] == "metadata"
+
 
     def test_catalogue_inputs_route_via_transcribe_not_user_aggregate(self):
         """Catalogue + extract_all + merge_extracts read directly from

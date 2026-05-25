@@ -81,7 +81,15 @@ def _resolve_page_to_parent(doc: "Document", db) -> "Document | None":
     color="green",
     uses_llm=False,
     supports_batch=False,
-    input_ports=[],
+    input_ports=[
+        PortDef(
+            id="query",
+            name="Query",
+            port_type="input",
+            data_type=DataType.TEXT,
+            description="Search query",
+        ),
+    ],
     output_ports=[
         PortDef(
             id="files",
@@ -409,7 +417,15 @@ async def collection_tool(
     color="green",
     uses_llm=False,
     supports_batch=False,
-    input_ports=[],
+    input_ports=[
+        PortDef(
+            id="query",
+            name="Query",
+            port_type="input",
+            data_type=DataType.TEXT,
+            description="Search query",
+        ),
+    ],
     output_ports=[
         PortDef(
             id="files",
