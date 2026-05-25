@@ -9,6 +9,12 @@
 Daniel testing 0.0.2. If passes, release checklist (#157–#165) in order.
 Multi-agent split active: frontend Claude (#1202/#1204/#1181), backend Codex (#1054/#1173/#1198), pi CLI (imports).
 
+**Manager triage (2026-05-25 8:13a):** inbox empty, no BLOCK. Labelled 5 orphan issues —
+#1175/#1148→both, #1147/#1145→backend, #1146→frontend.
+⚠️ Verify-and-close candidates: **#1148** (OpenAPI unification) and **#1147** (response_model
+contract test) are marked done in the local task list — likely fixed-but-not-closed. Backend
+agent should confirm against the code/tests and close, not re-implement.
+
 ## Agent split (2026-05-25)
 
 Issues are labelled `frontend` / `backend` / `both` on GitHub.
