@@ -272,7 +272,7 @@ struct AttributedTextEditor: NSViewRepresentable {
         let onTextChanged: () -> Void
         let onEditingChanged: (Bool) -> Void
         var onRulerVisibilityChanged: ((Bool) -> Void)?
-        private weak var observedScrollView: NSScrollView?
+        private var rulerObservation: NSKeyValueObservation?
 
         init(
             text: Binding<NSAttributedString>,
@@ -284,27 +284,14 @@ struct AttributedTextEditor: NSViewRepresentable {
             self.onEditingChanged = onEditingChanged
         }
 
-        deinit {
-            observedScrollView?.removeObserver(self, forKeyPath: "rulersVisible")
-        }
-
         func observeRulerVisibility(on scrollView: NSScrollView) {
-            observedScrollView = scrollView
-            scrollView.addObserver(self, forKeyPath: "rulersVisible", options: [.new], context: nil)
-        }
-
-        nonisolated override func observeValue(
-            forKeyPath keyPath: String?,
-            of object: Any?,
-            change: [NSKeyValueChangeKey: Any]?,
-            context: UnsafeMutableRawPointer?
-        ) {
-            guard keyPath == "rulersVisible",
-                  let visible = change?[.newKey] as? Bool else { return }
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                guard !self.isApplyingRulerUpdate else { return }
-                self.onRulerVisibilityChanged?(visible)
+            rulerObservation = scrollView.observe(\.rulersVisible, options: [.new]) { [weak self] _, change in
+                guard let visible = change.newValue else { return }
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    guard !self.isApplyingRulerUpdate else { return }
+                    self.onRulerVisibilityChanged?(visible)
+                }
             }
         }
 
