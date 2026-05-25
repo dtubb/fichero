@@ -132,16 +132,12 @@ class EntityAuditResponse(BaseModel):
 
 
 # =============================================================================
-# Digest Helpers
-# =============================================================================
-
-
 async def _digest_library_database(
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
 ) -> Database:
-    """Resolve the digest library database with a route-specific 400 on absence."""
+    """Resolve the digest database and translate missing headers to 400."""
     if not x_fichero_library_path:
         raise HTTPException(
             status_code=400,
@@ -530,6 +526,7 @@ async def entity_claim_counts(
 @router.get(
     "/digest",
     response_class=Response,
+    include_in_schema=True,
     responses={
         400: {"description": "Missing library header or unsupported digest format"},
         403: {"description": "Library path rejected by allowlist"},
@@ -537,6 +534,7 @@ async def entity_claim_counts(
 )
 async def entity_digest(
     format_type: Annotated[str, Query(alias="format")] = "markdown",
+    library_path: Annotated[str | None, Query()] = None,
     db: Database = Depends(_digest_library_database),
 ) -> Response:
     """Export the visible entity graph as markdown or plain text."""
@@ -563,7 +561,11 @@ async def entity_digest(
     digest_rows.sort(key=lambda item: item[0].canonical_name.casefold())
 
     documents_by_id = {doc.id: doc for doc in db.all(Document)}
-    library_label = Path(str(getattr(db, "path", "library"))).stem or "library"
+    library_label = (
+        Path(library_path).stem
+        if library_path
+        else Path(str(getattr(db, "path", "library"))).stem
+    ) or "library"
     if all_entities and not digest_rows:
         logger.warning(
             "digest: %d entities present, 0 with linkable claims",
