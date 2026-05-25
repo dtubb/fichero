@@ -45,6 +45,7 @@ struct PDFPageView: NSViewRepresentable {
     var onPageIndexChange: ((Int) -> Void)?
     /// Optional zoom controller — set by PDFPageWithToolbar to sync the toolbar.
     var zoomController: PDFZoomController?
+    var onCursorMoved: ((CGPoint) -> Void)?
     
     // MARK: - Loupe State
     
@@ -199,7 +200,7 @@ struct PDFPageView: NSViewRepresentable {
             pdfView.addTrackingArea(tracking)
         }
 
-        override func mouseMoved(with event: NSEvent) {
+        @objc func mouseMoved(with event: NSEvent) {
             guard loupeEnabled.wrappedValue else { return }
             guard let pdfView = pdfView, pdfView.bounds.width > 0, pdfView.bounds.height > 0 else { return }
             
@@ -212,6 +213,7 @@ struct PDFPageView: NSViewRepresentable {
             )
             
             cursorPosition.wrappedValue = normalized
+            owner.onCursorMoved?(normalized)
         }
 
         @objc
