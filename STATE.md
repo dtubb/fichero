@@ -46,7 +46,22 @@ each milestone (0.0.2 → 0.0.3 …).
 
 Full plan: `agent-work/proposals/four-agent-worktree-topology.md`.
 Start sessions: frontend `/session-start-swiftui`, backend `/session-start-engine`,
-manager `/session-start-manager`, pi CLI `/session-start-cli`.
+manager `/session-start-manager`, pi CLI `/session-start-cli`, pi worker `/session-start-pi-worker`.
+
+## Next Session — Start Here (MANAGER)
+
+Infra is built; the job now is the gate + merges. On cold start:
+1. **Watch `.ai/inbox/`** for `done-<lane>-DATE.md` (codex/pi). For each: `git diff 0.0.2...<lane>`
+   → review subagents (`code-reviewer` + `silent-failure-hunter`) → `git merge --no-ff <lane>` →
+   restart `:8765` if backend changed → tell the lane to resync (`git merge 0.0.2`).
+2. **You own `:8765`** (Daniel starts it). Agents never bind it.
+3. **Bugs/features** filed via `/bug` `/feature` auto-label the lane (`frontend`/`backend`/`agent:pi`/`both`)
+   so workers self-pick. Filed by you or a dedicated bug/feature session — not the workers.
+4. **Verify-before-close** any "done" issue (strong fixed-but-not-closed pattern). pi's first task: **#1205**.
+5. jcodemunch MCP is single-source at the pipx binary — see auto-memory `jcodemunch-mcp-single-source`
+   if any lane's code-nav breaks (don't re-debug from scratch).
+6. **Uncommitted in trunk** (left intentionally): `AGENTS.md`/`CLAUDE.md` + `.bak` are jcodemunch's
+   `claude-md`/`init` policy injection — decide with Daniel whether to keep before committing.
 
 ## Completed this session (2026-05-25 morning)
 

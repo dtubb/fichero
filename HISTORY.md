@@ -2255,3 +2255,12 @@ Two sessions continuing #1178 (transcription profiles) and paleography pipeline 
 - ✅ Multi-agent coordination system: labelled all open GitHub issues `frontend`/`backend`/`both`; filed #1202 (entity biography text), #1203 (geo/temporal map), #1204 (click-to-sync).
 - ✅ Created `.ai/inbox/` inter-agent messaging directory on 0.0.2 branch.
 - ✅ Created 4 specialized session-start skills in `fichero-skills`: `session-start-swiftui`, `session-start-engine`, `session-start-cli`, `session-start-manager`.
+
+## 2026-05-25 — Session Summary (Manager: multi-agent infra + MCP)
+
+- ✅ Manager triage: labelled 5 orphan issues; verify-and-closed #1147 (contract endpoint-walk test, passing) and #1148 (CLI = in-process engine consumer, option b) via read-only subagent; filed #1205 (delete dead generated CLI client) + tagged `agent:pi`.
+- ✅ Designed + built the worktree topology: trunk `~/code/fichero-0.0.2` (frontend Claude + manager) + durable agent desks `~/code/fichero-codex` (branch `codex`) and `~/code/fichero-pi` (branch `pi`); `.venv` symlinked into each. Manager owns the review→merge→resync gate and `:8765`. Plan: `agent-work/proposals/four-agent-worktree-topology.md`.
+- ✅ Cleared cruft: removed 6 stale `.claude/worktrees/agent-*` worktrees + ancient `feature/*`/`merge-*`/`claude/*` branches (local now just `0.0.2` + `main`).
+- ✅ tmux sessions renamed to `f_` scheme: f_claude_manager, f_claude_worker, f_codex_worker, f_backend, f_pi_cli, f_pi_worker, f_autoloop (parked).
+- ✅ Created `session-start-pi-worker` skill + updated `session-start-manager` with topology/protocol; pushed to fichero-skills (`fbf5eaf`). Symlinked the per-lane skills into `~/.codex/skills/` (codex was missing them; pi gets them via whole-plugin symlink).
+- ✅ Fixed jcodemunch MCP everywhere: single-source per tool at pipx `~/.local/bin/jcodemunch-mcp` (Claude user scope; codex config.toml; pi mcp.json). Removed Claude's conflicting local+project scopes; cleared pi's stale cache. Root cause: `uvx jcodemunch-mcp` fails during PyPI quarantine.
