@@ -44,6 +44,6 @@ cp "$NEW_SCHEMA" "$DEST_SCHEMA"
 
 cd "$REPO_ROOT/fichero/fichero-api-client"
 # Keep output compact while surfacing generation/build signal lines.
-swift build 2>&1 | grep -E "error|warning: Schema|Writing data|Build complete" | head-30 || true
+swift build 2>&1 | grep -E "error|warning: Schema|Writing data|Build complete" | head -30 || true
 
 echo "✅ Synced backend OpenAPI schema into Swift client package (fichero-api-client)"
