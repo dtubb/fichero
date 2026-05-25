@@ -102,6 +102,24 @@ def _is_non_retriable_provider_error(message: str) -> bool:
     )
 
 
+def _log_vision_warning(message: str, file_path: str = None):
+    """Log vision processing warnings to the activity log."""
+    try:
+        # Try to get activity tracker - this should work if we're in a workflow context
+        from fichero.workflows.activity import get_activity_tracker
+        tracker = get_activity_tracker()
+        if tracker:
+            tracker.log(
+                type="VISION_WARNING",
+                level="WARNING",
+                message=message,
+                metadata={"file_path": file_path} if file_path else {}
+            )
+    except Exception:
+        # If activity tracker is not available, just log normally
+        logger.warning(f"Vision processing warning: {message}")
+
+
 # =============================================================================
 # Vision-Specific Port and Config Schemas
 # =============================================================================
@@ -462,10 +480,14 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
             return _vision_ocr_cgimage(cg_image, language)
 
     except ImportError as e:
-        logger.error(f"Apple Vision not available: {e}")
+        msg = f"Apple Vision not available: {e}"
+        logger.error(msg)
+        _log_vision_warning(msg)
         raise ValueError("Apple Vision OCR requires macOS with Vision framework")
     except Exception as e:
-        logger.error(f"Apple Vision OCR failed: {e}")
+        msg = f"Apple Vision OCR failed: {e}"
+        logger.error(msg)
+        _log_vision_warning(msg, image_path)
         raise
     finally:
         if cleanup_path:
@@ -505,10 +527,10 @@ def _vision_ocr_cgimage(cg_image, language: str = "en") -> str:
         if not results:
             img_width = cg_image.width()
             img_height = cg_image.height()
-            logger.warning(
-                f"Vision OCR returned empty at {recognition_level_name} "
-                f"({img_width}x{img_height} pixels, lang={language})"
-            )
+            msg = (f"Vision OCR returned empty at {recognition_level_name} "
+                   f"({img_width}x{img_height} pixels, lang={language})")
+            logger.warning(msg)
+            _log_vision_warning(msg)
             return None
 
         lines = []
@@ -539,7 +561,9 @@ def _vision_ocr_cgimage(cg_image, language: str = "en") -> str:
         return text
 
     # Both attempts returned empty
-    logger.error(f"Vision OCR returned empty even at Fast level (lang={language})")
+    msg = f"Vision OCR returned empty even at Fast level (lang={language})"
+    logger.error(msg)
+    _log_vision_warning(msg)
     return ""
 
 
@@ -567,7 +591,9 @@ def _apple_ocr_pdf_pages(pdf_path: str, language: str = "en") -> list[str]:
             cg_image = first_image if page_idx == 0 else _render_pdf_page_to_cgimage(pdf_path, page_idx)[0]
             pages.append(_vision_ocr_cgimage(cg_image, language) or "")
         except Exception as e:
-            logger.warning(f"Page {page_idx} OCR failed: {e}")
+            msg = f"Page {page_idx} OCR failed: {e}"
+            logger.warning(msg)
+            _log_vision_warning(msg)
             pages.append("")
     return pages
 
@@ -1340,6 +1366,7 @@ async def process_vision(
                     f"transcription artifact saved."
                 )
                 logger.warning(msg)
+                _log_vision_warning(msg, file_path)
                 results.append(
                     {"file": file_path, "text": "", "value": "", "error": msg}
                 )
@@ -1422,14 +1449,13 @@ async def process_vision(
         except Exception as e:
             err = str(e)
             if _is_non_retriable_provider_error(err):
-                logger.error(
-                    "Vision processing failed for %s with non-retriable "
-                    "provider/auth/quota error: %s",
-                    file_path,
-                    err,
-                )
+                msg = f"Vision processing failed for {Path(file_path).name} with non-retriable provider/auth/quota error: {err}"
+                logger.error(msg)
+                _log_vision_warning(msg, file_path)
             else:
-                logger.error(f"Vision processing failed for {file_path}: {e}")
+                msg = f"Vision processing failed for {Path(file_path).name}: {e}"
+                logger.error(msg)
+                _log_vision_warning(msg, file_path)
             results.append(
                 {"file": file_path, "text": "", "value": None, "error": err}
             )
