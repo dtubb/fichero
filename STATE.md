@@ -6,15 +6,21 @@
 
 ## Current Focus
 
-Entity Platform — SwiftUI implementation of five-pane reading layout, KG inspector modes, bidirectional sync, plus repository lint debt cleanup.
+Entity Platform and repo hygiene. The repo is verified green. Work the four phases below in order, one phase at a time. After each phase: run the gate, commit, and only then move on.
 
 ## In Progress
 
 Nothing. All loops stopped. Working interactively with Claude directly.
 
-Work these four phases IN ORDER. One phase at a time: run `bash scripts/verify_all.sh`
-(= ⌘U) and commit before moving on. Global rules (gate, jCodemunch, `add-swift-file.rb`
-for new/split files, never edit generated code) are in AGENTS.md.
+Global rules:
+- Use jCodemunch MCP for code navigation; read full files only before editing.
+- Canonical gate is `bash scripts/verify_all.sh`.
+- GitHub Issues is the canonical backlog; commit directly to `0.0.2` with conventional commits that reference the issue.
+- Register every new `.swift` file with `ruby scripts/add-swift-file.rb <path>`.
+- Never edit generated code (`fichero-api-client` generated sources, `openapi.json`).
+- After any backend API change, run `./fichero-engine/scripts/sync_openapi_schema.sh` and commit the regenerated client.
+
+Start of work: read `STATE.md` and `MEMORY.md`, then run `bash scripts/verify_all.sh` to confirm green.
 
 1. **Dependabot high** — bump `liquidjs` ≥ 10.25.7 in `site/` (DoS via circular block
    ref; `cd site && npm audit fix` or add a package.json `overrides`). NOTE: `verify_all.sh`
