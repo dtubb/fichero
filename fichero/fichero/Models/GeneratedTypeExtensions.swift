@@ -7,19 +7,10 @@ import SwiftUI
 // These add convenience methods to generated types without creating conflicting type aliases.
 // The manual types in WorkflowTypes.swift remain the primary types used by views.
 
-// MARK: - NodeDefOutput Extensions
+// MARK: - NodeDef Extensions
 
-extension Components.Schemas.NodeDefOutput {
+extension Components.Schemas.NodeDef {
     /// Stable identifier for SwiftUI (handles optional id)
-    public var stableId: String {
-        self.id ?? "node-\(tool)-\(Int(positionX ?? 0))-\(Int(positionY ?? 0))"
-    }
-}
-
-// MARK: - NodeDefInput Extensions
-
-extension Components.Schemas.NodeDefInput {
-    /// Stable identifier for SwiftUI
     public var stableId: String {
         self.id ?? "node-\(tool)-\(Int(positionX ?? 0))-\(Int(positionY ?? 0))"
     }

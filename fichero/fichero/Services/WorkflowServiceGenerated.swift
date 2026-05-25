@@ -467,7 +467,7 @@ extension WorkflowServiceGenerated {
     private func convertToWorkflowResponse(
         _ workflow: Components.Schemas.WorkflowResponse
     ) -> WorkflowResponse {
-        // Convert typed NodeDefOutput to dict for legacy WorkflowResponse
+        // Convert typed NodeDef to dict for legacy WorkflowResponse
         let nodeDicts: [[String: AnyCodable]] = workflow.nodes.map { node in
             var dict: [String: AnyCodable] = [
                 "id": AnyCodable(node.id ?? ""),
@@ -524,9 +524,9 @@ extension WorkflowServiceGenerated {
     private func convertToWorkflowDefinition(
         _ response: Components.Schemas.WorkflowResponse
     ) -> WorkflowDefinition {
-        // Convert typed NodeDefOutput to WorkflowNode
+        // Convert typed NodeDef to WorkflowNode
         let nodes: [WorkflowNode] = response.nodes.map { node in
-            convertNodeDefOutputToWorkflowNode(node)
+            convertNodeDefToWorkflowNode(node)
         }
 
         // Convert typed EdgeDef to WorkflowEdge
@@ -547,7 +547,7 @@ extension WorkflowServiceGenerated {
         )
     }
 
-    private func convertNodeDefOutputToWorkflowNode(_ node: Components.Schemas.NodeDefOutput) -> WorkflowNode {
+    private func convertNodeDefToWorkflowNode(_ node: Components.Schemas.NodeDef) -> WorkflowNode {
         // Convert input ports
         let inputPorts: [PortInfo] = (node.inputPorts ?? []).map { port in
             PortInfo(
@@ -663,7 +663,7 @@ extension WorkflowServiceGenerated {
         )
     }
 
-    private func createNodeDef(from node: WorkflowNode) -> Components.Schemas.NodeDefInput {
+    private func createNodeDef(from node: WorkflowNode) -> Components.Schemas.NodeDef {
         let inputPorts = node.inputPorts.map { createPortDef(from: $0) }
         let outputPorts = node.outputPorts.map { createPortDef(from: $0) }
 
@@ -678,24 +678,24 @@ extension WorkflowServiceGenerated {
             }
 
         // Convert inputs to OpenAPIObjectContainer
-        var inputsPayload: Components.Schemas.NodeDefInput.InputsPayload?
+        var inputsPayload: Components.Schemas.NodeDef.InputsPayload?
         if let inputs = node.inputs, !inputs.isEmpty {
             do {
                 let inputsDict = convertAnyCodableValueToDict(inputs)
                 let container = try OpenAPIObjectContainer(unvalidatedValue: inputsDict)
-                inputsPayload = Components.Schemas.NodeDefInput.InputsPayload(additionalProperties: container)
+                inputsPayload = Components.Schemas.NodeDef.InputsPayload(additionalProperties: container)
             } catch {
                 logger.warning("Failed to convert node inputs: \(error)")
             }
         }
 
         // Convert config to OpenAPIObjectContainer
-        var configPayload: Components.Schemas.NodeDefInput.ConfigPayload?
+        var configPayload: Components.Schemas.NodeDef.ConfigPayload?
         if let config = node.config, !config.isEmpty {
             do {
                 let configDict = convertAnyCodableValueToDict(config)
                 let container = try OpenAPIObjectContainer(unvalidatedValue: configDict)
-                configPayload = Components.Schemas.NodeDefInput.ConfigPayload(additionalProperties: container)
+                configPayload = Components.Schemas.NodeDef.ConfigPayload(additionalProperties: container)
             } catch {
                 logger.warning("Failed to convert node config: \(error)")
             }
@@ -716,7 +716,7 @@ extension WorkflowServiceGenerated {
             }
         }
 
-        return Components.Schemas.NodeDefInput(
+        return Components.Schemas.NodeDef(
             id: node.id,
             tool: node.tool,
             inputPorts: inputPorts,

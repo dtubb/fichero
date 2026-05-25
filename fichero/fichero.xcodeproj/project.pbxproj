@@ -40,6 +40,7 @@
 		0F10EA9CD30A9CC13ED3E074 /* EntityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F14337BE87CA15E70323ED4 /* EntityDetailView.swift */; };
 		0F17A8BE887BF69F2A84F67B /* OntologyBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1C81E90821C016E2CE3A60 /* OntologyBrowser.swift */; };
 		0F1CA90D364622756AFC004A /* EntityRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F11A721FF01A4F5A66A4568 /* EntityRowView.swift */; };
+		122B14F33BEDA95169037201 /* SpeakerComparisonView+Preview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 599CF5FBD9D2B619B9353BC7 /* SpeakerComparisonView+Preview.swift */; };
 		150 /* ChainEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 151 /* ChainEditorView.swift */; };
 		154 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152 /* ScheduleCreationSheet.swift */; };
 		155 /* TriggerCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153 /* TriggerCreationSheet.swift */; };
@@ -155,6 +156,7 @@
 		898AABCC531843909C0C6AA8 /* TriggerEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75371C597B1E4689B6E1803F /* TriggerEditorView.swift */; };
 		8C35E319E4B9A46AB0383C10 /* TriggerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C69898938F25CFEA64385A16 /* TriggerDetailView.swift */; };
 		9D71A811170D438B938FC1DA /* LibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */; };
+		9FB2B2B858EA25B4757ECFEC /* EntitySourceGroupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8B0073490980740B06C80D7 /* EntitySourceGroupsView.swift */; };
 		A13E7C1F2F27E01E00EC9EE1 /* ActivityRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C122F27E01E00EC9EE1 /* ActivityRun.swift */; };
 		A13E7C272F27E03300EC9EE1 /* SidebarModeIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C262F27E03300EC9EE1 /* SidebarModeIcon.swift */; };
 		A13E7C282F27E03300EC9EE1 /* SidebarModeBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C252F27E03300EC9EE1 /* SidebarModeBar.swift */; };
@@ -168,13 +170,10 @@
 		A13E7C3A2F27F36000EC9EE1 /* ActivityServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C392F27F36000EC9EE1 /* ActivityServiceGenerated.swift */; };
 		A13E7C3C2F27F36000EC9EE1 /* ActivityTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3B2F27F36000EC9EE1 /* ActivityTypes.swift */; };
 		A13E7C462F280BE900EC9EE1 /* ActivityProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C432F280BE900EC9EE1 /* ActivityProgressView.swift */; };
-
 		A13E7C492F280BE900EC9EE1 /* ActivityConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C3C2F280BE900EC9EE1 /* ActivityConsoleView.swift */; };
 		A13E7C4B2F280BE900EC9EE1 /* ActivityOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C422F280BE900EC9EE1 /* ActivityOverviewView.swift */; };
 		A13E7C4C2F280BE900EC9EE1 /* ActivityLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C412F280BE900EC9EE1 /* ActivityLogView.swift */; };
-
 		A13E7C4E2F280BE900EC9EE1 /* ActivityViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C442F280BE900EC9EE1 /* ActivityViewHelpers.swift */; };
-
 		A13E7C642F27F36000EC9EE1 /* ArtifactServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C632F27F36000EC9EE1 /* ArtifactServiceGenerated.swift */; };
 		A13E7C652F27F36000EC9EE1 /* StorageServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E7C662F27F36000EC9EE1 /* StorageServiceGenerated.swift */; };
 		A13E80A22F2AD75100EC9EE1 /* ModelComparisonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E80A12F2AD75100EC9EE1 /* ModelComparisonService.swift */; };
@@ -272,6 +271,7 @@
 		AA112233001122AA /* LibraryView+Sorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122BB /* LibraryView+Sorting.swift */; };
 		AA112233001122CC /* LibraryView+ColumnConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122DD /* LibraryView+ColumnConfig.swift */; };
 		AA112233001122EE /* LibraryView+FilterAndBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122FF /* LibraryView+FilterAndBatch.swift */; };
+		AA1DB6B1BCD300BF5D523EF2 /* SpeakerComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034677F6AF68D5DCA5CB3E8C /* SpeakerComparisonView.swift */; };
 		AA214031892F4668F16A3E75 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */; };
 		AD284E03A3377968AE568677 /* DocumentInspectorMetadataTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */; };
 		AF3C46E684A7D133B1BAA5D2 /* TriggerEditorFormPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */; };
@@ -360,7 +360,6 @@
 		A1624FF62F2EE5710019C019 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			dstPath = "";
-			dstSubfolder = Resources;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
@@ -369,6 +368,7 @@
 
 /* Begin PBXFileReference section */
 		004167806445469D9A3595E4 /* AttributedTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AttributedTextEditor.swift; path = fichero/Views/Library/DocumentInspector/AttributedTextEditor.swift; sourceTree = SOURCE_ROOT; };
+		034677F6AF68D5DCA5CB3E8C /* SpeakerComparisonView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpeakerComparisonView.swift; sourceTree = "<group>"; };
 		04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DynamicConfigView.swift; sourceTree = "<group>"; };
 		0F11A721FF01A4F5A66A4568 /* EntityRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityRowView.swift; sourceTree = "<group>"; };
 		0F14337BE87CA15E70323ED4 /* EntityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityDetailView.swift; sourceTree = "<group>"; };
@@ -517,6 +517,7 @@
 		4125 /* SidebarState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarState.swift; sourceTree = "<group>"; };
 		4126 /* DragDropModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragDropModel.swift; sourceTree = "<group>"; };
 		462 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
+		599CF5FBD9D2B619B9353BC7 /* SpeakerComparisonView+Preview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SpeakerComparisonView+Preview.swift"; sourceTree = "<group>"; };
 		5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TriggerEditorPreviewPanel.swift; path = fichero/Views/Automation/TriggerEditorView/TriggerEditorPreviewPanel.swift; sourceTree = SOURCE_ROOT; };
 		747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderContentsGrid.swift; sourceTree = "<group>"; };
 		75371C597B1E4689B6E1803F /* TriggerEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerEditorView.swift; sourceTree = "<group>"; };
@@ -638,6 +639,7 @@
 		A1FB1D9A2F0420D50023093C /* SidebarViewExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewExtensions.swift; sourceTree = "<group>"; };
 		A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FlowLayout.swift; path = fichero/Views/Components/FlowLayout.swift; sourceTree = SOURCE_ROOT; };
 		A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureManager.swift; sourceTree = "<group>"; };
+		A8B0073490980740B06C80D7 /* EntitySourceGroupsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EntitySourceGroupsView.swift; sourceTree = "<group>"; };
 		AA112233001122BB /* LibraryView+Sorting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+Sorting.swift"; sourceTree = "<group>"; };
 		AA112233001122DD /* LibraryView+ColumnConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+ColumnConfig.swift"; sourceTree = "<group>"; };
 		AA112233001122FF /* LibraryView+FilterAndBatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryView+FilterAndBatch.swift"; sourceTree = "<group>"; };
@@ -705,11 +707,15 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10521AA2EFDC92400B28C3E /* fichero-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = "fichero-tests";
 			sourceTree = "<group>";
 		};
 		A10521C22EFDC94100B28C3E /* fichero-ui-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = "fichero-ui-tests";
 			sourceTree = "<group>";
 		};
@@ -752,6 +758,9 @@
 				0F14337BE87CA15E70323ED4 /* EntityDetailView.swift */,
 				0F11A721FF01A4F5A66A4568 /* EntityRowView.swift */,
 				0F1C81E90821C016E2CE3A60 /* OntologyBrowser.swift */,
+				A8B0073490980740B06C80D7 /* EntitySourceGroupsView.swift */,
+				034677F6AF68D5DCA5CB3E8C /* SpeakerComparisonView.swift */,
+				599CF5FBD9D2B619B9353BC7 /* SpeakerComparisonView+Preview.swift */,
 			);
 			path = OntologyBrowser;
 			sourceTree = "<group>";
@@ -1373,6 +1382,8 @@
 			);
 			buildRules = (
 			);
+			dependencies = (
+			);
 			name = Fichero;
 			packageProductDependencies = (
 				A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */,
@@ -1495,6 +1506,8 @@
 /* Begin PBXShellScriptBuildPhase section */
 		CC0011223344556677889902 /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
+			files = (
+			);
 			inputPaths = (
 				"$(SRCROOT)/../.swiftlint.yml",
 				"$(SRCROOT)/fichero",
@@ -1508,13 +1521,13 @@
 				"SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"",
 				"if [ ! -x \"$SWIFTLINT_BIN\" ]; then",
 				"  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"",
-				"fi",
+				fi,
 				"",
 				"if [ -x \"$SWIFTLINT_BIN\" ]; then",
 				"  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero\"",
-				"else",
+				else,
 				"  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"",
-				"fi",
+				fi,
 				"",
 				"mkdir -p \"$DERIVED_FILE_DIR\"",
 				"touch \"$DERIVED_FILE_DIR/swiftlint.done\"",
@@ -1524,6 +1537,8 @@
 		CC0011223344556677889903 /* Embed Fichero Engine */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
+			files = (
+			);
 			name = "Embed Fichero Engine";
 			shellPath = /bin/sh;
 			shellScript = (
@@ -1553,7 +1568,7 @@
 				"",
 				"  exit 0",
 				"",
-				"fi",
+				fi,
 				"",
 				"",
 				"",
@@ -1569,7 +1584,7 @@
 				"",
 				"  exit 1",
 				"",
-				"fi",
+				fi,
 				"",
 				"",
 				"",
@@ -1911,6 +1926,9 @@
 				B6A0020900000000BATCH6A2 /* AddProviderSheet+Step1.swift in Sources */,
 				B6A0020A00000000BATCH6A3 /* AddProviderSheet+Step2.swift in Sources */,
 				B6A0020B00000000BATCH6A4 /* AddProviderSheet+Step3.swift in Sources */,
+				9FB2B2B858EA25B4757ECFEC /* EntitySourceGroupsView.swift in Sources */,
+				AA1DB6B1BCD300BF5D523EF2 /* SpeakerComparisonView.swift in Sources */,
+				122B14F33BEDA95169037201 /* SpeakerComparisonView+Preview.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -1939,7 +1957,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		800 /* Debug configuration for PBXProject "fichero" */ = {
+		800 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -2005,7 +2023,7 @@
 			};
 			name = Debug;
 		};
-		801 /* Release configuration for PBXProject "fichero" */ = {
+		801 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -2063,7 +2081,7 @@
 			};
 			name = Release;
 		};
-		810 /* Debug configuration for PBXNativeTarget "Fichero" */ = {
+		810 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2109,7 +2127,7 @@
 			};
 			name = Debug;
 		};
-		811 /* Release configuration for PBXNativeTarget "Fichero" */ = {
+		811 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2157,7 +2175,7 @@
 			};
 			name = Release;
 		};
-		A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */ = {
+		A10521AF2EFDC92400B28C3E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2180,7 +2198,7 @@
 			};
 			name = Debug;
 		};
-		A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */ = {
+		A10521B02EFDC92400B28C3E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2203,7 +2221,7 @@
 			};
 			name = Release;
 		};
-		A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */ = {
+		A10521C82EFDC94100B28C3E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2226,7 +2244,7 @@
 			};
 			name = Debug;
 		};
-		A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */ = {
+		A10521C92EFDC94100B28C3E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2255,32 +2273,32 @@
 		600 /* Build configuration list for PBXNativeTarget "Fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				810 /* Debug configuration for PBXNativeTarget "Fichero" */,
-				811 /* Release configuration for PBXNativeTarget "Fichero" */,
+				810 /* Debug */,
+				811 /* Release */,
 			);
 			defaultConfigurationName = Debug;
 		};
 		710 /* Build configuration list for PBXProject "fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				800 /* Debug configuration for PBXProject "fichero" */,
-				801 /* Release configuration for PBXProject "fichero" */,
+				800 /* Debug */,
+				801 /* Release */,
 			);
 			defaultConfigurationName = Debug;
 		};
 		A10521B12EFDC92400B28C3E /* Build configuration list for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */,
-				A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */,
+				A10521AF2EFDC92400B28C3E /* Debug */,
+				A10521B02EFDC92400B28C3E /* Release */,
 			);
 			defaultConfigurationName = Debug;
 		};
 		A10521C72EFDC94100B28C3E /* Build configuration list for PBXNativeTarget "FicheroUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */,
-				A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */,
+				A10521C82EFDC94100B28C3E /* Debug */,
+				A10521C92EFDC94100B28C3E /* Release */,
 			);
 			defaultConfigurationName = Debug;
 		};

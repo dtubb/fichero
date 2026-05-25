@@ -13,6 +13,30 @@
 require 'xcodeproj'
 require 'pathname'
 
+# xcodeproj 1.27.0 strict type-check rejects Array shellScript values written
+# by Xcode 16+. Patch validate_value to treat simple-type mismatches as warnings.
+module Xcodeproj
+  class Project
+    module Object
+      class AbstractObjectAttribute
+        def validate_value(object)
+          return unless object
+          acceptable = classes.find { |klass| object.class == klass || object.class < klass }
+          unless acceptable
+            if type == :simple
+              # Xcode 16+ may store shellScript as Array — warn but don't raise
+              $stderr.puts "[xcodeproj patch] ignoring type mismatch for #{inspect} (got #{object.class})"
+            else
+              raise "[Xcodeproj] Type checking error: got `#{object.isa}` for " \
+                "attribute: #{inspect} - #{object.uuid} #{object.to_ascii_plist}"
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
 if ARGV.empty?
   puts "Usage: ruby scripts/add-swift-file.rb <path/to/NewFile.swift>"
   exit 1

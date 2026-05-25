@@ -723,6 +723,27 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    /// Full inspector payload for one entity: entity, claims with source
+    /// metadata, associated documents, annotations, and notes in one call.
+    /// Backed by GET /api/entities/{entity_id}/inspector (#1183).
+    func getEntityInspector(
+        _ entityId: String
+    ) async throws -> Components.Schemas.EntityInspectorResponse {
+        let response = try await client.api.inspectorApiEntitiesEntityIdInspectorGet(
+            path: .init(entityId: entityId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     /// Delete a KnowledgeEntity. The backend cascade-removes claims
     /// whose entity_ids reference it (per #901). Returns once the
     /// 204 response lands.

@@ -68,26 +68,61 @@ struct EntityDetailView: View { // swiftlint:disable:this type_body_length
     /// reading mode. (#989)
     @SceneStorage("entity.biographyMode") private var biographyMode: Bool = false
 
+    /// Source-groups mode: replace the whole detail body with
+    /// EntitySourceGroupsView (claims grouped by source doc/page).
+    /// Persisted per-window. (#1183)
+    @SceneStorage("entity.sourceGroupsMode") private var sourceGroupsMode: Bool = false
+
     /// Show all filtered claims vs the default top-10 cap. Per-window
     /// state via @SceneStorage so resets on each entity navigation
     /// don't surprise the user. (#994)
     @State private var showAllClaims: Bool = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                headerSection
-                aliasesSection
-                if biographyMode {
-                    biographySection
+        if sourceGroupsMode {
+            VStack(spacing: 0) {
+                // Minimal top bar: entity name + back button
+                HStack {
+                    Image(systemName: iconForEntityType)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(entity.canonicalName)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                    Spacer()
+                    Button {
+                        sourceGroupsMode = false
+                    } label: {
+                        Label("Claims", systemImage: "list.bullet")
+                            .font(.caption2)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Back to claim cards")
                 }
-                claimsSection
-                auditSection
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color(.windowBackgroundColor))
+                Divider()
+                EntitySourceGroupsView(entityId: entity.id ?? "")
             }
-            .padding()
-        }
-        .task(id: entity.id) {
-            await loadAudits()
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    headerSection
+                    aliasesSection
+                    if biographyMode {
+                        biographySection
+                    }
+                    claimsSection
+                    auditSection
+                }
+                .padding()
+            }
+            .task(id: entity.id) {
+                await loadAudits()
+            }
         }
     }
 
@@ -420,6 +455,19 @@ struct EntityDetailView: View { // swiftlint:disable:this type_body_length
                 }
                 .buttonStyle(.plain)
                 .help(biographyMode ? "Hide biography paragraph" : "Show biography paragraph")
+
+                // Source-groups mode: switch to per-source-document
+                // grouped prose view backed by the entity inspector
+                // endpoint. (#1183)
+                Button {
+                    sourceGroupsMode = true
+                } label: {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.caption)
+                        .foregroundStyle(Color.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("View claims grouped by source document")
 
                 if isLoadingClaims {
                     ProgressView()

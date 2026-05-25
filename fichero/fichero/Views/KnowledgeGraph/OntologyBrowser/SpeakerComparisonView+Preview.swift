@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 // MARK: - Preview for Speaker Comparison View
@@ -11,43 +12,43 @@ struct SpeakerComparisonView_Previews: PreviewProvider {
                 Components.Schemas.KnowledgeClaim(
                     id: "claim1",
                     text: "The witness spoke about his experience",
-                    speakerName: "Witness A",
-                    sourceDocumentId: "doc1"
+                    sourceDocumentId: "doc1",
+                    speakerName: "Witness A"
                 ),
                 Components.Schemas.KnowledgeClaim(
                     id: "claim2",
                     text: "Another testimony about the event",
-                    speakerName: "Witness B",
-                    sourceDocumentId: "doc1"
+                    sourceDocumentId: "doc1",
+                    speakerName: "Witness B"
                 ),
                 Components.Schemas.KnowledgeClaim(
                     id: "claim3",
                     text: "Yet another perspective",
-                    speakerName: "Witness A",
-                    sourceDocumentId: "doc2"
+                    sourceDocumentId: "doc2",
+                    speakerName: "Witness A"
                 ),
                 Components.Schemas.KnowledgeClaim(
                     id: "claim4",
                     text: "The defendant's statement",
-                    speakerName: "Defendant",
-                    sourceDocumentId: "doc3"
+                    sourceDocumentId: "doc3",
+                    speakerName: "Defendant"
                 )
             ])
             .previewDisplayName("Multi-Speaker Claims")
-            
+
             // Preview with single speaker
             SpeakerComparisonView(claims: [
                 Components.Schemas.KnowledgeClaim(
                     id: "claim1",
                     text: "A single speaker's account",
-                    speakerName: "Speaker One",
-                    sourceDocumentId: "doc1"
+                    sourceDocumentId: "doc1",
+                    speakerName: "Speaker One"
                 ),
                 Components.Schemas.KnowledgeClaim(
                     id: "claim2",
                     text: "Another statement",
-                    speakerName: "Speaker One",
-                    sourceDocumentId: "doc2"
+                    sourceDocumentId: "doc2",
+                    speakerName: "Speaker One"
                 )
             ])
             .previewDisplayName("Single Speaker Claims")
