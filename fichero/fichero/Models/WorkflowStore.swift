@@ -33,11 +33,11 @@ class WorkflowStore: ObservableObject {
     /// away the user's provider/model selection on the Transcribe (cloud)
     /// node etc. (#780 — root cause)
     private static var didReinstallDefaultsThisLaunch = false
-    /// Empty: backend ships the canonical default workflows (Transcribe,
-    /// Catalogue, Catalogue (composable)) via JSON in
-    /// fichero-engine/.../resources/default_workflows. The Swift-side
-    /// `Default · Transcribe Files` / `Default · Transcribe Collection`
-    /// duplicated backend's Transcribe — removed in #722.
+    // Empty: backend ships the canonical default workflows (Transcribe,
+    // Catalogue, Catalogue (composable)) via JSON in
+    // fichero-engine/.../resources/default_workflows. The Swift-side
+    // `Default · Transcribe Files` / `Default · Transcribe Collection`
+    // duplicated backend's Transcribe — removed in #722.
     // Note: there used to be a Swift-defined `defaultWorkflowTemplates`
     // array of `DefaultWorkflowTemplate` here. Defaults now live in the
     // backend's JSON files and are re-seeded by `reinstallDefaults` on
