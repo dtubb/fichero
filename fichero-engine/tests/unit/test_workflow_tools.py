@@ -7,7 +7,6 @@ Tests the source, vision, and LLM tools for workflows.
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from pathlib import Path
-import tempfile
 import base64
 
 from fichero.workflows.types import State
@@ -407,6 +406,68 @@ class TestExtractEntitiesTool:
             assert "John Smith" in result["entities"]["people"]
             assert "Acme Corp" in result["entities"]["organizations"]
 
+    @pytest.mark.asyncio
+    async def test_extract_entities_deduplicates_normalized_names(self, mock_llm_config, mock_state):
+        """Normalized names should dedupe even when case/spacing/accents differ."""
+        from fichero.workflows.tools.entities import extract_entities
+
+        mock_result = {
+            "value": {
+                "people": ["María", "maria ", "José", "jose"],
+                "organizations": ["Acme Corp", "ACME CORP"],
+                "locations": [],
+                "dates": [],
+            },
+            "text": "",
+            "texts": [],
+            "results": [],
+            "artifacts": [],
+        }
+
+        with patch("fichero.workflows.tools.entities.process_text", new=AsyncMock(return_value=mock_result)):
+            result = await extract_entities(
+                {
+                    "text": "María and José work at Acme Corp.",
+                    "save_to_db": False,
+                },
+                mock_state,
+                mock_llm_config,
+            )
+
+        assert result["entities"]["people"] == ["María", "José"]
+        assert result["entities"]["organizations"] == ["Acme Corp"]
+
+    @pytest.mark.asyncio
+    async def test_extract_entities_truncates_over_max_items(self, mock_llm_config, mock_state):
+        """max_items should cap each entity category after deduplication."""
+        from fichero.workflows.tools.entities import extract_entities
+
+        mock_result = {
+            "value": {
+                "people": ["A", "B", "C"],
+                "organizations": [],
+                "locations": [],
+                "dates": [],
+            },
+            "text": "",
+            "texts": [],
+            "results": [],
+            "artifacts": [],
+        }
+
+        with patch("fichero.workflows.tools.entities.process_text", new=AsyncMock(return_value=mock_result)):
+            result = await extract_entities(
+                {
+                    "text": "A B C",
+                    "save_to_db": False,
+                    "max_items": 2,
+                },
+                mock_state,
+                mock_llm_config,
+            )
+
+        assert result["entities"]["people"] == ["A", "B"]
+
 
 # =============================================================================
 # Tool Registration Tests
@@ -445,7 +506,6 @@ class TestDatabaseSaving:
     async def test_transcribe_saves_artifact(self, mock_llm_config, mock_state, tmp_path):
         """Test that transcribe saves Artifact to database."""
         from fichero.workflows.tools.transcribe import transcribe
-        from fichero.models import Artifact
 
         # Create a test image
         test_image = tmp_path / "test.jpg"

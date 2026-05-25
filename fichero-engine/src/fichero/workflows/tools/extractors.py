@@ -31,6 +31,7 @@ import asyncio
 import json
 import logging
 import re as _re
+import unicodedata
 from datetime import datetime
 from typing import Any
 
@@ -1773,7 +1774,12 @@ def _write_kg_rows(
     # first item's source_text + alternative_spellings; later
     # duplicates fold their spellings into the first.
     def _norm(s: Any) -> str:
-        return " ".join(str(s or "").lower().split())
+        text = " ".join(str(s or "").split()).strip()
+        if not text:
+            return ""
+        folded = unicodedata.normalize("NFKD", text)
+        folded = "".join(ch for ch in folded if not unicodedata.combining(ch))
+        return " ".join(folded.casefold().split())
 
     def _dedup_key(item: dict) -> tuple[str, str]:
         canonical = (
@@ -1832,6 +1838,21 @@ def _write_kg_rows(
             f"_write_kg_rows: deduped {len(items)} → {len(deduped)} items "
             f"for {section.get('name')} on {container_id}"
         )
+    item_cap = section.get("max_items") or section.get("max_items_per_page") or 100
+    try:
+        item_cap = int(item_cap)
+    except (TypeError, ValueError):
+        item_cap = 100
+    if item_cap > 0 and len(deduped) > item_cap:
+        logger.warning(
+            "_write_kg_rows: capped %s page %s on %s at %d items (from %d)",
+            section.get("name"),
+            page_label or "whole-doc",
+            container_id,
+            item_cap,
+            len(deduped),
+        )
+        deduped = deduped[:item_cap]
     items = deduped
 
     def _coerce_enum(raw: Any, enum_cls):

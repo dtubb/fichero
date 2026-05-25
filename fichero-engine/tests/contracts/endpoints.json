@@ -2072,6 +2072,11 @@
             "name": "format",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "library_path",
+            "required": false,
+            "type": "string"
           }
         ],
         "request_model": null,

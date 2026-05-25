@@ -308,6 +308,30 @@ def test_dedup_folds_alternative_spellings(_capture_save_claim) -> None:
     # That confirms the merge happened.
 
 
+def test_write_kg_rows_caps_overlarge_page_batches(_capture_save_claim, caplog) -> None:
+    """The KG writer should cap oversized per-page batches before DB writes."""
+    db, captured = _capture_save_claim
+    items = [
+        {"name": f"Person {idx}", "verb": "is", "object": "a person"}
+        for idx in range(101)
+    ]
+
+    from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+
+    people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
+    with caplog.at_level("WARNING", logger="fichero.workflows.tools.extractors"):
+        _write_kg_rows(
+            db,
+            people_section,
+            items,
+            container_id="doc-1",
+            page_label="Page 1",
+        )
+
+    assert len(captured) == 100
+    assert any("capped people_extract page Page 1" in record.message for record in caplog.records)
+
+
 def test_epistemic_and_claim_type_plumbed_through(_capture_save_claim) -> None:
     """LLM-emitted epistemic_status + claim_type land on the claim,
     coerced to enums. Unknown values silently fall back to None /
