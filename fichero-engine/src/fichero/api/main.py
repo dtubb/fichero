@@ -724,6 +724,7 @@ from fichero.api.routes import (  # noqa: E402
     references,
     projects,
     providers,
+    registries,
     research_agents,
     schedules,
     search,
@@ -774,6 +775,9 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (mcp_tools.router, "/api/mcp/tools", ["mcp"]),
     (multilingual.router, "/api", ["multilingual"]),
     (providers.router, "/api/providers", ["providers"]),
+    # /api/registries/epistemic-statuses and /api/registries/claim-kinds —
+    # user-extensible vocabulary for KnowledgeClaim fields (#1102).
+    (registries.router, "/api", ["registries"]),
     (search.router, "/api/search", ["search"]),
     (settings.router, "", ["settings"]),
     (sources.router, "/api/sources", ["sources"]),
