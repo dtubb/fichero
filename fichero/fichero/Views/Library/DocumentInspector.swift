@@ -61,6 +61,7 @@ struct DocumentInspector: View {
             }
         }
         .frame(minWidth: 220, maxWidth: .infinity, maxHeight: .infinity)
+        .environmentObject(claimFocusState)
     }
 
     // MARK: - Document Detail
