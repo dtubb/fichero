@@ -140,6 +140,7 @@
 		20D8EE4B2F4BED57006950A3 /* ActionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE4A2F4BED57006950A3 /* ActionDetailView.swift */; };
 		2133BF0B15424FFDBA37619B /* FolderContentsGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */; };
 		23CB922EB4868B4EF1C20215 /* PDFReadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74515FA0260E31DB7F74A1D3 /* PDFReadingView.swift */; };
+		25B9458F0E27EB2BCD55B439 /* ClaimSummaryCard+Details.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA39991F769A1DD42BB17F01 /* ClaimSummaryCard+Details.swift */; };
 		2ED84CCBA91252EA2D0C5D34 /* TriggerEditorPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */; };
 		3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */; };
 		4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
@@ -721,6 +722,7 @@
 		B6A0010A00000000BATCH6A3 /* AddProviderSheet+Step2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step2.swift"; sourceTree = "<group>"; };
 		B6A0010B00000000BATCH6A4 /* AddProviderSheet+Step3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step3.swift"; sourceTree = "<group>"; };
 		B8F0249656F38A2DB7AE0C54 /* LibraryMapComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryMapComponents.swift; sourceTree = "<group>"; };
+		BA39991F769A1DD42BB17F01 /* ClaimSummaryCard+Details.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ClaimSummaryCard+Details.swift"; sourceTree = "<group>"; };
 		BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Persistence.swift"; sourceTree = "<group>"; };
 		C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GeneralSettingsView.swift; path = fichero/Views/Settings/GeneralSettingsView.swift; sourceTree = SOURCE_ROOT; };
 		C07B489C8F89204C43BD6E46 /* AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AISettingsView.swift; path = fichero/Views/Settings/AISettingsView.swift; sourceTree = SOURCE_ROOT; };
@@ -801,6 +803,7 @@
 				82E8622F0305ED125BEDB904 /* EntityDetailView+Audit.swift */,
 				A99ACF7102EB736967DDAE57 /* EntityDetailView+Claims.swift */,
 				D18BA434B3CB3A8C31139293 /* EntityDetailView+FilterChips.swift */,
+				BA39991F769A1DD42BB17F01 /* ClaimSummaryCard+Details.swift */,
 			);
 			path = OntologyBrowser;
 			sourceTree = "<group>";
@@ -2001,6 +2004,7 @@
 				F64E8DA9BA2DC3A188FE35B2 /* LibraryMapComponents.swift in Sources */,
 				EA5A4BBFC0797C7403FB49B3 /* LibraryView+TableMapViews.swift in Sources */,
 				B75451126537E8FFE337AE17 /* ArtifactEntityViews.swift in Sources */,
+				25B9458F0E27EB2BCD55B439 /* ClaimSummaryCard+Details.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
