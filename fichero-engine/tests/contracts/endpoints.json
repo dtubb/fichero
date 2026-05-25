@@ -5570,6 +5570,111 @@
         "response_model": "MethodTaxonomyResponse"
       }
     ],
+    "chains": [
+      {
+        "method": "POST",
+        "path": "/chains",
+        "operation_id": "create_chain_api_chains_post",
+        "summary": "Create Chain",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateChainRequest",
+        "response_model": "ChainResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/chains",
+        "operation_id": "list_chains_api_chains_get",
+        "summary": "List Chains",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ChainListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/chains/{chain_id}",
+        "operation_id": "get_chain_api_chains__chain_id__get",
+        "summary": "Get Chain",
+        "path_params": [
+          "chain_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ChainResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/chains/{chain_id}",
+        "operation_id": "update_chain_api_chains__chain_id__put",
+        "summary": "Update Chain",
+        "path_params": [
+          "chain_id"
+        ],
+        "query_params": [],
+        "request_model": "UpdateChainRequest",
+        "response_model": "ChainResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/chains/{chain_id}",
+        "operation_id": "delete_chain_api_chains__chain_id__delete",
+        "summary": "Delete Chain",
+        "path_params": [
+          "chain_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ChainDeletedResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/chains/{chain_id}/execute",
+        "operation_id": "execute_chain_api_chains__chain_id__execute_post",
+        "summary": "Execute Chain",
+        "path_params": [
+          "chain_id"
+        ],
+        "query_params": [],
+        "request_model": "ExecuteChainRequest",
+        "response_model": "ChainExecutionResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/chains/executions/{execution_id}",
+        "operation_id": "get_chain_execution_api_chains_executions__execution_id__get",
+        "summary": "Get Chain Execution",
+        "path_params": [
+          "execution_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ChainExecutionStatusResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/chains/executions/{execution_id}",
+        "operation_id": "cancel_chain_execution_api_chains_executions__execution_id__delete",
+        "summary": "Cancel Chain Execution",
+        "path_params": [
+          "execution_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ChainCancelResponse"
+      }
+    ],
     "mind-palace": [
       {
         "method": "POST",
@@ -6621,111 +6726,6 @@
         "query_params": [],
         "request_model": "CreateCompositeRequest",
         "response_model": "ActionResponse"
-      }
-    ],
-    "chains": [
-      {
-        "method": "POST",
-        "path": "/chains",
-        "operation_id": "create_chain_api_chains_post",
-        "summary": "Create Chain",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CreateChainRequest",
-        "response_model": "ChainResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/chains",
-        "operation_id": "list_chains_api_chains_get",
-        "summary": "List Chains",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "offset",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "ChainListResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/chains/{chain_id}",
-        "operation_id": "get_chain_api_chains__chain_id__get",
-        "summary": "Get Chain",
-        "path_params": [
-          "chain_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ChainResponse"
-      },
-      {
-        "method": "PUT",
-        "path": "/chains/{chain_id}",
-        "operation_id": "update_chain_api_chains__chain_id__put",
-        "summary": "Update Chain",
-        "path_params": [
-          "chain_id"
-        ],
-        "query_params": [],
-        "request_model": "UpdateChainRequest",
-        "response_model": "ChainResponse"
-      },
-      {
-        "method": "DELETE",
-        "path": "/chains/{chain_id}",
-        "operation_id": "delete_chain_api_chains__chain_id__delete",
-        "summary": "Delete Chain",
-        "path_params": [
-          "chain_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ChainDeletedResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/chains/{chain_id}/execute",
-        "operation_id": "execute_chain_api_chains__chain_id__execute_post",
-        "summary": "Execute Chain",
-        "path_params": [
-          "chain_id"
-        ],
-        "query_params": [],
-        "request_model": "ExecuteChainRequest",
-        "response_model": "ChainExecutionResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/chains/executions/{execution_id}",
-        "operation_id": "get_chain_execution_api_chains_executions__execution_id__get",
-        "summary": "Get Chain Execution",
-        "path_params": [
-          "execution_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ChainExecutionStatusResponse"
-      },
-      {
-        "method": "DELETE",
-        "path": "/chains/executions/{execution_id}",
-        "operation_id": "cancel_chain_execution_api_chains_executions__execution_id__delete",
-        "summary": "Cancel Chain Execution",
-        "path_params": [
-          "execution_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ChainCancelResponse"
       }
     ],
     "integrations": [
