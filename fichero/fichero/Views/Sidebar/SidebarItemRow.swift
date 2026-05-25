@@ -223,8 +223,8 @@ struct SidebarItemRow: View {
         workflows: [WorkflowSidebarItem],
         action: @escaping (String) -> Void
     ) -> some View {
-        let grouped = Dictionary(grouping: workflows) { wf in
-            wf.folderPath.isEmpty ? "/" : wf.folderPath
+        let grouped = Dictionary(grouping: workflows) { workflow in
+            workflow.folderPath.isEmpty ? "/" : workflow.folderPath
         }
         let topLevel = (grouped["/"] ?? []).sorted { $0.name < $1.name }
         let folderKeys = grouped.keys

@@ -277,16 +277,16 @@ struct EntityDetailView: View { // swiftlint:disable:this type_body_length
         .padding(.vertical, 2)
     }
 
-    private func auditIcon(_ op: Components.Schemas.EntityMergeOperationType) -> String {
-        switch op {
+    private func auditIcon(_ mergeOp: Components.Schemas.EntityMergeOperationType) -> String {
+        switch mergeOp {
         case .merge: return "arrow.triangle.merge"
         case .split: return "arrow.triangle.branch"
         case .undoMerge, .undoSplit: return "arrow.uturn.backward.circle"
         }
     }
 
-    private func auditTint(_ op: Components.Schemas.EntityMergeOperationType) -> Color {
-        switch op {
+    private func auditTint(_ mergeOp: Components.Schemas.EntityMergeOperationType) -> Color {
+        switch mergeOp {
         case .merge: return .blue
         case .split: return .orange
         case .undoMerge, .undoSplit: return .gray
