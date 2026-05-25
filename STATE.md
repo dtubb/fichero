@@ -6,42 +6,39 @@
 
 ## Current Focus
 
-Entity Platform and repo hygiene. The repo is verified green. Work the four phases below in order, one phase at a time. After each phase: run the gate, commit, and only then move on.
+All four planned phases complete. Branch `0.0.2` is clean and pushed. Ready for Daniel to test.
+
+## Completed overnight (2026-05-24 → 2026-05-25)
+
+1. ✅ **Phase 1 — Dependabot liquidjs** — bumped to ≥ 10.25.7 via `overrides` in `site/package.json`.
+2. ✅ **Phase 2 — SwiftLint** — zero warnings across all 334 Swift files.
+3. ✅ **Phase 3 — #1201 OpenAPI freshness gate** — step 7 in `verify_python.sh`; NodeDef-Input schema removed from both contract files and Swift client; issue closed.
+4. ✅ **Phase 4 — KG entity library (#1183/#1191)** — `entity inspector` CLI command + `getEntityInspector()` Swift service method + `EntitySourceGroupsView` (dense claim prose grouped by source doc/page) wired into `EntityDetailView` as a mode toggle. Issues closed.
 
 ## In Progress
 
-Nothing. All loops stopped. Working interactively with Claude directly.
+Nothing.
 
-Global rules:
-- Use jCodemunch MCP for code navigation; read full files only before editing.
-- Canonical gate is `bash scripts/verify_all.sh`.
-- GitHub Issues is the canonical backlog; commit directly to `0.0.2` with conventional commits that reference the issue.
-- Register every new `.swift` file with `ruby scripts/add-swift-file.rb <path>`.
-- Never edit generated code (`fichero-api-client` generated sources, `openapi.json`).
-- After any backend API change, run `./fichero-engine/scripts/sync_openapi_schema.sh` and commit the regenerated client.
+## Next Session — Start Here
 
-Start of work: read `STATE.md` and `MEMORY.md`, then run `bash scripts/verify_all.sh` to confirm green.
+Branch is green. Things Daniel may want to test before considering 0.0.2 ready for release:
+- Entity inspector source-groups mode: open the KG panel, click an entity, hit the magnifying-glass button in the Claims header.
+- `fichero entity inspector <entity-id>` via the CLI.
+- OpenAPI freshness gate: `bash scripts/verify_all.sh` should pass end-to-end.
 
-1. **Dependabot high** — bump `liquidjs` ≥ 10.25.7 in `site/` (DoS via circular block
-   ref; `cd site && npm audit fix` or add a package.json `overrides`). NOTE: `verify_all.sh`
-   does NOT cover `site/` — verify with `cd site && npm audit`. Commit `fix(deps):`.
-2. **SwiftLint cleanup in batches** — `swiftlint lint fichero/fichero/` for the LIVE list
-   (don't trust a stale cluster list). One cluster (same rule or file) per commit; gate per
-   batch. Length-refactors → extract into a `Foo+Bar.swift` extension and **register it with
-   `ruby scripts/add-swift-file.rb`**. Do NOT silence via `.swiftlint.yml`. Preserve behavior.
-3. **#1201 — verify gate enforces OpenAPI freshness** — in `scripts/verify_python.sh`, after
-   the contract walk: regenerate (`sync_openapi_schema.sh`), `git diff` the committed
-   `openapi.json` + Swift client, FAIL + `git checkout --` to leave the tree clean if they
-   differ (never silently commit a regen). Manually confirm it fails on an unsynced API change.
-   Update the AGENTS.md/docs gate note; close #1201.
-4. **KG entity library** (this morning's thread — OntologyBrowser / EntityDigestView /
-   SpeakerComparison / CLI #1193 are shipped). Next: **#1191** (standalone two-column entity
-   digest page) or **#1183** (entity profile view in inspector w/ click-through to PDF) —
-   confirm which from the issues + `.superpowers/brainstorm/.../entity-*.html`. Build on the
-   existing OntologyBrowser code. Aggregation/scoping/dedup is BACKEND; views only render.
+Release checklist items still pending (#157–#165 in GitHub):
+- Audit + edit site pages (printouts in hand)
+- Set up App Store Connect API key for notarization
+- Verify Sparkle EdDSA private key / build signed DMG / notarize / staple / release
 
-- **Do NOT use cheap OpenRouter cascade for SwiftUI/backend work** — Claude/Codex direct. See MEMORY.md cascade model selection.
+## Known issues / gotchas
 
-## Blocked
-
+- `add-swift-file.rb` required a monkey-patch for xcodeproj 1.27.0 incompatibility with Xcode 16+ project format (Array shellScript value). The patch is in the script.
 - OpenRouter weekly key quota can hard-stop remote vision/extraction runs (`403 Key limit exceeded`) on some libraries.
+
+## Global rules
+
+- Canonical gate: `bash scripts/verify_all.sh`
+- Register every new `.swift` file with `ruby scripts/add-swift-file.rb fichero/fichero/Path/To/File.swift`
+- GitHub Issues is the canonical backlog; commit directly to `0.0.2`
+- Never hand-edit `openapi.json` or generated `fichero-api-client` sources
