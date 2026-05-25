@@ -15,8 +15,6 @@ import typer
 
 from fichero.cli import FicheroClient, FicheroError
 from fichero.cli.formatters import render
-from fichero.cli.commands.entity import app as entity_app
-
 app = typer.Typer(
     add_completion=False,
     help="Fichero CLI — a thin HTTP client for the Fichero backend.",
