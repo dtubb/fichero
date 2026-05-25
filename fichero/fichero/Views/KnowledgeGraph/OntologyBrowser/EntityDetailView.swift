@@ -503,6 +503,13 @@ struct EntityDetailView: View { // swiftlint:disable:this type_body_length
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 12)
+            } else if biographyMode {
+                biographyComposedText
+                    .font(.body)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
             } else {
                 // LazyVStack so the inspector stays at 60fps even when
                 // an entity has hundreds of claims (real corpora hit
