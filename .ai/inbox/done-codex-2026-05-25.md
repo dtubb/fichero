@@ -1,5 +1,21 @@
 # done-codex-2026-05-25
 
+Completed backend issue `#1111` on the `codex` branch.
+
+What changed:
+- Added a shared KG paragraph renderer in `fichero/kg/paragraph.py` that composes deterministic prose from `KnowledgeClaim` SVO fields and emits citation marker offsets.
+- Added `POST /api/kg/render/paragraph` in `fichero/api/routes/kg_render.py` and registered it on the core API route table.
+- Added a targeted regression test covering list-style rendering plus the new narrative endpoint contract and citation metadata.
+
+Verification performed:
+- `PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/fichero/kg/paragraph.py fichero-engine/src/fichero/api/routes/kg_render.py fichero-engine/src/fichero/api/main.py fichero-engine/tests/unit/test_kg_paragraph_rendering.py`
+- `PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_kg_paragraph_rendering.py -q`
+
+Notes:
+- The renderer folds consecutive claims that share the same subject and verb into one sentence, while preserving per-claim citation metadata and marker offsets for downstream surfaces.
+
+# done-codex-2026-05-25
+
 Completed backend issue `#1115` on the `codex` branch.
 
 What changed:
