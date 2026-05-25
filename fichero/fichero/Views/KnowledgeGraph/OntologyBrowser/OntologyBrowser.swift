@@ -79,10 +79,10 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     /// entity name. Heuristics: single character, all-numeric, or fewer than
     /// half the characters are letters (#1168).
     static func isOcrGarbage(_ name: String) -> Bool {
-        let t = name.trimmingCharacters(in: .whitespaces)
-        guard t.count >= 2 else { return true }
-        if t.allSatisfy({ !$0.isLetter }) { return true }
-        let letterRatio = Double(t.filter(\.isLetter).count) / Double(t.count)
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        guard trimmedName.count >= 2 else { return true }
+        if trimmedName.allSatisfy({ !$0.isLetter }) { return true }
+        let letterRatio = Double(trimmedName.filter(\.isLetter).count) / Double(trimmedName.count)
         return letterRatio < 0.5
     }
 
