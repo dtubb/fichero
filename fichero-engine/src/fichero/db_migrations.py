@@ -411,3 +411,97 @@ def migrate_known_libraries_table(conn) -> None:
         logger.info("Known libraries registry table migration completed")
     except Exception as e:
         logger.warning("Known libraries table migration failed: %s", e)
+
+
+def migrate_references_table(conn) -> None:
+    """Ensure references storage exists (#1103).
+
+    References are first-class bibliographic records, separate from the
+    documents they may eventually map to.
+    """
+
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS "references" (
+                id VARCHAR PRIMARY KEY,
+                bibtex TEXT NOT NULL,
+                authors JSON DEFAULT '[]',
+                title VARCHAR DEFAULT '',
+                year INTEGER,
+                kind VARCHAR NOT NULL DEFAULT 'misc',
+                journal_or_book VARCHAR,
+                publisher VARCHAR,
+                doi VARCHAR,
+                isbn VARCHAR,
+                pages VARCHAR,
+                language VARCHAR,
+                verification_score DOUBLE,
+                verification_source VARCHAR,
+                verified_at TIMESTAMP,
+                realized_as_document_id VARCHAR,
+                notes TEXT DEFAULT '',
+                tags JSON DEFAULT '[]',
+                status VARCHAR NOT NULL DEFAULT 'to_find',
+                metadata JSON DEFAULT '{}',
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_references_doi
+            ON "references"(doi)
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_references_isbn
+            ON "references"(isbn)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_references_authors_year
+            ON "references"(authors, year)
+            """
+        )
+        logger.info("References table migration completed")
+    except Exception as e:
+        logger.warning("References table migration failed: %s", e)
+
+
+def migrate_reference_provenance_table(conn) -> None:
+    """Ensure reference provenance tracking exists (#1103)."""
+
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS reference_provenance (
+                id VARCHAR PRIMARY KEY,
+                reference_id VARCHAR NOT NULL,
+                document_id VARCHAR NOT NULL,
+                page VARCHAR,
+                span_start INTEGER,
+                span_end INTEGER,
+                citation_location VARCHAR NOT NULL DEFAULT 'unknown',
+                created_at TIMESTAMP NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_reference_provenance_reference
+            ON reference_provenance(reference_id)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_reference_provenance_document
+            ON reference_provenance(document_id)
+            """
+        )
+        logger.info("Reference provenance table migration completed")
+    except Exception as e:
+        logger.warning("Reference provenance table migration failed: %s", e)

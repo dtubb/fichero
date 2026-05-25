@@ -1925,6 +1925,18 @@
       },
       {
         "method": "GET",
+        "path": "/documents/{document_id}/citations",
+        "operation_id": "get_document_citations_api_documents__document_id__citations_get",
+        "summary": "Get Document Citations",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DocumentCitationsResponse"
+      },
+      {
+        "method": "GET",
         "path": "/documents/{document_id}/inspector",
         "operation_id": "inspector_api_documents__document_id__inspector_get",
         "summary": "One-call aggregate of every KG row attached to this document",
@@ -1952,6 +1964,100 @@
         ],
         "request_model": null,
         "response_model": "DocumentKnowledgeGraphResponse"
+      }
+    ],
+    "references": [
+      {
+        "method": "GET",
+        "path": "/references",
+        "operation_id": "list_references_api_references_get",
+        "summary": "List References",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "verified",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "unbacked",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "year_from",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "year_to",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ReferenceListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/references/{reference_id}",
+        "operation_id": "get_reference_api_references__reference_id__get",
+        "summary": "Get Reference",
+        "path_params": [
+          "reference_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ReferenceWithProvenanceResponse"
+      },
+      {
+        "method": "PATCH",
+        "path": "/references/{reference_id}",
+        "operation_id": "patch_reference_api_references__reference_id__patch",
+        "summary": "Patch Reference",
+        "path_params": [
+          "reference_id"
+        ],
+        "query_params": [],
+        "request_model": "ReferencePatchRequest",
+        "response_model": "Reference"
+      },
+      {
+        "method": "DELETE",
+        "path": "/references/{reference_id}",
+        "operation_id": "delete_reference_api_references__reference_id__delete",
+        "summary": "Delete Reference",
+        "path_params": [
+          "reference_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "fichero__api__routes__references__DeletedResponse"
       }
     ],
     "entities": [
@@ -3992,7 +4098,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "DeletedResponse"
+        "response_model": "fichero__api__routes__providers__DeletedResponse"
       },
       {
         "method": "GET",
@@ -4028,7 +4134,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "DeletedResponse"
+        "response_model": "fichero__api__routes__providers__DeletedResponse"
       },
       {
         "method": "GET",
@@ -4065,7 +4171,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "DeletedResponse"
+        "response_model": "fichero__api__routes__providers__DeletedResponse"
       }
     ],
     "search": [
@@ -4169,7 +4275,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "DeletedResponse"
+        "response_model": "fichero__api__routes__search__DeletedResponse"
       },
       {
         "method": "POST",

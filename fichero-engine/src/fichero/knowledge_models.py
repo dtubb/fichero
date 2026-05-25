@@ -6,7 +6,14 @@ from uuid import uuid4
 
 import re
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
+from typing import Any
 
 
 def _new_id() -> str:
@@ -621,6 +628,277 @@ class DocumentCitation(BaseModel):
         description="Which detector emitted this citation: manual / regex / llm / bibtex_import",
     )
     metadata: dict = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class ReferenceKind(str, Enum):
+    """Standard BibTeX entry types for first-class references."""
+
+    article = "article"
+    book = "book"
+    booklet = "booklet"
+    inbook = "inbook"
+    incollection = "incollection"
+    inproceedings = "inproceedings"
+    manual = "manual"
+    mastersthesis = "mastersthesis"
+    misc = "misc"
+    phdthesis = "phdthesis"
+    proceedings = "proceedings"
+    techreport = "techreport"
+    unpublished = "unpublished"
+
+
+class ReferenceStatus(str, Enum):
+    """Lifecycle for a bibliographic reference."""
+
+    to_find = "to_find"
+    searching = "searching"
+    found_external = "found_external"
+    unavailable = "unavailable"
+    verified = "verified"
+    duplicate = "duplicate"
+    ignore = "ignore"
+
+
+class ReferenceVerificationSource(str, Enum):
+    """Where a verification signal came from."""
+
+    crossref = "crossref"
+    openalex = "openalex"
+    openlibrary = "openlibrary"
+    manual = "manual"
+
+
+class ReferenceCitationLocation(str, Enum):
+    """Where a reference was observed in a document."""
+
+    body = "body"
+    footnote = "footnote"
+    bibliography = "bibliography"
+    note = "note"
+    metadata = "metadata"
+    unknown = "unknown"
+
+
+def _bibtex_escape(text: str) -> str:
+    """Escape characters that are special in BibTeX values."""
+
+    return (
+        text.replace("\\", r"\\")
+        .replace("&", r"\&")
+        .replace("%", r"\%")
+        .replace("$", r"\$")
+        .replace("#", r"\#")
+        .replace("_", r"\_")
+        .replace("{", r"\{")
+        .replace("}", r"\}")
+    )
+
+
+def _bibtex_unescape(text: str) -> str:
+    """Undo the escape sequences we emit in canonical BibTeX."""
+
+    return (
+        text.replace(r"\{", "{")
+        .replace(r"\}", "}")
+        .replace(r"\#", "#")
+        .replace(r"\$", "$")
+        .replace(r"\%", "%")
+        .replace(r"\&", "&")
+        .replace(r"\\", "\\")
+    )
+
+
+def _split_bibtex_authors(value: str) -> list[str]:
+    """BibTeX uses ``and`` to separate authors."""
+
+    return [part.strip() for part in re.split(r"\s+and\s+", value) if part.strip()]
+
+
+def _reference_entry_type(kind: ReferenceKind) -> str:
+    """Map a reference kind to a BibTeX entry type."""
+
+    return kind.value
+
+
+def _reference_field_name(reference: "Reference") -> str | None:
+    """Return the canonical BibTeX field for the generic container label."""
+
+    if reference.journal_or_book:
+        if reference.kind == ReferenceKind.article:
+            return "journal"
+        if reference.kind in {
+            ReferenceKind.inbook,
+            ReferenceKind.incollection,
+            ReferenceKind.inproceedings,
+            ReferenceKind.proceedings,
+        }:
+            return "booktitle"
+        return "publisher"
+    return None
+
+
+def _render_reference_bibtex(reference: "Reference") -> str:
+    """Render canonical BibTeX for a reference row."""
+
+    key = reference.id
+    fields: list[tuple[str, str]] = []
+    if reference.authors:
+        fields.append(("author", " and ".join(reference.authors)))
+    if reference.title:
+        fields.append(("title", reference.title))
+    if reference.year is not None:
+        fields.append(("year", str(reference.year)))
+    field_name = _reference_field_name(reference)
+    if field_name and reference.journal_or_book:
+        fields.append((field_name, reference.journal_or_book))
+    if reference.publisher and field_name != "publisher":
+        fields.append(("publisher", reference.publisher))
+    if reference.doi:
+        fields.append(("doi", reference.doi))
+    if reference.isbn:
+        fields.append(("isbn", reference.isbn))
+    if reference.pages:
+        fields.append(("pages", reference.pages))
+    if reference.language:
+        fields.append(("language", reference.language))
+    if reference.notes:
+        fields.append(("note", reference.notes))
+
+    lines = [f"@{_reference_entry_type(reference.kind)}{{{key},"]
+    for name, value in fields:
+        lines.append(f"  {name} = {{{_bibtex_escape(value)}}},")
+    if lines[-1].endswith(","):
+        lines[-1] = lines[-1][:-1]
+    lines.append("}")
+    return "\n".join(lines)
+
+
+_REFERENCE_BIBTEX_RE = re.compile(
+    r"@(\w+)\s*\{\s*([^,]+)\s*,(.*?)\}\s*$", re.DOTALL
+)
+_REFERENCE_BIBTEX_FIELD_RE = re.compile(
+    r'(\w+)\s*=\s*[{\"]([^{}]*(?:\{[^{}]*\}[^{}]*)*)[}\"]\s*,?',
+    re.DOTALL,
+)
+
+
+def _parse_reference_bibtex(text: str) -> dict[str, Any]:
+    """Parse a single-entry BibTeX string into Reference fields."""
+
+    match = _REFERENCE_BIBTEX_RE.search(text.strip())
+    if not match:
+        return {}
+
+    entry_type = match.group(1).lower()
+    body = match.group(3)
+    fields: dict[str, str] = {}
+    for field_match in _REFERENCE_BIBTEX_FIELD_RE.finditer(body):
+        name = field_match.group(1).lower()
+        value = _bibtex_unescape(field_match.group(2)).strip()
+        fields[name] = value
+
+    year_value = fields.get("year")
+    year = int(year_value) if year_value and year_value.isdigit() else None
+    isbn = fields.get("isbn")
+    if isbn:
+        isbn = re.sub(r"[^0-9Xx]", "", isbn).upper()
+
+    kind = next(
+        (member for member in ReferenceKind if member.value == entry_type),
+        ReferenceKind.misc,
+    )
+
+    out: dict[str, Any] = {
+        "kind": kind,
+        "authors": _split_bibtex_authors(fields["author"]) if fields.get("author") else [],
+        "title": fields.get("title", ""),
+        "year": year,
+        "journal_or_book": fields.get("journal") or fields.get("booktitle"),
+        "publisher": fields.get("publisher"),
+        "doi": fields.get("doi"),
+        "isbn": isbn,
+        "pages": fields.get("pages"),
+        "language": fields.get("language"),
+        "notes": fields.get("note", ""),
+        "metadata": {"bibtex_entry_type": entry_type},
+    }
+    return {k: v for k, v in out.items() if v is not None}
+
+
+class Reference(BaseModel):
+    """A first-class bibliographic reference (#1103).
+
+    References live independently of documents. They can be extracted
+    from a document, verified externally, annotated by the user, or
+    later realized as a backing library document.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    bibtex: str = Field(
+        default="",
+        description="Canonical BibTeX record string for this reference.",
+    )
+    authors: list[str] = Field(default_factory=list)
+    title: str = ""
+    year: int | None = None
+    kind: ReferenceKind = ReferenceKind.misc
+    journal_or_book: str | None = None
+    publisher: str | None = None
+    doi: str | None = None
+    isbn: str | None = None
+    pages: str | None = None
+    language: str | None = None
+    verification_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    verification_source: ReferenceVerificationSource | None = None
+    verified_at: datetime | None = None
+    realized_as_document_id: str | None = None
+    notes: str = ""
+    tags: list[str] = Field(default_factory=list)
+    status: ReferenceStatus = ReferenceStatus.to_find
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+    @model_validator(mode="after")
+    def _synchronise_bibtex(self):
+        """Keep bibtex and the denormalized fields aligned."""
+
+        if self.bibtex.strip():
+            parsed = _parse_reference_bibtex(self.bibtex)
+            for key, value in parsed.items():
+                if key == "metadata":
+                    current = self.metadata if isinstance(self.metadata, dict) else {}
+                    merged = {**parsed["metadata"], **current}
+                    self.metadata = merged
+                    continue
+                current = getattr(self, key, None)
+                if key == "kind":
+                    if current == ReferenceKind.misc and value != ReferenceKind.misc:
+                        setattr(self, key, value)
+                    continue
+                if current in (None, "", [], {}):
+                    setattr(self, key, value)
+
+        self.bibtex = _render_reference_bibtex(self)
+        return self
+
+
+class ReferenceProvenance(BaseModel):
+    """One occurrence of a reference in a document (#1103)."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    reference_id: str
+    document_id: str
+    page: str | None = None
+    span_start: int | None = None
+    span_end: int | None = None
+    citation_location: ReferenceCitationLocation = ReferenceCitationLocation.unknown
     created_at: datetime = Field(default_factory=datetime.now)
 
 

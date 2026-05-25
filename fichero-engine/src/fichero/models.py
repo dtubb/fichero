@@ -37,6 +37,7 @@ import base64
 
 # Import ProviderType from providers module (single source of truth)
 from fichero.providers import ProviderType
+from fichero.knowledge_models import Reference, ReferenceProvenance
 
 # Direct imports — knowledge_models has no dependency on this file.
 from fichero.knowledge_models import (
@@ -1342,6 +1343,30 @@ class CitationListResponse(BaseModel):
 
     items: list[DocumentCitation]
     count: int
+
+
+class ReferenceListResponse(BaseModel):
+    """Standardized envelope for GET /api/references list endpoints."""
+
+    items: list[Reference]
+    count: int
+
+
+class ReferenceWithProvenanceResponse(BaseModel):
+    """Response from GET /api/references/{id}."""
+
+    reference: Reference
+    provenance: list[ReferenceProvenance]
+
+
+class DocumentCitationsResponse(BaseModel):
+    """Response from GET /api/documents/{id}/citations."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    self_: Reference = Field(alias="self")
+    references: list[Reference]
+    links: list[ReferenceProvenance]
 
 
 class ClassificationListResponse(BaseModel):

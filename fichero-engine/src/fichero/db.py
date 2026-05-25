@@ -199,12 +199,16 @@ class Database(DatabaseEmbeddingMixin):
             migrate_saved_search_table,
             migrate_provider_refs_table,
             migrate_known_libraries_table,
+            migrate_references_table,
+            migrate_reference_provenance_table,
         )
         migrate_document_table(self.conn)
         migrate_workflow_table(self.conn)
         migrate_saved_search_table(self.conn)
         migrate_provider_refs_table(self.conn)
         migrate_known_libraries_table(self.conn)
+        migrate_references_table(self.conn)
+        migrate_reference_provenance_table(self.conn)
 
     # =========================================================================
     # Core CRUD Operations
@@ -217,7 +221,7 @@ class Database(DatabaseEmbeddingMixin):
             obj: Pydantic model instance to save
             auto_embed: If True, create embedding when obj has page_content
         """
-        table = self._table_name(obj)
+        sql_table = self._sql_table_name(obj)
         self._ensure_table(type(obj))
 
         # Exclude computed fields (they're derived, not stored)
@@ -287,14 +291,14 @@ class Database(DatabaseEmbeddingMixin):
         if update_cols:
             set_clause = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_cols)
             sql = (
-                f"INSERT INTO {table} ({col_names}) VALUES ({placeholders}) "
+                f"INSERT INTO {sql_table} ({col_names}) VALUES ({placeholders}) "
                 f"ON CONFLICT (id) DO UPDATE SET {set_clause}"
             )
         else:
             # Edge case: a table whose only column is `id` — ON CONFLICT
             # has nothing to update, so DO NOTHING is the right semantics.
             sql = (
-                f"INSERT INTO {table} ({col_names}) VALUES ({placeholders}) "
+                f"INSERT INTO {sql_table} ({col_names}) VALUES ({placeholders}) "
                 f"ON CONFLICT (id) DO NOTHING"
             )
 
@@ -306,11 +310,11 @@ class Database(DatabaseEmbeddingMixin):
 
     def get(self, model: Type[T], id: str) -> T | None:
         """Get a single object by ID."""
-        table = self._table_name(model)
+        sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
         result = self.conn.execute(
-            f"SELECT * FROM {table} WHERE id = $id", {"id": id}
+            f"SELECT * FROM {sql_table} WHERE id = $id", {"id": id}
         ).fetchone()
 
         if result is None:
@@ -322,10 +326,10 @@ class Database(DatabaseEmbeddingMixin):
 
     def all(self, model: Type[T]) -> list[T]:
         """Get all objects of a type."""
-        table = self._table_name(model)
+        sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
-        rows = self.conn.execute(f"SELECT * FROM {table}").fetchall()
+        rows = self.conn.execute(f"SELECT * FROM {sql_table}").fetchall()
 
         if not rows:
             return []
@@ -338,7 +342,7 @@ class Database(DatabaseEmbeddingMixin):
 
     def query(self, model: Type[T], **filters) -> list[T]:
         """Query with simple equality filters."""
-        table = self._table_name(model)
+        sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
         if not filters:
@@ -367,7 +371,7 @@ class Database(DatabaseEmbeddingMixin):
 
         where = " AND ".join(where_clauses)
         rows = self.conn.execute(
-            f"SELECT * FROM {table} WHERE {where}", query_filters
+            f"SELECT * FROM {sql_table} WHERE {where}", query_filters
         ).fetchall()
 
         if not rows:
@@ -381,18 +385,18 @@ class Database(DatabaseEmbeddingMixin):
 
     def delete(self, obj: BaseModel) -> None:
         """Delete an object by ID."""
-        table = self._table_name(obj)
+        sql_table = self._sql_table_name(obj)
         self._ensure_table(type(obj))
 
-        self.conn.execute(f"DELETE FROM {table} WHERE id = $id", {"id": obj.id})
+        self.conn.execute(f"DELETE FROM {sql_table} WHERE id = $id", {"id": obj.id})
 
     def count(self, model: Type[T], **filters) -> int:
         """Count objects matching filters."""
-        table = self._table_name(model)
+        sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
         if not filters:
-            result = self.conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+            result = self.conn.execute(f"SELECT COUNT(*) FROM {sql_table}").fetchone()
         else:
             # Validate column names to prevent SQL injection
             for k in filters.keys():
@@ -401,7 +405,7 @@ class Database(DatabaseEmbeddingMixin):
 
             where = " AND ".join(f"{k} = ${k}" for k in filters.keys())
             result = self.conn.execute(
-                f"SELECT COUNT(*) FROM {table} WHERE {where}", filters
+                f"SELECT COUNT(*) FROM {sql_table} WHERE {where}", filters
             ).fetchone()
 
         return result[0] if result else 0
@@ -1038,13 +1042,13 @@ class Database(DatabaseEmbeddingMixin):
 
     def export_parquet(self, model: Type[T], path: str | Path) -> None:
         """Export a table to Parquet file."""
-        table = self._table_name(model)
+        sql_table = self._sql_table_name(model)
         self._ensure_table(model)
-        self.conn.execute(f"COPY {table} TO '{path}' (FORMAT PARQUET)")
+        self.conn.execute(f"COPY {sql_table} TO '{path}' (FORMAT PARQUET)")
 
     def import_parquet(self, model: Type[T], path: str | Path) -> int:
         """Import from Parquet file, returns count of imported rows."""
-        table = self._table_name(model)
+        sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
         # Count before
@@ -1052,7 +1056,7 @@ class Database(DatabaseEmbeddingMixin):
 
         # Import
         self.conn.execute(f"""
-            INSERT INTO {table}
+            INSERT INTO {sql_table}
             SELECT * FROM read_parquet('{path}')
         """)
 
@@ -1167,9 +1171,14 @@ class Database(DatabaseEmbeddingMixin):
             return obj_or_model.__name__.lower() + "s"
         return type(obj_or_model).__name__.lower() + "s"
 
+    def _sql_table_name(self, obj_or_model) -> str:
+        """Quote a table name for DuckDB SQL."""
+        return f'"{self._table_name(obj_or_model)}"'
+
     def _ensure_table(self, model: Type[BaseModel]) -> None:
         """Create table if it doesn't exist."""
         table = self._table_name(model)
+        sql_table = self._sql_table_name(model)
 
         if table in self._tables_created:
             return
@@ -1181,7 +1190,7 @@ class Database(DatabaseEmbeddingMixin):
             columns.append(f"{name} {col_type}")
 
         self.conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {table} (
+            CREATE TABLE IF NOT EXISTS {sql_table} (
                 {", ".join(columns)},
                 PRIMARY KEY (id)
             )
@@ -1207,7 +1216,7 @@ class Database(DatabaseEmbeddingMixin):
             if name not in existing:
                 col_type = self._python_to_duckdb_type(field_info.annotation)
                 self.conn.execute(
-                    f"ALTER TABLE {table} ADD COLUMN {name} {col_type}"
+                    f"ALTER TABLE {sql_table} ADD COLUMN {name} {col_type}"
                 )
 
         self._tables_created.add(table)

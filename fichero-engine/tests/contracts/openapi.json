@@ -6227,6 +6227,360 @@
         }
       }
     },
+    "/api/references": {
+      "get": {
+        "tags": [
+          "references"
+        ],
+        "summary": "List References",
+        "description": "List references with lightweight filtering.",
+        "operationId": "list_references_api_references_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Free-text search over reference fields.",
+              "title": "Q"
+            },
+            "description": "Free-text search over reference fields."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ReferenceStatus",
+              "nullable": true,
+              "title": "Status"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ReferenceKind",
+              "nullable": true,
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "verified",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "nullable": true,
+              "title": "Verified"
+            }
+          },
+          {
+            "name": "unbacked",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "nullable": true,
+              "title": "Unbacked"
+            }
+          },
+          {
+            "name": "year_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "nullable": true,
+              "title": "Year From"
+            }
+          },
+          {
+            "name": "year_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "nullable": true,
+              "title": "Year To"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenceListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/references/{reference_id}": {
+      "get": {
+        "tags": [
+          "references"
+        ],
+        "summary": "Get Reference",
+        "description": "Fetch one reference and its provenance rows.",
+        "operationId": "get_reference_api_references__reference_id__get",
+        "parameters": [
+          {
+            "name": "reference_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reference Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenceWithProvenanceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "references"
+        ],
+        "summary": "Patch Reference",
+        "description": "Update a reference row.",
+        "operationId": "patch_reference_api_references__reference_id__patch",
+        "parameters": [
+          {
+            "name": "reference_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reference Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReferencePatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reference"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "references"
+        ],
+        "summary": "Delete Reference",
+        "description": "Delete a reference when no provenance rows remain.",
+        "operationId": "delete_reference_api_references__reference_id__delete",
+        "parameters": [
+          {
+            "name": "reference_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reference Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fichero__api__routes__references__DeletedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{document_id}/citations": {
+      "get": {
+        "tags": [
+          "references"
+        ],
+        "summary": "Get Document Citations",
+        "description": "Return the document's own citation and the references it cites.",
+        "operationId": "get_document_citations_api_documents__document_id__citations_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentCitationsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{document_id}/inspector": {
       "get": {
         "tags": [
@@ -9866,7 +10220,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeletedResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__providers__DeletedResponse"
                 }
               }
             }
@@ -10001,7 +10355,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeletedResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__providers__DeletedResponse"
                 }
               }
             }
@@ -10147,7 +10501,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeletedResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__providers__DeletedResponse"
                 }
               }
             }
@@ -10597,7 +10951,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeletedResponse"
+                  "$ref": "#/components/schemas/fichero__api__routes__search__DeletedResponse"
                 }
               }
             }
@@ -33732,19 +34086,6 @@
         ],
         "title": "DatabaseListResponse"
       },
-      "DeletedResponse": {
-        "properties": {
-          "status": {
-            "type": "string",
-            "title": "Status"
-          }
-        },
-        "type": "object",
-        "required": [
-          "status"
-        ],
-        "title": "DeletedResponse"
-      },
       "DeletedWithIdResponse": {
         "properties": {
           "status": {
@@ -34055,6 +34396,35 @@
         ],
         "title": "DocumentCitation",
         "description": "One document citing another (#906).\n\nCaptures both the structural fact (A cites B) and the textual\nevidence (where in A the citation appears). Confidence reflects\nhow certain the detector is that ``target_document_id`` is the\nright resolution \u2014 needed when matching a bibliography string\nto an in-library document by fuzzy title + author."
+      },
+      "DocumentCitationsResponse": {
+        "properties": {
+          "self": {
+            "$ref": "#/components/schemas/Reference"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            },
+            "type": "array",
+            "title": "References"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceProvenance"
+            },
+            "type": "array",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "self",
+          "references",
+          "links"
+        ],
+        "title": "DocumentCitationsResponse",
+        "description": "Response from GET /api/documents/{id}/citations."
       },
       "DocumentCreate": {
         "properties": {
@@ -40049,7 +40419,108 @@
         ],
         "title": "NodeCreateRequest"
       },
-      "NodeDef": {
+      "NodeDef-Input": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique node identifier"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool",
+            "description": "Tool function name from registry"
+          },
+          "input_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Input Ports",
+            "description": "Input connection ports (populated from registry, not stored)"
+          },
+          "output_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Output Ports",
+            "description": "Output connection ports (populated from registry, not stored)"
+          },
+          "input_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/InputMapping"
+            },
+            "type": "array",
+            "title": "Input Mappings",
+            "description": "Maps input ports to data sources from previous nodes"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs",
+            "description": "Input values for the tool (supports path resolution)"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config",
+            "description": "Static tool configuration (not resolved)"
+          },
+          "output_schema": {
+            "$ref": "#/components/schemas/OutputSchema",
+            "nullable": true,
+            "description": "JSON Schema for structured LLM output"
+          },
+          "position_x": {
+            "type": "number",
+            "title": "Position X",
+            "default": 0.0
+          },
+          "position_y": {
+            "type": "number",
+            "title": "Position Y",
+            "default": 0.0
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name",
+            "default": ""
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name",
+            "default": ""
+          },
+          "uses_llm": {
+            "type": "boolean",
+            "title": "Uses Llm",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool"
+        ],
+        "title": "NodeDef",
+        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
+      },
+      "NodeDef-Output": {
         "properties": {
           "id": {
             "type": "string",
@@ -42644,6 +43115,386 @@
         "title": "RebuildResponse",
         "description": "Stats describing what got refreshed."
       },
+      "Reference": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "bibtex": {
+            "type": "string",
+            "title": "Bibtex",
+            "description": "Canonical BibTeX record string for this reference.",
+            "default": ""
+          },
+          "authors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Authors"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "year": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Year"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ReferenceKind",
+            "default": "misc"
+          },
+          "journal_or_book": {
+            "type": "string",
+            "nullable": true,
+            "title": "Journal Or Book"
+          },
+          "publisher": {
+            "type": "string",
+            "nullable": true,
+            "title": "Publisher"
+          },
+          "doi": {
+            "type": "string",
+            "nullable": true,
+            "title": "Doi"
+          },
+          "isbn": {
+            "type": "string",
+            "nullable": true,
+            "title": "Isbn"
+          },
+          "pages": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pages"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "verification_score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Verification Score"
+          },
+          "verification_source": {
+            "$ref": "#/components/schemas/ReferenceVerificationSource",
+            "nullable": true
+          },
+          "verified_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Verified At"
+          },
+          "realized_as_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Realized As Document Id"
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes",
+            "default": ""
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReferenceStatus",
+            "default": "to_find"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "Reference",
+        "description": "A first-class bibliographic reference (#1103).\n\nReferences live independently of documents. They can be extracted\nfrom a document, verified externally, annotated by the user, or\nlater realized as a backing library document."
+      },
+      "ReferenceCitationLocation": {
+        "type": "string",
+        "enum": [
+          "body",
+          "footnote",
+          "bibliography",
+          "note",
+          "metadata",
+          "unknown"
+        ],
+        "title": "ReferenceCitationLocation",
+        "description": "Where a reference was observed in a document."
+      },
+      "ReferenceKind": {
+        "type": "string",
+        "enum": [
+          "article",
+          "book",
+          "booklet",
+          "inbook",
+          "incollection",
+          "inproceedings",
+          "manual",
+          "mastersthesis",
+          "misc",
+          "phdthesis",
+          "proceedings",
+          "techreport",
+          "unpublished"
+        ],
+        "title": "ReferenceKind",
+        "description": "Standard BibTeX entry types for first-class references."
+      },
+      "ReferenceListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ReferenceListResponse",
+        "description": "Standardized envelope for GET /api/references list endpoints."
+      },
+      "ReferencePatchRequest": {
+        "properties": {
+          "bibtex": {
+            "type": "string",
+            "nullable": true,
+            "title": "Bibtex"
+          },
+          "authors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Authors"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "title": "Title"
+          },
+          "year": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Year"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ReferenceKind",
+            "nullable": true
+          },
+          "journal_or_book": {
+            "type": "string",
+            "nullable": true,
+            "title": "Journal Or Book"
+          },
+          "publisher": {
+            "type": "string",
+            "nullable": true,
+            "title": "Publisher"
+          },
+          "doi": {
+            "type": "string",
+            "nullable": true,
+            "title": "Doi"
+          },
+          "isbn": {
+            "type": "string",
+            "nullable": true,
+            "title": "Isbn"
+          },
+          "pages": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pages"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "verification_score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Verification Score"
+          },
+          "verification_source": {
+            "$ref": "#/components/schemas/ReferenceVerificationSource",
+            "nullable": true
+          },
+          "verified_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Verified At"
+          },
+          "realized_as_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Realized As Document Id"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "title": "Notes"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Tags"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReferenceStatus",
+            "nullable": true
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "title": "ReferencePatchRequest",
+        "description": "Patch request for a reference row."
+      },
+      "ReferenceProvenance": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "reference_id": {
+            "type": "string",
+            "title": "Reference Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "page": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page"
+          },
+          "span_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Span Start"
+          },
+          "span_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Span End"
+          },
+          "citation_location": {
+            "$ref": "#/components/schemas/ReferenceCitationLocation",
+            "default": "unknown"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "reference_id",
+          "document_id"
+        ],
+        "title": "ReferenceProvenance",
+        "description": "One occurrence of a reference in a document (#1103)."
+      },
+      "ReferenceStatus": {
+        "type": "string",
+        "enum": [
+          "to_find",
+          "searching",
+          "found_external",
+          "unavailable",
+          "verified",
+          "duplicate",
+          "ignore"
+        ],
+        "title": "ReferenceStatus",
+        "description": "Lifecycle for a bibliographic reference."
+      },
+      "ReferenceVerificationSource": {
+        "type": "string",
+        "enum": [
+          "crossref",
+          "openalex",
+          "openlibrary",
+          "manual"
+        ],
+        "title": "ReferenceVerificationSource",
+        "description": "Where a verification signal came from."
+      },
+      "ReferenceWithProvenanceResponse": {
+        "properties": {
+          "reference": {
+            "$ref": "#/components/schemas/Reference"
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceProvenance"
+            },
+            "type": "array",
+            "title": "Provenance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reference",
+          "provenance"
+        ],
+        "title": "ReferenceWithProvenanceResponse",
+        "description": "Response from GET /api/references/{id}."
+      },
       "ReindexResponse": {
         "properties": {
           "indexed": {
@@ -44295,8 +45146,7 @@
           "content_preview",
           "metadata"
         ],
-        "title": "SearchResult",
-        "description": "Search result with score and document reference."
+        "title": "SearchResult"
       },
       "SearchSource": {
         "properties": {
@@ -44771,6 +45621,12 @@
             },
             "type": "array",
             "title": "Authors"
+          },
+          "bibtex": {
+            "type": "string",
+            "nullable": true,
+            "title": "Bibtex",
+            "description": "Canonical BibTeX record string for this source"
           },
           "date": {
             "type": "string",
@@ -47634,7 +48490,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef"
+              "$ref": "#/components/schemas/NodeDef-Input"
             },
             "type": "array",
             "title": "Nodes"
@@ -47868,7 +48724,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef"
+              "$ref": "#/components/schemas/NodeDef-Output"
             },
             "type": "array",
             "title": "Nodes"
@@ -48588,6 +49444,31 @@
         "title": "ModelListResponse",
         "description": "Envelope for a list of discovered models."
       },
+      "fichero__api__routes__providers__DeletedResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "DeletedResponse"
+      },
+      "fichero__api__routes__references__DeletedResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "deleted"
+          }
+        },
+        "type": "object",
+        "title": "DeletedResponse",
+        "description": "Standard delete envelope."
+      },
       "fichero__api__routes__research_crud__ProjectCreateRequest": {
         "properties": {
           "name": {
@@ -48723,6 +49604,19 @@
         },
         "type": "object",
         "title": "NoteUpdateRequest"
+      },
+      "fichero__api__routes__search__DeletedResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "DeletedResponse"
       },
       "fichero__api__routes__workflows__ToolListResponse": {
         "properties": {

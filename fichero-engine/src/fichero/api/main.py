@@ -721,6 +721,7 @@ from fichero.api.routes import (  # noqa: E402
     multilingual,
     notes,
     orchestration,
+    references,
     projects,
     providers,
     research_agents,
@@ -752,6 +753,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (claim_links.router, "/api", ["claim-links"]),
     (claims.router, "/api", ["claims"]),
     (documents.router, "/api/documents", ["documents"]),
+    (references.router, "/api", ["references"]),
     # Inspectors mount under /documents/* and /entities/* — tag with the
     # owning resource so the OpenAPI generator groups operations under
     # the correct Swift service file (was incorrectly tagged
