@@ -73,6 +73,16 @@ class TestBibtex:
         out = render_bibtex(meta)
         assert r"History \& Theory" in out
 
+    def test_prefers_stored_canonical_bibtex(self):
+        meta = SourceMetadata(
+            authors=["Smith, Bob"],
+            title="History & Theory",
+            date="1990",
+            publisher="Wiley",
+            bibtex="@misc{stored,\n  note = {canonical}\n}",
+        )
+        assert render_bibtex(meta) == "@misc{stored,\n  note = {canonical}\n}"
+
 
 class TestChicago:
     def test_book_format(self):

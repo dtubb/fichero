@@ -155,6 +155,11 @@ class TestSourceMetadata:
         s = SourceMetadata(authors=["Smith", ""])
         assert s.authors == ["Smith"]
 
+    def test_bibtex_field_round_trips(self):
+        bibtex = "@book{demo,\n  title = {Demo}\n}"
+        s = SourceMetadata(bibtex=bibtex)
+        assert s.bibtex == bibtex
+
     # -------------------------------------------------------------------------
     # Access restrictions
     # -------------------------------------------------------------------------

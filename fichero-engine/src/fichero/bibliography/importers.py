@@ -93,6 +93,7 @@ def read_bibtex(text: str) -> list[dict[str, Any]]:
         if "number" in fields:
             out["issue"] = fields["number"]
         out.setdefault("metadata", {})["bibtex_entry_type"] = entry_type
+        out["bibtex"] = write_bibtex([out])
         entries.append(out)
     return entries
 
@@ -142,6 +143,7 @@ def read_ris(text: str) -> list[dict[str, Any]]:
                 current["pages"] = f"{page_start or ''}-{page_end or ''}".strip("-")
             if year and "date" not in current:
                 current["date"] = year
+            current["bibtex"] = write_bibtex([current])
             entries.append(current)
             current, authors, page_start, page_end, year = {}, [], None, None, None
             continue
@@ -222,8 +224,24 @@ def read_csl_json(text: str) -> list[dict[str, Any]]:
             out["journal"] = r["container-title"]
         if r.get("page"):
             out["pages"] = r["page"]
+        out["bibtex"] = write_bibtex([out])
         entries.append(out)
     return entries
+
+
+def read_sidecar(path: str | Path) -> list[dict[str, Any]]:
+    """Read a per-file bibliography sidecar next to a source document."""
+    p = Path(path)
+    candidates = [
+        p.with_name(p.stem + ".bib"),
+        p.with_name(p.stem + ".ris"),
+        p.with_name(p.stem + ".csl.json"),
+        p.with_name(p.stem + ".json"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return read_file(candidate)
+    return []
 
 
 # =============================================================================

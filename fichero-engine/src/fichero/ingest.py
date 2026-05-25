@@ -248,6 +248,10 @@ def ingest_file(
     # Determine file type
     file_type = detect_file_type(path)
 
+    # Import bibliographic sidecars early so canonical citation data is
+    # available before any LLM-based metadata extraction runs.
+    sidecar_metadata = _load_bibliography_sidecar(path)
+
     # Build metadata. Always record the ingest_mode explicitly (#603 Part 2)
     # so the frontend can show LINK / COPY / MOVE badges and branch the
     # delete-confirmation copy. Pre-fix docs without this key fall back to
@@ -299,6 +303,9 @@ def ingest_file(
     if extract_metadata:
         _extract_file_metadata(doc, path)
 
+    if sidecar_metadata:
+        doc.source_metadata = sidecar_metadata
+
     # Extract text content using loaders
     if extract_text and file_type in _TEXT_EXTRACTABLE:
         _extract_text_content(doc, path)
@@ -323,6 +330,16 @@ def ingest_file(
             _create_pdf_page_children(doc, path, db, auto_embed=auto_embed)
 
     return doc
+
+
+def _load_bibliography_sidecar(path: Path) -> dict[str, Any] | None:
+    """Load a same-stem bibliography sidecar if one exists."""
+    from fichero.bibliography.importers import read_sidecar
+
+    entries = read_sidecar(path)
+    if not entries:
+        return None
+    return entries[0]
 
 
 def _create_pdf_page_children(

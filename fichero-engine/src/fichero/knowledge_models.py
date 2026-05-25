@@ -55,6 +55,10 @@ class SourceMetadata(BaseModel):
     # --- Core citation ---
     title: str | None = None
     authors: list[str] = Field(default_factory=list)
+    bibtex: str | None = Field(
+        default=None,
+        description="Canonical BibTeX record string for this source",
+    )
     date: str | None = Field(
         default=None,
         description="Publication date in any common format (ISO 8601 preferred)",

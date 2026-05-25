@@ -214,6 +214,9 @@ def render_bibtex(metadata: "SourceMetadata", cite_key: str | None = None) -> st
     ``cite_key`` overrides the auto-generated key when the caller has
     a stable id of its own (e.g. document_id).
     """
+    if metadata.bibtex:
+        return metadata.bibtex.strip()
+
     key = cite_key or _bibtex_key(metadata)
     entry_type = _entry_type(metadata)
 

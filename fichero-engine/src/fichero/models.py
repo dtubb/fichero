@@ -272,6 +272,15 @@ class Document(BaseModel):
         return self._metadata_value("source_url")
 
     @property
+    def bibtex(self) -> str | None:
+        """Canonical BibTeX record string for bibliographic sources."""
+        source_metadata = self.__dict__.get("source_metadata")
+        if isinstance(source_metadata, dict):
+            value = source_metadata.get("bibtex")
+            return value if isinstance(value, str) else None
+        return None
+
+    @property
     def derived_from(self) -> str | None:
         """ID of document this was derived from (e.g., PDF → extracted page)."""
         return self._metadata_value("derived_from")
