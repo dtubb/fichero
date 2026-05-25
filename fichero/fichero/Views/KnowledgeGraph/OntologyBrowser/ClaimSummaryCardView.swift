@@ -188,7 +188,7 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
                         object: nil,
                         userInfo: ["name": svo.subject]
                     )
-                }) {
+                }, label: {
                     Text(svo.subject)
                         .font(.caption)
                         .fontWeight(.medium)
@@ -197,7 +197,7 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
                         .background(Color(NSColor.systemGray))
                         .foregroundColor(.primary)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
+                })
                 .buttonStyle(.plain)
                 .help("Search for '\(svo.subject)' in library")
                 
@@ -208,7 +208,7 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
                         object: nil,
                         userInfo: ["name": svo.verb]
                     )
-                }) {
+                }, label: {
                     Text(svo.verb)
                         .font(.caption)
                         .fontWeight(.semibold)
@@ -217,7 +217,7 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
                         .background(Color.accentColor)
                         .foregroundColor(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
+                })
                 .buttonStyle(.plain)
                 .help("Search for '\(svo.verb)' predicates in library")
                 
@@ -228,7 +228,7 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
                         object: nil,
                         userInfo: ["name": svo.object]
                     )
-                }) {
+                }, label: {
                     Text(svo.object)
                         .font(.caption)
                         .fontWeight(.medium)
@@ -237,7 +237,7 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
                         .background(Color(NSColor.systemGray))
                         .foregroundColor(.primary)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
+                })
                 .buttonStyle(.plain)
                 .help("Search for '\(svo.object)' in library")
             }
