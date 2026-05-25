@@ -9,19 +9,32 @@
 Daniel testing 0.0.2. If passes, release checklist (#157–#165) in order.
 Multi-agent split active: frontend Claude (#1202/#1204/#1181), backend Codex (#1054/#1173/#1198), pi CLI (imports).
 
-**Manager gate status (2026-05-25 10:25a) — RESUME HERE:**
-Two lanes are mid-gate, each with ONE small fix kicked back (workers fixing on their branches):
-- **codex / #1198** (entity digest export): 3 review blockers RESOLVED (route exposed in OpenAPI,
-  uses shared `get_library_database` resolver, negative-path tests). Last fix: register
-  `_digest_library_database` in `conftest.py` `dependency_overrides` (or use `get_library_database`
-  directly in `Depends()`) — positive tests currently pass by a db-cache coincidence, not isolation.
-  Commits on `codex`: 0436ddd8 + 49ff32f5. #1173/#1054 verified already-fixed (no change).
-- **pi / #1205** (delete dead Python CLI client): correct EXCEPT a typo — `head -30` → `head-30`
-  on the swift-build line of `sync_openapi_schema.sh`. Restore the space. Commit on `pi`: 971586dd.
+**Manager CONSOLIDATION PLAN (2026-05-25 ~12:40p) — RESUME HERE (switch me to Sonnet 4.6 200k first; Opus runs out of context).**
+All 3 workers session-ended (pi_worker done; codex_worker + claude_worker session-ending). pi_cli
+report at `~/code/fichero-pi/fichero_processing_report.md` (read it — informed bugs #1207/#1208).
+Execute this sequence ON RESTART, COMMIT-BY-COMMIT, claude/pi lanes FIRST then codex (it worked most):
 
-Next: when both refresh their done-notes → re-confirm diffs → `git merge --no-ff` BOTH into trunk →
-run ONE integration verify on trunk (test-runner subagent, serial) → restart :8765 (backend changed)
-→ resync codex/pi (`git merge 0.0.2`) → clear worker contexts.
+1. **Snapshot each lane**: `git log 0.0.2..pi`, `git log 0.0.2..codex`, and trunk `git log` (claude_worker
+   committed frontend straight to trunk — e.g. #1180 `2dca41f0`; verify which landed). Check each lane
+   worktree clean (`git -C ~/code/fichero-<lane> status`); note leftover AGENTS.md/CLAUDE.md/.bak dirt
+   (uncommitted, do NOT merge).
+2. **pi lane**: confirm #1205 fix (`head-30` → `head -30` in `sync_openapi_schema.sh`) landed → review
+   commit with a code-review agent → `git merge --no-ff pi` into 0.0.2.
+3. **codex lane**: confirm #1198 conftest fix (`_digest_library_database` in `dependency_overrides`)
+   + any queue commits (#1118/#1115/#1111) → **code-review EACH commit** with an agent → `git merge --no-ff codex`.
+4. **For each backend commit, decide if frontend SwiftUI needs a matching change** (e.g. #1198 digest
+   route → Swift client/export UI). Go systematically, one commit at a time. File/assign as issues.
+5. **Integration verify**: ONE serial `verify_python.sh` on trunk via test-runner subagent. Fix bugs.
+6. **Forward-sync**: `git -C ~/code/fichero-codex merge 0.0.2` and same for `~/code/fichero-pi`. Clear
+   their contexts. Restart `:8765` (backend changed).
+7. **Then** start another independent run — ideally drive via ISSUES that claude_worker picks up,
+   review-agents audit, pi_worker takes small disjoint tasks.
+
+**Filed today (track these):** #1206 test-DB isolation · #1207 catalogue NER runaway-repeat (degenerate
+loop, dedup+stop-cap) · #1208 tiered vision models (small→large fallback + fail-warn, not silent).
+**Known infra gripes:** pi_worker kept going idle (thin agent:pi queue — give it disjoint small backend);
+the `f_bugs_and_features` codex session blocks the /bug,/feature skills; **Opus context exhaustion is
+the real blocker — run the manager on Sonnet 4.6 200k.**
 
 **Testing division (confirmed with Daniel 2026-05-25):** workers write code + a single targeted
 check only — they do NOT run `verify_python.sh`/full suite (separate worktrees + DuckDB single-writer
