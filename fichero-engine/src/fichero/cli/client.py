@@ -40,6 +40,7 @@ from fichero.api.routes.entities import (
     EntityResolutionResponse,
     TopEntityRow,
 )
+from fichero.api.routes.entity_inspector import EntityInspectorResponse
 from fichero.api.routes.kg_graph import NeighborhoodResponse
 from fichero.api.routes.kg_rebuild import KGResetResponse, RebuildResponse
 from fichero.api.routes.kg_search import KGSearchResponse
@@ -905,6 +906,12 @@ class FicheroClient:
         """Get the full drill-down information for an entity."""
         raw = self.request("GET", f"/api/entities/{entity_id}/drill-down")
         return EntityDrillDownResponse.model_validate(raw)
+
+    def entity_inspector(self, entity_id: str) -> EntityInspectorResponse:
+        """Full inspector data for an entity: claims, documents, annotations, notes."""
+        return EntityInspectorResponse.model_validate(
+            self.request("GET", f"/api/entities/{entity_id}/inspector")
+        )
 
     def resolve_entity(self, name: str) -> EntityResolutionResponse:
         """Resolve a name/alias to a canonical entity."""

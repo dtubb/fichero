@@ -1598,6 +1598,78 @@ def entity_similar(
         typer.echo(f"  {nid}  {name:<30}  {etype}{w_str}")
 
 
+@entity_app.command("inspector")
+def entity_inspector_cmd(
+    ctx: typer.Context,
+    entity_id: str = typer.Argument(..., help="Entity ID."),
+) -> None:
+    """Full inspector view: claims grouped by source document in dense prose format.
+
+    Shows each source document as a section header, with all claims from that
+    source as a dense semicolon-separated line. Time, place, and asserter
+    annotations appear inline where available.
+    """
+    if ctx.obj["json"]:
+        _invoke(ctx, lambda c: c.entity_inspector(entity_id))
+        return
+    try:
+        with _client(ctx) as client:
+            data = client.entity_inspector(entity_id)
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    entity = data.entity
+    name = entity.canonical_name if entity else entity_id
+    etype = (entity.entity_type or "").value if entity and entity.entity_type else ""
+    desc = (entity.description or "") if entity else ""
+    claim_count = data.claim_count or len(data.claims or [])
+
+    typer.secho(f"{name}  [{etype}]  {claim_count} claims", bold=True)
+    if desc:
+        typer.echo(desc)
+
+    # Group claims by source_document_id + source_page_label
+    from collections import defaultdict
+    groups: dict[tuple[str, str], list] = defaultdict(list)
+    for claim in data.claims or []:
+        doc_id = claim.source_document_id or ""
+        page = claim.source_page_label or ""
+        groups[(doc_id, page)].append(claim)
+
+    # Build doc name lookup from data.documents
+    doc_names: dict[str, str] = {}
+    for doc in data.documents or []:
+        if doc.id:
+            doc_names[doc.id] = doc.name or doc.id[:8]
+
+    for (doc_id, page), claims in groups.items():
+        doc_name = doc_names.get(doc_id, doc_id[:8] if doc_id else "unknown")
+        section = doc_name
+        if page:
+            section += f" — p. {page}"
+        bar = "─" * max(0, 60 - len(section))
+        typer.secho(f"\n── {section} {bar}", fg=typer.colors.BRIGHT_BLACK)
+
+        # Build dense semicolon-separated line with inline annotations
+        parts = []
+        for claim in claims:
+            text = (claim.text or "").strip()
+            if not text:
+                continue
+            annotations = []
+            if claim.temporal_context:
+                annotations.append(f"⏱ {claim.temporal_context}")
+            if claim.claim_location:
+                annotations.append(f"📍 {claim.claim_location}")
+            if claim.speaker_name:
+                annotations.append(f"👤 {claim.speaker_name}")
+            if annotations:
+                text = text.rstrip(".") + f" ({'; '.join(annotations)})"
+            parts.append(text)
+        typer.echo("; ".join(parts) if parts else "(no claim text)")
+
+
 @claim_app.command("at-page")
 def claim_at_page(
     ctx: typer.Context,
