@@ -9,6 +9,16 @@
 Daniel testing 0.0.2. If passes, release checklist (#157–#165) in order.
 Multi-agent split active: frontend Claude (#1202/#1204/#1181), backend Codex (#1054/#1173/#1198), pi CLI (imports).
 SwiftLint file_length violations: **ALL CLEARED** (8 files split across 2 sessions). Build green. NodeDef schema variant fix committed.
+Active pi work is in the shared `~/code/fichero-0.0.2` trunk checkout for this pass; the dedicated `~/code/fichero-pi` desk is not the live lane. Codex is paused.
+
+**Reminder for 2026-05-25 23:30 ADT:** bring `f_claude_worker` and `f_codex_worker` back online together; both are currently out of context and need a fresh session start before any further coordination.
+
+## Next Session — Start Here
+
+1. Rehydrate `f_claude_worker` and `f_codex_worker` at 23:30 ADT before assigning more work.
+2. Treat the shared `~/code/fichero-0.0.2` checkout as the live lane when checking the pi worker.
+3. Re-run or inspect the backend gate only after the engine is in a clean single-writer state.
+4. Pick up the WebKit knowledge pane issue `#1228` once the worker lanes are back in context.
 
 **POST-INTEGRATION STATUS (2026-05-25 ~12:55p) — RESUME HERE (run manager on Sonnet 4.6 200k; Opus burns tokens).**
 ✅ BOTH lanes MERGED into trunk: pi (`231900db`: #1205 + #1085) and codex (`ffe2625b`: #1198, #1118 NER,

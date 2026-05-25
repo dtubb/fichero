@@ -2316,3 +2316,10 @@ Two sessions continuing #1178 (transcription profiles) and paleography pipeline 
 - ✅ Task 6: Zero SwiftLint violations; compiles (only pre-existing NodeDefOutput/NodeDefInput schema drift errors remain)
 - ✅ Bug fix: removed spurious `override` on `Coordinator.mouseMoved` — NSObject informal protocol receives mouse events via `@objc`, no override declaration needed
 - Task 7 (manual testing) left for Daniel
+
+## 2026-05-25 — Session Summary
+
+- Forward-synced the committed `0.0.2` trunk state into the lane worktrees: `fichero-codex` was already up to date, and `fichero-pi` was merged forward as `2fc2b0ab`.
+- Resolved the pi lane `HISTORY.md` merge conflict by preserving both the SwiftUI loupe session notes and the backend `#241` provider-validation session notes.
+- Recorded the 23:30 ADT manager restart reminder for `f_claude_worker` and `f_codex_worker`.
+- Updated `STATE.md` and `MEMORY.md` with the current coordination context for the next handoff.
