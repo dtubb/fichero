@@ -103,6 +103,7 @@ class TestLoadPresetFiles:
         assert "extract_all" in node_tools, (
             "Catalogue preset must use the combined extract_all tool"
         )
+        assert "kg_writer" in node_tools, "Catalogue preset must include kg_writer"
         for cleaner in (
             "people_folder_cleanup",
             "places_folder_cleanup",
@@ -114,6 +115,10 @@ class TestLoadPresetFiles:
             assert cleaner in node_tools, (
                 f"Catalogue preset missing folder cleanup {cleaner!r}"
             )
+        extract_all_node = next(
+            n for n in presets["Catalogue"]["nodes"] if n["tool"] == "extract_all"
+        )
+        assert extract_all_node["config"].get("persist_kg") is False
         # Per-type extractors and per-page cleanups dropped for speed.
         for dropped in (
             "people_extract", "places_extract", "organizations_extract",
@@ -125,6 +130,15 @@ class TestLoadPresetFiles:
             assert dropped not in node_tools, (
                 f"Catalogue preset should no longer use {dropped!r}"
             )
+        kg_writer_id = _node_id(presets["Catalogue"], "kg_writer")
+        extract_id = _node_id(presets["Catalogue"], "extract_all")
+        assert any(
+            e["source"] == extract_id
+            and e["target"] == kg_writer_id
+            and e["source_port"] == "kg_payload"
+            and e["target_port"] == "kg_payload"
+            for e in presets["Catalogue"]["edges"]
+        )
 
     def test_catalogue_drops_archive_specific_extractors(self):
         """Archive-specific extractors don't ship in the default workflow."""
@@ -135,6 +149,25 @@ class TestLoadPresetFiles:
             "properties_extract", "legal_references_extract",
         }
         assert not (archive_specific & node_tools)
+
+    def test_ner_per_page_local_has_explicit_kg_writer(self):
+        presets = {p["name"]: p for p in _load_preset_files()}
+        preset = presets["NER per-page (local)"]
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        assert "kg_writer" in node_tools
+        extract_all_node = next(
+            n for n in preset["nodes"] if n["tool"] == "extract_all"
+        )
+        assert extract_all_node["config"].get("persist_kg") is False
+        extract_id = _node_id(preset, "extract_all")
+        kg_writer_id = _node_id(preset, "kg_writer")
+        assert any(
+            e["source"] == extract_id
+            and e["target"] == kg_writer_id
+            and e["source_port"] == "kg_payload"
+            and e["target_port"] == "kg_payload"
+            for e in preset["edges"]
+        )
 
     def test_catalogue_small_uses_dollar_small_throughout(self):
         """Every LLM-using node in the default Catalogue preset references
@@ -313,7 +346,6 @@ class TestLoadPresetFiles:
         # Two-pass branches (HTR, paleography) must have a review node downstream
         htr_transcribe_id = rmap["htr"]
         paleo_transcribe_id = rmap["paleography"]
-        htr_review_id = rmap.get("htr_review")  # not a key — find via edges
         # Find review nodes connected from htr/paleo transcribe nodes
         htr_review_edges = [e for e in ad["edges"] if e.get("source") == htr_transcribe_id and e.get("target_port") == "context"]
         paleo_review_edges = [e for e in ad["edges"] if e.get("source") == paleo_transcribe_id and e.get("target_port") == "context"]

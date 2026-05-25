@@ -60,6 +60,7 @@ from fichero.workflows.tools import questions
 from fichero.workflows.tools import classify_text
 from fichero.workflows.tools import extractors  # per-section catalogue extractors
 from fichero.workflows.tools import extract_all  # combined single-call extractor
+from fichero.workflows.tools import kg_writer
 from fichero.workflows.tools import cleanup  # per-section page/folder canonical cleanup
 
 # Audio tools (use shared audio_base)
@@ -123,6 +124,7 @@ __all__ = [
     "classify_text",
     "extractors",
     "extract_all",
+    "kg_writer",
     "cleanup",
     # Audio
     "audio_transcribe",

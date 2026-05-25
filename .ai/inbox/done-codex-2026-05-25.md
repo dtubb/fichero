@@ -1,5 +1,19 @@
 # done-codex-2026-05-25
 
+Completed backend issue `#1115` on the `codex` branch.
+
+What changed:
+- Added an explicit `kg_writer` workflow node in `fichero/workflows/` and wired the shipped presets to use it.
+- Taught `extract_all` to emit a `kg_payload` bundle and honor `persist_kg=false` so KG persistence can move out of the extractor path.
+- Updated the Catalogue and `NER per-page (local)` preset JSON so the KG write is now a visible graph node rather than a hidden side effect.
+
+Verification performed:
+- `PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/fichero/kg/ner.py fichero-engine/src/fichero/workflows/ner/__init__.py fichero-engine/src/fichero/workflows/ner/providers.py fichero-engine/src/fichero/workflows/tools/ner.py fichero-engine/src/fichero/workflows/tools/kg_writer.py fichero-engine/src/fichero/workflows/tools/extract_all.py fichero-engine/src/fichero/workflows/tools/__init__.py fichero-engine/src/fichero/kg/__init__.py fichero-engine/tests/unit/workflows/test_ner_providers.py fichero-engine/tests/unit/workflows/test_kg_writer.py fichero-engine/tests/unit/workflows/test_default_workflows.py`
+- `PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/workflows/test_kg_writer.py fichero-engine/tests/unit/workflows/test_default_workflows.py -q`
+
+Notes:
+- The earlier #1118 commit is already sealed in this session; it added the multi-provider NER abstraction and the new `ner` workflow tool.
+
 Completed backend issue `#1118` on the `codex` branch.
 
 What changed:

@@ -10,8 +10,9 @@ second pass runs per-entity claim extraction for grounded SVO + quotes. Better f
 Intelligence where the one-shot prompt often produces weak/chatty SVO output.
 
 Both modes produce the same output shape (people/places/organizations/dates/events/quotes
-as lists of items with verb/object/source_text) so downstream tools (folder_cleanup, KG
-writer) work unchanged.
+as lists of items with verb/object/source_text) so downstream tools (folder_cleanup,
+KG writer) work unchanged. The node also emits a `kg_payload` write bundle so a
+workflow can move KG persistence into an explicit downstream `kg_writer` node.
 """
 
 from __future__ import annotations
@@ -57,6 +58,17 @@ TWO_STAGE_CONFIG = {
             "Extraction mode. 'oneshot' uses one LLM call per page for all "
             "entity types. 'twostage' first extracts entity names only, then "
             "runs per-entity claim extraction for grounded SVO output."
+        ),
+    },
+}
+
+KG_WRITE_CONFIG = {
+    "persist_kg": {
+        "type": "boolean",
+        "default": True,
+        "description": (
+            "Persist KG rows inline. Set false when an explicit downstream "
+            "kg_writer node should own the write."
         ),
     },
 }
@@ -1162,6 +1174,9 @@ async def extract_all(
             key = section["schema_key"]
             per_section_chunks[key].append(cr.get(key, []))
 
+    persist_kg = inputs.get("persist_kg", True)
+    kg_payload: list[dict[str, Any]] = []
+
     # Write errors and KG saves whenever we have a container/library —
     # even if every chunk failed, the per-page extraction_error
     # artifacts are valuable for diagnosis. The successful-data saves
@@ -1196,12 +1211,27 @@ async def extract_all(
                     page_label = f"Page {page_idx + 1}" if len(chunks) > 1 else None
                     excerpt = chunk_text[:500] if chunk_text else None
                     target_doc_id = page_doc_id or container.id
-                    _write_kg_rows(
-                        db, section, items, target_doc_id,
-                        page_label=page_label, source_excerpt=excerpt,
-                        provider=getattr(llm_config, "provider", None),
-                        model=getattr(llm_config, "model", None),
+                    kg_payload.append(
+                        {
+                            "section_name": section["name"],
+                            "section_key": key,
+                            "items": items,
+                            "target_doc_id": target_doc_id,
+                            "page_label": page_label,
+                            "source_excerpt": excerpt,
+                            "provider": getattr(llm_config, "provider", None),
+                            "model": getattr(llm_config, "model", None),
+                            "grounding_text": chunk_text,
+                        }
                     )
+                    if persist_kg:
+                        _write_kg_rows(
+                            db, section, items, target_doc_id,
+                            page_label=page_label, source_excerpt=excerpt,
+                            provider=getattr(llm_config, "provider", None),
+                            model=getattr(llm_config, "model", None),
+                            grounding_text=chunk_text,
+                        )
 
                 # Per-page artifact saves so the inspector + cache see
                 # the right shape.
@@ -1289,7 +1319,12 @@ async def extract_all(
         text_parts.append(_render_section_markdown(section, items))
     markdown = "\n\n".join(text_parts)
 
-    result: dict[str, Any] = {"text": markdown, "value": value, "cached": False}
+    result: dict[str, Any] = {
+        "text": markdown,
+        "value": value,
+        "kg_payload": kg_payload,
+        "cached": False,
+    }
     # Fail-fast on systemic errors (#1060). When a high fraction of
     # chunks fail — or they all fail with the same signature ($large
     # unconfigured, 401/403, quota, provider unreachable) — continuing is
@@ -1331,9 +1366,20 @@ register_tool(
     supports_batch=False,
     supports_structured_output=True,
     input_ports=_INPUT_PORTS,
-    output_ports=BASE_OUTPUT_PORTS,
+    output_ports=merge_ports(
+        BASE_OUTPUT_PORTS,
+        [
+            PortDef(
+                id="kg_payload",
+                name="KG Payload",
+                port_type="output",
+                data_type=DataType.JSON,
+                description="Persistable KG write bundle",
+            )
+        ],
+    ),
     config_schema=merge_config_schema(
-        BASE_CONFIG_SCHEMA, _LANGUAGE_CONFIG, TWO_STAGE_CONFIG
+        BASE_CONFIG_SCHEMA, _LANGUAGE_CONFIG, TWO_STAGE_CONFIG, KG_WRITE_CONFIG
     ),
     default_prompt=_build_instructions("English"),
     sort_order=5,
