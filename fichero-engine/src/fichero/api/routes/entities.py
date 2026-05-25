@@ -9,13 +9,14 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from collections import defaultdict
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from fichero.api.main import _is_allowed_library_path, db_manager, get_library_database
+from fichero.api.main import get_library_database
 from fichero.knowledge_models import KnowledgeClaim
 from fichero.db import Database
 from fichero.knowledge_models import (
@@ -135,20 +136,18 @@ class EntityAuditResponse(BaseModel):
 # =============================================================================
 
 
-async def _maybe_library_database(
+async def _digest_library_database(
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
-) -> Database | None:
-    """Optionally resolve a library database from an injected path."""
+) -> Database:
+    """Resolve the digest library database with a route-specific 400 on absence."""
     if not x_fichero_library_path:
-        return None
-    if not _is_allowed_library_path(x_fichero_library_path):
         raise HTTPException(
-            status_code=403,
-            detail="Library path is not in an allowed location or not a .fichero package.",
+            status_code=400,
+            detail="Missing X-Fichero-Library-Path header. Please open a library document first.",
         )
-    return db_manager.get_database(x_fichero_library_path)
+    return await get_library_database(x_fichero_library_path)
 
 
 def _entity_type_label(entity: KnowledgeEntity) -> str:
@@ -160,7 +159,6 @@ def _source_reference(claim: KnowledgeClaim, documents_by_id: dict[str, Document
     doc = documents_by_id.get(claim.source_document_id)
     doc_name = (
         getattr(doc, "name", None)
-        or getattr(doc, "title", None)
         or claim.source_document_id
         or "unknown source"
     )
@@ -529,29 +527,21 @@ async def entity_claim_counts(
     return ClaimCountsResponse(counts=dict(counter))
 
 
-@router.get("/digest", include_in_schema=False)
+@router.get(
+    "/digest",
+    response_class=Response,
+    responses={
+        400: {"description": "Missing library header or unsupported digest format"},
+        403: {"description": "Library path rejected by allowlist"},
+    },
+)
 async def entity_digest(
     format_type: Annotated[str, Query(alias="format")] = "markdown",
-    library_id: Annotated[str | None, Query()] = None,
-    db: Annotated[Database | None, Depends(_maybe_library_database)] = None,
+    db: Database = Depends(_digest_library_database),
 ) -> Response:
     """Export the visible entity graph as markdown or plain text."""
-    target_db = db
-    if library_id:
-        if not _is_allowed_library_path(library_id):
-            raise HTTPException(
-                status_code=403,
-                detail="Library path is not in an allowed location or not a .fichero package.",
-            )
-        target_db = db_manager.get_database(library_id)
-    if target_db is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Missing X-Fichero-Library-Path header or library_id query parameter.",
-        )
-
-    all_entities = {entity.id: entity for entity in target_db.all(KnowledgeEntity)}
-    all_claims = target_db.query(KnowledgeClaim)
+    all_entities = {entity.id: entity for entity in db.all(KnowledgeEntity)}
+    all_claims = db.query(KnowledgeClaim)
     claims_by_entity: dict[str, list[KnowledgeClaim]] = defaultdict(list)
     for claim in all_claims:
         for entity_id in claim.entity_ids or []:
@@ -572,8 +562,13 @@ async def entity_digest(
     ]
     digest_rows.sort(key=lambda item: item[0].canonical_name.casefold())
 
-    documents_by_id = {doc.id: doc for doc in target_db.all(Document)}
-    library_label = library_id or str(getattr(target_db, "path", "library"))
+    documents_by_id = {doc.id: doc for doc in db.all(Document)}
+    library_label = Path(str(getattr(db, "path", "library"))).stem or "library"
+    if all_entities and not digest_rows:
+        logger.warning(
+            "digest: %d entities present, 0 with linkable claims",
+            len(all_entities),
+        )
 
     if format_type == "text":
         body = _render_entity_digest_text(digest_rows, documents_by_id, library_label)
