@@ -22,6 +22,10 @@ from fichero.keychain import (
     has_api_key,
     is_available as keychain_available,
 )
+from fichero.provider_validation import (
+    validate_provider_config,
+    ProviderValidationError,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -74,6 +78,15 @@ async def set_provider_api_key(provider_type: str, request: APIKeyRequest) -> AP
         raise HTTPException(
             status_code=400, detail="Local providers don't need API keys"
         )
+
+    # Validate API key format before storing
+    try:
+        validate_provider_config(
+            provider_type=provider_type,
+            api_key=request.api_key,
+        )
+    except ProviderValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     logger.info(f"Saving API key for {provider_type}")
     success = set_api_key(provider_type, request.api_key)

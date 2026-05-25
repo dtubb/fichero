@@ -23,6 +23,10 @@ from fichero.keychain import (
     delete_api_key,
     has_api_key,
 )
+from fichero.provider_validation import (
+    validate_provider_config,
+    ProviderValidationError,
+)
 from fichero.api.routes.provider_models import (  # noqa: F401 (re-exported for tests)
     ProviderCatalogResponse,
     ProviderCatalogListResponse,
@@ -236,6 +240,16 @@ async def create_provider(
         raise HTTPException(
             status_code=400, detail=f"Unknown provider type: {request.provider_type}"
         )
+
+    # Validate configuration at save time
+    try:
+        validate_provider_config(
+            provider_type=request.provider_type,
+            api_key=request.api_key,
+            api_base=request.api_base,
+        )
+    except ProviderValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     target_name = request.name or info.name
 

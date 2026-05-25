@@ -100,6 +100,7 @@ class TestCreateProvider:
             r = client.post("/api/providers", json={
                 "name": "My Anthropic",
                 "provider_type": "anthropic",
+                "api_key": "sk-ant-test-key-123456",
             })
         assert r.status_code == 200
         data = r.json()
