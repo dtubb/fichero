@@ -1,5 +1,22 @@
 # done-codex-2026-05-25
 
+Verified backend queue items `#1118` and `#1115` on the `codex` branch.
+
+What I checked:
+- `#1118` NER multi-provider abstraction with per-claim provider attribution is already present in the branch history and the focused backend tests still pass.
+- `#1115` explicit KG-write workflow node is already present in the branch history and the focused workflow tests still pass.
+
+Verification performed:
+- `PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/workflows/test_ner_providers.py fichero-engine/tests/unit/kg/test_spacy_ner.py -q`
+- `PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/workflows/test_kg_writer.py fichero-engine/tests/unit/workflows/test_default_workflows.py -q`
+- `PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/fichero/kg/ner.py fichero-engine/src/fichero/workflows/ner/__init__.py fichero-engine/src/fichero/workflows/ner/providers.py fichero-engine/src/fichero/workflows/tools/ner.py fichero-engine/src/fichero/workflows/tools/extractors.py fichero-engine/src/fichero/workflows/tools/__init__.py fichero-engine/src/fichero/kg/__init__.py`
+- `PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/fichero/workflows/tools/kg_writer.py fichero-engine/src/fichero/workflows/tools/extract_all.py fichero-engine/src/fichero/workflows/tools/__init__.py fichero-engine/src/fichero/workflows/default_workflows.py fichero-engine/tests/unit/workflows/test_kg_writer.py fichero-engine/tests/unit/workflows/test_default_workflows.py`
+
+Notes:
+- No backend source edits were required for this session; the queue items are already implemented in the current codex history and the verify-first checks passed cleanly.
+
+# done-codex-2026-05-25
+
 Completed backend issue `#1111` on the `codex` branch.
 
 What changed:
