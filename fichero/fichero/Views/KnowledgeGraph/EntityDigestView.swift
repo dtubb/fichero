@@ -1,5 +1,5 @@
-import SwiftUI
 import FicheroAPIClient
+import SwiftUI
 
 /// A researcher-focused view providing a clean digest of entities and their
 /// provenance across the library. Unlike the OntologyBrowser, this view
@@ -301,7 +301,9 @@ struct EntityDigestContent: View {
             
             if verb.isEmpty && object.isEmpty { continue }
             
-            let docName = LibraryManager.shared.globalLibrary?.documentStore.currentDocuments.first(where: { $0.id == claim.sourceDocumentId })?.name
+            let docName = LibraryManager.shared.globalLibrary?.documentStore.currentDocuments.first(
+                where: { $0.id == claim.sourceDocumentId }
+            )?.name
             let citation = docName != nil ? " [\(docName!)]" : ""
             
             composed = composed 
