@@ -834,10 +834,10 @@ async def _run_two_stage(
     inputs: dict[str, Any],
 ) -> dict[str, Any]:
     """Two-stage extraction: entity names first, then per-entity claims.
-    
+
     Stage 1: Extract entity names only (NER pass, no SVO pressure)
     Stage 2: For each discovered entity, extract grounded SVO claims
-    
+
     This produces more reliable grounded claims on Apple Intelligence
     where the one-shot prompt often produces weak/chatty SVO output.
     """
@@ -991,7 +991,7 @@ async def extract_all(
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
     """Combined extractor — one LLM call per page returns all 6 types.
-    
+
     Supports two modes:
     - oneshot (default): One LLM call per page for all entity types
     - twostage: First extracts entity names, then per-entity claims

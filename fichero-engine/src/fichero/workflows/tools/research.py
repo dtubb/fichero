@@ -78,20 +78,20 @@ _MAX_CONTENT_SIZE = 10 * 1024 * 1024
 
 def _is_internal_ip(hostname: str | None) -> bool:
     """Check if a hostname or IP is internal/private.
-    
+
     Args:
         hostname: Hostname or IP address to check
-        
+
     Returns:
         True if the hostname resolves to an internal IP
     """
     if not hostname:
         return False
-    
+
     # Check for cloud metadata hosts
     if hostname.lower() in _CLOUD_METADATA_HOSTS:
         return True
-    
+
     try:
         # Check if it's a bare IP address
         addr = ipaddress.ip_address(hostname)
@@ -102,7 +102,7 @@ def _is_internal_ip(hostname: str | None) -> bool:
     except ValueError:
         # It's a hostname, resolve it
         pass
-    
+
     # Try to resolve the hostname
     try:
         # Get all addresses (IPv4 and IPv6)
@@ -120,70 +120,70 @@ def _is_internal_ip(hostname: str | None) -> bool:
         # If we can't resolve, assume it might be internal and block
         # This is the safer default
         pass
-    
+
     return False
 
 
 def _is_safe_url(url: str, allow_userinfo: bool = False) -> tuple[bool, str]:
     """Comprehensive URL safety check for sandboxed requests.
-    
+
     Args:
         url: URL to validate
         allow_userinfo: Whether to allow username:password in URL
-        
+
     Returns:
         Tuple of (is_safe, error_message)
     """
     if not url:
         return False, "URL is empty"
-    
+
     # Parse URL components
     try:
         parsed = urlparse(url)
     except Exception as e:
         return False, f"Invalid URL format: {e}"
-    
+
     # Check scheme (http/https only, case-insensitive)
     scheme = parsed.scheme.lower()
     if not scheme:
         return False, "URL must have a scheme (http:// or https://)"
-    
+
     if scheme in _SANDBOX_BLOCKED_SCHEMES:
         return False, f"URL scheme '{parsed.scheme}' is not allowed"
-    
+
     if scheme not in ("http", "https"):
         return False, f"URL scheme '{parsed.scheme}' is not allowed (only http/https)"
-    
+
     # Check for credentials in URL
     if not allow_userinfo and (parsed.username or parsed.password):
         return False, "URLs with embedded credentials are not allowed"
-    
+
     # Check hostname is present
     hostname = parsed.hostname
     if not hostname:
         return False, "URL must have a hostname"
-    
+
     # Check for internal IPs
     if _is_internal_ip(hostname):
         return False, f"Internal addresses are not allowed: {hostname}"
-    
+
     # Check for bare IP address bypass attempts
     # (e.g., http://0x7f.0.0.1/ is 127.0.0.1 in hex)
     if re.match(r"^0[xX][0-9a-fA-F]+", hostname) or re.match(r"^\d+$", hostname):
         # Numeric hostname might be octal/hex IP
         if _is_internal_ip(hostname):
             return False, "Numeric IP addresses are not allowed"
-    
+
     return True, ""
 
 
 def _check_content_size(content: bytes | str, max_size: int = _MAX_CONTENT_SIZE) -> tuple[bool, str]:
     """Check if content size is within limits.
-    
+
     Args:
         content: Content to check
         max_size: Maximum allowed size in bytes
-        
+
     Returns:
         Tuple of (is_valid, error_message)
     """
@@ -191,16 +191,16 @@ def _check_content_size(content: bytes | str, max_size: int = _MAX_CONTENT_SIZE)
         size = len(content.encode("utf-8"))
     else:
         size = len(content)
-    
+
     if size > max_size:
         return False, f"Content size {size} exceeds maximum {max_size}"
-    
+
     return True, ""
 
 
 def _is_sandbox_violation(url: str) -> bool:
     """Check if URL violates sandbox constraints.
-    
+
     DEPRECATED: Use _is_safe_url() instead for comprehensive validation.
     """
     is_safe, _ = _is_safe_url(url)

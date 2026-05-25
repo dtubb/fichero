@@ -206,14 +206,14 @@ async def get_document_parent(
     doc = db.get(Document, doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
-    
+
     if not doc.parent_id:
         raise HTTPException(status_code=404, detail=f"Document {doc_id} has no parent")
-    
+
     parent = db.get(Document, doc.parent_id)
     if not parent:
         raise HTTPException(status_code=404, detail=f"Parent document not found: {doc.parent_id}")
-    
+
     return parent
 
 

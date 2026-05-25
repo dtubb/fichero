@@ -950,7 +950,7 @@ def _parse_iffy_sidecar(image_path: Path) -> dict[str, Any] | None:
     # Don't create sidecar for sidecar files
     if image_path.suffix == ".json" and image_path.stem.endswith(".iffy"):
         return None
-        
+
     sidecar = image_path.parent / f"{image_path.stem}.iffy.json"
     if not sidecar.exists():
         return None
@@ -958,7 +958,7 @@ def _parse_iffy_sidecar(image_path: Path) -> dict[str, Any] | None:
     try:
         with open(sidecar, "r", encoding="utf-8") as f:
             iffy_data = json.load(f)
-        
+
         # Map .iffy.json fields to our metadata keys
         result: dict[str, Any] = {}
         field_map = {
@@ -973,7 +973,7 @@ def _parse_iffy_sidecar(image_path: Path) -> dict[str, Any] | None:
             "original_date": "iffy_original_date",
             "notes": "iffy_notes",
         }
-        
+
         for iffy_key, metadata_key in field_map.items():
             if iffy_key in iffy_data:
                 value = iffy_data[iffy_key]
@@ -982,7 +982,7 @@ def _parse_iffy_sidecar(image_path: Path) -> dict[str, Any] | None:
                     result[metadata_key] = ", ".join(str(item) for item in value)
                 else:
                     result[metadata_key] = value
-        
+
         return result
     except Exception as e:
         logger.warning(f"Failed to parse .iffy.json sidecar {sidecar}: {e}")

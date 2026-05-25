@@ -300,7 +300,7 @@ async def list_entities(
     db: Database = Depends(get_library_database),
 ) -> EntityListResponse:
     """List knowledge entities with optional filtering.
-    
+
     When `document_id` is provided, returns only entities mentioned by claims
     from that document (source-scoped aggregation).
     """
@@ -309,12 +309,12 @@ async def list_entities(
         # Get all claims for this document
         all_claims = db.query(KnowledgeClaim)
         doc_claims = [c for c in all_claims if c.source_document_id == document_id]
-        
+
         # Extract entity IDs from those claims
         entity_ids: set[str] = set()
         for c in doc_claims:
             entity_ids.update(c.entity_ids or [])
-        
+
         # Fetch those entities
         entities = [db.get(KnowledgeEntity, eid) for eid in entity_ids]
         entities = [e for e in entities if e is not None]
@@ -324,7 +324,7 @@ async def list_entities(
             if entity_type
             else db.all(KnowledgeEntity)
         )
-    
+
     needle = _normalize_text(q)
     if needle:
         entities = [
