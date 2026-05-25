@@ -7,6 +7,48 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ---
 
+## 0.0.2 — Alpha (unreleased)
+
+Stability + reliability release: backend hardening, the knowledge-graph layer,
+a typed CLI surface, and the redesigned document inspector. Packaging
+(notarization, signing) is the only remaining gate.
+
+### Added
+
+- **Knowledge Graph maturity** — claim/entity attribution (speaker, quotation
+  kind, language, audience, genre, confidence source), canonical verbs,
+  claim↔claim links, and at-page / at-doc / at-folder scoping with context.
+  Entity de-duplication, type-conflict detection, source-text grounding for events.
+- **Document Inspector V2** — tabbed Info / Metadata / Content (editable) /
+  Artifacts / Knowledge Graph, plus a multi-pane reading layout with a PDF page
+  view and per-page artifacts.
+- **`fichero` CLI** — typed command surface mirroring the engine's HTTP API,
+  with engine lifecycle (`status`/`start`/`stop`/`restart`), library management,
+  and a persisted known-library registry.
+- **Workflow cancellation** endpoint + CLI; workflow execution moved off the
+  main event loop so a blocking node no longer freezes the backend.
+- **Multilingual catalogue reliability** — Apple Intelligence locale/safety
+  refusals fall back to the configured cloud model instead of an empty
+  catalogue; reasoning-enabled narrative synthesis; tunable per-section claim
+  caps. (Detail in `docs/release-notes-0.0.2.md`.)
+- **Engine auth** — shared-secret token between the engine and the Swift app.
+
+### Changed
+
+- **Unified verification gate** — `scripts/verify_all.sh` (SwiftLint + Xcode test
+  suite + `CrossLanguageGateTests` → `scripts/verify_python.sh`) is the single
+  source of truth for "is it green", wired to ⌘U.
+- All list endpoints unified on the OpenAPI envelope contract, guarded by a
+  permanent endpoint-walker contract test.
+
+### Fixed
+
+- Backend 500s (bare-list-under-envelope responses), KG claim cascade-delete,
+  LanceDB fork-safety, DuckDB upsert crash, transcribe re-OCR of digital PDFs,
+  keyword over-extraction, and assorted SwiftUI inspector / thumbnail / activity bugs.
+
+---
+
 ## 2026.04.29 — Alpha
 
 ### Added — Knowledge Graph layer

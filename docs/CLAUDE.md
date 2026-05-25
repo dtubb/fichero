@@ -363,11 +363,18 @@ refactor: made it better
 
 ### Pre-Commit Checklist for `0.0.2`
 
-Run before each commit:
+Run the canonical gate before each commit — same coverage as ⌘U (SwiftLint + the
+Xcode test suite + `CrossLanguageGateTests` → `scripts/verify_python.sh`, the whole
+Python side):
 ```bash
-swiftlint lint fichero/fichero/
-PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
-PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/src/
+bash scripts/verify_all.sh
+```
+`scripts/verify_python.sh` runs the Python legs alone for backend-only iteration.
+
+**If you changed a backend API:** the gate's contract tests *detect* schema drift but
+don't fix it — regenerate and commit the client first:
+```bash
+./fichero-engine/scripts/sync_openapi_schema.sh
 ```
 
 ### Pre-Commit Checklist

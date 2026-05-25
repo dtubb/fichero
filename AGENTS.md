@@ -145,6 +145,18 @@ If tasks are independent, spawn subagents **in a single message with multiple Ag
 
 ## Build Commands — Both Stacks
 
+**Canonical gate — one command, same coverage as ⌘U:**
+```bash
+bash scripts/verify_all.sh
+```
+Runs SwiftLint + `xcodebuild test` — which compiles the app, runs the Swift suite + the live `AppEngineContractTests`, and chains `CrossLanguageGateTests → scripts/verify_python.sh` (the entire Python side: ruff + unit tests + GET-contract walk + backend smoke + CLI smoke). **Run it before marking any work complete.** `scripts/verify_python.sh` runs the Python legs alone for backend-only iteration. The per-leg commands below are for fast iteration — they do not replace the gate.
+
+**OpenAPI sync is a SEPARATE step — the gate detects drift, it does not fix it.** The gate's contract tests (`test_contract_endpoint_walk.py`, `test_cli_engine_contract.py`) fail if the schema and the generated Swift client have diverged. After any backend API change, regenerate and commit the client:
+```bash
+./fichero-engine/scripts/sync_openapi_schema.sh
+```
+This writes `openapi.json` + the Swift client (committed artifacts) — the gate must never silently regenerate them. Order: change API → sync → commit regen → `verify_all.sh`.
+
 **Python backend:**
 ```bash
 # Start backend

@@ -158,17 +158,18 @@ resources/         # Config defaults, locales
 ### SwiftUI App (`fichero/fichero/`)
 
 ```
-Views/
-├── ContentView.swift      # Main 3-column layout
-├── Sidebar/               # Library, search, chat, workflow sections
-├── Browser/               # Document grid/list/table views
-├── Inspector/             # Metadata, preview
-├── Chat/                  # RAG conversation UI
-└── Workflow/              # Visual node editor, canvas, inspector
+Views/             # ~234 files across ~19 feature domains
+├── ContentView.swift (+5 ext)  # Resizable multi-pane reading layout
+├── Sidebar/        # Multi-mode nav: Library, Search, Chat, Workflows, Activity, …
+├── Library/        # Document browser + PDF reading view + inspector V2 (tabbed)
+├── KnowledgeGraph/ # Entity/claim digests, graph views
+├── Chat/           # RAG conversation UI
+├── Workflow/       # Visual node editor, canvas
+└── Search/ Activity/ Settings/ AIProviders/ Automation/ …
 
-Services/          # API client, document store, providers
-Models/            # Swift data models
-Resources/         # Assets, config
+Services/          # ~49 files: APIClient + 14 *Generated.swift (OpenAPI) + wrappers
+Models/            # ~42 Swift data models
+App/               # FicheroApp entry, AppState, window scaffolding
 ```
 
 ### CLI (`fichero-engine/src/fichero/cli/`)
