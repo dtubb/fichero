@@ -71,6 +71,61 @@ class TestEnhancedSearch:
         assert "search_type" in data
         assert "execution_time_ms" in data
 
+    def test_min_score_filtering(self, client, mock_db):
+        # Test that min_score parameter filters out low-scoring results
+        from fichero.db import SearchResult
+        # Mock a high-score result
+        mock_result = SearchResult(
+            document_id="test-id",
+            score=0.9,
+            content_preview="test content",
+            metadata={},
+            highlights=[]
+        )
+        mock_db.search.return_value = ([mock_result], 1, {"search_type": "hybrid", "execution_time_ms": 0})
+        
+        r = client.post("/api/search", json={"query": "test", "min_score": 0.9})
+        assert r.status_code == 200
+        data = r.json()
+        # All results should have score >= min_score
+        assert all(result["score"] >= 0.9 for result in data["results"])
+
+    def test_default_min_score_filters_noise(self, client, mock_db):
+        # Test that the default min_score of 0.55 filters out noise results
+        from fichero.db import SearchResult
+        
+        # Create mock results with different scores
+        low_score_result = SearchResult(
+            document_id="low-score-doc",
+            score=0.3,  # Below the new default threshold of 0.55
+            content_preview="low score content",
+            metadata={},
+            highlights=[]
+        )
+        high_score_result = SearchResult(
+            document_id="high-score-doc",
+            score=0.7,  # Above the new default threshold of 0.55
+            content_preview="high score content",
+            metadata={},
+            highlights=[]
+        )
+        
+        # Mock the search to return both results, but db.search should filter based on min_score
+        mock_db.search.return_value = (
+            [high_score_result],  # Only high score result should pass through
+            1, 
+            {"search_type": "hybrid", "execution_time_ms": 0}
+        )
+        
+        r = client.post("/api/search", json={"query": "test"})
+        assert r.status_code == 200
+        data = r.json()
+        
+        # With the new default min_score of 0.55, only the high score result should be returned
+        assert len(data["results"]) == 1
+        assert data["results"][0]["document_id"] == "high-score-doc"
+        assert data["results"][0]["score"] >= 0.55
+
 
 # ---------------------------------------------------------------------------
 # GET /api/search/stats

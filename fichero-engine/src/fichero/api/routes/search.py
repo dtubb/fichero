@@ -306,12 +306,12 @@ class SearchRequest(BaseModel):
 
     query: str
     limit: int = 10
-    # 0.45 cuts the unthresholded-semantic noise floor: a query like
+    # 0.55 filters out the unthresholded-semantic noise floor: a query like
     # "racial inequality" over a 15-doc corpus returns every page at
-    # 42-50% cosine similarity (#1054). At 0.45 the post-RRF filter
+    # 42-50% cosine similarity (#1054). At 0.55 the post-RRF filter
     # keeps only the top few genuinely ranked results.
     # Callers wanting everything can pass 0.0; tight matches: 0.6+.
-    min_score: float = 0.45
+    min_score: float = 0.55
 
     # Advanced search options
     search_type: str = "hybrid"  # "semantic", "fulltext", or "hybrid"
