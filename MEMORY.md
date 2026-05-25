@@ -52,6 +52,18 @@ KG (`api/routes/entities.py`, `claims.py`, `kg_*.py`) = ontological / fact layer
 
 Manager pattern (orchestrator dispatches per-task subagents) uses MORE total tokens than inline work — each subagent reloads project context (~15-20k tokens) and writes its own transcript. But it protects the orchestrator's context, which is the binding constraint for multi-wave work. The right metric isn't tokens-per-task; it's useful-commits-per-credit. Subagents that ship a commit pay their way; subagents that explore-and-report waste their cost. Always tell subagents to "execute, don't plan" unless you explicitly want a design doc. Run subagents on **sonnet** (~5× cheaper than opus), orchestrator on opus for judgment. When orchestrator context hits 200%+, /session-end is cheaper than continuing.
 
+## Agent docs: dedupe and point to live sources, don't inventory — 2026-05-24
+
+`CLAUDE.md` (project + `.claude/` + global), `AGENTS.md`, and `docs/CLAUDE.md` overlap heavily; guidance copied between them rots and double-loads context. Rules that held during the cleanup: (1) State the jCodemunch policy in ONE place and point to it — don't restate it per file. (2) Never assert "100% SwiftUI / NO AppKit" — the app intentionally ships ~8 `NSViewRepresentable` bridges (PDFKit, magnifier, scroll-zoom, Quick Look, text editors) + an `NSEvent` swipe monitor; the doc said the opposite. (3) Don't hand-maintain tool catalogues or file-count stats — they drift; point to the live tool list / `find`. (4) `bash scripts/verify_all.sh` is the canonical gate (= ⌘U); OpenAPI sync (`sync_openapi_schema.sh`) is a SEPARATE step the gate only *checks*, never runs. Pre-GitHub planning docs now live in `docs/archive/`; GitHub Issues is the canonical backlog.
+
+## Fichero verification gate is sensitive to live DuckDB locks — 2026-05-24
+
+`bash scripts/verify_python.sh` runs ruff, backend unit tests, the GET-contract walk, a backend start-smoke, CLI import/help smoke, and the live CLI<->engine contract test. It will fail if another local `uvicorn` or test process is already holding the temp DuckDB database lock used by the suite. Before rerunning a failed gate, stop the background backend process and confirm no stale Python server is still attached to the temp database.
+
+## Page-content edit state tests live in `InspectorLayoutTests.swift` — 2026-05-24
+
+The `PageContentPaneEditState` helper now has focused regression coverage in `fichero-tests/InspectorLayoutTests.swift`. The tests verify draft seeding, save-on-blur behavior, and that backend refreshes do not overwrite an active edit. Keep future page-content changes aligned with those state transitions instead of testing the SwiftUI view by rendering alone.
+
 ## FastAPI tag double-count via APIRouter + include_router collision — 2026-05-12
 
 If an `APIRouter` is constructed with `tags=["foo"]` AND main.py's `include_router(router, tags=["foo"])` also passes the same tag, FastAPI appends both to every operation. The OpenAPI export then lists each route's tags as `["foo", "foo"]`. Any tag-grouped tooling (export scripts, UI tag pickers) double-counts the endpoint.

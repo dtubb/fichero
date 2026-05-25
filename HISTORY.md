@@ -1,3 +1,18 @@
+## 2026-05-24 — Docs & Repo Hygiene (Claude session)
+
+- Deduped agent docs: removed the jCodemunch-policy duplication from the project `CLAUDE.md` + `AGENTS.md`; deleted the shipped `docs/architecture/typed_entity_storage.md`.
+- Fixed `docs/CLAUDE.md`: dropped the false "100% SwiftUI / NO AppKit" mandate (the app intentionally ships ~8 `NSViewRepresentable` bridges), corrected stale counts (333 files / 234 views / 14 generated), replaced the ~170-line rotted MCP tool catalogue with a durable pointer, fixed the GitHub-connected and task-source contradictions.
+- Rewrote 3 SwiftUI architecture docs (`key_files`, `overview`, `SWIFTUI_PRINCIPLES`) to current reality.
+- Cut junk (`CONTINUE.md`, `WORK_LOG.md`, `TASKS.md`) and archived ~10k lines of pre-GitHub planning into `docs/archive/`. docs/ md files: 76 → 56.
+- Documented `scripts/verify_all.sh` as the canonical gate (= ⌘U) in AGENTS.md + docs/CLAUDE.md; clarified OpenAPI sync is a separate step. Filed #1201 (gate should enforce client freshness).
+
+## 2026-05-24 — Session Summary
+
+- Implemented the editable `PageContentPane` for the five-pane reading layout, with edit state, blur-triggered autosave, and regression tests in `InspectorLayoutTests.swift`.
+- Cleared the repository gate by fixing a duplicate `entity_app` import in `fichero-engine/src/fichero/__main__.py`.
+- Removed the ontology browser lint warning by renaming the short-lived `t` variable to `trimmedName`.
+- Verified the committed state with `bash scripts/verify_all.sh` after stopping the background backend process that was holding the DuckDB lock.
+
 ## 2026-05-17 — CLI & Backend Standardization (Morning Session, 8:51 ADT)
 
 Autonomous CLI/backend work continuing on 0.0.2 milestone. Completed 6 issues using single-subagent workflow to preserve context.
