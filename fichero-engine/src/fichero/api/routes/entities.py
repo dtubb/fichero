@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from collections import defaultdict
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import _is_allowed_library_path, db_manager, get_library_database
 from fichero.knowledge_models import KnowledgeClaim
 from fichero.db import Database
 from fichero.knowledge_models import (
@@ -21,7 +23,14 @@ from fichero.knowledge_models import (
     EntityType,
     KnowledgeEntity,
 )
-from fichero.models import ClaimCountsResponse, EntityListResponse, EntityCoOccurrenceListResponse, EntityDocumentListResponse, TopEntityListResponse
+from fichero.models import (
+    ClaimCountsResponse,
+    Document,
+    EntityCoOccurrenceListResponse,
+    EntityDocumentListResponse,
+    EntityListResponse,
+    TopEntityListResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +128,110 @@ class EntityAuditResponse(BaseModel):
     reversal_id: str | None
     created_by: str
     created_at: datetime
+
+
+# =============================================================================
+# Digest Helpers
+# =============================================================================
+
+
+async def _maybe_library_database(
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+) -> Database | None:
+    """Optionally resolve a library database from an injected path."""
+    if not x_fichero_library_path:
+        return None
+    if not _is_allowed_library_path(x_fichero_library_path):
+        raise HTTPException(
+            status_code=403,
+            detail="Library path is not in an allowed location or not a .fichero package.",
+        )
+    return db_manager.get_database(x_fichero_library_path)
+
+
+def _entity_type_label(entity: KnowledgeEntity) -> str:
+    raw = getattr(entity.entity_type, "value", None) or str(entity.entity_type or "other")
+    return raw.replace("_", " ").title()
+
+
+def _source_reference(claim: KnowledgeClaim, documents_by_id: dict[str, Document]) -> str:
+    doc = documents_by_id.get(claim.source_document_id)
+    doc_name = (
+        getattr(doc, "name", None)
+        or getattr(doc, "title", None)
+        or claim.source_document_id
+        or "unknown source"
+    )
+    if claim.source_page_label:
+        return f"{doc_name} - p. {claim.source_page_label}"
+    return doc_name
+
+
+def _render_entity_digest_markdown(
+    digest_rows: list[tuple[KnowledgeEntity, list[KnowledgeClaim]]],
+    documents_by_id: dict[str, Document],
+    library_label: str,
+) -> str:
+    """Render a library-wide entity digest as markdown with footnotes."""
+    total_claims = sum(len(claims) for _, claims in digest_rows)
+    footnotes: dict[str, int] = {}
+    lines: list[str] = [
+        "# Entity Digest",
+        "",
+        f"Library: {library_label}",
+        f"Entities: {len(digest_rows)}",
+        f"Claims: {total_claims}",
+        "",
+    ]
+
+    for entity, claims in digest_rows:
+        lines.append(f"## {entity.canonical_name} ({_entity_type_label(entity)})")
+        if entity.description:
+            lines.append(entity.description)
+        if entity.aliases:
+            lines.append(f"Aliases: {', '.join(entity.aliases)}")
+        lines.append("")
+        for claim in claims:
+            claim_text = claim.text or claim.source_excerpt or ""
+            if not claim_text:
+                continue
+            source_ref = _source_reference(claim, documents_by_id)
+            footnote_num = footnotes.setdefault(source_ref, len(footnotes) + 1)
+            lines.append(f"- {claim_text} [^{footnote_num}]")
+        lines.append("")
+
+    if footnotes:
+        lines.append("## Sources")
+        lines.append("")
+        for source_ref, footnote_num in footnotes.items():
+            lines.append(f"[^{footnote_num}]: {source_ref}")
+
+    return "\n".join(lines).strip() + "\n"
+
+
+def _render_entity_digest_text(
+    digest_rows: list[tuple[KnowledgeEntity, list[KnowledgeClaim]]],
+    documents_by_id: dict[str, Document],
+    library_label: str,
+) -> str:
+    """Render a compact plain-text digest for copy/paste workflows."""
+    parts: list[str] = [f"Entity Digest: {library_label}"]
+    for entity, claims in digest_rows:
+        rendered_claims: list[str] = []
+        for idx, claim in enumerate(claims, start=1):
+            claim_text = claim.text or claim.source_excerpt or ""
+            if not claim_text:
+                continue
+            source_ref = _source_reference(claim, documents_by_id)
+            rendered_claims.append(f"{idx}. {claim_text} [{source_ref}]")
+        if rendered_claims:
+            parts.append(
+                f"{entity.canonical_name} ({_entity_type_label(entity)}): "
+                + "; ".join(rendered_claims)
+            )
+    return "\n\n".join(parts).strip() + "\n"
 
 
 # =============================================================================
@@ -414,6 +527,66 @@ async def entity_claim_counts(
                     counter[eid] += 1
 
     return ClaimCountsResponse(counts=dict(counter))
+
+
+@router.get("/digest", include_in_schema=False)
+async def entity_digest(
+    format_type: Annotated[str, Query(alias="format")] = "markdown",
+    library_id: Annotated[str | None, Query()] = None,
+    db: Annotated[Database | None, Depends(_maybe_library_database)] = None,
+) -> Response:
+    """Export the visible entity graph as markdown or plain text."""
+    target_db = db
+    if library_id:
+        if not _is_allowed_library_path(library_id):
+            raise HTTPException(
+                status_code=403,
+                detail="Library path is not in an allowed location or not a .fichero package.",
+            )
+        target_db = db_manager.get_database(library_id)
+    if target_db is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing X-Fichero-Library-Path header or library_id query parameter.",
+        )
+
+    all_entities = {entity.id: entity for entity in target_db.all(KnowledgeEntity)}
+    all_claims = target_db.query(KnowledgeClaim)
+    claims_by_entity: dict[str, list[KnowledgeClaim]] = defaultdict(list)
+    for claim in all_claims:
+        for entity_id in claim.entity_ids or []:
+            if entity_id in all_entities:
+                claims_by_entity[entity_id].append(claim)
+
+    digest_rows: list[tuple[KnowledgeEntity, list[KnowledgeClaim]]] = [
+        (
+            entity,
+            sorted(
+                claims_by_entity.get(entity.id, []),
+                key=lambda c: c.created_at,
+                reverse=True,
+            ),
+        )
+        for entity in all_entities.values()
+        if claims_by_entity.get(entity.id)
+    ]
+    digest_rows.sort(key=lambda item: item[0].canonical_name.casefold())
+
+    documents_by_id = {doc.id: doc for doc in target_db.all(Document)}
+    library_label = library_id or str(getattr(target_db, "path", "library"))
+
+    if format_type == "text":
+        body = _render_entity_digest_text(digest_rows, documents_by_id, library_label)
+        return Response(content=body, media_type="text/plain")
+
+    if format_type != "markdown":
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported digest format. Use markdown or text.",
+        )
+
+    body = _render_entity_digest_markdown(digest_rows, documents_by_id, library_label)
+    return Response(content=body, media_type="text/markdown")
 
 
 @router.get("/{entity_id}", response_model=KnowledgeEntity)
@@ -834,4 +1007,3 @@ async def add_entity_aliases(
     entity.updated_at = datetime.now()
     db.save(entity)
     return entity
-
