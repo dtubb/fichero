@@ -453,9 +453,9 @@ struct InspectorButton: View {
 /// AppStorage key matches the editor's `editor.rulersVisible` flag.
 // MARK: - Go Up (Cmd+`)
 
-/// Walks one level up the folder hierarchy via the focused window's
-/// navigateToParent action. Lets users ascend when the sidebar is hidden,
-/// since there's no other way to climb back out of a folder. (#786)
+// Walks one level up the folder hierarchy via the focused window's
+// navigateToParent action. Lets users ascend when the sidebar is hidden,
+// since there's no other way to climb back out of a folder. (#786)
 struct NavigateToParentButton: View {
     @FocusedValue(\.navigateToParentAction) private var action
 
