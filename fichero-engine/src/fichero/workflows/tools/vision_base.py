@@ -107,11 +107,12 @@ def _log_vision_warning(message: str, file_path: str = None):
     try:
         # Try to get activity tracker - this should work if we're in a workflow context
         from fichero.workflows.activity import get_activity_tracker
+        from fichero.workflows.activity_types import ActivityType, ActivityLevel
         tracker = get_activity_tracker()
         if tracker:
             tracker.log(
-                type="VISION_WARNING",
-                level="WARNING",
+                type=ActivityType.SYSTEM_WARNING,
+                level=ActivityLevel.WARNING,
                 message=message,
                 metadata={"file_path": file_path} if file_path else {}
             )

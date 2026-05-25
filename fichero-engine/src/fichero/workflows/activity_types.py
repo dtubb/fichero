@@ -80,10 +80,13 @@ class Activity:
         string_metadata = {
             k: str(v) if v is not None else None for k, v in self.metadata.items()
         }
+        # Handle both enum and string values for type/level
+        type_value = self.type.value if isinstance(self.type, ActivityType) else self.type
+        level_value = self.level.value if isinstance(self.level, ActivityLevel) else self.level
         return {
             "id": self.id,
-            "type": self.type.value,
-            "level": self.level.value,
+            "type": type_value,
+            "level": level_value,
             "timestamp": self.timestamp.isoformat(),
             "message": self.message,
             "workflow_id": self.workflow_id,

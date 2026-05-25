@@ -194,6 +194,18 @@ class SystemicErrorDetected(WorkflowExecutionError):
         self.errors = errors or []
 
 
+def _is_quota_error(exception: Exception) -> bool:
+    """Detect if an exception is a quota/rate-limit error.
+
+    Checks for common quota error indicators: 403 status code,
+    "quota", "rate limit", or "key limit" in the error message.
+    """
+    error_str = str(exception).lower()
+    return any(indicator in error_str for indicator in [
+        "403", "quota", "rate limit", "key limit", "rate_limit"
+    ])
+
+
 def _generate_node_names(workflow: WorkflowDef) -> dict[str, str]:
     """Generate human-readable node names from workflow definition.
 
@@ -630,6 +642,16 @@ def _make_node_function(
             print(f"[STEP] ✗ FAILED: {node_label}")
             print(f"[STEP]   Error: {error_msg}")
             logger.error(f"Node {node_id} failed: {e}")
+
+            # Detect quota/rate-limit errors and pause workflow (#1222)
+            if _is_quota_error(e):
+                logger.warning(f"Quota/rate-limit error detected in {node_label}: {error_msg}")
+                raise SystemicErrorDetected(
+                    message=f"Quota/rate-limit error in step '{node_label}': {error_msg}",
+                    error_count=1,
+                    total_count=1,
+                )
+
             return {
                 "error": f"Step '{node_label}' failed: {error_msg}",
                 "current_node": node_id,
@@ -970,6 +992,16 @@ def _make_parallel_node_function(
             error_msg = str(e)
             print(f"[PARALLEL] [{index + 1}/{total}] ERROR: {error_msg}")
             logger.error(f"Parallel processing failed for {file_path}: {e}")
+
+            # Detect quota/rate-limit errors and pause workflow (#1222)
+            if _is_quota_error(e):
+                logger.warning(f"Quota/rate-limit error detected in parallel processing: {error_msg}")
+                raise SystemicErrorDetected(
+                    message=f"Quota/rate-limit error in {node_id}: {error_msg}",
+                    error_count=1,
+                    total_count=total,
+                )
+
             # Emit file_error event for exception
             if event_callback:
                 try:
