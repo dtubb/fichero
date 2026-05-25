@@ -5,7 +5,6 @@ Tests types, registry, builder, and resolver.
 """
 
 import pytest
-from unittest.mock import patch, AsyncMock
 
 
 # =============================================================================
@@ -505,7 +504,10 @@ class TestTranscribeTool:
     @pytest.mark.asyncio
     async def test_transcribe_builds_prompt(self):
         """Test transcribe prompt building."""
-        from fichero.workflows.tools.transcribe import _build_prompt
+        from fichero.workflows.tools.transcribe import (
+            _build_prompt,
+            build_transcribe_prompt,
+        )
 
         prompt = _build_prompt("en", False)
         assert "en" in prompt.lower() or "language" in prompt.lower()
@@ -513,6 +515,64 @@ class TestTranscribeTool:
 
         prompt_with_boxes = _build_prompt("en", True)
         assert "bounding box" in prompt_with_boxes.lower()
+
+        prompt_with_legacy_language = build_transcribe_prompt({"language": "es"})
+        assert "es-es" in prompt_with_legacy_language.lower()
+
+    @pytest.mark.asyncio
+    async def test_transcribe_normalizes_locale_before_processing(self, monkeypatch, tmp_path):
+        """Legacy bare language hints should be normalized before processing."""
+        from fichero.workflows.tools import transcribe as transcribe_module
+        from fichero.workflows.types import State
+        from fichero.llm import LLMConfig
+
+        captured: dict[str, object] = {}
+
+        async def fake_process_vision(*args, **kwargs):
+            captured.update(kwargs)
+            return {
+                "text": "ok",
+                "value": "ok",
+                "texts": ["ok"],
+                "values": ["ok"],
+                "results": [{"file": kwargs["files"][0], "text": "ok", "value": "ok"}],
+                "artifacts": [],
+                "output_files": [],
+                "page_records": [],
+                "error": None,
+            }
+
+        monkeypatch.setattr(transcribe_module, "process_vision", fake_process_vision)
+
+        file_path = tmp_path / "sample.png"
+        file_path.write_bytes(b"not really an image")
+
+        state: State = {
+            "task_id": "t1",
+            "workflow_id": "w1",
+            "inputs": {},
+            "outputs": {},
+            "current_node": "",
+            "completed_nodes": [],
+            "error": None,
+            "input_files": [str(file_path)],
+            "output_files": [],
+            "library_path": str(tmp_path),
+        }
+
+        llm_config = LLMConfig(provider="openai", model="gpt-4o")
+        result = await transcribe_module.transcribe(
+            {
+                "files": [str(file_path)],
+                "language": "es",
+                "vision_mode": "apple",
+            },
+            state,
+            llm_config,
+        )
+
+        assert result["text"] == "ok"
+        assert captured["language"] == "es-ES"
 
     def test_file_to_data_uri(self):
         """Test file to data URI conversion."""

@@ -1,16 +1,70 @@
 import SwiftUI
 
 /// Configuration view for transcribe node
-///
+/// 
 /// The Vision Engine toggle has been removed — Apple Vision is now a provider
 /// option in the unified provider/model selector (see NodeProviderModelSelector).
+struct TranscribeLanguageChoice: Identifiable, Hashable {
+    let code: String
+    let label: String
+
+    var id: String { code }
+
+    static let defaultCode = "en-US"
+
+    static let all: [TranscribeLanguageChoice] = [
+        .init(code: "en-US", label: "English (United States)"),
+        .init(code: "es-ES", label: "Spanish (Spain)"),
+        .init(code: "es-MX", label: "Spanish (Mexico)"),
+        .init(code: "fr-FR", label: "French (France)"),
+        .init(code: "de-DE", label: "German (Germany)"),
+        .init(code: "it-IT", label: "Italian (Italy)"),
+        .init(code: "pt-BR", label: "Portuguese (Brazil)"),
+        .init(code: "ja-JP", label: "Japanese (Japan)"),
+        .init(code: "ko-KR", label: "Korean (South Korea)")
+    ]
+
+    static func normalize(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return defaultCode }
+
+        let replaced = trimmed.replacingOccurrences(of: "_", with: "-")
+        let lowered = replaced.lowercased()
+        let legacyAliases = [
+            "en": "en-US",
+            "es": "es-ES",
+            "fr": "fr-FR",
+            "de": "de-DE",
+            "it": "it-IT",
+            "pt": "pt-BR",
+            "ja": "ja-JP",
+            "ko": "ko-KR"
+        ]
+
+        if let alias = legacyAliases[lowered] {
+            return alias
+        }
+
+        if let dashIndex = replaced.firstIndex(of: "-") {
+            let base = replaced[..<dashIndex].lowercased()
+            let suffix = replaced[replaced.index(after: dashIndex)...]
+            if suffix.count == 2 {
+                return "\(base)-\(suffix.uppercased())"
+            }
+            return "\(base)-\(suffix)"
+        }
+
+        return replaced
+    }
+}
+
 struct TranscribeNodeConfig: View {
     @Binding var node: WorkflowNode
 
     let toolInfo: ToolInfo?
     let backendPrompt: String?
 
-    @State private var language: String = "en"
+    @State private var language: String = TranscribeLanguageChoice.defaultCode
     @State private var maxImageDimension: Double = 11024
     @State private var promptText: String = ""
 
@@ -38,18 +92,26 @@ struct TranscribeNodeConfig: View {
         VStack(alignment: .leading, spacing: 12) {
             // Language (always shown — relevant for both Apple Vision and LLM)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Language")
+                Text("Language / Locale")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                TextField("Language code (e.g., en, es, fr)", text: $language)
-                    .textFieldStyle(.roundedBorder)
+                Picker("Language / Locale", selection: $language) {
+                    ForEach(TranscribeLanguageChoice.all) { choice in
+                        Text(choice.label).tag(choice.code)
+                    }
+                }
+                .pickerStyle(.menu)
                     .onChange(of: language) { _, newValue in
                         if node.config == nil {
                             node.config = [:]
                         }
                         node.config?["language"] = .string(newValue)
                     }
+
+                Text("Spanish on Apple Intelligence often needs a locale like es-ES or es-MX.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
 
             // Image Size (only for LLM mode)
@@ -130,7 +192,7 @@ struct TranscribeNodeConfig: View {
     private func loadInitialState() {
         if let configValue = node.config?["language"],
            case .string(let lang) = configValue {
-            language = lang
+            language = TranscribeLanguageChoice.normalize(lang)
         }
 
         if let configValue = node.config?["max_image_dimension"],

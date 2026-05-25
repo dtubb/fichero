@@ -17,6 +17,7 @@ from fichero.workflows.tools.vision_base import (
     VISION_INPUT_PORTS,
     VISION_CONFIG_SCHEMA,
     VisionToolConfig,
+    normalize_vision_language,
     process_vision,
 )
 from fichero.llm import LLMConfig
@@ -40,8 +41,8 @@ TOOL_CONFIG = VisionToolConfig(
 TRANSCRIBE_CONFIG = {
     "language": {
         "type": "string",
-        "default": "en",
-        "description": "Language",
+        "default": "en-US",
+        "description": "Language locale",
     },
     "return_boxes": {
         "type": "boolean",
@@ -70,6 +71,7 @@ def _build_prompt(language: str, return_boxes: bool) -> str:
     "notes" or "summaries" pollutes downstream extraction with hallucinated
     or duplicated content.
     """
+    language = normalize_vision_language(language)
     prompt = f"""Transcribe the text visible on this image.
 
 Language: {language}
@@ -112,7 +114,7 @@ Additionally, return bounding box coordinates as JSON:
 
 def build_transcribe_prompt(config: dict) -> str:
     """Build prompt from config (exposed to UI)."""
-    language = config.get("language", "en")
+    language = normalize_vision_language(config.get("language", "en"))
     return_boxes = config.get("return_boxes", False)
     return _build_prompt(language, return_boxes)
 
@@ -137,12 +139,12 @@ def build_transcribe_prompt(config: dict) -> str:
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, TRANSCRIBE_CONFIG),
     config_defaults={
         "vision_mode": "auto",
-        "language": "en",
+        "language": "en-US",
         "return_boxes": False,
         "update_page_content": True,
         "save_to_db": True,
     },
-    default_prompt=_build_prompt("en", False),
+    default_prompt=_build_prompt("en-US", False),
     prompt_builder=build_transcribe_prompt,
     sort_order=10,
 )
@@ -161,7 +163,7 @@ async def transcribe(
 
     # Get transcribe-specific config
     vision_mode = inputs.get("vision_mode", "auto")
-    language = inputs.get("language", "en")
+    language = normalize_vision_language(inputs.get("language", "en"))
     return_boxes = inputs.get("return_boxes", False)
     update_page_content = inputs.get("update_page_content", True)
 

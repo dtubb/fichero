@@ -604,6 +604,36 @@ async def apple_vision_ocr_pages_async(pdf_path: str, language: str = "en") -> l
     return await loop.run_in_executor(None, _apple_ocr_pdf_pages, pdf_path, language)
 
 
+def normalize_vision_language(language: str | None) -> str:
+    """Normalize legacy language hints to the locale strings Apple expects."""
+    raw = (language or "").strip()
+    if not raw:
+        return "en-US"
+
+    normalized = raw.replace("_", "-")
+    lowered = normalized.lower()
+    legacy_aliases = {
+        "en": "en-US",
+        "es": "es-ES",
+        "fr": "fr-FR",
+        "de": "de-DE",
+        "it": "it-IT",
+        "pt": "pt-BR",
+        "ja": "ja-JP",
+        "ko": "ko-KR",
+    }
+    if lowered in legacy_aliases:
+        return legacy_aliases[lowered]
+
+    if "-" in normalized:
+        base, suffix = normalized.split("-", 1)
+        if len(suffix) == 2:
+            return f"{base.lower()}-{suffix.upper()}"
+        return f"{base.lower()}-{suffix}"
+
+    return lowered
+
+
 def _build_page_records_for_file(
     library_path: str,
     parent_doc_id: str | None,
@@ -893,6 +923,8 @@ async def process_vision(
         Dict with text, value, texts, values, results, artifacts, error
     """
     from fichero.llm import vision, LLMConfig
+
+    language = normalize_vision_language(language)
 
     if isinstance(files, str):
         files = [files]
