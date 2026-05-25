@@ -1,5 +1,23 @@
 # done-codex-2026-05-25
 
+Verified backend issue `#1098` on the `codex` branch.
+
+What I checked:
+- The shipped `Catalogue Each` preset already exists in `fichero-engine/src/fichero/resources/default_workflows/catalogue-each.json`.
+- The workflow builder already has generic fan-out support, and the preset is explicitly marked `fan_out_enabled`.
+
+What I added:
+- A regression test in `fichero-engine/tests/unit/workflows/test_default_workflows.py` to pin the `Catalogue Each` preset metadata and fan-out configuration.
+
+Verification performed:
+- `PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/workflows/test_default_workflows.py -q`
+- `PYTHONPATH=fichero-engine/src .venv/bin/ruff check fichero-engine/tests/unit/workflows/test_default_workflows.py`
+
+Notes:
+- This stayed in the backend workflow preset layer and did not touch ingest code.
+
+# done-codex-2026-05-25
+
 Verified backend issue `#1145` on the `codex` branch.
 
 What changed:

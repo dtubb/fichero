@@ -81,6 +81,22 @@ class TestLoadPresetFiles:
         assert data_feeders, "no edge feeds catalogue.data"
         assert {e["source"] for e in data_feeders} == {"merge_extracts"}
 
+    def test_catalogue_each_preset_is_configured_for_folder_fan_out(self):
+        """Catalogue Each should stay wired as the bulk fan-out preset."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        catalogue_each = presets["Catalogue Each"]
+
+        assert catalogue_each.get("is_template") is True
+        assert catalogue_each.get("is_system") is True
+        assert catalogue_each.get("folder_path") == "/Catalogue"
+        assert catalogue_each.get("config", {}).get("fan_out_enabled") is True
+        assert "fan_out" in catalogue_each.get("tags", [])
+
+        node_tools = {n["tool"] for n in catalogue_each["nodes"]}
+        assert "folder" in node_tools
+        assert "transcribe" in node_tools
+        assert "catalogue" in node_tools
+
     def test_default_templates_have_folder_path_groups(self):
         """Templates ship with `folder_path` values so the Run Workflow
         context menu can render them in submenus (#722)."""
