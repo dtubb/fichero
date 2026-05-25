@@ -219,7 +219,7 @@ def ingest_file(
             True (#881 follow-up) — paired with the extract_text default,
             this means dropping a .md file in makes it both keyword AND
             semantically searchable without any further user action. Embedding
-            runs only when \\\`doc.page_content\\\` is non-empty, so image-only
+            runs only when `doc.page_content` is non-empty, so image-only
             files (no extracted text yet) don't get pointless empty vectors.
             Override to False for batch imports where embeddings are
             deferred to a background job.

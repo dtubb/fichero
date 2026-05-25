@@ -555,12 +555,12 @@ _CANONICAL_APPLE_CAPABILITIES: dict[str, list[str]] = {
 
 
 def _canonical_capabilities_for_model_id(model_id: str) -> list[str]:
-    """Return the canonical capability list for a known built-in
+    r"""Return the canonical capability list for a known built-in
     model_id, or an empty list when the id is user-defined / unknown.
 
     Used by the +Add Model endpoint to preserve capability badges
     when a user deletes a built-in Apple model row and adds it back —
-    without this lookup, the re-added row had \\\`capabilities=[]\\\` so
+    without this lookup, the re-added row had `capabilities=[]` so
     inspector badges disappeared (#939) and Defaults capability
     filtering (#940) had nothing to filter on.
     """

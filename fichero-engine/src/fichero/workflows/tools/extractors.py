@@ -865,12 +865,12 @@ def _split_into_pages(text: str) -> list[str]:
 
 
 def _strip_fences(raw: str) -> str:
-    """Strip wrapping that gets between us and the JSON object.
+    r"""Strip wrapping that gets between us and the JSON object.
 
     Handles three common shapes that frontier cloud models (hit via the
-    \$large guardrail fallback, #838) emit instead of bare JSON:
+    $large guardrail fallback, #838) emit instead of bare JSON:
 
-      1. Triple-backtick code fences (\\`\\`\\`json ... \\`\\`\\`)
+      1. Triple-backtick code fences (```json ... ```)
       2. Explanatory prose before/after ("Here are the entities: { ... }")
       3. Both at once
 
