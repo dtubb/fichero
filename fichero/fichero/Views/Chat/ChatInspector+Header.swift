@@ -38,7 +38,8 @@ extension ChatInspector {
                 .buttonStyle(.plain)
             }
         }
-        .padding()
-        .background(Color(.windowBackgroundColor))
+        .padding(.horizontal, 12)
+        .frame(height: MiniToolbar<EmptyView>.standardHeight)
+        .background(.bar)
     }
 }

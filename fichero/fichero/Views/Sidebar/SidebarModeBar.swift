@@ -88,8 +88,7 @@ struct SidebarModeBar: View {
             }
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .frame(maxWidth: .infinity)  // Ensure full width
+        .frame(maxWidth: .infinity, maxHeight: MiniToolbar<EmptyView>.standardHeight)  // Normalize to 44pt
         .background(.bar, ignoresSafeAreaEdges: .horizontal)
     }
 
