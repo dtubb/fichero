@@ -12,13 +12,29 @@ Entity Platform — SwiftUI implementation of five-pane reading layout, KG inspe
 
 Nothing. All loops stopped. Working interactively with Claude directly.
 
-## Next Session — Start Here
+Work these four phases IN ORDER. One phase at a time: run `bash scripts/verify_all.sh`
+(= ⌘U) and commit before moving on. Global rules (gate, jCodemunch, `add-swift-file.rb`
+for new/split files, never edit generated code) are in AGENTS.md.
 
-1. **Work through the remaining SwiftLint warnings in batches**. The current gate passes, but the repo still has pre-existing warnings in `WorkflowStore.swift`, `AISettingsView.swift`, `SidebarItemRow.swift`, `ContentView+Actions.swift`, `PDFThumbnailView.swift`, `DocumentInspector.swift`, `EntityDetailView.swift`, `ClaimSummaryCardView.swift`, `SearchResultsDisplay.swift`, `WorkflowEditor.swift`, `ViewMenuCommands.swift`, `EmbeddedBackendService.swift`, `APIClient.swift`, and a few `OntologyBrowser` files.
-2. **Keep commits narrow**. Fix a batch of related warnings, rerun `bash scripts/verify_all.sh`, then commit that batch before moving to the next file cluster.
-3. **Then resume feature issues**. After the lint backlog is reduced, continue with `#1197` bidirectional 3-pane sync via `ClaimFocusState`, then `#1196` page-scoped KG graph in Map tab.
-4. **Do NOT use cheap OpenRouter cascade for SwiftUI/backend work** — run Claude directly (interactive or `--agent claude` loop). See MEMORY.md cascade model selection.
-5. **Build gate**: swiftlint + xcodebuild + RunAllTests before marking any issue done.
+1. **Dependabot high** — bump `liquidjs` ≥ 10.25.7 in `site/` (DoS via circular block
+   ref; `cd site && npm audit fix` or add a package.json `overrides`). NOTE: `verify_all.sh`
+   does NOT cover `site/` — verify with `cd site && npm audit`. Commit `fix(deps):`.
+2. **SwiftLint cleanup in batches** — `swiftlint lint fichero/fichero/` for the LIVE list
+   (don't trust a stale cluster list). One cluster (same rule or file) per commit; gate per
+   batch. Length-refactors → extract into a `Foo+Bar.swift` extension and **register it with
+   `ruby scripts/add-swift-file.rb`**. Do NOT silence via `.swiftlint.yml`. Preserve behavior.
+3. **#1201 — verify gate enforces OpenAPI freshness** — in `scripts/verify_python.sh`, after
+   the contract walk: regenerate (`sync_openapi_schema.sh`), `git diff` the committed
+   `openapi.json` + Swift client, FAIL + `git checkout --` to leave the tree clean if they
+   differ (never silently commit a regen). Manually confirm it fails on an unsynced API change.
+   Update the AGENTS.md/docs gate note; close #1201.
+4. **KG entity library** (this morning's thread — OntologyBrowser / EntityDigestView /
+   SpeakerComparison / CLI #1193 are shipped). Next: **#1191** (standalone two-column entity
+   digest page) or **#1183** (entity profile view in inspector w/ click-through to PDF) —
+   confirm which from the issues + `.superpowers/brainstorm/.../entity-*.html`. Build on the
+   existing OntologyBrowser code. Aggregation/scoping/dedup is BACKEND; views only render.
+
+- **Do NOT use cheap OpenRouter cascade for SwiftUI/backend work** — Claude/Codex direct. See MEMORY.md cascade model selection.
 
 ## Blocked
 
