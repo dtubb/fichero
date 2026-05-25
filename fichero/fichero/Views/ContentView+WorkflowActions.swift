@@ -1,0 +1,304 @@
+import OSLog
+import SwiftUI
+
+private let workflowLogger = Logger(subsystem: "com.fichero.fichero", category: "ContentView")
+
+extension ContentView {
+
+    // MARK: - Workflow Actions
+
+    func addNodeFromTool(_ tool: ToolInfo, at position: CGPoint) {
+        let newNode = WorkflowNode(from: tool, positionX: position.x, positionY: position.y)
+        editingWorkflow.nodes.append(newNode)
+        workflowLogger.info("Added node '\(tool.displayName)' at (\(position.x), \(position.y))")
+    }
+
+    @MainActor
+    func autoSaveWorkflow(workflowId: String, workflow: Workflow) async {
+        guard !workflow.nodes.isEmpty || !workflow.name.isEmpty else {
+            workflowLogger.info("Auto-save skipped: empty workflow")
+            return
+        }
+
+        workflowLogger.info("Auto-saving workflow: \(workflow.name) (id: \(workflowId))")
+        for node in workflow.nodes {
+            let provider = node.providerName ?? "nil"
+            let model = node.modelName ?? "nil"
+            print(
+                "[DEBUG SAVE] Node \(node.id): providerName=\(provider), modelName=\(model)"
+            )
+        }
+        do {
+            var workflowForSave = workflow
+
+            // If sidebar/workflow-store metadata has a newer name, prefer it to prevent
+            // stale editor state from clobbering a just-renamed workflow.
+            if let canonical = workflowStore.workflows.first(where: { $0.id == workflowId }),
+               workflowForSave.name != canonical.name {
+                workflowLogger.info(
+                    "Auto-save name reconciliation: '\(workflowForSave.name)' -> '\(canonical.name)' for \(workflowId)"
+                )
+                workflowForSave.name = canonical.name
+            }
+
+            let definition = workflowForSave.toAPIFormat()
+            _ = try await workflowStore.updateWorkflow(definition)
+            workflowLogger.info("Auto-save completed for workflow: \(workflowId)")
+        } catch {
+            workflowLogger.error("Auto-save failed: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Navigation
+
+    func navigateToDocument(_ doc: Document) {
+        viewMode = .library(doc)
+        selectedSidebarItemId = "doc:\(doc.id)"
+    }
+
+    /// Open the source page behind a KG entity click. The source claim
+    /// points at a page-level document (path=nil, parent = the real file
+    /// per #701). Resolution:
+    ///   1. Fetch the source doc by id.
+    ///   2. If it's a page child (no path), walk up to the parent file —
+    ///      that's the thing the user actually wants to look at.
+    ///   3. Navigate to the parent FOLDER (so the file appears in the
+    ///      grid) and select the file via browserSelection so the
+    ///      preview pane opens it.
+    /// Falls through silently if the source can't be resolved — a click
+    /// shouldn't crash and we don't have a UI surface for "couldn't
+    /// resolve source" yet. (#833)
+    @MainActor
+    func navigateToSourcePage(_ sourceDocId: String) async {
+        let source: Document
+        do {
+            source = try await documentStore.api.get("/documents/\(sourceDocId)")
+        } catch {
+            workflowLogger.warning("navigateToSourcePage: couldn't fetch \(sourceDocId): \(error.localizedDescription)")
+            return
+        }
+
+        // Resolve "the file the user wants" — page children (path == nil)
+        // bubble up to their parent file; everything else is its own target.
+        let target: Document
+        let sourceIsPageChild = source.path?.isEmpty ?? true
+        if sourceIsPageChild {
+            // First try: use the parentId field if available
+            if let parentId = source.parentId, !parentId.isEmpty {
+                do {
+                    target = try await documentStore.api.get("/documents/\(parentId)")
+                } catch {
+                    // Fallback: use the new /documents/{id}/parent endpoint
+                    do {
+                        target = try await documentStore.api.get("/documents/\(sourceDocId)/parent")
+                    } catch {
+                        workflowLogger.warning(
+                            "navigateToSourcePage: couldn't resolve parent for \(sourceDocId): \(error.localizedDescription)"
+                        )
+                        return
+                    }
+                }
+            } else {
+                // No parentId available, use the new endpoint directly
+                do {
+                    target = try await documentStore.api.get("/documents/\(sourceDocId)/parent")
+                } catch {
+                    workflowLogger.warning("navigateToSourcePage: couldn't fetch parent for \(sourceDocId): \(error.localizedDescription)")
+                    return
+                }
+            }
+        } else {
+            target = source
+        }
+
+        // Open the containing folder so target shows up in the grid; if
+        // target has no parent (top-level), just point sidebar at it.
+        if let folderId = target.parentId, !folderId.isEmpty {
+            do {
+                let folder: Document = try await documentStore.api.get("/documents/\(folderId)")
+                navigateToDocument(folder)
+                browserSelection = [target.id]
+                detailDocument = target
+            } catch {
+                navigateToDocument(target)
+            }
+        } else {
+            navigateToDocument(target)
+        }
+    }
+
+    /// Walk up to the current folder's parent. If the current folder is at
+    /// the library root (no parent_id), navigate to the library root view
+    /// (no selection). Bound to Cmd+` so users can ascend the hierarchy when
+    /// the sidebar is hidden. (#786)
+    @MainActor
+    func navigateToParent() {
+        guard let prefixedId = selectedSidebarItemId,
+              prefixedId.hasPrefix("doc:") else {
+            return
+        }
+        let docId = String(prefixedId.dropFirst("doc:".count))
+        let current = documentStore.currentDocuments.first(where: { $0.id == docId })
+            ?? detailDocument
+        guard let current else { return }
+        if let parentId = current.parentId, !parentId.isEmpty {
+            selectedSidebarItemId = "doc:\(parentId)"
+        } else {
+            selectedSidebarItemId = nil
+            detailDocument = nil
+            viewMode = .library(nil)
+        }
+    }
+
+    // MARK: - Workflow Execution
+
+    @MainActor
+    func runWorkflowOnSelection(workflowId: String, preselectedIds: [String] = []) {
+        let selectedIds = !preselectedIds.isEmpty
+            ? preselectedIds
+            : (!browserSelection.isEmpty
+                ? Array(browserSelection)
+                : (detailDocument.map { [$0.id] } ?? []))
+        guard !selectedIds.isEmpty else {
+            workflowLogger.warning("runWorkflowOnSelection: no selection — nothing to run")
+            importError = "Select one or more documents before running a workflow."
+            return
+        }
+
+        let workflowName = workflowStore.workflows.first(where: { $0.id == workflowId })?.name ?? workflowId
+        let noun = selectedIds.count == 1 ? "document" : "documents"
+        importProgress = "Starting workflow on \(selectedIds.count) \(noun)…"
+
+        executeWorkflowViaSSE(
+            workflowId: workflowId,
+            workflowName: workflowName,
+            docIds: selectedIds
+        )
+    }
+
+    @MainActor
+    func runWorkflowOnCollection(workflowId: String) {
+        let collectionIds = documentStore.currentDocuments
+            .filter { $0.docType == .file }
+            .map { $0.id }
+        guard !collectionIds.isEmpty else { return }
+
+        let workflowName = workflowStore.workflows.first(where: { $0.id == workflowId })?.name ?? workflowId
+        importProgress = "Starting workflow on \(collectionIds.count) documents in collection…"
+
+        executeWorkflowViaSSE(
+            workflowId: workflowId,
+            workflowName: workflowName,
+            docIds: collectionIds
+        )
+    }
+
+    /// Shared SSE execution path used by both selection and collection runs.
+    /// Registers with executionObserver so Activity view shows live progress.
+    @MainActor
+    private func executeWorkflowViaSSE(
+        workflowId: String,
+        workflowName: String,
+        docIds: [String]
+    ) {
+        // Optimistic insert (#944) — show the Activity row immediately
+        // so the user gets feedback within ~50ms of clicking Run,
+        // instead of waiting for the POST round-trip + threadId
+        // response (~200-500ms). The threadId field is a placeholder;
+        // the second startExecution call below replaces it with the
+        // real threadId once the POST returns AND attaches the
+        // cancel handler.
+        //
+        // If the POST fails, the catch block calls endExecution(.failed)
+        // which moves the optimistic row to the completed-executions
+        // archive — so the user sees the failure rather than a row
+        // that quietly disappears.
+        executionObserver.startExecution(
+            workflowId: workflowId,
+            name: workflowName,
+            threadId: "pending"
+        )
+
+        Task { @MainActor in
+            var streamCompleted = false
+            do {
+                let response = try await workflowStreamService.execute(
+                    workflowId: workflowId,
+                    inputs: ["selected_doc_ids": docIds],
+                    onEvent: { [weak documentStore] event in
+                        executionObserver.handleEvent(event, for: workflowId)
+                        updateDocumentStatusFromEvent(event, documentStore: documentStore)
+                        switch event {
+                        case .complete, .error, .systemicError:
+                            streamCompleted = true
+                        default:
+                            break
+                        }
+                    }
+                )
+
+                let threadId = response.threadId
+                // Re-register with the real threadId + cancel handler.
+                // Reuses the optimistic row's slot in activeExecutions.
+                executionObserver.startExecution(
+                    workflowId: workflowId,
+                    name: workflowName,
+                    threadId: threadId,
+                    onCancel: { [weak workflowStreamService] in
+                        Task { @MainActor in
+                            try? await workflowStreamService?.stopWorkflow(threadId: threadId)
+                        }
+                    }
+                )
+                importProgress = nil
+                workflowLogger.info("Started SSE workflow \(workflowId) thread \(threadId) for \(docIds.count) docs")
+
+                while !streamCompleted {
+                    try await Task.sleep(for: .milliseconds(200))
+                    if Task.isCancelled { break }
+                    if let exec = executionObserver.activeExecutions[workflowId], !exec.isRunning {
+                        streamCompleted = true
+                    }
+                }
+
+                let finalStatus: WorkflowStatus = {
+                    guard let exec = executionObserver.activeExecutions[workflowId] else { return .completed }
+                    return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
+                }()
+                executionObserver.endExecution(workflowId: workflowId, status: finalStatus)
+                workflowLogger.info("Workflow \(workflowId) finished with status: \(String(describing: finalStatus))")
+
+            } catch {
+                importProgress = nil
+                importError = "Workflow failed to start: \(error.localizedDescription)"
+                workflowLogger.error("executeWorkflowViaSSE failed: \(error.localizedDescription)")
+                executionObserver.endExecution(workflowId: workflowId, status: .failed)
+            }
+        }
+    }
+
+    private func updateDocumentStatusFromEvent(
+        _ event: WorkflowStreamEvent,
+        documentStore: DocumentStore?
+    ) {
+        guard let documentStore else { return }
+        switch event {
+        case .fileStart(_, _, let filePath, _, _, _):
+            documentStore.updateProcessingStatus(forPath: filePath, status: .processing)
+        case .fileComplete(_, _, let filePath, _, _, _, _):
+            // Per-file fanout slot finished, but reduce-phase nodes
+            // (extract_all etc.) may still be touching this page. Defer
+            // the green checkmark until the workflow's terminal event.
+            // See DocumentStore.recordFanoutComplete + flushPendingFanoutCompletions (#948).
+            documentStore.recordFanoutComplete(forPath: filePath)
+        case .fileError(_, _, let filePath, _, _):
+            documentStore.updateProcessingStatus(forPath: filePath, status: .failed)
+        case .complete:
+            documentStore.flushPendingFanoutCompletions(status: .completed)
+        case .error, .systemicError:
+            documentStore.flushPendingFanoutCompletions(status: .failed)
+        default:
+            break
+        }
+    }
+}
