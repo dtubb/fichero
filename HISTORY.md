@@ -2255,3 +2255,11 @@ Two sessions continuing #1178 (transcription profiles) and paleography pipeline 
 - ✅ Multi-agent coordination system: labelled all open GitHub issues `frontend`/`backend`/`both`; filed #1202 (entity biography text), #1203 (geo/temporal map), #1204 (click-to-sync).
 - ✅ Created `.ai/inbox/` inter-agent messaging directory on 0.0.2 branch.
 - ✅ Created 4 specialized session-start skills in `fichero-skills`: `session-start-swiftui`, `session-start-engine`, `session-start-cli`, `session-start-manager`.
+
+## 2026-05-25 — Session Summary
+
+- ✅ #1205 Delete dead generated Python CLI client + its regen step — removed Python client generation from sync_openapi_schema.sh
+- ✅ #1085 Maps importer: pair sidecar .iffy.json files with their image/PDF on ingest — added support for parsing .iffy.json metadata during document ingestion
+- Fixed typo in sync_openapi_schema.sh (head -30 syntax)
+- Updated MEMORY.md with .iffy.json sidecar support documentation
+- All 6 contract tests pass, confirming CLI integration unchanged

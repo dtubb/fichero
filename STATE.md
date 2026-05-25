@@ -56,6 +56,8 @@ manager `/session-start-manager`, pi CLI `/session-start-cli`.
 - ✅ Filed #1202 (biography text), #1203 (geo/temporal map), #1204 (click-to-sync)
 - ✅ GitHub issues labelled frontend/backend/both
 - ✅ 4 specialized session-start skills + .ai/inbox/ messaging infrastructure
+- ✅ #1205 Delete dead generated Python CLI client + its regen step
+- ✅ #1085 Maps importer: pair sidecar .iffy.json files with their image/PDF on ingest
 
 ## Completed overnight (2026-05-24 → 2026-05-25)
 
