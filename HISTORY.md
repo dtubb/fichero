@@ -2246,3 +2246,12 @@ Two sessions continuing #1178 (transcription profiles) and paleography pipeline 
 - Committed partial #1188 SwiftUI skeleton: PDFReadingView + selectedPageIndex
 - Reset #1188, #1191, #1194 from in_progress → pending (cascade abandoned them)
 - Stopped all cascade/loop processes — switching to direct interactive Claude work
+
+## 2026-05-25 — Morning session (Claude — agent coordination + nav history)
+
+- ✅ #1186 Navigation history in OntologyBrowser: back/forward chevron buttons in toolbar, Cmd+' / Cmd+Shift+' keyboard shortcuts, `NavigationHistoryManager` @Observable class with 50-entry cursor stack, anti-recursion `isNavigatingHistory` guard.
+- ✅ OpenAPI freshness gate fix: traced perpetual failure to `NodeDef-Input` orphan schema (Pydantic v2 artifact from `@field_validator(mode="before")` on `NodeDef`). Removed from both contracts + Swift client; gate now passes deterministically.
+- ✅ Workflow chains promoted to core tier (#1151): route moved from `_DEV_ROUTE_SPECS` → `_CORE_ROUTE_SPECS`; Swift `FeatureManager.isWorkflowChainsEnabled = true`.
+- ✅ Multi-agent coordination system: labelled all open GitHub issues `frontend`/`backend`/`both`; filed #1202 (entity biography text), #1203 (geo/temporal map), #1204 (click-to-sync).
+- ✅ Created `.ai/inbox/` inter-agent messaging directory on 0.0.2 branch.
+- ✅ Created 4 specialized session-start skills in `fichero-skills`: `session-start-swiftui`, `session-start-engine`, `session-start-cli`, `session-start-manager`.

@@ -6,8 +6,8 @@
 
 ## Current Focus
 
-Active development on KG inspector and entity biography views (Daniel's May 25 vision).
-Release checklist (#157–#165) deferred until Daniel approves 0.0.2 testing.
+Daniel testing 0.0.2. If passes, release checklist (#157–#165) in order.
+Multi-agent split active: frontend Claude (#1202/#1204/#1181), backend Codex (#1054/#1173/#1198), pi CLI (imports).
 
 ## Agent split (2026-05-25)
 
@@ -22,12 +22,12 @@ Start a backend session with: `gh issue list --label backend --state open`
 
 ## Completed this session (2026-05-25 morning)
 
-- ✅ OpenAPI freshness gate fixed — NodeDef-Input orphan schema removed from both contract files; gate now passes on every run (commits 90c238a8, 544a1230)
-- ✅ Chains router promoted to core tier (#1151) — Swift FeatureManager v25, OpenAPI re-synced
-- ✅ Workflow chains promoted in Swift FeatureManager (`isWorkflowChainsEnabled = true` by default)  
 - ✅ #1186 Navigation history — back/forward chevron buttons + Cmd+' / Cmd+Shift+' in OntologyBrowser
-- ✅ Filed new issues: #1202 (biography text), #1203 (geo/temporal map), #1204 (click-to-sync)
+- ✅ OpenAPI freshness gate fixed — NodeDef-Input orphan schema removed from both contract files
+- ✅ Chains router promoted to core tier (#1151) — Swift FeatureManager, OpenAPI re-synced
+- ✅ Filed #1202 (biography text), #1203 (geo/temporal map), #1204 (click-to-sync)
 - ✅ GitHub issues labelled frontend/backend/both
+- ✅ 4 specialized session-start skills + .ai/inbox/ messaging infrastructure
 
 ## Completed overnight (2026-05-24 → 2026-05-25)
 
@@ -38,13 +38,28 @@ Start a backend session with: `gh issue list --label backend --state open`
 
 ## Next Session — Start Here (frontend Claude)
 
-Priority: KG inspector polish + entity biography view.
+**Daniel is testing 0.0.2.** Fix any bugs found. If testing passes, work release checklist in order.
 
-1. **#1202 Entity biography text view** — render SVO claims as prose paragraphs in the KG inspector Text tab. Entity inspector is `fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/EntityDetailView.swift`. Claims loaded from `/api/entities/{id}/claims`. Needs: group by source doc/page, render as `"[subject] [verb] [object] (Ch.x:y)"` with block-quotes for `quotation_kind` claims.
-2. **#1181 JSON artifact inspector** — `DocumentInspectorArtifactsTab.swift` already has `GenericJSONInspector` + `ArtifactContentView` appended (pre-compaction work, check if present). If missing, re-implement.
-3. **#1204 Click-to-sync** — claim row click → Jump to source page. The Jump → button already works; wire to row `onTapGesture` in the List tab.
+**Two things to verify first:**
+1. Entity source-groups mode: KG panel → pick entity → magnifying-glass icon in Claims header → should show prose grouped by source doc
+2. `fichero entity inspector <entity-id>` in the CLI — should return JSON with source-grouped claims
 
-Next after those: run `bash scripts/verify_all.sh` then push.
+**If 0.0.2 passes testing — release checklist in order:**
+- #157 Site pages audit (printouts)
+- #158/#159 App Store Connect API key + Sparkle EdDSA key verification  ← likely blocker, tackle first
+- #160 Signed Release app + DMG build
+- #161 Notarize + staple
+- #162 Sparkle-sign + GitHub release + tag
+- #163 Deploy site
+- #164 Smoke test on clean Mac account
+- #165 Merge 0.0.2 → main
+
+**If bugs found — prioritize fixes, then re-verify, then resume checklist.**
+
+Pending frontend issues (lower priority until release checklist clear):
+- #1202 Entity biography text view (EntityDetailView.swift, `/api/entities/{id}/claims`)
+- #1204 Click-to-sync (claim row onTapGesture → Jump to source page)
+- #1181 JSON artifact inspector (verify GenericJSONInspector is still in DocumentInspectorArtifactsTab.swift)
 
 ## Next Session — Start Here (backend Claude / Codex)
 
