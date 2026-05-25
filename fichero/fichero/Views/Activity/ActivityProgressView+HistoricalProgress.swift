@@ -158,7 +158,7 @@ extension ActivityProgressView {
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
                         }
-                        Text(URL(fileURLWithPath: filePath).lastPathComponent)
+                        Text(documentNameForPath(filePath))
                             .font(.caption)
                             .lineLimit(1)
                     }
@@ -181,5 +181,17 @@ extension ActivityProgressView {
             Spacer()
         }
         .padding(.vertical, 2)
+    }
+
+    private func documentNameForPath(_ filePath: String) -> String {
+        guard !filePath.isEmpty else { return "Unknown" }
+
+        let filename = URL(fileURLWithPath: filePath).lastPathComponent
+
+        for doc in documentStore.currentDocuments where doc.path == filePath {
+            return doc.name
+        }
+
+        return filename
     }
 }
