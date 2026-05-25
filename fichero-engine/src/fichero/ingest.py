@@ -35,6 +35,7 @@ import asyncio
 import base64
 import ctypes
 import hashlib
+import json
 import logging
 import mimetypes
 import shutil
@@ -537,6 +538,14 @@ def _extract_image_metadata(doc: Document, path: Path) -> None:
                 f"Applied XMP sidecar for {path.name}: {list(xmp_data.keys())}"
             )
 
+        # Parse .iffy.json sidecar if present
+        iffy_data = _parse_iffy_sidecar(path)
+        if iffy_data:
+            _apply_iffy_to_document(doc, iffy_data)
+            logger.debug(
+                f"Applied .iffy.json sidecar for {path.name}: {list(iffy_data.keys())}"
+            )
+
     except ImportError:
         logger.debug("Pillow not available for image metadata")
     except Exception as e:
@@ -920,6 +929,97 @@ def count_files(
         Number of matching files
     """
     return sum(1 for _ in discover_files(folder, extensions, recursive))
+
+
+# =============================================================================
+# .iffy.json Sidecar Support
+# =============================================================================
+
+def _parse_iffy_sidecar(image_path: Path) -> dict[str, Any] | None:
+    """Parse an .iffy.json sidecar file for a document.
+
+    Looks for a sibling .iffy.json file (same name as document with .iffy.json extension).
+    Returns None if no sidecar exists or parsing fails.
+
+    Args:
+        image_path: Path to the document file
+
+    Returns:
+        Dict of extracted .iffy.json fields, or None if no sidecar found
+    """
+    # Don't create sidecar for sidecar files
+    if image_path.suffix == ".json" and image_path.stem.endswith(".iffy"):
+        return None
+        
+    sidecar = image_path.parent / f"{image_path.stem}.iffy.json"
+    if not sidecar.exists():
+        return None
+
+    try:
+        with open(sidecar, "r", encoding="utf-8") as f:
+            iffy_data = json.load(f)
+        
+        # Map .iffy.json fields to our metadata keys
+        result: dict[str, Any] = {}
+        field_map = {
+            "status": "iffy_status",
+            "record_type": "iffy_record_type",
+            "source_archive": "iffy_source_archive",
+            "repository": "iffy_repository",
+            "identifier": "iffy_identifier",
+            "record_url": "iffy_record_url",
+            "iiif_manifest": "iffy_iiif_manifest",
+            "discovered_date": "iffy_discovered_date",
+            "original_date": "iffy_original_date",
+            "notes": "iffy_notes",
+        }
+        
+        for iffy_key, metadata_key in field_map.items():
+            if iffy_key in iffy_data:
+                value = iffy_data[iffy_key]
+                # Special handling for notes - convert list to comma-separated string
+                if iffy_key == "notes" and isinstance(value, list):
+                    result[metadata_key] = ", ".join(str(item) for item in value)
+                else:
+                    result[metadata_key] = value
+        
+        return result
+    except Exception as e:
+        logger.warning(f"Failed to parse .iffy.json sidecar {sidecar}: {e}")
+        return None
+
+
+def _apply_iffy_to_document(
+    doc: "Document",
+    iffy_data: dict[str, Any],
+) -> "Document":
+    """Apply parsed .iffy.json data to a Document's metadata.
+
+    Merges .iffy.json fields into doc.metadata without overwriting existing
+    values (existing values take precedence for conflict resolution).
+
+    Args:
+        doc: Document to update
+        iffy_data: Output from _parse_iffy_sidecar
+
+    Returns:
+        Updated Document (mutates in place and returns same instance)
+    """
+    if not iffy_data:
+        return doc
+
+    if doc.metadata is None:
+        doc.metadata = {}
+
+    # Merge: .iffy.json values fill in gaps, don't overwrite existing metadata
+    for iffy_key, value in iffy_data.items():
+        if iffy_key not in doc.metadata or not doc.metadata[iffy_key]:
+            doc.metadata[iffy_key] = value
+
+    # Mark that this document has .iffy.json sidecar
+    doc.metadata["_iffy_sidecar"] = True
+
+    return doc
 
 
 # =============================================================================

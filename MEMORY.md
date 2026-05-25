@@ -437,6 +437,10 @@ This preserves all existing `include_router(research_agents_router)` call sites 
 
 **Schemas module for Pydantic models.** When splitting a route module, move all Pydantic request/response models to a `schemas.py` sibling. Other modules (`core.py`, `runner.py`, `threads.py`) all import from `schemas.py`. This prevents circular imports and keeps models findable.
 
+## .iffy.json Sidecar Support — 2026-05-25
+
+Added support for parsing .iffy.json sidecar metadata files during document ingestion. These files contain archival metadata for documents and are automatically paired with their corresponding image/PDF files during import. The system looks for sibling files with the same base name but with .iffy.json extension (e.g., document.jpg pairs with document.iffy.json). Metadata fields are mapped to document metadata keys with special handling for list fields like notes which are converted to comma-separated strings. .iffy.json metadata is merged with existing document metadata without overwriting existing values.
+
 ## Route Test Patterns — 2026-04-14
 
 **Double-prefix gotcha:** When a router has `prefix="/X"` AND is mounted at `/api/X`, actual paths are `/api/X/X/...`. Affects: `tasks`, `migrations`, `iiif`, `review_queue`. Always check `grep "router\b" main.py` and `router = APIRouter(prefix=...)` together.
