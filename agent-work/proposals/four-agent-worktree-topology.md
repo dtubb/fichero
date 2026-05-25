@@ -2,12 +2,19 @@
 
 **Author:** Manager Claude · **Date:** 2026-05-25 · **Status:** DECIDED (the "lighter alternative")
 
-> **Decision (2026-05-25):** Daniel chose the 2-extra-worktree shape — frontend Claude +
-> manager share the `0.0.2` trunk; only **Codex** (`0.0.2-engine`) and **pi worker**
-> (`0.0.2-pi`) get their own worktrees. Frontend is un-gated (commits to trunk directly);
-> Codex + pi are gated through the manager review→merge→resync flow. See "Lighter
-> alternative" at the bottom — that is now the canonical topology. The four-worktree
-> version below is kept for rationale only.
+> **Decision (2026-05-25):** Daniel chose the 2-extra-worktree shape, with **durable
+> agent-named desks**: frontend Claude + manager share the `0.0.2` trunk; **Codex** gets
+> `~/code/fichero-codex` (branch `codex`) and **pi worker** gets `~/code/fichero-pi`
+> (branch `pi`). Agent-named (not milestone-named) to dodge the `fichero-engine`
+> source-dir name clash and survive milestone bumps. Frontend is un-gated (commits to
+> trunk directly); Codex + pi are gated through the manager review→merge→resync flow.
+> Create:
+> ```
+> git worktree add ~/code/fichero-codex -b codex 0.0.2
+> git worktree add ~/code/fichero-pi    -b pi    0.0.2
+> ```
+> See "Lighter alternative" at the bottom for rationale; the four-worktree version below
+> is kept for reasoning only.
 
 Answers three questions: (1) what work pi takes, (2) how the running backend works
 across worktrees, (3) how the review gate runs. Then a concrete setup runbook.

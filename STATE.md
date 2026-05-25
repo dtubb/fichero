@@ -24,19 +24,23 @@ Issues labelled `frontend` / `backend` / `both` / `agent:pi` on GitHub.
 |---|---|---|---|
 | **Frontend Claude** | `~/code/fichero-0.0.2` / `0.0.2` (shared trunk) | SwiftUI: #1202, #1204, #1181, KG polish | `label:frontend` |
 | **Manager Claude** (me) | `~/code/fichero-0.0.2` / `0.0.2` (shared trunk) | Coordinate, own :8765, review+merge lanes. No code. | n/a |
-| **Backend Codex** | `~/code/fichero-0.0.2-engine` / `0.0.2-engine` | Python: #1173, #1054, #1198 | `label:backend` |
-| **pi worker** | `~/code/fichero-0.0.2-pi` / `0.0.2-pi` | Simple code fixes (#1205 first) | `label:agent:pi` |
+| **Backend Codex** | `~/code/fichero-codex` / `codex` (durable desk) | Python: #1173, #1054, #1198 | `label:backend` |
+| **pi worker** | `~/code/fichero-pi` / `pi` (durable desk) | Simple code fixes (#1205 first) | `label:agent:pi` |
+
+Durable desks named by agent (not milestone) → no `fichero-engine` source-dir name clash,
+survive milestone bumps. `codex`/`pi` branches persist; retarget merges to the new trunk at
+each milestone (0.0.2 → 0.0.3 …).
 | **pi CLI** | no worktree → talks to :8765 | data ops / imports, no code | n/a |
 
 **Manager protocol (survives memory-runout — also in auto-memory `multiagent-coordination`):**
 1. Own `:8765` — ONE persistent backend on trunk code + real lib. Agents never bind :8765;
    they verify in-process (pytest/EngineHarness) or on :8766 + scratch lib.
-2. Lane done → agent commits on its branch + drops `.ai/inbox/done-<lane>-DATE.md`.
-3. Manager: `git diff 0.0.2...0.0.2-<lane>` → review subagents (`code-reviewer` +
+2. Lane done → agent commits on its branch (`codex`/`pi`) + drops `.ai/inbox/done-<lane>-DATE.md`.
+3. Manager: `git diff 0.0.2...<lane>` → review subagents (`code-reviewer` +
    `silent-failure-hunter`, +backend/contract for Python) + targeted tests →
-   ALIGNED → `git merge --no-ff 0.0.2-<lane>` (restart :8765 if backend changed);
+   ALIGNED → `git merge --no-ff <lane>` into trunk (restart :8765 if backend changed);
    MISALIGNED → kick back via `.ai/inbox/review-<lane>-DATE.md`.
-4. Resync: `git -C ~/code/fichero-0.0.2-<lane> merge 0.0.2` (disjoint files → no conflicts).
+4. Resync: `git -C ~/code/fichero-<lane> merge 0.0.2` (disjoint files → no conflicts).
 5. Frontend commits straight to trunk (un-gated, self-verifies 3-leg Swift check); ask it
    to commit before I integrate (shared working tree).
 
