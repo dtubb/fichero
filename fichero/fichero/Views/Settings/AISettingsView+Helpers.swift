@@ -1,0 +1,295 @@
+import OSLog
+import SwiftUI
+
+private let settingsLogger = Logger(subsystem: "com.fichero.fichero", category: "Settings")
+
+// MARK: - Model Pickers + Loading
+
+extension AISettingsView {
+
+    var temperatureBinding: Binding<Double> {
+        Binding(
+            get: { Double(defaults.temperature) ?? 0.7 },
+            set: { defaults.temperature = String(format: "%.1f", $0) }
+        )
+    }
+
+    var temperatureDisplay: String {
+        defaults.temperature.isEmpty ? "0.7" : defaults.temperature
+    }
+
+    @ViewBuilder
+    func providerPicker(selection: Binding<String>) -> some View {
+        // De-duplicate by providerType so the Picker ForEach has unique IDs
+        // even if the backend returns multiple provider rows with the same type.
+        let uniqueProviders = Array(
+            Dictionary(grouping: appState.providers, by: { $0.providerType })
+                .compactMapValues { $0.first }
+                .values
+        ).sorted(by: { $0.name < $1.name })
+
+        Picker("Provider", selection: selection) {
+            Text("None").tag("")
+            ForEach(uniqueProviders, id: \.providerType) { provider in
+                Text(provider.name).tag(provider.providerType)
+            }
+        }
+    }
+
+    /// Capability requirement for a Defaults tier — used by modelPicker
+    /// to filter the dropdown to only models that support the tier's purpose.
+    /// `.text` includes any LLM; `.any` shows everything for $small/$large pickers. (#940)
+    enum TierCapability {
+        case text
+        case vision
+        case audio
+        case any
+
+        func matches(_ model: ModelInfo) -> Bool {
+            switch self {
+            case .text:
+                return !(model.supportsVision || model.supportsAudioInput)
+                    || model.modelId == "apple-intelligence"
+            case .vision:
+                return model.supportsVision
+            case .audio:
+                return model.supportsAudioInput
+            case .any:
+                return true
+            }
+        }
+    }
+
+    @ViewBuilder
+    func modelPicker(
+        selection: Binding<String>,
+        models: [ModelInfo],
+        tier: TierCapability = .any,
+    ) -> some View {
+        let currentSelection = selection.wrappedValue
+        let hasCurrentSelection = !currentSelection.isEmpty
+        let filtered = models.filter { tier.matches($0) }
+        let hasCurrentInList = filtered.contains { $0.modelId == currentSelection }
+
+        Picker("Model", selection: selection) {
+            Text("None").tag("")
+            if hasCurrentSelection && !hasCurrentInList {
+                // Show the saved value even when filtered-out so the
+                // user can see "this saved selection doesn't match the
+                // tier" instead of a silent reset.
+                Text("\(currentSelection) (saved — wrong capability)").tag(currentSelection)
+            }
+            ForEach(filtered, id: \.modelId) { model in
+                Text(model.fullName).tag(model.modelId)
+            }
+        }
+    }
+
+    /// Provider-change companion — clears the model selection immediately,
+    /// loads the new list, then auto-picks its first model. Fixes #936:
+    /// stale picker after provider change + requires-tab-cycle to load.
+    func loadModelsResettingSelection(
+        for providerType: String,
+        into models: Binding<[ModelInfo]>,
+        selecting selection: Binding<String>,
+    ) {
+        selection.wrappedValue = ""
+
+        guard !providerType.isEmpty else {
+            models.wrappedValue = []
+            return
+        }
+
+        guard let provider = appState.providers.first(
+            where: { $0.providerType == providerType }
+        ) else {
+            models.wrappedValue = []
+            return
+        }
+
+        Task {
+            do {
+                let configured = try await appState.providerService
+                    .listProviderModels(providerId: provider.id)
+                let list = configured.map { user in
+                    ModelInfo(
+                        modelId: user.modelId,
+                        fullName: user.name,
+                        description: nil,
+                        isRecommended: false,
+                        isLocal: false,
+                        inputCostPerMillion: 0,
+                        outputCostPerMillion: 0,
+                        batchInputCostPerMillion: nil,
+                        batchOutputCostPerMillion: nil,
+                        cacheReadCostPerMillion: nil,
+                        maxInputTokens: nil,
+                        maxOutputTokens: nil,
+                        mode: nil,
+                        supportsVision: user.capabilities.contains("vision"),
+                        supportsFunctionCalling: user.capabilities.contains("tools"),
+                        supportsAudioInput: user.capabilities.contains("audio"),
+                        supportsAudioOutput: false,
+                        supportsPdfInput: false,
+                        supportsPromptCaching: false,
+                        supportsReasoning: false,
+                        supportsWebSearch: false,
+                        supportsStreaming: false,
+                        supportsBatchApi: false,
+                        provider: providerType
+                    )
+                }
+                models.wrappedValue = list
+                if let first = list.first {
+                    selection.wrappedValue = first.modelId
+                }
+            } catch {
+                settingsLogger.error(
+                    "Failed to load models for \(providerType): \(error.localizedDescription)"
+                )
+                models.wrappedValue = []
+            }
+        }
+    }
+
+    func loadModels(for providerType: String, into models: Binding<[ModelInfo]>) {
+        guard !providerType.isEmpty else {
+            models.wrappedValue = []
+            return
+        }
+
+        // Show ONLY user-configured models — the ones they've actually added
+        // for this provider under Settings → Models. The LiteLLM catalog
+        // fallback let users pick model names the provider's API doesn't
+        // actually serve, producing runtime 404s. Daniel's UX call: "the user
+        // has to think about it" — they should explicitly curate which models work.
+        guard let provider = appState.providers.first(
+            where: { $0.providerType == providerType }
+        ) else {
+            models.wrappedValue = []
+            return
+        }
+
+        Task {
+            do {
+                let configured = try await appState.providerService
+                    .listProviderModels(providerId: provider.id)
+                models.wrappedValue = configured.map { user in
+                    ModelInfo(
+                        modelId: user.modelId,
+                        fullName: user.name,
+                        description: nil,
+                        isRecommended: false,
+                        isLocal: false,
+                        inputCostPerMillion: 0,
+                        outputCostPerMillion: 0,
+                        batchInputCostPerMillion: nil,
+                        batchOutputCostPerMillion: nil,
+                        cacheReadCostPerMillion: nil,
+                        maxInputTokens: nil,
+                        maxOutputTokens: nil,
+                        mode: nil,
+                        supportsVision: user.capabilities.contains("vision"),
+                        supportsFunctionCalling: user.capabilities.contains("tools"),
+                        supportsAudioInput: user.capabilities.contains("audio"),
+                        supportsAudioOutput: false,
+                        supportsPdfInput: false,
+                        supportsPromptCaching: false,
+                        supportsReasoning: false,
+                        supportsWebSearch: false,
+                        supportsStreaming: false,
+                        supportsBatchApi: false,
+                        provider: providerType
+                    )
+                }
+            } catch {
+                settingsLogger.error(
+                    "Failed to load configured models for \(providerType): \(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
+    // MARK: - Data Actions
+
+    func loadDefaults() async {
+        isLoading = true
+        defer { isLoading = false }
+
+        // Refresh providers list so the picker reflects providers added
+        // since AppState's last load.
+        await appState.loadProviders()
+
+        do {
+            defaults = try await appState.fetchAIDefaults()
+
+            // First-run convenience: if no defaults are saved AND Apple is
+            // available locally, default Text/Vision/Audio to Apple.
+            if defaults.textProvider.isEmpty
+                && defaults.visionProvider.isEmpty
+                && defaults.audioProvider.isEmpty,
+               appState.providers.contains(where: { $0.providerType == "apple" }) {
+                defaults.textProvider = "apple"
+                defaults.visionProvider = "apple"
+                defaults.audioProvider = "apple"
+                try? await appState.saveAIDefaults(defaults)
+            }
+
+            if !defaults.textProvider.isEmpty {
+                loadModels(for: defaults.textProvider, into: $textModels)
+            }
+            if !defaults.visionProvider.isEmpty {
+                loadModels(for: defaults.visionProvider, into: $visionModels)
+            }
+            if !defaults.audioProvider.isEmpty {
+                loadModels(for: defaults.audioProvider, into: $audioModels)
+            }
+            if !defaults.videoProvider.isEmpty {
+                loadModels(for: defaults.videoProvider, into: $videoModels)
+            }
+            if !defaults.embeddingsProvider.isEmpty {
+                loadModels(for: defaults.embeddingsProvider, into: $embeddingsModels)
+            }
+            if !defaults.smallProvider.isEmpty {
+                loadModels(for: defaults.smallProvider, into: $smallModels)
+            }
+            if !defaults.largeProvider.isEmpty {
+                loadModels(for: defaults.largeProvider, into: $largeModels)
+            }
+        } catch {
+            settingsLogger.error("Failed to load AI defaults: \(error.localizedDescription)")
+            errorMessage = "Failed to load: \(error.localizedDescription)"
+        }
+    }
+
+    func saveDefaults() async {
+        guard !isLoading else { return }
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try await appState.saveAIDefaults(defaults)
+            errorMessage = nil
+        } catch {
+            settingsLogger.error("Failed to save AI defaults: \(error.localizedDescription)")
+            errorMessage = "Failed to save: \(error.localizedDescription)"
+        }
+    }
+
+    func resetDefaults() async {
+        do {
+            try await appState.resetAIDefaults()
+            defaults = AIDefaults()
+            textModels = []
+            visionModels = []
+            audioModels = []
+            videoModels = []
+            embeddingsModels = []
+            smallModels = []
+            largeModels = []
+            errorMessage = nil
+        } catch {
+            settingsLogger.error("Failed to reset AI defaults: \(error.localizedDescription)")
+            errorMessage = "Failed to reset: \(error.localizedDescription)"
+        }
+    }
+}
