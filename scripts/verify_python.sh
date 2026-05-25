@@ -54,6 +54,27 @@ run "cli --help" "$PY" -m fichero --help
 # 6. Live CLI<->engine contract test.
 run "cli contract" "$PYTEST" fichero-engine/tests/integration/test_cli_engine_contract.py -q
 
+# 7. OpenAPI freshness — confirm committed schema matches the live backend and that
+#    the Swift client copy is in sync. Re-exports the schema (Python only, no swift build)
+#    and diffs against the committed files; restores the working tree on mismatch so the
+#    gate never leaves dirty files behind.
+echo "── openapi freshness ──"
+PYTHONPATH=fichero-engine/src FICHERO_FEATURE_TIER=dev "$PY" \
+  fichero-engine/scripts/export_openapi_schema.py >/dev/null 2>&1
+if ! git diff --quiet -- fichero-engine/tests/contracts/openapi.json \
+                          fichero-engine/tests/contracts/endpoints.json; then
+  echo "❌ openapi freshness — backend routes changed; run ./fichero-engine/scripts/sync_openapi_schema.sh and commit"
+  git checkout -- fichero-engine/tests/contracts/openapi.json \
+                  fichero-engine/tests/contracts/endpoints.json 2>/dev/null || true
+  fail=1
+elif ! cmp -s fichero-engine/tests/contracts/openapi.json \
+              fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json; then
+  echo "❌ openapi freshness — openapi.json updated but Swift client not synced; run ./fichero-engine/scripts/sync_openapi_schema.sh and commit"
+  fail=1
+else
+  echo "✅ openapi freshness"
+fi
+
 echo
 if [ "$fail" = 0 ]; then echo "✅✅ verify_python: ALL PASS"; else echo "❌❌ verify_python: FAILURES ABOVE"; fi
 exit "$fail"
