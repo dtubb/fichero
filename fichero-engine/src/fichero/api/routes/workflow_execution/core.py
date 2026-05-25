@@ -80,16 +80,13 @@ def _build_workflow_with_checkpointer(
     """
     Build a workflow with checkpointing using the shared runtime path.
     """
-    if interrupt_before or interrupt_after:
-        logger.debug(
-            "Interrupt hooks are not currently applied in shared runtime builder"
-        )
-
     workflow_def = to_workflow_def(workflow)
     return create_compiled_app_with_checkpointer(
         workflow_def,
         checkpointer=checkpointer,
         enable_parallel=enable_parallel,
+        interrupt_before=interrupt_before,
+        interrupt_after=interrupt_after,
     )
 
 

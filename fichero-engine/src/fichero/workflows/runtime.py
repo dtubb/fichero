@@ -63,6 +63,8 @@ def create_compiled_app(
     db_path: str | Path,
     enable_parallel: bool = True,
     event_callback: Callable | None = None,
+    interrupt_before: list[str] | None = None,
+    interrupt_after: list[str] | None = None,
     skip_cache: bool = False,
 ) -> tuple[Any, AsyncDuckDBCheckpointer]:
     """
@@ -79,6 +81,8 @@ def create_compiled_app(
         enable_parallel=enable_parallel,
         event_callback=event_callback,
         checkpointer=checkpointer,
+        interrupt_before=interrupt_before,
+        interrupt_after=interrupt_after,
         skip_cache=skip_cache,
     )
 
@@ -94,6 +98,8 @@ def create_compiled_app_with_checkpointer(
     checkpointer: AsyncDuckDBCheckpointer,
     enable_parallel: bool = True,
     event_callback: Callable | None = None,
+    interrupt_before: list[str] | None = None,
+    interrupt_after: list[str] | None = None,
     skip_cache: bool = False,
 ) -> Any:
     """
@@ -106,6 +112,8 @@ def create_compiled_app_with_checkpointer(
         enable_parallel=enable_parallel,
         event_callback=event_callback,
         checkpointer=checkpointer,
+        interrupt_before=interrupt_before,
+        interrupt_after=interrupt_after,
         skip_cache=skip_cache,
     )
     if hasattr(app_or_graph, "compile"):

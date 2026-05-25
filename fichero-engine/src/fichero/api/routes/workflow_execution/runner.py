@@ -514,6 +514,8 @@ async def _run_workflow_in_background(
             db_path=db.path,
             enable_parallel=True,
             event_callback=emit_parallel_event,
+            interrupt_before=request.interrupt_before or None,
+            interrupt_after=request.interrupt_after or None,
             skip_cache=request.skip_cache,
         )
 

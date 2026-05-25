@@ -231,6 +231,8 @@ def build_graph(
     enable_parallel: bool = True,
     event_callback: Any | None = None,
     checkpointer: Any | None = None,
+    interrupt_before: list[str] | None = None,
+    interrupt_after: list[str] | None = None,
     skip_cache: bool = False,
 ) -> Any:
     """Build a LangGraph StateGraph from a workflow definition.
@@ -450,7 +452,11 @@ def build_graph(
         else:
             graph.add_edge(exit_name, END)
 
-    return graph.compile(checkpointer=checkpointer)
+    return graph.compile(
+        checkpointer=checkpointer,
+        interrupt_before=interrupt_before,
+        interrupt_after=interrupt_after,
+    )
 
 
 def _make_node_function(
