@@ -10519,6 +10519,404 @@
         }
       }
     },
+    "/api/registries/epistemic-statuses": {
+      "get": {
+        "tags": [
+          "registries"
+        ],
+        "summary": "List epistemic statuses (custom + built-in)",
+        "description": "Return all epistemic status values registered for this library.\n\nIncludes built-in defaults (tentative, confirmed, rejected) and\nany user-added custom values.",
+        "operationId": "list_epistemic_statuses_api_registries_epistemic_statuses_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "registries"
+        ],
+        "summary": "Add a custom epistemic status",
+        "description": "Register a new custom epistemic status (e.g., 'court-testimony', 'rumoured').",
+        "operationId": "create_epistemic_status_api_registries_epistemic_statuses_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistryCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationValue"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/registries/epistemic-statuses/{value_id}": {
+      "patch": {
+        "tags": [
+          "registries"
+        ],
+        "summary": "Update an epistemic status",
+        "description": "Update label, description, icon, color, or rename (key change).\n\nRenaming (key change) preserves the value's id and updates all\nKnowledgeClaim rows that reference it.",
+        "operationId": "patch_epistemic_status_api_registries_epistemic_statuses__value_id__patch",
+        "parameters": [
+          {
+            "name": "value_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Value Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistryPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationValue"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "registries"
+        ],
+        "summary": "Delete Epistemic Status",
+        "description": "Delete a custom epistemic status.\n\nFails if any claims still reference this value; user must reassign\nthose claims first.",
+        "operationId": "delete_epistemic_status_api_registries_epistemic_statuses__value_id__delete",
+        "parameters": [
+          {
+            "name": "value_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Value Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/registries/claim-kinds": {
+      "get": {
+        "tags": [
+          "registries"
+        ],
+        "summary": "List claim kinds (custom + built-in)",
+        "description": "Return all claim kind values registered for this library.\n\nIncludes built-in defaults (fact, analysis, interpretation, etc.)\nand any user-added custom values.",
+        "operationId": "list_claim_kinds_api_registries_claim_kinds_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "registries"
+        ],
+        "summary": "Add a custom claim kind",
+        "description": "Register a new custom claim kind (e.g., 'citation', 'oral-testimony').",
+        "operationId": "create_claim_kind_api_registries_claim_kinds_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistryCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationValue"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/registries/claim-kinds/{value_id}": {
+      "patch": {
+        "tags": [
+          "registries"
+        ],
+        "summary": "Update a claim kind",
+        "description": "Update label, description, icon, color, or rename (key change).\n\nRenaming (key change) preserves the value's id and updates all\nKnowledgeClaim rows that reference it.",
+        "operationId": "patch_claim_kind_api_registries_claim_kinds__value_id__patch",
+        "parameters": [
+          {
+            "name": "value_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Value Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistryPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassificationValue"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "registries"
+        ],
+        "summary": "Delete Claim Kind",
+        "description": "Delete a custom claim kind.\n\nFails if any claims still reference this value; user must reassign\nthose claims first.",
+        "operationId": "delete_claim_kind_api_registries_claim_kinds__value_id__delete",
+        "parameters": [
+          {
+            "name": "value_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Value Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/search": {
       "post": {
         "tags": [
@@ -40465,108 +40863,7 @@
         ],
         "title": "NodeCreateRequest"
       },
-      "NodeDef-Input": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id",
-            "description": "Unique node identifier"
-          },
-          "tool": {
-            "type": "string",
-            "title": "Tool",
-            "description": "Tool function name from registry"
-          },
-          "input_ports": {
-            "items": {
-              "$ref": "#/components/schemas/PortDef"
-            },
-            "type": "array",
-            "title": "Input Ports",
-            "description": "Input connection ports (populated from registry, not stored)"
-          },
-          "output_ports": {
-            "items": {
-              "$ref": "#/components/schemas/PortDef"
-            },
-            "type": "array",
-            "title": "Output Ports",
-            "description": "Output connection ports (populated from registry, not stored)"
-          },
-          "input_mappings": {
-            "items": {
-              "$ref": "#/components/schemas/InputMapping"
-            },
-            "type": "array",
-            "title": "Input Mappings",
-            "description": "Maps input ports to data sources from previous nodes"
-          },
-          "inputs": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Inputs",
-            "description": "Input values for the tool (supports path resolution)"
-          },
-          "config": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Config",
-            "description": "Static tool configuration (not resolved)"
-          },
-          "output_schema": {
-            "$ref": "#/components/schemas/OutputSchema",
-            "nullable": true,
-            "description": "JSON Schema for structured LLM output"
-          },
-          "position_x": {
-            "type": "number",
-            "title": "Position X",
-            "default": 0.0
-          },
-          "position_y": {
-            "type": "number",
-            "title": "Position Y",
-            "default": 0.0
-          },
-          "label": {
-            "type": "string",
-            "title": "Label",
-            "default": ""
-          },
-          "description": {
-            "type": "string",
-            "title": "Description",
-            "default": ""
-          },
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled",
-            "default": true
-          },
-          "provider_name": {
-            "type": "string",
-            "title": "Provider Name",
-            "default": ""
-          },
-          "model_name": {
-            "type": "string",
-            "title": "Model Name",
-            "default": ""
-          },
-          "uses_llm": {
-            "type": "boolean",
-            "title": "Uses Llm",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "tool"
-        ],
-        "title": "NodeDef",
-        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
-      },
-      "NodeDef-Output": {
+      "NodeDef": {
         "properties": {
           "id": {
             "type": "string",
@@ -43541,6 +43838,89 @@
         "title": "ReferenceWithProvenanceResponse",
         "description": "Response from GET /api/references/{id}."
       },
+      "RegistryCreateRequest": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "Machine-readable identifier; lowercase, no spaces"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "Human-readable display label"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description",
+            "description": "Optional prompt hint for extractors"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "title": "Icon",
+            "description": "SF Symbol name or emoji"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "title": "Color",
+            "description": "Hex color code for badges, e.g. '#FF8800'"
+          },
+          "parent_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Key",
+            "description": "Optional parent for hierarchical vocabularies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "RegistryCreateRequest",
+        "description": "Create a custom epistemic status or claim kind."
+      },
+      "RegistryPatchRequest": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Key",
+            "description": "Rename to a new key (preserves id)"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "title": "Icon"
+          },
+          "color": {
+            "type": "string",
+            "nullable": true,
+            "title": "Color"
+          },
+          "parent_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Key"
+          }
+        },
+        "type": "object",
+        "title": "RegistryPatchRequest",
+        "description": "Update a registry entry (supports renaming via key field)."
+      },
       "ReindexResponse": {
         "properties": {
           "indexed": {
@@ -45192,7 +45572,8 @@
           "content_preview",
           "metadata"
         ],
-        "title": "SearchResult"
+        "title": "SearchResult",
+        "description": "Search result with score and document reference."
       },
       "SearchSource": {
         "properties": {
@@ -48536,7 +48917,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef-Input"
+              "$ref": "#/components/schemas/NodeDef"
             },
             "type": "array",
             "title": "Nodes"
@@ -48770,7 +49151,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef-Output"
+              "$ref": "#/components/schemas/NodeDef"
             },
             "type": "array",
             "title": "Nodes"
