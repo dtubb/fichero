@@ -91,37 +91,37 @@ extension AISettingsView {
         .onChange(of: defaults.textProvider) { _, newValue in
             loadModelsResettingSelection(
                 for: newValue, into: $textModels, selecting: $defaults.textModel,
-            )
+                )
         }
         .onChange(of: defaults.visionProvider) { _, newValue in
             loadModelsResettingSelection(
                 for: newValue, into: $visionModels, selecting: $defaults.visionModel,
-            )
+                )
         }
         .onChange(of: defaults.audioProvider) { _, newValue in
             loadModelsResettingSelection(
                 for: newValue, into: $audioModels, selecting: $defaults.audioModel,
-            )
+                )
         }
         .onChange(of: defaults.videoProvider) { _, newValue in
             loadModelsResettingSelection(
                 for: newValue, into: $videoModels, selecting: $defaults.videoModel,
-            )
+                )
         }
         .onChange(of: defaults.embeddingsProvider) { _, newValue in
             loadModelsResettingSelection(
                 for: newValue, into: $embeddingsModels, selecting: $defaults.embeddingsModel,
-            )
+                )
         }
         .onChange(of: defaults.smallProvider) { _, newValue in
             loadModelsResettingSelection(
                 for: newValue, into: $smallModels, selecting: $defaults.smallModel,
-            )
+                )
         }
         .onChange(of: defaults.largeProvider) { _, newValue in
             loadModelsResettingSelection(
                 for: newValue, into: $largeModels, selecting: $defaults.largeModel,
-            )
+                )
         }
     }
 

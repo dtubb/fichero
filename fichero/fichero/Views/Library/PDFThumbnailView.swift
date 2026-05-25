@@ -43,7 +43,7 @@ struct PDFThumbnailView: View {
         .task(id: "\(path):\(pageIndex)") {
             let result = await Self.renderThumbnailWithPageCount(
                 at: path, pageIndex: pageIndex, size: size,
-            )
+                )
             image = result?.image
             pageCount = result?.pageCount ?? 0
         }
@@ -75,7 +75,7 @@ struct PDFThumbnailView: View {
     static func renderThumbnail(at path: String, pageIndex: Int = 0, size: CGSize) async -> NSImage? {
         await renderThumbnailWithPageCount(
             at: path, pageIndex: pageIndex, size: size,
-        )?.image
+            )?.image
     }
 
     /// Render the page AND surface the PDF's total page count so the
@@ -84,7 +84,7 @@ struct PDFThumbnailView: View {
     /// computing them independently. (#946)
     static func renderThumbnailWithPageCount(
         at path: String, pageIndex: Int = 0, size: CGSize,
-    ) async -> (image: NSImage, pageCount: Int)? {
+        ) async -> (image: NSImage, pageCount: Int)? {
         await Task.detached(priority: .userInitiated) {
             guard let pdf = PDFDocument(url: URL(fileURLWithPath: path)),
                   pageIndex >= 0, pageIndex < pdf.pageCount,

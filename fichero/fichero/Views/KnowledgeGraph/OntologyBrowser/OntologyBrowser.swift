@@ -403,8 +403,8 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
             Toggle("Suppress OCR noise", isOn: $suppressOcrGarbage)
         } label: {
             Image(systemName: hiddenKinds.isEmpty
-                  ? "line.3.horizontal.decrease.circle"
-                  : "line.3.horizontal.decrease.circle.fill")
+                    ? "line.3.horizontal.decrease.circle"
+                    : "line.3.horizontal.decrease.circle.fill")
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -482,8 +482,8 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
                     Text(entities.isEmpty ? "No Entities" : "All Filtered Out")
                         .font(.subheadline)
                     Text(entities.isEmpty
-                         ? "Entities will appear as you create claims"
-                         : "Tap a chip above to show entities of that kind")
+                            ? "Entities will appear as you create claims"
+                            : "Tap a chip above to show entities of that kind")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -1167,7 +1167,7 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
         // model the global "draw all entities in a circle" is gone —
         // graph mode shows ONE focus + its k-hop neighbors. (#976/#977)
         guard let focusId = selectedEntityId
-            ?? entities.compactMap(\.id).first else {
+                ?? entities.compactMap(\.id).first else {
             sim.nodes = []
             sim.edges = []
             graphRevision += 1

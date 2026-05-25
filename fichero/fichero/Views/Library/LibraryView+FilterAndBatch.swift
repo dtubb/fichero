@@ -179,44 +179,46 @@ extension LibraryView {
         onRequestFocus()
         let modifiers = NSEvent.modifierFlags
         if modifiers.contains(.shift), let anchor = selectionAnchor {
-            // Shift+click: range select from anchor to clicked item
-            let docs = filteredDocuments
-            if let anchorIndex = docs.firstIndex(where: { $0.id == anchor }),
-               let clickIndex = docs.firstIndex(where: { $0.id == doc.id }) {
-                let range = min(anchorIndex, clickIndex)...max(anchorIndex, clickIndex)
-                let rangeIds = Set(docs[range].map(\.id))
-                if modifiers.contains(.command) {
-                    // Shift+Cmd+click: add range to existing selection
-                    selection.formUnion(rangeIds)
-                } else {
-                    // Shift+click: replace selection with range
-                    selection = rangeIds
-                }
-            }
-            // Don't update anchor on Shift+click
+            handleShiftClick(doc, anchor: anchor, commandKeyDown: modifiers.contains(.command))
         } else if modifiers.contains(.command) {
-            // Cmd+click: toggle individual item
-            if selection.contains(doc.id) {
-                selection.remove(doc.id)
-            } else {
-                selection.insert(doc.id)
-            }
-            selectionAnchor = doc.id
+            handleCommandClick(doc)
         } else {
-            // Plain click: replace selection
-            selection = [doc.id]
-            selectionAnchor = doc.id
-            // Sidebar-hidden mode: a plain click on a navigable container
-            // also navigates into it. Without the sidebar there's no other
-            // way to descend the hierarchy. (#786)
-            if sidebarHidden, canNavigateInto(doc) {
-                onNavigateInto(doc)
-            }
-            // Note: no listScrollTarget here. onChange(of: selection.first) in
-            // iconsView/listView already scrolls on selection change. Setting
-            // listScrollTarget simultaneously caused a double-scroll during the
-            // .none → .standard layout transition (first-click flash, #788).
-            // Post-remount scroll is handled by onAppear's deferred scrollTo.
+            handlePlainClick(doc)
+        }
+    }
+
+    private func handleShiftClick(_ doc: Document, anchor: String, commandKeyDown: Bool) {
+        // Shift+click: range select from anchor to clicked item.
+        let docs = filteredDocuments
+        guard let anchorIndex = docs.firstIndex(where: { $0.id == anchor }),
+              let clickIndex = docs.firstIndex(where: { $0.id == doc.id }) else {
+            return
+        }
+        let range = min(anchorIndex, clickIndex)...max(anchorIndex, clickIndex)
+        let rangeIds = Set(docs[range].map(\.id))
+        if commandKeyDown {
+            selection.formUnion(rangeIds)
+        } else {
+            selection = rangeIds
+        }
+    }
+
+    private func handleCommandClick(_ doc: Document) {
+        // Cmd+click: toggle individual item.
+        if selection.contains(doc.id) {
+            selection.remove(doc.id)
+        } else {
+            selection.insert(doc.id)
+        }
+        selectionAnchor = doc.id
+    }
+
+    private func handlePlainClick(_ doc: Document) {
+        // Plain click: replace selection.
+        selection = [doc.id]
+        selectionAnchor = doc.id
+        if sidebarHidden, canNavigateInto(doc) {
+            onNavigateInto(doc)
         }
     }
 
@@ -293,14 +295,11 @@ extension LibraryView {
         if trimmed.isEmpty { return path }
         return String(trimmed.split(separator: "/").last ?? Substring(trimmed))
     }
-
     // MARK: - Workflow Execution (replaces batch path)
-
     /// Execute a workflow via SSE, mirroring the toolbar path in ContentView+Actions.
     /// Passes ALL selected document IDs at once so aggregation workflows (Catalogue)
     /// receive the complete set, and SSE events drive UI refresh.
     @MainActor
-    // swiftlint:disable:next function_body_length
     func runBatchWorkflow(workflowId: String) async {
         guard !selectedDocumentIdsForBatch.isEmpty else { return }
 
@@ -319,34 +318,12 @@ extension LibraryView {
                 workflowId: workflowId,
                 inputs: ["selected_doc_ids": docIds],
                 onEvent: { [weak documentStore = libraryManager.getLibrary(id: windowState.libraryId)?.documentStore] event in
-                    executionObserver.handleEvent(event, for: workflowId)
-                    // Per-doc spinner: mirror SSE file events to Document.status
-                    // so grid icons + sidebar folders show processing state.
-                    // Without this branch the batch-run path (context menu /
-                    // workflow picker) silently never updates spinners (#785).
-                    if let store = documentStore {
-                        switch event {
-                        case .fileStart(_, _, let filePath, _, _, _):
-                            store.updateProcessingStatus(forPath: filePath, status: .processing)
-                        case .fileComplete(_, _, let filePath, _, _, _, _):
-                            // Hold the spinner until workflow.complete —
-                            // reduce-phase nodes may still touch this page (#948).
-                            store.recordFanoutComplete(forPath: filePath)
-                        case .fileError(_, _, let filePath, _, _):
-                            store.updateProcessingStatus(forPath: filePath, status: .failed)
-                        default:
-                            break
-                        }
-                    }
-                    switch event {
-                    case .complete:
-                        documentStore?.flushPendingFanoutCompletions(status: .completed)
+                    if handleBatchWorkflowEvent(
+                        event,
+                        workflowId: workflowId,
+                        documentStore: documentStore
+                    ) {
                         streamCompleted = true
-                    case .error, .systemicError:
-                        documentStore?.flushPendingFanoutCompletions(status: .failed)
-                        streamCompleted = true
-                    default:
-                        break
                     }
                 }
             )
@@ -372,10 +349,7 @@ extension LibraryView {
                 }
             }
 
-            let finalStatus: WorkflowStatus = {
-                guard let exec = executionObserver.activeExecutions[workflowId] else { return .completed }
-                return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
-            }()
+            let finalStatus = batchWorkflowFinalStatus(for: workflowId)
             executionObserver.endExecution(workflowId: workflowId, status: finalStatus)
             logger.info("Workflow \(workflowId) finished with status: \(String(describing: finalStatus))")
 
@@ -384,5 +358,42 @@ extension LibraryView {
             ErrorService.shared.reportError(error)
             executionObserver.endExecution(workflowId: workflowId, status: .failed)
         }
+    }
+
+    private func handleBatchWorkflowEvent(
+        _ event: WorkflowStreamEvent,
+        workflowId: String,
+        documentStore: DocumentStore?
+    ) -> Bool {
+        executionObserver.handleEvent(event, for: workflowId)
+        if let store = documentStore {
+            switch event {
+            case .fileStart(_, _, let filePath, _, _, _):
+                store.updateProcessingStatus(forPath: filePath, status: .processing)
+            case .fileComplete(_, _, let filePath, _, _, _, _):
+                store.recordFanoutComplete(forPath: filePath)
+            case .fileError(_, _, let filePath, _, _):
+                store.updateProcessingStatus(forPath: filePath, status: .failed)
+            default:
+                break
+            }
+        }
+        switch event {
+        case .complete:
+            documentStore?.flushPendingFanoutCompletions(status: .completed)
+            return true
+        case .error, .systemicError:
+            documentStore?.flushPendingFanoutCompletions(status: .failed)
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func batchWorkflowFinalStatus(for workflowId: String) -> WorkflowStatus {
+        guard let exec = executionObserver.activeExecutions[workflowId] else {
+            return .completed
+        }
+        return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
     }
 }

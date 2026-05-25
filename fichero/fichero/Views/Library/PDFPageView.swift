@@ -46,14 +46,14 @@ struct PDFPageView: NSViewRepresentable {
     /// Optional zoom controller — set by PDFPageWithToolbar to sync the toolbar.
     var zoomController: PDFZoomController?
     var onCursorMoved: ((CGPoint) -> Void)?
-    
+
     // MARK: - Loupe State
-    
+
     @AppStorage("pdfPreview.loupeEnabled") private var loupeEnabled = false
     @AppStorage("pdfPreview.loupeMagnification") private var loupeMagnification: Double = 3.0
     @AppStorage("pdfPreview.loupeSize") private var loupeSize: Double = 150.0
     @AppStorage("pdfPreview.loupeLocked") private var loupeLocked = false
-    
+
     @State private var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
     @State private var lockedPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
 
@@ -117,7 +117,9 @@ struct PDFPageView: NSViewRepresentable {
             name: NSView.frameDidChangeNotification,
             object: view
         )
-        context.coordinator.updateTrackingAreas(NSNotification(name: NSView.frameDidChangeNotification, object: view))
+        context.coordinator.updateTrackingAreas(
+            Notification(name: NSView.frameDidChangeNotification, object: view)
+        )
         loadAndNavigate(view)
         return view
     }
@@ -164,9 +166,9 @@ struct PDFPageView: NSViewRepresentable {
         var zoomController: PDFZoomController?
         // Accumulated horizontal translation for the current pan gesture.
         private var panAccumulated: CGFloat = 0
-        
+
         // MARK: - Loupe Bindings
-        
+
         var loupeEnabled: Binding<Bool>
         var cursorPosition: Binding<CGPoint>
         var lockedPosition: Binding<CGPoint>
@@ -186,10 +188,10 @@ struct PDFPageView: NSViewRepresentable {
         @objc
         func updateTrackingAreas(_ notification: Notification) {
             guard let pdfView = pdfView else { return }
-            
+
             // Remove old tracking areas
             pdfView.trackingAreas.forEach { pdfView.removeTrackingArea($0) }
-            
+
             // Add new tracking area that covers the entire PDFView
             let tracking = NSTrackingArea(
                 rect: pdfView.bounds,
@@ -203,15 +205,15 @@ struct PDFPageView: NSViewRepresentable {
         @objc func mouseMoved(with event: NSEvent) {
             guard loupeEnabled.wrappedValue else { return }
             guard let pdfView = pdfView, pdfView.bounds.width > 0, pdfView.bounds.height > 0 else { return }
-            
+
             let locationInView = pdfView.convert(event.locationInWindow, from: nil)
-            
+
             // Normalize to 0-1 range (PDFView coordinates: origin bottom-left)
             let normalized = CGPoint(
                 x: locationInView.x / pdfView.bounds.width,
                 y: locationInView.y / pdfView.bounds.height
             )
-            
+
             cursorPosition.wrappedValue = normalized
             owner.onCursorMoved?(normalized)
         }
@@ -298,66 +300,13 @@ struct PDFPageView: NSViewRepresentable {
             // (the verbatim quote) or charStart/charEnd, drop a yellow
             // highlight on that span so the user immediately sees what
             // the claim is anchored to. (#995 wireframe Phase 4)
-            highlightSpan(on: page, info: info)
+            applyHighlightSpan(on: page, in: view, info: info)
         }
 
         func notifyPageIndexChanged(_ index: Int) {
             Task { @MainActor [weak self] in
                 self?.owner.onPageIndexChange?(index)
             }
-        }
-
-        /// Render a yellow highlight on a PDFPage for the claim's source
-        /// span. Strategy (in priority order):
-        ///   1. sourceExcerpt → PDFDocument.findString → highlight the
-        ///      first hit (most accurate when present).
-        ///   2. charStart/charEnd → page.selection(for:) → highlight.
-        /// Always clears any existing highlight first so re-navigation
-        /// doesn't stack overlays. Backed by PDFAnnotation so the
-        /// highlight prints with the doc when exported. (#995)
-        private func highlightSpan(on page: PDFPage, info: [AnyHashable: Any]) {
-            guard let view = pdfView,
-                  let doc = view.document else { return }
-            // Clear previous highlights we added.
-            for existing in page.annotations
-                where existing.userName == "fichero.claim-source" {
-                page.removeAnnotation(existing)
-            }
-            var selection: PDFSelection?
-            // Priority 1: verbatim excerpt.
-            if let excerpt = info["excerpt"] as? String,
-               !excerpt.isEmpty {
-                if let found = doc.findString(excerpt, withOptions: .caseInsensitive).first {
-                    selection = found
-                }
-            }
-            // Priority 2: char offsets.
-            if selection == nil,
-               let start = info["charStart"] as? Int,
-               let end = info["charEnd"] as? Int,
-               end > start,
-               let pageStr = page.string {
-                let range = NSRange(location: start, length: end - start)
-                if range.upperBound <= pageStr.utf16.count {
-                    selection = page.selection(for: range)
-                }
-            }
-            guard let sel = selection else { return }
-            // Build highlight annotations from the selection's per-line
-            // bounding rects (one annotation per line for clean wrap).
-            for rect in sel.selectionsByLine().map({ $0.bounds(for: page) }) {
-                let annotation = PDFAnnotation(
-                    bounds: rect,
-                    forType: .highlight,
-                    withProperties: nil
-                )
-                annotation.color = NSColor.systemYellow.withAlphaComponent(0.35)
-                annotation.userName = "fichero.claim-source"
-                page.addAnnotation(annotation)
-            }
-            // Scroll the selection into view so the highlighted span is
-            // visible without the user having to hunt.
-            view.go(to: sel)
         }
 
         /// Horizontal pan at fit-scale turns pages; at zoom-in PDFKit pans normally.
@@ -397,4 +346,47 @@ struct PDFPageView: NSViewRepresentable {
             true
         }
     }
+}
+
+@MainActor
+private func applyHighlightSpan(
+    on page: PDFPage,
+    in view: PDFView,
+    info: [AnyHashable: Any]
+) {
+    guard let doc = view.document else { return }
+
+    for existing in page.annotations where existing.userName == "fichero.claim-source" {
+        page.removeAnnotation(existing)
+    }
+
+    var selection: PDFSelection?
+
+    if let excerpt = info["excerpt"] as? String, !excerpt.isEmpty {
+        if let found = doc.findString(excerpt, withOptions: .caseInsensitive).first {
+            selection = found
+        }
+    }
+
+    if selection == nil,
+       let start = info["charStart"] as? Int,
+       let end = info["charEnd"] as? Int,
+       end > start,
+       let pageStr = page.string {
+        let range = NSRange(location: start, length: end - start)
+        if range.upperBound <= pageStr.utf16.count {
+            selection = page.selection(for: range)
+        }
+    }
+
+    guard let sel = selection else { return }
+
+    for rect in sel.selectionsByLine().map({ $0.bounds(for: page) }) {
+        let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
+        annotation.color = NSColor.systemYellow.withAlphaComponent(0.35)
+        annotation.userName = "fichero.claim-source"
+        page.addAnnotation(annotation)
+    }
+
+    view.go(to: sel)
 }

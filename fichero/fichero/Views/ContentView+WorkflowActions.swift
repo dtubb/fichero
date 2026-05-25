@@ -201,18 +201,9 @@ extension ContentView {
         workflowName: String,
         docIds: [String]
     ) {
-        // Optimistic insert (#944) — show the Activity row immediately
-        // so the user gets feedback within ~50ms of clicking Run,
-        // instead of waiting for the POST round-trip + threadId
-        // response (~200-500ms). The threadId field is a placeholder;
-        // the second startExecution call below replaces it with the
-        // real threadId once the POST returns AND attaches the
-        // cancel handler.
-        //
-        // If the POST fails, the catch block calls endExecution(.failed)
-        // which moves the optimistic row to the completed-executions
-        // archive — so the user sees the failure rather than a row
-        // that quietly disappears.
+        // Optimistic insert (#944): show the Activity row immediately, then replace
+        // the placeholder thread ID once the POST returns.
+        // If the POST fails, the row stays visible and is marked failed.
         executionObserver.startExecution(
             workflowId: workflowId,
             name: workflowName,
@@ -226,13 +217,12 @@ extension ContentView {
                     workflowId: workflowId,
                     inputs: ["selected_doc_ids": docIds],
                     onEvent: { [weak documentStore] event in
-                        executionObserver.handleEvent(event, for: workflowId)
-                        updateDocumentStatusFromEvent(event, documentStore: documentStore)
-                        switch event {
-                        case .complete, .error, .systemicError:
+                        if handleWorkflowStreamEvent(
+                            event,
+                            workflowId: workflowId,
+                            documentStore: documentStore
+                        ) {
                             streamCompleted = true
-                        default:
-                            break
                         }
                     }
                 )
@@ -253,18 +243,12 @@ extension ContentView {
                 importProgress = nil
                 workflowLogger.info("Started SSE workflow \(workflowId) thread \(threadId) for \(docIds.count) docs")
 
-                while !streamCompleted {
-                    try await Task.sleep(for: .milliseconds(200))
-                    if Task.isCancelled { break }
-                    if let exec = executionObserver.activeExecutions[workflowId], !exec.isRunning {
-                        streamCompleted = true
-                    }
-                }
+                streamCompleted = await waitForWorkflowCompletion(
+                    workflowId: workflowId,
+                    streamCompleted: streamCompleted
+                )
 
-                let finalStatus: WorkflowStatus = {
-                    guard let exec = executionObserver.activeExecutions[workflowId] else { return .completed }
-                    return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
-                }()
+                let finalStatus = workflowFinalStatus(for: workflowId)
                 executionObserver.endExecution(workflowId: workflowId, status: finalStatus)
                 workflowLogger.info("Workflow \(workflowId) finished with status: \(String(describing: finalStatus))")
 
@@ -275,6 +259,44 @@ extension ContentView {
                 executionObserver.endExecution(workflowId: workflowId, status: .failed)
             }
         }
+    }
+
+    private func handleWorkflowStreamEvent(
+        _ event: WorkflowStreamEvent,
+        workflowId: String,
+        documentStore: DocumentStore?
+    ) -> Bool {
+        executionObserver.handleEvent(event, for: workflowId)
+        updateDocumentStatusFromEvent(event, documentStore: documentStore)
+        switch event {
+        case .complete, .error, .systemicError:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func workflowFinalStatus(for workflowId: String) -> WorkflowStatus {
+        guard let exec = executionObserver.activeExecutions[workflowId] else {
+            return .completed
+        }
+        return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
+    }
+
+    @MainActor
+    private func waitForWorkflowCompletion(
+        workflowId: String,
+        streamCompleted: Bool
+    ) async -> Bool {
+        var completed = streamCompleted
+        while !completed {
+            try? await Task.sleep(for: .milliseconds(200))
+            if Task.isCancelled { break }
+            if let exec = executionObserver.activeExecutions[workflowId], !exec.isRunning {
+                completed = true
+            }
+        }
+        return completed
     }
 
     private func updateDocumentStatusFromEvent(

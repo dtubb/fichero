@@ -277,35 +277,13 @@ struct SidebarItemRow: View {
                     workflowId: workflowId,
                     inputs: ["selected_doc_ids": [docId]],
                     onEvent: { event in
-                        observer.handleEvent(event, for: workflowId)
-                        // Per-doc spinner: mirror SSE file events to
-                        // Document.status so grid icons + sidebar folders
-                        // show processing state. Sidebar context-menu was
-                        // the 4th workflow run path missing this wire-up
-                        // (alongside ContentView+Actions, WorkflowEditor,
-                        // and LibraryView+FilterAndBatch). #785
-                        switch event {
-                        case .fileStart(_, _, let filePath, _, _, _):
-                            store.updateProcessingStatus(forPath: filePath, status: .processing)
-                        case .fileComplete(_, _, let filePath, _, _, _, _):
-                            // Defer the green checkmark until workflow.complete
-                            // — reduce-phase nodes (extract_all) may still be
-                            // processing this page (#948).
-                            store.recordFanoutComplete(forPath: filePath)
-                        case .fileError(_, _, let filePath, _, _):
-                            store.updateProcessingStatus(forPath: filePath, status: .failed)
-                        default:
-                            break
-                        }
-                        switch event {
-                        case .complete:
-                            store.flushPendingFanoutCompletions(status: .completed)
+                        if handleSidebarWorkflowEvent(
+                            event,
+                            workflowId: workflowId,
+                            store: store,
+                            observer: observer
+                        ) {
                             streamCompleted = true
-                        case .error, .systemicError:
-                            store.flushPendingFanoutCompletions(status: .failed)
-                            streamCompleted = true
-                        default:
-                            break
                         }
                     }
                 )
@@ -327,16 +305,54 @@ struct SidebarItemRow: View {
                         streamCompleted = true
                     }
                 }
-                let status: WorkflowStatus = {
-                    guard let exec = observer.activeExecutions[workflowId] else { return .completed }
-                    return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
-                }()
+                let status = sidebarWorkflowFinalStatus(for: workflowId, observer: observer)
                 observer.endExecution(workflowId: workflowId, status: status)
             } catch {
                 sidebarRowLogger.error("Sidebar Run Workflow failed: \(error)")
                 observer.endExecution(workflowId: workflowId, status: .failed)
             }
         }
+    }
+
+    private func handleSidebarWorkflowEvent(
+        _ event: WorkflowStreamEvent,
+        workflowId: String,
+        store: DocumentStore,
+        observer: WorkflowExecutionObserver
+    ) -> Bool {
+        observer.handleEvent(event, for: workflowId)
+        // Per-doc spinner: mirror SSE file events to Document.status so
+        // grid icons + sidebar folders show processing state.
+        switch event {
+        case .fileStart(_, _, let filePath, _, _, _):
+            store.updateProcessingStatus(forPath: filePath, status: .processing)
+        case .fileComplete(_, _, let filePath, _, _, _, _):
+            // Defer the green checkmark until workflow.complete so reduce-phase
+            // nodes can keep processing the page.
+            store.recordFanoutComplete(forPath: filePath)
+        case .fileError(_, _, let filePath, _, _):
+            store.updateProcessingStatus(forPath: filePath, status: .failed)
+        default:
+            break
+        }
+        switch event {
+        case .complete:
+            store.flushPendingFanoutCompletions(status: .completed)
+            return true
+        case .error, .systemicError:
+            store.flushPendingFanoutCompletions(status: .failed)
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func sidebarWorkflowFinalStatus(
+        for workflowId: String,
+        observer: WorkflowExecutionObserver
+    ) -> WorkflowStatus {
+        guard let exec = observer.activeExecutions[workflowId] else { return .completed }
+        return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
     }
 
     var body: some View {
@@ -571,9 +587,9 @@ struct SidebarItemRow: View {
             }
             guard let store = documentStore,
                   let orderedIds = sidebarReorderedDocIds(
-                      children: children,
-                      moving: source,
-                      to: destination
+                    children: children,
+                    moving: source,
+                    to: destination
                   ) else { return }
             store.reorderChildrenOptimistically(orderedIds: orderedIds)
         }

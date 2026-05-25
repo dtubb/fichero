@@ -205,9 +205,9 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
         guard content.hasPrefix("{\\rtf"),
               let data = content.data(using: .utf8),
               let attr = try? NSAttributedString(
-                  data: data,
-                  options: [.documentType: NSAttributedString.DocumentType.rtf],
-                  documentAttributes: nil
+                data: data,
+                options: [.documentType: NSAttributedString.DocumentType.rtf],
+                documentAttributes: nil
               ) else {
             return content
         }
@@ -659,9 +659,9 @@ private struct ArtifactContentView: View {
         guard content.hasPrefix("{\\rtf"),
               let data = content.data(using: .utf8),
               let attr = try? NSAttributedString(
-                  data: data,
-                  options: [.documentType: NSAttributedString.DocumentType.rtf],
-                  documentAttributes: nil
+                data: data,
+                options: [.documentType: NSAttributedString.DocumentType.rtf],
+                documentAttributes: nil
               ) else {
             return content
         }
@@ -1081,8 +1081,8 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
                 }
             } label: {
                 Image(systemName: hiddenKinds.isEmpty
-                      ? "line.3.horizontal.decrease.circle"
-                      : "line.3.horizontal.decrease.circle.fill")
+                        ? "line.3.horizontal.decrease.circle"
+                        : "line.3.horizontal.decrease.circle.fill")
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
@@ -1369,7 +1369,7 @@ private struct EntityKindRow: View {
     let kind: EntityKind
     var onNavigateToSource: ((String) -> Void)?
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
-    
+
     @EnvironmentObject private var claimFocusState: ClaimFocusState
 
     var body: some View {
@@ -1529,15 +1529,15 @@ private struct EntityKindRow: View {
             // swiftlint:disable:next shorthand_operator
             text = text
                 + Text(" (aka " + item.aliases.joined(separator: ", ") + ")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         if let pageRef = pageReference {
             // swiftlint:disable:next shorthand_operator
             text = text
                 + Text("  (\(pageRef))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         return text
     }

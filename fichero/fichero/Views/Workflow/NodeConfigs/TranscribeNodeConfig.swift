@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Configuration view for transcribe node
-/// 
+///
 /// The Vision Engine toggle has been removed — Apple Vision is now a provider
 /// option in the unified provider/model selector (see NodeProviderModelSelector).
 struct TranscribeLanguageChoice: Identifiable, Hashable {
@@ -102,12 +102,12 @@ struct TranscribeNodeConfig: View {
                     }
                 }
                 .pickerStyle(.menu)
-                    .onChange(of: language) { _, newValue in
-                        if node.config == nil {
-                            node.config = [:]
-                        }
-                        node.config?["language"] = .string(newValue)
+                .onChange(of: language) { _, newValue in
+                    if node.config == nil {
+                        node.config = [:]
                     }
+                    node.config?["language"] = .string(newValue)
+                }
 
                 Text("Spanish on Apple Intelligence often needs a locale like es-ES or es-MX.")
                     .font(.caption2)

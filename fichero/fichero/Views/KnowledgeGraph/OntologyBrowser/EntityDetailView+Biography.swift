@@ -54,9 +54,9 @@ extension EntityDetailView {
                 + Text(" \(svo.verb) ").italic().foregroundColor(.accentColor)
                 + Text(svo.object)
                 + Text(citation)
-                    .font(.caption2)
-                    .italic()
-                    .foregroundColor(.secondary)
+                .font(.caption2)
+                .italic()
+                .foregroundColor(.secondary)
                 + Text(". ")
         }
         if first {

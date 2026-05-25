@@ -4224,6 +4224,96 @@
         "response_model": "fichero__api__routes__providers__DeletedResponse"
       }
     ],
+    "registries": [
+      {
+        "method": "GET",
+        "path": "/registries/epistemic-statuses",
+        "operation_id": "list_epistemic_statuses_api_registries_epistemic_statuses_get",
+        "summary": "List epistemic statuses (custom + built-in)",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ClassificationListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/registries/epistemic-statuses",
+        "operation_id": "create_epistemic_status_api_registries_epistemic_statuses_post",
+        "summary": "Add a custom epistemic status",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RegistryCreateRequest",
+        "response_model": "ClassificationValue"
+      },
+      {
+        "method": "PATCH",
+        "path": "/registries/epistemic-statuses/{value_id}",
+        "operation_id": "patch_epistemic_status_api_registries_epistemic_statuses__value_id__patch",
+        "summary": "Update an epistemic status",
+        "path_params": [
+          "value_id"
+        ],
+        "query_params": [],
+        "request_model": "RegistryPatchRequest",
+        "response_model": "ClassificationValue"
+      },
+      {
+        "method": "DELETE",
+        "path": "/registries/epistemic-statuses/{value_id}",
+        "operation_id": "delete_epistemic_status_api_registries_epistemic_statuses__value_id__delete",
+        "summary": "Delete Epistemic Status",
+        "path_params": [
+          "value_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/registries/claim-kinds",
+        "operation_id": "list_claim_kinds_api_registries_claim_kinds_get",
+        "summary": "List claim kinds (custom + built-in)",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ClassificationListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/registries/claim-kinds",
+        "operation_id": "create_claim_kind_api_registries_claim_kinds_post",
+        "summary": "Add a custom claim kind",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RegistryCreateRequest",
+        "response_model": "ClassificationValue"
+      },
+      {
+        "method": "PATCH",
+        "path": "/registries/claim-kinds/{value_id}",
+        "operation_id": "patch_claim_kind_api_registries_claim_kinds__value_id__patch",
+        "summary": "Update a claim kind",
+        "path_params": [
+          "value_id"
+        ],
+        "query_params": [],
+        "request_model": "RegistryPatchRequest",
+        "response_model": "ClassificationValue"
+      },
+      {
+        "method": "DELETE",
+        "path": "/registries/claim-kinds/{value_id}",
+        "operation_id": "delete_claim_kind_api_registries_claim_kinds__value_id__delete",
+        "summary": "Delete Claim Kind",
+        "path_params": [
+          "value_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
     "search": [
       {
         "method": "POST",

@@ -5,11 +5,11 @@ import SwiftUI
 
 struct SpeakerComparisonView: View {
     let claims: [Components.Schemas.KnowledgeClaim]
-    
+
     /// Groups claims by speaker
     private var claimsBySpeaker: [(speaker: String, claims: [Components.Schemas.KnowledgeClaim])] {
         var speakerGroups: [String: [Components.Schemas.KnowledgeClaim]] = [:]
-        
+
         for claim in claims {
             let speaker = claim.speakerName ?? "Unknown Speaker"
             if speakerGroups[speaker] == nil {
@@ -17,10 +17,10 @@ struct SpeakerComparisonView: View {
             }
             speakerGroups[speaker]?.append(claim)
         }
-        
+
         return speakerGroups.map { (speaker: $0.key, claims: $0.value) }.sorted { $0.speaker < $1.speaker }
     }
-    
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -40,7 +40,7 @@ struct SpeakerComparisonView: View {
                     }
                 }
                 .padding(.horizontal)
-                
+
                 // Speaker comparison cards
                 ForEach(claimsBySpeaker, id: \.speaker) { speakerGroup in
                     SpeakerGroupView(
@@ -59,7 +59,7 @@ struct SpeakerComparisonView: View {
 struct SpeakerGroupView: View {
     let speaker: String
     let claims: [Components.Schemas.KnowledgeClaim]
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -71,7 +71,7 @@ struct SpeakerGroupView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
             // Display claims with speaker info
             ForEach(claims, id: \.id) { claim in
                 ClaimSummaryCard(claim: claim)

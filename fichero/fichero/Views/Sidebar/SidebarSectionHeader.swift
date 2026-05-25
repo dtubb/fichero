@@ -53,38 +53,38 @@ struct LibrarySectionHeader: View {
                             : Color.clear
                     )
             )
-        .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
-            // #600: UTI-agnostic filter — see SidebarItemRow+DropHandlers
-            // for the rationale (.mov NSItemProvider may omit public.fileURL
-            // while still being URL-loadable).
-            let fileProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
-            guard !fileProviders.isEmpty, let onFileDrop else { return false }
-            Task {
-                var urls: [URL] = []
-                for provider in fileProviders {
-                    if let url = try? await Self.loadURL(from: provider) {
-                        urls.append(url)
+            .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
+                // #600: UTI-agnostic filter — see SidebarItemRow+DropHandlers
+                // for the rationale (.mov NSItemProvider may omit public.fileURL
+                // while still being URL-loadable).
+                let fileProviders = providers.filter { $0.canLoadObject(ofClass: URL.self) }
+                guard !fileProviders.isEmpty, let onFileDrop else { return false }
+                Task {
+                    var urls: [URL] = []
+                    for provider in fileProviders {
+                        if let url = try? await Self.loadURL(from: provider) {
+                            urls.append(url)
+                        }
                     }
+                    guard !urls.isEmpty else { return }
+                    _ = await MainActor.run { onFileDrop(urls) }
                 }
-                guard !urls.isEmpty else { return }
-                _ = await MainActor.run { onFileDrop(urls) }
+                return true
             }
-            return true
-        }
-        .dropDestination(for: SidebarDragID.self, action: { ids, _ in
-            Logger(subsystem: "com.fichero.fichero", category: "LibraryHeaderDrop")
-                .debug("🎯 LibrarySectionHeader .dropDestination FIRED with \(ids.count) ids")
-            guard let onSidebarItemDrop else { return false }
-            onSidebarItemDrop(ids.map(\.id))
-            return true
-        }, isTargeted: { isItemDropTargeted = $0 })
-        // Sidebar plan Step 10 (#584): VoiceOver label reads e.g.
-        // "Global, library, 42 documents". Hint guides users toward the
-        // Finder-drop behaviour that isn't obvious without visual cues.
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint(
-            "Drag files from Finder to import, or drop a sidebar item to move to the library root."
-        )
+            .dropDestination(for: SidebarDragID.self, action: { ids, _ in
+                Logger(subsystem: "com.fichero.fichero", category: "LibraryHeaderDrop")
+                    .debug("🎯 LibrarySectionHeader .dropDestination FIRED with \(ids.count) ids")
+                guard let onSidebarItemDrop else { return false }
+                onSidebarItemDrop(ids.map(\.id))
+                return true
+            }, isTargeted: { isItemDropTargeted = $0 })
+            // Sidebar plan Step 10 (#584): VoiceOver label reads e.g.
+            // "Global, library, 42 documents". Hint guides users toward the
+            // Finder-drop behaviour that isn't obvious without visual cues.
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityHint(
+                "Drag files from Finder to import, or drop a sidebar item to move to the library root."
+            )
     }
 
     /// Display name for this library row. "Global" for the global library,

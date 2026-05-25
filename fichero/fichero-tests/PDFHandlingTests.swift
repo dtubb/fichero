@@ -17,6 +17,7 @@ import AppKit
 import Foundation
 import PDFKit
 import Testing
+import SwiftUI
 
 // MARK: - Document.isNavigableContainer
 
@@ -208,6 +209,15 @@ struct PDFThumbnailRenderingTests {
 @MainActor
 struct PDFPageViewZoomTests {
 
+    private func makeCoordinator(owner: PDFPageView) -> PDFPageView.Coordinator {
+        PDFPageView.Coordinator(
+            owner: owner,
+            loupeEnabled: .constant(false),
+            cursorPosition: .constant(CGPoint(x: 0.5, y: 0.5)),
+            lockedPosition: .constant(CGPoint(x: 0.5, y: 0.5))
+        )
+    }
+
     @Test("#1164 pageDidChange defers selection callback outside PDFKit notification")
     func pageDidChangeDefersCallback() async throws {
         let url = try PDFThumbnailRenderingTests.makeMultiPagePDF(pageColors: [.red, .green])
@@ -226,7 +236,7 @@ struct PDFPageViewZoomTests {
         let owner = PDFPageView(path: url.path, pageIndex: 0) { index in
             receivedIndex = index
         }
-        let coordinator = PDFPageView.Coordinator(owner: owner)
+        let coordinator = makeCoordinator(owner: owner)
 
         coordinator.pageDidChange(Notification(name: .PDFViewPageChanged, object: view))
 
@@ -245,7 +255,7 @@ struct PDFPageViewZoomTests {
         view.autoScales = true
 
         let owner = PDFPageView(path: url.path, pageIndex: 0)
-        let coordinator = PDFPageView.Coordinator(owner: owner)
+        let coordinator = makeCoordinator(owner: owner)
 
         let notification = Notification(name: .PDFViewScaleChanged, object: view)
         coordinator.scaleDidChange(notification)
@@ -267,7 +277,7 @@ struct PDFPageViewZoomTests {
         view.scaleFactor = 2.5
 
         let owner = PDFPageView(path: url.path, pageIndex: 0)
-        let coordinator = PDFPageView.Coordinator(owner: owner)
+        let coordinator = makeCoordinator(owner: owner)
 
         let notification = Notification(name: .PDFViewScaleChanged, object: view)
         coordinator.scaleDidChange(notification)
@@ -279,7 +289,7 @@ struct PDFPageViewZoomTests {
     @Test("#588 scaleDidChange ignores notifications whose object is not a PDFView")
     func scaleDidChangeIgnoresNonPDFViewNotifications() {
         let owner = PDFPageView(path: "/tmp/unused.pdf", pageIndex: 0)
-        let coordinator = PDFPageView.Coordinator(owner: owner)
+        let coordinator = makeCoordinator(owner: owner)
         let notification = Notification(name: .PDFViewScaleChanged, object: "not a PDFView")
         coordinator.scaleDidChange(notification)
     }

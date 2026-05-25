@@ -17,7 +17,7 @@ extension Notification.Name {
 extension ContentView {
 
     // MARK: - Document and Navigation Helpers
-    
+
     /// Select a document by ID
     private func selectDocument(withId documentId: String) {
         if let doc = documentStore.currentDocuments.first(where: { $0.id == documentId }) {
@@ -25,7 +25,7 @@ extension ContentView {
             browserSelection = [documentId]
         }
     }
-    
+
     /// Scroll to a specific page in the PDF
     private func scrollToPage(pageLabel: String) {
         // This will be implemented in the PDFPageView component
@@ -75,9 +75,9 @@ extension ContentView {
     ) {
         // Only sync if the feature is enabled
         guard FeatureManager.shared.isClaimHighlightSyncEnabled else { return }
-        
+
         logger.debug("Syncing claim selection: \(claimId)")
-        
+
         // Update the global claim focus state
         claimFocusState.selectClaim(
             claimId: claimId,
@@ -87,18 +87,18 @@ extension ContentView {
             charStart: charStart,
             charEnd: charEnd
         )
-        
+
         // If the claim has a source document, select it in the grid
         if let sourceDocId = sourceDocumentId, sourceDocId != inspectorDocument?.id {
             selectDocument(withId: sourceDocId)
         }
-        
+
         // If the claim has page information, scroll to it in the PDF
         if let pageLabel = pageLabel {
             scrollToPage(pageLabel: pageLabel)
         }
     }
-    
+
     /// Clear the claim selection
     func clearClaimSelection() {
         guard FeatureManager.shared.isClaimHighlightSyncEnabled else { return }

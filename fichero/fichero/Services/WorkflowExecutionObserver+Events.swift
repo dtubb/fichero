@@ -45,7 +45,7 @@ extension WorkflowExecutionObserver {
             state.status = .completed
             state.progress = 1.0
             execution.nodeStates[nodeId] = state
-            
+
             // Clear current node tracking when node completes
             if execution.currentNodeId == nodeId {
                 execution.currentNodeId = nil

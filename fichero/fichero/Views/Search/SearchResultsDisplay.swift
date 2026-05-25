@@ -99,173 +99,19 @@ struct SearchResultsDisplay: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            if isSearching {
-                ProgressView()
-                Text("Searching…")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-            } else if isReindexing {
-                ProgressView()
-                Text("Indexing library…")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                if let indexedCount, indexedCount > 0 {
-                    Text("\(indexedCount) document\(indexedCount == 1 ? "" : "s") indexed so far")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                Text("""
-                This runs in the background; you can keep using
-                the rest of the app. Search will return results
-                once indexing completes.
-                """)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            } else if trimmedQuery.isEmpty {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 48))
-                    .foregroundColor(.secondary)
-                Text("Search Documents")
-                    .font(.headline)
-                if let indexedCount, indexedCount == 0, let onReindex {
-                    // Library has docs but no embeddings — most likely
-                    // failure mode for first-time use of search. (#481)
-                    Text("This library has no search index yet.\nIndex it once to enable search.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button(action: onReindex) {
-                        Label("Index Library", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                    .buttonStyle(.borderedProminent)
-                } else {
-                    Text("Type a query in the toolbar (⌘F) to search across\nall transcribed documents in this library.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                    if let indexedCount, indexedCount > 0 {
-                        Text("\(indexedCount) document\(indexedCount == 1 ? "" : "s") indexed")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                    // Keyword cloud — clickable browse-by-tag pills.
-                    // Pill text size scales with document-frequency so
-                    // the most-used tags pop visually.
-                    if !keywordCloud.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Browse by keyword")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                            FlowLayout(spacing: 4) {
-                                ForEach(keywordCloud) { entry in
-                                    Button {
-                                        onKeywordTap?(entry.name)
-                                    } label: {
-                                        Text(entry.name)
-                                            .font(.system(size: SearchResultsDisplay.fontSize(for: entry, cloud: keywordCloud)))
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 4)
-                                            .background(Capsule().fill(Color.accentColor.opacity(0.10)))
-                                            .overlay(Capsule().stroke(Color.accentColor.opacity(0.20), lineWidth: 0.5))
-                                            .foregroundStyle(.primary)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .help("\(entry.count) document\(entry.count == 1 ? "" : "s")")
-                                }
-                            }
-                        }
-                        .frame(maxWidth: 480)
-                        .padding(.top, 12)
-                    }
-
-                    // Recent searches — clickable history pills, only
-                    // when the user has prior successful queries to
-                    // recall. Most-recent first, capped to 10.
-                    if !recentSearches.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Recent")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                            FlowLayout(spacing: 6) {
-                                ForEach(recentSearches, id: \.self) { recent in
-                                    Button {
-                                        onRecentSearchTap?(recent)
-                                    } label: {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "clock")
-                                                .imageScale(.small)
-                                            Text(recent)
-                                        }
-                                        .font(.caption)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 4)
-                                        .background(
-                                            Capsule().fill(Color.secondary.opacity(0.10))
-                                        )
-                                        .foregroundStyle(.primary)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                        .frame(maxWidth: 360)
-                        .padding(.top, 8)
-                    }
-                }
-            } else {
-                Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: 48))
-                    .foregroundColor(.secondary)
-                Text("No Matches")
-                    .font(.headline)
-                Text("Nothing matched “\(trimmedQuery)”.\nTry a shorter query or different terms.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                // Did-you-mean: clickable backend-supplied suggestions
-                // when the query is substantive but found nothing.
-                if !suggestions.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Did you mean…")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                        FlowLayout(spacing: 6) {
-                            ForEach(suggestions, id: \.self) { suggestion in
-                                Button {
-                                    onSuggestionTap?(suggestion)
-                                } label: {
-                                    Text(suggestion)
-                                        .font(.caption)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 4)
-                                        .background(
-                                            Capsule().fill(Color.accentColor.opacity(0.12))
-                                        )
-                                        .overlay(
-                                            Capsule().stroke(Color.accentColor.opacity(0.25), lineWidth: 0.5)
-                                        )
-                                        .foregroundStyle(Color.accentColor)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: 360)
-                    .padding(.top, 8)
-                }
-                if let onReindex {
-                    Button(action: onReindex) {
-                        Label("Re-index Library", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .padding(.top, 4)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        SearchResultsEmptyState(
+            currentQuery: currentQuery,
+            isSearching: isSearching,
+            isReindexing: isReindexing,
+            indexedCount: indexedCount,
+            onReindex: onReindex,
+            suggestions: suggestions,
+            onSuggestionTap: onSuggestionTap,
+            recentSearches: recentSearches,
+            onRecentSearchTap: onRecentSearchTap,
+            keywordCloud: keywordCloud,
+            onKeywordTap: onKeywordTap
+        )
     }
 
     // MARK: - List View

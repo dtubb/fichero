@@ -69,64 +69,64 @@ struct ClaimSummaryCard: View {
             EmptyView()
         } else {
             VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top) {
-                claimSentence
-                    .textSelection(.enabled)
-                Spacer(minLength: 0)
-                Button {
-                    isExpanded.toggle()
-                    if isExpanded {
-                        Task { await loadDetails() }
+                HStack(alignment: .top) {
+                    claimSentence
+                        .textSelection(.enabled)
+                    Spacer(minLength: 0)
+                    Button {
+                        isExpanded.toggle()
+                        if isExpanded {
+                            Task { await loadDetails() }
+                        }
+                    } label: {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .foregroundStyle(.secondary)
+                            .font(.caption2)
                     }
-                } label: {
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .foregroundStyle(.secondary)
-                        .font(.caption2)
+                    .buttonStyle(.plain)
+                    .help(isExpanded ? "Hide details" : "Show source, contradictions, evidence chain")
                 }
-                .buttonStyle(.plain)
-                .help(isExpanded ? "Hide details" : "Show source, contradictions, evidence chain")
-            }
 
-            // Source-doc citation — italic doc name + page label,
-            // tappable to navigate. The whole point of the KG is to get
-            // back to source (#982). (#978/#979)
-            sourceLine
+                // Source-doc citation — italic doc name + page label,
+                // tappable to navigate. The whole point of the KG is to get
+                // back to source (#982). (#978/#979)
+                sourceLine
 
-            // Per-card status / kind tags removed — they duplicated the
-            // section-header chip strip in EntityDetailView. (#1006)
+                // Per-card status / kind tags removed — they duplicated the
+                // section-header chip strip in EntityDetailView. (#1006)
 
-            if isExpanded {
-                expandedDetailSection
+                if isExpanded {
+                    expandedDetailSection
+                }
             }
-        }
-        .padding(10)
-        .background(Color(.windowBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .onTapGesture { openClaimSource() }
-        .contextMenu {
-            // Status sub-menu — set epistemic_status via PATCH.
-            // Confirmed / Tentative / Rejected are the three states the
-            // extractor emits; this lets the user override after review.
-            // (#901 inline editing.)
-            Menu("Set status") {
-                Button("Confirmed") { Task { await updateStatus(.confirmed) } }
-                Button("Tentative") { Task { await updateStatus(.tentative) } }
-                Button("Rejected") { Task { await updateStatus(.rejected) } }
+            .padding(10)
+            .background(Color(.windowBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .onTapGesture { openClaimSource() }
+            .contextMenu {
+                // Status sub-menu — set epistemic_status via PATCH.
+                // Confirmed / Tentative / Rejected are the three states the
+                // extractor emits; this lets the user override after review.
+                // (#901 inline editing.)
+                Menu("Set status") {
+                    Button("Confirmed") { Task { await updateStatus(.confirmed) } }
+                    Button("Tentative") { Task { await updateStatus(.tentative) } }
+                    Button("Rejected") { Task { await updateStatus(.rejected) } }
+                }
+                // Curation state — independent of epistemic status (the
+                // extractor's confidence in the source) and tracks the
+                // human's review pass.
+                Menu("Set curation") {
+                    Button("Unreviewed") { Task { await updateCuration(.unreviewed) } }
+                    Button("Shortlisted") { Task { await updateCuration(.shortlisted) } }
+                    Button("Curated") { Task { await updateCuration(.curated) } }
+                    Button("Rejected") { Task { await updateCuration(.rejected) } }
+                }
+                Divider()
+                Button("Delete claim…", role: .destructive) {
+                    deleteClaim()
+                }
             }
-            // Curation state — independent of epistemic status (the
-            // extractor's confidence in the source) and tracks the
-            // human's review pass.
-            Menu("Set curation") {
-                Button("Unreviewed") { Task { await updateCuration(.unreviewed) } }
-                Button("Shortlisted") { Task { await updateCuration(.shortlisted) } }
-                Button("Curated") { Task { await updateCuration(.curated) } }
-                Button("Rejected") { Task { await updateCuration(.rejected) } }
-            }
-            Divider()
-            Button("Delete claim…", role: .destructive) {
-                deleteClaim()
-            }
-        }
         }  // end else (isEmptyContent path)
     }
 
@@ -158,7 +158,7 @@ struct ClaimSummaryCard: View {
                 })
                 .buttonStyle(.plain)
                 .help("Search for '\(svo.subject)' in library")
-                
+
                 // Verb chip — tappable to search for predicate/verb
                 Button(action: {
                     NotificationCenter.default.post(
@@ -178,7 +178,7 @@ struct ClaimSummaryCard: View {
                 })
                 .buttonStyle(.plain)
                 .help("Search for '\(svo.verb)' predicates in library")
-                
+
                 // Object chip — tappable to search for object entity
                 Button(action: {
                     NotificationCenter.default.post(

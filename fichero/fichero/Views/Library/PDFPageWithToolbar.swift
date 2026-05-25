@@ -139,8 +139,8 @@ struct PDFPageWithToolbar: View {
                         loupeEnabled.toggle()
                     } label: {
                         Image(systemName: loupeEnabled
-                              ? "magnifyingglass.circle.fill"
-                              : "magnifyingglass.circle")
+                                ? "magnifyingglass.circle.fill"
+                                : "magnifyingglass.circle")
                     }
                     .buttonStyle(.plain)
                     .foregroundColor(loupeEnabled ? .accentColor : .primary)

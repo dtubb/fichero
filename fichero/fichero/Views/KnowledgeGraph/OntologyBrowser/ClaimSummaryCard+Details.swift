@@ -154,9 +154,9 @@ extension ClaimSummaryCard {
         let docId = claim.sourceDocumentId
         guard !docId.isEmpty,
               LibraryManager.shared.globalLibrary?
-                  .documentStore
-                  .currentDocuments
-                  .contains(where: { $0.id == docId }) == true
+                .documentStore
+                .currentDocuments
+                .contains(where: { $0.id == docId }) == true
         else { return }
         var info: [String: Any] = ["documentId": docId]
         if let pageLabel = claim.sourcePageLabel?

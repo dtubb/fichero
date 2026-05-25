@@ -691,7 +691,7 @@ struct OnboardingWizardView: View {
         } catch {
             appleProbeState = .unavailable(
                 "Couldn't check availability — \(error.localizedDescription). " +
-                "You can still pick this and configure later in Settings."
+                    "You can still pick this and configure later in Settings."
             )
         }
     }
@@ -702,7 +702,7 @@ struct OnboardingWizardView: View {
     ///   - LM Studio: OpenAI-compatible — GET /v1/models returns the list.
     /// We probe whichever the user picked. Falls back to the catalog default
     /// URL when the user left the field empty (mirrors save behavior).
-    private func testLocalConnection() async {
+    func testLocalConnection() async {
         guard let entry = selectedEntry, entry.isLocal else { return }
         let urlString = serverURL.trimmingCharacters(in: .whitespaces).isEmpty
             ? defaultServerURL(for: entry.providerType)

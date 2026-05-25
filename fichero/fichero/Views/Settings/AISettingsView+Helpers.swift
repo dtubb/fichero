@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
@@ -65,7 +66,7 @@ extension AISettingsView {
         selection: Binding<String>,
         models: [ModelInfo],
         tier: TierCapability = .any,
-    ) -> some View {
+        ) -> some View {
         let currentSelection = selection.wrappedValue
         let hasCurrentSelection = !currentSelection.isEmpty
         let filtered = models.filter { tier.matches($0) }
@@ -92,7 +93,7 @@ extension AISettingsView {
         for providerType: String,
         into models: Binding<[ModelInfo]>,
         selecting selection: Binding<String>,
-    ) {
+        ) {
         selection.wrappedValue = ""
 
         guard !providerType.isEmpty else {
@@ -111,34 +112,7 @@ extension AISettingsView {
             do {
                 let configured = try await appState.providerService
                     .listProviderModels(providerId: provider.id)
-                let list = configured.map { user in
-                    ModelInfo(
-                        modelId: user.modelId,
-                        fullName: user.name,
-                        description: nil,
-                        isRecommended: false,
-                        isLocal: false,
-                        inputCostPerMillion: 0,
-                        outputCostPerMillion: 0,
-                        batchInputCostPerMillion: nil,
-                        batchOutputCostPerMillion: nil,
-                        cacheReadCostPerMillion: nil,
-                        maxInputTokens: nil,
-                        maxOutputTokens: nil,
-                        mode: nil,
-                        supportsVision: user.capabilities.contains("vision"),
-                        supportsFunctionCalling: user.capabilities.contains("tools"),
-                        supportsAudioInput: user.capabilities.contains("audio"),
-                        supportsAudioOutput: false,
-                        supportsPdfInput: false,
-                        supportsPromptCaching: false,
-                        supportsReasoning: false,
-                        supportsWebSearch: false,
-                        supportsStreaming: false,
-                        supportsBatchApi: false,
-                        provider: providerType
-                    )
-                }
+                let list = configuredModelInfos(from: configured, providerType: providerType)
                 models.wrappedValue = list
                 if let first = list.first {
                     selection.wrappedValue = first.modelId
@@ -174,39 +148,46 @@ extension AISettingsView {
             do {
                 let configured = try await appState.providerService
                     .listProviderModels(providerId: provider.id)
-                models.wrappedValue = configured.map { user in
-                    ModelInfo(
-                        modelId: user.modelId,
-                        fullName: user.name,
-                        description: nil,
-                        isRecommended: false,
-                        isLocal: false,
-                        inputCostPerMillion: 0,
-                        outputCostPerMillion: 0,
-                        batchInputCostPerMillion: nil,
-                        batchOutputCostPerMillion: nil,
-                        cacheReadCostPerMillion: nil,
-                        maxInputTokens: nil,
-                        maxOutputTokens: nil,
-                        mode: nil,
-                        supportsVision: user.capabilities.contains("vision"),
-                        supportsFunctionCalling: user.capabilities.contains("tools"),
-                        supportsAudioInput: user.capabilities.contains("audio"),
-                        supportsAudioOutput: false,
-                        supportsPdfInput: false,
-                        supportsPromptCaching: false,
-                        supportsReasoning: false,
-                        supportsWebSearch: false,
-                        supportsStreaming: false,
-                        supportsBatchApi: false,
-                        provider: providerType
-                    )
-                }
+                models.wrappedValue = configuredModelInfos(from: configured, providerType: providerType)
             } catch {
                 settingsLogger.error(
                     "Failed to load configured models for \(providerType): \(error.localizedDescription)"
                 )
             }
+        }
+    }
+
+    private func configuredModelInfos(
+        from configured: [Components.Schemas.UserModelResponse],
+        providerType: String
+    ) -> [ModelInfo] {
+        configured.map { user in
+            ModelInfo(
+                modelId: user.modelId,
+                fullName: user.name,
+                description: nil,
+                isRecommended: false,
+                isLocal: false,
+                inputCostPerMillion: 0,
+                outputCostPerMillion: 0,
+                batchInputCostPerMillion: nil,
+                batchOutputCostPerMillion: nil,
+                cacheReadCostPerMillion: nil,
+                maxInputTokens: nil,
+                maxOutputTokens: nil,
+                mode: nil,
+                supportsVision: user.capabilities.contains("vision"),
+                supportsFunctionCalling: user.capabilities.contains("tools"),
+                supportsAudioInput: user.capabilities.contains("audio"),
+                supportsAudioOutput: false,
+                supportsPdfInput: false,
+                supportsPromptCaching: false,
+                supportsReasoning: false,
+                supportsWebSearch: false,
+                supportsStreaming: false,
+                supportsBatchApi: false,
+                provider: providerType
+            )
         }
     }
 

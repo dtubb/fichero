@@ -31,7 +31,7 @@ struct EntityDigestView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 emptyState
-                .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity)
             }
         }
         .task {
@@ -182,7 +182,7 @@ struct EntityDigestContent: View {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(entity.canonicalName)
                     .font(.system(size: 32, weight: .bold, design: .serif))
-                
+
                 if let type = entity.entityType {
                     Text(type.rawValue.capitalized)
                         .font(.caption)
@@ -193,7 +193,7 @@ struct EntityDigestContent: View {
                         .foregroundStyle(Color.accentColor)
                 }
             }
-            
+
             if let description = entity.description {
                 Text(description)
                     .font(.title3)
@@ -240,7 +240,7 @@ struct EntityDigestContent: View {
             } else {
                 // Group claims by document
                 let grouped = Dictionary(grouping: claims) { $0.sourceDocumentId ?? "Unknown Document" }
-                
+
                 ForEach(Array(grouped.keys).sorted(), id: \.self) { docId in
                     provenanceItem(docId: docId, claims: grouped[docId] ?? [])
                 }
@@ -251,7 +251,7 @@ struct EntityDigestContent: View {
 
     private func provenanceItem(docId: String, claims: [Components.Schemas.KnowledgeClaim]) -> some View {
         let docName = LibraryManager.shared.globalLibrary?.documentStore.currentDocuments.first(where: { $0.id == docId })?.name ?? docId
-        
+
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "doc.text")
@@ -273,7 +273,7 @@ struct EntityDigestContent: View {
                         } else {
                             Spacer().frame(width: 50)
                         }
-                        
+
                         Text(claim.text)
                             .font(.caption)
                             .foregroundStyle(.primary)
@@ -290,30 +290,30 @@ struct EntityDigestContent: View {
     private var composedBiography: Text {
         var first = true
         var composed = Text("")
-        
+
         for claim in claims {
             // Basic SVO extraction
             let subject = first ? entity.canonicalName : "they"
             first = false
-            
+
             let verb = claim.predicateVerb ?? ""
             let object = claim.objectPhrase ?? ""
-            
+
             if verb.isEmpty && object.isEmpty { continue }
-            
+
             let docName = LibraryManager.shared.globalLibrary?.documentStore.currentDocuments.first(
                 where: { $0.id == claim.sourceDocumentId }
             )?.name
             let citation = docName != nil ? " [\(docName!)]" : ""
-            
-            composed = composed 
-                + Text(subject) 
-                + Text(" \(verb) ").italic().foregroundStyle(Color.accentColor) 
-                + Text(object) 
+
+            composed = composed
+                + Text(subject)
+                + Text(" \(verb) ").italic().foregroundStyle(Color.accentColor)
+                + Text(object)
                 + Text(citation).font(.caption2).italic().foregroundStyle(.secondary)
                 + Text(". ")
         }
-        
+
         return composed.isEmpty ? Text("No biography data available.") : composed
     }
 

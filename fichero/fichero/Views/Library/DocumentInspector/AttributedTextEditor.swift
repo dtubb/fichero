@@ -178,86 +178,65 @@ struct AttributedTextEditor: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = context.coordinator.textView else { return }
         if controller?.textView !== textView { controller?.textView = textView }
-        textView.isEditable = isEditable
-        textView.usesInspectorBar = false
-        // Only push rulersVisible into AppKit when it actually differs from
-        // the current state. Otherwise we stomp AppKit's `toggleRuler:`
-        // (Format > Text > Show Ruler) on every SwiftUI re-render and the
-        // ruler appears not to toggle. The KVO observer in Coordinator
-        // mirrors AppKit's writes back to @AppStorage to keep both in sync.
-        if scrollView.rulersVisible != rulersVisible {
-            context.coordinator.isApplyingRulerUpdate = true
-            textView.usesRuler = rulersVisible
-            scrollView.rulersVisible = rulersVisible
-            context.coordinator.isApplyingRulerUpdate = false
-        }
-        scrollView.contentInsets = NSEdgeInsets(
-            top: 0, left: leadingInset, bottom: 0, right: trailingInset
+        let configuration = TextViewStateConfiguration(
+            isEditable: isEditable,
+            rulersVisible: rulersVisible,
+            leadingInset: leadingInset,
+            trailingInset: trailingInset,
+            marginV: marginV
         )
+        configureTextViewState(scrollView, textView: textView, context: context, configuration: configuration)
+        applyTypographyIfNeeded(to: textView, context: context)
+        applyContentIfNeeded(to: textView, context: context)
+    }
 
-        textView.textContainerInset = NSSize(width: 0, height: marginV)
+    private func applyTypographyIfNeeded(to textView: NSTextView, context: Context) {
         let paraStyle = NSMutableParagraphStyle()
         paraStyle.lineSpacing = CGFloat(lineSpacing)
         textView.defaultParagraphStyle = paraStyle
         textView.typingAttributes[.font] = resolvedFont
         textView.typingAttributes[.paragraphStyle] = paraStyle
+
         let typographySignature = "\(fontName)|\(fontSize)|\(lineSpacing)"
-
-        // Only force-apply typography to existing text when the user actually changes
-        // the default font/size/spacing in preferences — NOT on initial load. On load,
-        // the decoded RTF may carry per-range fonts/colors the user set via the format
-        // menu; blindly overwriting them strips their formatting on every reopen.
         let isInitialTypographyApply = context.coordinator.lastTypographySignature.isEmpty
-        if context.coordinator.lastTypographySignature != typographySignature {
-            if !isInitialTypographyApply,
-               let textStorage = textView.textStorage,
-               textStorage.length > 0 {
-                let fullRange = NSRange(location: 0, length: textStorage.length)
-                context.coordinator.isApplyingModelUpdate = true
-                textStorage.addAttribute(.font, value: resolvedFont, range: fullRange)
-                textStorage.addAttribute(.paragraphStyle, value: paraStyle, range: fullRange)
-                context.coordinator.isApplyingModelUpdate = false
-                // Writing to @Binding `text` directly from inside updateNSView
-                // triggers 'Modifying state during view update' warnings — SwiftUI
-                // is actively re-rendering us. Defer the binding write (and the
-                // derived onTextChanged callback) to the next runloop so we're
-                // past the update phase. Daniel report 2026-04-24.
-                let updated = textView.attributedString()
-                let onTextChangedCallback = onTextChanged
-                DispatchQueue.main.async {
-                    text = updated
-                    onTextChangedCallback()
-                }
-            }
-            context.coordinator.lastTypographySignature = typographySignature
-        }
+        guard context.coordinator.lastTypographySignature != typographySignature else { return }
 
-        if context.coordinator.lastAppliedRevision != contentRevision {
-            // When the *content* changes (e.g., switched documents),
-            // collapse the selection to the start. Preserving stale offsets
-            // from the previous document would highlight unrelated text in
-            // the new one. (#747)
-            //
-            // When only typography (font/size/lineSpacing) changed, the
-            // earlier branch already wrote through and `text` here matches
-            // current content — selection should stay put. We detect that
-            // by comparing strings; if they match, keep selection.
-            let isContentSwap = (textView.string != text.string)
-            let preservedRanges = textView.selectedRanges
+        if !isInitialTypographyApply,
+           let textStorage = textView.textStorage,
+           textStorage.length > 0 {
+            let fullRange = NSRange(location: 0, length: textStorage.length)
             context.coordinator.isApplyingModelUpdate = true
-            textView.textStorage?.setAttributedString(text)
-            if isContentSwap {
-                textView.setSelectedRange(NSRange(location: 0, length: 0))
-            } else {
-                textView.setSelectedRanges(
-                    preservedRanges,
-                    affinity: textView.selectionAffinity,
-                    stillSelecting: false
-                )
-            }
-            context.coordinator.lastAppliedRevision = contentRevision
+            textStorage.addAttribute(.font, value: resolvedFont, range: fullRange)
+            textStorage.addAttribute(.paragraphStyle, value: paraStyle, range: fullRange)
             context.coordinator.isApplyingModelUpdate = false
+            let updated = textView.attributedString()
+            let onTextChangedCallback = onTextChanged
+            DispatchQueue.main.async {
+                text = updated
+                onTextChangedCallback()
+            }
         }
+        context.coordinator.lastTypographySignature = typographySignature
+    }
+
+    private func applyContentIfNeeded(to textView: NSTextView, context: Context) {
+        guard context.coordinator.lastAppliedRevision != contentRevision else { return }
+
+        let isContentSwap = (textView.string != text.string)
+        let preservedRanges = textView.selectedRanges
+        context.coordinator.isApplyingModelUpdate = true
+        textView.textStorage?.setAttributedString(text)
+        if isContentSwap {
+            textView.setSelectedRange(NSRange(location: 0, length: 0))
+        } else {
+            textView.setSelectedRanges(
+                preservedRanges,
+                affinity: textView.selectionAffinity,
+                stillSelecting: false
+            )
+        }
+        context.coordinator.lastAppliedRevision = contentRevision
+        context.coordinator.isApplyingModelUpdate = false
     }
 
     @MainActor
@@ -362,4 +341,36 @@ struct AttributedTextEditor: NSViewRepresentable {
         coordinator.onRulerVisibilityChanged = onRulerVisibilityChanged
         return coordinator
     }
+}
+
+@MainActor
+private func configureTextViewState(
+    _ scrollView: NSScrollView,
+    textView: NSTextView,
+    context: AttributedTextEditor.Context,
+    configuration: TextViewStateConfiguration
+) {
+    textView.isEditable = configuration.isEditable
+    textView.usesInspectorBar = false
+    if scrollView.rulersVisible != configuration.rulersVisible {
+        context.coordinator.isApplyingRulerUpdate = true
+        textView.usesRuler = configuration.rulersVisible
+        scrollView.rulersVisible = configuration.rulersVisible
+        context.coordinator.isApplyingRulerUpdate = false
+    }
+    scrollView.contentInsets = NSEdgeInsets(
+        top: 0,
+        left: configuration.leadingInset,
+        bottom: 0,
+        right: configuration.trailingInset
+    )
+    textView.textContainerInset = NSSize(width: 0, height: configuration.marginV)
+}
+
+private struct TextViewStateConfiguration {
+    let isEditable: Bool
+    let rulersVisible: Bool
+    let leadingInset: CGFloat
+    let trailingInset: CGFloat
+    let marginV: Double
 }

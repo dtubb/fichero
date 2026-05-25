@@ -95,8 +95,8 @@ struct DocumentInspector: View {
                 .background(
                     RoundedRectangle(cornerRadius: 6)
                         .fill(selectedTab == tab
-                              ? Color.accentColor.opacity(0.15)
-                              : Color.clear)
+                                ? Color.accentColor.opacity(0.15)
+                                : Color.clear)
                 )
                 .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
                 .help(tab.rawValue)
@@ -111,67 +111,88 @@ struct DocumentInspector: View {
     private func tabContent(for doc: Document) -> some View {
         switch selectedTab {
         case .content:
-            DocumentInspectorContentV2(document: doc, mode: .pageContentOnly)
+            contentTab(for: doc)
         case .knowledgeGraph:
-            ScrollView {
-                KnowledgeGraphInspectorSection(
-                    documentId: doc.id,
-                    entityService: entityService,
-                    onNavigateToSource: onNavigateToSource,
-                    onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
-                        // Notify the content view to sync claim selection
-                        NotificationCenter.default.post(
-                            name: .claimSelectedInInspector,
-                            object: nil,
-                            userInfo: [
-                                "claimId": claimId,
-                                "claimText": claimText as Any,
-                                "sourceDocumentId": sourceDocId as Any,
-                                "pageLabel": pageLabel as Any,
-                                "charStart": charStart as Any,
-                                "charEnd": charEnd as Any
-                            ]
-                        )
-                    }
-                )
-                .padding()
-            }
+            knowledgeGraphTab(for: doc)
         case .map:
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Page-scoped Knowledge Graph (Map View)")
-                        .font(.headline)
-                    Text("Showing entities and relationships specific to this document.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    // This would show a force-directed graph visualization of entities
-                    // in the current document context (page-scoped)
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.gray.opacity(0.1))
-                        .frame(height: 300)
-                        .overlay(
-                            Text("Map tab placeholder - page-scoped graph would appear here")
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding()
-                        )
-                }
-                .padding()
-            }
+            mapTab
         case .artifacts:
-            DocumentInspectorContentV2(document: doc, mode: .artifactsOnly)
+            artifactsTab(for: doc)
         case .info:
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    DocumentInspectorInfoTab(document: doc)
-                    if !doc.metadata.isEmpty || doc.path != nil {
-                        DocumentInspectorMetadataTab(document: doc)
-                    }
-                    Spacer()
+            infoTab(for: doc)
+        }
+    }
+
+    @ViewBuilder
+    private func contentTab(for doc: Document) -> some View {
+        DocumentInspectorContentV2(document: doc, mode: .pageContentOnly)
+    }
+
+    @ViewBuilder
+    private func knowledgeGraphTab(for doc: Document) -> some View {
+        ScrollView {
+            KnowledgeGraphInspectorSection(
+                documentId: doc.id,
+                entityService: entityService,
+                onNavigateToSource: onNavigateToSource,
+                onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
+                    NotificationCenter.default.post(
+                        name: .claimSelectedInInspector,
+                        object: nil,
+                        userInfo: [
+                            "claimId": claimId,
+                            "claimText": claimText as Any,
+                            "sourceDocumentId": sourceDocId as Any,
+                            "pageLabel": pageLabel as Any,
+                            "charStart": charStart as Any,
+                            "charEnd": charEnd as Any
+                        ]
+                    )
                 }
-                .padding()
+            )
+            .padding()
+        }
+    }
+
+    private var mapTab: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Page-scoped Knowledge Graph (Map View)")
+                    .font(.headline)
+                Text("Showing entities and relationships specific to this document.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.gray.opacity(0.1))
+                    .frame(height: 300)
+                    .overlay(
+                        Text("Map tab placeholder - page-scoped graph would appear here")
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding()
+                    )
             }
+            .padding()
+        }
+    }
+
+    @ViewBuilder
+    private func artifactsTab(for doc: Document) -> some View {
+        DocumentInspectorContentV2(document: doc, mode: .artifactsOnly)
+    }
+
+    @ViewBuilder
+    private func infoTab(for doc: Document) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                DocumentInspectorInfoTab(document: doc)
+                if !doc.metadata.isEmpty || doc.path != nil {
+                    DocumentInspectorMetadataTab(document: doc)
+                }
+                Spacer()
+            }
+            .padding()
         }
     }
 
@@ -653,9 +674,9 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         if content.hasPrefix("{\\rtf"),
            let data = content.data(using: .utf8),
            let attr = try? NSAttributedString(
-               data: data,
-               options: [.documentType: NSAttributedString.DocumentType.rtf],
-               documentAttributes: nil
+            data: data,
+            options: [.documentType: NSAttributedString.DocumentType.rtf],
+            documentAttributes: nil
            ) {
             return attr
         }
@@ -776,9 +797,9 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
             if content.hasPrefix("{\\rtf"),
                let data = content.data(using: .utf8),
                let attr = try? NSAttributedString(
-                   data: data,
-                   options: [.documentType: NSAttributedString.DocumentType.rtf],
-                   documentAttributes: nil
+                data: data,
+                options: [.documentType: NSAttributedString.DocumentType.rtf],
+                documentAttributes: nil
                ) {
                 return attr.string
             }

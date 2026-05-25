@@ -21,8 +21,8 @@ extension EntityDetailView {
                     biographyMode.toggle()
                 } label: {
                     Image(systemName: biographyMode
-                          ? "text.alignleft"
-                          : "text.justify")
+                            ? "text.alignleft"
+                            : "text.justify")
                         .font(.caption)
                         .foregroundStyle(biographyMode ? Color.accentColor : Color.secondary)
                 }
@@ -103,8 +103,8 @@ extension EntityDetailView {
                         showAllClaims.toggle()
                     } label: {
                         Text(showAllClaims
-                             ? "Show \(cap) of \(filteredClaims.count)"
-                             : "Show all \(filteredClaims.count) claims")
+                                ? "Show \(cap) of \(filteredClaims.count)"
+                                : "Show all \(filteredClaims.count) claims")
                             .font(.caption)
                             .foregroundColor(.accentColor)
                     }
