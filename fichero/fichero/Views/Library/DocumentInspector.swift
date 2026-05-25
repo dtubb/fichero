@@ -984,7 +984,7 @@ struct DocumentInspectorContentV2: View {
                 .padding(.vertical, 16)
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     @ViewBuilder
