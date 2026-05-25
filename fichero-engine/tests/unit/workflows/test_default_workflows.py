@@ -81,6 +81,22 @@ class TestLoadPresetFiles:
         assert data_feeders, "no edge feeds catalogue.data"
         assert {e["source"] for e in data_feeders} == {"merge_extracts"}
 
+    def test_catalogue_each_preset_is_configured_for_folder_fan_out(self):
+        """Catalogue Each should stay wired as the bulk fan-out preset."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        catalogue_each = presets["Catalogue Each"]
+
+        assert catalogue_each.get("is_template") is True
+        assert catalogue_each.get("is_system") is True
+        assert catalogue_each.get("folder_path") == "/Catalogue"
+        assert catalogue_each.get("config", {}).get("fan_out_enabled") is True
+        assert "fan_out" in catalogue_each.get("tags", [])
+
+        node_tools = {n["tool"] for n in catalogue_each["nodes"]}
+        assert "folder" in node_tools
+        assert "transcribe" in node_tools
+        assert "catalogue" in node_tools
+
     def test_default_templates_have_folder_path_groups(self):
         """Templates ship with `folder_path` values so the Run Workflow
         context menu can render them in submenus (#722)."""
@@ -103,6 +119,7 @@ class TestLoadPresetFiles:
         assert "extract_all" in node_tools, (
             "Catalogue preset must use the combined extract_all tool"
         )
+        assert "kg_writer" in node_tools, "Catalogue preset must include kg_writer"
         for cleaner in (
             "people_folder_cleanup",
             "places_folder_cleanup",
@@ -114,6 +131,10 @@ class TestLoadPresetFiles:
             assert cleaner in node_tools, (
                 f"Catalogue preset missing folder cleanup {cleaner!r}"
             )
+        extract_all_node = next(
+            n for n in presets["Catalogue"]["nodes"] if n["tool"] == "extract_all"
+        )
+        assert extract_all_node["config"].get("persist_kg") is False
         # Per-type extractors and per-page cleanups dropped for speed.
         for dropped in (
             "people_extract", "places_extract", "organizations_extract",
@@ -125,6 +146,15 @@ class TestLoadPresetFiles:
             assert dropped not in node_tools, (
                 f"Catalogue preset should no longer use {dropped!r}"
             )
+        kg_writer_id = _node_id(presets["Catalogue"], "kg_writer")
+        extract_id = _node_id(presets["Catalogue"], "extract_all")
+        assert any(
+            e["source"] == extract_id
+            and e["target"] == kg_writer_id
+            and e["source_port"] == "kg_payload"
+            and e["target_port"] == "kg_payload"
+            for e in presets["Catalogue"]["edges"]
+        )
 
     def test_catalogue_drops_archive_specific_extractors(self):
         """Archive-specific extractors don't ship in the default workflow."""
@@ -135,6 +165,25 @@ class TestLoadPresetFiles:
             "properties_extract", "legal_references_extract",
         }
         assert not (archive_specific & node_tools)
+
+    def test_ner_per_page_local_has_explicit_kg_writer(self):
+        presets = {p["name"]: p for p in _load_preset_files()}
+        preset = presets["NER per-page (local)"]
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        assert "kg_writer" in node_tools
+        extract_all_node = next(
+            n for n in preset["nodes"] if n["tool"] == "extract_all"
+        )
+        assert extract_all_node["config"].get("persist_kg") is False
+        extract_id = _node_id(preset, "extract_all")
+        kg_writer_id = _node_id(preset, "kg_writer")
+        assert any(
+            e["source"] == extract_id
+            and e["target"] == kg_writer_id
+            and e["source_port"] == "kg_payload"
+            and e["target_port"] == "kg_payload"
+            for e in preset["edges"]
+        )
 
     def test_catalogue_small_uses_dollar_small_throughout(self):
         """Every LLM-using node in the default Catalogue preset references
@@ -193,6 +242,51 @@ class TestLoadPresetFiles:
         file_edge = next(e for e in edges if e["id"] == "edge-files-transcribe")
         assert file_edge["source_port"] == "files"
         assert file_edge["target_port"] == "files"
+
+    def test_transcribe_presets_query_reference_corpus_on_pass_two(self):
+        """The shipped transcription presets feed Pass 1 into corpus search.
+
+        Pass 2 should receive the search hits as metadata so the review
+        prompt can inspect the reference corpus alongside the draft.
+        """
+        presets = {p["name"]: p for p in _load_preset_files()}
+        preset_specs = [
+            ("Transcribe HTR", "transcribe", "transcribe_review", "reference-search"),
+            (
+                "Transcribe Paleography",
+                "transcribe",
+                "transcribe_review",
+                "reference-search",
+            ),
+            ("Transcribe (Auto-Detect)", "transcribe-htr", "review-htr", "reference-search-htr"),
+            (
+                "Transcribe (Auto-Detect)",
+                "transcribe-paleo",
+                "review-paleo",
+                "reference-search-paleo",
+            ),
+        ]
+
+        for preset_name, transcribe_id, review_id, search_id in preset_specs:
+            preset = presets[preset_name]
+            node_ids = {n["id"] for n in preset["nodes"]}
+            assert search_id in node_ids, f"{preset_name} must include {search_id}"
+
+            transcribe_to_search = next(
+                e
+                for e in preset["edges"]
+                if e["source"] == transcribe_id and e["target"] == search_id
+            )
+            assert transcribe_to_search["source_port"] == "text"
+            assert transcribe_to_search["target_port"] == "query"
+
+            search_to_review = next(
+                e
+                for e in preset["edges"]
+                if e["source"] == search_id and e["target"] == review_id
+            )
+            assert search_to_review["source_port"] == "documents"
+            assert search_to_review["target_port"] == "metadata"
 
 
     def test_catalogue_inputs_route_via_transcribe_not_user_aggregate(self):
@@ -313,7 +407,6 @@ class TestLoadPresetFiles:
         # Two-pass branches (HTR, paleography) must have a review node downstream
         htr_transcribe_id = rmap["htr"]
         paleo_transcribe_id = rmap["paleography"]
-        htr_review_id = rmap.get("htr_review")  # not a key — find via edges
         # Find review nodes connected from htr/paleo transcribe nodes
         htr_review_edges = [e for e in ad["edges"] if e.get("source") == htr_transcribe_id and e.get("target_port") == "context"]
         paleo_review_edges = [e for e in ad["edges"] if e.get("source") == paleo_transcribe_id and e.get("target_port") == "context"]

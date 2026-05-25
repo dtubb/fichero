@@ -42,8 +42,18 @@
       "inputs": {},
       "config": {
         "output_language": "auto",
-        "provider_name": "$small"
+        "provider_name": "$small",
+        "persist_kg": false
       }
+    },
+    {
+      "id": "kg_writer",
+      "tool": "kg_writer",
+      "label": "Write KG",
+      "position_x": 560,
+      "position_y": 400,
+      "inputs": {},
+      "config": {}
     },
     {
       "id": "people_folder_clean",
@@ -166,6 +176,13 @@
       "target_port": "text"
     },
     {
+      "id": "e-extract_all-kg_writer",
+      "source": "extract_all",
+      "target": "kg_writer",
+      "source_port": "kg_payload",
+      "target_port": "kg_payload"
+    },
+    {
       "id": "e-extract_all-places_folder_clean",
       "source": "extract_all",
       "target": "places_folder_clean",
@@ -251,6 +268,6 @@
     }
   ],
   "config": {
-    "preset_version": 4
+    "preset_version": 5
   }
 }

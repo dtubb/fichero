@@ -1,3 +1,13 @@
+# 2026-05-25 — Backend Lane Session Summary
+
+- Completed backend issue #1111: added deterministic KG paragraph rendering with bidirectional citation metadata, wired to `POST /api/kg/render/paragraph`, and added targeted regression coverage.
+- Kept backend verification narrow per lane policy: targeted `ruff` on touched backend files plus the single new regression test file.
+- Updated `.ai/inbox/done-codex-2026-05-25.md` with the issue summary and verification commands.
+
+- Completed the `#1198` backend follow-up: exposed the entity digest endpoint in OpenAPI, added regression coverage, and fixed the test fixture override so digest tests use the isolated library DB path instead of same-thread cache coincidence.
+- Verified `#1173` and `#1054` were already fixed and required no code changes.
+- Committed the final backend fixes on `codex` as `49ff32f5` and `af7caffd`.
+
 ## 2026-05-25 — Overnight 4-phase plan (Claude watchdog + Codex)
 
 - ✅ Phase 1: bumped `liquidjs` ≥ 10.25.7 via `overrides` in `site/package.json` (Dependabot high-severity).

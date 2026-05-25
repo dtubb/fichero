@@ -52,6 +52,7 @@ from fichero.workflows.tools import entities
 from fichero.workflows.tools import timeline
 from fichero.workflows.tools import key_people
 from fichero.workflows.tools import catalogue
+from fichero.workflows.tools import ner
 from fichero.workflows.tools import rewrite
 from fichero.workflows.tools import sentiment
 from fichero.workflows.tools import keywords
@@ -59,6 +60,7 @@ from fichero.workflows.tools import questions
 from fichero.workflows.tools import classify_text
 from fichero.workflows.tools import extractors  # per-section catalogue extractors
 from fichero.workflows.tools import extract_all  # combined single-call extractor
+from fichero.workflows.tools import kg_writer
 from fichero.workflows.tools import cleanup  # per-section page/folder canonical cleanup
 
 # Audio tools (use shared audio_base)
@@ -114,6 +116,7 @@ __all__ = [
     "timeline",
     "key_people",
     "catalogue",
+    "ner",
     "rewrite",
     "sentiment",
     "keywords",
@@ -121,6 +124,7 @@ __all__ = [
     "classify_text",
     "extractors",
     "extract_all",
+    "kg_writer",
     "cleanup",
     # Audio
     "audio_transcribe",

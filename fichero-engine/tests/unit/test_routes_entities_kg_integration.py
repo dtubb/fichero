@@ -9,9 +9,10 @@ KnowledgeEntity rows → /api/entities response → Inspector view.
 
 from __future__ import annotations
 
-import pytest
+from fastapi.testclient import TestClient
 
-from fichero.knowledge_models import EntityType, KnowledgeEntity, KnowledgeClaim
+from fichero.api.main import app
+from fichero.knowledge_models import EntityType
 from fichero.workflows.tools._entity_writer import upsert_entity, save_claim
 
 
@@ -160,3 +161,84 @@ class TestClaimsEndpointAfterExtractorWrite:
         claims = r.json()["items"]
         linked = [c for c in claims if person_id in c.get("entity_ids", [])]
         assert len(linked) == 1
+
+
+class TestEntityDigestEndpointAfterExtractorWrite:
+    def test_digest_renders_markdown_with_footnotes(self, client, db):
+        person_id = upsert_entity(db, "Juan", EntityType.person)
+        place_id = upsert_entity(db, "Medellín", EntityType.location)
+        save_claim(
+            db,
+            text="Juan signed the deed",
+            source_document_id="doc-1",
+            source_page_label="12",
+            entity_ids=[person_id],
+        )
+        save_claim(
+            db,
+            text="Medellín is the city",
+            source_document_id="doc-2",
+            source_page_label="7",
+            entity_ids=[place_id],
+        )
+
+        r = client.get(
+            "/api/entities/digest",
+            params={"format": "markdown"},
+        )
+        assert r.status_code == 200
+        body = r.text
+        assert body.startswith("# Entity Digest")
+        assert "Juan (Person)" in body
+        assert "Medellín (Location)" in body
+        assert "Juan signed the deed" in body
+        assert "[^1]" in body
+        assert "## Sources" in body
+
+    def test_digest_renders_plain_text(self, client, db):
+        person_id = upsert_entity(db, "Juan", EntityType.person)
+        save_claim(
+            db,
+            text="Juan signed the deed",
+            source_document_id="doc-1",
+            source_page_label="12",
+            entity_ids=[person_id],
+        )
+
+        r = client.get(
+            "/api/entities/digest",
+            params={"format": "text"},
+        )
+        assert r.status_code == 200
+        body = r.text
+        assert body.startswith("Entity Digest:")
+        assert "Juan (Person):" in body
+        assert "Juan signed the deed" in body
+        assert "[doc-1 - p. 12]" in body
+
+    def test_digest_missing_library_header_returns_400(self, db):
+        person_id = upsert_entity(db, "Juan", EntityType.person)
+        save_claim(
+            db,
+            text="Juan signed the deed",
+            source_document_id="doc-1",
+            source_page_label="12",
+            entity_ids=[person_id],
+        )
+
+        with TestClient(app) as raw_client:
+            r = raw_client.get("/api/entities/digest", params={"format": "markdown"})
+        assert r.status_code == 400
+
+    def test_digest_rejects_unsupported_format(self, client, db):
+        person_id = upsert_entity(db, "Juan", EntityType.person)
+        save_claim(
+            db,
+            text="Juan signed the deed",
+            source_document_id="doc-1",
+            source_page_label="12",
+            entity_ids=[person_id],
+        )
+
+        r = client.get("/api/entities/digest", params={"format": "pdf"})
+        assert r.status_code == 400

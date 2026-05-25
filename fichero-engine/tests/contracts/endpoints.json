@@ -2063,6 +2063,22 @@
       },
       {
         "method": "GET",
+        "path": "/entities/digest",
+        "operation_id": "entity_digest_api_entities_digest_get",
+        "summary": "Entity Digest",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "format",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
         "path": "/entities/{entity_id}",
         "operation_id": "get_entity_api_entities__entity_id__get",
         "summary": "Get Entity",

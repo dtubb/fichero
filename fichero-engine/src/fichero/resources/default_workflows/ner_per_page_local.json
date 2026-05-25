@@ -13,7 +13,7 @@
     "field-notes"
   ],
   "config": {
-    "preset_version": 1
+    "preset_version": 2
   },
   "nodes": [
     {
@@ -46,8 +46,18 @@
       "inputs": {},
       "config": {
         "output_language": "auto",
-        "provider_name": "$small"
+        "provider_name": "$small",
+        "persist_kg": false
       }
+    },
+    {
+      "id": "kg_writer",
+      "tool": "kg_writer",
+      "label": "Write KG",
+      "position_x": 560,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
     }
   ],
   "edges": [
@@ -71,6 +81,13 @@
       "target": "extract_all",
       "source_port": "records",
       "target_port": "records"
+    },
+    {
+      "id": "e-extract_all-kg_writer",
+      "source": "extract_all",
+      "target": "kg_writer",
+      "source_port": "kg_payload",
+      "target_port": "kg_payload"
     }
   ]
 }
