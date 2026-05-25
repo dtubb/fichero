@@ -197,25 +197,31 @@ struct EntityDetailView: View { // swiftlint:disable:this type_body_length
         return composed
     }
 
+    private struct SVOTriple {
+        let subject: String
+        let verb: String
+        let object: String
+    }
+
     /// Returns the SVO triple from claim metadata, or nil if the claim
     /// has no SVO (legacy or empty-content). Mirrors the helper on
     /// ClaimSummaryCard.
     private func svoOf(
         _ claim: Components.Schemas.KnowledgeClaim
-    ) -> (subject: String, verb: String, object: String)? {
+    ) -> SVOTriple? {
         // Prefer typed top-level fields (#984); legacy metadata fallback.
         let subject = (claim.subjectCanonical ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let verb = (claim.predicateVerb ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let object = (claim.objectPhrase ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !subject.isEmpty, !verb.isEmpty, !object.isEmpty {
-            return (subject, verb, object)
+            return SVOTriple(subject: subject, verb: verb, object: object)
         }
         guard let dict = claim.metadata?.additionalProperties.value else { return nil }
         let metadataSubject = (dict["subject"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let metadataVerb = (dict["verb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let metadataObject = (dict["object"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !metadataSubject.isEmpty, !metadataVerb.isEmpty, !metadataObject.isEmpty else { return nil }
-        return (metadataSubject, metadataVerb, metadataObject)
+        return SVOTriple(subject: metadataSubject, verb: metadataVerb, object: metadataObject)
     }
 
     /// Pronoun to use after the first mention. Defaults to "they" for

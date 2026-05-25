@@ -929,9 +929,14 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
         let svoLines: [String]
     }
 
+    private struct EntityAccumulator {
+        let kind: EntityKind
+        let displayName: String
+        var svoLines: [String]
+    }
+
     private var textDigest: [(EntityKind, [TextDigestEntry])] {
-        // key → (kind, displayName, accumulated SVO strings)
-        var byEntity: [String: (EntityKind, String, [String])] = [:]
+        var byEntity: [String: EntityAccumulator] = [:]
         let hidden = hiddenKinds
 
         for claim in claims {
@@ -962,16 +967,16 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
             }
 
             if byEntity[key] == nil {
-                byEntity[key] = (kind, displayName, [svo])
+                byEntity[key] = EntityAccumulator(kind: kind, displayName: displayName, svoLines: [svo])
             } else {
-                byEntity[key]!.2.append(svo)
+                byEntity[key]!.svoLines.append(svo)
             }
         }
 
         var byKind: [EntityKind: [TextDigestEntry]] = [:]
-        for (_, (kind, name, svos)) in byEntity {
-            let entry = TextDigestEntry(displayName: name, kind: kind, svoLines: svos)
-            byKind[kind, default: []].append(entry)
+        for (_, accumulator) in byEntity {
+            let entry = TextDigestEntry(displayName: accumulator.displayName, kind: accumulator.kind, svoLines: accumulator.svoLines)
+            byKind[accumulator.kind, default: []].append(entry)
         }
 
         return EntityKind.displayOrder.compactMap { kind in
@@ -1396,14 +1401,14 @@ private struct EntityKindRow: View {
                             item.sourceExcerpt,
                             item.sourceDocumentId,
                             item.sourcePageLabel,
-                            nil, // charStart - would need to parse from text
-                            nil  // charEnd - would need to parse from text
+                            nil,
+                            nil
                         )
-                    }) {
+                    }, label: {
                         Image(systemName: claimFocusState.isClaimSelected(item.claimId) ? "star.fill" : "star")
                             .font(.system(size: 12))
                             .foregroundStyle(claimFocusState.isClaimSelected(item.claimId) ? Color.accentColor : Color.secondary)
-                    }
+                    })
                     .buttonStyle(.plain)
                     .help(
                         claimFocusState.isClaimSelected(item.claimId)

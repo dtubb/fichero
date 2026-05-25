@@ -15,6 +15,12 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
     @State private var evidenceChain: Components.Schemas.EvidenceChain?
     @State private var isLoadingDetails: Bool = false
 
+    private struct SVOTriple {
+        let subject: String
+        let verb: String
+        let object: String
+    }
+
     /// SVO triple extracted from `claim.metadata`. The backend extractor
     /// already produces these (see #984; extractors.py:1375-1456 sets
     /// `metadata["subject" / "verb" / "object"]`). When all three are
@@ -23,7 +29,7 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
     /// When absent, render a "no claim text — regenerate KG" notice
     /// (Daniel's directive: "if KG is absent, we generate it"; don't
     /// fall back to `claim.text`).
-    private var svo: (subject: String, verb: String, object: String)? {
+    private var svo: SVOTriple? {
         // Prefer the typed top-level fields (#984). Fall back to
         // claim.metadata for one release while existing claim rows
         // get backfilled.
@@ -31,7 +37,7 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
         let verb = (claim.predicateVerb ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let object = (claim.objectPhrase ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !subject.isEmpty, !verb.isEmpty, !object.isEmpty {
-            return (subject, verb, object)
+            return SVOTriple(subject: subject, verb: verb, object: object)
         }
         // Legacy metadata fallback.
         guard let dict = claim.metadata?.additionalProperties.value else { return nil }
@@ -39,7 +45,7 @@ struct ClaimSummaryCard: View { // swiftlint:disable:this type_body_length
         let metaVerb = (dict["verb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let metaObject = (dict["object"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !metaSubject.isEmpty, !metaVerb.isEmpty, !metaObject.isEmpty else { return nil }
-        return (metaSubject, metaVerb, metaObject)
+        return SVOTriple(subject: metaSubject, verb: metaVerb, object: metaObject)
     }
 
     /// A claim card has no useful content when it has NO SVO triple AND
