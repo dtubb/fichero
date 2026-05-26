@@ -263,7 +263,7 @@ See `docs/architecture/swiftui/api_migration_guide.md` and `docs/architecture/sw
 
 These are operational and owned elsewhere — not restated here:
 - **Branch discipline + conventional-commit format + pre-commit gate** → `AGENTS.md` and `.claude/CLAUDE.md` ("Rules I Don't Break"). In short: commit milestone work directly to the milestone branch (no per-task branches); never push to `main` without approval; regenerate the OpenAPI client before committing any backend API change.
-- **Task tracking** → GitHub Issues + Milestones + Project board are the source of truth; local `PLAN.md`/`TASKS.md`/`docs/agent-workflow/TODO.md` are not. `STATE.md` is continuity context only. (See `CONSTITUTION.md` → Execution Governance.)
+- **Task tracking** → GitHub Issues + Milestones + Project board are the source of truth; local planning files (`PLAN.md`, `TASKS.md`) are not. `STATE.md` is continuity context only. (See `CONSTITUTION.md` → Execution Governance.)
 - **Lanes, delegation, the QA review gate** → the session-start / manager skills and `docs/agent-workflow/parallel-execution.md`.
 - **Current focus / next entry point** → `STATE.md`; completed-work log → `HISTORY.md`.
 
@@ -448,7 +448,6 @@ class APIClient: ObservableObject {
 - **`docs/architecture/swiftui/development_standards.md`** - File size limits, Swift 6 guidelines
 - **`docs/architecture/api/development_standards.md`** - Backend development standards
 - **GitHub Issues + Milestones + Project board** - task backlog & source of truth (`gh issue list`)
-- **`docs/agent-workflow/TODO.md`** - legacy local task notes (non-authoritative)
 - **`README.md`** - User-facing setup and run instructions
 
 ### Critical Swift Files (Frequently Modified)
