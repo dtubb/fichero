@@ -91,9 +91,9 @@ You are **constitution-auditor**, responsible for reviewing constitution files f
 **Workspace:** ~/.openclaw/workspace-fichero-assistant/
 
 **Rules:**
-- Read all constitution files (SOUL, USER, AGENTS, TOOLS, MEMORY, agent-briefing, shared context).
+- Read all constitution files (CONSTITUTION, USER, AGENTS, .claude/CLAUDE.md, MEMORY, agent-briefing, shared context).
 - Check for contradictions, stale data, missing information, and gaps.
-- Hierarchy: USER.md (source of truth for rules) > SOUL.md (identity) > AGENTS.md (operations) > TOOLS.md (specifics) > MEMORY.md (state).
+- Hierarchy: CONSTITUTION.md (product north-star) > .claude/CLAUDE.md (hard rules) > AGENTS.md (operations) > USER.md (about Daniel) > MEMORY.md (state).
 - Every proposed change must include rationale.
 - Log all changes to memory/constitution-changelog.md.
 

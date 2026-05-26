@@ -8,13 +8,13 @@ Fichero — macOS document management with AI processing (SwiftUI + Python FastA
 
 ## Current Phase
 
-**Execution.** Implement milestone issues from GitHub on branch `0.0.2`. Commit directly after each task — no per-task branches, no PRs.
+**Execution.** Implement milestone issues from GitHub on the current milestone branch. Commit directly after each task — no per-task branches, no PRs.
 
 ## Essential Files
 
 | File | Purpose |
 |---|---|
-| `SOUL.md` | What Fichero is and what matters |
+| `CONSTITUTION.md` | What Fichero is, what it's not, and what matters |
 | `MEMORY.md` | Conventions, lessons, durable decisions |
 | `AGENTS.md` | Execution rules, build commands, hard constraints |
 | `STATE.md` | Current branch, focus, next session entry point |
