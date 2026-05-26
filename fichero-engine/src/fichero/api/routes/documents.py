@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.models import Artifact, DocType, Document, FileType, Status
-from fichero.models import DocumentListResponse, RelatedDocumentListResponse
+from fichero.models import DocumentListResponse, DocumentNote, RelatedDocumentListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -88,6 +88,12 @@ class DocumentUpdate(BaseModel):
     metadata: Optional[dict] = None
 
 
+class DocumentNoteUpsert(BaseModel):
+    """Request body for per-document note upsert."""
+
+    content: str
+
+
 # Routes
 
 
@@ -154,6 +160,59 @@ async def get_document(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
     return doc
+
+
+@router.get("/{doc_id}/notes")
+async def get_document_note(
+    doc_id: str, db: Database = Depends(get_library_database)
+) -> DocumentNote:
+    """Get the user note for a document."""
+    doc = db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+    notes = list(db.query(DocumentNote, document_id=doc_id))
+    if not notes:
+        raise HTTPException(status_code=404, detail=f"Document note not found: {doc_id}")
+    return notes[0]
+
+
+@router.put("/{doc_id}/notes")
+async def put_document_note(
+    doc_id: str,
+    request: DocumentNoteUpsert,
+    db: Database = Depends(get_library_database),
+) -> DocumentNote:
+    """Create or replace a document's user note."""
+    doc = db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+    notes = list(db.query(DocumentNote, document_id=doc_id))
+    if notes:
+        note = notes[0]
+        note.content = request.content
+        note.updated_at = datetime.now()
+    else:
+        note = DocumentNote(document_id=doc_id, content=request.content)
+
+    db.save(note)
+    return note
+
+
+@router.delete("/{doc_id}/notes", status_code=204)
+async def delete_document_note(
+    doc_id: str, db: Database = Depends(get_library_database)
+) -> None:
+    """Delete the user note for a document."""
+    doc = db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+    notes = list(db.query(DocumentNote, document_id=doc_id))
+    if not notes:
+        raise HTTPException(status_code=404, detail=f"Document note not found: {doc_id}")
+    db.delete(notes[0])
 
 
 @router.get("/{doc_id}/children")

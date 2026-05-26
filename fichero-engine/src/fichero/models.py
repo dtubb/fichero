@@ -719,6 +719,18 @@ class Note(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
+class DocumentNote(BaseModel):
+    """User-authored note content keyed to a document."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    document_id: str
+    content: str = ""
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
 # =============================================================================
 # Event - Audit Trail and Undo
 # =============================================================================
