@@ -25,12 +25,45 @@ extension ContentView {
     var detailPDFPath: String? {
         guard let doc = detailDocument else { return nil }
         if doc.fileType == .pdf, let path = doc.path, !path.isEmpty { return path }
-        if doc.docType == .page {
-            if let metaPath = doc.metadata["pdf_path"]?.value as? String, !metaPath.isEmpty { return metaPath }
-            let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
-            if let pid = parentId,
-               let parent = documentStore.currentDocuments.first(where: { $0.id == pid }),
-               let path = parent.path, !path.isEmpty { return path }
+        if doc.docType == .page { return resolvedParentPDFPath(for: doc) }
+        return nil
+    }
+
+    /// Resolve the parent PDF's on-disk path for a page child (page docs have
+    /// `path == nil` — the file lives on the parent PDF). Mirrors
+    /// `EditorView.resolvedParentPDFPath` (#890): prefer a `pdf_path` that
+    /// actually EXISTS on disk and isn't a stale import temp dir, else the
+    /// selected collection, else the parent in `currentDocuments`.
+    ///
+    /// Crucially this returns nil when nothing resolves to a real file rather
+    /// than handing a stale/nonexistent path to `PDFView`, which renders a blank
+    /// page-with-toolbar (the #1247 symptom). On nil the widescreen layout falls
+    /// through to `EditorView`, whose resolver covers the same cases.
+    func resolvedParentPDFPath(for doc: Document) -> String? {
+        let metadataPath = doc.metadata["pdf_path"]?.value as? String
+        if let metadataPath, !metadataPath.isEmpty,
+           !metadataPath.contains("/fichero-drop-"),
+           FileManager.default.fileExists(atPath: metadataPath) {
+            return metadataPath
+        }
+        let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
+        if let parentId {
+            if let selected = documentStore.selectedCollection,
+               selected.id == parentId,
+               let selectedPath = selected.path, !selectedPath.isEmpty {
+                return selectedPath
+            }
+            if let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
+               let parentPath = parent.path, !parentPath.isEmpty {
+                return parentPath
+            }
+        }
+        // Last resort: a metadata path that exists even if it wasn't preferred
+        // above (e.g. didn't match the parent lookups). Never return a path that
+        // isn't on disk — that's what blanks the viewer.
+        if let metadataPath, !metadataPath.isEmpty,
+           FileManager.default.fileExists(atPath: metadataPath) {
+            return metadataPath
         }
         return nil
     }
