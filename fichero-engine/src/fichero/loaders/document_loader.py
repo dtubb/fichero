@@ -5,6 +5,7 @@ Handles: DOCX, XLSX, PPTX, EPUB, RTF, ODT, ODS, ODP
 """
 
 import logging
+import re
 from pathlib import Path
 
 from fichero.loaders import kreuzberg_cache  # noqa: F401 — env-var side effect
@@ -39,6 +40,111 @@ TEXT_FORMATS = {
 }
 
 ALL_DOCUMENT_FORMATS = OFFICE_FORMATS | EBOOK_FORMATS | TEXT_FORMATS
+
+# RTF header groups whose content should be discarded (they're tables/metadata,
+# not body text).  Keys must be lowercase control words.
+_RTF_SKIP_GROUP_WORDS = frozenset(
+    {
+        "fonttbl", "colortbl", "stylesheet", "info", "pict", "shppict",
+        "wshad", "filetbl", "listtable", "listoverridetable",
+    }
+)
+
+
+def _strip_rtf(text: str) -> str:
+    """Convert raw RTF markup to plain text.
+
+    Uses a character-by-character state machine so nested groups ({\fonttbl
+    {\f0 Arial;}}) are handled correctly without a new dependency.  Returns
+    the string unchanged when it doesn't look like RTF.
+    """
+    stripped = text.lstrip()
+    if not stripped.startswith("{\\rtf"):
+        return text
+
+    output: list[str] = []
+    # skip_until_depth > 0: skip content until depth drops below this value.
+    # Set when a header-group control word (\fonttbl etc.) is encountered;
+    # cleared when the matching closing } brings depth back below that level.
+    skip_until_depth = 0
+    depth = 0
+    i = 0
+    n = len(stripped)
+
+    while i < n:
+        ch = stripped[i]
+
+        if ch == "{":
+            depth += 1
+            i += 1
+
+        elif ch == "}":
+            depth -= 1
+            if skip_until_depth and depth < skip_until_depth:
+                skip_until_depth = 0
+            i += 1
+
+        elif ch == "\\":
+            i += 1
+            if i >= n:
+                break
+
+            if stripped[i].isalpha():
+                # Control word: \word[-N][ ]
+                j = i
+                while j < n and stripped[j].isalpha():
+                    j += 1
+                word = stripped[i:j].lower()
+                i = j
+                # Skip optional numeric parameter
+                if i < n and (stripped[i].isdigit() or stripped[i] == "-"):
+                    while i < n and stripped[i] in "0123456789-":
+                        i += 1
+                # Skip optional single space delimiter
+                if i < n and stripped[i] == " ":
+                    i += 1
+
+                if skip_until_depth:
+                    continue
+
+                if word in _RTF_SKIP_GROUP_WORDS:
+                    # depth already incremented by the preceding {;
+                    # skip everything until depth drops below current level.
+                    skip_until_depth = depth
+                elif word in ("par", "pard", "sect", "page"):
+                    output.append("\n")
+                elif word == "line":
+                    output.append("\n")
+                elif word == "tab":
+                    output.append("\t")
+                # All other control words (font, size, bold…) are formatting — skip.
+
+            else:
+                # Control symbol (\\, \{, \}, \~, \-, …)
+                sym = stripped[i]
+                i += 1
+                if not skip_until_depth:
+                    if sym == "\\":
+                        output.append("\\")
+                    elif sym == "{":
+                        output.append("{")
+                    elif sym == "}":
+                        output.append("}")
+                    elif sym == "~":
+                        output.append(" ")  # non-breaking space
+                    elif sym == "-":
+                        output.append("­")  # soft hyphen
+                    # Other control symbols are ignored
+
+        else:
+            if not skip_until_depth and depth >= 1:
+                output.append(ch)
+            i += 1
+
+    result = "".join(output)
+    result = re.sub(r" {2,}", " ", result)
+    result = re.sub(r"\n{3,}", "\n\n", result)
+    return result.strip()
 
 
 class DocumentLoader(MediaLoader):
@@ -160,9 +266,16 @@ class DocumentLoader(MediaLoader):
             except Exception as exc:  # pragma: no cover — defensive
                 logger.debug("Kreuzberg artifact extraction failed: %s", exc)
 
+            content = result.content
+            # Guard against Kreuzberg returning raw RTF markup for .rtf files
+            # (observed when the internal extractor falls back on unsupported
+            # variants).  _strip_rtf is a no-op on already-plain text.
+            if suffix == ".rtf":
+                content = _strip_rtf(content)
+
             return MediaContent(
                 source=str(path),
-                text=result.content,
+                text=content,
                 images=[],
                 metadata=metadata,
                 mime_type=result.mime_type or self._get_mime_type(suffix),
