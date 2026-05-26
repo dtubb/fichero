@@ -41,6 +41,12 @@ class CropOperationRequest(BaseModel):
     page: int = 1
 
 
+class RotateOperationRequest(BaseModel):
+    angle: float
+    expand: bool = True
+    page: int = 1
+
+
 def _get_or_404_document(db: Database, document_id: str) -> Document:
     doc = db.get(Document, document_id)
     if not doc:
@@ -204,6 +210,38 @@ async def crop_image(
             "top": request.top,
             "width": request.width,
             "height": request.height,
+        },
+    }
+    derived = _apply_operation(base, op)
+    op["derived_path"] = _write_derived_image(document_id, request.page, derived)
+    op["created_at"] = datetime.now().isoformat()
+
+    chain = _append_operation(db, document_id, op)
+    return ImageEditChainResponse(
+        document_id=document_id,
+        operations=chain.operations,
+        updated_at=chain.updated_at,
+    )
+
+
+@router.post("/{document_id}/operations/rotate", response_model=ImageEditChainResponse)
+async def rotate_image(
+    document_id: str,
+    request: RotateOperationRequest,
+    db: Database = Depends(get_library_database),
+) -> ImageEditChainResponse:
+    doc = _get_or_404_document(db, document_id)
+    source_path = resolve_source(doc)
+    if not source_path:
+        raise HTTPException(status_code=404, detail="Source file not available")
+
+    base = _load_source_image(source_path, page=request.page)
+    op = {
+        "op": "rotate",
+        "page": request.page,
+        "params": {
+            "angle": request.angle,
+            "expand": request.expand,
         },
     }
     derived = _apply_operation(base, op)

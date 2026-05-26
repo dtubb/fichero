@@ -1795,6 +1795,42 @@
       },
       {
         "method": "GET",
+        "path": "/documents/{doc_id}/notes",
+        "operation_id": "get_document_note_api_documents__doc_id__notes_get",
+        "summary": "Get Document Note",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DocumentNote"
+      },
+      {
+        "method": "PUT",
+        "path": "/documents/{doc_id}/notes",
+        "operation_id": "put_document_note_api_documents__doc_id__notes_put",
+        "summary": "Put Document Note",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": "DocumentNoteUpsert",
+        "response_model": "DocumentNote"
+      },
+      {
+        "method": "DELETE",
+        "path": "/documents/{doc_id}/notes",
+        "operation_id": "delete_document_note_api_documents__doc_id__notes_delete",
+        "summary": "Delete Document Note",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
         "path": "/documents/{doc_id}/children",
         "operation_id": "get_children_api_documents__doc_id__children_get",
         "summary": "Get Children",
@@ -3552,6 +3588,91 @@
         "query_params": [],
         "request_model": null,
         "response_model": "IngestTaskStatus"
+      }
+    ],
+    "images": [
+      {
+        "method": "GET",
+        "path": "/images/{document_id}/edits",
+        "operation_id": "get_edit_chain_api_images__document_id__edits_get",
+        "summary": "Get Edit Chain",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ImageEditChainResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/images/{document_id}/edits",
+        "operation_id": "put_edit_chain_api_images__document_id__edits_put",
+        "summary": "Put Edit Chain",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "ImageEditChainUpsert",
+        "response_model": "ImageEditChainResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/images/{document_id}/edits",
+        "operation_id": "delete_edit_chain_api_images__document_id__edits_delete",
+        "summary": "Delete Edit Chain",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/images/{document_id}/operations/crop",
+        "operation_id": "crop_image_api_images__document_id__operations_crop_post",
+        "summary": "Crop Image",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "CropOperationRequest",
+        "response_model": "ImageEditChainResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/images/{document_id}/operations/rotate",
+        "operation_id": "rotate_image_api_images__document_id__operations_rotate_post",
+        "summary": "Rotate Image",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "RotateOperationRequest",
+        "response_model": "ImageEditChainResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/images/{document_id}/preview",
+        "operation_id": "preview_image_api_images__document_id__preview_get",
+        "summary": "Preview Image",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [
+          {
+            "name": "apply_edits",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "page",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
       }
     ],
     "library": [

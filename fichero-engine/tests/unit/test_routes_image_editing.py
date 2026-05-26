@@ -64,6 +64,19 @@ class TestImageEditChainRoutes:
         assert ops[0]["params"] == {"left": 10, "top": 15, "width": 40, "height": 30}
         assert "derived_path" in ops[0]
 
+    def test_rotate_operation_appends_chain(self, client, db, tmp_path):
+        doc = _make_image_doc(db, tmp_path, size=(80, 50))
+        rotate = client.post(
+            f"/api/images/{doc.id}/operations/rotate",
+            json={"angle": 90, "expand": True, "page": 1},
+        )
+        assert rotate.status_code == 200
+        ops = rotate.json()["operations"]
+        assert len(ops) == 1
+        assert ops[0]["op"] == "rotate"
+        assert ops[0]["params"] == {"angle": 90.0, "expand": True}
+        assert "derived_path" in ops[0]
+
 
 class TestImagePreviewRoute:
     def test_preview_returns_original_without_edits(self, client, db, tmp_path):
@@ -99,6 +112,19 @@ class TestImagePreviewRoute:
         assert r.status_code == 200
         img = Image.open(io.BytesIO(r.content))
         assert img.size == (50, 40)
+
+    def test_preview_regenerates_from_rotate_operation_chain(self, client, db, tmp_path):
+        doc = _make_image_doc(db, tmp_path, size=(80, 50))
+        rotate = client.post(
+            f"/api/images/{doc.id}/operations/rotate",
+            json={"angle": 90, "expand": True, "page": 1},
+        )
+        assert rotate.status_code == 200
+
+        r = client.get(f"/api/images/{doc.id}/preview")
+        assert r.status_code == 200
+        img = Image.open(io.BytesIO(r.content))
+        assert img.size == (50, 80)
 
     def test_preview_missing_source_returns_404(self, client, db):
         doc = Document(name="missing.jpg", path="/tmp/does-not-exist.jpg", file_type=FileType.image)
