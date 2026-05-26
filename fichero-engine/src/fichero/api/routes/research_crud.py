@@ -1,6 +1,8 @@
 """Research Agents CRUD routes — Projects, Plans, Tasks, Steps."""
 
 from datetime import datetime
+import json
+import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
+from fichero.llm import LLMConfig
 from fichero.research_models import (
     PlanStatus,
     ProjectStatus,
@@ -20,6 +23,8 @@ from fichero.research_models import (
     TaskStatus,
 )
 from fichero.models import ResearchCrudListResponse
+from fichero.workflows.tools.agent import react_agent
+from fichero.workflows.tools import research as _research_tools  # noqa: F401
 
 router = APIRouter()
 
@@ -130,6 +135,7 @@ class PlanCreateRequest(BaseModel):
     name: str
     description: str = ""
     order_index: int = 0
+    term: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -141,17 +147,144 @@ class PlanUpdateRequest(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
+def _extract_json_payload(text: str) -> dict[str, Any] | None:
+    """Extract a JSON object from an agent response."""
+    candidates: list[str] = []
+
+    fenced = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL | re.IGNORECASE)
+    if fenced:
+        candidates.append(fenced.group(1).strip())
+
+    stripped = text.strip()
+    candidates.append(stripped)
+
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        candidates.append(stripped[start : end + 1].strip())
+
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except Exception:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    return None
+
+
+def _fallback_term_plan(term: str) -> dict[str, Any]:
+    """Deterministic fallback when the agent response cannot be parsed."""
+    base = term.strip()
+    return {
+        "archives": [
+            f"{base} archives",
+            f"{base} records",
+        ],
+        "locations": [base],
+        "multilingual_terms": {
+            "en": [base, f"{base} archive", f"{base} records"],
+            "es": [base, f"archivo {base}", f"registros {base}"],
+            "fr": [base, f"archives {base}", f"dossiers {base}"],
+        },
+        "summary": "Fallback plan generated without structured agent output.",
+    }
+
+
+async def _build_term_plan(
+    term: str,
+    *,
+    project_name: str | None = None,
+    project_description: str | None = None,
+) -> dict[str, Any]:
+    """Use the existing ReAct agent to draft a minimal research plan."""
+    from fichero.app_db import get_app_db
+
+    defaults = get_app_db().get_ai_defaults()
+    llm_config = LLMConfig(
+        provider=defaults.get("default_text_provider") or "apple",
+        model=defaults.get("default_text_model") or "apple-intelligence",
+    )
+    context: dict[str, Any] = {"term": term}
+    if project_name:
+        context["project_name"] = project_name
+    if project_description:
+        context["project_description"] = project_description
+
+    prompt = (
+        "Plan a small research starting point for the given term.\n"
+        "Use the research_web_search tool if it helps you ground the plan.\n"
+        "Return JSON only with these keys:\n"
+        "- archives: array of archive names or archive-oriented search targets\n"
+        "- locations: array of places or geographic hints worth searching\n"
+        "- multilingual_terms: object mapping language codes to arrays of search terms\n"
+        "- summary: short planning summary\n"
+        "Keep the output concise and practical."
+    )
+    task = (
+        f"Term: {term}\n"
+        f"Create the smallest usable research plan for this term."
+    )
+
+    result = await react_agent(
+        inputs={
+            "task": task,
+            "context": context,
+            "tools": ["research_web_search"],
+            "system_prompt": prompt,
+            "max_iterations": 3,
+        },
+        state={},
+        llm_config=llm_config,
+    )
+
+    payload = _extract_json_payload(result.get("result", "") or "")
+    if payload is None:
+        payload = _fallback_term_plan(term)
+
+    payload.setdefault("term", term)
+    payload.setdefault("summary", "")
+    payload.setdefault("archives", [])
+    payload.setdefault("locations", [])
+    payload.setdefault("multilingual_terms", {})
+    payload["agent_result"] = {
+        "result": result.get("result", ""),
+        "tool_calls": result.get("tool_calls", []),
+        "iterations": result.get("iterations", 0),
+    }
+    return payload
+
+
 @router.post("/plans", response_model=ResearchPlan)
 async def create_plan(
     request: PlanCreateRequest,
     db: Database = Depends(get_library_database),
 ) -> ResearchPlan:
+    project = db.get(ResearchProject, request.project_id)
+    planning_payload: dict[str, Any] | None = None
+    if request.term:
+        planning_payload = await _build_term_plan(
+            request.term,
+            project_name=project.name if project else None,
+            project_description=project.description if project else None,
+        )
+
     plan = ResearchPlan(
         project_id=request.project_id,
         name=request.name,
         description=request.description,
         order_index=request.order_index,
-        metadata=request.metadata,
+        metadata={
+            **request.metadata,
+            **(
+                {
+                    "research_term": request.term,
+                    "research_plan": planning_payload,
+                }
+                if planning_payload is not None
+                else {}
+            ),
+        },
     )
     db.save(plan)
     return plan
@@ -322,6 +455,7 @@ async def create_step(
         tool=request.tool,
         label=request.label,
         description=request.description,
+        config=request.config,
         order_index=request.order_index,
     )
     db.save(step)
