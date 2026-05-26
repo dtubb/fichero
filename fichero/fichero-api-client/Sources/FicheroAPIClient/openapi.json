@@ -8095,6 +8095,59 @@
         }
       }
     },
+    "/api/ingest/xlsx": {
+      "post": {
+        "tags": [
+          "ingest"
+        ],
+        "summary": "Ingest Xlsx",
+        "description": "Read an .xlsx spreadsheet and return its rows as structured records.\n\nEach data row becomes a dict keyed by column header (or by *column_map*\nwhen supplied).  Columns without a mapping go into ``_unmapped``.\n\nWith ``dry_run=true`` (default) the records are returned for inspection\nand nothing is written to the library.  With ``dry_run=false``, one\nDocument is created per row; the ``name`` field (or the first mapped\nfield) is used as the document name.",
+        "operationId": "ingest_xlsx_api_ingest_xlsx_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/XlsxIngestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/XlsxIngestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ingest/status/{task_id}": {
       "get": {
         "tags": [
@@ -41128,7 +41181,108 @@
         ],
         "title": "NodeCreateRequest"
       },
-      "NodeDef": {
+      "NodeDef-Input": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique node identifier"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool",
+            "description": "Tool function name from registry"
+          },
+          "input_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Input Ports",
+            "description": "Input connection ports (populated from registry, not stored)"
+          },
+          "output_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Output Ports",
+            "description": "Output connection ports (populated from registry, not stored)"
+          },
+          "input_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/InputMapping"
+            },
+            "type": "array",
+            "title": "Input Mappings",
+            "description": "Maps input ports to data sources from previous nodes"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs",
+            "description": "Input values for the tool (supports path resolution)"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config",
+            "description": "Static tool configuration (not resolved)"
+          },
+          "output_schema": {
+            "$ref": "#/components/schemas/OutputSchema",
+            "nullable": true,
+            "description": "JSON Schema for structured LLM output"
+          },
+          "position_x": {
+            "type": "number",
+            "title": "Position X",
+            "default": 0.0
+          },
+          "position_y": {
+            "type": "number",
+            "title": "Position Y",
+            "default": 0.0
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name",
+            "default": ""
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name",
+            "default": ""
+          },
+          "uses_llm": {
+            "type": "boolean",
+            "title": "Uses Llm",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool"
+        ],
+        "title": "NodeDef",
+        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
+      },
+      "NodeDef-Output": {
         "properties": {
           "id": {
             "type": "string",
@@ -45837,8 +45991,7 @@
           "content_preview",
           "metadata"
         ],
-        "title": "SearchResult",
-        "description": "Search result with score and document reference."
+        "title": "SearchResult"
       },
       "SearchSource": {
         "properties": {
@@ -49182,7 +49335,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef"
+              "$ref": "#/components/schemas/NodeDef-Input"
             },
             "type": "array",
             "title": "Nodes"
@@ -49416,7 +49569,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef"
+              "$ref": "#/components/schemas/NodeDef-Output"
             },
             "type": "array",
             "title": "Nodes"
@@ -49591,6 +49744,87 @@
         ],
         "title": "WorkflowVisualizationResponse",
         "description": "Response with workflow visualization data."
+      },
+      "XlsxIngestRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "column_map": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Column Map"
+          },
+          "sheet_index": {
+            "type": "integer",
+            "title": "Sheet Index",
+            "default": 0
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "XlsxIngestRequest",
+        "description": "Request model for XLSX spreadsheet import."
+      },
+      "XlsxIngestResponse": {
+        "properties": {
+          "records": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Records",
+            "default": []
+          },
+          "document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Document Ids",
+            "default": []
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Errors",
+            "default": []
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "dry_run"
+        ],
+        "title": "XlsxIngestResponse",
+        "description": "Response for XLSX import \u2014 preview or created documents."
       },
       "_EmbedClaimRequest": {
         "properties": {

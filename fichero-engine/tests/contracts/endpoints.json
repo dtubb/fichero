@@ -3542,6 +3542,16 @@
         "response_model": "IngestTaskResponse"
       },
       {
+        "method": "POST",
+        "path": "/ingest/xlsx",
+        "operation_id": "ingest_xlsx_api_ingest_xlsx_post",
+        "summary": "Ingest Xlsx",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "XlsxIngestRequest",
+        "response_model": "XlsxIngestResponse"
+      },
+      {
         "method": "GET",
         "path": "/ingest/status/{task_id}",
         "operation_id": "get_ingest_status_api_ingest_status__task_id__get",
