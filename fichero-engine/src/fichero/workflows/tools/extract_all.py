@@ -477,8 +477,16 @@ def _persist_additional_entities(
     additional_entities: dict[str, list[str]],
     container_id: str,
 ) -> None:
-    """Persist names extracted for custom registry types as KnowledgeEntity rows."""
+    """Persist names extracted for custom registry types as KnowledgeEntity rows.
+
+    Writes one KnowledgeEntity (entity_type=other) per extracted name with the
+    type key stored in metadata["custom_entity_type_keys"] (a list so a name that
+    appears under multiple custom types preserves all of them). Also writes a
+    minimal KnowledgeClaim linking the entity to the source document so it
+    participates in "which documents mention X?" queries just like built-in types.
+    """
     from fichero.knowledge_models import KnowledgeEntity, EntityType
+    from fichero.workflows.tools._entity_writer import save_claim
 
     for type_key, names in additional_entities.items():
         for name in names:
@@ -488,15 +496,40 @@ def _persist_additional_entities(
             existing = db.query(KnowledgeEntity, canonical_name=name, entity_type=EntityType.other)
             if existing:
                 e = existing[0]
-                if not e.metadata.get("custom_entity_type_key"):
-                    e.metadata = {**e.metadata, "custom_entity_type_key": type_key}
+                # Append to list — don't clobber when the same name appears under
+                # multiple custom types (e.g. "silver" tagged as both "minerals"
+                # and "trade_goods").
+                existing_keys: list[str] = e.metadata.get("custom_entity_type_keys") or []
+                if type_key not in existing_keys:
+                    existing_keys = [*existing_keys, type_key]
+                    e.metadata = {**e.metadata, "custom_entity_type_keys": existing_keys}
                     db.save(e)
+                entity_id = e.id
             else:
-                db.save(KnowledgeEntity(
+                entity = KnowledgeEntity(
                     canonical_name=name,
                     entity_type=EntityType.other,
+                    metadata={"custom_entity_type_keys": [type_key]},
+                )
+                db.save(entity)
+                entity_id = entity.id
+            # Minimal provenance claim — links entity to source document so KG
+            # queries ("which docs mention X?") work for custom types just like
+            # built-in types. No SVO at this stage; a follow-up pass can enrich.
+            try:
+                save_claim(
+                    db=db,
+                    text=name,
+                    source_document_id=container_id,
+                    entity_ids=[entity_id],
+                    subject_canonical=name,
                     metadata={"custom_entity_type_key": type_key},
-                ))
+                )
+            except Exception as exc:
+                logger.warning(
+                    "extract_all: failed to save provenance claim for custom entity %s/%s: %s",
+                    type_key, name, exc,
+                )
 
 
 def _build_instructions(output_language: str, custom_entity_types: list[str] | None = None) -> str:
@@ -1107,13 +1140,14 @@ async def extract_all(
     is_per_page = any(pid for pid in page_doc_ids)
 
     # Load per-library custom entity types from the registry (#1240).
+    _registry_db = None
     custom_entity_types: list[str] = []
     if library_path:
         try:
-            _reg_db = db_manager.get_database(library_path)
-            custom_entity_types = _load_registry_types(_reg_db, library_path)
-        except Exception:
-            pass  # registry unavailable — proceed with built-ins only
+            _registry_db = db_manager.get_database(library_path)
+            custom_entity_types = _load_registry_types(_registry_db, library_path)
+        except Exception as exc:
+            logger.warning("extract_all: registry db open failed for %s: %s", library_path, exc)
 
     instructions = _build_instructions(output_language, custom_entity_types)
 
@@ -1260,7 +1294,7 @@ async def extract_all(
     # below are guarded by `any(chunk_results)`.
     if container and library_path:
         try:
-            db = db_manager.get_database(library_path)
+            db = _registry_db if _registry_db is not None else db_manager.get_database(library_path)
             # Append-only artifact writes funnel through the
             # single-writer queue (#1000 Phase 2). KG entity/claim
             # writes (_write_kg_rows) stay direct — they're
@@ -1372,15 +1406,18 @@ async def extract_all(
             # Persist custom entity types from the registry (#1240).
             if custom_entity_types and persist_kg:
                 custom_entity_type_set = set(custom_entity_types)
-                merged_additional: dict[str, list[str]] = {}
+                # Use sets while accumulating to keep dedup O(n).
+                seen: dict[str, set[str]] = {}
                 for cr in chunk_results:
                     for type_key, names in (cr.get("additional_entities") or {}).items():
                         if type_key not in custom_entity_type_set:
                             continue
+                        bucket = seen.setdefault(type_key, set())
                         for name in (names or []):
                             name = name.strip() if isinstance(name, str) else ""
-                            if name and name not in merged_additional.get(type_key, []):
-                                merged_additional.setdefault(type_key, []).append(name)
+                            if name:
+                                bucket.add(name)
+                merged_additional = {k: list(v) for k, v in seen.items() if v}
                 if merged_additional:
                     _persist_additional_entities(db, merged_additional, container.id)
 
