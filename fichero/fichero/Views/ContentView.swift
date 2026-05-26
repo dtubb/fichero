@@ -460,7 +460,19 @@ struct ContentView: View {
                     .keyboardShortcut("g", modifiers: [.command, .shift])
                 }
 
-                // Inspector toggle at the trailing edge of the toolbar (standard macOS placement).
+                // Inspector toggle at the trailing edge of the toolbar — the
+                // Finder/Notes/Xcode convention (#1229 part 1). Uses
+                // `sidebar.right` to match the View-menu InspectorButton; the
+                // old `info.circle` collided with the inspector's own Info-tab
+                // icon and read as "info" rather than "inspector".
+                // The ⌘⌥I shortcut is owned by the View-menu command
+                // (ViewMenuCommands.InspectorButton) — not re-bound here to
+                // avoid a duplicate key binding.
+                // NOTE: a true window-corner placement (flush with the window's
+                // trailing edge, over the inspector pane) is deferred — the
+                // inspector is a window-level HStack sibling of
+                // NavigationSplitView (#1199), so the unified toolbar can't span
+                // it without the #1199 window-layout rework.
                 if showInspectorToggle {
                     ToolbarItem(placement: .automatic) {
                         Button {
@@ -468,7 +480,7 @@ struct ContentView: View {
                                 showInspectorSidebar.toggle()
                             }
                         } label: {
-                            Image(systemName: "info.circle")
+                            Image(systemName: "sidebar.right")
                         }
                         .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
                     }
