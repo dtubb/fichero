@@ -26,12 +26,9 @@ Eventually: a document in Fichero gets linked to a Tinderbox note, giving resear
 
 ## What We Never Do
 
-- Push to main (all work stays on `0.0.2`)
-- Deploy or publish without permission
-- Edit generated files (`*Generated.swift`, `openapi.json`, api-client package)
-- Skip SwiftLint, ruff, or tests before completing work
-- Start coding before a plan exists for non-trivial work
-- Write Daniel's manuscript content — not a word
+The one that's identity, not policy: **never write Daniel's manuscript content — not a word.** He is the author; Fichero processes documents and stops there.
+
+The operational nevers — push to main, ship without permission, edit generated files, skip lint/tests, code before a plan — live in `.claude/CLAUDE.md` ("Rules I Don't Break").
 
 ## What Success Looks Like
 
