@@ -658,6 +658,13 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     @State private var lastSeededContent: String = ""
     @StateObject private var richTextController = RichTextController()
 
+    /// Page Content is primary content and renders always-expanded with no
+    /// collapse chrome; generated artifacts stay collapsable (#1245).
+    private var isPageContent: Bool {
+        if case .pageContent = kind { return true }
+        return false
+    }
+
     var body: some View {
         // Daniel feedback 2026-04-27: drop the rounded-rect box outline (no
         // horizontal lines), let the editor go full panel width (no inner
@@ -670,16 +677,35 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         // expanded siblings, SwiftUI's VStack splits space equally. When
         // collapsed, the panel has no flex, so it shrinks to its header
         // height (~30 px) and lets siblings absorb the freed space.
-        VStack(alignment: .leading, spacing: 0) {
-            DisclosureGroup(isExpanded: $isExpanded) {
-                contentBody
-                    .padding(.bottom, 6)
-                    .padding(.top, 2)
-            } label: {
-                header
+        Group {
+            if isPageContent {
+                // Page Content is the document's PRIMARY content, not an
+                // optional artifact — render it always-expanded with NO
+                // disclosure chrome (#1245). A plain header + body in a VStack
+                // (instead of a DisclosureGroup whose disclosed flexible-height
+                // editor overdrew upward onto the attribute strip) keeps the
+                // content flowing strictly BELOW the attribute rows.
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    contentBody
+                        .padding(.top, 2)
+                        .padding(.bottom, 6)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    DisclosureGroup(isExpanded: $isExpanded) {
+                        contentBody
+                            .padding(.bottom, 6)
+                            .padding(.top, 2)
+                    } label: {
+                        header
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
         }
         // Sizing: AttributedTextEditor now reports its layoutManager-used
         // height via sizeThatFits, so an expanded panel matches its actual
@@ -687,7 +713,11 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         // a sliver (Daniel 2026-05-05: "the height was 0"); long artifacts
         // grow naturally and the outer ScrollView handles overflow (#960).
         // Collapsed panels have no frame and shrink to header height (~30 px).
-        .frame(minHeight: isExpanded ? 60 : nil)
+        // Page Content is never collapsed, so it always gets the min.
+        .frame(minHeight: (isPageContent || isExpanded) ? 60 : nil)
+        // Clip so the editor's AppKit text view can't paint outside the panel's
+        // SwiftUI frame onto the attribute strip above it (#1245).
+        .clipped()
         .onChange(of: isExpanded) { _, newValue in
             // Persist the user's choice so it carries across documents
             // and across app launches. See `storageKey(for:)` for keying.
