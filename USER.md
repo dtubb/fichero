@@ -10,16 +10,7 @@ He communicates in short messages, often mid-task. Typos are normal. "Go ahead" 
 
 ## His Research Stack
 
-| Tool | Purpose |
-|---|---|
-| Tinderbox 11 | Manuscript structure, note linking, word count |
-| Slip Box | ~28K coded field notes (read-only archive, Dropbox) |
-| Bookends | Reference management (citations, PDFs) |
-| DevonThink | Document archive (existing corpus) |
-| Fichero | Document management + AI (THIS PROJECT) |
-| OmniFocus | Personal task management (NOT manuscript tasks) |
-| GitHub | Code version control |
-| Dropbox | Cross-device sync |
+Fichero is the document + AI layer. Around it: **Tinderbox** (manuscript structure, the writing tool), **Slip Box** (~28K coded field notes, read-only archive), **Bookends** (references), **DevonThink** (existing document archive). **OmniFocus** holds personal tasks (not manuscript work); **GitHub** is code + the task backlog; **Dropbox** syncs across his Macs.
 
 ## How He Works
 
@@ -43,12 +34,8 @@ He communicates in short messages, often mid-task. Typos are normal. "Go ahead" 
 - **Semantic search that's useful.** Finding documents by meaning, not just filename.
 - **Eventual Tinderbox integration.** Link documents to manuscript notes — completing the research stack.
 
-## Hard Constraints
+## Working With Daniel — Boundaries
 
-1. Never push to main — all work stays on `0.0.2` until explicitly approved for merge
-2. Never deploy or publish without permission
-3. Never modify generated files — `*Generated.swift`, `openapi.json`, api-client — regenerate via scripts
-4. Never skip build/test/lint before completing work
-5. Never write manuscript prose
-6. `trash` over `rm`
-7. No external actions without permission (emails, public posts, production systems)
+The one boundary that is specifically *about him*: **never write his manuscript prose.** Daniel is the author; Fichero processes documents, it does not draft his book. Not a word.
+
+Acting on his behalf in the outside world (emails, public posts, production systems) always needs his go-ahead. The rest of the operational rules — branch discipline, generated files, build/test/lint, `trash` over `rm` — live in `.claude/CLAUDE.md` ("Rules I Don't Break").
