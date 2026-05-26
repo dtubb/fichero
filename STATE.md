@@ -6,7 +6,23 @@
 
 **REGIME — PACE FOR ~12 HOURS, DON'T SPRINT (Daniel's governing rule).** Both Claude AND OpenAI/Codex will run out of funds if hammered — steady all-night progress beats burning everything in 2 hours. THROTTLE: keep only ~2-3 lanes active at once (rotate), let lanes idle between tasks, refeed sparingly, use LONG ~60-min tick intervals. Claude quota was tight (92%→~61%); slightly prefer Codex but don't blast it either. Claude lanes sometimes show a spurious **"Upgrade your plan"** dialog (NOT real exhaustion) — reset with `1` then `continue`. Conserve manager context: light ticks, offload to lanes/subagents, read verdicts not logs. Re-pause lanes if any provider's quota climbs toward ~90%.
 
+**✅ MERGED TO 0.0.2 OVERNIGHT (as of ~21:00, 2026-05-26 — supersedes the "NONE merged" note below):**
+- `18c34f46` KG spine — #1248 two-stage KG write + #1254/#1263 guardrail fallback + #1249 page-child claims (closed)
+- `6ca8ce7e` sonnet backend — #1252 RTF strip + #1251 progress logging + #1237 xlsx import (closed)
+- `8201cffe` docs — PDF fidelity audit + KG evidential-model design
+- `8ccdb9e4` #1271 whole-PDF page-order fix (the "weird text" root cause — closed)
+- `8a8db2d8` #1272 KG silent-failure fix (optional `_EntitiesOnly` grammar fields → Apple returned `{}` → Stage 2 skipped silently; now required + fail-loud — closed)
+- `2db78819` #1260 text reflow/cleanup tool (closed)
+
+**STILL OPEN / WATCHING:** #1272 fix is merged but an **end-to-end KG-populates-on-real-PDF confirmation** (salas2015 via f_backend trunk engine) is still pending — the fix removes the silent-empty path but a real run should confirm entities now appear. PDF audit also filed #1273 (443pp stalls engine) + #1274 (image-only PDF no OCR). New feature issues from Daniel tonight: #1266/#1267 (KG temporal+spatial+ranges+provenance), #1268 (model-comparison UI abstract+per-node), #1269 (MCP + agentic chatbot), #1270 (rich search results). gpt's KG evidential-model design → `agent-work/proposals/2026-05-26-kg-evidential-model.md`.
+
+**CAPACITY:** Codex (OpenAI) hit its usage cap ~8pm, recovers ~21:43 — one-shot cron `5538969a` at 22:02 re-tasks the 3 Codex lanes (codex53→#466 enhance, gpt→#1273, gpt-mini→#1274). Claude lanes carried the night meanwhile.
+
 **LANES** (worktrees `~/code/fichero-<name>`, each commits to its own branch, manager/integrator merges):
+- `f_sonnet` (Claude): all 6 KG/backend items MERGED; then #1271 + #1272 MERGED. Idle — next: confirm #1272 end-to-end, or #1250 (catalogue-stall, likely already fixed by KG spine).
+- `f_opus` (Claude, Xcode): #1247/#1245 committed (unmerged, Swift — needs three-leg tick); now working reading-surface cluster #1243 (`deae1172` done) → #1244 → #1246. Branch carries held #1230 UITest — keep #1230 OPEN.
+- `f_haiku` (Claude): #1260 MERGED. Idle.
+- Codex lanes: see CAPACITY above.
 - `f_sonnet` (Claude, branch sonnet): KG-spine COMMITTED — #1248 `92dd9635`, #1254+#1263 `2c40907b`, #1249 `6dd058ae`. Now: #1252 (RTF strip) → #1251 (progress) → validate Catalogue+Apple → #1237 (XLSX).
 - `f_opus` (Claude, branch opus, OWNS Xcode): #1247 `4a4ad3cd`, #1245 `d9ec347d` committed (branch also carries held #1230 `4297740c`). Now: #1243 → #1244 → #1246 → #1253 → #1230 debug.
 - `f_haiku` (Claude, branch haiku): #1260 `1a17cb8f` committed; extending #1260 (AI hook + tests) in its own module only.
@@ -15,7 +31,7 @@
 - `f_gpt_mini` (OpenAI, branch gpt-mini): #1256 audit `bb00a461` + phase-1 WIP; REASSIGNED to **CLI end-to-end KG validation** — start engine from sonnet code on `:8799` + temp library, import→Catalogue(apple)→query KG, confirm #1248/#1254/#1249 work (don't disturb Daniel's `:8765`).
 - Role lanes (Claude, reset from spurious dialog): `f_integrator` (merge gate), `f_reviewer` (review backlog), `f_planner` (image-epic decomposition → agent-work/proposals/). `f_bugtriage` idle.
 
-**MERGE BACKLOG** (all off trunk `55e9aed0`, NONE merged yet). Pipeline: f_reviewer APPROVE → f_integrator verify in the **0.0.2 trunk worktree** → `git merge --no-ff <branch>` + `git push origin 0.0.2` (NEVER main) → comment/close issue. Order: **sonnet KG spine FIRST** → opus (#1247/#1245; carries #1230 — keep issue #1230 OPEN) → haiku #1260. Codex branches: merge each only after it reports its current task done. Backend verify: `/Users/danieltubb/code/fichero-0.0.2/.venv/bin/pytest` with `PYTHONPATH=<lane>/fichero-engine/src` (lane worktrees have no .venv).
+**MERGE BACKLOG** (the per-lane queues just above this and the "NONE merged" framing are SUPERSEDED by the ✅ MERGED ledger near the top of this block). REMAINING to merge: **opus reading-surface** (#1247/#1245 + the #1243/#1244/#1246 cluster) — SWIFT, needs a dedicated three-leg tick (swiftlint + Xcode build + RunAllTests), carries the held #1230 UITest so keep #1230 OPEN. Codex image/export branches merge after each reports its task done. Pipeline: verify in the **0.0.2 trunk worktree** → `git merge --no-ff <branch>` + `git push origin 0.0.2` (NEVER main) → close issue. The 3-way merge of a lane branched from old trunk shows scary housekeeping noise in `git diff` but resolves clean (merge-base handles it) — always verify STATE.md handoff + proposal docs survive + stale root files stay deleted. Backend verify: `/Users/danieltubb/code/fichero-0.0.2/.venv/bin/pytest` with `PYTHONPATH=fichero-engine/src` (trunk has the .venv).
 
 **HELD (need Daniel):** #1230 merge held on a one-time macOS TCC automation grant (run FicheroUITests scheme in Xcode + Allow, or pre-grant Xcode in Privacy&Security→Accessibility+Automation); imports #1231–#1239; #1239 SSH backend (not 0.0.2).
 
