@@ -1145,6 +1145,15 @@ async def _run_two_stage(
     extraction = _convert_entities_to_extraction(combined_entities, all_claims)
 
     # Use the same output format as oneshot mode
+    _total_items = sum([
+        len(extraction.people), len(extraction.places),
+        len(extraction.organizations), len(extraction.dates), len(extraction.events),
+    ])
+    logger.info(
+        "extract_all (two-stage): done — %d chunks, %d unique entities, "
+        "%d entities with claims, %d KG rows queued",
+        len(chunks), total_entities, entity_done, len(kg_payload),
+    )
     return {
         "text": _render_extraction_markdown(extraction),
         "value": {
@@ -1204,6 +1213,17 @@ async def extract_all(
     # so the NER→SVO split runs automatically without requiring explicit config.
     default_mode = "twostage" if llm_config.provider == "apple" else "oneshot"
     extraction_mode = inputs.get("extraction_mode") or default_mode
+
+    # Start banner (#1251) — visible in the activity log so long/stalled runs
+    # show WHICH document is being worked on, not just per-chunk noise.
+    _doc_ids = state.get("selected_doc_ids") or []
+    _doc_hint = ",".join(d[:8] for d in _doc_ids[:3]) or "<none>"
+    _num_records = len(recovered_records) if isinstance(recovered_records, list) else 0
+    logger.info(
+        "extract_all: start — doc=%s text=%d chars records=%d mode=%s provider=%s/%s",
+        _doc_hint, len(text), _num_records, extraction_mode,
+        llm_config.provider, llm_config.model,
+    )
 
     if extraction_mode == "twostage":
         return await _run_two_stage(
@@ -1572,6 +1592,13 @@ async def extract_all(
                 f"extract_all: {len(chunk_errors)}/{len(chunks)} chunks "
                 f"failed (partial extraction continued)"
             )
+
+    _total_items = sum(len(v) for v in value.values())
+    logger.info(
+        "extract_all: done — doc=%s %d chunks → %d entities/events "
+        "(%d KG rows queued)",
+        _doc_hint, len(chunks), _total_items, len(kg_payload),
+    )
     return result
 
 
