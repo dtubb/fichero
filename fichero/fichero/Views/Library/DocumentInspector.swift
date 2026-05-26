@@ -280,24 +280,223 @@ struct DocumentInspector: View {
 struct DisplayAttributesStrip: View {
     let document: Document
 
+    // Artifacts are loaded lazily so the user can opt to surface them as rows
+    // (#1229 part 2). The same per-document, non-descendant scope the Artifacts
+    // tab uses (#721) — a page shows only its own artifacts.
+    @EnvironmentObject private var artifactService: ArtifactServiceGenerated
+
+    /// Which fixed attributes the user has *hidden*, comma-joined raw values.
+    /// Persisted as a global display preference (not per-window scene state) —
+    /// the visible set is user-editable, never hardcoded (MEMORY: don't
+    /// hardcode user-editable things). Default empty → every fixed attribute
+    /// shows, matching pre-#1229 behaviour.
+    @AppStorage("inspector.attributeStrip.hidden") private var hiddenRaw: String = ""
+    /// Artifact types the user has chosen to surface, comma-joined. Default
+    /// empty → no artifacts shown; they are opt-in.
+    @AppStorage("inspector.attributeStrip.artifacts") private var shownArtifactsRaw: String = ""
+
+    @State private var artifacts: [Artifact] = []
+
+    /// The fixed document attributes the strip can show. Case order is the
+    /// display order. `path` is additionally gated on the document having one.
+    enum DisplayAttribute: String, CaseIterable, Identifiable {
+        case status, kind, ingest, path, created, modified
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .status: return "Status"
+            case .kind: return "Kind"
+            case .ingest: return "Ingest"
+            case .path: return "Path"
+            case .created: return "Created"
+            case .modified: return "Modified"
+            }
+        }
+    }
+
+    /// A single rendered line in the strip — either a fixed attribute or a
+    /// surfaced artifact type. Unifying them lets one `ForEach` interleave the
+    /// divider logic without an index-vs-data mismatch.
+    private enum StripRow: Identifiable {
+        case attribute(DisplayAttribute)
+        case artifact(String)
+        var id: String {
+            switch self {
+            case .attribute(let attr): return "attr:\(attr.rawValue)"
+            case .artifact(let type): return "art:\(type)"
+            }
+        }
+    }
+
+    private var hiddenAttributes: Set<String> {
+        Set(hiddenRaw.split(separator: ",").map(String.init))
+    }
+
+    private var shownArtifactTypes: Set<String> {
+        Set(shownArtifactsRaw.split(separator: ",").map(String.init))
+    }
+
+    /// Distinct artifact types available for this document, sorted for a stable
+    /// menu + row order.
+    private var availableArtifactTypes: [String] {
+        Array(Set(artifacts.map(\.artifactType))).sorted()
+    }
+
+    /// The ordered rows to render: visible fixed attributes first, then any
+    /// artifact types the user has switched on.
+    private var rows: [StripRow] {
+        var result = DisplayAttribute.allCases
+            .filter { shouldRender($0) }
+            .map { StripRow.attribute($0) }
+        result += availableArtifactTypes
+            .filter { shownArtifactTypes.contains($0) }
+            .map { StripRow.artifact($0) }
+        return result
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            row("Status", value: statusValue, color: statusColor)
+            header
             Divider()
-            row("Kind", value: kindValue)
-            Divider()
-            row("Ingest", value: ingestValue)
-            if let path = document.path, !path.isEmpty {
-                Divider()
-                row("Path", value: path, monospaced: true)
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, item in
+                if index > 0 {
+                    Divider()
+                }
+                rowView(for: item)
             }
-            Divider()
-            row("Created", value: relativeDateString(document.createdAt))
-            Divider()
-            row("Modified", value: relativeDateString(document.updatedAt))
         }
         .padding(.vertical, 6)
         .background(Color(.controlBackgroundColor))
+        .task(id: document.id) {
+            await loadArtifacts()
+        }
+    }
+
+    // MARK: - Header + filter menu
+
+    private var header: some View {
+        HStack(spacing: 6) {
+            Text("Attributes")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            filterMenu
+        }
+        .padding(.horizontal, 10)
+        .padding(.bottom, 4)
+    }
+
+    private var filterMenu: some View {
+        Menu {
+            Section("Attributes") {
+                ForEach(DisplayAttribute.allCases) { attr in
+                    Toggle(attr.label, isOn: binding(for: attr))
+                }
+            }
+            if !availableArtifactTypes.isEmpty {
+                Section("Artifacts") {
+                    ForEach(availableArtifactTypes, id: \.self) { type in
+                        Toggle(displayName(for: type), isOn: artifactBinding(for: type))
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .font(.caption)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Choose which attributes and artifacts to show")
+    }
+
+    // MARK: - Visibility + bindings
+
+    /// A fixed attribute renders when the user hasn't hidden it — and, for
+    /// `path`, only when the document actually has one (matching pre-#1229).
+    private func shouldRender(_ attr: DisplayAttribute) -> Bool {
+        guard !hiddenAttributes.contains(attr.rawValue) else { return false }
+        if attr == .path {
+            return !(document.path?.isEmpty ?? true)
+        }
+        return true
+    }
+
+    private func binding(for attr: DisplayAttribute) -> Binding<Bool> {
+        Binding(
+            get: { !hiddenAttributes.contains(attr.rawValue) },
+            set: { show in
+                var set = hiddenAttributes
+                if show { set.remove(attr.rawValue) } else { set.insert(attr.rawValue) }
+                hiddenRaw = set.sorted().joined(separator: ",")
+            }
+        )
+    }
+
+    private func artifactBinding(for type: String) -> Binding<Bool> {
+        Binding(
+            get: { shownArtifactTypes.contains(type) },
+            set: { show in
+                var set = shownArtifactTypes
+                if show { set.insert(type) } else { set.remove(type) }
+                shownArtifactsRaw = set.sorted().joined(separator: ",")
+            }
+        )
+    }
+
+    // MARK: - Row rendering
+
+    @ViewBuilder
+    private func rowView(for item: StripRow) -> some View {
+        switch item {
+        case .attribute(let attr):
+            attributeRow(attr)
+        case .artifact(let type):
+            row(displayName(for: type), value: artifactValue(for: type))
+        }
+    }
+
+    @ViewBuilder
+    private func attributeRow(_ attr: DisplayAttribute) -> some View {
+        switch attr {
+        case .status: row(attr.label, value: statusValue, color: statusColor)
+        case .kind: row(attr.label, value: kindValue)
+        case .ingest: row(attr.label, value: ingestValue)
+        case .path: row(attr.label, value: document.path ?? "", monospaced: true)
+        case .created: row(attr.label, value: relativeDateString(document.createdAt))
+        case .modified: row(attr.label, value: relativeDateString(document.updatedAt))
+        }
+    }
+
+    // MARK: - Artifact helpers
+
+    private func displayName(for type: String) -> String {
+        artifacts.first { $0.artifactType == type }?.artifactTypeDisplayName
+            ?? type.capitalized
+    }
+
+    /// Value shown for an artifact row: the most-recent artifact's relative
+    /// date, prefixed with a count when several of that type exist.
+    private func artifactValue(for type: String) -> String {
+        let matching = artifacts.filter { $0.artifactType == type }
+        guard let latest = matching.max(by: { $0.createdAt < $1.createdAt }) else {
+            return "—"
+        }
+        let date = relativeDateString(latest.createdAt)
+        return matching.count > 1 ? "\(matching.count) · \(date)" : date
+    }
+
+    private func loadArtifacts() async {
+        do {
+            artifacts = try await artifactService.getArtifacts(
+                forDocumentId: document.id,
+                includeDescendants: false
+            )
+        } catch {
+            // Artifacts are optional context — fall back to an empty list so
+            // the fixed attribute rows still render.
+            artifacts = []
+        }
     }
 
     // MARK: - Row helpers
