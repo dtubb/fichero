@@ -1,5 +1,18 @@
 # STATE.md — Fichero
 
+## 2026-05-26 PM — Manager session (Daniel @ dentist, autonomous)
+
+Engineering queue cleared except the last item. All merged + pushed to `origin/0.0.2`:
+- **#1229** (`1e769aff`) inspector toggle polish (`sidebar.right`) + filterable/artifact-aware attribute strip (@AppStorage). Review APPROVE, three-leg green. Closed. Deferred Part 3 (selector unify) + window-corner toggle → **#1241**.
+- **#1240** (`38cb2482`, #874 follow-up) entity-type registry wired into extraction runtime + provenance KnowledgeClaim. Review REQUEST CHANGES → all fixed (`ccb0e54e`). ruff clean; trunk backend suite 555-pass. Closed.
+- **#874** registry endpoints already shipped (`c07474a3`); **#1054** search threshold already fixed (`37a1ceb7`) — both verified, not redone.
+
+**In flight:** **#1230** (f_opus, branch `opus`, owns Xcode) — FicheroUITests target, scoped to **Option 2**: foundation + flow1 (launch/ClaimFocusState) + flow5 (view-mode rail) on empty library + accessibilityIdentifiers groundwork. Flows 2-4 (seeded backend + PDF fixture + library-override launch arg) split → **#1242**.
+
+**Needs your decision (held, NOT run autonomously):** import cluster **#1231-#1239** — release-data/infra tied to your real corpora (slipbox, XLSX catalogues, ACENET-over-SSH). These need your data access + mapping/reconciliation decisions; #1239 needs a design pass. Ready to dispatch on your go-ahead.
+
+Lane state: f_opus building #1230; f_sonnet idle/reserve (resynced to 38cb2482); haiku/codex53/gpt/gpt-mini idle reserve. No BLOCK.md anywhere.
+
 ## Snapshot
 
 **Branch:** `0.0.2`
