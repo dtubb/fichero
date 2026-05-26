@@ -786,6 +786,10 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (settings.router, "", ["settings"]),
     (sources.router, "/api/sources", ["sources"]),
     (models.router, "/api/models", ["models"]),
+    # Model comparison is part of the shipped chat/LLM surface for #1262.
+    # It was already implemented but remained dev-tier gated, so release
+    # engines returned 404 for /api/model-comparison/*.
+    (model_comparison.router, "/api", ["model-comparison"]),
     # claim_curation: KnowledgeClaim curation_state machine
     # (transition / shortlist / curate / reject). Mounts under /api/claims.
     # Renamed from review_queue 2026-05-15 — the file is unrelated to the
@@ -847,7 +851,6 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (integrations.router, "/api", ["integrations"]),
     (local_models.router, "/api", ["local-models"]),
     (mcp_servers.router, "/api", ["mcp-servers"]),
-    (model_comparison.router, "/api", ["model-comparison"]),
     (orchestration.router, "", ["orchestration"]),
     (schedules.router, "/api", ["schedules"]),
     (triggers.router, "/api", ["triggers"]),

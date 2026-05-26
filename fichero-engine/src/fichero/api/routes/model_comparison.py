@@ -228,7 +228,10 @@ async def get_comparison_history(limit: int = 10) -> ComparisonHistoryResponse:
     """Get recent comparison history."""
     engine = get_comparison_engine()
     return ComparisonHistoryResponse(
-        history=[ComparisonResultResponse(**r.to_dict()) for r in engine.get_history(limit)]
+        history=[
+            ComparisonResultResponse(**(r if isinstance(r, dict) else r.to_dict()))
+            for r in engine.get_history(limit)
+        ]
     )
 
 
