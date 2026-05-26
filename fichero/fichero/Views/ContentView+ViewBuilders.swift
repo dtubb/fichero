@@ -6,7 +6,7 @@ import SwiftUI
 
 extension ContentView {
     private var clampedWidescreenContentPaneWidth: CGFloat {
-        CGFloat(min(max(widescreenContentPaneWidth, 180), 900))
+        CGFloat(min(max(widescreenContentPaneWidth, ContentView.contentListMinWidth), 900))
     }
 
     var effectiveCenterIdealWidth: Double {
@@ -191,7 +191,7 @@ extension ContentView {
 
                         ResizableDivider(
                             width: $widescreenContentPaneWidth,
-                            minWidth: 180,
+                            minWidth: ContentView.contentListMinWidth,
                             maxWidth: 900,
                             edge: .leading
                         )

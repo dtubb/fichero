@@ -25,6 +25,12 @@ struct ContentView: View {
     static let inspectorMaxWidth: Double = 1000
     static let contentMinWidth: Double = 520
     static let contentMaxWidth: Double = 2200
+    /// Minimum width of the widescreen content-list pane. Clamped to the
+    /// view-mode icon rail width so the rail and list rows (thumbnail + text)
+    /// can't be dragged narrow enough to clip (#1243). Derived from the rail:
+    /// 4 mode icons × 40pt + MiniToolbar horizontal padding (12×2) + inter-item
+    /// spacing (12) ≈ 240.
+    static let contentListMinWidth: Double = 240
 
     // MARK: - Environment
 
