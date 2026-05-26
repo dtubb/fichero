@@ -27,7 +27,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from fichero.db import db_manager
-from fichero.llm import LLMConfig, chat_structured, resolve_model_alias
+from fichero.llm import LLMConfig, chat_structured, chat_structured_with_fallback, resolve_model_alias
 from fichero.models import Artifact, Document, DocType, FileType
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_write_target
@@ -352,7 +352,9 @@ async def _extract_claims_for_entity(
     )
     try:
         async with extraction_sem:
-            result = await chat_structured(
+            # Use fallback wrapper so guardrail/locale refusals on historical
+            # content auto-retry on the user-configured $large model (#1254).
+            result = await chat_structured_with_fallback(
                 prompt=entity_prompt,
                 schema=_EntityClaims,
                 config=llm_config,
@@ -924,6 +926,44 @@ async def _retry_thin_extraction_with_large(
     return fallback_extraction
 
 
+def _build_entity_items_for_section(
+    entity: Any, section_key: str, claims: list[dict]
+) -> list[dict]:
+    """Convert one two-stage entity + its Stage 2 claims to dicts for _write_kg_rows."""
+    if section_key == "dates":
+        return [
+            {
+                "date": entity.name,
+                "date_normalized": entity.name,
+                "verb": c.get("verb", ""),
+                "object": c.get("object", ""),
+                "source_text": c.get("source_text", ""),
+            }
+            for c in claims
+        ]
+    if section_key == "events":
+        return [
+            {
+                "event": entity.name,
+                "verb": c.get("verb", ""),
+                "object": c.get("object", ""),
+                "source_text": c.get("source_text", ""),
+            }
+            for c in claims
+        ]
+    # people, places, organizations
+    return [
+        {
+            "name": entity.name,
+            "alternative_spellings": getattr(entity, "aliases", []),
+            "verb": c.get("verb", ""),
+            "object": c.get("object", ""),
+            "source_text": c.get("source_text", ""),
+        }
+        for c in claims
+    ]
+
+
 async def _run_two_stage(
     text: str,
     recovered_records: list[dict[str, Any]],
@@ -942,7 +982,7 @@ async def _run_two_stage(
     """
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
-    _ = _resolve_write_target(selected_doc_ids, library_path)  # for write compatibility
+    container = _resolve_write_target(selected_doc_ids, library_path)
 
     # Build chunks
     records_input = recovered_records
@@ -976,7 +1016,9 @@ async def _run_two_stage(
         call_start = time.monotonic()
         try:
             async with extraction_sem:
-                extraction = await chat_structured(
+                # Use fallback wrapper so guardrail/locale refusals auto-retry
+                # on the user's configured $large model (#1254).
+                extraction = await chat_structured_with_fallback(
                     prompt=chunk_text,
                     schema=_EntitiesOnly,
                     config=llm_config,
@@ -992,7 +1034,7 @@ async def _run_two_stage(
             return _EntitiesOnly()
         elapsed = time.monotonic() - call_start
         chunk_timings.append(elapsed)
-        logger.info(f"Stage 1 chunk {idx}: found {sum(len(getattr(extraction, f, [])) for f in ['people', 'places', 'organizations', 'dates', 'events'])} entities")
+        logger.info(f"Stage 1 chunk {idx}: found {sum(len(getattr(extraction, f, [])) for f in ['people', 'places', 'organizations', 'dates', 'events'])} entities in {elapsed:.1f}s")
         return extraction
 
     # Stage 1: Extract all entity names
@@ -1023,10 +1065,26 @@ async def _run_two_stage(
     # Stage 2: Extract claims for each entity using only the chunks it appeared in.
     # This avoids passing the full concatenated document and caps context to what
     # is actually relevant, giving the model the right page text for each entity.
-    logger.info(f"Stage 2: Extracting claims for {sum(len(v) for v in all_entities.values())} entities")
+    total_entities = sum(len(v) for v in all_entities.values())
+    logger.info(f"Stage 2: Extracting claims for {total_entities} entities")
+
+    persist_kg = inputs.get("persist_kg", True)
+    kg_payload: list[dict[str, Any]] = []
+    _skip_sections = {"rivers_extract", "mines_extract", "properties_extract", "legal_references_extract"}
+    _section_by_key = {s["schema_key"]: s for s in _SECTIONS}
+
+    # Open DB once for incremental per-entity writes (#1263).
+    db = None
+    if container and library_path:
+        try:
+            db = db_manager.get_database(library_path)
+        except Exception as exc:
+            logger.error("extract_all (two-stage): cannot open DB for KG writes: %s", exc)
 
     all_claims: dict[str, list[dict]] = {}
+    entity_done = 0
     for section_key, entities in all_entities.items():
+        section = _section_by_key.get(section_key)
         for entity in entities:
             relevant_indices = sorted(entity_chunk_indices.get(entity.name, set()))
             if relevant_indices:
@@ -1038,8 +1096,45 @@ async def _run_two_stage(
                 claim_instructions, extraction_sem
             )
             all_claims[entity.name] = claims
+            entity_done += 1
+            logger.info(
+                "Stage 2: %s/%s — %s '%s': %d claims",
+                entity_done, total_entities, section_key, entity.name, len(claims),
+            )
 
-    # Convert to extraction format
+            # Write this entity's KG rows immediately — partial runs leave
+            # partial KG instead of nothing (#1263 incremental resilience).
+            if section and section["name"] not in _skip_sections and claims and db:
+                items = _build_entity_items_for_section(entity, section_key, claims)
+                if items:
+                    kg_payload.append({
+                        "section_name": section["name"],
+                        "section_key": section_key,
+                        "items": items,
+                        "target_doc_id": container.id,
+                        "page_label": None,
+                        "source_excerpt": entity_context[:500] if entity_context else None,
+                        "provider": getattr(llm_config, "provider", None),
+                        "model": getattr(llm_config, "model", None),
+                        "grounding_text": entity_context,
+                    })
+                    if persist_kg:
+                        try:
+                            _write_kg_rows(
+                                db, section, items, container.id,
+                                page_label=None,
+                                source_excerpt=entity_context[:500] if entity_context else None,
+                                provider=getattr(llm_config, "provider", None),
+                                model=getattr(llm_config, "model", None),
+                                grounding_text=entity_context,
+                            )
+                        except Exception as exc:
+                            logger.error(
+                                "extract_all (two-stage): KG write failed for %s '%s': %s",
+                                section_key, entity.name, exc,
+                            )
+
+    # Convert to extraction format for the return value.
     combined_entities = _EntitiesOnly(
         people=all_entities["people"],
         places=all_entities["places"],
@@ -1061,6 +1156,7 @@ async def _run_two_stage(
             "quotes": [],
             "keywords": [],
         },
+        "kg_payload": kg_payload,
         "cached": False,
     }
 

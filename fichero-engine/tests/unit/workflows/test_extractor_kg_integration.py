@@ -647,3 +647,80 @@ class TestRerunIdempotence1120:
         rows = db.query(KnowledgeEntity, entity_type=EntityType.location)
         assert len(rows) == 1
         assert rows[0].description == "re-created with same id"
+
+
+class TestTwoStageKGWrite:
+    """#1248: two-stage extraction must write KnowledgeEntity + KnowledgeClaim
+    rows just like the oneshot path.  Pre-fix _run_two_stage returned without
+    touching the DB."""
+
+    @pytest.fixture
+    def folder_doc(self, db):
+        doc = Document(name="TwoStageFolder", path="/ts/folder", doc_type=DocType.folder)
+        db.save(doc)
+        return doc
+
+    @pytest.mark.asyncio
+    async def test_two_stage_writes_kg_entity_and_claim(
+        self, db, test_package, folder_doc
+    ):
+        from fichero.workflows.tools.extract_all import (
+            _EntitiesOnly, _EntityOnly, _EntityClaims, _SVOClaim,
+        )
+        from fichero.llm import LLMConfig
+
+        llm = LLMConfig(provider="apple", model="apple/default")
+
+        stage1_result = _EntitiesOnly(
+            people=[_EntityOnly(name="María Josefa", aliases=[], entity_type="person")],
+        )
+        stage2_result = _EntityClaims(
+            subject="María Josefa",
+            claims=[
+                _SVOClaim(
+                    subject="María Josefa",
+                    verb="signed",
+                    object="the deed",
+                    source_text="María Josefa signed the deed in 1842.",
+                )
+            ],
+        )
+
+        call_count = {"n": 0}
+
+        async def fake_chat_structured(**kwargs):
+            call_count["n"] += 1
+            schema = kwargs.get("schema")
+            if schema is _EntitiesOnly:
+                return stage1_result
+            return stage2_result
+
+        with patch(
+            "fichero.workflows.tools.extract_all.chat_structured_with_fallback",
+            new=AsyncMock(side_effect=fake_chat_structured),
+        ):
+            state = {
+                "library_path": str(test_package),
+                "selected_doc_ids": [folder_doc.id],
+            }
+            result = await __import__(
+                "fichero.workflows.tools.extract_all", fromlist=["extract_all"]
+            ).extract_all(
+                inputs={"text": "María Josefa signed the deed in 1842.", "extraction_mode": "twostage"},
+                state=state,
+                llm_config=llm,
+            )
+
+        # KG entity written
+        people = db.query(KnowledgeEntity, entity_type=EntityType.person)
+        assert len(people) >= 1, "two-stage must write KnowledgeEntity rows"
+        names = {e.canonical_name for e in people}
+        assert "María Josefa" in names
+
+        # Provenance claim attached to the container
+        claims = db.query(KnowledgeClaim, source_document_id=folder_doc.id)
+        assert len(claims) >= 1, "two-stage must write KnowledgeClaim rows"
+
+        # kg_payload present in result
+        assert "kg_payload" in result, "two-stage result must include kg_payload key"
+        assert len(result["kg_payload"]) >= 1

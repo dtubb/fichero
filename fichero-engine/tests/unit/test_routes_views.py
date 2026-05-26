@@ -114,6 +114,52 @@ class TestDocumentViewRoute:
         assert "Page 2" in response.text
         assert "Second page transcript" in response.text
 
+    def test_page_child_claims_appear_in_parent_view(self, client, db):
+        """Claims stored on page child docs must surface in the parent document view (#1249)."""
+        doc = _make_document(
+            doc_id="pdf-parent",
+            name="Archive.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+        )
+        page = _make_document(
+            doc_id="page-child-1",
+            name="Page 1",
+            doc_type=DocType.page,
+            page_content="Hernández sold the estate.",
+            parent_id=doc.id,
+            sequence=1,
+        )
+        db.save(doc)
+        db.save(page)
+
+        entity = KnowledgeEntity(
+            id="entity-pg1",
+            canonical_name="Hernández",
+            entity_type=EntityType.person,
+            aliases=[],
+        )
+        db.save(entity)
+
+        # Claim is scoped to the PAGE child doc, not the parent.
+        claim = KnowledgeClaim(
+            id="claim-pg1",
+            text="Hernández sold the estate.",
+            source_document_id=page.id,
+            source_page_label="p.1",
+            source_excerpt="sold the estate",
+            entity_ids=[entity.id],
+            subject_canonical="Hernández",
+            predicate_verb="sold",
+            object_phrase="the estate",
+        )
+        db.save(claim)
+
+        response = client.get(f"/view/document/{doc.id}")
+        assert response.status_code == 200
+        assert '"id": "claim-pg1"' in response.text
+        assert '"canonical_name": "Hernández"' in response.text
+
     def test_missing_document_returns_404(self, client):
         response = client.get("/view/document/no-such-document")
         assert response.status_code == 404
