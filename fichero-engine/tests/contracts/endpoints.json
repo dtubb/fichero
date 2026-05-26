@@ -3435,6 +3435,28 @@
         "response_model": "MethodTaxonomyResponse"
       }
     ],
+    "export": [
+      {
+        "method": "POST",
+        "path": "/export/markdown-folder",
+        "operation_id": "export_markdown_folder_route_api_export_markdown_folder_post",
+        "summary": "Export Markdown Folder Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "MarkdownFolderExportRequest",
+        "response_model": "MarkdownFolderExportResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/export/word",
+        "operation_id": "export_word_route_api_export_word_post",
+        "summary": "Export Word Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "WordExportRequest",
+        "response_model": "WordExportResponse"
+      }
+    ],
     "folders": [
       {
         "method": "GET",
@@ -4765,6 +4787,116 @@
         "query_params": [],
         "request_model": null,
         "response_model": "HFModelInfo"
+      }
+    ],
+    "model-comparison": [
+      {
+        "method": "POST",
+        "path": "/model-comparison/compare",
+        "operation_id": "compare_models_api_model_comparison_compare_post",
+        "summary": "Compare Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CompareRequest",
+        "response_model": "ComparisonResultResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/history",
+        "operation_id": "get_comparison_history_api_model_comparison_history_get",
+        "summary": "Get Comparison History",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ComparisonHistoryResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/comparison/{comparison_id}",
+        "operation_id": "get_comparison_api_model_comparison_comparison__comparison_id__get",
+        "summary": "Get Comparison",
+        "path_params": [
+          "comparison_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ComparisonResultResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/models",
+        "operation_id": "list_available_models_api_model_comparison_models_get",
+        "summary": "List Available Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "fichero__api__routes__model_comparison__ModelListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/model-comparison/estimate-cost",
+        "operation_id": "estimate_comparison_cost_api_model_comparison_estimate_cost_post",
+        "summary": "Estimate Comparison Cost",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CompareRequest",
+        "response_model": "CostEstimateResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/presets",
+        "operation_id": "get_comparison_presets_api_model_comparison_presets_get",
+        "summary": "Get Comparison Presets",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PresetsResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/models-by-tier",
+        "operation_id": "get_models_grouped_by_tier_api_model_comparison_models_by_tier_get",
+        "summary": "Get Models Grouped By Tier",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ModelsByTierResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/model-comparison/compare-vision",
+        "operation_id": "compare_vision_models_api_model_comparison_compare_vision_post",
+        "summary": "Compare Vision Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "VisionCompareRequest",
+        "response_model": "ComparisonResultResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/model-comparison/compare-tool",
+        "operation_id": "compare_tool_across_models_api_model_comparison_compare_tool_post",
+        "summary": "Compare Tool Across Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ToolCompareRequest",
+        "response_model": "ComparisonResultResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/model-comparison/tools",
+        "operation_id": "list_available_tools_api_model_comparison_tools_get",
+        "summary": "List Available Tools",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "fichero__api__routes__model_comparison__ToolListResponse"
       }
     ],
     "storage": [
@@ -7399,116 +7531,6 @@
         ],
         "request_model": null,
         "response_model": "MCPServerToolsResponse"
-      }
-    ],
-    "model-comparison": [
-      {
-        "method": "POST",
-        "path": "/model-comparison/compare",
-        "operation_id": "compare_models_api_model_comparison_compare_post",
-        "summary": "Compare Models",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CompareRequest",
-        "response_model": "ComparisonResultResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/model-comparison/history",
-        "operation_id": "get_comparison_history_api_model_comparison_history_get",
-        "summary": "Get Comparison History",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "ComparisonHistoryResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/model-comparison/comparison/{comparison_id}",
-        "operation_id": "get_comparison_api_model_comparison_comparison__comparison_id__get",
-        "summary": "Get Comparison",
-        "path_params": [
-          "comparison_id"
-        ],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ComparisonResultResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/model-comparison/models",
-        "operation_id": "list_available_models_api_model_comparison_models_get",
-        "summary": "List Available Models",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "fichero__api__routes__model_comparison__ModelListResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/model-comparison/estimate-cost",
-        "operation_id": "estimate_comparison_cost_api_model_comparison_estimate_cost_post",
-        "summary": "Estimate Comparison Cost",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "CompareRequest",
-        "response_model": "CostEstimateResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/model-comparison/presets",
-        "operation_id": "get_comparison_presets_api_model_comparison_presets_get",
-        "summary": "Get Comparison Presets",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "PresetsResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/model-comparison/models-by-tier",
-        "operation_id": "get_models_grouped_by_tier_api_model_comparison_models_by_tier_get",
-        "summary": "Get Models Grouped By Tier",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "ModelsByTierResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/model-comparison/compare-vision",
-        "operation_id": "compare_vision_models_api_model_comparison_compare_vision_post",
-        "summary": "Compare Vision Models",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "VisionCompareRequest",
-        "response_model": "ComparisonResultResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/model-comparison/compare-tool",
-        "operation_id": "compare_tool_across_models_api_model_comparison_compare_tool_post",
-        "summary": "Compare Tool Across Models",
-        "path_params": [],
-        "query_params": [],
-        "request_model": "ToolCompareRequest",
-        "response_model": "ComparisonResultResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/model-comparison/tools",
-        "operation_id": "list_available_tools_api_model_comparison_tools_get",
-        "summary": "List Available Tools",
-        "path_params": [],
-        "query_params": [],
-        "request_model": null,
-        "response_model": "fichero__api__routes__model_comparison__ToolListResponse"
       }
     ],
     "policies": [

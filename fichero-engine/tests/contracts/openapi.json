@@ -7682,6 +7682,114 @@
         }
       }
     },
+    "/api/export/markdown-folder": {
+      "post": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "Export Markdown Folder Route",
+        "description": "Export a library, folder, or document as a Markdown folder.",
+        "operationId": "export_markdown_folder_route_api_export_markdown_folder_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkdownFolderExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkdownFolderExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/word": {
+      "post": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "Export Word Route",
+        "description": "Export a library, folder, or document as a Word .docx file.",
+        "operationId": "export_word_route_api_export_word_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WordExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WordExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/folders/{entity_type}/folders": {
       "get": {
         "tags": [
@@ -12458,6 +12566,359 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/compare": {
+      "post": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Compare Models",
+        "description": "Compare responses from multiple models.\n\nRuns the same prompt against all specified models in parallel\nand returns comparison results with timing and cost metrics.",
+        "operationId": "compare_models_api_model_comparison_compare_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonResultResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/history": {
+      "get": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Get Comparison History",
+        "description": "Get recent comparison history.",
+        "operationId": "get_comparison_history_api_model_comparison_history_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/comparison/{comparison_id}": {
+      "get": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Get Comparison",
+        "description": "Get a specific comparison by ID.",
+        "operationId": "get_comparison_api_model_comparison_comparison__comparison_id__get",
+        "parameters": [
+          {
+            "name": "comparison_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Comparison Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonResultResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/models": {
+      "get": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "List Available Models",
+        "description": "List available models with pricing information.",
+        "operationId": "list_available_models_api_model_comparison_models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fichero__api__routes__model_comparison__ModelListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/estimate-cost": {
+      "post": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Estimate Comparison Cost",
+        "description": "Estimate the cost of running a comparison.\n\nUses approximate token counts to estimate costs before running.",
+        "operationId": "estimate_comparison_cost_api_model_comparison_estimate_cost_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostEstimateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/presets": {
+      "get": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Get Comparison Presets",
+        "description": "Get preset model combinations for common comparison scenarios.",
+        "operationId": "get_comparison_presets_api_model_comparison_presets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresetsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/models-by-tier": {
+      "get": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Get Models Grouped By Tier",
+        "description": "Get all models grouped by performance/cost tier.\n\nReturns models organized into:\n- frontier: Best quality, highest cost (GPT-4o, Claude 3.5 Sonnet, etc.)\n- mid: Good quality, moderate cost (GPT-4o-mini, Claude Haiku, etc.)\n- budget: Basic quality, low cost (GPT-3.5, etc.)\n- local: Free, runs locally (Llama, Mistral via Ollama)",
+        "operationId": "get_models_grouped_by_tier_api_model_comparison_models_by_tier_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelsByTierResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/compare-vision": {
+      "post": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Compare Vision Models",
+        "description": "Compare vision models on the same image(s).\n\nSends the same image(s) to multiple vision-capable models\nand returns comparison results with timing and cost metrics.\n\nImages can be:\n- URLs (https://...)\n- Base64 data URIs (data:image/jpeg;base64,...)",
+        "operationId": "compare_vision_models_api_model_comparison_compare_vision_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisionCompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonResultResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/compare-tool": {
+      "post": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Compare Tool Across Models",
+        "description": "Compare models running the same workflow tool.\n\nRuns a workflow tool (describe, summarize, classify, etc.) with\nmultiple models and compares their outputs.\n\nAvailable tools can be found via the /api/workflows/tools endpoint.",
+        "operationId": "compare_tool_across_models_api_model_comparison_compare_tool_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolCompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonResultResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/tools": {
+      "get": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "List Available Tools",
+        "description": "List available workflow tools that can be used for comparison.\n\nReturns tools that support LLM comparison (have uses_llm=True).",
+        "operationId": "list_available_tools_api_model_comparison_tools_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fichero__api__routes__model_comparison__ToolListResponse"
                 }
               }
             }
@@ -27756,359 +28217,6 @@
         }
       }
     },
-    "/api/model-comparison/compare": {
-      "post": {
-        "tags": [
-          "model-comparison",
-          "model-comparison"
-        ],
-        "summary": "Compare Models",
-        "description": "Compare responses from multiple models.\n\nRuns the same prompt against all specified models in parallel\nand returns comparison results with timing and cost metrics.",
-        "operationId": "compare_models_api_model_comparison_compare_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CompareRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ComparisonResultResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/model-comparison/history": {
-      "get": {
-        "tags": [
-          "model-comparison",
-          "model-comparison"
-        ],
-        "summary": "Get Comparison History",
-        "description": "Get recent comparison history.",
-        "operationId": "get_comparison_history_api_model_comparison_history_get",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 10,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ComparisonHistoryResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/model-comparison/comparison/{comparison_id}": {
-      "get": {
-        "tags": [
-          "model-comparison",
-          "model-comparison"
-        ],
-        "summary": "Get Comparison",
-        "description": "Get a specific comparison by ID.",
-        "operationId": "get_comparison_api_model_comparison_comparison__comparison_id__get",
-        "parameters": [
-          {
-            "name": "comparison_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Comparison Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ComparisonResultResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/model-comparison/models": {
-      "get": {
-        "tags": [
-          "model-comparison",
-          "model-comparison"
-        ],
-        "summary": "List Available Models",
-        "description": "List available models with pricing information.",
-        "operationId": "list_available_models_api_model_comparison_models_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__model_comparison__ModelListResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/model-comparison/estimate-cost": {
-      "post": {
-        "tags": [
-          "model-comparison",
-          "model-comparison"
-        ],
-        "summary": "Estimate Comparison Cost",
-        "description": "Estimate the cost of running a comparison.\n\nUses approximate token counts to estimate costs before running.",
-        "operationId": "estimate_comparison_cost_api_model_comparison_estimate_cost_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CompareRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CostEstimateResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/model-comparison/presets": {
-      "get": {
-        "tags": [
-          "model-comparison",
-          "model-comparison"
-        ],
-        "summary": "Get Comparison Presets",
-        "description": "Get preset model combinations for common comparison scenarios.",
-        "operationId": "get_comparison_presets_api_model_comparison_presets_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PresetsResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/model-comparison/models-by-tier": {
-      "get": {
-        "tags": [
-          "model-comparison",
-          "model-comparison"
-        ],
-        "summary": "Get Models Grouped By Tier",
-        "description": "Get all models grouped by performance/cost tier.\n\nReturns models organized into:\n- frontier: Best quality, highest cost (GPT-4o, Claude 3.5 Sonnet, etc.)\n- mid: Good quality, moderate cost (GPT-4o-mini, Claude Haiku, etc.)\n- budget: Basic quality, low cost (GPT-3.5, etc.)\n- local: Free, runs locally (Llama, Mistral via Ollama)",
-        "operationId": "get_models_grouped_by_tier_api_model_comparison_models_by_tier_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ModelsByTierResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/model-comparison/compare-vision": {
-      "post": {
-        "tags": [
-          "model-comparison",
-          "model-comparison"
-        ],
-        "summary": "Compare Vision Models",
-        "description": "Compare vision models on the same image(s).\n\nSends the same image(s) to multiple vision-capable models\nand returns comparison results with timing and cost metrics.\n\nImages can be:\n- URLs (https://...)\n- Base64 data URIs (data:image/jpeg;base64,...)",
-        "operationId": "compare_vision_models_api_model_comparison_compare_vision_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VisionCompareRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ComparisonResultResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/model-comparison/compare-tool": {
-      "post": {
-        "tags": [
-          "model-comparison",
-          "model-comparison"
-        ],
-        "summary": "Compare Tool Across Models",
-        "description": "Compare models running the same workflow tool.\n\nRuns a workflow tool (describe, summarize, classify, etc.) with\nmultiple models and compares their outputs.\n\nAvailable tools can be found via the /api/workflows/tools endpoint.",
-        "operationId": "compare_tool_across_models_api_model_comparison_compare_tool_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ToolCompareRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ComparisonResultResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/model-comparison/tools": {
-      "get": {
-        "tags": [
-          "model-comparison",
-          "model-comparison"
-        ],
-        "summary": "List Available Tools",
-        "description": "List available workflow tools that can be used for comparison.\n\nReturns tools that support LLM comparison (have uses_llm=True).",
-        "operationId": "list_available_tools_api_model_comparison_tools_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__model_comparison__ToolListResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/policies/orchestration": {
       "get": {
         "tags": [
@@ -36595,6 +36703,29 @@
         "title": "ExportResponse",
         "description": "Response from export operation."
       },
+      "ExportedFileResponse": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "kind"
+        ],
+        "title": "ExportedFileResponse"
+      },
       "ExtractTextRequest": {
         "properties": {
           "document_ids": {
@@ -40098,6 +40229,80 @@
         "title": "MapViewData",
         "description": "Data for map view."
       },
+      "MarkdownFolderExportRequest": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path",
+            "description": "Destination folder for export files"
+          },
+          "target_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Id",
+            "description": "Optional document/folder id to export; omitted exports library"
+          },
+          "recursive": {
+            "type": "boolean",
+            "title": "Recursive",
+            "description": "Include descendants of folders",
+            "default": true
+          },
+          "include_assets": {
+            "type": "boolean",
+            "title": "Include Assets",
+            "description": "Copy image assets",
+            "default": true
+          },
+          "overwrite": {
+            "type": "boolean",
+            "title": "Overwrite",
+            "description": "Allow writing into non-empty folder",
+            "default": false
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "output_path"
+        ],
+        "title": "MarkdownFolderExportRequest",
+        "description": "Request body for Markdown folder export."
+      },
+      "MarkdownFolderExportResponse": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedFileResponse"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedFileResponse"
+            },
+            "type": "array",
+            "title": "Assets"
+          },
+          "document_count": {
+            "type": "integer",
+            "title": "Document Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "output_path",
+          "files",
+          "assets",
+          "document_count"
+        ],
+        "title": "MarkdownFolderExportResponse"
+      },
       "MetadataPatchRequest": {
         "properties": {
           "metadata": {
@@ -41128,7 +41333,108 @@
         ],
         "title": "NodeCreateRequest"
       },
-      "NodeDef": {
+      "NodeDef-Input": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique node identifier"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool",
+            "description": "Tool function name from registry"
+          },
+          "input_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Input Ports",
+            "description": "Input connection ports (populated from registry, not stored)"
+          },
+          "output_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Output Ports",
+            "description": "Output connection ports (populated from registry, not stored)"
+          },
+          "input_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/InputMapping"
+            },
+            "type": "array",
+            "title": "Input Mappings",
+            "description": "Maps input ports to data sources from previous nodes"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs",
+            "description": "Input values for the tool (supports path resolution)"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config",
+            "description": "Static tool configuration (not resolved)"
+          },
+          "output_schema": {
+            "$ref": "#/components/schemas/OutputSchema",
+            "nullable": true,
+            "description": "JSON Schema for structured LLM output"
+          },
+          "position_x": {
+            "type": "number",
+            "title": "Position X",
+            "default": 0.0
+          },
+          "position_y": {
+            "type": "number",
+            "title": "Position Y",
+            "default": 0.0
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name",
+            "default": ""
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name",
+            "default": ""
+          },
+          "uses_llm": {
+            "type": "boolean",
+            "title": "Uses Llm",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool"
+        ],
+        "title": "NodeDef",
+        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
+      },
+      "NodeDef-Output": {
         "properties": {
           "id": {
             "type": "string",
@@ -45837,8 +46143,7 @@
           "content_preview",
           "metadata"
         ],
-        "title": "SearchResult",
-        "description": "Search result with score and document reference."
+        "title": "SearchResult"
       },
       "SearchSource": {
         "properties": {
@@ -49139,6 +49444,63 @@
         ],
         "title": "WebSearchResult"
       },
+      "WordExportRequest": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path",
+            "description": "Destination .docx path"
+          },
+          "target_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Id",
+            "description": "Optional document/folder id to export; omitted exports library"
+          },
+          "recursive": {
+            "type": "boolean",
+            "title": "Recursive",
+            "description": "Include descendants of folders",
+            "default": true
+          },
+          "overwrite": {
+            "type": "boolean",
+            "title": "Overwrite",
+            "description": "Overwrite existing .docx",
+            "default": false
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "output_path"
+        ],
+        "title": "WordExportRequest",
+        "description": "Request body for Word export."
+      },
+      "WordExportResponse": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path"
+          },
+          "document_count": {
+            "type": "integer",
+            "title": "Document Count"
+          },
+          "bytes_written": {
+            "type": "integer",
+            "title": "Bytes Written"
+          }
+        },
+        "type": "object",
+        "required": [
+          "output_path",
+          "document_count",
+          "bytes_written"
+        ],
+        "title": "WordExportResponse"
+      },
       "WorkflowCodeExportResponse": {
         "properties": {
           "workflow_id": {
@@ -49182,7 +49544,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef"
+              "$ref": "#/components/schemas/NodeDef-Input"
             },
             "type": "array",
             "title": "Nodes"
@@ -49416,7 +49778,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef"
+              "$ref": "#/components/schemas/NodeDef-Output"
             },
             "type": "array",
             "title": "Nodes"
