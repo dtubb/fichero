@@ -132,8 +132,7 @@ Full architecture: `docs/CLAUDE.md`, `docs/architecture/`
 
 | Path | What |
 |---|---|
-| `VISION.md` | What we're building and why |
-| `CONSTITUTION.md` | Project north star and hard constraints |
+| `CONSTITUTION.md` | Product north star: what we're building, why, what it's not, hard constraints |
 | `AGENTS.md` | Execution rules, build commands, decisions |
 | `SOUL.md` | Agent identity and values |
 | `USER.md` | About Daniel — who he is, constraints |

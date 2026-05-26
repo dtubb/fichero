@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Fichero is a native macOS document management system with AI processing. It gives a researcher's document corpus — PDFs, fieldwork notes, audio recordings, images, transcripts, references — a single home with semantic understanding. You can ask a question and find the relevant passage, not just the filename.
+*Fichero* (Spanish: file cabinet, card index) is a native macOS document management system with AI processing. It gives a researcher's document corpus — PDFs, fieldwork notes, audio recordings, images, transcripts, references — a single home with semantic understanding. You can ask a question and find the relevant passage, not just the filename.
 
 Designed for a single researcher first; distribution is a later milestone.
 
@@ -100,12 +100,12 @@ Execution tracking and planning are governed in GitHub:
 
 ## Versioning
 
-GitHub Milestones are the source of truth. Each milestone gets its own branch and worktree at `~/code/fichero-<version>/`. The two-ahead rule: never work more than one milestone ahead of what Daniel is currently testing.
-
-Milestone arc (high level):
+GitHub Milestones are the source of truth. The product moves through a milestone arc:
 - **0.0.x** — Core stable: document management, workflows, KG, CLI, autonomous loops
 - **0.1.x** — Data integrity and broader test coverage
 - **0.x → 1.0** — Feature completeness, distribution, Tinderbox integration
+
+Branch/worktree mechanics and the two-ahead rule (never work more than one milestone ahead of what's being tested) are operational — see `.claude/CLAUDE.md`.
 
 ## What Success Looks Like
 
