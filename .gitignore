@@ -81,3 +81,6 @@ default.profraw
 .claude/scheduled_tasks.lock
 CONTINUE.md
 agent-work/.cascade.lock
+
+# Autoloop run logs — regenerable, not version-controlled
+.claude/loop-logs/
