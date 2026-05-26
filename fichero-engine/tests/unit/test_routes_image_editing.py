@@ -51,6 +51,19 @@ class TestImageEditChainRoutes:
         r = client.get("/api/images/no-such-doc/edits")
         assert r.status_code == 404
 
+    def test_crop_operation_appends_chain(self, client, db, tmp_path):
+        doc = _make_image_doc(db, tmp_path, size=(120, 90))
+        crop = client.post(
+            f"/api/images/{doc.id}/operations/crop",
+            json={"left": 10, "top": 15, "width": 40, "height": 30, "page": 1},
+        )
+        assert crop.status_code == 200
+        ops = crop.json()["operations"]
+        assert len(ops) == 1
+        assert ops[0]["op"] == "crop"
+        assert ops[0]["params"] == {"left": 10, "top": 15, "width": 40, "height": 30}
+        assert "derived_path" in ops[0]
+
 
 class TestImagePreviewRoute:
     def test_preview_returns_original_without_edits(self, client, db, tmp_path):
@@ -73,6 +86,19 @@ class TestImagePreviewRoute:
         assert r.status_code == 200
         img = Image.open(io.BytesIO(r.content))
         assert img.size == (30, 25)
+
+    def test_preview_regenerates_from_crop_operation_chain(self, client, db, tmp_path):
+        doc = _make_image_doc(db, tmp_path, size=(140, 100))
+        crop = client.post(
+            f"/api/images/{doc.id}/operations/crop",
+            json={"left": 20, "top": 10, "width": 50, "height": 40, "page": 1},
+        )
+        assert crop.status_code == 200
+
+        r = client.get(f"/api/images/{doc.id}/preview")
+        assert r.status_code == 200
+        img = Image.open(io.BytesIO(r.content))
+        assert img.size == (50, 40)
 
     def test_preview_missing_source_returns_404(self, client, db):
         doc = Document(name="missing.jpg", path="/tmp/does-not-exist.jpg", file_type=FileType.image)

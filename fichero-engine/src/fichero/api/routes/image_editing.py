@@ -6,6 +6,7 @@ Stores per-document non-destructive edit chains and renders previews on demand.
 from __future__ import annotations
 
 import io
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -32,6 +33,14 @@ class ImageEditChainResponse(BaseModel):
     updated_at: datetime
 
 
+class CropOperationRequest(BaseModel):
+    left: int
+    top: int
+    width: int
+    height: int
+    page: int = 1
+
+
 def _get_or_404_document(db: Database, document_id: str) -> Document:
     doc = db.get(Document, document_id)
     if not doc:
@@ -44,7 +53,7 @@ def _get_chain(db: Database, document_id: str) -> ImageEditChain | None:
     return rows[0] if rows else None
 
 
-def _load_source_image(path: Path) -> Image.Image:
+def _load_source_image(path: Path, page: int = 1) -> Image.Image:
     suffix = path.suffix.lower()
     if suffix == ".pdf":
         try:
@@ -54,10 +63,10 @@ def _load_source_image(path: Path) -> Image.Image:
                 status_code=500, detail="PyMuPDF is required for PDF preview rendering"
             ) from exc
         doc = fitz.open(str(path))
-        if len(doc) == 0:
+        if len(doc) == 0 or page < 1 or page > len(doc):
             raise HTTPException(status_code=400, detail="PDF has no pages")
-        page = doc[0]
-        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+        pdf_page = doc[page - 1]
+        pix = pdf_page.get_pixmap(matrix=fitz.Matrix(2, 2))
         doc.close()
         return Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
@@ -111,6 +120,32 @@ def _apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     raise HTTPException(status_code=400, detail=f"Unsupported operation: {name}")
 
 
+def _write_derived_image(document_id: str, page: int, image: Image.Image) -> str:
+    out_dir = (
+        Path(tempfile.gettempdir())
+        / "fichero-image-edits"
+        / document_id
+        / f"page-{page}"
+    )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "latest.jpg"
+    image.save(out_path, format="JPEG", quality=92)
+    return str(out_path)
+
+
+def _append_operation(
+    db: Database, document_id: str, operation: dict[str, Any]
+) -> ImageEditChain:
+    chain = _get_chain(db, document_id)
+    if chain:
+        chain.operations.append(operation)
+        chain.updated_at = datetime.now()
+    else:
+        chain = ImageEditChain(document_id=document_id, operations=[operation])
+    db.save(chain)
+    return chain
+
+
 @router.get("/{document_id}/edits", response_model=ImageEditChainResponse)
 async def get_edit_chain(
     document_id: str, db: Database = Depends(get_library_database)
@@ -149,6 +184,40 @@ async def put_edit_chain(
     )
 
 
+@router.post("/{document_id}/operations/crop", response_model=ImageEditChainResponse)
+async def crop_image(
+    document_id: str,
+    request: CropOperationRequest,
+    db: Database = Depends(get_library_database),
+) -> ImageEditChainResponse:
+    doc = _get_or_404_document(db, document_id)
+    source_path = resolve_source(doc)
+    if not source_path:
+        raise HTTPException(status_code=404, detail="Source file not available")
+
+    base = _load_source_image(source_path, page=request.page)
+    op = {
+        "op": "crop",
+        "page": request.page,
+        "params": {
+            "left": request.left,
+            "top": request.top,
+            "width": request.width,
+            "height": request.height,
+        },
+    }
+    derived = _apply_operation(base, op)
+    op["derived_path"] = _write_derived_image(document_id, request.page, derived)
+    op["created_at"] = datetime.now().isoformat()
+
+    chain = _append_operation(db, document_id, op)
+    return ImageEditChainResponse(
+        document_id=document_id,
+        operations=chain.operations,
+        updated_at=chain.updated_at,
+    )
+
+
 @router.delete("/{document_id}/edits", status_code=204)
 async def delete_edit_chain(
     document_id: str, db: Database = Depends(get_library_database)
@@ -165,6 +234,7 @@ async def preview_image(
     apply_edits: bool = Query(
         True, description="When true, apply the saved edit chain before rendering"
     ),
+    page: int = Query(1, ge=1, description="PDF page number (1-indexed)"),
     db: Database = Depends(get_library_database),
 ) -> Response:
     doc = _get_or_404_document(db, document_id)
@@ -172,11 +242,14 @@ async def preview_image(
     if not source_path:
         raise HTTPException(status_code=404, detail="Source file not available")
 
-    image = _load_source_image(source_path)
+    image = _load_source_image(source_path, page=page)
     if apply_edits:
         chain = _get_chain(db, document_id)
         if chain:
             for op in chain.operations:
+                op_page = int(op.get("page", page))
+                if op_page != page:
+                    continue
                 image = _apply_operation(image, op)
 
     buffer = io.BytesIO()
