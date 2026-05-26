@@ -673,6 +673,10 @@ class TestTwoStageKGWrite:
 
         stage1_result = _EntitiesOnly(
             people=[_EntityOnly(name="María Josefa", aliases=[], entity_type="person")],
+            places=[],
+            organizations=[],
+            dates=[],
+            events=[],
         )
         stage2_result = _EntityClaims(
             subject="María Josefa",
