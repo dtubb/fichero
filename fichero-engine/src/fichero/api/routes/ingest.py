@@ -190,6 +190,107 @@ async def ingest_folder(
     )
 
 
+class XlsxIngestRequest(BaseModel):
+    """Request model for XLSX spreadsheet import."""
+
+    path: str
+    column_map: Optional[dict[str, str]] = None
+    sheet_index: int = 0
+    parent_id: Optional[str] = None
+    dry_run: bool = True
+
+
+class XlsxIngestResponse(BaseModel):
+    """Response for XLSX import — preview or created documents."""
+
+    records: list[dict] = []
+    document_ids: list[str] = []
+    count: int
+    errors: list[str] = []
+    dry_run: bool
+
+
+@router.post("/xlsx")
+async def ingest_xlsx(
+    request: XlsxIngestRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+) -> XlsxIngestResponse:
+    """
+    Read an .xlsx spreadsheet and return its rows as structured records.
+
+    Each data row becomes a dict keyed by column header (or by *column_map*
+    when supplied).  Columns without a mapping go into ``_unmapped``.
+
+    With ``dry_run=true`` (default) the records are returned for inspection
+    and nothing is written to the library.  With ``dry_run=false``, one
+    Document is created per row; the ``name`` field (or the first mapped
+    field) is used as the document name.
+    """
+    from fichero.loaders.xlsx_reader import read_xlsx_records
+    from fichero.models import DocType, FileType, Status
+
+    path = Path(request.path)
+    if not path.exists():
+        raise HTTPException(status_code=400, detail=f"File not found: {request.path}")
+    if not path.is_file():
+        raise HTTPException(status_code=400, detail=f"Not a file: {request.path}")
+    if path.suffix.lower() not in {".xlsx", ".xls", ".ods"}:
+        raise HTTPException(status_code=400, detail=f"Not a spreadsheet file: {path.name}")
+
+    try:
+        records = read_xlsx_records(
+            path,
+            column_map=request.column_map,
+            sheet_index=request.sheet_index,
+        )
+    except (ValueError, Exception) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    if request.dry_run:
+        return XlsxIngestResponse(
+            records=records,
+            count=len(records),
+            dry_run=True,
+        )
+
+    # Non-dry-run: create one Document per row
+    from fichero.models import Document
+    errors: list[str] = []
+    doc_ids: list[str] = []
+
+    for i, rec in enumerate(records):
+        # Derive a name: prefer mapped "name" field, else first non-underscore value
+        name = rec.get("name") or rec.get("titulo") or rec.get("title") or rec.get("nombre")
+        if not name:
+            name = next((v for k, v in rec.items() if not k.startswith("_") and v), None)
+        if not name:
+            errors.append(f"Row {i + 1}: could not determine a name; skipped")
+            continue
+
+        doc = Document(
+            name=str(name),
+            doc_type=DocType.file,
+            file_type=FileType.spreadsheet,
+            parent_id=request.parent_id,
+            metadata={**rec, "xlsx_source": path.name, "xlsx_sheet_index": request.sheet_index},
+            status=Status.completed,
+        )
+        try:
+            db.save(doc)
+            doc_ids.append(doc.id)
+        except Exception as exc:
+            errors.append(f"Row {i + 1} ({name!r}): {exc}")
+
+    return XlsxIngestResponse(
+        records=records,
+        document_ids=doc_ids,
+        count=len(doc_ids),
+        errors=errors,
+        dry_run=False,
+    )
+
+
 @router.get("/status/{task_id}")
 async def get_ingest_status(task_id: str) -> IngestTaskStatus:
     """Get status of an ingest task."""
