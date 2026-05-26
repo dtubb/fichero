@@ -205,6 +205,46 @@ class TestListDocumentArtifacts:
         data = r.json()
         assert len(data["items"]) == 1
 
+    def test_page_child_artifacts_ordered_by_sequence(self, client, db):
+        """Page-child artifacts must come back in page-sequence order (ascending),
+        not creation-time order (#1271).  Create artifacts in reverse creation
+        order so that any created_at-descending sort would return them wrong."""
+        from datetime import timedelta
+
+        parent = Document(
+            name="report.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            path="/path/report.pdf",
+            status=Status.completed,
+        )
+        db.save(parent)
+
+        page1 = Document(name="report.pdf - Page 1", doc_type=DocType.page, parent_id=parent.id, sequence=1, status=Status.completed)
+        page2 = Document(name="report.pdf - Page 2", doc_type=DocType.page, parent_id=parent.id, sequence=2, status=Status.completed)
+        page3 = Document(name="report.pdf - Page 3", doc_type=DocType.page, parent_id=parent.id, sequence=3, status=Status.completed)
+        db.save(page1)
+        db.save(page2)
+        db.save(page3)
+
+        # Artifacts created in reverse page order so created_at DESC would give [3,2,1].
+        base = datetime(2024, 1, 1, 12, 0, 0)
+        a3 = Artifact(document_id=page3.id, artifact_type="transcription", content="page 3 text", version=1, created_at=base)
+        a2 = Artifact(document_id=page2.id, artifact_type="transcription", content="page 2 text", version=1, created_at=base + timedelta(seconds=1))
+        a1 = Artifact(document_id=page1.id, artifact_type="transcription", content="page 1 text", version=1, created_at=base + timedelta(seconds=2))
+        db.save(a3)
+        db.save(a2)
+        db.save(a1)
+
+        r = client.get(f"/api/artifacts/document/{parent.id}")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["count"] == 3
+        contents = [a["content"] for a in data["items"]]
+        assert contents == ["page 1 text", "page 2 text", "page 3 text"], (
+            f"Expected ascending page order but got: {contents}"
+        )
+
     def test_response_fields_present(self, client, db):
         doc = _make_doc(db)
         a = _make_artifact(db, doc.id, "transcription", "content here")
