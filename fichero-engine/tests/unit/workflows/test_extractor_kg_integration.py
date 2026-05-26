@@ -696,7 +696,7 @@ class TestTwoStageKGWrite:
             return stage2_result
 
         with patch(
-            "fichero.workflows.tools.extract_all.chat_structured",
+            "fichero.workflows.tools.extract_all.chat_structured_with_fallback",
             new=AsyncMock(side_effect=fake_chat_structured),
         ):
             state = {
