@@ -1,10 +1,10 @@
 # Agent Briefing — Fichero
 
-Quick orientation for new sessions.
+Quick orientation for new sessions. Start with `/session-start` (or a lane variant) — it loads context and reports state. This is the one-screen version.
 
 ## Project
 
-Fichero — macOS document management with AI processing (SwiftUI + Python FastAPI).
+Fichero — macOS document management with AI processing (SwiftUI app + Python FastAPI engine).
 
 ## Current Phase
 
@@ -15,44 +15,22 @@ Fichero — macOS document management with AI processing (SwiftUI + Python FastA
 | File | Purpose |
 |---|---|
 | `CONSTITUTION.md` | What Fichero is, what it's not, and what matters |
+| `AGENTS.md` | Build/test/lint commands, who-verifies-what |
+| `.claude/CLAUDE.md` | Code-navigation policy + hard rules |
 | `MEMORY.md` | Conventions, lessons, durable decisions |
-| `AGENTS.md` | Execution rules, build commands, hard constraints |
 | `STATE.md` | Current branch, focus, next session entry point |
-| `docs/CLAUDE.md` | Full agent guidance (canonical, detailed) |
+| `docs/CLAUDE.md` | Architecture & development guide |
 
-## Key Commands
+## Task Priority (overrides default lowest-issue-number ordering)
 
-```bash
-# Start backend
-PYTHONPATH=fichero-api/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+When picking the next task in an autonomous session:
 
-# Run tests
-PYTHONPATH=fichero-api/src .venv/bin/pytest fichero-api/tests/unit/ --ignore=fichero-api/tests/unit/_archived
-
-# Lint
-swiftlint lint fichero-swiftui/fichero-swiftui/
-ruff check fichero-api/src/
-```
-
-## Task Priority (override default lowest-issue-number ordering)
-
-When picking the next task in an autonomous session, use this priority order:
-
-1. **`type:bug` issues** — fix all open bugs before any feature work, regardless of milestone or issue number
+1. **`type:bug` issues** — fix all open bugs before any feature work, regardless of milestone or issue number (`gh issue list --state open --label "type:bug"`)
 2. **Current milestone feature issues** — lowest issue number first
-3. **Future milestone issues** — only if current milestone is empty
+3. **Future milestone issues** — only if the current milestone is empty
 
-To find bugs:
-```bash
-gh issue list --state open --label "type:bug" --limit 20
-```
+**Why:** Daniel files bugs via `/bug` while testing the app. Fix them before shipping new features or they pile up and block testing.
 
-**Why:** Daniel files bugs via `/bug` while testing the app. Bugs must be fixed before the next session ships new features or they pile up and block testing.
+## Build / Rules
 
-## Hard Rules
-
-1. Never push to `main` — all work goes to `0.0.2`
-2. Never skip build/test/lint before completing work
-3. Never modify generated files (`*Generated.swift`, openapi.json)
-4. GitHub milestones/issues are source of truth for scope/status
-5. PYTHONPATH must be `fichero-api/src`
+Build, test, and lint commands live in `AGENTS.md`; the hard rules in `.claude/CLAUDE.md`. (Backend runs on `:8765`; `PYTHONPATH=fichero-engine/src` on every Python command.)
