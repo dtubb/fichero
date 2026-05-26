@@ -1,11 +1,6 @@
-# CLAUDE.md
+# CLAUDE.md — Architecture & Development Guide
 
-**Last Updated:** 2026-05-24
-**Status:** Canonical Agent Guidance
-
-This file provides guidance to coding agents when working with code in this repository.
-
-Scope: this is agent workflow guidance. User/developer run/build docs live in `README.md` and folder-level READMEs.
+The durable architecture reference for agents working in this repo: how the system is shaped, the conventions, and the pitfalls. Operational rules (build/test/lint, commit discipline, lanes) live in `AGENTS.md`; code-navigation policy + hard rules in `.claude/CLAUDE.md`; the product north-star in `CONSTITUTION.md`. User-facing run/build docs are in `README.md`.
 
 ## Project Overview
 
@@ -21,73 +16,17 @@ Fichero is a macOS document management application with AI processing capabiliti
 - **Dual database system**: DuckDB for metadata + LanceDB for vector embeddings
 - **Communication**: HTTP/REST on localhost:8765 with type-safe Swift client
 
-**Key Statistics:**
-- ~330 Swift files (~49 services, ~234 views, ~42 models); 14 auto-generated service wrappers from the OpenAPI schema
-- Multi-window, multi-library support with per-library service instances
-- Resizable multi-pane layout: sidebar · document list · content/PDF reading view · tabbed inspector (Info / Metadata / Content / Artifacts / Knowledge Graph)
+Multi-window, multi-library (per-library service instances). Each window is a resizable multi-pane layout: sidebar · document list · content/PDF reading view · tabbed inspector (Info / Metadata / Content / Artifacts / Knowledge Graph).
 
 ## Development Commands
 
-### Backend (Python FastAPI)
+Build, test, lint, and OpenAPI-sync commands — and who runs which — live in **`AGENTS.md`** (the operational manual). The backend must be running on `localhost:8765` before the Swift app works:
 
 ```bash
-# Start the FastAPI backend server (required for Swift app to function)
 PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 ```
 
-The backend must be running on port 8765 before launching the Swift app.
-
-### Frontend (Swift/SwiftUI)
-
-**Build the app properly — keep the cache warm and shared.** The goal: an agent build should leave the user's ⌘R in Xcode *incremental*, never a cold rebuild.
-
-1. **Preferred — build through the Xcode MCP** (`mcp__xcode__BuildProject`, with a `tabIdentifier` from `mcp__xcode__XcodeListWindows`). This drives Xcode.app's own build system, so there is **no `build.db` lock contention** and the cache is *inherently* shared with the user's ⌘R. Use this whenever the Xcode MCP server is connected and the project is open in Xcode.
-
-2. **Fallback — CLI `xcodebuild` into the shared/default DerivedData** (when Xcode/MCP isn't available):
-   ```bash
-   xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero \
-     -configuration Debug -skipPackagePluginValidation build
-   ```
-   - **No `-derivedDataPath`** — build into the default location so the build warms Xcode.app's cache. An isolated `-derivedDataPath /tmp/...` gives the user a cold rebuild every time.
-   - Always pass `-skipPackagePluginValidation` — the OpenAPIGenerator SPM plugin fails the build without it.
-   - **Lock caveat:** Xcode.app holds an exclusive lock on `build.db` whenever the project is *open* (not just while building). A CLI build into the same DerivedData then fails with `database is locked`. If that happens: prefer option 1 (the MCP), or ask the user to quit Xcode; only fall back to `-derivedDataPath /tmp/fichero-cli-dd` as a last resort (cold-cache cost).
-
-```bash
-# Run SwiftLint (code quality)
-swiftlint lint fichero/fichero/
-```
-
-**Preferred method (for the user):** open `fichero/fichero.xcodeproj` in Xcode and run (⌘R).
-
-### Testing
-
-```bash
-# Python unit tests (ignore archived tests)
-PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
-
-# Python integration tests
-PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/integration/
-
-# Swift tests (run from Xcode or command line)
-xcodebuild test -project fichero/fichero.xcodeproj -scheme Fichero
-
-# OpenAPI contract tests (verify schema alignment)
-PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/test_api_contracts.py
-```
-
-### Code Quality
-
-```bash
-# SwiftLint (MANDATORY before commit) — installed via Homebrew
-swiftlint lint fichero/fichero/
-
-# Ruff — Python linting (MANDATORY before commit)
-ruff check fichero-engine/src/
-ruff check fichero-engine/tests/
-
-# Sync OpenAPI schema after Python API changes
-./fichero-engine/scripts/sync_openapi_schema.sh
-```
+Two build notes worth keeping here: prefer the **Xcode MCP** (`mcp__xcode__BuildProject`) so the build shares Xcode.app's cache and avoids `build.db` lock contention; CLI `xcodebuild` needs `-skipPackagePluginValidation` (the OpenAPIGenerator SPM plugin fails without it) and should build into the default DerivedData, not an isolated `-derivedDataPath`, to keep the user's ⌘R incremental.
 
 ## Architecture
 
@@ -103,10 +42,9 @@ The Swift app is a **pure UI layer** - all business logic, data persistence, and
 
 ### Key Backend Modules
 
-- **`api/main.py`**: FastAPI app with 23 core routes + 8 dev-tier routes (31 total). Active tier controlled by `FICHERO_FEATURE_TIER` env var (`release` | `dev`, default `release`).
-  - **Core (always on):** activity, artifacts, batch, chat, claim-links, claims, documents, entities, folders, ingest, migrations, mcp-tools, multilingual, providers, review-queue, search, settings, sources, models, storage, tasks, workflow-execution, workflows
-  - **Dev tier** (`FICHERO_FEATURE_TIER=dev`): knowledge-graph, search-explanation, hermeneutics, interpretations, graph-exploration, mind-palace, research, iiif
-  - **Also dev-tier (staged features):** actions, chains, graph-reasoning, integrations, local-models, mcp-servers, model-comparison, orchestration, predictions, schedules, triggers
+- **`api/main.py`**: FastAPI app. Which routes are active is controlled by the `FICHERO_FEATURE_TIER` env var (`release` | `dev`, default `release`) — `release` registers the stable core, `dev` adds staged features.
+  - **Core (always on):** activity, artifacts, batch, chat, claims/claim-links, documents, entities, folders, ingest, providers, review-queue, search, settings, sources, models, storage, tasks, workflows/workflow-execution, …
+  - **Dev tier** (`FICHERO_FEATURE_TIER=dev`): knowledge-graph, hermeneutics, interpretations, graph-exploration, mind-palace, research, iiif, and other staged features (actions, chains, integrations, model-comparison, orchestration, schedules, triggers, …)
 - **`db.py`**: Dual database layer (DuckDB for relational data, LanceDB for vector embeddings)
 - **`models.py`**: Pydantic models shared between API and database
 - **`workflows/`**: LangGraph-based visual workflow engine with tool registry, execution engine, and state management
@@ -123,33 +61,33 @@ The Swift app is a **pure UI layer** - all business logic, data persistence, and
 ### Key Swift Modules
 
 **Entry Point:**
-- **`FicheroApp.swift`** (223 lines): App lifecycle, backend startup, library manager, command menu structure, window management
+- **`FicheroApp.swift`**: App lifecycle, backend startup, library manager, command menu structure, window management
 
-**Models Layer (`Models/`, ~42 files):**
+**Models Layer (`Models/`):**
 - **`Document.swift`**: Core data model with DocType, FileType, Status enums
-- **`DocumentStore.swift`** (185 lines): Document hierarchy, CRUD operations, file import, folder ingestion
-- **`LibraryManager.swift`** (198 lines): Multi-library management, per-library service instances
-- **`WorkflowTypes.swift`** (272 lines): Workflow definitions, nodes, edges, ports, input/output mapping
-- **`SidebarItem.swift`** (184 lines): Navigation structure, hierarchical sidebar items
+- **`DocumentStore.swift`**: Document hierarchy, CRUD operations, file import, folder ingestion
+- **`LibraryManager.swift`**: Multi-library management, per-library service instances
+- **`WorkflowTypes.swift`**: Workflow definitions, nodes, edges, ports, input/output mapping
+- **`SidebarItem.swift`**: Navigation structure, hierarchical sidebar items
 - **`FicheroDocument.swift`**: Per-window document state
 - **`WorkflowStore.swift`**: Workflow list, create, update, duplicate, export operations
 
-**Service Layer (`Services/`, ~49 files):**
-- **`APIClient.swift`** (396 lines): HTTP client with library path injection, per-window instances
-- **14 Generated Services** (`*Generated.swift`): Auto-generated from OpenAPI (Workflow, Provider, Search, Chat, Document, etc.)
-- **`WorkflowStreamService.swift`** (294 lines): Server-Sent Events for real-time workflow execution
+**Service Layer (`Services/`):**
+- **`APIClient.swift`**: HTTP client with library path injection, per-window instances
+- **`*Generated.swift` service wrappers**: hand-written wrappers over the generated OpenAPI client (Workflow, Provider, Search, Chat, Document, …) — editable despite the suffix; the *generated* code lives in `fichero-api-client/`
+- **`WorkflowStreamService.swift`**: Server-Sent Events for real-time workflow execution
 - **`EmbeddedBackendService.swift`**: Backend process management
-- **`ProviderService.swift`**: Provider validation wrapper around generated service
+- **`ProviderService.swift`**: Provider validation wrapper around the generated service
 
-**Views Layer (`Views/`, ~234 files across ~19 feature domains — incl. `KnowledgeGraph/`, `ModelComparison/`, `MCPServers/`, `Settings/`):**
-- **`ContentView.swift`**: Resizable multi-pane layout with 6 extensions (State, ViewBuilders, Navigation, Actions, Persistence) + `ContentViewModifiers`
+**Views Layer (`Views/`, organized by feature domain — incl. `KnowledgeGraph/`, `ModelComparison/`, `MCPServers/`, `Settings/`):**
+- **`ContentView.swift`**: Resizable multi-pane layout, split into extensions (State, ViewBuilders, Navigation, Actions, Persistence) + `ContentViewModifiers`
 - **`DocumentTabView.swift`**: Per-window entry point, service initialization
-- **`Sidebar/`** (14 files, 868 lines main): Multi-mode navigation (Library, Search, Chat, Workflows, Activity, Automation, Batches)
-- **`Library/`** (13 files, 805 lines main): Document browser, grid/list/table views, inspector
-- **`Workflow/`** (8 files, 1024-1136 lines main): Visual node editor canvas, workflow library, node configuration
-- **`Chat/`** (7 files): RAG conversation interface
-- **`Search/`** (3 files): Semantic search interface
-- **`Activity/`** (12 files): Execution history and real-time progress
+- **`Sidebar/`**: Multi-mode navigation (Library, Search, Chat, Workflows, Activity, Automation, Batches)
+- **`Library/`**: Document browser, grid/list/table views, inspector
+- **`Workflow/`**: Visual node editor canvas, workflow library, node configuration
+- **`Chat/`**: RAG conversation interface
+- **`Search/`**: Semantic search interface
+- **`Activity/`**: Execution history and real-time progress
 - **`AIProviders/`, `Automation/`, `Batch/`, `Agents/`, `Integrations/`, `Components/`, `Toolbars/`, etc.
 
 **Generated API Client:**
@@ -321,113 +259,13 @@ Workflows are defined as visual graphs in the Swift UI but executed in Python vi
 
 See `docs/architecture/swiftui/api_migration_guide.md` and `docs/architecture/swiftui/api_client.md` for current API-client cleanup context.
 
-## Git Workflow
+## Git Workflow, Commits, Tasks, Parallelism
 
-### Current Branch Context
-
-**Active Branch:** `0.0.2` — all milestone work happens here. Commit directly; do not create per-task feature branches.
-
-**Main Branch:** `main` — stable releases only. Never push to main without explicit approval.
-
-### Commit Message Conventions
-
-Follow conventional commits with these prefixes:
-- `fix:` - Bug fixes, API migrations (29% of commits)
-- `style:` - Linting, formatting, SwiftLint compliance (24%)
-- `test:` - Test improvements, stability fixes (17%)
-- `docs:` - Documentation updates (14%)
-- `chore:` - Tooling, maintenance, build scripts (12%)
-- `refactor:` - Code restructuring without behavior changes (2%)
-- `feat:` - New features and capabilities (2%)
-
-**Commit Message Format:**
-```bash
-<type>: <concise description focusing on "why" not "what">
-
-# Good examples:
-style: resolve schedule editor and action picker lint warnings
-fix: replace deprecated coroutine callback check
-test: align swift contract tests with generated workflow schema
-docs: clarify backend script ownership and ignore local artifacts
-
-# Bad examples:
-fix: fixed stuff
-update: changes
-refactor: made it better
-```
-
-### Branching Strategy
-
-- **Active branch:** `0.0.2` — all implementation work goes here
-- **Main branch:** Always stable, ready for release — never push directly
-
-### Pre-Commit Checklist for `0.0.2`
-
-Run the canonical gate before each commit — same coverage as ⌘U (SwiftLint + the
-Xcode test suite + `CrossLanguageGateTests` → `scripts/verify_python.sh`, the whole
-Python side):
-```bash
-bash scripts/verify_all.sh
-```
-`scripts/verify_python.sh` runs the Python legs alone for backend-only iteration.
-
-**If you changed a backend API:** the gate's contract tests *detect* schema drift but
-don't fix it — regenerate and commit the client first:
-```bash
-./fichero-engine/scripts/sync_openapi_schema.sh
-```
-
-### Pre-Commit Checklist
-
-- [ ] SwiftLint passes with zero warnings
-- [ ] Ruff passes with zero errors (`ruff check fichero-engine/src/ fichero-engine/tests/`)
-- [ ] All tests pass (Python unit/integration + Swift tests)
-- [ ] OpenAPI schema synced if backend API changed
-- [ ] GitHub issue / milestone status updated (issues are the source of truth)
-- [ ] Commit message follows conventions
-- [ ] No debug code or commented-out blocks
-- [ ] File sizes within guidelines (< 400 lines recommended)
-
-## Parallel Execution & Review Process
-
-See `docs/agent-workflow/parallel-execution.md` for the full guide. Summary:
-
-- **Single session** — sequential edits, same-file changes, the 0.0.2 backend
-  fix cluster (overlapping files), SwiftUI fixes (serialized on one Xcode).
-- **Subagent** — build/lint/test runs and bug investigation. Keep these *off*
-  the lead's context: the lead reads a verdict, not a log.
-- **Agent team** — the QA review gate (#1061), competing-hypothesis debugging,
-  and 0.0.3+ cross-layer features with disjoint file ownership.
-
-**QA review gate:** before committing a bug-fix sweep to `0.0.2`, stage the diff
-and spawn a 3-teammate review team (`backend-reviewer`, `silent-failure-hunter`,
-`code-reviewer`) rather than self-certifying. This is the gate that catches the
-recurring bug patterns in `MEMORY.md`. Agent teams are enabled in
-`~/.claude/settings.json`.
-
-## Current Development Focus
-
-**Branch `0.0.2`** consolidates all milestone work from 0.0.3–0.1.0 backend issues and SwiftUI bug fixes. See `STATE.md` for next session entry point and `HISTORY.md` for completed work log.
-
-## AI Task Management System
-
-This project uses GitHub for execution tracking.
-Canonical location: GitHub Issues + Milestones + Project board.
-
-### Task Management Workflow
-
-1. **Pick from milestone queue**: choose from open issues in the active milestone
-2. **Track execution in project**: set project item status (`Todo`/`In Progress`/`Done`)
-3. **Keep issue state accurate**: move through open/closed with comments and linked PRs
-4. **Use local state only for handoff**: `STATE.md` is continuity context, not roadmap authority
-
-### Important Rules
-
-- **GitHub is source of truth** for scope, prioritization, and status
-- **Local planning files are non-authoritative** (`PLAN.md`, `TASKS.md`, `docs/agent-workflow/TODO.md`)
-- **One task at a time** - complete fully before moving to next
-- **Small, focused tasks** - break complex work into manageable pieces
-- **Keep root clean** - put summaries and docs in task folders, not root
+These are operational and owned elsewhere — not restated here:
+- **Branch discipline + conventional-commit format + pre-commit gate** → `AGENTS.md` and `.claude/CLAUDE.md` ("Rules I Don't Break"). In short: commit milestone work directly to the milestone branch (no per-task branches); never push to `main` without approval; regenerate the OpenAPI client before committing any backend API change.
+- **Task tracking** → GitHub Issues + Milestones + Project board are the source of truth; local `PLAN.md`/`TASKS.md`/`docs/agent-workflow/TODO.md` are not. `STATE.md` is continuity context only. (See `CONSTITUTION.md` → Execution Governance.)
+- **Lanes, delegation, the QA review gate** → the session-start / manager skills and `docs/agent-workflow/parallel-execution.md`.
+- **Current focus / next entry point** → `STATE.md`; completed-work log → `HISTORY.md`.
 
 ## MCP Tools
 
@@ -438,7 +276,7 @@ there isn't one on purpose.
 
 Two project-specific notes you can't infer from the tool list:
 - **Code navigation goes through jcodemunch first** — policy in `.claude/CLAUDE.md`. If it isn't connected, fall back to Read/Grep and say so.
-- **Xcode builds**: prefer the `xcode` MCP over raw `xcodebuild` (see the Frontend build section above). `XcodeBuildMCP`'s tools mostly target iOS simulators — Fichero is macOS, so use the macOS / device-less variants.
+- **Xcode builds**: prefer the `xcode` MCP over raw `xcodebuild` (see Development Commands above). `XcodeBuildMCP`'s tools mostly target iOS simulators — Fichero is macOS, so use the macOS / device-less variants.
 
 ## Architecture Patterns Reference
 
@@ -458,7 +296,7 @@ LibraryManager (singleton)
       ├── WorkflowStore
       ├── SearchServiceGenerated
       ├── ChatServiceGenerated
-      └── ... (other generated services — 14 total)
+      └── ... (other generated service wrappers)
 
 ContentView (per window)
   ├── ViewSettings
@@ -614,25 +452,26 @@ class APIClient: ObservableObject {
 - **`README.md`** - User-facing setup and run instructions
 
 ### Critical Swift Files (Frequently Modified)
-- **`FicheroApp.swift`** (223 lines) - App lifecycle, menu structure
-- **`DocumentStore.swift`** (185 lines) - Document CRUD, state management
-- **`LibraryManager.swift`** (198 lines) - Multi-library orchestration
-- **`APIClient.swift`** (396 lines) - HTTP client with library path injection
-- **`ContentView.swift`** - Resizable multi-pane layout (split into 6 extensions)
-- **`WorkflowTypes.swift`** (272 lines) - Workflow data models
+- **`FicheroApp.swift`** - App lifecycle, menu structure
+- **`DocumentStore.swift`** - Document CRUD, state management
+- **`LibraryManager.swift`** - Multi-library orchestration
+- **`APIClient.swift`** - HTTP client with library path injection
+- **`ContentView.swift`** - Resizable multi-pane layout (split into extensions)
+- **`WorkflowTypes.swift`** - Workflow data models
 
 ### Critical Python Files (Backend)
 - **`fichero-engine/src/fichero/api/main.py`** - FastAPI app, route registration
 - **`fichero-engine/src/fichero/db.py`** - Database layer (DuckDB + LanceDB)
 - **`fichero-engine/src/fichero/models.py`** - Pydantic models (source of truth)
-- **`fichero-engine/src/fichero/workflows/registry.py`** - Tool registry (30+ tools)
+- **`fichero-engine/src/fichero/workflows/registry.py`** - Tool registry
 - **`fichero-engine/src/fichero/workflows/executor.py`** - Workflow execution with streaming
 - **`fichero-engine/src/fichero/ingest.py`** - File ingestion pipeline
 
-### Generated Files (DO NOT EDIT MANUALLY)
-- **`fichero/fichero-api-client/`** - Generated Swift OpenAPI client
-- **`fichero/Services/*Generated.swift`** - 14 generated service wrappers
-- **`fichero-engine/tests/contracts/openapi.json`** - OpenAPI schema (regenerated from Python)
+### Generated Files (regenerated, never hand-edited)
+- **`fichero/fichero-api-client/`** - generated Swift OpenAPI client package
+- **`fichero-engine/tests/contracts/openapi.json`** - OpenAPI schema (regenerated from Python via `sync_openapi_schema.sh`)
+
+> Note: `fichero/Services/*Generated.swift` are **hand-written** service wrappers over the generated client — editable despite the suffix. Only the api-client package and `openapi.json` are truly generated.
 
 ## Additional Resources
 
