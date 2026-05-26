@@ -1,5 +1,32 @@
 # STATE.md — Fichero
 
+## 2026-05-26 EVENING — OVERNIGHT AUTONOMOUS HANDOFF (read first after compaction)
+
+**Role:** f_manager, branch `0.0.2`, `~/code/fichero-0.0.2`. Daniel is out for the night, checks via phone (GitHub). Full-steam autonomous; 0.0.3 features are in-scope.
+
+**REGIME — PACE FOR ~12 HOURS, DON'T SPRINT (Daniel's governing rule).** Both Claude AND OpenAI/Codex will run out of funds if hammered — steady all-night progress beats burning everything in 2 hours. THROTTLE: keep only ~2-3 lanes active at once (rotate), let lanes idle between tasks, refeed sparingly, use LONG ~60-min tick intervals. Claude quota was tight (92%→~61%); slightly prefer Codex but don't blast it either. Claude lanes sometimes show a spurious **"Upgrade your plan"** dialog (NOT real exhaustion) — reset with `1` then `continue`. Conserve manager context: light ticks, offload to lanes/subagents, read verdicts not logs. Re-pause lanes if any provider's quota climbs toward ~90%.
+
+**LANES** (worktrees `~/code/fichero-<name>`, each commits to its own branch, manager/integrator merges):
+- `f_sonnet` (Claude, branch sonnet): KG-spine COMMITTED — #1248 `92dd9635`, #1254+#1263 `2c40907b`, #1249 `6dd058ae`. Now: #1252 (RTF strip) → #1251 (progress) → validate Catalogue+Apple → #1237 (XLSX).
+- `f_opus` (Claude, branch opus, OWNS Xcode): #1247 `4a4ad3cd`, #1245 `d9ec347d` committed (branch also carries held #1230 `4297740c`). Now: #1243 → #1244 → #1246 → #1253 → #1230 debug.
+- `f_haiku` (Claude, branch haiku): #1260 `1a17cb8f` committed; extending #1260 (AI hook + tests) in its own module only.
+- `f_codex53` (OpenAI, branch codex53): #1259 `1477b1e7` committed; now #462/#463 image-editing foundation (uncommitted WIP).
+- `f_gpt` (OpenAI, branch gpt): #1262 `22dac9b3` committed; now #472/#473 export (uncommitted WIP).
+- `f_gpt_mini` (OpenAI, branch gpt-mini): #1256 audit `bb00a461` + phase-1 WIP; REASSIGNED to **CLI end-to-end KG validation** — start engine from sonnet code on `:8799` + temp library, import→Catalogue(apple)→query KG, confirm #1248/#1254/#1249 work (don't disturb Daniel's `:8765`).
+- Role lanes (Claude, reset from spurious dialog): `f_integrator` (merge gate), `f_reviewer` (review backlog), `f_planner` (image-epic decomposition → agent-work/proposals/). `f_bugtriage` idle.
+
+**MERGE BACKLOG** (all off trunk `55e9aed0`, NONE merged yet). Pipeline: f_reviewer APPROVE → f_integrator verify in the **0.0.2 trunk worktree** → `git merge --no-ff <branch>` + `git push origin 0.0.2` (NEVER main) → comment/close issue. Order: **sonnet KG spine FIRST** → opus (#1247/#1245; carries #1230 — keep issue #1230 OPEN) → haiku #1260. Codex branches: merge each only after it reports its current task done. Backend verify: `/Users/danieltubb/code/fichero-0.0.2/.venv/bin/pytest` with `PYTHONPATH=<lane>/fichero-engine/src` (lane worktrees have no .venv).
+
+**HELD (need Daniel):** #1230 merge held on a one-time macOS TCC automation grant (run FicheroUITests scheme in Xcode + Allow, or pre-grant Xcode in Privacy&Security→Accessibility+Automation); imports #1231–#1239; #1239 SSH backend (not 0.0.2).
+
+**FILED THIS SESSION (through ~#1265):** bugs #1243-1254 (reading-surface, KG pipeline, guardrail, RTF, progress, incremental save #1263); 0.0.3 features #1256 researcher / #1257 KG-viz-suite (+RealityKit stretch) / #1258 claim CRUD / #1259 notes / #1260 text reflow / #1262 chat+graphrag+model-comparison / #1264 activity window / #1265 image nav+rubber-band; image-editing epic = #462-#469/#1161/#1176/#928. Architect proposals for #1256/#1257/#1262 in `agent-work/proposals/`. KEY: backend already has researcher scaffolding, chat RAG, model-comparison — RE-ENABLE not rebuild.
+
+**RULES:** never push main; authoritative tests in the 0.0.2 worktree; don't touch TCC; don't hardcode user-editable model/config; plan before non-trivial.
+
+**NEXT:** loop every 30–45 min — refeed finished Codex lanes (preferred) disjoint work, let reviewer→integrator land the backlog (KG spine first), update GitHub issues as they close (Daniel's phone view), re-pause Claude if quota spikes.
+
+---
+
 ## 2026-05-26 PM — Manager session (Daniel @ dentist, autonomous)
 
 Engineering queue cleared except the last item. All merged + pushed to `origin/0.0.2`:
