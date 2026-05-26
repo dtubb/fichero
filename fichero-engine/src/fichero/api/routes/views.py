@@ -61,9 +61,17 @@ async def document_view(
     if document is None:
         raise HTTPException(404, f"Document not found: {doc_id}")
 
+    # Collect page-child doc IDs — per-page PDFs store claims on children
+    # (parent_id == doc_id), not on the parent, so we must union both (#1249).
+    child_page_ids = {
+        doc.id
+        for doc in db.query(Document)
+        if doc.parent_id == doc_id and doc.doc_type == DocType.page
+    }
+    doc_scope = {doc_id} | child_page_ids
     claims = [
         claim for claim in db.query(KnowledgeClaim)
-        if claim.source_document_id == doc_id
+        if claim.source_document_id in doc_scope
     ]
 
     entity_ids = sorted({entity_id for claim in claims for entity_id in (claim.entity_ids or [])})
