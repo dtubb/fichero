@@ -22,8 +22,8 @@ A macOS app a researcher actually uses daily:
 4. **Native notes + AI workspace** — first-class notes created by the user or AI, with explicit links and provenance
 5. **Spatial knowledge layer** — list, icon, table, map, and future spatial/3D views over the same research model
 6. **AI workflows** — visual node editor for document processing pipelines (LangGraph)
-7. **Offline-first** — works with local models (Apple Inteligence, embedded, Ollama, OMLX, LM Studio) without internet; cloud providers optional
-9. **Native Mac quality** — SwiftUI for front end, Python for engine.
+7. **Offline-first** — works with local models (Apple Intelligence, embedded, Ollama, OMLX, LM Studio) without internet; cloud providers optional
+8. **Native Mac quality** — SwiftUI for front end, Python for engine.
 
 ## How It Works
 
@@ -56,7 +56,7 @@ These don't change:
 
 1. **Native macOS only.** For Mac App, use SwiftUI, and if necessary AppKit. Not Electron, not a web app.
 2. **Offline-first.** Must work without internet via local models (Ollama). Cloud providers are optional.
-3. **The researcher writes; Fichero processes.** The app never prose in voice of user.
+3. **The researcher writes; Fichero processes.** The app never writes prose in the user's voice.
 4. **No data leaves the machine by default.** Cloud LLM providers are opt-in, clearly labeled.
 5. **Stability before features.** What works must keep working. New features don't break existing ones.
 6. **All logic lives in the engine; clients render only.** Aggregation, dedup, scoping, summarization, KG/entity logic, validation — all backend. A surface (SwiftUI, CLI, MCP, future iPad/web) calls an endpoint and displays the result. If a surface needs to compute something that another surface would also need, it belongs in the engine.
@@ -71,7 +71,7 @@ Execution tracking and planning are governed in GitHub:
 
 ## Versioning
 
-GitHub Milestones are the source of truth. Dated releases. Currently number. The product 
-- **2026.05.01** — Core stable: document management, workflows, KG, CLI, autonomous loops
+The destination is **dated releases** (CalVer, e.g. `2026.05.01`) — a dated snapshot is a known-good build with document management, workflows, KG, CLI, and the autonomous loops working together. That's the model for the **final release**; it is not fully in place yet. Current development still runs on the `0.0.2` line, and day-to-day work is organized per worker/lane.
 
-Branch/worktree are based on workers. `.claude/CLAUDE.md`.
+- Current working branch + worktree mechanics → `.claude/CLAUDE.md`
+- Release / packaging process (signing, notarize, Sparkle, DMG) → `docs/architecture/release-process.md` (the pipeline itself lives in the separate `fichero-releases` repo)
