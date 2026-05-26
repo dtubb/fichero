@@ -1053,10 +1053,10 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
     }
 
     private var sectionHeader: some View {
+        // No "Knowledge Graph" title/icon — the inspector tab already names
+        // this surface, so the in-pane label was redundant (#1244). The header
+        // is now just the filter + view-mode + reload controls, right-aligned.
         HStack(spacing: 8) {
-            Image(systemName: "circle.hexagongrid")
-            Text("Knowledge Graph")
-                .font(.headline)
             Spacer()
             // Filter Menu — Tinderbox-style "displayed attributes" picker.
             // Each entity kind has its own checkbox; persistence lives in

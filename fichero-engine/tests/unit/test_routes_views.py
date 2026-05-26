@@ -51,7 +51,11 @@ class TestDocumentViewRoute:
 
         response = client.get(f"/view/document/{doc.id}")
         assert response.status_code == 200
-        assert "Knowledge Surface" in response.text
+        # The page no longer carries an eyebrow/title header — the app's
+        # selection already says what's shown (#1244). The document name lives
+        # only in the browser <title>, and the redundant in-page chrome is gone.
+        assert "<title>Letter.pdf</title>" in response.text
+        assert '<div class="eyebrow">' not in response.text
         assert '"id": "claim-1"' in response.text
         assert '"canonical_name": "Alice"' in response.text
         assert "Transcript" in response.text
