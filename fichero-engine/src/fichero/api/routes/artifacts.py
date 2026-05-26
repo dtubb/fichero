@@ -134,11 +134,18 @@ async def list_document_artifacts(
         # back" confusion in V2 where each artifact gets its own panel —
         # deleting a child's artifact made the parent's similar artifact
         # appear to "respawn" because it was always there in the aggregate.
-        child_ids = [d.id for d in db.query(Document, parent_id=doc_id)]
+        children = db.query(Document, parent_id=doc_id)
+        child_ids = [d.id for d in children]
+        # Map page-child doc_id → sequence so we can sort artifacts by page
+        # number (ascending) rather than creation time (#1271).
+        page_sequence: dict[str, int] = {
+            d.id: (d.sequence or 0) for d in children
+        }
         all_doc_ids = [doc_id] + child_ids
         if doc.parent_id:
             all_doc_ids.append(doc.parent_id)
     else:
+        page_sequence = {}
         all_doc_ids = [doc_id]
 
     # Query artifacts across the resolved doc IDs
@@ -151,8 +158,14 @@ async def list_document_artifacts(
 
     artifacts = all_artifacts
 
-    # Sort by created_at descending
-    artifacts.sort(key=lambda a: a.created_at, reverse=True)
+    # Sort: non-page artifacts newest-first; page-child artifacts by page
+    # sequence ascending so transcription panels read in document order (#1271).
+    def _sort_key(a: Artifact) -> tuple:
+        if a.document_id in page_sequence:
+            return (1, page_sequence[a.document_id], 0.0)
+        return (0, 0, -(a.created_at.timestamp() if a.created_at else 0.0))
+
+    artifacts.sort(key=_sort_key)
 
     # Apply pagination
     total = len(artifacts)
