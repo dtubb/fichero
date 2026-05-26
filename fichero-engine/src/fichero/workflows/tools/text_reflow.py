@@ -137,14 +137,55 @@ def _reflow_text(text: str, preserve_indentation: bool = True) -> str:
     return final_text
 
 
+# ── ai-pass refinement ────────────────────────────────────────────────────────
+
+_REFLOW_AI_INSTRUCTIONS = """You are a text refinement specialist for OCR and hard-wrapped documents.
+
+The user has provided text that has already been reflowed (soft-wrapped lines joined, paragraph breaks preserved).
+
+Your task: Review the reflowed text for any remaining issues:
+1. Incomplete word joins (e.g., "extra ordinary" should be "extraordinary")
+2. Awkward spacing or formatting artifacts
+3. Obvious OCR errors that contradict common sense
+4. Inconsistent hyphenation or word breaks
+
+Make minimal, targeted corrections only. Preserve:
+- Paragraph structure and blank lines
+- Original spelling and vocabulary (don't "fix" archaic or regional terms)
+- Quotations and emphasized text as-is
+- Proper nouns and unusual capitalization
+
+Return the refined text only, with no explanations."""
+
+
+async def _refine_with_llm(text: str, llm_config: LLMConfig) -> str:
+    """Optional AI pass to refine reflowed text (catches edge cases the heuristics miss)."""
+    if not llm_config or not llm_config.provider:
+        return text
+
+    try:
+        from fichero.llm import call_llm_with_cache
+
+        response = await call_llm_with_cache(
+            prompt=f"{_REFLOW_AI_INSTRUCTIONS}\n\n---\n\n{text}",
+            llm_config=llm_config,
+            cache_key=f"text_reflow_refine_{hash(text) % (10**9)}",
+        )
+        return response.strip() if response else text
+    except Exception:
+        # If LLM call fails, return the heuristic result
+        return text
+
+
 # ── config schema ──────────────────────────────────────────────────────────────
 
 TEXT_REFLOW_CONFIG = {
-    "aggressive": {
+    "use_ai_refinement": {
         "type": "boolean",
         "default": False,
         "description": (
-            "Aggressively join short lines; when False, preserves natural breaks"
+            "Optional: Call LLM to refine reflowed text and catch edge-case word joins. "
+            "Disabled by default; programmatic reflow is sufficient for most cases."
         ),
     },
 }
@@ -157,12 +198,13 @@ TEXT_REFLOW_CONFIG = {
     display_name="Text Reflow",
     description=(
         "Join soft-wrapped lines within paragraphs, preserve paragraph structure, "
-        "and de-hyphenate words split across line breaks."
+        "and de-hyphenate words split across line breaks. "
+        "Optional AI refinement pass available for edge-case word joins."
     ),
     category="transform",
     icon="text.alignleft",
     color="purple",
-    uses_llm=False,
+    uses_llm=True,
     supports_batch=True,
     input_ports=[
         PortDef(
@@ -191,11 +233,24 @@ async def text_reflow(
     state: State,
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
-    """Reflow hard-wrapped text while preserving paragraph breaks."""
+    """Reflow hard-wrapped text while preserving paragraph breaks.
+
+    Default: pure programmatic heuristics (fast, no LLM required).
+    Optional: AI refinement pass to catch edge-case word joins (disabled by default).
+    """
     text: str = inputs.get("text") or ""
 
     if not text:
         return {"text": ""}
 
+    # Programmatic reflow (always)
     reflowed = _reflow_text(text)
+
+    # Optional AI refinement pass
+    config = inputs.get("_config") or {}
+    use_ai = bool(config.get("use_ai_refinement", False))
+
+    if use_ai and llm_config:
+        reflowed = await _refine_with_llm(reflowed, llm_config)
+
     return {"text": reflowed.strip()}
