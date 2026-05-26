@@ -15,7 +15,10 @@ struct ImageZoomToolbar: View {
     let actualSize: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        // MiniToolbar keeps the image preview header at the standard 44pt so
+        // it lines up with the PDF preview, list mode rail, knowledge surface,
+        // and inspector tab strip. (#1228)
+        MiniToolbar {
             Button(action: zoomOut) {
                 Image(systemName: "minus.magnifyingglass")
             }
@@ -97,8 +100,5 @@ struct ImageZoomToolbar: View {
 
             Spacer()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color(.windowBackgroundColor))
     }
 }

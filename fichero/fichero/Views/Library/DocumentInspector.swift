@@ -67,9 +67,12 @@ struct DocumentInspector: View {
     // MARK: - Document Detail
 
     private func documentDetail(_ doc: Document) -> some View {
+        // Tab bar sits at the very top (matching every other pane header).
+        // The attribute strip moved below the tabs and now lives *inside* the
+        // Content tab only — it described the document, which is the Content
+        // tab's concern, and it shouldn't crowd the Knowledge Graph / Map /
+        // Artifacts / Info tabs. (#1228)
         VStack(spacing: 0) {
-            DisplayAttributesStrip(document: doc)
-            Divider()
             tabBar
             Divider()
             tabContent(for: doc)
@@ -125,7 +128,12 @@ struct DocumentInspector: View {
 
     @ViewBuilder
     private func contentTab(for doc: Document) -> some View {
-        DocumentInspectorContentV2(document: doc, mode: .pageContentOnly)
+        VStack(spacing: 0) {
+            DisplayAttributesStrip(document: doc)
+            Divider()
+            DocumentInspectorContentV2(document: doc, mode: .pageContentOnly)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
     }
 
     @ViewBuilder

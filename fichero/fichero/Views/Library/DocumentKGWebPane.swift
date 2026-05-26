@@ -41,6 +41,10 @@ struct DocumentKGWebPane: NSViewRepresentable {
     let documentId: String
     let libraryPath: String
     var selectedClaimId: String?
+    /// The tab the native toolbar (DocumentKGSurface) currently shows. Driving
+    /// the tab from Swift — rather than the in-page HTML tab bar — keeps the
+    /// switcher as fixed, never-scrolling AppKit chrome (#1228 follow-up).
+    var activeTab: String = KGSurfaceTab.transcript.rawValue
     var activePageNumber: Int?
     var onEntitySelected: (String, String?) -> Void = { _, _ in }
     var onClaimSelected: (String, String?, String?) -> Void = { _, _, _ in }
@@ -85,6 +89,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
         private var lastLoadedLibraryPath: String?
         private var lastSelectedClaimId: String?
         private var lastActivePageNumber: Int?
+        private var lastActiveTab: String?
 
         init(parent: DocumentKGWebPane) {
             self.parent = parent
@@ -101,6 +106,11 @@ struct DocumentKGWebPane: NSViewRepresentable {
 
             lastLoadedDocumentId = parent.documentId
             lastLoadedLibraryPath = parent.libraryPath
+            // A fresh document means a fresh DOM — clear the sync trackers so
+            // didFinish re-applies the active tab + selection to the new page.
+            lastActiveTab = nil
+            lastSelectedClaimId = nil
+            lastActivePageNumber = nil
             webView.load(request)
         }
 
@@ -113,6 +123,12 @@ struct DocumentKGWebPane: NSViewRepresentable {
         }
 
         func syncSelection(into webView: WKWebView) {
+            if lastActiveTab != parent.activeTab {
+                lastActiveTab = parent.activeTab
+                let literal = DocumentKGPaneRoute.jsStringLiteral(parent.activeTab)
+                webView.evaluateJavaScript("window.fichero?.showTab('\(literal)');")
+            }
+
             if lastSelectedClaimId != parent.selectedClaimId {
                 lastSelectedClaimId = parent.selectedClaimId
                 if let claimId = parent.selectedClaimId {
@@ -158,6 +174,100 @@ struct DocumentKGWebPane: NSViewRepresentable {
             default:
                 break
             }
+        }
+    }
+}
+
+// MARK: - Knowledge Surface Tabs (#1228 follow-up)
+
+/// The three views the knowledge surface can show. `rawValue` matches the
+/// tab ids the in-page JS (`document_view.html`) expects, so the native
+/// toolbar and the web content stay in lock-step through `fichero.showTab`.
+enum KGSurfaceTab: String, CaseIterable, Identifiable {
+    case transcript
+    case digest
+    case graph
+
+    var id: String { rawValue }
+
+    /// Human-readable label shown on the native toolbar button.
+    var title: String {
+        switch self {
+        case .transcript: return "Transcript"
+        case .digest: return "Digest"
+        case .graph: return "Graph"
+        }
+    }
+
+    /// SF Symbol mirroring the inspector tab-bar visual language.
+    var icon: String {
+        switch self {
+        case .transcript: return "doc.text"
+        case .digest: return "list.bullet.rectangle"
+        case .graph: return "point.3.connected.trianglepath.dotted"
+        }
+    }
+}
+
+/// Hosts `DocumentKGWebPane` beneath a fixed, never-scrolling native tab
+/// strip. The web view only ever renders content — the Transcript/Digest/Graph
+/// switcher is AppKit chrome (`MiniToolbar`, 44pt) styled like the library
+/// mode rail and inspector tabs, so it can't scroll out of view and matches
+/// the rest of the window's pane headers. (#1228)
+struct DocumentKGSurface: View {
+    let documentId: String
+    let libraryPath: String
+    var selectedClaimId: String?
+    var activePageNumber: Int?
+    var onEntitySelected: (String, String?) -> Void = { _, _ in }
+    var onClaimSelected: (String, String?, String?) -> Void = { _, _, _ in }
+
+    @State private var activeTab: KGSurfaceTab = .transcript
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Same capsule-pill segmented control as the library mode rail
+            // (icons/list/table/map), centered. Keeps the knowledge surface
+            // header visually identical to the icon-list selector. (#1228)
+            MiniToolbar {
+                Spacer(minLength: 0)
+                HStack(spacing: 2) {
+                    ForEach(KGSurfaceTab.allCases) { tab in
+                        Button {
+                            activeTab = tab
+                        } label: {
+                            Image(systemName: tab.icon)
+                                .frame(width: 22, height: 18)
+                                .foregroundStyle(activeTab == tab ? Color.white : Color.primary)
+                                .background(
+                                    Capsule()
+                                        .fill(activeTab == tab ? Color.accentColor : Color.clear)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help(tab.title)
+                    }
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(
+                    Capsule()
+                        .fill(Color.primary.opacity(0.06))
+                )
+                Spacer(minLength: 0)
+            }
+
+            Divider()
+
+            DocumentKGWebPane(
+                documentId: documentId,
+                libraryPath: libraryPath,
+                selectedClaimId: selectedClaimId,
+                activeTab: activeTab.rawValue,
+                activePageNumber: activePageNumber,
+                onEntitySelected: onEntitySelected,
+                onClaimSelected: onClaimSelected
+            )
         }
     }
 }

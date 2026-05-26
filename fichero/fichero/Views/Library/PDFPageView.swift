@@ -202,7 +202,14 @@ struct PDFPageView: NSViewRepresentable {
             pdfView.addTrackingArea(tracking)
         }
 
-        @objc func mouseMoved(with event: NSEvent) {
+        // NSTrackingArea sends the `mouseMoved:` selector to its owner. The
+        // `with event:` label would map to `mouseMovedWith:` (Coordinator is a
+        // plain NSObject, not an NSResponder that normalizes it), so AppKit
+        // would throw "unrecognized selector mouseMoved:" on every hover.
+        // `@objc(mouseMoved:)` pins the exposed selector to what the tracking
+        // area actually calls. (#1228)
+        @objc(mouseMoved:)
+        func mouseMoved(with event: NSEvent) {
             guard loupeEnabled.wrappedValue else { return }
             guard let pdfView = pdfView, pdfView.bounds.width > 0, pdfView.bounds.height > 0 else { return }
 

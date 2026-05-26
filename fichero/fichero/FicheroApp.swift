@@ -32,6 +32,7 @@ struct FicheroApp: App {
     @StateObject private var appState = AppState()
     @StateObject private var viewSettings = ViewSettings()
     @StateObject private var featureManager = FeatureManager.shared
+    @StateObject private var claimFocusState = ClaimFocusState.shared
 
     // Library manager - singleton managing all open libraries
     @StateObject private var libraryManager = LibraryManager.shared
@@ -101,6 +102,7 @@ struct FicheroApp: App {
                 .environmentObject(appState)
                 .environmentObject(viewSettings)
                 .environmentObject(libraryManager)
+                .environmentObject(claimFocusState)
                 .environmentObject(appState.mcpService)
                 .frame(minWidth: 1100, minHeight: 700)
                 .onOpenURL { url in

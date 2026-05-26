@@ -58,6 +58,28 @@ class TestDocumentViewRoute:
         assert "Digest" in response.text
         assert "Graph" in response.text
 
+    def test_html_uses_apple_system_fonts_and_native_tab_bridge(self, client, db):
+        # #1228 follow-up: fonts are Apple system defaults, the in-page tab bar
+        # is hidden (the native Swift toolbar owns it), and `fichero.showTab`
+        # exists so the toolbar can drive the web content.
+        doc = _make_document(
+            doc_id="doc-fonts",
+            name="Fonts.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            page_content="Body text.",
+        )
+        db.save(doc)
+
+        response = client.get(f"/view/document/{doc.id}")
+        assert response.status_code == 200
+        # Apple system font stack present; the old serif stack is gone.
+        assert "-apple-system" in response.text
+        assert "ui-serif, Georgia, serif" not in response.text
+        # Native toolbar drives the tabs; in-page tab bar is hidden but its
+        # showTab hook is available.
+        assert "showTab(tab)" in response.text
+
     def test_page_children_are_folded_into_transcript_when_parent_has_none(self, client, db):
         doc = _make_document(
             doc_id="pdf-1",

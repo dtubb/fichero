@@ -4,7 +4,7 @@ extension ContentView {
     @ViewBuilder
     func knowledgeSurface(for document: Document?, activePageNumber: Int?) -> some View {
         if let document, let libraryPath = apiClient.currentLibraryPath, !libraryPath.isEmpty {
-            DocumentKGWebPane(
+            DocumentKGSurface(
                 documentId: document.id,
                 libraryPath: libraryPath,
                 selectedClaimId: claimFocusState.selectedClaimId,

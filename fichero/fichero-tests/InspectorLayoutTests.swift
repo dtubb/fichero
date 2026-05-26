@@ -409,6 +409,137 @@ struct DocumentKGPaneRouteTests {
     }
 }
 
+// MARK: - Knowledge Surface Tab Tests (#1228)
+
+struct KGSurfaceTabTests {
+
+    @Test("KGSurfaceTab has transcript, digest, graph in order")
+    func orderingAndCount() {
+        // Order drives the native toolbar's left-to-right button layout.
+        #expect(KGSurfaceTab.allCases == [.transcript, .digest, .graph])
+    }
+
+    @Test("KGSurfaceTab rawValues match the JS tab ids in document_view.html")
+    func rawValuesMatchWebTabIds() {
+        // The native toolbar calls window.fichero.showTab(rawValue); these must
+        // equal the tab ids the in-page JS switches on, or tab clicks no-op.
+        #expect(KGSurfaceTab.transcript.rawValue == "transcript")
+        #expect(KGSurfaceTab.digest.rawValue == "digest")
+        #expect(KGSurfaceTab.graph.rawValue == "graph")
+    }
+
+    @Test("KGSurfaceTab id equals rawValue")
+    func idEqualsRawValue() {
+        for tab in KGSurfaceTab.allCases {
+            #expect(tab.id == tab.rawValue)
+        }
+    }
+
+    @Test("KGSurfaceTab titles are human-readable display names")
+    func titles() {
+        #expect(KGSurfaceTab.transcript.title == "Transcript")
+        #expect(KGSurfaceTab.digest.title == "Digest")
+        #expect(KGSurfaceTab.graph.title == "Graph")
+    }
+
+    @Test("Every KGSurfaceTab has a non-empty SF Symbol")
+    func icons() {
+        for tab in KGSurfaceTab.allCases {
+            #expect(!tab.icon.isEmpty, "\(tab.rawValue) should have an icon")
+        }
+    }
+}
+
+// MARK: - PDF Loupe Tracking-Area Selector Guard (#1228)
+
+@MainActor
+struct PDFLoupeTrackingSelectorTests {
+    @Test("PDFPageView.Coordinator exposes the mouseMoved: selector NSTrackingArea calls")
+    func mouseMovedSelectorExposed() {
+        // The loupe registers an NSTrackingArea with `owner: coordinator` and
+        // the `.mouseMoved` option, so AppKit sends `mouseMoved:`. If the Swift
+        // method is exposed as `mouseMovedWith:` (the `with` label leaking into
+        // the selector), every hover throws "unrecognized selector" and crashes
+        // the PDF pane. Lock the exposed selector to `mouseMoved:`.
+        let sel = Selector(("mouseMoved:"))
+        #expect(PDFPageView.Coordinator.instancesRespond(to: sel))
+    }
+}
+
+// MARK: - Environment-Object Contract Guards (#1228)
+//
+// The launch crash was a missing `.environmentObject(ClaimFocusState…)`
+// injection: ContentView declared `@EnvironmentObject var claimFocusState`
+// but no ancestor provided it, so the very first render hit
+// `fatalError("No ObservableObject of type ClaimFocusState found")`.
+//
+// `@EnvironmentObject` is a runtime contract the compiler can't verify, so
+// these source-level tests lock the producer/consumer pair together. They
+// read the app sources via `#filePath` (the compile-time source path, which
+// points into the checked-out worktree on dev + CI).
+
+struct ClaimFocusStateInjectionContractTests {
+
+    /// App source root: `.../fichero/fichero/` (sibling of `fichero-tests`).
+    private static func appSourceRoot() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // fichero-tests
+            .deletingLastPathComponent()   // fichero (project container)
+            .appendingPathComponent("fichero")
+    }
+
+    private static func source(_ relativePath: String) throws -> String {
+        let url = appSourceRoot().appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    @Test("ContentView consumes ClaimFocusState from the environment")
+    func contentViewConsumesClaimFocusState() throws {
+        let source = try Self.source("Views/ContentView.swift")
+        #expect(
+            source.contains("@EnvironmentObject var claimFocusState: ClaimFocusState"),
+            "ContentView must keep its ClaimFocusState @EnvironmentObject — pairs with FicheroApp injection"
+        )
+    }
+
+    @Test("FicheroApp injects ClaimFocusState at the window root")
+    func ficheroAppInjectsClaimFocusState() throws {
+        let source = try Self.source("FicheroApp.swift")
+        // Both the @StateObject backing store AND the .environmentObject
+        // injection must be present, or ContentView crashes on launch.
+        #expect(
+            source.contains("ClaimFocusState.shared"),
+            "FicheroApp must own a ClaimFocusState StateObject"
+        )
+        #expect(
+            source.contains(".environmentObject(claimFocusState)"),
+            "FicheroApp must inject claimFocusState into the LibraryWindow environment"
+        )
+    }
+
+    @Test("Exactly one ClaimFocusState class is defined in the app sources")
+    func singleClaimFocusStateDefinition() throws {
+        // A second `class ClaimFocusState` (the dead Models/ClaimFocusState.swift
+        // orphan that was never in the pbxproj) shadows the live type in tools
+        // and would become a duplicate-symbol build break if registered. Lock
+        // the count at one.
+        var definitionCount = 0
+        let root = Self.appSourceRoot()
+        let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: nil
+        )
+        while let url = enumerator?.nextObject() as? URL {
+            guard url.pathExtension == "swift" else { continue }
+            let contents = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+            if contents.contains("class ClaimFocusState: ObservableObject") {
+                definitionCount += 1
+            }
+        }
+        #expect(definitionCount == 1, "Expected exactly one ClaimFocusState class, found \(definitionCount)")
+    }
+}
+
 // MARK: - V2 Inspector — RichTextController + Format/Find menu wiring
 
 @MainActor

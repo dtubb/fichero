@@ -2,58 +2,6 @@ import SwiftUI
 
 // MARK: - PDFPageWithToolbar
 
-/// PDF zoom toolbar mirroring the image viewer's ImageZoomToolbar.
-/// Provides dedicated zoom controls for PDF documents.
-struct PDFZoomToolbar: View {
-    @Binding var scale: CGFloat
-
-    let zoomIn: () -> Void
-    let zoomOut: () -> Void
-    let fitToWindow: () -> Void
-    let actualSize: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Button(action: zoomOut) {
-                Image(systemName: "minus.magnifyingglass")
-            }
-            .buttonStyle(.plain)
-            .help("Zoom Out")
-
-            Text("\(Int(scale * 100))%")
-                .font(.caption)
-                .monospacedDigit()
-                .frame(width: 50)
-
-            Button(action: zoomIn) {
-                Image(systemName: "plus.magnifyingglass")
-            }
-            .buttonStyle(.plain)
-            .help("Zoom In")
-
-            Divider()
-                .frame(height: 16)
-
-            Button(action: fitToWindow) {
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-            }
-            .buttonStyle(.plain)
-            .help("Fit to Window")
-
-            Button(action: actualSize) {
-                Image(systemName: "1.square")
-            }
-            .buttonStyle(.plain)
-            .help("Actual Size (100%)")
-
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color(.windowBackgroundColor))
-    }
-}
-
 /// PDFPageView previously bundled its own zoom toolbar (#656). The
 /// embedded toolbar duplicated the document inspector's zoom controls
 /// + the LibraryView icon-zoom strip, producing two stacked sets of
@@ -90,8 +38,10 @@ struct PDFPageWithToolbar: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Toolbar: zoom controls + loupe toggle
-            HStack(spacing: 12) {
+            // Toolbar: zoom controls + loupe toggle. Uses MiniToolbar so the
+            // PDF preview header is the same 44pt height as the list mode rail,
+            // image preview, knowledge surface, and inspector tab strip (#1228).
+            MiniToolbar {
                 Button {
                     zoom.zoomOut()
                 } label: {
@@ -170,9 +120,6 @@ struct PDFPageWithToolbar: View {
 
                 Spacer()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color(.windowBackgroundColor))
 
             Divider()
 
