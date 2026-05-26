@@ -201,6 +201,13 @@ class _Extraction(BaseModel):
         default_factory=list,
         description="book-index terms",
     )
+    additional_entities: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description=(
+            "Custom entity types from the library registry. "
+            "Keys are the registry type keys, values are lists of extracted names."
+        ),
+    )
 
 
 # =============================================================================
@@ -442,7 +449,57 @@ def _convert_entities_to_extraction(
     )
 
 
-def _build_instructions(output_language: str) -> str:
+# Built-in section keys — custom registry types must not collide with these.
+_BUILTIN_EXTRACTION_KEYS = frozenset({
+    "people", "places", "organizations", "dates", "events", "keywords",
+})
+
+
+def _load_registry_types(db, library_path: str) -> list[str]:
+    """Return enabled custom entity type keys from the per-library registry."""
+    if not library_path:
+        return []
+    try:
+        from fichero.knowledge_models import LibraryEntityType
+        items = db.query(LibraryEntityType, library_id=library_path, enabled=True)
+        return [
+            item.entity_type_key
+            for item in items
+            if item.entity_type_key not in _BUILTIN_EXTRACTION_KEYS
+        ]
+    except Exception as exc:
+        logger.warning("extract_all: could not load registry types for %s: %s", library_path, exc)
+        return []
+
+
+def _persist_additional_entities(
+    db,
+    additional_entities: dict[str, list[str]],
+    container_id: str,
+) -> None:
+    """Persist names extracted for custom registry types as KnowledgeEntity rows."""
+    from fichero.knowledge_models import KnowledgeEntity, EntityType
+
+    for type_key, names in additional_entities.items():
+        for name in names:
+            name = name.strip()
+            if not name:
+                continue
+            existing = db.query(KnowledgeEntity, canonical_name=name, entity_type=EntityType.other)
+            if existing:
+                e = existing[0]
+                if not e.metadata.get("custom_entity_type_key"):
+                    e.metadata = {**e.metadata, "custom_entity_type_key": type_key}
+                    db.save(e)
+            else:
+                db.save(KnowledgeEntity(
+                    canonical_name=name,
+                    entity_type=EntityType.other,
+                    metadata={"custom_entity_type_key": type_key},
+                ))
+
+
+def _build_instructions(output_language: str, custom_entity_types: list[str] | None = None) -> str:
     """System instructions for the structured-output call. The schema
     itself is enforced at decode time (DynamicGenerationSchema on Apple,
     response_format=json_schema on LangChain providers); these
@@ -479,7 +536,7 @@ def _build_instructions(output_language: str) -> str:
         "in events. Keywords are concepts, not concrete entities.",
     ])
 
-    return (
+    base = (
         f"You are an expert archivist extracting structured entities "
         f"from a document. Extract evidence, not ontology labels. Do "
         f"NOT emit generic claims like 'Pedro is a person', 'Colombia "
@@ -499,6 +556,15 @@ def _build_instructions(output_language: str) -> str:
         f"explicitly attributed statements only.\n\n"
         f"Section-specific guidance:\n{section_block}"
     )
+    if custom_entity_types:
+        custom_lines = "\n".join(f"- {t}" for t in custom_entity_types)
+        base += (
+            f"\n\nThis library has custom entity types. "
+            f"Extract them into the 'additional_entities' field as a mapping "
+            f"of type key → list of entity names found in the text:\n{custom_lines}\n"
+            f"Only include names clearly present in the source text."
+        )
+    return base
 
 
 # Error-message fragments that mark a failure as systemic — it won't
@@ -1039,7 +1105,17 @@ async def extract_all(
         page_doc_ids = [None] * len(chunks)
 
     is_per_page = any(pid for pid in page_doc_ids)
-    instructions = _build_instructions(output_language)
+
+    # Load per-library custom entity types from the registry (#1240).
+    custom_entity_types: list[str] = []
+    if library_path:
+        try:
+            _reg_db = db_manager.get_database(library_path)
+            custom_entity_types = _load_registry_types(_reg_db, library_path)
+        except Exception:
+            pass  # registry unavailable — proceed with built-ins only
+
+    instructions = _build_instructions(output_language, custom_entity_types)
 
     chunk_errors: list[str] = []
     # Per-page error tracking — when a chunk fails, we write an
@@ -1148,6 +1224,7 @@ async def extract_all(
             "events": [e.model_dump(mode="json") for e in extraction.events],
             "quotes": [q.model_dump(mode="json") for q in extraction.quotes],
             "keywords": list(extraction.keywords),
+            "additional_entities": dict(extraction.additional_entities),
         }
 
     chunk_results: list[dict[str, list]] = await asyncio.gather(
@@ -1292,6 +1369,21 @@ async def extract_all(
                         model=getattr(llm_config, "model", None),
                         run_id=state.get("task_id"),
                     ))
+            # Persist custom entity types from the registry (#1240).
+            if custom_entity_types and persist_kg:
+                custom_entity_type_set = set(custom_entity_types)
+                merged_additional: dict[str, list[str]] = {}
+                for cr in chunk_results:
+                    for type_key, names in (cr.get("additional_entities") or {}).items():
+                        if type_key not in custom_entity_type_set:
+                            continue
+                        for name in (names or []):
+                            name = name.strip() if isinstance(name, str) else ""
+                            if name and name not in merged_additional.get(type_key, []):
+                                merged_additional.setdefault(type_key, []).append(name)
+                if merged_additional:
+                    _persist_additional_entities(db, merged_additional, container.id)
+
             # Drain the queued artifact writes before this node returns
             # — downstream folder-cleanup nodes read these artifacts.
             db_writer.flush()
