@@ -1,0 +1,100 @@
+//
+//  LibrarySmokeUITests.swift
+//  FicheroUITests
+//
+//  Click-through smoke tests (#1230). These launch the REAL app as a separate
+//  process and assert no crash + key elements exist. They would have caught the
+//  two #1228 launch/hover crashes.
+//
+//  Scope (this pass): flow 1 (launch) + flow 5 (view-mode rail). The data-
+//  dependent flows (select a PDF + hover, knowledge-surface tabs, inspector
+//  content) need a seeded backend + a real multi-page-PDF fixture and are
+//  tracked as a follow-up — see the issue filed off #1230.
+//
+//  The app is launched in an ISOLATED mode so the suite never touches the
+//  developer's real library or the shared dev backend:
+//   - `--uitesting` launch arg → app skips the move-to-Applications prompt,
+//     skips real saved-library restore, and does NOT spawn the embedded engine.
+//   - `FICHERO_UITEST_HOME` → the global library is rooted in a throwaway temp
+//     dir, so even if a dev backend is up, requests carry a disposable path.
+//   - `FICHERO_ALL_FEATURES=1` → unlocks the library advanced views so the
+//     icons/list/table/map view-mode rail is present (it's gated off by default).
+//
+
+import XCTest
+
+final class LibrarySmokeUITests: XCTestCase {
+    private var app: XCUIApplication!
+    private var tempHome: URL!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+
+        // Disposable Application Support root, unique per test, removed in
+        // tearDown — keeps the smoke run fully isolated from the real library.
+        tempHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fichero-uitest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempHome, withIntermediateDirectories: true)
+
+        app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
+        app.launchEnvironment = [
+            "FICHERO_UITEST_HOME": tempHome.path,
+            "FICHERO_ALL_FEATURES": "1"
+        ]
+    }
+
+    override func tearDownWithError() throws {
+        app?.terminate()
+        if let tempHome { try? FileManager.default.removeItem(at: tempHome) }
+    }
+
+    /// Flow 1 — the app launches to its library window and stays foregrounded
+    /// without crashing. This is the regression guard for the #1228
+    /// `ClaimFocusState` environment-object launch crash.
+    @MainActor
+    func testLaunchShowsLibraryWindowWithoutCrashing() throws {
+        app.launch()
+
+        XCTAssertTrue(
+            app.wait(for: .runningForeground, timeout: 30),
+            "App did not reach the foreground within 30s — likely crashed on launch."
+        )
+        XCTAssertTrue(
+            app.windows.firstMatch.waitForExistence(timeout: 10),
+            "No window appeared after launch."
+        )
+        // Still alive a beat later (a launch crash often surfaces just after
+        // the first frame renders).
+        XCTAssertEqual(app.state, .runningForeground, "App left the foreground after launch.")
+    }
+
+    /// Flow 5 — the icons/list/table/map view-mode rail is present and its
+    /// segments switch without crashing.
+    @MainActor
+    func testViewModeRailIsPresentAndSwitches() throws {
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30), "App failed to launch.")
+
+        let rail = app.descendants(matching: .any)
+            .matching(identifier: "viewModeRail").firstMatch
+        XCTAssertTrue(
+            rail.waitForExistence(timeout: 15),
+            "View-mode rail not found — expected with FICHERO_ALL_FEATURES=1."
+        )
+
+        // Switch through the segments by their stable identifiers. Each must be
+        // hittable and the app must survive every switch (no crash, still
+        // foregrounded).
+        for mode in ["viewMode-List", "viewMode-Table", "viewMode-Icon"] {
+            let button = app.descendants(matching: .any)
+                .matching(identifier: mode).firstMatch
+            XCTAssertTrue(button.waitForExistence(timeout: 5), "Missing view-mode segment: \(mode)")
+            button.tap()
+            XCTAssertEqual(
+                app.state, .runningForeground,
+                "App left the foreground after switching to \(mode)."
+            )
+        }
+    }
+}

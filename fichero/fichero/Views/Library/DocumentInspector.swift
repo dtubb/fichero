@@ -103,10 +103,14 @@ struct DocumentInspector: View {
                 )
                 .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
                 .help(tab.rawValue)
+                // Stable per-tab XCUITest hook, e.g. "inspectorTab-Content" (#1230).
+                .accessibilityIdentifier("inspectorTab-\(tab.rawValue)")
             }
         }
         .padding(.horizontal, 8)
         .frame(height: MiniToolbar<EmptyView>.standardHeight)
+        // XCUITest hook for the inspector tab bar (#1230).
+        .accessibilityIdentifier("inspectorTabBar")
     }
 
     /// Tab content for the selected tab

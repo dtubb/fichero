@@ -84,3 +84,6 @@ agent-work/.cascade.lock
 
 # Autoloop run logs — regenerable, not version-controlled
 .claude/loop-logs/
+
+# Session-local block signal (never commit — see BLOCK.md semantics)
+BLOCK.md

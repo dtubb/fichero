@@ -68,6 +68,7 @@ struct PDFPageView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> PDFView {
         let view = PDFView()
+        view.setAccessibilityIdentifier("pdfPreview")  // XCUITest hook (#1230)
         view.displayMode = .singlePage
         view.displaysPageBreaks = false
         // #588: autoScales re-fits the document to the pane on every layout

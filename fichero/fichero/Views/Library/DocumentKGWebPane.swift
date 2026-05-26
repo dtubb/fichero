@@ -297,6 +297,8 @@ struct DocumentKGSurface: View {
                 }
                 Spacer(minLength: 0)
             }
+            // XCUITest hook for the knowledge-surface tab strip (#1230).
+            .accessibilityIdentifier("knowledgeSurfaceTabs")
 
             Divider()
 
@@ -334,5 +336,7 @@ struct DocumentKGSurface: View {
         )
         .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
         .help(tab.title)
+        // Stable per-tab XCUITest hook, e.g. "kgSurfaceTab-transcript" (#1230).
+        .accessibilityIdentifier("kgSurfaceTab-\(tab.rawValue)")
     }
 }

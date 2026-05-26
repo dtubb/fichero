@@ -51,6 +51,17 @@ struct FicheroApp: App {
             return
         }
 
+        // XCUITest smoke run (#1230): the runner launches the real app, so this
+        // boot path executes. Skip the modal "Move to Applications?" prompt (it
+        // would block the runner) and the saved-library restore (it would open
+        // the developer's real libraries). The isolated global library — rooted
+        // under FICHERO_UITEST_HOME — still loads lazily via LibraryManager so
+        // the window has something to show.
+        if isUITesting() {
+            logger.info("FicheroApp.init: UI-testing launch — skipping installer + saved-library restore")
+            return
+        }
+
         let startupClock = Date()
         AppInstaller.promptToMoveToApplicationsIfNeeded()
         let installerMs = Date().timeIntervalSince(startupClock) * 1000
