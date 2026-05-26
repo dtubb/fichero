@@ -5558,6 +5558,20 @@
         "response_model": "WorkflowReorderResponse"
       }
     ],
+    "view": [
+      {
+        "method": "GET",
+        "path": "/view/document/{doc_id}",
+        "operation_id": "document_view_view_document__doc_id__get",
+        "summary": "Document View",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
     "hermeneutics": [
       {
         "method": "POST",

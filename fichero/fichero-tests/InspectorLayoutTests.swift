@@ -377,6 +377,38 @@ struct PageContentPaneEditStateTests {
     }
 }
 
+// MARK: - Document KG Pane Route Tests (#1228)
+
+struct DocumentKGPaneRouteTests {
+
+    @Test("Knowledge pane route builds localhost document URL")
+    func documentURL() throws {
+        let url = try #require(DocumentKGPaneRoute.documentURL(documentId: "doc-123"))
+        #expect(url.absoluteString == "http://localhost:8765/view/document/doc-123")
+    }
+
+    @Test("Knowledge pane request includes library header")
+    func requestIncludesLibraryHeader() throws {
+        let request = try #require(
+            DocumentKGPaneRoute.request(
+                documentId: "doc-123",
+                libraryPath: "/tmp/Test Library.fichero"
+            )
+        )
+        #expect(request.value(forHTTPHeaderField: "X-Fichero-Library-Path") == "/tmp/Test Library.fichero")
+    }
+
+    @Test("Knowledge pane bootstrap script escapes quotes and newlines")
+    func bootstrapScriptEscaping() {
+        let script = DocumentKGPaneRoute.bootstrapScript(
+            token: "tok'en",
+            libraryPath: "/tmp/Line\nBreak.fichero"
+        )
+        #expect(script.contains("tok\\'en"))
+        #expect(script.contains("/tmp/Line\\nBreak.fichero"))
+    }
+}
+
 // MARK: - V2 Inspector — RichTextController + Format/Find menu wiring
 
 @MainActor

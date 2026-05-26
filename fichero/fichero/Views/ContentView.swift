@@ -800,8 +800,10 @@ struct ContentView: View {
         } // end HStack — inspector is window-level, not inside NavigationSplitView (#1199)
 
         // Listen for claim selection from inspector and sync to other panes
-        .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { _ in
-            // This is handled by the individual panes through their own ClaimFocusState observation
+        .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { notification in
+            if let claimId = notification.userInfo?["claimId"] as? String {
+                ClaimFocusState.shared.selectClaim(claimId: claimId)
+            }
         }
     }
 }

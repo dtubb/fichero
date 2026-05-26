@@ -170,49 +170,54 @@ extension ContentView {
                     .frame(maxWidth: .infinity)
 
                 case .widescreen:
-                    // Five-pane reading layout (#1189) when a multi-page PDF has page
-                    // children loaded; classic grid | PDF layout otherwise.
-                    let pages = pdfDocPages
-                    if let pdfPath = detailPDFPath, !pages.isEmpty {
-                        fivePaneReadingView(pdfPath: pdfPath, pages: pages)
-                    } else {
-                        HStack(spacing: 0) {
-                            contentWithOptionalModeRail
-                                .overlay { paneFocusIndicator(for: .content) }
-                                .frame(width: clampedWidescreenContentPaneWidth)
+                    HStack(spacing: 0) {
+                        contentWithOptionalModeRail
+                            .overlay { paneFocusIndicator(for: .content) }
+                            .frame(width: clampedWidescreenContentPaneWidth)
 
-                            ResizableDivider(
-                                width: $widescreenContentPaneWidth,
-                                minWidth: 180,
-                                maxWidth: 900,
-                                edge: .leading
+                        ResizableDivider(
+                            width: $widescreenContentPaneWidth,
+                            minWidth: 180,
+                            maxWidth: 900,
+                            edge: .leading
+                        )
+
+                        if let pdfPath = detailPDFPath {
+                            PDFPageWithToolbar(
+                                path: pdfPath,
+                                pageIndex: selectedPageIndex,
+                                onPageIndexChange: { index in
+                                    syncGridSelectionToPDFPage(index: index)
+                                }
                             )
-
-                            if let pdfPath = detailPDFPath {
-                                PDFReadingView(
-                                    document: detailDocument,
-                                    pdfPath: pdfPath,
-                                    pageIndex: selectedPageIndex,
-                                    contentWidth: $pageContentPaneWidth,
-                                    onPageIndexChange: { index in
-                                        syncGridSelectionToPDFPage(index: index)
-                                    }
-                                )
-                                .overlay { paneFocusIndicator(for: .preview) }
-                            } else {
-                                EditorView(
-                                    document: detailDocument,
-                                    showHeader: false,
-                                    onPDFPageIndexChange: { index in
-                                        syncGridSelectionToPDFPage(index: index)
-                                    }
-                                )
-                                .overlay { paneFocusIndicator(for: .preview) }
-                                .frame(maxWidth: .infinity)
-                            }
+                            .overlay { paneFocusIndicator(for: .preview) }
+                            .frame(maxWidth: .infinity)
+                        } else {
+                            EditorView(
+                                document: detailDocument,
+                                showHeader: false,
+                                onPDFPageIndexChange: { index in
+                                    syncGridSelectionToPDFPage(index: index)
+                                }
+                            )
+                            .overlay { paneFocusIndicator(for: .preview) }
+                            .frame(maxWidth: .infinity)
                         }
-                        .frame(maxWidth: .infinity)
+
+                        ResizableDivider(
+                            width: $pageContentPaneWidth,
+                            minWidth: 220,
+                            maxWidth: 540,
+                            edge: .trailing
+                        )
+
+                        knowledgeSurface(
+                            for: detailDocument,
+                            activePageNumber: detailPDFPath == nil ? nil : selectedPageIndex + 1
+                        )
+                        .frame(width: CGFloat(pageContentPaneWidth))
                     }
+                    .frame(maxWidth: .infinity)
                 }
             }
             .animation(.easeInOut(duration: 0.18), value: layout)

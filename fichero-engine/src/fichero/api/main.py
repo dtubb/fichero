@@ -735,6 +735,7 @@ from fichero.api.routes import (  # noqa: E402
     storage,
     tasks,
     triggers,
+    views,
     workflow_execution,
     workflows,
 )
@@ -794,6 +795,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (tasks.router, "/api/tasks", ["tasks"]),
     (workflow_execution.router, "/api/workflow-execution", ["workflow-execution"]),
     (workflows.router, "/api/workflows", ["workflows"]),
+    (views.router, "", ["views"]),
     # /api/kg/* — promoted from dev-tier to core 2026-05-12 (#967).
     # The Swift OntologyBrowser + DocumentInspector consume these
     # endpoints unconditionally; gating them behind FICHERO_FEATURE_TIER=dev
