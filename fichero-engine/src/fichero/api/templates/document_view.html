@@ -21,6 +21,24 @@
             --claim-soft: rgba(180, 80, 20, 0.14);
         }
 
+        /* Browser fallback for dark mode. In the Fichero app these are
+           overridden by live macOS system colors injected from Swift
+           (DocumentKGPaneRoute.systemThemeCSS), so the pane matches the OS
+           appearance + accent exactly. */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #1e1b18;
+                --panel: rgba(44, 40, 36, 0.85);
+                --text: #ece7df;
+                --muted: #a59b8d;
+                --line: rgba(236, 231, 223, 0.16);
+                --accent: #3fb6ba;
+                --accent-soft: rgba(63, 182, 186, 0.18);
+                --claim: #e0793a;
+                --claim-soft: rgba(224, 121, 58, 0.20);
+            }
+        }
+
         * { box-sizing: border-box; }
 
         body {

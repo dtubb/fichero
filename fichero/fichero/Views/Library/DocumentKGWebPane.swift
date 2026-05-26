@@ -28,6 +28,56 @@ enum DocumentKGPaneRoute {
         """
     }
 
+    /// CSS that overrides the template's `:root` palette with the live macOS
+    /// system colors (background, text, separators, accent) resolved for the
+    /// current appearance. The template ships sensible light/dark defaults so
+    /// it still looks right opened in a browser; in the app this makes the
+    /// pane match the system exactly — accent included — and follow dark mode.
+    /// Theming lives here (Swift) by design: the backend never sniffs the OS.
+    @MainActor
+    static func systemThemeCSS() -> String {
+        func cssColor(_ color: NSColor) -> String {
+            let resolved = color.usingColorSpace(.sRGB) ?? NSColor.black
+            let red = Int((resolved.redComponent * 255).rounded())
+            let green = Int((resolved.greenComponent * 255).rounded())
+            let blue = Int((resolved.blueComponent * 255).rounded())
+            return String(format: "rgba(%d, %d, %d, %.3f)", red, green, blue, resolved.alphaComponent)
+        }
+
+        var vars = ""
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            vars = """
+            --bg: \(cssColor(.textBackgroundColor));
+            --panel: \(cssColor(.controlBackgroundColor));
+            --text: \(cssColor(.textColor));
+            --muted: \(cssColor(.secondaryLabelColor));
+            --line: \(cssColor(.separatorColor));
+            --accent: \(cssColor(.controlAccentColor));
+            --accent-soft: \(cssColor(.controlAccentColor.withAlphaComponent(0.14)));
+            """
+        }
+        return ":root{\(vars)}"
+    }
+
+    /// JS that injects (or refreshes) the system-theme `<style>` element so it
+    /// overrides the template defaults regardless of load timing.
+    @MainActor
+    static func themeInjectionScript() -> String {
+        let css = jsStringLiteral(systemThemeCSS())
+        return """
+        (function() {
+            var id = 'fichero-system-theme';
+            var el = document.getElementById(id);
+            if (!el) {
+                el = document.createElement('style');
+                el.id = id;
+                (document.head || document.documentElement).appendChild(el);
+            }
+            el.textContent = '\(css)';
+        })();
+        """
+    }
+
     static func jsStringLiteral(_ raw: String) -> String {
         raw
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -64,6 +114,15 @@ struct DocumentKGWebPane: NSViewRepresentable {
                     libraryPath: libraryPath
                 ),
                 injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
+            )
+        )
+        // Inject live macOS system colors at document end so they override the
+        // template's default :root palette (same specificity, later wins).
+        controller.addUserScript(
+            WKUserScript(
+                source: DocumentKGPaneRoute.themeInjectionScript(),
+                injectionTime: .atDocumentEnd,
                 forMainFrameOnly: true
             )
         )
@@ -147,6 +206,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             injectContext(into: webView)
+            webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
             syncSelection(into: webView)
         }
 
@@ -226,34 +286,15 @@ struct DocumentKGSurface: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Same capsule-pill segmented control as the library mode rail
-            // (icons/list/table/map), centered. Keeps the knowledge surface
-            // header visually identical to the icon-list selector. (#1228)
+            // Same button style as the DocumentInspector tab bar (full-height
+            // hit area, centered icon, rounded-rect selection highlight),
+            // centered as a group. Unifies the knowledge-surface header with
+            // the inspector tabs + library mode rail. (#1228)
             MiniToolbar {
                 Spacer(minLength: 0)
-                HStack(spacing: 2) {
-                    ForEach(KGSurfaceTab.allCases) { tab in
-                        Button {
-                            activeTab = tab
-                        } label: {
-                            Image(systemName: tab.icon)
-                                .frame(width: 22, height: 18)
-                                .foregroundStyle(activeTab == tab ? Color.white : Color.primary)
-                                .background(
-                                    Capsule()
-                                        .fill(activeTab == tab ? Color.accentColor : Color.clear)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .help(tab.title)
-                    }
+                ForEach(KGSurfaceTab.allCases) { tab in
+                    tabButton(tab)
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(
-                    Capsule()
-                        .fill(Color.primary.opacity(0.06))
-                )
                 Spacer(minLength: 0)
             }
 
@@ -269,5 +310,29 @@ struct DocumentKGSurface: View {
                 onClaimSelected: onClaimSelected
             )
         }
+    }
+
+    /// One knowledge-surface tab button, styled like the DocumentInspector tab
+    /// bar. Extracted from the toolbar's ForEach so the inline body stays under
+    /// the SwiftUI type-checker's complexity limit.
+    @ViewBuilder
+    private func tabButton(_ tab: KGSurfaceTab) -> some View {
+        let isSelected = activeTab == tab
+        Button {
+            activeTab = tab
+        } label: {
+            Image(systemName: tab.icon)
+                .font(.system(size: 16, weight: .regular))
+                .frame(width: 40)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        )
+        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+        .help(tab.title)
     }
 }

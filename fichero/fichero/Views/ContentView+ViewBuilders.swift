@@ -82,33 +82,43 @@ extension ContentView {
     @ViewBuilder
     var horizontalModeStrip: some View {
         if showModeRail {
+            // Same button style as the DocumentInspector tab bar (full-height
+            // hit area, centered icon, rounded-rect selection highlight),
+            // centered as a group — so the list mode rail, knowledge surface,
+            // and inspector tabs all read identically. (was capsule pills;
+            // Daniel preferred the inspector look, 2026-05-26.)
             MiniToolbar {
-                HStack(spacing: 2) {
-                    ForEach(availableViewDisplayModes) { mode in
-                        Button {
-                            updateViewDisplayMode(mode)
-                        } label: {
-                            Image(systemName: mode.icon)
-                                .frame(width: 22, height: 18)
-                                .foregroundStyle(viewDisplayMode == mode ? Color.white : Color.primary)
-                                .background(
-                                    Capsule()
-                                        .fill(viewDisplayMode == mode ? Color.accentColor : Color.clear)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .help("View as: \(mode.rawValue)")
-                    }
+                Spacer(minLength: 0)
+                ForEach(availableViewDisplayModes) { mode in
+                    modeRailButton(mode)
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .background(
-                    Capsule()
-                        .fill(Color.primary.opacity(0.06))
-                )
                 Spacer(minLength: 0)
             }
         }
+    }
+
+    /// One mode-rail tab button, styled like the DocumentInspector tab bar.
+    /// Extracted from `horizontalModeStrip` because the inline ForEach body
+    /// tripped the SwiftUI type-checker's complexity limit.
+    @ViewBuilder
+    private func modeRailButton(_ mode: ViewDisplayMode) -> some View {
+        let isSelected = viewDisplayMode == mode
+        Button {
+            updateViewDisplayMode(mode)
+        } label: {
+            Image(systemName: mode.icon)
+                .font(.system(size: 16, weight: .regular))
+                .frame(width: 40)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        )
+        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+        .help("View as: \(mode.rawValue)")
     }
 
     @ViewBuilder

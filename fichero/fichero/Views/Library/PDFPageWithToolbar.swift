@@ -42,6 +42,7 @@ struct PDFPageWithToolbar: View {
             // PDF preview header is the same 44pt height as the list mode rail,
             // image preview, knowledge surface, and inspector tab strip (#1228).
             MiniToolbar {
+                Spacer(minLength: 0)
                 Button {
                     zoom.zoomOut()
                 } label: {

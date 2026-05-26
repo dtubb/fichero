@@ -19,6 +19,7 @@ struct ImageZoomToolbar: View {
         // it lines up with the PDF preview, list mode rail, knowledge surface,
         // and inspector tab strip. (#1228)
         MiniToolbar {
+            Spacer(minLength: 0)
             Button(action: zoomOut) {
                 Image(systemName: "minus.magnifyingglass")
             }
