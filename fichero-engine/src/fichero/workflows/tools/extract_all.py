@@ -942,7 +942,7 @@ async def _run_two_stage(
     """
     library_path = state.get("library_path", "")
     selected_doc_ids = state.get("selected_doc_ids") or []
-    _ = _resolve_write_target(selected_doc_ids, library_path)  # for write compatibility
+    container = _resolve_write_target(selected_doc_ids, library_path)
 
     # Build chunks
     records_input = recovered_records
@@ -1049,6 +1049,45 @@ async def _run_two_stage(
     )
     extraction = _convert_entities_to_extraction(combined_entities, all_claims)
 
+    # Write KG rows — mirrors the oneshot path (#1248).
+    # Two-stage aggregates entities across all chunks, so we target the
+    # container document rather than individual page docs.
+    persist_kg = inputs.get("persist_kg", True)
+    kg_payload: list[dict[str, Any]] = []
+    if container and library_path:
+        try:
+            db = db_manager.get_database(library_path)
+            _skip = {"rivers_extract", "mines_extract", "properties_extract", "legal_references_extract"}
+            for section in _SECTIONS:
+                if section["name"] in _skip:
+                    continue
+                key = section["schema_key"]
+                items = [item.model_dump(mode="json") for item in getattr(extraction, key, [])]
+                if not items:
+                    continue
+                kg_payload.append({
+                    "section_name": section["name"],
+                    "section_key": key,
+                    "items": items,
+                    "target_doc_id": container.id,
+                    "page_label": None,
+                    "source_excerpt": None,
+                    "provider": getattr(llm_config, "provider", None),
+                    "model": getattr(llm_config, "model", None),
+                    "grounding_text": None,
+                })
+                if persist_kg:
+                    _write_kg_rows(
+                        db, section, items, container.id,
+                        page_label=None,
+                        source_excerpt=None,
+                        provider=getattr(llm_config, "provider", None),
+                        model=getattr(llm_config, "model", None),
+                        grounding_text=None,
+                    )
+        except Exception as exc:
+            logger.error("extract_all (two-stage): KG save failed: %s", exc)
+
     # Use the same output format as oneshot mode
     return {
         "text": _render_extraction_markdown(extraction),
@@ -1061,6 +1100,7 @@ async def _run_two_stage(
             "quotes": [],
             "keywords": [],
         },
+        "kg_payload": kg_payload,
         "cached": False,
     }
 
