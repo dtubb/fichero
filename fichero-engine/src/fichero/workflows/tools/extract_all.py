@@ -227,11 +227,15 @@ class _EntityOnly(BaseModel):
 
 class _EntitiesOnly(BaseModel):
     """Stage 1 result: all entity names extracted."""
-    people: list[_EntityOnly] = Field(default_factory=list)
-    places: list[_EntityOnly] = Field(default_factory=list)
-    organizations: list[_EntityOnly] = Field(default_factory=list)
-    dates: list[_EntityOnly] = Field(default_factory=list)
-    events: list[_EntityOnly] = Field(default_factory=list)
+    # Required (no defaults) so _pydantic_to_apple_schema marks them as
+    # required in the Apple grammar schema, forcing fm-bridge to emit all
+    # category keys. With default_factory=list the grammar allowed `{}`,
+    # causing a silent 0-entity result (#1272).
+    people: list[_EntityOnly]
+    places: list[_EntityOnly]
+    organizations: list[_EntityOnly]
+    dates: list[_EntityOnly]
+    events: list[_EntityOnly]
 
 
 class _SVOClaim(BaseModel):
@@ -1031,7 +1035,7 @@ async def _run_two_stage(
             chunk_timings.append(elapsed)
             chunk_errors.append(str(exc))
             logger.error(f"Stage 1 chunk {idx} failed: {exc}")
-            return _EntitiesOnly()
+            return _EntitiesOnly(people=[], places=[], organizations=[], dates=[], events=[])
         elapsed = time.monotonic() - call_start
         chunk_timings.append(elapsed)
         logger.info(f"Stage 1 chunk {idx}: found {sum(len(getattr(extraction, f, [])) for f in ['people', 'places', 'organizations', 'dates', 'events'])} entities in {elapsed:.1f}s")
