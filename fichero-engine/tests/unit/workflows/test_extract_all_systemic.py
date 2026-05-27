@@ -9,6 +9,14 @@ minority of sparse pages) must still warn-and-continue.
 
 from __future__ import annotations
 
+import asyncio
+import importlib
+import time
+from types import SimpleNamespace
+
+import pytest
+
+from fichero.llm import LLMConfig
 from fichero.workflows.tools.extract_all import (
     _annotate_pronoun_source,
     _classify_systemic_error,
@@ -114,3 +122,104 @@ class TestAnnotatePronounSource:
     def test_capitalization_insensitive(self):
         result = _annotate_pronoun_source("HE departed at noon.", "General Vargas")
         assert result == "[General Vargas] HE departed at noon."
+
+
+async def _count_loop_ticks_until(done: asyncio.Event) -> int:
+    ticks = 0
+    while not done.is_set():
+        ticks += 1
+        await asyncio.sleep(0.001)
+    return ticks
+
+
+class TestExtractAllCooperativeScheduling:
+    @pytest.mark.asyncio
+    async def test_text_recovery_runs_off_event_loop(self, monkeypatch):
+        """Large-PDF recovery can parse/query hundreds of pages.
+
+        It must not run before the first await in extract_all, or the
+        server loop cannot answer health checks while recovery is busy.
+        """
+        module = importlib.import_module("fichero.workflows.tools.extract_all")
+
+        def slow_recovery(_inputs, _state):
+            time.sleep(0.05)
+            return "", []
+
+        monkeypatch.setattr(module, "_recover_text_and_records", slow_recovery)
+
+        done = asyncio.Event()
+        ticker = asyncio.create_task(_count_loop_ticks_until(done))
+        result = await module.extract_all(
+            {},
+            {},
+            LLMConfig(provider="test", model="test"),
+        )
+        done.set()
+        ticks = await ticker
+
+        assert result["error"] == "No text input"
+        assert ticks > 0
+
+    @pytest.mark.asyncio
+    async def test_per_page_persistence_yields_between_pages(self, monkeypatch):
+        module = importlib.import_module("fichero.workflows.tools.extract_all")
+
+        page_count = 30
+        records = [
+            {"doc_id": f"page-{i}", "text": f"Page {i} names Ana."}
+            for i in range(page_count)
+        ]
+        text = "\n\n---\n\n".join(record["text"] for record in records)
+
+        async def fake_chat_structured(**_kwargs):
+            return module._Extraction(
+                people=[
+                    module._Person(
+                        name="Ana",
+                        verb="appears on",
+                        object="the page",
+                        source_text="Ana",
+                    )
+                ]
+            )
+
+        container = SimpleNamespace(id="doc-1", updated_at=None)
+        fake_db = SimpleNamespace(
+            query=lambda *_args, **_kwargs: [],
+            save=lambda *_args, **_kwargs: None,
+        )
+        fake_writer = SimpleNamespace(
+            save=lambda *_args, **_kwargs: None,
+            flush=lambda: None,
+        )
+        write_calls = 0
+
+        def slow_write(*_args, **_kwargs):
+            nonlocal write_calls
+            write_calls += 1
+            time.sleep(0.002)
+
+        monkeypatch.setattr(module, "chat_structured", fake_chat_structured)
+        monkeypatch.setattr(module, "_write_kg_rows", slow_write)
+        monkeypatch.setattr(module, "_resolve_write_target", lambda *_: container)
+        monkeypatch.setattr(module.db_manager, "get_database", lambda *_: fake_db)
+        monkeypatch.setattr(module.db_manager, "get_db_writer", lambda *_: fake_writer)
+
+        done = asyncio.Event()
+        ticker = asyncio.create_task(_count_loop_ticks_until(done))
+        result = await module.extract_all(
+            {"text": text, "records": records, "extraction_mode": "oneshot"},
+            {
+                "library_path": "/tmp/fichero-test-library",
+                "selected_doc_ids": ["doc-1"],
+                "task_id": "task-1",
+            },
+            LLMConfig(provider="test", model="test"),
+        )
+        done.set()
+        ticks = await ticker
+
+        assert write_calls == page_count
+        assert result["value"]["people"]
+        assert ticks > 0
