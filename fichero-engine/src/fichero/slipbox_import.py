@@ -10,6 +10,7 @@ libraries.
 from __future__ import annotations
 
 import base64
+import os
 import re
 import shutil
 import subprocess
@@ -329,10 +330,13 @@ def decode_tinderbox_text(raw_text: str) -> str:
     rtf_start = payload.find(b"{\\rtf")
     if rtf_start >= 0:
         rtf_bytes = payload[rtf_start:]
+        stripped = _strip_rtf(rtf_bytes.decode("utf-8", errors="ignore"))
+        if stripped or os.environ.get("FICHERO_SLIPBOX_TEXTUTIL") != "1":
+            return stripped
         converted = _textutil_rtf_to_text(rtf_bytes)
         if converted:
             return converted
-        return _strip_rtf(rtf_bytes.decode("utf-8", errors="ignore"))
+        return stripped
 
     try:
         return payload.decode("utf-8").strip()
@@ -360,7 +364,7 @@ def _textutil_rtf_to_text(rtf_bytes: bytes) -> str:
         return txt_path.read_text(encoding="utf-8", errors="ignore").strip()
 
 
-_RTF_HEX_RE = re.compile(r"\\'[0-9a-fA-F]{2}")
+_RTF_HEX_RE = re.compile(r"\\'([0-9a-fA-F]{2})")
 _RTF_CONTROL_RE = re.compile(r"\\[a-zA-Z]+-?\d* ?")
 _RTF_ESCAPED_RE = re.compile(r"\\([{}\\])")
 
@@ -368,7 +372,20 @@ _RTF_ESCAPED_RE = re.compile(r"\\([{}\\])")
 def _strip_rtf(rtf: str) -> str:
     """Small RTF-to-text fallback good enough for search indexing."""
 
-    text = _RTF_HEX_RE.sub(" ", rtf)
+    body_start = re.search(r"\\cf\d+ ?", rtf)
+    if body_start:
+        rtf = rtf[body_start.end() :]
+
+    def _decode_hex(match: re.Match[str]) -> str:
+        value = int(match.group(1), 16)
+        if value in {0x96, 0x97}:
+            return "-"
+        try:
+            return bytes([value]).decode("cp1252")
+        except UnicodeDecodeError:
+            return " "
+
+    text = _RTF_HEX_RE.sub(_decode_hex, rtf)
     text = re.sub(r"{\\fonttbl.*?}", " ", text, flags=re.DOTALL)
     text = re.sub(r"{\\colortbl.*?}", " ", text, flags=re.DOTALL)
     text = re.sub(r"{\\\*.*?}", " ", text, flags=re.DOTALL)
