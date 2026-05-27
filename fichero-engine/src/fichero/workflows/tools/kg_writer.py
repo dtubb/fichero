@@ -44,12 +44,10 @@ async def kg_writer(
 ) -> dict[str, Any]:
     payload = inputs.get("kg_payload") or []
     if not isinstance(payload, list) or not payload:
-        return {
-            "text": "",
-            "value": [],
-            "cached": False,
-            "error": "No KG payload provided",
-        }
+        # extract_all (#1248) writes KG inline when persist_kg is off; the
+        # downstream kg_writer node receives an empty payload and must succeed
+        # as a no-op rather than failing the workflow (#1285).
+        return {"text": "", "value": [], "cached": False}
 
     library_path = state.get("library_path", "")
     if not library_path:

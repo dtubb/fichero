@@ -200,7 +200,8 @@ class TestExtractAllCooperativeScheduling:
             write_calls += 1
             time.sleep(0.002)
 
-        monkeypatch.setattr(module, "chat_structured", fake_chat_structured)
+        # _extract_one (oneshot) calls chat_structured_with_fallback after #1284 fix.
+        monkeypatch.setattr(module, "chat_structured_with_fallback", fake_chat_structured)
         monkeypatch.setattr(module, "_write_kg_rows", slow_write)
         monkeypatch.setattr(module, "_resolve_write_target", lambda *_: container)
         monkeypatch.setattr(module.db_manager, "get_database", lambda *_: fake_db)
@@ -223,3 +224,77 @@ class TestExtractAllCooperativeScheduling:
         assert write_calls == page_count
         assert result["value"]["people"]
         assert ticks > 0
+
+
+class TestExtractAllGuardrailFallback:
+    """#1284 — guardrail/unsupported_language chunks must engage $large fallback.
+
+    The oneshot _extract_one previously called chat_structured directly, so
+    AppleUnavailableError subclasses (GuardrailViolationError, UnsupportedLocaleError)
+    counted as chunk failures and accumulated in chunk_errors, eventually
+    triggering the systemic-abort gate and returning an empty catalogue.
+
+    After the fix, _extract_one calls chat_structured_with_fallback, which
+    handles AppleUnavailableError internally and retries on $large.
+    """
+
+    @pytest.mark.asyncio
+    async def test_oneshot_routes_through_fallback_wrapper(self, monkeypatch):
+        """Verify that the oneshot path calls chat_structured_with_fallback,
+        not bare chat_structured — so guardrail/locale errors are handled."""
+        from fichero.llm import GuardrailViolationError
+
+        module = importlib.import_module("fichero.workflows.tools.extract_all")
+
+        fallback_calls = []
+
+        async def fake_chat_structured_with_fallback(**kwargs):
+            fallback_calls.append(kwargs)
+            return module._Extraction(
+                people=[
+                    module._Person(
+                        name="Beatriz",
+                        verb="lived in",
+                        object="Cali",
+                        source_text="Beatriz lived in Cali.",
+                    )
+                ]
+            )
+
+        async def bare_chat_structured_raises(**kwargs):
+            raise GuardrailViolationError("guardrail refused")
+
+        container = SimpleNamespace(id="doc-1", updated_at=None)
+        fake_db = SimpleNamespace(
+            query=lambda *_args, **_kwargs: [],
+            save=lambda *_args, **_kwargs: None,
+        )
+        fake_writer = SimpleNamespace(
+            save=lambda *_args, **_kwargs: None,
+            flush=lambda: None,
+        )
+
+        monkeypatch.setattr(
+            module, "chat_structured_with_fallback", fake_chat_structured_with_fallback
+        )
+        monkeypatch.setattr(module, "chat_structured", bare_chat_structured_raises)
+        monkeypatch.setattr(module, "_resolve_write_target", lambda *_: container)
+        monkeypatch.setattr(module, "_write_kg_rows", lambda *_args, **_kw: None)
+        monkeypatch.setattr(module.db_manager, "get_database", lambda *_: fake_db)
+        monkeypatch.setattr(module.db_manager, "get_db_writer", lambda *_: fake_writer)
+
+        result = await module.extract_all(
+            {"text": "Beatriz lived in Cali.", "extraction_mode": "oneshot"},
+            {
+                "library_path": "/tmp/fichero-test",
+                "selected_doc_ids": ["doc-1"],
+            },
+            LLMConfig(provider="apple", model="apple"),
+        )
+
+        # fallback wrapper was called (not bare chat_structured)
+        assert fallback_calls, "chat_structured_with_fallback was never called"
+        # result has entities — chunk did NOT fail
+        assert result["value"].get("people"), "expected people entities in result"
+        # no systemic error set
+        assert "error" not in result
