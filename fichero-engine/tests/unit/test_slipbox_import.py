@@ -1,0 +1,152 @@
+from __future__ import annotations
+
+import base64
+from pathlib import Path
+
+from typer.testing import CliRunner
+
+from fichero import __main__ as cli
+from fichero.db import db_manager
+from fichero.models import DocType, Document
+from fichero.slipbox_import import (
+    decode_tinderbox_text,
+    import_slipbox,
+    iter_slipbox_files,
+    iter_tinderbox_notes,
+)
+
+
+runner = CliRunner()
+
+
+def _tbx(path: Path, *, text: str = "anthropology of writing") -> Path:
+    payload = base64.b64encode(text.encode("utf-8")).decode("ascii")
+    path.write_text(
+        f"""<?xml version="1.0" encoding="UTF-8" ?>
+<tinderbox version="2">
+  <item ID="note-1" Creator="Daniel Tubb" proto="pSlip">
+    <attribute name="Name">Writing note</attribute>
+    <attribute name="Created">2026-05-27T10:00:00-03:00</attribute>
+    <text>{payload}</text>
+  </item>
+</tinderbox>
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_iter_tinderbox_notes_decodes_base64_text(tmp_path):
+    notes = list(iter_tinderbox_notes(_tbx(tmp_path / "sample.tbx")))
+
+    assert len(notes) == 1
+    assert notes[0].external_id == "note-1"
+    assert notes[0].name == "Writing note"
+    assert notes[0].text == "anthropology of writing"
+    assert notes[0].attributes["Created"] == "2026-05-27T10:00:00-03:00"
+
+
+def test_decode_tinderbox_text_strips_rtf_payload():
+    rtf = r"{\rtf1\ansi This is \b important\b0.\par Next line.}"
+    encoded = base64.b64encode(rtf.encode("utf-8")).decode("ascii")
+
+    decoded = decode_tinderbox_text(encoded)
+
+    assert "important" in decoded
+    assert "Next line" in decoded
+
+
+def test_iter_slipbox_files_skips_hidden_and_virtualenv(tmp_path):
+    root = tmp_path / "slipbox"
+    (root / ".venv").mkdir(parents=True)
+    (root / "notes").mkdir(parents=True)
+    (root / ".venv" / "ignored.md").write_text("no", encoding="utf-8")
+    (root / "notes" / "kept.md").write_text("yes", encoding="utf-8")
+    (root / ".DS_Store").write_text("", encoding="utf-8")
+
+    files = list(iter_slipbox_files(root))
+
+    assert files == [root / "notes" / "kept.md"]
+
+
+def test_import_slipbox_creates_catalogue_documents(tmp_path, monkeypatch):
+    fs_root = tmp_path / "slipbox"
+    fs_root.mkdir()
+    fs_note = fs_root / "fieldwork.md"
+    fs_note.write_text("fieldwork and authorship", encoding="utf-8")
+    tbx = _tbx(tmp_path / "sample.tbx", text="Tinderbox sovereignty note")
+    library = tmp_path / "Slipbox.fichero"
+
+    def fake_ingest_file(path, **kwargs):
+        db = kwargs["db"]
+        doc = Document(
+            name=Path(path).name,
+            path=str(path),
+            doc_type=DocType.file,
+            parent_id=kwargs["parent_id"],
+            page_content=Path(path).read_text(encoding="utf-8"),
+        )
+        db.save(doc, auto_embed=kwargs.get("auto_embed", False))
+        return doc
+
+    monkeypatch.setattr("fichero.slipbox_import.ingest_file", fake_ingest_file)
+
+    try:
+        summary = import_slipbox(
+            library_path=library,
+            filesystem_root=fs_root,
+            tinderbox_path=tbx,
+            auto_embed=False,
+        )
+        db = db_manager.get_database(library)
+        docs = db.query(Document)
+    finally:
+        db_manager.close_all()
+
+    assert summary.tinderbox_notes == 1
+    assert summary.filesystem_files == 1
+    assert summary.errors == []
+    assert any(d.name == "Daniel Slipbox" for d in docs)
+    assert any(d.name == "Writing note" and d.page_content == "Tinderbox sovereignty note" for d in docs)
+    assert any(d.name == "fieldwork.md" and d.page_content == "fieldwork and authorship" for d in docs)
+
+
+def test_cli_import_slipbox_invokes_importer(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_import_slipbox(**kwargs):
+        from fichero.slipbox_import import SlipboxImportSummary
+
+        calls.append(kwargs)
+        return SlipboxImportSummary(
+            library_path=kwargs["library_path"],
+            root_document_id="root-1",
+            tinderbox_notes=1,
+            filesystem_files=2,
+            skipped_files=3,
+            errors=[],
+        )
+
+    monkeypatch.setattr("fichero.slipbox_import.import_slipbox", fake_import_slipbox)
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "import-slipbox",
+            "--library-path",
+            str(tmp_path / "Sample.fichero"),
+            "--filesystem-root",
+            str(tmp_path / "slipbox"),
+            "--tinderbox",
+            str(tmp_path / "sample.tbx"),
+            "--limit",
+            "5",
+            "--reset",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert calls[0]["limit"] == 5
+    assert calls[0]["reset"] is True
+    assert "tinderbox_notes: 1" in result.output
+    assert "filesystem_files: 2" in result.output
