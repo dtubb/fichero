@@ -490,6 +490,135 @@ class TestLoadPresetFiles:
             "transcribe must use the vision category default, not $small"
         )
 
+    def test_translate_preset_wiring(self):
+        """One-step Translate preset: files → transcribe → text_translate.
+
+        Transcribe is the universal text source (it reuses an existing text
+        layer for digital PDFs, #1033); text_translate then translates the
+        extracted text into the configured target language (#926).
+        """
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Translate" in presets, "Translate preset must ship"
+        preset = presets["Translate"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Translate"
+        assert preset.get("format") == "nodes"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "transcribe", "text_translate"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        files_id = _node_id(preset, "files")
+        transcribe_id = _node_id(preset, "transcribe")
+        translate_id = _node_id(preset, "text_translate")
+
+        assert any(
+            e["source"] == files_id
+            and e["target"] == transcribe_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into transcribe"
+
+        assert any(
+            e["source"] == transcribe_id
+            and e["target"] == translate_id
+            and e["source_port"] == "text"
+            and e["target_port"] == "text"
+            for e in preset["edges"]
+        ), "transcribe text must flow into text_translate"
+
+    def test_translate_preset_target_language_is_editable_config(self):
+        """The target language ships as node config (editable), not baked into
+        the tool — and defaults to English for Daniel (#926)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        translate_node = next(
+            n for n in presets["Translate"]["nodes"] if n["tool"] == "text_translate"
+        )
+        assert translate_node["config"].get("target_language") == "English"
+        assert translate_node["config"].get("provider_name") == "$small"
+
+        transcribe_node = next(
+            n for n in presets["Translate"]["nodes"] if n["tool"] == "transcribe"
+        )
+        assert "provider_name" not in transcribe_node.get("config", {}), (
+            "transcribe must use the vision category default, not $small"
+        )
+
+    def test_translate_review_preset_wiring(self):
+        """Multi-step Translate + Double-Check preset (#926):
+        files → transcribe → text_translate → text_translate_review.
+
+        The reviewer takes the draft via the single graph edge (so it fires
+        AFTER translate, never on a half-built draft — the #837 fan-in race)
+        and pulls the ORIGINAL source via a static input path to transcribe.
+        """
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Translate + Double-Check" in presets, (
+            "Translate + Double-Check preset must ship"
+        )
+        preset = presets["Translate + Double-Check"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Translate"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "transcribe", "text_translate", "text_translate_review"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        transcribe_id = _node_id(preset, "transcribe")
+        translate_id = _node_id(preset, "text_translate")
+        review_id = _node_id(preset, "text_translate_review")
+
+        # Pass 1: transcribe.text → text_translate.text.
+        assert any(
+            e["source"] == transcribe_id
+            and e["target"] == translate_id
+            and e["source_port"] == "text"
+            and e["target_port"] == "text"
+            for e in preset["edges"]
+        ), "transcribe text must flow into text_translate"
+
+        # Pass 2: the draft flows via the ONLY graph edge into review,
+        # so review depends on (fires after) translate.
+        review_edges = [e for e in preset["edges"] if e["target"] == review_id]
+        assert len(review_edges) == 1, (
+            "review must have exactly one incoming edge (the draft) to avoid "
+            "the multi-input fan-in race (#837)"
+        )
+        draft_edge = review_edges[0]
+        assert draft_edge["source"] == translate_id
+        assert draft_edge["source_port"] == "text"
+        assert draft_edge["target_port"] == "text"
+
+        # The original source reaches review via a static input path, NOT a
+        # second graph edge — so it doesn't gate when the node fires.
+        review_node = next(n for n in preset["nodes"] if n["id"] == review_id)
+        assert review_node["inputs"].get("context") == "$.nodes.transcribe.text", (
+            "review must pull the original source from transcribe via a static "
+            "input path so the node still fires once, after translate"
+        )
+
+    def test_translate_review_preset_model_aliasing(self):
+        """Both LLM passes use the $small alias; transcribe stays on the
+        vision default (no provider alias) so Apple Vision OCR isn't broken."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        preset = presets["Translate + Double-Check"]
+
+        for tool in ("text_translate", "text_translate_review"):
+            node = next(n for n in preset["nodes"] if n["tool"] == tool)
+            assert node["config"].get("provider_name") == "$small", (
+                f"{tool} should use the $small alias"
+            )
+
+        transcribe_node = next(
+            n for n in preset["nodes"] if n["tool"] == "transcribe"
+        )
+        assert "provider_name" not in transcribe_node.get("config", {})
+
 
 def _node_id(preset: dict, tool: str) -> str:
     for node in preset["nodes"]:

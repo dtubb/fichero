@@ -1,0 +1,88 @@
+{
+  "name": "Translate + Double-Check",
+  "description": "Two-pass translation with an AI double-check. Transcribe each file, translate the text into your preferred language, then a second AI pass reviews the draft translation against the original source and corrects mistranslations, omissions, and altered names. Target language, model, and prompts are editable on each node. The LLM nodes use the $small model alias — set your default small model in Settings → AI Defaults.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Translate",
+  "tags": ["preset", "translate", "review", "double-check", "text", "small"],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "transcribe",
+      "tool": "transcribe",
+      "label": "Transcribe each file",
+      "position_x": 280,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "vision_mode": "auto",
+        "language": "auto",
+        "update_page_content": true
+      }
+    },
+    {
+      "id": "text_translate",
+      "tool": "text_translate",
+      "label": "Translate (Pass 1)",
+      "position_x": 480,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "provider_name": "$small",
+        "target_language": "English",
+        "source_language": "auto",
+        "preserve_names": true
+      }
+    },
+    {
+      "id": "text_translate_review",
+      "tool": "text_translate_review",
+      "label": "Double-Check (Pass 2)",
+      "position_x": 680,
+      "position_y": 200,
+      "inputs": {
+        "context": "$.nodes.transcribe.text"
+      },
+      "config": {
+        "provider_name": "$small",
+        "target_language": "English",
+        "source_language": "auto"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-files-transcribe",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-transcribe-translate",
+      "source": "transcribe",
+      "target": "text_translate",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "edge-translate-review",
+      "source": "text_translate",
+      "target": "text_translate_review",
+      "source_port": "text",
+      "target_port": "text"
+    }
+  ]
+}
