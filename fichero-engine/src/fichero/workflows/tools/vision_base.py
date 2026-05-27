@@ -599,10 +599,38 @@ def _apple_ocr_pdf_pages(pdf_path: str, language: str = "en") -> list[str]:
     return pages
 
 
+def _apple_ocr_pdf_page(pdf_path: str, page_index: int, language: str = "en") -> str:
+    """OCR one PDF page by zero-based page index."""
+    try:
+        cg_image, _ = _render_pdf_page_to_cgimage(pdf_path, page_index)
+        return _vision_ocr_cgimage(cg_image, language) or ""
+    except Exception as e:
+        msg = f"Page {page_index + 1} OCR failed: {e}"
+        logger.warning(msg)
+        _log_vision_warning(msg)
+        return ""
+
+
 async def apple_vision_ocr_pages_async(pdf_path: str, language: str = "en") -> list[str]:
     """Async per-page OCR for PDFs. Returns list[str] (one entry per page)."""
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _apple_ocr_pdf_pages, pdf_path, language)
+
+
+async def apple_vision_ocr_pdf_page_async(
+    pdf_path: str,
+    page_index: int,
+    language: str = "en",
+) -> str:
+    """Async OCR for one PDF page by zero-based page index."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        None,
+        _apple_ocr_pdf_page,
+        pdf_path,
+        page_index,
+        language,
+    )
 
 
 def normalize_vision_language(language: str | None) -> str:
@@ -975,6 +1003,7 @@ async def process_vision(
     # build the existing-text + page-id maps by index instead.
     existing_text_by_index: list[str] = []
     page_doc_id_by_index: list[str | None] = []
+    page_index_by_index: list[int | None] = []
     if documents:
         for index, doc in enumerate(documents):
             if isinstance(doc, dict):
@@ -1054,9 +1083,20 @@ async def process_vision(
                 )
                 existing_text_by_index.append(existing)
                 page_doc_id_by_index.append(doc_id)
+                page_index: int | None = None
+                sequence = doc.get("sequence") or metadata.get("page_number")
+                if doc.get("parent_id") and sequence is not None:
+                    try:
+                        parsed_sequence = int(sequence)
+                    except (TypeError, ValueError):
+                        parsed_sequence = 0
+                    if parsed_sequence > 0:
+                        page_index = parsed_sequence - 1
+                page_index_by_index.append(page_index)
             else:
                 existing_text_by_index.append("")
                 page_doc_id_by_index.append(None)
+                page_index_by_index.append(None)
     logger.debug(
         f"process_vision: {len(files)} files, {len(documents)} documents, "
         f"{len(path_to_doc)} path mappings, "
@@ -1121,6 +1161,11 @@ async def process_vision(
                 if file_index < len(page_doc_id_by_index)
                 else None
             ) or path_to_doc.get(file_path)
+            requested_page_index = (
+                page_index_by_index[file_index]
+                if file_index < len(page_index_by_index)
+                else None
+            )
             if existing_text:
                 logger.info(
                     f"Pre-extracted text passthrough: {Path(file_path).name} "
@@ -1221,18 +1266,32 @@ async def process_vision(
             ):
                 layer = _try_pdf_text_layer(file_path)
                 if layer is not None:
-                    per_page_texts = layer
+                    if (
+                        requested_page_index is not None
+                        and 0 <= requested_page_index < len(layer)
+                    ):
+                        per_page_texts = [layer[requested_page_index]]
+                    else:
+                        per_page_texts = layer
                     pdf_layer_used = True
                     logger.info(
                         "PDF text layer present — skipped vision OCR "
-                        "for %s (%d pages)",
-                        Path(file_path).name, len(per_page_texts),
+                        "for %s (%s)",
+                        Path(file_path).name,
+                        f"page {requested_page_index + 1}"
+                        if requested_page_index is not None
+                        else f"{len(per_page_texts)} pages",
                     )
                     parts = []
-                    for i, t in enumerate(per_page_texts):
+                    for offset, t in enumerate(per_page_texts):
                         if t:
+                            page_number = (
+                                requested_page_index + 1
+                                if requested_page_index is not None
+                                else offset + 1
+                            )
                             if len(per_page_texts) > 1:
-                                parts.append(f"--- Page {i + 1} ---")
+                                parts.append(f"--- Page {page_number} ---")
                             parts.append(t)
                     text = "\n\n".join(parts)
                     parsed = text
@@ -1297,14 +1356,25 @@ async def process_vision(
                     # No usable text layer (checked above) → OCR
                     # page-by-page so we can propagate per-page content
                     # to page child documents after saving the parent.
-                    per_page_texts = await apple_vision_ocr_pages_async(file_path, language)
-                    parts = []
-                    for i, t in enumerate(per_page_texts):
-                        if t:
-                            if len(per_page_texts) > 1:
-                                parts.append(f"--- Page {i + 1} ---")
-                            parts.append(t)
-                    text = "\n\n".join(parts)
+                    if requested_page_index is not None:
+                        text = await apple_vision_ocr_pdf_page_async(
+                            file_path,
+                            requested_page_index,
+                            language,
+                        )
+                        per_page_texts = [text]
+                    else:
+                        per_page_texts = await apple_vision_ocr_pages_async(
+                            file_path,
+                            language,
+                        )
+                        parts = []
+                        for i, t in enumerate(per_page_texts):
+                            if t:
+                                if len(per_page_texts) > 1:
+                                    parts.append(f"--- Page {i + 1} ---")
+                                parts.append(t)
+                        text = "\n\n".join(parts)
                 else:
                     text = await apple_vision_ocr_async(file_path, language)
                 # Apple Vision doesn't use LLM params, parse as text
