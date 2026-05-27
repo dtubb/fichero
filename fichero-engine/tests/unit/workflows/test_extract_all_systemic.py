@@ -207,10 +207,20 @@ class TestExtractAllCooperativeScheduling:
         monkeypatch.setattr(module.db_manager, "get_database", lambda *_: fake_db)
         monkeypatch.setattr(module.db_manager, "get_db_writer", lambda *_: fake_writer)
 
+        progress_events = []
+
+        async def progress_callback(event_type, data):
+            progress_events.append((event_type, data))
+
         done = asyncio.Event()
         ticker = asyncio.create_task(_count_loop_ticks_until(done))
         result = await module.extract_all(
-            {"text": text, "records": records, "extraction_mode": "oneshot"},
+            {
+                "text": text,
+                "records": records,
+                "extraction_mode": "oneshot",
+                "__progress_callback": progress_callback,
+            },
             {
                 "library_path": "/tmp/fichero-test-library",
                 "selected_doc_ids": ["doc-1"],
@@ -224,6 +234,14 @@ class TestExtractAllCooperativeScheduling:
         assert write_calls == page_count
         assert result["value"]["people"]
         assert ticks > 0
+        event_types = [event_type for event_type, _ in progress_events]
+        assert "file_start" in event_types
+        assert "file_complete" in event_types
+        assert any(
+            "Extract All chunk" in data["file_path"]
+            for _, data in progress_events
+        )
+        assert any("KG write page" in data["file_path"] for _, data in progress_events)
 
 
 class TestExtractAllGuardrailFallback:

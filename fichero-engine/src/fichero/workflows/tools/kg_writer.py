@@ -7,6 +7,7 @@ from typing import Any
 from fichero.db import db_manager
 from fichero.llm import LLMConfig
 from fichero.workflows.registry import register_tool
+from fichero.workflows.tools.progress import emit_progress_event
 from fichero.workflows.tools.extractors import _SECTIONS, _write_kg_rows
 from fichero.workflows.types import DataType, PortDef, State
 
@@ -43,6 +44,7 @@ async def kg_writer(
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
     payload = inputs.get("kg_payload") or []
+    progress_callback = inputs.get("__progress_callback")
     if not isinstance(payload, list) or not payload:
         # extract_all (#1248) writes KG inline when persist_kg is off; the
         # downstream kg_writer node receives an empty payload and must succeed
@@ -59,8 +61,28 @@ async def kg_writer(
         }
 
     db = db_manager.get_database(library_path)
-    for record in payload:
+    total = len(payload)
+    for index, record in enumerate(payload, start=1):
+        phase = f"KG writer record {index}/{total}"
+        await emit_progress_event(
+            progress_callback,
+            "file_start",
+            "",
+            phase,
+            index,
+            total,
+            message=f"KG writer processing record {index}/{total}",
+        )
         if not isinstance(record, dict):
+            await emit_progress_event(
+                progress_callback,
+                "file_complete",
+                "",
+                phase,
+                index,
+                total,
+                message=f"KG writer skipped non-object record {index}/{total}",
+            )
             continue
         section_name = record.get("section_name")
         section = next(
@@ -68,6 +90,15 @@ async def kg_writer(
             None,
         )
         if section is None:
+            await emit_progress_event(
+                progress_callback,
+                "file_complete",
+                "",
+                phase,
+                index,
+                total,
+                message=f"KG writer skipped unknown section {section_name!r}",
+            )
             continue
         _write_kg_rows(
             db,
@@ -80,10 +111,21 @@ async def kg_writer(
             model=record.get("model") or getattr(llm_config, "model", None),
             grounding_text=record.get("grounding_text"),
         )
+        await emit_progress_event(
+            progress_callback,
+            "file_complete",
+            "",
+            phase,
+            index,
+            total,
+            message=(
+                f"KG writer wrote record {index}/{total}: "
+                f"{len(record.get('items') or [])} items"
+            ),
+        )
 
     return {
         "text": "",
         "value": payload,
         "cached": False,
     }
-

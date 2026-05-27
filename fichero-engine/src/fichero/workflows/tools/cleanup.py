@@ -44,6 +44,7 @@ from fichero.llm import (
 from fichero.models import Artifact
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_write_target
+from fichero.workflows.tools.progress import emit_progress_event
 from fichero.workflows.tools.llm_base import (
     BASE_CONFIG_SCHEMA,
     BASE_OUTPUT_PORTS,
@@ -540,6 +541,7 @@ async def _run_folder_cleanup(
     inspector to render.
     """
     text = inputs.get("text") or ""
+    progress_callback = inputs.get("__progress_callback")
     entity_type = type_cfg["entity_type"]
 
     library_path = state.get("library_path", "")
@@ -563,20 +565,60 @@ async def _run_folder_cleanup(
         # No LLM call — exact-string dedup is sufficient. Sort
         # chronologically: YYYY-MM-DD strings sort lexicographically,
         # which is also chronological order.
+        total = max(len(descendant_ids), 1)
         seen: dict[str, dict[str, Any]] = {}
-        for did in descendant_ids:
+        for index, did in enumerate(descendant_ids, start=1):
+            phase = f"{type_cfg['key']} clean scan {index}/{total}"
+            await emit_progress_event(
+                progress_callback,
+                "file_start",
+                "",
+                phase,
+                index,
+                total,
+                message=f"Clean scanning {type_cfg['key']} document {index}/{total}",
+            )
             for grp in _date_groups_for_doc(db, did):
                 key = grp["canonical"]
                 if key not in seen:
                     seen[key] = grp
+            await emit_progress_event(
+                progress_callback,
+                "file_complete",
+                "",
+                phase,
+                index,
+                total,
+                message=f"Clean scanned {type_cfg['key']} document {index}/{total}",
+            )
         if not seen:
             return {"text": text, "value": []}
         final_groups = sorted(seen.values(), key=lambda g: g["canonical"])
         merged = 0
     else:
         entity_ids: set[str] = set()
-        for did in descendant_ids:
+        total = max(len(descendant_ids), 1)
+        for index, did in enumerate(descendant_ids, start=1):
+            phase = f"{type_cfg['key']} clean scan {index}/{total}"
+            await emit_progress_event(
+                progress_callback,
+                "file_start",
+                "",
+                phase,
+                index,
+                total,
+                message=f"Clean scanning {type_cfg['key']} document {index}/{total}",
+            )
             entity_ids.update(_entity_ids_for_doc(db, did))
+            await emit_progress_event(
+                progress_callback,
+                "file_complete",
+                "",
+                phase,
+                index,
+                total,
+                message=f"Clean scanned {type_cfg['key']} document {index}/{total}",
+            )
         entities = _live_entities(db, sorted(entity_ids), entity_type)
         if not entities:
             return {"text": text, "value": []}
@@ -595,8 +637,29 @@ async def _run_folder_cleanup(
             groups = [{"canonical": v, "aliases": []} for v in distinct.values()]
             merged = 0
         else:
+            await emit_progress_event(
+                progress_callback,
+                "file_start",
+                "",
+                f"{type_cfg['key']} clean LLM dedupe",
+                1,
+                1,
+                message=(
+                    f"Clean deduping {len(distinct)} {type_cfg['key']} "
+                    "entities with LLM"
+                ),
+            )
             groups = await _ask_llm_to_dedupe(
                 type_cfg, list(distinct.values()), llm_config,
+            )
+            await emit_progress_event(
+                progress_callback,
+                "file_complete",
+                "",
+                f"{type_cfg['key']} clean LLM dedupe",
+                1,
+                1,
+                message=f"Clean LLM dedupe completed for {type_cfg['key']}",
             )
             merged = _apply_groups(db, entities, groups)
         final_groups = sorted(

@@ -385,7 +385,12 @@ def build_graph(
         else:
             # Standard node
             node_fn = _make_node_function(
-                node_def, tool_fn, llm_config, workflow_config, incoming_edges
+                node_def,
+                tool_fn,
+                llm_config,
+                workflow_config,
+                incoming_edges,
+                event_callback,
             )
             graph.add_node(node_name, node_fn)
 
@@ -477,6 +482,7 @@ def _make_node_function(
     llm_config: LLMConfig,
     workflow_config: dict[str, Any] | None = None,
     incoming_edges: list[dict] | None = None,
+    event_callback: Any | None = None,
 ):
     """Create a node function that wraps a tool.
 
@@ -543,6 +549,16 @@ def _make_node_function(
 
             # Merge with static config (config takes precedence)
             tool_kwargs = {**resolved_inputs, **node_def.config}
+            if event_callback:
+                async def emit_tool_progress(
+                    event_type: str,
+                    data: dict[str, Any],
+                ) -> None:
+                    payload = dict(data)
+                    payload.setdefault("node_id", node_id)
+                    await event_callback(event_type, payload)
+
+                tool_kwargs["__progress_callback"] = emit_tool_progress
 
             # Call the tool with resolved inputs
             result = await tool_fn(
@@ -879,6 +895,19 @@ def _make_parallel_node_function(
                 "documents": [document] if document else [],
                 **node_def.config,  # Static config
             }
+            if event_callback:
+                async def emit_tool_progress(
+                    event_type: str,
+                    data: dict[str, Any],
+                ) -> None:
+                    payload = dict(data)
+                    payload.setdefault("node_id", node_id)
+                    payload.setdefault("file_path", file_path)
+                    payload.setdefault("file_index", index)
+                    payload.setdefault("file_total", total)
+                    await event_callback(event_type, payload)
+
+                tool_inputs["__progress_callback"] = emit_tool_progress
 
             # Call the tool
             result = await tool_fn(

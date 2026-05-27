@@ -10,6 +10,7 @@ from fichero.workflows.tools.kg_writer import kg_writer
 
 def test_kg_writer_forwards_payload_to_helper(monkeypatch):
     calls = []
+    events = []
 
     class FakeDB:
         pass
@@ -53,9 +54,12 @@ def test_kg_writer_forwards_payload_to_helper(monkeypatch):
         }
     ]
 
+    async def progress_callback(event_type, data):
+        events.append((event_type, data))
+
     result = asyncio.run(
         kg_writer(
-            {"kg_payload": payload},
+            {"kg_payload": payload, "__progress_callback": progress_callback},
             state={"library_path": "/tmp/library"},
             llm_config=SimpleNamespace(provider="openai", model="gpt-4o-mini"),
         )
@@ -65,6 +69,11 @@ def test_kg_writer_forwards_payload_to_helper(monkeypatch):
     assert calls[0]["section"] == "people_extract"
     assert calls[0]["target_doc_id"] == "doc-1"
     assert result["value"] == payload
+    assert [event_type for event_type, _ in events] == [
+        "file_start",
+        "file_complete",
+    ]
+    assert events[0][1]["file_path"] == "KG writer record 1/1"
 
 
 def test_kg_writer_empty_payload_is_noop_not_error():
