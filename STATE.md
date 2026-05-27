@@ -1,6 +1,30 @@
 # STATE.md — Fichero
 
-## 2026-05-26 EVENING — OVERNIGHT AUTONOMOUS HANDOFF (read first after compaction)
+## 2026-05-27 MORNING — read first after compaction (supersedes the evening block below)
+
+**Role:** f_manager, branch `0.0.2`, `~/code/fichero-0.0.2`. Daniel active, goes to office ~11am.
+
+**REGIME (Daniel's current rules):** PREFER CODEX for new work; conserve Claude (was 77% weekly, resets May 30) AND manager context. **If Codex caps, STOP and ask Daniel — do NOT fall back onto Claude.** Don't stop lanes mid-path; ensure they keep updating. Session-end + forward-sync each lane to trunk before retasking. Delegate heavy merges to f_integrator. Merge gate: backend ⇒ ruff+pytest; **any openapi change ⇒ trunk Swift `BuildProject(windowtab1)`; if NodeDef drops, re-run `sync_openapi_schema.sh` (flaky emission, #1275)**. NEVER run FicheroUITests (hangs on TCC, #1230 held). Never push main.
+
+**MERGED to 0.0.2 overnight+morning (trunk green, verify 3204+ pass):** all 0.0.2 reading-surface bugs; KG spine (#1248/#1249/#1254); page-order #1271; backend #1252/#1251/#1237; text-reflow #1260; chat-compare #1262; export #472; large-PDF #1273; image-only OCR #1274; researcher #1256; image ops #462-#468; per-doc notes #1259; **KG evidential model #1266** (+ regression fix: persist claims from all docs on dedupe); **in-app KG editor #1135**; **rich search anchors #1270**; **KG timeline+map #1267**; **color-code entities #1052**. Filed #1275 (flaky NodeDef openapi).
+
+**IN FLIGHT (~11am deadline = annotations):**
+- `sonnet` (Claude): **#1276 annotations BACKEND** — Annotation model (doc+page_index+bbox+note+color+tag) + CRUD `/api/annotations` + 18 tests + openapi regen + `annotations_source` workflow tool. Done/wrapping (commits 0c59ab6a/73248862/201e9356). MERGE FIRST (gated).
+- `opus` (Claude): **#1276 annotations SWIFT UI** on its branch on top of image-editing **#469/#1265** (AnnotationService + DocumentAnnotation + Annotations inspector tab + annotate-region-from-marquee; ~7 commits). MERGE AFTER backend → brings image UI + annotations together → close #469/#1265/#1276.
+- `gpt-mini` (Codex, lighter model): **#1231 slipbox CLI import** (~/code/slipbox + ~/code/slipbox-tinderbox .tbx → new catalogue; 2 commits) — may cap soon; relay its survey (does integrations/sync need enabling?); don't merge till it reports done.
+- `f_planner` (Claude): shaping 3 book-extraction ideas → issues + `agent-work/proposals/2026-05-27-book-structure-extraction.md` (in-text citation-usage; back-of-book index→topic entities; chapter/section structure).
+
+**HELD / BLOCKED:**
+- `gpt` #1268 model-comparison backend — DONE on gpt branch, **merge after annotations** (gated, openapi).
+- `codex53` endpoint↔frontend coverage audit (→ `agent-work/proposals/2026-05-27-endpoint-frontend-coverage.md`) — BLOCKED, Codex capped, resets **12:25 PM**.
+- `~/code/maps` import (#1232) — path missing, deferred pending Daniel.
+- #1230 UITests — needs Daniel's one-time macOS TCC automation grant.
+
+**NEXT after annotations:** merge #1268; when Codex resets 12:25 re-task codex53 (audit) + gpt-mini (slipbox/maps). Daniel strategy: "get it all up, then test + bugfix" — the endpoint audit feeds enabling backend-only features in the frontend (#1151/#1072). Feature backlog: #1266/#1267 done; remaining KG/feature ideas #1268(merge)/#1269 MCP+chatbot/#1187 notes/#1124 hermeneutics + the 3 planner issues.
+
+---
+
+## 2026-05-26 EVENING — OVERNIGHT AUTONOMOUS HANDOFF (superseded by the morning block above)
 
 **Role:** f_manager, branch `0.0.2`, `~/code/fichero-0.0.2`. Daniel is out for the night, checks via phone (GitHub). Full-steam autonomous; 0.0.3 features are in-scope.
 
