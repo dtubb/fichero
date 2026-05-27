@@ -1,3 +1,14 @@
+# 2026-05-27 ~13:30 — bug-fix batch (post-testing) + endpoint audit
+
+From Daniel's live testing of the merged 0.0.2:
+- **#1285 (CRITICAL)** folder Catalogue failed `Write KG: No KG payload provided` — kg_writer now a no-op when extract_all writes KG inline; KG lands again. + **#1284** oneshot extract_all uses chat_structured_with_fallback (guardrail/unsupported-language → larger model).
+- **#1281** Extract-All/KG steps now emit per-file/per-chunk progress SSE events (new workflows/tools/progress.py) — Progress tab + Live Log no longer frozen.
+- **#1282** page status stays in-progress until the whole pipeline completes (per-run scoped, new workflows/completion.py) — no premature green check.
+- **#1280** flat macOS-style transcription render (no cream/rounded card). **#1286** Page Content top-aligned, full-height, no title.
+- **#1283** (403 auth-race) filed, queued. **#1287** e2e workflow regression harness filed (Codex). 
+- **#1288** endpoint↔frontend coverage audit (codex53): many features are BUILT (backend + Swift) but feature-gated OFF — chat+model-comparison, MCP server mgmt, automation schedules/triggers, local-models settings, XLSX import. "Get it all up" is largely flipping FeatureManager flags + nav wiring, not new builds. Report: agent-work/proposals/2026-05-27-endpoint-frontend-coverage.md.
+All merged to 0.0.2, trunk Swift build green, lanes synced + cleared.
+
 # 2026-05-26→27 — Overnight + morning sprint (multi-lane, f_manager)
 
 Large parallel push across Claude (sonnet/opus/haiku) + Codex (gpt/gpt-mini/codex53) lanes; everything below merged to `0.0.2`, trunk Swift build green, ~3200 unit tests passing.
