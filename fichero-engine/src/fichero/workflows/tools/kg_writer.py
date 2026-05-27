@@ -46,9 +46,10 @@ async def kg_writer(
     payload = inputs.get("kg_payload") or []
     progress_callback = inputs.get("__progress_callback")
     if not isinstance(payload, list) or not payload:
-        # extract_all (#1248) writes KG inline when persist_kg is off; the
-        # downstream kg_writer node receives an empty payload and must succeed
-        # as a no-op rather than failing the workflow (#1285).
+        # extract_all writes KG inline when persist_kg is ON; when persist_kg
+        # is off (catalogue preset default) the downstream kg_writer node
+        # receives the payload and persists it here. Empty payload means
+        # no-op rather than failure (#1285).
         return {"text": "", "value": [], "cached": False}
 
     library_path = state.get("library_path", "")
