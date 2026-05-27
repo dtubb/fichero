@@ -37,28 +37,6 @@ struct ViewMenuCommands: View {
 
         ShowRulerButton()
         ShowFindBarButton()
-
-        MindPalaceMenuButton()
-    }
-}
-
-// MARK: - Mind Palace
-
-/// Opens the Mind Palace (spatial 3D-2D space) window. Self-gating: renders
-/// nothing — including its leading divider — unless `isMindPalaceEnabled`.
-struct MindPalaceMenuButton: View {
-    @ObservedObject var featureManager = FeatureManager.shared
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        if featureManager.isMindPalaceEnabled {
-            Divider()
-            Button {
-                openWindow(id: "mind-palace")
-            } label: {
-                Label("Mind Palace", systemImage: "square.stack.3d.up")
-            }
-        }
     }
 }
 
@@ -156,6 +134,21 @@ struct SidebarModeSection: View {
                     sidebarMode?.wrappedValue = .activity
                 }
             }
+
+            if featureManager.isMindPalaceEnabled {
+                Divider()
+
+                // Mind Palace mode (7) — spatial 3D-2D space
+                SidebarModeButton(
+                    mode: .mindPalace,
+                    label: SidebarMode.mindPalace.label,
+                    icon: SidebarMode.mindPalace.icon,
+                    shortcut: SidebarMode.mindPalace.shortcutNumber,
+                    current: currentMode
+                ) {
+                    sidebarMode?.wrappedValue = .mindPalace
+                }
+            }
         }
     }
 }
@@ -198,7 +191,7 @@ struct LibraryLayoutSection: View {
         switch mode {
         case .library, .search:
             return true
-        case .chat, .workflows, .automation, .activity:
+        case .chat, .workflows, .automation, .activity, .mindPalace:
             return false
         }
     }
@@ -373,7 +366,7 @@ struct PreviewModeSection: View {
             return [.none, .standard, .widescreen]
         case .chat:
             return [.none, .standard, .widescreen]
-        case .workflows, .automation, .activity:
+        case .workflows, .automation, .activity, .mindPalace:
             return []
         }
     }

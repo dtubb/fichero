@@ -175,6 +175,26 @@ struct MindPalaceConnection: Codable, Identifiable, Hashable {
     }
 }
 
+/// A group/layer of nodes in a room. Mirrors `SpatialStack`.
+struct MindPalaceStack: Codable, Identifiable, Hashable {
+    let id: String
+    let roomId: String
+    var name: String?
+    var nodeIds: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case id, roomId, name, nodeIds
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? container.decode(String.self, forKey: .id)) ?? UUID().uuidString
+        roomId = try container.decode(String.self, forKey: .roomId)
+        name = try? container.decode(String.self, forKey: .name)
+        nodeIds = (try? container.decode([String].self, forKey: .nodeIds)) ?? []
+    }
+}
+
 /// Camera + focus state for a room. Mirrors `SpatialViewport`. Phase 1 reads
 /// this to seed the canvas pan/zoom; B4 phase 2 will persist it back.
 struct MindPalaceViewport: Codable, Hashable {

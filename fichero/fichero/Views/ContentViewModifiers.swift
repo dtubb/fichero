@@ -292,6 +292,8 @@ struct MainContentModifiers: ViewModifier {
             viewMode = .automation
         case .activity:
             viewMode = .activity(nil)
+        case .mindPalace:
+            viewMode = .mindPalace
         }
     }
 

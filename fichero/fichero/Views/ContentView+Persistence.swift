@@ -65,6 +65,9 @@ extension ContentView {
             // For now, return nil and let the view populate it
             return .activity(nil)
 
+        case "mindPalace":
+            return .mindPalace
+
         default:
             return .library(nil)
         }
@@ -97,6 +100,8 @@ extension ContentView {
             return ("activity", run?.id)
         case .ontology:
             return ("ontology", nil)
+        case .mindPalace:
+            return ("mindPalace", nil)
         }
     }
 

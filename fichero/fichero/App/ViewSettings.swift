@@ -20,6 +20,7 @@ enum SidebarMode: String, CaseIterable {
     case workflows    // 4: Workflow definitions
     case automation   // 5: Schedules + triggers
     case activity     // 6: All workflow runs (running + completed + failed) with logs/errors
+    case mindPalace   // 7: Spatial 3D-2D space — rooms of archival material
 
     /// SF Symbol icon name for this mode
     var icon: String {
@@ -30,6 +31,7 @@ enum SidebarMode: String, CaseIterable {
         case .workflows: "bolt"
         case .automation: "gearshape.2"
         case .activity: "clock"
+        case .mindPalace: "cube.transparent"
         }
     }
 
@@ -42,6 +44,7 @@ enum SidebarMode: String, CaseIterable {
         case .workflows: "Workflows"
         case .automation: "Automation"
         case .activity: "Activity"
+        case .mindPalace: "Mind Palace"
         }
     }
 
@@ -54,6 +57,7 @@ enum SidebarMode: String, CaseIterable {
         case .workflows: "4"
         case .automation: "5"
         case .activity: "6"
+        case .mindPalace: "7"
         }
     }
 }

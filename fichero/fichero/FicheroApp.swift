@@ -261,16 +261,6 @@ struct FicheroApp: App {
             }
         }
 
-        // Mind Palace (spatial 3D-2D space) — Phase 1, read-only.
-        // The scene is always declared but only reachable via the
-        // `isMindPalaceEnabled`-gated View-menu command, so it stays hidden
-        // when the flag is off.
-        Window("Mind Palace", id: "mind-palace") {
-            MindPalaceWindow()
-                .environmentObject(libraryManager)
-        }
-        .defaultSize(width: 1000, height: 700)
-
         Settings {
             SettingsView()
                 .environmentObject(appState)

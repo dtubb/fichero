@@ -348,7 +348,7 @@ extension ContentView {
             }
             .padding()
 
-        case .batches, .batch, .automation, .schedule, .trigger, .activity:
+        case .batches, .batch, .automation, .schedule, .trigger, .activity, .mindPalace:
             VStack(alignment: .leading, spacing: 8) {
                 Text("Inspector")
                     .font(.headline)

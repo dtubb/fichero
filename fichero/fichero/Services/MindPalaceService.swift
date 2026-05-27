@@ -172,4 +172,123 @@ final class MindPalaceService: ObservableObject {
             throw ServiceError.unexpectedResponse(code)
         }
     }
+
+    // MARK: - Room CRUD
+
+    /// Create a new spatial room.
+    @discardableResult
+    func createRoom(name: String) async throws -> MindPalaceRoom? {
+        let response = try await client.api.createRoomApiMindPalaceRoomsPost(
+            headers: .init(xFicheroLibraryPath: libraryHeader),
+            body: .json(.init(name: name))
+        )
+        switch response {
+        case .ok(let okResponse):
+            let room = try okResponse.body.json
+            guard let data = try? Self.encoder.encode(room) else { return nil }
+            return try? Self.decoder.decode(MindPalaceRoom.self, from: data)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    /// Delete a room (the room is a view; underlying documents are untouched).
+    func deleteRoom(roomId: String) async throws {
+        let response = try await client.api.deleteRoomApiMindPalaceRoomsRoomIdDelete(
+            path: .init(roomId: roomId),
+            headers: .init(xFicheroLibraryPath: libraryHeader)
+        )
+        switch response {
+        case .ok:
+            return
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    // MARK: - Stacks
+
+    /// List the stacks (groups/layers) in a room.
+    func listStacks(roomId: String) async throws -> [MindPalaceStack] {
+        let response = try await client.api.listStacksApiMindPalaceStacksGet(
+            query: .init(roomId: roomId),
+            headers: .init(xFicheroLibraryPath: libraryHeader)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return decodeItems(try okResponse.body.json.items)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    // MARK: - Add sources (A5) — place_node
+
+    /// Place a node in a room, tying it to a source document via `source_id`
+    /// (`feedback_kg_logic_in_backend`: the backend owns placement). Uses the
+    /// OpenAPI-typed `NodeCreateRequest` body (Rule 4). Position is left to the
+    /// backend default unless supplied.
+    @discardableResult
+    func placeNode(
+        roomId: String,
+        nodeType: Components.Schemas.NodeType,
+        sourceId: String? = nil,
+        label: String? = nil
+    ) async throws -> Bool {
+        // Argument order matches the generated init (room_id, node_type,
+        // source_id, label, …); remaining fields default on the backend.
+        let body = Components.Schemas.NodeCreateRequest(
+            roomId: roomId,
+            nodeType: nodeType,
+            sourceId: sourceId,
+            label: label
+        )
+        let response = try await client.api.placeNodeApiMindPalaceNodesPost(
+            headers: .init(xFicheroLibraryPath: libraryHeader),
+            body: .json(body)
+        )
+        switch response {
+        case .ok:
+            return true
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    // MARK: - Arrange (#1269 — also the AI's re-arrangement entry point)
+
+    /// Ask the backend to suggest/apply an arrangement for the given nodes.
+    /// The AI drives this same endpoint when it re-arranges the palace.
+    func suggestArrangement(
+        roomId: String,
+        nodeIds: [String],
+        arrangementType: Components.Schemas.ArrangementType
+    ) async throws {
+        let response = try await client.api.suggestArrangementApiMindPalaceRoomsRoomIdSuggestArrangementPost(
+            path: .init(roomId: roomId),
+            headers: .init(xFicheroLibraryPath: libraryHeader),
+            body: .json(.init(nodeIds: nodeIds, arrangementType: arrangementType))
+        )
+        switch response {
+        case .ok:
+            return
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
 }

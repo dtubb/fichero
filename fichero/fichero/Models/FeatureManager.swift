@@ -6,7 +6,7 @@ import SwiftUI
 @MainActor
 class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
-    private static let releaseProfileVersion = 26
+    private static let releaseProfileVersion = 27
     private static let workflowV001EnabledTools =
         "files,collection,folder,aggregate,transcribe,catalogue,"
         + "extract_entities,key_people,timeline,keywords,summarize_file,"
@@ -191,7 +191,10 @@ class FeatureManager: ObservableObject {
         mcpEnabledInternal = false
         integrationsEnabledInternal = false
         activityEnabledInternal = true
-        mindPalaceEnabledInternal = false
+        // Mind Palace is ON during dev so Daniel can see the full feature and
+        // flip it off if it's not ready. TODO: revisit the release default
+        // before shipping 0.0.2 — likely OFF until the spatial UX is signed off.
+        mindPalaceEnabledInternal = true
 
         settingsGeneralTabEnabledInternal = true
         settingsBackendTabEnabledInternal = true
