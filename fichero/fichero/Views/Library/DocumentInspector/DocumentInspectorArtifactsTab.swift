@@ -76,10 +76,6 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
         .task(id: documentId) {
             await loadArtifacts(for: documentId)
         }
-        .onChange(of: executionObserver.fileCompletedCount) { _, _ in
-            // Re-fetch whenever any file completes so artifacts appear mid-run
-            Task { await loadArtifacts(for: documentId) }
-        }
         .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
             // Re-fetch when workflow finishes — reduce-phase nodes (Catalogue)
             // save artifacts after all parallel files complete, so a final
