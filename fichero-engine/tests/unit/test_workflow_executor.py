@@ -643,6 +643,39 @@ class TestParallelExecution:
         assert callable(aggregate), "aggregate should be callable"
 
     @pytest.mark.asyncio
+    async def test_regular_node_receives_progress_callback(self):
+        """Long-running non-parallel tools can emit runner SSE progress."""
+        from fichero.workflows.builder import _make_node_function
+
+        events = []
+
+        async def event_callback(event_type, data):
+            events.append((event_type, data))
+
+        async def tool_fn(inputs, state, llm_config):
+            progress = inputs["__progress_callback"]
+            await progress("file_start", {"file_path": "chunk 1", "file_index": 1})
+            await progress("file_complete", {"file_path": "chunk 1", "file_index": 1})
+            return {"text": "ok"}
+
+        node_def = NodeDef(id="extract-node", tool="extract_all")
+        node_fn = _make_node_function(
+            node_def,
+            tool_fn,
+            LLMConfig(provider="test", model="test"),
+            workflow_config={},
+            event_callback=event_callback,
+        )
+        result = await node_fn({"outputs": {}, "completed_nodes": []})
+
+        assert result["outputs"]["extract-node"]["text"] == "ok"
+        assert [event_type for event_type, _ in events] == [
+            "file_start",
+            "file_complete",
+        ]
+        assert events[0][1]["node_id"] == "extract-node"
+
+    @pytest.mark.asyncio
     async def test_aggregation_function_combines_results(self):
         """Test that aggregation properly combines parallel results."""
         from fichero.workflows.builder import _make_aggregation_function

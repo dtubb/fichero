@@ -43,6 +43,7 @@ from fichero.workflows.tools.llm_base import (
     merge_config_schema,
     merge_ports,
 )
+from fichero.workflows.tools.progress import emit_progress_event
 from fichero.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
@@ -1005,6 +1006,7 @@ async def _run_two_stage(
     llm_config: LLMConfig,
     output_language: str,
     inputs: dict[str, Any],
+    progress_callback: Any = None,
 ) -> dict[str, Any]:
     """Two-stage extraction: entity names first, then per-entity claims.
 
@@ -1047,6 +1049,15 @@ async def _run_two_stage(
     chunk_errors: list[str] = []
 
     async def _run_stage1_one(idx: int, chunk_text: str) -> _EntitiesOnly:
+        await emit_progress_event(
+            progress_callback,
+            "file_start",
+            "",
+            f"Stage 1 chunk {idx + 1}/{len(chunks)}",
+            idx + 1,
+            len(chunks),
+            message=f"Stage 1 extracting entities from chunk {idx + 1}/{len(chunks)}",
+        )
         call_start = time.monotonic()
         try:
             async with extraction_sem:
@@ -1065,10 +1076,50 @@ async def _run_two_stage(
             chunk_timings.append(elapsed)
             chunk_errors.append(str(exc))
             logger.error(f"Stage 1 chunk {idx} failed: {exc}")
-            return _EntitiesOnly(people=[], places=[], organizations=[], dates=[], events=[])
+            await emit_progress_event(
+                progress_callback,
+                "file_error",
+                "",
+                f"Stage 1 chunk {idx + 1}/{len(chunks)}",
+                idx + 1,
+                len(chunks),
+                message=(
+                    f"Stage 1 chunk {idx + 1}/{len(chunks)} failed "
+                    f"after {elapsed:.1f}s"
+                ),
+                error=str(exc),
+            )
+            return _EntitiesOnly(
+                people=[],
+                places=[],
+                organizations=[],
+                dates=[],
+                events=[],
+            )
         elapsed = time.monotonic() - call_start
         chunk_timings.append(elapsed)
-        logger.info(f"Stage 1 chunk {idx}: found {sum(len(getattr(extraction, f, [])) for f in ['people', 'places', 'organizations', 'dates', 'events'])} entities in {elapsed:.1f}s")
+        entity_count = sum(
+            len(getattr(extraction, f, []))
+            for f in ["people", "places", "organizations", "dates", "events"]
+        )
+        logger.info(
+            "Stage 1 chunk %s: found %s entities in %.1fs",
+            idx,
+            entity_count,
+            elapsed,
+        )
+        await emit_progress_event(
+            progress_callback,
+            "file_complete",
+            "",
+            f"Stage 1 chunk {idx + 1}/{len(chunks)}",
+            idx + 1,
+            len(chunks),
+            message=(
+                f"Stage 1 chunk {idx + 1}/{len(chunks)} completed "
+                f"in {elapsed:.1f}s"
+            ),
+        )
         return extraction
 
     # Stage 1: Extract all entity names
@@ -1120,6 +1171,18 @@ async def _run_two_stage(
     for section_key, entities in all_entities.items():
         section = _section_by_key.get(section_key)
         for entity in entities:
+            await emit_progress_event(
+                progress_callback,
+                "file_start",
+                "",
+                f"Stage 2 entity {entity_done + 1}/{total_entities}",
+                entity_done + 1,
+                total_entities,
+                message=(
+                    f"Stage 2 extracting claims for {section_key} "
+                    f"'{entity.name}' ({entity_done + 1}/{total_entities})"
+                ),
+            )
             relevant_indices = sorted(entity_chunk_indices.get(entity.name, set()))
             if relevant_indices:
                 entity_context = "\n\n".join(chunks[i] for i in relevant_indices)
@@ -1131,6 +1194,18 @@ async def _run_two_stage(
             )
             all_claims[entity.name] = claims
             entity_done += 1
+            await emit_progress_event(
+                progress_callback,
+                "file_complete",
+                "",
+                f"Stage 2 entity {entity_done}/{total_entities}",
+                entity_done,
+                total_entities,
+                message=(
+                    f"Stage 2 completed {section_key} '{entity.name}': "
+                    f"{len(claims)} claims"
+                ),
+            )
             logger.info(
                 "Stage 2: %s/%s — %s '%s': %d claims",
                 entity_done, total_entities, section_key, entity.name, len(claims),
@@ -1234,6 +1309,7 @@ async def extract_all(
     - oneshot (default): One LLM call per page for all entity types
     - twostage: First extracts entity names, then per-entity claims
     """
+    progress_callback = inputs.get("__progress_callback")
     text, recovered_records = await asyncio.to_thread(
         _recover_text_and_records,
         inputs,
@@ -1266,7 +1342,7 @@ async def extract_all(
     if extraction_mode == "twostage":
         return await _run_two_stage(
             text, recovered_records, state, llm_config,
-            output_language, inputs
+            output_language, inputs, progress_callback
         )
 
     # Onshot mode (existing behavior)
@@ -1361,6 +1437,18 @@ async def extract_all(
         # unsupported_language/locale errors (#1284) auto-retry on the
         # user's configured $large model instead of counting as chunk
         # failures and producing an empty catalogue.
+        display_index = idx + 1 if idx >= 0 else len(chunk_timings) + 1
+        display_total = len(chunks) if idx >= 0 else len(chunk_timings) + 1
+        phase = f"Extract All chunk {display_index}/{display_total}"
+        await emit_progress_event(
+            progress_callback,
+            "file_start",
+            "",
+            phase,
+            display_index,
+            display_total,
+            message=f"Extract All processing chunk {display_index}/{display_total}",
+        )
         call_start = time.monotonic()
         try:
             async with extraction_sem:
@@ -1391,6 +1479,19 @@ async def extract_all(
             chunk_errors.append(str(exc))
             if idx >= 0:
                 page_errors[idx] = msg
+            await emit_progress_event(
+                progress_callback,
+                "file_error",
+                "",
+                phase,
+                display_index,
+                display_total,
+                message=(
+                    f"Extract All chunk {display_index}/{display_total} failed "
+                    f"after {elapsed:.1f}s"
+                ),
+                error=msg,
+            )
             return {}
 
         elapsed = time.monotonic() - call_start
@@ -1398,6 +1499,18 @@ async def extract_all(
         logger.info(
             f"extract_all chunk {idx} extracted in {elapsed:.1f}s "
             f"({len(chunk_text)} chars)"
+        )
+        await emit_progress_event(
+            progress_callback,
+            "file_complete",
+            "",
+            phase,
+            display_index,
+            display_total,
+            message=(
+                f"Extract All chunk {display_index}/{display_total} completed "
+                f"in {elapsed:.1f}s"
+            ),
         )
 
         # Pydantic instance → dict for the existing per-section pipeline
@@ -1472,12 +1585,31 @@ async def extract_all(
                 for page_idx, (chunk_text, items, page_doc_id) in enumerate(
                     zip(chunks, section_chunks, page_doc_ids)
                 ):
+                    phase = f"{key} KG write page {page_idx + 1}/{len(chunks)}"
                     await _yield_page_work(
-                        f"{key} KG write",
+                        phase,
                         page_idx,
                         len(chunks),
                     )
+                    await emit_progress_event(
+                        progress_callback,
+                        "file_start",
+                        "",
+                        phase,
+                        page_idx + 1,
+                        len(chunks),
+                        message=f"Extract All {phase}",
+                    )
                     if not items:
+                        await emit_progress_event(
+                            progress_callback,
+                            "file_complete",
+                            "",
+                            phase,
+                            page_idx + 1,
+                            len(chunks),
+                            message=f"Extract All {phase}: no rows",
+                        )
                         continue
                     page_label = f"Page {page_idx + 1}" if len(chunks) > 1 else None
                     excerpt = chunk_text[:500] if chunk_text else None
@@ -1503,6 +1635,15 @@ async def extract_all(
                             model=getattr(llm_config, "model", None),
                             grounding_text=chunk_text,
                         )
+                    await emit_progress_event(
+                        progress_callback,
+                        "file_complete",
+                        "",
+                        phase,
+                        page_idx + 1,
+                        len(chunks),
+                        message=f"Extract All {phase}: {len(items)} rows",
+                    )
 
                 # Per-page artifact saves so the inspector + cache see
                 # the right shape.

@@ -419,6 +419,10 @@ async def _run_workflow_in_background(
         # Create event callback for parallel processing events
         async def emit_parallel_event(event_type: str, data: dict) -> None:
             """Callback to emit SSE events from parallel node processing."""
+            if event_type == "log":
+                await log_execution(str(data.get("message") or data.get("line") or ""))
+                return
+
             # Emit SSE event (existing behavior)
             event_queue.put(
                 SSEEvent(
@@ -430,7 +434,18 @@ async def _run_workflow_in_background(
                     file_index=data.get("file_index"),
                     file_total=data.get("file_total"),
                     progress=data.get("progress"),
-                    data={"error": data.get("error")} if data.get("error") else {},
+                    data={
+                        k: v
+                        for k, v in data.items()
+                        if k
+                        not in {
+                            "node_id",
+                            "file_path",
+                            "file_index",
+                            "file_total",
+                            "progress",
+                        }
+                    },
                 )
             )
 
