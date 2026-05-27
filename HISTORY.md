@@ -1,3 +1,25 @@
+# 2026-05-26→27 — Overnight + morning sprint (multi-lane, f_manager)
+
+Large parallel push across Claude (sonnet/opus/haiku) + Codex (gpt/gpt-mini/codex53) lanes; everything below merged to `0.0.2`, trunk Swift build green, ~3200 unit tests passing.
+
+**Overnight (bugs + KG repair):**
+- KG spine restored: two-stage KG write `#1248`, guardrail→larger-model fallback `#1254`, page-child claims in doc view `#1249`. Confirmed on a real PDF (8 entities on salas2015).
+- `#1271` whole-PDF "weird text" = artifacts concatenated out of page order; now sorted by page index.
+- Backend: RTF strip `#1252`, per-doc progress logging `#1251`, xlsx import `#1237`, text-reflow tool `#1260`.
+- `#1262` chat model-comparison routes + `#472` export; `#1273` large-PDF responsiveness; `#1274` image-only-PDF OCR routing; `#1256` researcher phase 1; image ops `#462/#463/#464/#465/#466`; per-doc notes `#1259`.
+- Reading-surface cluster: blank-PDF `#1247`, Page Content panel `#1245`, list min-width `#1243`, trimmed labels `#1244`, Content-tab-surfaces-all `#1246`.
+- Caught + fixed a shipped Swift build-breaker (dropped `NodeDef` openapi component).
+
+**Morning (KG feature suite + sprint):**
+- KG evidential model `#1266` (date/location ranges, asserted|source_anchored|inferred basis + confidence, speaker/reporter/recorder attribution chain, multi-source corroboration) + a cross-document claim-attribution regression fix (persist claims from all docs on dedupe).
+- In-app KG editor `#1135` (edit/delete/merge/split). Rich search anchors `#1270`. KG timeline+map viz `#1267`. Color-code entities vs search terms `#1052`.
+- Annotations `#1276` — backend model + CRUD `/api/annotations` + `annotations_source` workflow tool; Swift Annotations inspector tab + annotate-region-from-marquee. Image-editing UI surface `#469`/`#1265` (ImageEditor views, edit-chain panel, prev/next nav, rubber-band batch-apply).
+- Model-comparison backend `#1268`. Slipbox import CLI `#1231` (filesystem + Tinderbox → searchable catalogue; standalone `import-slipbox`, not the gated integrations feature).
+- `#1275` — made OpenAPI export deterministic (`ensure_named_schemas` pins NodeDef/EdgeDef), ending the recurring per-merge Swift-build break.
+- Planner filed the book-extraction backlog: `#1277` in-text citation-usage, `#1278` index→topic entities, `#1279` chapter/section structure.
+
+**Held / pending tokens:** endpoint↔frontend coverage audit (codex53, Codex usage-capped ~until 12:25pm); maps/archivo-afro import `#1232` (needs real `~/code/maps` path); `#1230` UITests (one-time macOS TCC grant); the big architectural features — MCP+chatbot `#1269`, GraphRAG wiring, model-comparison UI — reserved for Opus/Codex frontier once API tokens + Ollama tier are set up.
+
 # 2026-05-25 — Backend Lane Session Summary
 
 - Completed backend issue #1111: added deterministic KG paragraph rendering with bidirectional citation metadata, wired to `POST /api/kg/render/paragraph`, and added targeted regression coverage.

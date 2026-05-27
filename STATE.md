@@ -1,6 +1,20 @@
 # STATE.md — Fichero
 
-## 2026-05-27 MORNING — read first after compaction (supersedes the evening block below)
+## 2026-05-27 ~10:45 — CONSOLIDATED (everything merged into 0.0.2)
+
+**All lane work is merged into `0.0.2` (`c51054cf`) and all 6 worktrees forward-synced to it.** Trunk Swift build green; full Python verify run as the final gate (~3200 tests). HISTORY.md has the full landing list.
+
+**Merged today (overnight + morning):** all 0.0.2 reading-surface bugs; KG spine (#1248/#1249/#1254) + page-order #1271; backend #1252/#1251/#1237/#1260; chat #1262 / export #472 / large-PDF #1273 / image-only-OCR #1274 / researcher #1256 / image ops #462-#468 / notes #1259; **KG evidential model #1266** (+ cross-doc claim regression fix); **KG editor #1135**; **rich search #1270**; **KG timeline+map #1267**; **color-code #1052**; **annotations #1276** + image-editing UI #469/#1265; **model-comparison backend #1268**; **slipbox import CLI #1231**; **#1275 OpenAPI determinism fix** (NodeDef/EdgeDef pinned — ends per-merge Swift-build breaks).
+
+**LANES:** all idle + synced to `c51054cf` (sonnet/opus/haiku/gpt/gpt-mini). **codex53 = Codex usage-capped (resets ~12:25pm)** — endpoint↔frontend coverage audit is its parked task. Next: when tokens/Ollama are set up + Codex resets, sync 0.0.2 → workers and dispatch new tasks.
+
+**HELD / pending:** endpoint-enable audit (codex53, capped); maps/archivo-afro import #1232 (needs real `~/code/maps` path); #1230 UITests (one-time macOS TCC grant); big architectural features — MCP+chatbot #1269, GraphRAG wiring, model-comparison UI — reserved for Opus/Codex frontier once API tokens + Ollama tier are live. Planner backlog filed: #1277/#1278/#1279.
+
+**MODEL POLICY:** reserve Opus + Codex-GPT for big/architectural work; route bulk (audit/import/tweaks/tests/triage) to Ollama open-source (runs inside the codex/claude CLIs). If Codex/Claude caps, STOP and ask Daniel. openapi-touching merge ⇒ trunk Swift BuildProject (NodeDef now deterministic via #1275). Never run FicheroUITests (TCC). Never push main.
+
+---
+
+## 2026-05-27 MORNING — earlier handoff (superseded by CONSOLIDATED above)
 
 **Role:** f_manager, branch `0.0.2`, `~/code/fichero-0.0.2`. Daniel active, goes to office ~11am.
 
