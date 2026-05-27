@@ -176,6 +176,30 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
                 entityPendingEdit = nil
             }
         }
+        .sheet(item: Binding(
+            get: { entityPendingMerge.map(IdentifiedEntity.init) },
+            set: { entityPendingMerge = $0?.entity }
+        )) { wrapped in
+            EntityMergeSheet(
+                absorbingEntity: wrapped.entity,
+                allEntities: entities
+            ) {
+                entityPendingMerge = nil
+                Task { await loadEntities() }
+            }
+        }
+        .sheet(item: Binding(
+            get: { entityPendingSplit.map(IdentifiedEntity.init) },
+            set: { entityPendingSplit = $0?.entity }
+        )) { wrapped in
+            EntitySplitSheet(
+                primaryEntity: wrapped.entity,
+                allEntities: entities
+            ) {
+                entityPendingSplit = nil
+                Task { await loadEntities() }
+            }
+        }
         .confirmationDialog(
             "Delete this entity?",
             isPresented: Binding(
@@ -338,6 +362,8 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     @State private var showCreateSheet = false
     @State private var entityPendingDeletion: Components.Schemas.KnowledgeEntity?
     @State private var entityPendingEdit: Components.Schemas.KnowledgeEntity?
+    @State private var entityPendingMerge: Components.Schemas.KnowledgeEntity?
+    @State private var entityPendingSplit: Components.Schemas.KnowledgeEntity?
 
     private func runHeuristicPredictions() async {
         guard let library = LibraryManager.shared.globalLibrary else { return }
@@ -495,9 +521,9 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
                     EntityRow(entity: entity, claimCount: claimCounts[entity.id ?? ""] ?? 0)
                         .tag(entity.id)
                         .contextMenu {
-                            Button("Edit entity…") {
-                                entityPendingEdit = entity
-                            }
+                            Button("Edit entity…") { entityPendingEdit = entity }
+                            Button("Merge entities…") { entityPendingMerge = entity }
+                            Button("Split entity…") { entityPendingSplit = entity }
                             Divider()
                             Button("Delete entity…", role: .destructive) {
                                 entityPendingDeletion = entity
@@ -612,6 +638,9 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
                     await loadEntityClaims(id: entityId)
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .ficheroClaimDeleted)) { _ in
+                    Task { await loadEntityClaims(id: entityId) }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .ficheroClaimUpdated)) { _ in
                     Task { await loadEntityClaims(id: entityId) }
                 }
             } else {
