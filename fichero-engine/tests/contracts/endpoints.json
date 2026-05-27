@@ -3696,6 +3696,30 @@
         "response_model": "ImageEditChainResponse"
       },
       {
+        "method": "POST",
+        "path": "/images/{document_id}/operations/remove-background",
+        "operation_id": "remove_background_image_api_images__document_id__operations_remove_background_post",
+        "summary": "Remove Background Image",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "RemoveBackgroundOperationRequest",
+        "response_model": "ImageEditChainResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/images/{document_id}/operations/segment",
+        "operation_id": "segment_image_api_images__document_id__operations_segment_post",
+        "summary": "Segment Image",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "SegmentOperationRequest",
+        "response_model": "ImageEditChainResponse"
+      },
+      {
         "method": "GET",
         "path": "/images/{document_id}/preview",
         "operation_id": "preview_image_api_images__document_id__preview_get",
