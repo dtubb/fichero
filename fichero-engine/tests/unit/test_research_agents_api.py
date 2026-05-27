@@ -112,6 +112,52 @@ def test_plan_crud(client, db):
     assert "Updated plan description" in patch_resp.json()["description"]
 
 
+@pytest.mark.asyncio
+async def test_plan_term_planning_generates_metadata(client, db):
+    """Term-driven plan creation stores the agent's planning output."""
+    mock_agent = AsyncMock(
+        return_value={
+            "result": (
+                '{"archives":["national archives"],'
+                '"locations":["Bogota","Medellin"],'
+                '"multilingual_terms":{"en":["mining term"],"es":["termino minero"]},'
+                '"summary":"Grounded research starter plan"}'
+            ),
+            "tool_calls": [
+                {"tool": "research_web_search", "args": {"query": "mining term"}}
+            ],
+            "iterations": 1,
+        }
+    )
+    with patch("fichero.api.routes.research_crud.react_agent", mock_agent):
+        proj_resp = client.post(
+            "/api/research/projects",
+            json={"name": "Term Planning Project"},
+        )
+        project_id = proj_resp.json()["id"]
+
+        plan_resp = client.post(
+            "/api/research/plans",
+            json={
+                "project_id": project_id,
+                "name": "Phase 1: term planning",
+                "term": "mining term",
+            },
+        )
+
+    assert plan_resp.status_code == 200
+    plan = plan_resp.json()
+    assert plan["metadata"]["research_term"] == "mining term"
+    assert plan["metadata"]["research_plan"]["archives"] == ["national archives"]
+    assert plan["metadata"]["research_plan"]["locations"] == ["Bogota", "Medellin"]
+    assert plan["metadata"]["research_plan"]["multilingual_terms"]["es"] == [
+        "termino minero"
+    ]
+    assert plan["metadata"]["research_plan"]["agent_result"]["tool_calls"][0][
+        "tool"
+    ] == "research_web_search"
+
+
 def test_plan_not_found(client):
     """404 for missing plan."""
     resp = client.get("/api/research/plans/nonexistent-id")
@@ -198,6 +244,7 @@ def test_step_crud(client, db):
             "tool": "web_search",
             "label": "Search archives",
             "description": "Query archive catalog",
+            "config": {"query": "archive catalog"},
             "order_index": 0,
         },
     )
@@ -205,6 +252,7 @@ def test_step_crud(client, db):
     step = step_resp.json()
     assert step["tool"] == "web_search"
     assert step["status"] == "pending"
+    assert step["config"]["query"] == "archive catalog"
     step_id = step["id"]
 
     # List steps
