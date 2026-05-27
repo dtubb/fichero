@@ -1,4 +1,4 @@
-"""Tests for the explicit KG writer workflow node."""
+"""Tests for the explicit KG writer workflow node (#1285)."""
 
 from __future__ import annotations
 
@@ -66,3 +66,28 @@ def test_kg_writer_forwards_payload_to_helper(monkeypatch):
     assert calls[0]["target_doc_id"] == "doc-1"
     assert result["value"] == payload
 
+
+def test_kg_writer_empty_payload_is_noop_not_error():
+    """#1285 — extract_all writes KG inline; downstream kg_writer receives
+    an empty payload and must succeed rather than failing the workflow."""
+    result = asyncio.run(
+        kg_writer(
+            {"kg_payload": []},
+            state={"library_path": "/tmp/library"},
+            llm_config=SimpleNamespace(provider="apple", model="apple"),
+        )
+    )
+    assert "error" not in result
+    assert result["value"] == []
+
+
+def test_kg_writer_missing_payload_key_is_noop_not_error():
+    """#1285 — kg_writer receives no kg_payload key at all (empty edge)."""
+    result = asyncio.run(
+        kg_writer(
+            {},
+            state={"library_path": "/tmp/library"},
+            llm_config=SimpleNamespace(provider="apple", model="apple"),
+        )
+    )
+    assert "error" not in result
