@@ -10,6 +10,11 @@ struct EditorView: View {
     /// a PDF preview. Parent wires this to update grid selection to the
     /// matching page sibling (#586).
     var onPDFPageIndexChange: ((Int) -> Void)?
+    /// Forwarded to the image editor so prev/next can sync app selection,
+    /// keeping the window-level inspector pointed at the displayed image (#1265).
+    var onNavigateToDocument: ((String) -> Void)?
+    /// Current multi-file selection — drives batch-apply in the image editor (#1265).
+    var selectedDocumentIDs: Set<String> = []
 
     @EnvironmentObject private var documentStore: DocumentStore
 
@@ -133,6 +138,15 @@ struct EditorView: View {
                 path: path,
                 pageIndex: 0,
                 onPageIndexChange: onPDFPageIndexChange
+            )
+        } else if doc.fileType == .image {
+            // Raster images get the non-destructive editor (#469): server-rendered
+            // preview with the original↔edited toggle, edit-chain ops, and the
+            // chain inspector alongside.
+            ImageEditorView(
+                document: doc,
+                onNavigate: onNavigateToDocument,
+                selectedDocumentIDs: selectedDocumentIDs
             )
         } else {
             QuickLookDownloadView(document: doc)
