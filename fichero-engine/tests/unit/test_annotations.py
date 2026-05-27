@@ -1,0 +1,228 @@
+"""Unit tests for /api/annotations CRUD and crop helpers (#914)."""
+
+from __future__ import annotations
+
+import pytest
+
+from fichero.knowledge_models import Annotation, AnnotationKind
+from fichero.models import DocType, Document, FileType, Status
+from fichero.workflows.tools._annotation_input import crop_text
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def doc(db):
+    """Persist a minimal Document so create_annotation can find it."""
+    d = Document(
+        id="doc-ann-test",
+        name="test.txt",
+        doc_type=DocType.file,
+        file_type=FileType.text,
+        status=Status.completed,
+        page_content="Hello world. This is the document body.",
+    )
+    db.save(d)
+    return d
+
+
+# ---------------------------------------------------------------------------
+# CRUD endpoint tests
+# ---------------------------------------------------------------------------
+
+
+class TestAnnotationCreate:
+    def test_create_returns_annotation(self, client, doc):
+        resp = client.post(
+            "/api/annotations",
+            json={
+                "document_id": doc.id,
+                "kind": "note",
+                "text": "My note",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["document_id"] == doc.id
+        assert data["kind"] == "note"
+        assert data["text"] == "My note"
+        assert "id" in data
+        assert "created_at" in data
+
+    def test_create_with_page_index_and_bbox(self, client, doc):
+        resp = client.post(
+            "/api/annotations",
+            json={
+                "document_id": doc.id,
+                "kind": "highlight",
+                "page_index": 2,
+                "bbox": [0.1, 0.2, 0.5, 0.3],
+                "color": "#FFFF00",
+                "tags": ["important"],
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["page_index"] == 2
+        assert data["bbox"] == [0.1, 0.2, 0.5, 0.3]
+        assert data["color"] == "#FFFF00"
+
+    def test_create_unknown_document_returns_404(self, client):
+        resp = client.post(
+            "/api/annotations",
+            json={"document_id": "nonexistent", "kind": "note"},
+        )
+        assert resp.status_code == 404
+
+
+class TestAnnotationList:
+    def test_list_empty(self, client, doc):
+        resp = client.get("/api/annotations", params={"document_id": doc.id})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["count"] == 0
+        assert body["items"] == []
+
+    def test_list_by_document_id(self, client, db, doc):
+        ann = Annotation(document_id=doc.id, kind=AnnotationKind.note, text="n1")
+        db.save(ann)
+        other_doc = Document(
+            id="other-doc",
+            name="other.txt",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            status=Status.completed,
+        )
+        db.save(other_doc)
+        ann2 = Annotation(document_id=other_doc.id, kind=AnnotationKind.bookmark)
+        db.save(ann2)
+
+        resp = client.get("/api/annotations", params={"document_id": doc.id})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["count"] == 1
+        assert body["items"][0]["id"] == ann.id
+
+    def test_list_filter_by_kind(self, client, db, doc):
+        db.save(Annotation(document_id=doc.id, kind=AnnotationKind.highlight))
+        db.save(Annotation(document_id=doc.id, kind=AnnotationKind.note, text="n"))
+
+        resp = client.get("/api/annotations", params={"kind": "highlight"})
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert all(i["kind"] == "highlight" for i in items)
+
+    def test_list_filter_by_tag(self, client, db, doc):
+        db.save(Annotation(document_id=doc.id, kind=AnnotationKind.highlight, tags=["draft"]))
+        db.save(Annotation(document_id=doc.id, kind=AnnotationKind.note, tags=["final"]))
+
+        resp = client.get("/api/annotations", params={"tag": "draft"})
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert len(items) == 1
+        assert "draft" in items[0]["tags"]
+
+    def test_list_filter_min_rating(self, client, db, doc):
+        db.save(Annotation(document_id=doc.id, kind=AnnotationKind.rating, rating=2))
+        db.save(Annotation(document_id=doc.id, kind=AnnotationKind.rating, rating=5))
+
+        resp = client.get("/api/annotations", params={"min_rating": 4})
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert len(items) == 1
+        assert items[0]["rating"] == 5
+
+
+class TestAnnotationGet:
+    def test_get_existing(self, client, db, doc):
+        ann = Annotation(document_id=doc.id, kind=AnnotationKind.note, text="hello")
+        db.save(ann)
+
+        resp = client.get(f"/api/annotations/{ann.id}")
+        assert resp.status_code == 200
+        assert resp.json()["id"] == ann.id
+
+    def test_get_missing_returns_404(self, client):
+        resp = client.get("/api/annotations/does-not-exist")
+        assert resp.status_code == 404
+
+
+class TestAnnotationPatch:
+    def test_patch_text(self, client, db, doc):
+        ann = Annotation(document_id=doc.id, kind=AnnotationKind.note, text="old")
+        db.save(ann)
+
+        resp = client.patch(f"/api/annotations/{ann.id}", json={"text": "updated"})
+        assert resp.status_code == 200
+        assert resp.json()["text"] == "updated"
+
+    def test_patch_adds_tags(self, client, db, doc):
+        ann = Annotation(document_id=doc.id, kind=AnnotationKind.highlight)
+        db.save(ann)
+
+        resp = client.patch(f"/api/annotations/{ann.id}", json={"tags": ["tag1", "tag2"]})
+        assert resp.status_code == 200
+        assert "tag1" in resp.json()["tags"]
+
+    def test_patch_missing_returns_404(self, client):
+        resp = client.patch("/api/annotations/nope", json={"text": "x"})
+        assert resp.status_code == 404
+
+
+class TestAnnotationDelete:
+    def test_delete_removes_annotation(self, client, db, doc):
+        ann = Annotation(document_id=doc.id, kind=AnnotationKind.bookmark)
+        db.save(ann)
+
+        resp = client.delete(f"/api/annotations/{ann.id}")
+        assert resp.status_code == 204
+
+        assert db.get(Annotation, ann.id) is None
+
+    def test_delete_missing_returns_404(self, client):
+        resp = client.delete("/api/annotations/ghost")
+        assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Crop helper unit tests (no HTTP, pure-function)
+# ---------------------------------------------------------------------------
+
+
+class TestCropText:
+    def test_returns_char_range(self):
+        doc = Document(
+            id="d1",
+            name="d.txt",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            status=Status.completed,
+            page_content="ABCDEFGHIJ",
+        )
+        ann = Annotation(document_id="d1", kind=AnnotationKind.highlight, char_start=2, char_end=5)
+        assert crop_text(doc, ann) == "CDE"
+
+    def test_falls_back_to_annotation_text(self):
+        doc = Document(
+            id="d2",
+            name="d.txt",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            status=Status.completed,
+        )
+        ann = Annotation(document_id="d2", kind=AnnotationKind.note, text="fallback note")
+        assert crop_text(doc, ann) == "fallback note"
+
+    def test_returns_none_when_no_content_and_no_text(self):
+        doc = Document(
+            id="d3",
+            name="d.txt",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            status=Status.completed,
+        )
+        ann = Annotation(document_id="d3", kind=AnnotationKind.bookmark)
+        assert crop_text(doc, ann) is None

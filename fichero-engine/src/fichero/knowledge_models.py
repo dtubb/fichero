@@ -1201,12 +1201,16 @@ class Annotation(BaseModel):
 
     id: str = Field(default_factory=_new_id)
     document_id: str
-    page_label: str | None = None
+    page_index: int | None = None  # 0-indexed page number (integer)
+    page_label: str | None = None  # human-readable label e.g. "Page 14"
     # Sub-page anchors (reuse #913 substrate).
     char_start: int | None = None
     char_end: int | None = None
-    # Image / PDF region as [x, y, width, height] in source coordinates.
-    bbox: list[float] | None = None
+    # Image / PDF region as [x, y, width, height] fractions in [0, 1].
+    bbox: list[float] | None = Field(
+        default=None,
+        description="Bounding box [x, y, width, height] as fractions of source dimensions in [0, 1].",
+    )
 
     kind: AnnotationKind
     text: str | None = None  # note body / comment text / bookmark label
