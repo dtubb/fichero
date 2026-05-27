@@ -432,6 +432,64 @@ class TestLoadPresetFiles:
             )
             assert inputs["files"] == "$.nodes.files-source.files"
 
+    def test_clean_up_text_preset_wiring(self):
+        """Clean Up Text preset: files → transcribe → clean_text.
+
+        Transcribe is the universal text source (it reuses an existing text
+        layer for digital PDFs, #1033), so the preset works on any doc or
+        folder. clean_text then cleans the extracted text.
+        """
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Clean Up Text" in presets, "Clean Up Text preset must ship"
+        preset = presets["Clean Up Text"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Clean Up"
+        assert preset.get("format") == "nodes"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "transcribe", "clean_text"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        files_id = _node_id(preset, "files")
+        transcribe_id = _node_id(preset, "transcribe")
+        clean_id = _node_id(preset, "clean_text")
+
+        # files → transcribe (files port).
+        assert any(
+            e["source"] == files_id
+            and e["target"] == transcribe_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into transcribe"
+
+        # transcribe.text → clean_text.text.
+        assert any(
+            e["source"] == transcribe_id
+            and e["target"] == clean_id
+            and e["source_port"] == "text"
+            and e["target_port"] == "text"
+            for e in preset["edges"]
+        ), "transcribe text must flow into clean_text"
+
+    def test_clean_up_text_model_aliasing(self):
+        """clean_text uses the $small alias; transcribe stays on the vision
+        default (no provider alias) so Apple Vision OCR isn't broken (#810)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        preset = presets["Clean Up Text"]
+
+        clean_node = next(n for n in preset["nodes"] if n["tool"] == "clean_text")
+        assert clean_node["config"].get("provider_name") == "$small"
+
+        transcribe_node = next(
+            n for n in preset["nodes"] if n["tool"] == "transcribe"
+        )
+        assert "provider_name" not in transcribe_node.get("config", {}), (
+            "transcribe must use the vision category default, not $small"
+        )
+
 
 def _node_id(preset: dict, tool: str) -> str:
     for node in preset["nodes"]:
