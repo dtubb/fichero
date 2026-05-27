@@ -624,17 +624,26 @@ async def _run_workflow_in_background(
                         continue
 
                     if node_name.endswith("_process"):
-                        # Each parallel file invocation fires its own on_chain_start.
-                        # Extract file context from state so the log shows filename + progress.
+                        # Each parallel invocation fires its own on_chain_start.
+                        # Extract context from state so the log shows subject + progress.
                         input_state = event.get("data", {}).get("input", {})
                         parallel_file = input_state.get("parallel_file", "")
                         parallel_index = input_state.get("parallel_index")
                         parallel_total = input_state.get("parallel_total")
                         filename = Path(parallel_file).name if parallel_file else ""
+
+                        # Detect entity-based processing: entity names lack "/" (file paths have them).
+                        is_entity = parallel_file and "/" not in parallel_file and filename
+
                         if filename and parallel_index is not None and parallel_total is not None:
-                            await log_execution(
-                                f"Node '{original_id}' — {filename} ({parallel_index + 1}/{parallel_total})"
-                            )
+                            if is_entity:
+                                await log_execution(
+                                    f"Node '{original_id}' — Extracting claims: {filename} ({parallel_index + 1}/{parallel_total})"
+                                )
+                            else:
+                                await log_execution(
+                                    f"Node '{original_id}' — {filename} ({parallel_index + 1}/{parallel_total})"
+                                )
                         else:
                             await log_execution(f"Node '{original_id}' started")
                     else:
