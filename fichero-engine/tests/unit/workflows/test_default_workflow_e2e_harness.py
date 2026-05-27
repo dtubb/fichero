@@ -198,7 +198,11 @@ def _seed_fixture_library(
     db.save(source_doc)
 
     selected_doc_id = folder.id if selection_shape == "folder" else source_doc.id
-    return library_path, selected_doc_id, source_doc.id, folder.id
+    # After #1291, _resolve_container_doc returns the file itself for a single-file
+    # selection (not the enclosing folder). Mirror that resolution here so assertions
+    # query the doc that catalogue actually writes to.
+    catalogue_target_id = folder.id if selection_shape == "folder" else source_doc.id
+    return library_path, selected_doc_id, source_doc.id, catalogue_target_id
 
 
 def _load_catalogue_workflow():
@@ -249,13 +253,19 @@ def _assert_artifacts_landed(
     target_artifacts = db.query(Artifact, document_id=catalogue_target_id)
     assert any(a.artifact_type == "catalogue.narrative" for a in target_artifacts)
 
-    source_doc = db.get(Document, source_doc_id)
-    assert source_doc is not None
-    assert source_doc.page_content == FIXTURE_TEXT
-
     target_doc = db.get(Document, catalogue_target_id)
     assert target_doc is not None
     assert target_doc.page_content == "Catalogue narrative for the regression fixture."
+
+    if catalogue_target_id != source_doc_id:
+        # Folder shape: catalogue writes to the folder, so the source file
+        # retains its transcribed text in page_content.
+        source_doc = db.get(Document, source_doc_id)
+        assert source_doc is not None
+        assert source_doc.page_content == FIXTURE_TEXT
+    # File shape (#1291): catalogue writes its narrative directly onto the
+    # selected file (which is the resolved container), so page_content on
+    # the source doc has already been updated to the narrative above.
 
 
 def _assert_kg_rows_landed(
