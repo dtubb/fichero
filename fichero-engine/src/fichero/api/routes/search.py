@@ -550,6 +550,28 @@ async def enhanced_search(
     if results and not skip_retriever and request.query.strip():
         results = _apply_filename_boost(results, request.query)
 
+    # Attach KG ids for clickable chips. For scoped queries, enrich
+    # against the scoped value ("people:Asprilla" -> "Asprilla") so KG
+    # entity names still match. The database method only reads KG rows
+    # and result-indexed snippets; it does not refetch document bodies.
+    kg_query = retrieval_query
+    if plan.has_entity_scope:
+        scoped_values = [
+            value
+            for values in plan.scopes.values()
+            for value in values
+            if value.strip()
+        ]
+        kg_query = " ".join([retrieval_query, *scoped_values]).strip()
+    try:
+        enricher = getattr(db, "enrich_search_results_with_kg", None)
+        if callable(enricher):
+            enriched = enricher(results, kg_query)
+            if isinstance(enriched, list):
+                results = enriched
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("search KG enrichment failed: %s", exc)
+
     # Did-you-mean: only when the user got *zero* results, AND their
     # query looks substantive (>2 chars). Avoids spamming suggestions on
     # short or accidental queries.

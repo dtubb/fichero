@@ -16,7 +16,11 @@ from __future__ import annotations
 
 import math
 
-from fichero.db import _fold_for_search, _is_content_marker_only
+from fichero.db import (
+    _build_transcript_excerpts,
+    _fold_for_search,
+    _is_content_marker_only,
+)
 from fichero.db_embeddings import _l2_normalize
 
 
@@ -79,6 +83,31 @@ class TestFoldForSearch:
     def test_preserves_internal_punctuation(self) -> None:
         # Folding should NOT strip punctuation — it's case+accent only.
         assert _fold_for_search("San José, Costa Rica") == "san jose, costa rica"
+
+
+class TestTranscriptExcerpts:
+    def test_builds_offsets_from_indexed_text(self) -> None:
+        content = "Before the passage, Leidy cleared gravel from the sluice."
+        excerpts = _build_transcript_excerpts(
+            "doc-1", content, "Leidy", context_chars=10
+        )
+        assert len(excerpts) == 1
+        excerpt = excerpts[0]
+        assert excerpt.text == " passage, Leidy cleared g"
+        assert excerpt.match_start == content.index("Leidy")
+        assert excerpt.match_end == content.index("Leidy") + len("Leidy")
+        assert excerpt.anchor.document_id == "doc-1"
+        assert excerpt.anchor.char_start == excerpt.match_start
+        assert excerpt.anchor.char_end == excerpt.match_end
+
+    def test_offsets_survive_unaccented_query_for_accented_text(self) -> None:
+        content = "La ciudad de Quibdó aparece en el acta."
+        excerpts = _build_transcript_excerpts(
+            "doc-1", content, "Quibdo", context_chars=0
+        )
+        assert excerpts[0].text == "Quibdó"
+        assert excerpts[0].match_start == content.index("Quibdó")
+        assert excerpts[0].match_end == content.index("Quibdó") + len("Quibdó")
 
 
 class TestRRFHybridCombiner:

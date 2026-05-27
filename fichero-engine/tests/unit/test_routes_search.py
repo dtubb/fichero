@@ -6,7 +6,8 @@ The enhanced_search endpoint falls back gracefully when no embeddings exist
 so tests can exercise it without a seeded vector store.
 """
 
-import pytest
+from fichero.db import SearchAnchor, SearchExcerpt
+from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.models import SavedSearch
 
 
@@ -95,7 +96,7 @@ class TestEnhancedSearch:
         from fichero.db import SearchResult
         
         # Create mock results with different scores
-        low_score_result = SearchResult(
+        _low_score_result = SearchResult(
             document_id="low-score-doc",
             score=0.3,  # Below the new default threshold of 0.55
             content_preview="low score content",
@@ -125,6 +126,87 @@ class TestEnhancedSearch:
         assert len(data["results"]) == 1
         assert data["results"][0]["document_id"] == "high-score-doc"
         assert data["results"][0]["score"] >= 0.55
+
+    def test_result_serializes_snippet_anchors_and_kg_ids(self, client, mock_db):
+        from fichero.db import SearchResult
+
+        mock_result = SearchResult(
+            document_id="doc-rich",
+            score=1.0,
+            content_preview="Leidy cleared gravel from the sluice",
+            metadata={},
+            highlights=["**Leidy** cleared gravel"],
+            transcript_excerpts=[
+                SearchExcerpt(
+                    text="Leidy cleared gravel",
+                    char_start=0,
+                    char_end=21,
+                    match_start=0,
+                    match_end=5,
+                    anchor=SearchAnchor(
+                        document_id="doc-rich",
+                        char_start=0,
+                        char_end=5,
+                    ),
+                )
+            ],
+            kg_claim_ids=["claim-1"],
+            kg_entity_ids=["entity-1"],
+        )
+        mock_db.search.return_value = (
+            [mock_result],
+            1,
+            {"search_type": "hybrid", "execution_time_ms": 0},
+        )
+        mock_db.enrich_search_results_with_kg.return_value = [mock_result]
+
+        r = client.post("/api/search", json={"query": "Leidy"})
+        assert r.status_code == 200
+        result = r.json()["results"][0]
+        assert result["transcript_excerpts"][0]["text"] == "Leidy cleared gravel"
+        assert result["transcript_excerpts"][0]["anchor"] == {
+            "document_id": "doc-rich",
+            "char_start": 0,
+            "char_end": 5,
+        }
+        assert result["kg_claim_ids"] == ["claim-1"]
+        assert result["kg_entity_ids"] == ["entity-1"]
+
+    def test_db_enrichment_returns_matching_kg_claim_and_entity_ids(self, db):
+        from fichero.db import SearchResult
+        from fichero.models import Document
+
+        doc = Document(
+            id="doc-kg",
+            name="KG source",
+            page_content="Leidy cleared gravel from the sluice.",
+        )
+        entity = KnowledgeEntity(
+            id="entity-leidy",
+            canonical_name="Leidy",
+            aliases=["Leidi"],
+        )
+        claim = KnowledgeClaim(
+            id="claim-leidy",
+            text="Leidy cleared gravel from the sluice.",
+            source_document_id=doc.id,
+            source_excerpt="Leidy cleared gravel",
+            entity_ids=[entity.id],
+        )
+        db.save(doc)
+        db.save(entity)
+        db.save(claim)
+
+        result = SearchResult(
+            document_id=doc.id,
+            score=1.0,
+            content_preview="Leidy cleared gravel",
+            metadata={},
+        )
+        enriched = db.enrich_search_results_with_kg([result], "Leidy")
+
+        assert enriched[0].kg_claim_ids == ["claim-leidy"]
+        assert enriched[0].kg_entity_ids == ["entity-leidy"]
 
 
 # ---------------------------------------------------------------------------

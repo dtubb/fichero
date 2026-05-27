@@ -36,7 +36,7 @@ Usage:
 from pathlib import Path
 from types import UnionType
 from typing import TypeVar, Type, get_origin, get_args, Union, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 import json
 import logging
@@ -148,6 +148,27 @@ def _fold_for_search(text: str) -> str:
 
 
 @dataclass
+class SearchAnchor:
+    """Stable character-position anchor within the indexed transcript text."""
+
+    document_id: str
+    char_start: int
+    char_end: int
+
+
+@dataclass
+class SearchExcerpt:
+    """Transcript excerpt generated from the search layer's indexed text."""
+
+    text: str
+    char_start: int
+    char_end: int
+    match_start: int | None
+    match_end: int | None
+    anchor: SearchAnchor
+
+
+@dataclass
 class SearchResult:
     """Search result with score and document reference."""
 
@@ -156,6 +177,9 @@ class SearchResult:
     content_preview: str
     metadata: dict[str, Any]
     highlights: list[str] | None = None  # Highlighted text snippets
+    transcript_excerpts: list[SearchExcerpt] = field(default_factory=list)
+    kg_claim_ids: list[str] = field(default_factory=list)
+    kg_entity_ids: list[str] = field(default_factory=list)
 
     def __repr__(self) -> str:
         preview = (
@@ -164,6 +188,101 @@ class SearchResult:
             else self.content_preview
         )
         return f"SearchResult(id={self.document_id}, score={self.score:.3f}, preview='{preview}')"
+
+
+def _fold_with_index(text: str) -> tuple[str, list[int]]:
+    """Fold text for accent-insensitive matching while keeping original offsets."""
+    folded_chars: list[str] = []
+    index_map: list[int] = []
+    for original_index, char in enumerate(text):
+        for folded_char in unicodedata.normalize("NFD", char):
+            if unicodedata.category(folded_char) == "Mn":
+                continue
+            folded_chars.append(folded_char.lower())
+            index_map.append(original_index)
+    return "".join(folded_chars), index_map
+
+
+def _search_match_terms(query: str) -> list[str]:
+    """Return ordered excerpt terms, preferring the full phrase over tokens."""
+    folded = _fold_for_search(query.strip())
+    if not folded:
+        return []
+    terms = [folded]
+    terms.extend(t for t in re.findall(r"\w+", folded) if len(t) > 1)
+    seen: set[str] = set()
+    return [t for t in terms if not (t in seen or seen.add(t))]
+
+
+def _build_transcript_excerpts(
+    document_id: str,
+    content: str,
+    query: str,
+    *,
+    context_chars: int = 80,
+    max_excerpts: int = 3,
+) -> list[SearchExcerpt]:
+    """Build anchored snippets from the already-indexed search text.
+
+    This deliberately consumes the content returned by the search layer
+    (LanceDB rows / merged result content), not a fresh document lookup.
+    """
+    if not content:
+        return []
+
+    folded_content, index_map = _fold_with_index(content)
+    spans: list[tuple[int, int]] = []
+    for term in _search_match_terms(query):
+        start_at = 0
+        while len(spans) < max_excerpts:
+            folded_start = folded_content.find(term, start_at)
+            if folded_start < 0:
+                break
+            folded_end = folded_start + len(term)
+            match_start = index_map[folded_start]
+            match_end = index_map[folded_end - 1] + 1
+            if not any(match_start < end and match_end > start for start, end in spans):
+                spans.append((match_start, match_end))
+            start_at = folded_end
+        if len(spans) >= max_excerpts:
+            break
+
+    if not spans:
+        preview_end = min(len(content), context_chars * 2)
+        return [
+            SearchExcerpt(
+                text=content[:preview_end],
+                char_start=0,
+                char_end=preview_end,
+                match_start=None,
+                match_end=None,
+                anchor=SearchAnchor(
+                    document_id=document_id,
+                    char_start=0,
+                    char_end=preview_end,
+                ),
+            )
+        ]
+
+    excerpts: list[SearchExcerpt] = []
+    for match_start, match_end in spans[:max_excerpts]:
+        excerpt_start = max(0, match_start - context_chars)
+        excerpt_end = min(len(content), match_end + context_chars)
+        excerpts.append(
+            SearchExcerpt(
+                text=content[excerpt_start:excerpt_end],
+                char_start=excerpt_start,
+                char_end=excerpt_end,
+                match_start=match_start,
+                match_end=match_end,
+                anchor=SearchAnchor(
+                    document_id=document_id,
+                    char_start=match_start,
+                    char_end=match_end,
+                ),
+            )
+        )
+    return excerpts
 
 
 class Database(DatabaseEmbeddingMixin):
@@ -634,6 +753,99 @@ class Database(DatabaseEmbeddingMixin):
         """Wrap the free helper so callers don't reach into module level."""
         return _collect_folder_descendants_helper(self.conn, folder_id)
 
+    def enrich_search_results_with_kg(
+        self, results: list[SearchResult], query: str
+    ) -> list[SearchResult]:
+        """Attach matching KG claim/entity ids for each result document.
+
+        Uses KG rows and the result's indexed transcript excerpt only; it
+        does not fetch document bodies. This keeps search responses rich
+        without turning every hit into a whole-document read.
+        """
+        if not results or not query.strip():
+            return results
+
+        try:
+            from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("KG models unavailable during search enrichment: %s", exc)
+            return results
+
+        doc_ids = {r.document_id for r in results}
+        terms = _search_match_terms(query)
+        if not terms:
+            return results
+
+        try:
+            claims = self.all(KnowledgeClaim)
+            entities = self.all(KnowledgeEntity)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("KG lookup failed during search enrichment: %s", exc)
+            return results
+
+        entity_by_id = {entity.id: entity for entity in entities}
+        matched_claims_by_doc: dict[str, set[str]] = {doc_id: set() for doc_id in doc_ids}
+        matched_entities_by_doc: dict[str, set[str]] = {doc_id: set() for doc_id in doc_ids}
+
+        def _matches(values: list[str | None]) -> bool:
+            folded_values = [_fold_for_search(v or "") for v in values]
+            return any(term in value for term in terms for value in folded_values)
+
+        def _entity_matches(entity_id: str) -> bool:
+            entity = entity_by_id.get(entity_id)
+            if entity is None:
+                return False
+            values = [entity.canonical_name, entity.description, *entity.aliases]
+            return _matches(values)
+
+        for claim in claims:
+            claim_doc_ids = set(claim.source_ids or [])
+            if claim.source_document_id:
+                claim_doc_ids.add(claim.source_document_id)
+            relevant_doc_ids = claim_doc_ids & doc_ids
+            if not relevant_doc_ids:
+                continue
+
+            entity_ids = {
+                entity_id
+                for entity_id in [
+                    *claim.entity_ids,
+                    claim.subject_entity_id,
+                    claim.speaker_entity_id,
+                    claim.subject_of_inquiry_entity_id,
+                    claim.scribe_entity_id,
+                    claim.editor_entity_id,
+                ]
+                if entity_id
+            }
+            matched_entity_ids = {
+                entity_id for entity_id in entity_ids if _entity_matches(entity_id)
+            }
+            claim_matches = _matches(
+                [
+                    claim.text,
+                    claim.source_excerpt,
+                    claim.subject_canonical,
+                    claim.predicate_verb,
+                    claim.object_phrase,
+                    claim.svo_subject,
+                    claim.svo_verb,
+                    claim.svo_object,
+                ]
+            )
+
+            if not claim_matches and not matched_entity_ids:
+                continue
+
+            for doc_id in relevant_doc_ids:
+                matched_claims_by_doc[doc_id].add(claim.id)
+                matched_entities_by_doc[doc_id].update(matched_entity_ids)
+
+        for result in results:
+            result.kg_claim_ids = sorted(matched_claims_by_doc[result.document_id])
+            result.kg_entity_ids = sorted(matched_entities_by_doc[result.document_id])
+        return results
+
     def search(
         self,
         query: str,
@@ -932,6 +1144,11 @@ class Database(DatabaseEmbeddingMixin):
             for result in paginated_results:
                 content = result["content"]
                 highlights = None
+                transcript_excerpts = _build_transcript_excerpts(
+                    document_id=result["document_id"],
+                    content=content,
+                    query=query,
+                )
 
                 if highlight_results and query:
                     # Simple highlighting - find query in content
@@ -959,8 +1176,11 @@ class Database(DatabaseEmbeddingMixin):
                         else result["content"],
                         metadata=result["metadata"],
                         highlights=highlights,
+                        transcript_excerpts=transcript_excerpts,
                     )
                 )
+
+            self.enrich_search_results_with_kg(results, query)
 
             # Calculate execution time
             execution_time = time.time() - start_time
