@@ -18,5 +18,6 @@ final class FeatureManagerTests: XCTestCase {
         XCTAssertFalse(featureManager.isChatEnabled)
         XCTAssertFalse(featureManager.isBatchesEnabled)
         XCTAssertFalse(featureManager.isAutomationEnabled)
+        XCTAssertFalse(featureManager.isMindPalaceEnabled)
     }
 }

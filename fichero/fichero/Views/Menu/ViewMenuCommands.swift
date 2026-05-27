@@ -37,6 +37,28 @@ struct ViewMenuCommands: View {
 
         ShowRulerButton()
         ShowFindBarButton()
+
+        MindPalaceMenuButton()
+    }
+}
+
+// MARK: - Mind Palace
+
+/// Opens the Mind Palace (spatial 3D-2D space) window. Self-gating: renders
+/// nothing — including its leading divider — unless `isMindPalaceEnabled`.
+struct MindPalaceMenuButton: View {
+    @ObservedObject var featureManager = FeatureManager.shared
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        if featureManager.isMindPalaceEnabled {
+            Divider()
+            Button {
+                openWindow(id: "mind-palace")
+            } label: {
+                Label("Mind Palace", systemImage: "square.stack.3d.up")
+            }
+        }
     }
 }
 
