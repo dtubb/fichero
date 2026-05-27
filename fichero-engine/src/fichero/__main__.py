@@ -237,6 +237,77 @@ def import_file(
         raise typer.Exit(code=1)
 
 
+@app.command(name="import-slipbox")
+def import_slipbox_command(
+    library_path: Path = typer.Option(
+        Path("~/Library/Application Support/Fichero/Slipbox.fichero"),
+        "--library-path",
+        help=(
+            "New .fichero package to create/use. Defaults outside "
+            "~/Documents so existing libraries are not touched."
+        ),
+    ),
+    filesystem_root: Path = typer.Option(
+        Path("~/code/slipbox"),
+        "--filesystem-root",
+        help="Filesystem slipbox notes root.",
+    ),
+    tinderbox_path: Path = typer.Option(
+        Path("~/code/slipbox-tinderbox/slip-box.tbx"),
+        "--tinderbox",
+        help="Tinderbox .tbx XML file.",
+    ),
+    limit: Optional[int] = typer.Option(
+        None,
+        "--limit",
+        help="Maximum Tinderbox notes and filesystem files to import from each source.",
+    ),
+    reset: bool = typer.Option(
+        False,
+        "--reset",
+        help="Delete the target .fichero package before importing.",
+    ),
+    no_embed: bool = typer.Option(
+        False,
+        "--no-embed",
+        help="Skip embedding creation. Imported content will not be immediately searchable.",
+    ),
+) -> None:
+    """Import Daniel's slipbox into a fresh/searchable Fichero catalogue."""
+
+    from fichero.slipbox_import import import_slipbox
+
+    try:
+        summary = import_slipbox(
+            library_path=library_path,
+            filesystem_root=filesystem_root,
+            tinderbox_path=tinderbox_path,
+            limit=limit,
+            reset=reset,
+            auto_embed=not no_embed,
+        )
+    except Exception as exc:
+        typer.secho(f"Slipbox import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    if summary.errors:
+        typer.secho(
+            f"Imported with {len(summary.errors)} errors.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        for err in summary.errors[:10]:
+            typer.echo(f"  {err}", err=True)
+        if len(summary.errors) > 10:
+            typer.echo(f"  ... {len(summary.errors) - 10} more", err=True)
+
+    typer.echo(f"library: {summary.library_path}")
+    typer.echo(f"root_document_id: {summary.root_document_id}")
+    typer.echo(f"tinderbox_notes: {summary.tinderbox_notes}")
+    typer.echo(f"filesystem_files: {summary.filesystem_files}")
+    typer.echo(f"skipped_files: {summary.skipped_files}")
+
+
 @artifacts_app.command("list")
 def artifacts_list(
     ctx: typer.Context,
