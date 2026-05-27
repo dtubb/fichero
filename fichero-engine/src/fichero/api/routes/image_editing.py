@@ -1,4 +1,4 @@
-"""Image editing API routes (#462, #463, #466).
+"""Image editing API routes (#462, #463, #466, #467).
 
 Stores per-document non-destructive edit chains and renders previews on demand.
 """
@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
-from PIL import Image, ImageEnhance, ImageOps
+from PIL import Image, ImageChops, ImageEnhance, ImageOps
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -55,6 +55,12 @@ class EnhanceOperationRequest(BaseModel):
     page: int = Field(1, ge=1)
 
 
+class RemoveBackgroundOperationRequest(BaseModel):
+    method: str = Field("opencv", pattern="^(opencv|threshold|rembg)$")
+    threshold: int = Field(28, ge=0, le=255)
+    page: int = Field(1, ge=1)
+
+
 def _get_or_404_document(db: Database, document_id: str) -> Document:
     doc = db.get(Document, document_id)
     if not doc:
@@ -85,9 +91,51 @@ def _load_source_image(path: Path, page: int = 1) -> Image.Image:
         return Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
     with Image.open(path) as img:
-        if img.mode not in ("RGB", "L"):
+        if img.mode not in ("RGB", "L", "RGBA"):
             img = img.convert("RGB")
         return img.copy()
+
+
+def _remove_background(image: Image.Image, params: dict[str, Any]) -> Image.Image:
+    method = str(params.get("method", "opencv")).strip().lower()
+    if method == "rembg":
+        try:
+            from rembg import remove
+        except ImportError as exc:
+            raise HTTPException(
+                status_code=501, detail="rembg is not installed in this backend"
+            ) from exc
+        return remove(image.convert("RGBA"))
+
+    if method == "opencv":
+        try:
+            import cv2  # type: ignore[import-not-found]
+            import numpy as np
+        except ImportError:
+            method = "threshold"
+        else:
+            rgb = np.array(image.convert("RGB"))
+            gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+            _, mask = cv2.threshold(
+                gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
+            )
+            kernel = np.ones((3, 3), np.uint8)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+            rgba = image.convert("RGBA")
+            rgba.putalpha(Image.fromarray(mask))
+            return rgba
+
+    if method == "threshold":
+        threshold = int(params.get("threshold", 28))
+        rgba = image.convert("RGBA")
+        rgb = image.convert("RGB")
+        background = Image.new("RGB", rgb.size, rgb.getpixel((0, 0)))
+        diff = ImageChops.difference(rgb, background).convert("L")
+        alpha = diff.point(lambda value: 255 if value > threshold else 0)
+        rgba.putalpha(alpha)
+        return rgba
+
+    raise HTTPException(status_code=400, detail=f"Unsupported background method: {method}")
 
 
 def _apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
@@ -150,13 +198,23 @@ def _apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         )
         return enhanced
 
+    if name == "remove_background":
+        return _remove_background(image, params)
+
     if name == "grayscale":
         return ImageOps.grayscale(image).convert("RGB")
 
     raise HTTPException(status_code=400, detail=f"Unsupported operation: {name}")
 
 
+def _image_response_format(image: Image.Image) -> tuple[str, str]:
+    if image.mode == "RGBA" or "transparency" in image.info:
+        return "PNG", "image/png"
+    return "JPEG", "image/jpeg"
+
+
 def _write_derived_image(document_id: str, page: int, image: Image.Image) -> str:
+    image_format, _ = _image_response_format(image)
     out_dir = (
         Path(tempfile.gettempdir())
         / "fichero-image-edits"
@@ -164,8 +222,10 @@ def _write_derived_image(document_id: str, page: int, image: Image.Image) -> str
         / f"page-{page}"
     )
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "latest.jpg"
-    image.save(out_path, format="JPEG", quality=92)
+    suffix = "png" if image_format == "PNG" else "jpg"
+    out_path = out_dir / f"latest.{suffix}"
+    save_kwargs = {"quality": 92} if image_format == "JPEG" else {}
+    image.save(out_path, format=image_format, **save_kwargs)
     return str(out_path)
 
 
@@ -320,6 +380,38 @@ async def enhance_image(
     )
 
 
+@router.post("/{document_id}/operations/remove-background", response_model=ImageEditChainResponse)
+async def remove_background_image(
+    document_id: str,
+    request: RemoveBackgroundOperationRequest,
+    db: Database = Depends(get_library_database),
+) -> ImageEditChainResponse:
+    doc = _get_or_404_document(db, document_id)
+    source_path = resolve_source(doc)
+    if not source_path:
+        raise HTTPException(status_code=404, detail="Source file not available")
+
+    base = _load_source_image(source_path, page=request.page)
+    op = {
+        "op": "remove_background",
+        "page": request.page,
+        "params": {
+            "method": request.method,
+            "threshold": request.threshold,
+        },
+    }
+    derived = _apply_operation(base, op)
+    op["derived_path"] = _write_derived_image(document_id, request.page, derived)
+    op["created_at"] = datetime.now().isoformat()
+
+    chain = _append_operation(db, document_id, op)
+    return ImageEditChainResponse(
+        document_id=document_id,
+        operations=chain.operations,
+        updated_at=chain.updated_at,
+    )
+
+
 @router.delete("/{document_id}/edits", status_code=204)
 async def delete_edit_chain(
     document_id: str, db: Database = Depends(get_library_database)
@@ -355,6 +447,8 @@ async def preview_image(
                 image = _apply_operation(image, op)
 
     buffer = io.BytesIO()
-    image.save(buffer, format="JPEG", quality=92)
+    image_format, media_type = _image_response_format(image)
+    save_kwargs = {"quality": 92} if image_format == "JPEG" else {}
+    image.save(buffer, format=image_format, **save_kwargs)
     buffer.seek(0)
-    return Response(content=buffer.getvalue(), media_type="image/jpeg")
+    return Response(content=buffer.getvalue(), media_type=media_type)

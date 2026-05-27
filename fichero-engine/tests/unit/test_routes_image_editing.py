@@ -1,4 +1,4 @@
-"""Tests for image-editing routes (#462, #463, #466)."""
+"""Tests for image-editing routes (#462, #463, #466, #467)."""
 
 from __future__ import annotations
 
@@ -27,6 +27,19 @@ def _make_gray_image_doc(
     img = Image.new("RGB", size, (128, 128, 128))
     img.putpixel((0, 0), (255, 0, 0))
     img.save(image_path, format="JPEG")
+
+    doc = Document(name=name, path=str(image_path), file_type=FileType.image)
+    db.save(doc)
+    return doc
+
+
+def _make_foreground_image_doc(db, tmp_path, name: str = "foreground.png"):
+    image_path = tmp_path / name
+    img = Image.new("RGB", (60, 40), "white")
+    for x in range(20, 40):
+        for y in range(10, 30):
+            img.putpixel((x, y), (10, 20, 30))
+    img.save(image_path, format="PNG")
 
     doc = Document(name=name, path=str(image_path), file_type=FileType.image)
     db.save(doc)
@@ -114,6 +127,19 @@ class TestImageEditChainRoutes:
         }
         assert "derived_path" in ops[0]
 
+    def test_remove_background_operation_appends_chain(self, client, db, tmp_path):
+        doc = _make_foreground_image_doc(db, tmp_path)
+        rmbg = client.post(
+            f"/api/images/{doc.id}/operations/remove-background",
+            json={"method": "threshold", "threshold": 5, "page": 1},
+        )
+        assert rmbg.status_code == 200
+        ops = rmbg.json()["operations"]
+        assert len(ops) == 1
+        assert ops[0]["op"] == "remove_background"
+        assert ops[0]["params"] == {"method": "threshold", "threshold": 5}
+        assert ops[0]["derived_path"].endswith(".png")
+
 
 class TestImagePreviewRoute:
     def test_preview_returns_original_without_edits(self, client, db, tmp_path):
@@ -181,6 +207,28 @@ class TestImagePreviewRoute:
         assert original_img.size == (60, 40)
         assert edited_img.size == (60, 40)
         assert original_img.getpixel((30, 20))[0] > edited_img.getpixel((30, 20))[0]
+
+    def test_preview_regenerates_remove_background_as_png(
+        self, client, db, tmp_path
+    ):
+        doc = _make_foreground_image_doc(db, tmp_path)
+        rmbg = client.post(
+            f"/api/images/{doc.id}/operations/remove-background",
+            json={"method": "threshold", "threshold": 5, "page": 1},
+        )
+        assert rmbg.status_code == 200
+
+        original = client.get(f"/api/images/{doc.id}/preview?apply_edits=false")
+        edited = client.get(f"/api/images/{doc.id}/preview")
+        assert original.status_code == 200
+        assert edited.status_code == 200
+        assert original.headers["content-type"].startswith("image/jpeg")
+        assert edited.headers["content-type"].startswith("image/png")
+
+        edited_img = Image.open(io.BytesIO(edited.content))
+        assert edited_img.mode == "RGBA"
+        assert edited_img.getpixel((0, 0))[3] == 0
+        assert edited_img.getpixel((30, 20))[3] == 255
 
     def test_preview_missing_source_returns_404(self, client, db):
         doc = Document(name="missing.jpg", path="/tmp/does-not-exist.jpg", file_type=FileType.image)
