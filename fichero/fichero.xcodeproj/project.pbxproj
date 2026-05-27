@@ -147,6 +147,7 @@
 		25B9458F0E27EB2BCD55B439 /* ClaimSummaryCard+Details.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA39991F769A1DD42BB17F01 /* ClaimSummaryCard+Details.swift */; };
 		2C2268FA2E4307AAA02C7EC4 /* APIClient+Types.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300A8405FFC476E5124372AE /* APIClient+Types.swift */; };
 		2ED84CCBA91252EA2D0C5D34 /* TriggerEditorPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */; };
+		36C67BBF07CCFEAF928943C9 /* ImageEditorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF014F0FAEFCA5233DCB114F /* ImageEditorModel.swift */; };
 		3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */; };
 		4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
 		4EBA402FBE51F9F56366C3A5 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */; };
@@ -157,6 +158,7 @@
 		650278DC2930567D10469587 /* ContentViewHelperViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00B5245346C7E0A399A7A82A /* ContentViewHelperViews.swift */; };
 		6944EB9DA6305E692A58C4E8 /* AISettingsView+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9195539F44B4ADCA2A3C9974 /* AISettingsView+Helpers.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
+		7800350961E1C38A10D02D54 /* ImageEditChainPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95706A3222B50B478F15D83D /* ImageEditChainPanel.swift */; };
 		7C874A46B0C0C85ACD9F23AA /* DocumentInspectorArtifactsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 312845068CA928DA393E0468 /* DocumentInspectorArtifactsTab.swift */; };
 		7D8F36CB01DB7346C305CA3C /* ContentView+ReadingLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6650E28284D750D9076B0612 /* ContentView+ReadingLayout.swift */; };
 		82E7E9935A5A324121ECB468 /* DocumentKGWebPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80DDED3870C2457BFD97D1E /* DocumentKGWebPane.swift */; };
@@ -363,6 +365,7 @@
 		ED0E3300104D4A70958C3844 /* AttributedTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004167806445469D9A3595E4 /* AttributedTextEditor.swift */; };
 		EEE878CB5349F5D321517F55 /* ContentView+WorkflowActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 923BD592D3257176C51CAC1C /* ContentView+WorkflowActions.swift */; };
 		F14D9A1A889055137785068A /* PageContentPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5923B00FD0A382F8BBF21D58 /* PageContentPane.swift */; };
+		F23CD14AC5C36398DB6CCC74 /* ImageEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C8EFF7D9BC634BAE18E0F47 /* ImageEditorView.swift */; };
 		F64E8DA9BA2DC3A188FE35B2 /* LibraryMapComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F0249656F38A2DB7AE0C54 /* LibraryMapComponents.swift */; };
 		FC38FF82492B7D35C486CF71 /* EditClaimSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C61D10AF212650451E8C13B /* EditClaimSheet.swift */; };
 		FC3F95AC0E1F4A7DB6B9993E /* FeatureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */; };
@@ -561,6 +564,7 @@
 		5923B00FD0A382F8BBF21D58 /* PageContentPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PageContentPane.swift; sourceTree = "<group>"; };
 		599CF5FBD9D2B619B9353BC7 /* SpeakerComparisonView+Preview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SpeakerComparisonView+Preview.swift"; sourceTree = "<group>"; };
 		5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TriggerEditorPreviewPanel.swift; path = fichero/Views/Automation/TriggerEditorView/TriggerEditorPreviewPanel.swift; sourceTree = SOURCE_ROOT; };
+		5C8EFF7D9BC634BAE18E0F47 /* ImageEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageEditorView.swift; sourceTree = "<group>"; };
 		63B044A60D5A8C7BA256FF24 /* NavigationHistoryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NavigationHistoryManager.swift; sourceTree = "<group>"; };
 		6650E28284D750D9076B0612 /* ContentView+ReadingLayout.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+ReadingLayout.swift"; sourceTree = "<group>"; };
 		74515FA0260E31DB7F74A1D3 /* PDFReadingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFReadingView.swift; sourceTree = "<group>"; };
@@ -576,6 +580,7 @@
 		9195539F44B4ADCA2A3C9974 /* AISettingsView+Helpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AISettingsView+Helpers.swift"; sourceTree = "<group>"; };
 		923BD592D3257176C51CAC1C /* ContentView+WorkflowActions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+WorkflowActions.swift"; sourceTree = "<group>"; };
 		92773EAEE52587BBA8DEDC9F /* LibraryView+TableMapViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "LibraryView+TableMapViews.swift"; sourceTree = "<group>"; };
+		95706A3222B50B478F15D83D /* ImageEditChainPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageEditChainPanel.swift; sourceTree = "<group>"; };
 		9DDD2864E374789E10D5B169 /* PDFPageView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFPageView.swift; sourceTree = "<group>"; };
 		9E04EE1958EB4E23A7E1E328 /* WindowState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowState.swift; sourceTree = "<group>"; };
 		A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TriggerEditorFormPanel.swift; path = fichero/Views/Automation/TriggerEditorView/TriggerEditorFormPanel.swift; sourceTree = SOURCE_ROOT; };
@@ -763,6 +768,7 @@
 		E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorMetadataTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorMetadataTab.swift; sourceTree = SOURCE_ROOT; };
 		E80DDED3870C2457BFD97D1E /* DocumentKGWebPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentKGWebPane.swift; sourceTree = "<group>"; };
 		EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Operations.swift"; sourceTree = "<group>"; };
+		EF014F0FAEFCA5233DCB114F /* ImageEditorModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageEditorModel.swift; sourceTree = "<group>"; };
 		F131D425C0276D277D805678 /* KGMapView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGMapView.swift; sourceTree = "<group>"; };
 		F4189C51250E0B39E05CD87B /* AISettingsView+Tabs.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AISettingsView+Tabs.swift"; sourceTree = "<group>"; };
 		GTE1 /* GeneratedTypeExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedTypeExtensions.swift; sourceTree = "<group>"; };
@@ -1427,8 +1433,20 @@
 				CAAFE05184A40A50ADFC54A9 /* QuickLookPreviewViews.swift */,
 				8F105B00D61F64579C7762E9 /* PDFLoupeOverlay.swift */,
 				E80DDED3870C2457BFD97D1E /* DocumentKGWebPane.swift */,
+				A9CC1872944150E583173CB8 /* ImageEditor */,
 			);
 			path = Library;
+			sourceTree = "<group>";
+		};
+		A9CC1872944150E583173CB8 /* ImageEditor */ = {
+			isa = PBXGroup;
+			children = (
+				EF014F0FAEFCA5233DCB114F /* ImageEditorModel.swift */,
+				95706A3222B50B478F15D83D /* ImageEditChainPanel.swift */,
+				5C8EFF7D9BC634BAE18E0F47 /* ImageEditorView.swift */,
+			);
+			name = ImageEditor;
+			path = ImageEditor;
 			sourceTree = "<group>";
 		};
 		B2A003000000000000BATCH2 /* WorkflowChainListView */ = {
@@ -2061,6 +2079,9 @@
 				56DCD53ACD6483561CF542B3 /* KGTemporalSpatial.swift in Sources */,
 				E16CECCFD4B4BCE53B2FEC36 /* KGTimelineView.swift in Sources */,
 				54A07EFB77CACCF2E0ADDD84 /* ImageEditingServiceGenerated.swift in Sources */,
+				36C67BBF07CCFEAF928943C9 /* ImageEditorModel.swift in Sources */,
+				7800350961E1C38A10D02D54 /* ImageEditChainPanel.swift in Sources */,
+				F23CD14AC5C36398DB6CCC74 /* ImageEditorView.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

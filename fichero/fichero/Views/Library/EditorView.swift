@@ -134,6 +134,11 @@ struct EditorView: View {
                 pageIndex: 0,
                 onPageIndexChange: onPDFPageIndexChange
             )
+        } else if doc.fileType == .image {
+            // Raster images get the non-destructive editor (#469): server-rendered
+            // preview with the original↔edited toggle, edit-chain ops, and the
+            // chain inspector alongside.
+            ImageEditorView(document: doc)
         } else {
             QuickLookDownloadView(document: doc)
         }
