@@ -16,6 +16,8 @@ struct ImageEditorView: View {
     /// a sibling image, keeping the window-level inspector pointed at the same
     /// document (#1265). When nil, navigation is still handled internally.
     var onNavigate: ((String) -> Void)?
+    /// Multi-file selection (image document ids) for batch-apply (#1265).
+    var selectedDocumentIDs: Set<String> = []
 
     @EnvironmentObject private var apiClient: APIClient
     @EnvironmentObject private var documentStore: DocumentStore
@@ -31,6 +33,14 @@ struct ImageEditorView: View {
     @State private var contrast: Double = 1.0
     @State private var sharpen: Double = 1.0
     @State private var showEnhancePopover = false
+
+    /// Marquee selection in normalized image space (0…1); nil when none (#1265).
+    @State private var marqueeSelection: CGRect?
+
+    /// Image documents in the current multi-selection (for batch-apply).
+    private var selectedImages: [Document] {
+        siblingImages.filter { selectedDocumentIDs.contains($0.id) }
+    }
 
     /// Sibling images in the current folder, in display order — the prev/next set.
     private var siblingImages: [Document] {
@@ -67,7 +77,12 @@ struct ImageEditorView: View {
         .task(id: document.id) {
             // External selection changed (host drove a new document).
             activeDocumentID = document.id
+            marqueeSelection = nil
             await model.configure(apiClient: apiClient, documentId: document.id)
+        }
+        .onChange(of: model.chain.operations.count) { _ in
+            // An op changed the rendered image — a stale region would mismap.
+            marqueeSelection = nil
         }
         .alert(
             "Image edit failed",
@@ -81,10 +96,12 @@ struct ImageEditorView: View {
             Text(model.errorMessage ?? "")
         }
     }
+}
 
-    // MARK: - Toolbar
+// MARK: - Toolbar, controls, canvas
 
-    private var toolbar: some View {
+private extension ImageEditorView {
+    var toolbar: some View {
         HStack(spacing: 12) {
             navigationCluster
 
@@ -128,6 +145,23 @@ struct ImageEditorView: View {
                 }
             }
             .disabled(model.isBusy)
+
+            if marqueeSelection != nil {
+                Divider().frame(height: 20)
+                Button {
+                    Task { await cropToSelection() }
+                } label: {
+                    Label("Crop", systemImage: "crop")
+                }
+                .disabled(model.isBusy)
+                .help("Crop the image to the selected region")
+                .accessibilityIdentifier("imageEditCropToSelection")
+            }
+
+            if selectedImages.count > 1 {
+                Divider().frame(height: 20)
+                batchMenu
+            }
 
             Spacer()
 
@@ -183,8 +217,57 @@ struct ImageEditorView: View {
         guard siblingImages.indices.contains(target) else { return }
         let neighbour = siblingImages[target]
         activeDocumentID = neighbour.id
+        marqueeSelection = nil
         onNavigate?(neighbour.id)
         await model.configure(apiClient: apiClient, documentId: neighbour.id)
+    }
+
+    /// Batch-apply menu (#1265) — fans a uniform op out across the multi-file
+    /// selection client-side. Region crop is excluded: a marquee bbox is in one
+    /// image's pixel space and doesn't translate across differently-sized files.
+    private var batchMenu: some View {
+        Menu {
+            Button("Rotate Right 90°") {
+                Task {
+                    await model.batchApply(documentIds: selectedImages.map(\.id)) { service, id in
+                        try await service.rotate(documentId: id, angle: -90)
+                    }
+                }
+            }
+            Button("Auto-Enhance") {
+                Task {
+                    await model.batchApply(documentIds: selectedImages.map(\.id)) { service, id in
+                        try await service.enhance(documentId: id, autoLevels: true)
+                    }
+                }
+            }
+            Button("Remove Background") {
+                Task {
+                    await model.batchApply(documentIds: selectedImages.map(\.id)) { service, id in
+                        try await service.removeBackground(documentId: id)
+                    }
+                }
+            }
+        } label: {
+            Label("Apply to \(selectedImages.count)", systemImage: "square.stack.3d.up")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .disabled(model.isBusy)
+        .help("Apply an edit to all \(selectedImages.count) selected images")
+        .accessibilityIdentifier("imageEditBatchMenu")
+    }
+
+    /// Map the marquee (normalized image space) to source pixels and crop.
+    private func cropToSelection() async {
+        guard let selection = marqueeSelection, let pixelSize = model.preview?.pixelSize else { return }
+        let left = Int((selection.minX * pixelSize.width).rounded())
+        let top = Int((selection.minY * pixelSize.height).rounded())
+        let width = Int((selection.width * pixelSize.width).rounded())
+        let height = Int((selection.height * pixelSize.height).rounded())
+        guard width > 0, height > 0 else { return }
+        await model.crop(left: left, top: top, width: width, height: height)
+        marqueeSelection = nil
     }
 
     private func toolButton(_ systemImage: String, help: String, action: @escaping () -> Void) -> some View {
@@ -260,11 +343,20 @@ struct ImageEditorView: View {
         ZStack {
             CheckerboardPattern().opacity(0.12)
             if let preview = model.preview {
-                Image(nsImage: preview.image)
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
-                    .padding(12)
+                GeometryReader { geo in
+                    let fitted = ImageFit.fittedRect(
+                        imagePixelSize: preview.pixelSize,
+                        in: CGSize(width: geo.size.width - 24, height: geo.size.height - 24)
+                    )
+                    // Re-centre into the padded container.
+                    let frame = fitted.offsetBy(dx: 12, dy: 12)
+                    Image(nsImage: preview.image)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: frame.width, height: frame.height)
+                        .position(x: frame.midX, y: frame.midY)
+                    ImageMarqueeOverlay(fittedRect: frame, normalizedSelection: $marqueeSelection)
+                }
             } else {
                 ProgressView("Loading image…")
                     .controlSize(.small)

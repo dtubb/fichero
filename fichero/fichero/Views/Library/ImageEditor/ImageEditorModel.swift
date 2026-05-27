@@ -129,6 +129,34 @@ final class ImageEditorModel: ObservableObject {
         await runOp { service in try await service.removeOperation(documentId: self.documentId, at: index) }
     }
 
+    /// Apply the same op across many documents (#1265 batch-apply).
+    ///
+    /// There is no backend batch endpoint, so this fans out client-side over
+    /// the per-document op endpoints. Failures on individual documents are
+    /// collected rather than aborting the whole batch; the active document's
+    /// chain + preview are refreshed at the end.
+    func batchApply(
+        documentIds: [String],
+        operation: @escaping (ImageEditingServiceGenerated, String) async throws -> Void
+    ) async {
+        guard let service, !documentIds.isEmpty else { return }
+        isBusy = true
+        defer { isBusy = false }
+        var failures = 0
+        for id in documentIds {
+            do {
+                try await operation(service, id)
+            } catch {
+                failures += 1
+                logger.error("batch op failed for \(id): \(error.localizedDescription)")
+            }
+        }
+        if failures > 0 {
+            errorMessage = "Batch applied with \(failures) failure(s) out of \(documentIds.count)."
+        }
+        await reload()
+    }
+
     func resetAll() async {
         guard let service, !documentId.isEmpty else { return }
         isBusy = true

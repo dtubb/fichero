@@ -215,7 +215,8 @@ extension ContentView {
                                 },
                                 onNavigateToDocument: { docId in
                                     selectDocument(withId: docId)
-                                }
+                                },
+                                selectedDocumentIDs: browserSelection
                             )
                             .overlay { paneFocusIndicator(for: .preview) }
                             .frame(maxWidth: .infinity)
