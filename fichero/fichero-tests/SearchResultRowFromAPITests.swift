@@ -65,4 +65,46 @@ final class SearchResultRowFromAPITests: XCTestCase {
         let visible = String(attr.characters)
         XCTAssertEqual(visible, "Asprilla and others lived here")
     }
+
+    // MARK: - Match-source styling (#1052)
+
+    func testAttributedHighlightEntityMatchAppliesAccentColor() {
+        // KG entity matches should use accent color + background
+        let attr = SearchResultRowFromAPI.attributedHighlight(
+            "Found in document **Asprilla**",
+            matchSource: "entity"
+        )
+        let visible = String(attr.characters)
+        XCTAssertEqual(visible, "Found in document Asprilla")
+    }
+
+    func testAttributedHighlightSearchTermAppliesBold() {
+        // Search-term matches should use bold + primary foreground
+        let attr = SearchResultRowFromAPI.attributedHighlight(
+            "Found in document **Asprilla**",
+            matchSource: "semantic"
+        )
+        let visible = String(attr.characters)
+        XCTAssertEqual(visible, "Found in document Asprilla")
+    }
+
+    func testAttributedHighlightCaseInsensitiveEntityDetection() {
+        // Entity detection should be case-insensitive
+        let attr = SearchResultRowFromAPI.attributedHighlight(
+            "Match: **Asprilla**",
+            matchSource: "ENTITY"
+        )
+        let visible = String(attr.characters)
+        XCTAssertEqual(visible, "Match: Asprilla")
+    }
+
+    func testAttributedHighlightMultiSourceEntityDetection() {
+        // When multiple sources include entity, should apply entity styling
+        let attr = SearchResultRowFromAPI.attributedHighlight(
+            "Match: **Asprilla**",
+            matchSource: "entity + semantic"
+        )
+        let visible = String(attr.characters)
+        XCTAssertEqual(visible, "Match: Asprilla")
+    }
 }
