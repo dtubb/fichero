@@ -703,6 +703,7 @@ from fichero.api.routes import (  # noqa: E402
     export,
     folders,
     hermeneutics,
+    image_editing,
     iiif,
     ingest,
     integrations,
@@ -779,6 +780,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (export.router, "/api", ["export"]),
     (folders.router, "/api/folders", ["folders"]),
     (ingest.router, "/api/ingest", ["ingest"]),
+    (image_editing.router, "/api", ["images"]),
     # /api/library — bootstrap a fresh .fichero package from the CLI
     # without going through SwiftUI's NSDocument flow (#1075 follow-up).
     (library.router, "/api", ["library"]),

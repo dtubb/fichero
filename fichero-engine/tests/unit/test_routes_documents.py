@@ -86,6 +86,53 @@ class TestGetDocument:
 
 
 # ---------------------------------------------------------------------------
+# /api/documents/{doc_id}/notes
+# ---------------------------------------------------------------------------
+
+
+class TestDocumentNotes:
+    def test_put_then_get_document_note(self, client, db):
+        doc = _make_doc(db, "Noted Doc")
+        put = client.put(f"/api/documents/{doc.id}/notes", json={"content": "Remember this"})
+        assert put.status_code == 200
+        assert put.json()["document_id"] == doc.id
+        assert put.json()["content"] == "Remember this"
+
+        get = client.get(f"/api/documents/{doc.id}/notes")
+        assert get.status_code == 200
+        assert get.json()["content"] == "Remember this"
+
+    def test_put_updates_existing_note(self, client, db):
+        doc = _make_doc(db, "Updatable Note")
+        first = client.put(f"/api/documents/{doc.id}/notes", json={"content": "v1"})
+        second = client.put(f"/api/documents/{doc.id}/notes", json={"content": "v2"})
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json()["id"] == second.json()["id"]
+        assert second.json()["content"] == "v2"
+
+    def test_get_missing_note_returns_404(self, client, db):
+        doc = _make_doc(db, "No Note")
+        r = client.get(f"/api/documents/{doc.id}/notes")
+        assert r.status_code == 404
+
+    def test_delete_document_note(self, client, db):
+        doc = _make_doc(db, "Delete Note")
+        create = client.put(f"/api/documents/{doc.id}/notes", json={"content": "temp"})
+        assert create.status_code == 200
+
+        delete = client.delete(f"/api/documents/{doc.id}/notes")
+        assert delete.status_code == 204
+
+        missing = client.get(f"/api/documents/{doc.id}/notes")
+        assert missing.status_code == 404
+
+    def test_notes_missing_document_returns_404(self, client):
+        r = client.put("/api/documents/no-such-doc/notes", json={"content": "x"})
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # GET /api/documents/{doc_id}/children
 # ---------------------------------------------------------------------------
 
