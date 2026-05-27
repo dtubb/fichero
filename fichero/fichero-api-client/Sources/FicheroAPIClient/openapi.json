@@ -8857,6 +8857,68 @@
         }
       }
     },
+    "/api/images/{document_id}/operations/segment": {
+      "post": {
+        "tags": [
+          "images",
+          "images"
+        ],
+        "summary": "Segment Image",
+        "operationId": "segment_image_api_images__document_id__operations_segment_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentOperationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageEditChainResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/images/{document_id}/preview": {
       "get": {
         "tags": [
@@ -47268,6 +47330,44 @@
         ],
         "title": "SearchViewsResponse",
         "description": "Response with available search views."
+      },
+      "SegmentOperationRequest": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "pattern": "^(foreground|page)$",
+            "title": "Method",
+            "default": "foreground"
+          },
+          "threshold": {
+            "type": "integer",
+            "maximum": 255.0,
+            "minimum": 0.0,
+            "title": "Threshold",
+            "default": 28
+          },
+          "min_area": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Min Area",
+            "default": 100
+          },
+          "max_segments": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Max Segments",
+            "default": 20
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "title": "SegmentOperationRequest"
       },
       "SetAttributesRequest": {
         "properties": {

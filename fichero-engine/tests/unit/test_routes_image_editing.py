@@ -1,4 +1,4 @@
-"""Tests for image-editing routes (#462, #463, #466, #467)."""
+"""Tests for image-editing routes (#462, #463, #466, #467, #468)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import io
 
 from PIL import Image
 
-from fichero.models import Document, FileType
+from fichero.models import DocType, Document, FileType
 
 
 def _make_image_doc(db, tmp_path, name: str = "sample.jpg", size: tuple[int, int] = (80, 50)):
@@ -39,6 +39,22 @@ def _make_foreground_image_doc(db, tmp_path, name: str = "foreground.png"):
     for x in range(20, 40):
         for y in range(10, 30):
             img.putpixel((x, y), (10, 20, 30))
+    img.save(image_path, format="PNG")
+
+    doc = Document(name=name, path=str(image_path), file_type=FileType.image)
+    db.save(doc)
+    return doc
+
+
+def _make_segmentable_image_doc(db, tmp_path, name: str = "segments.png"):
+    image_path = tmp_path / name
+    img = Image.new("RGB", (100, 60), "white")
+    for x in range(10, 30):
+        for y in range(10, 30):
+            img.putpixel((x, y), (0, 0, 0))
+    for x in range(65, 90):
+        for y in range(20, 45):
+            img.putpixel((x, y), (0, 0, 0))
     img.save(image_path, format="PNG")
 
     doc = Document(name=name, path=str(image_path), file_type=FileType.image)
@@ -140,6 +156,44 @@ class TestImageEditChainRoutes:
         assert ops[0]["params"] == {"method": "threshold", "threshold": 5}
         assert ops[0]["derived_path"].endswith(".png")
 
+    def test_segment_operation_appends_chain_and_creates_chunk_docs(
+        self, client, db, tmp_path
+    ):
+        doc = _make_segmentable_image_doc(db, tmp_path)
+        rmbg = client.post(
+            f"/api/images/{doc.id}/operations/remove-background",
+            json={"method": "threshold", "threshold": 5, "page": 1},
+        )
+        assert rmbg.status_code == 200
+
+        segment = client.post(
+            f"/api/images/{doc.id}/operations/segment",
+            json={
+                "method": "foreground",
+                "threshold": 5,
+                "min_area": 50,
+                "max_segments": 10,
+                "page": 1,
+            },
+        )
+        assert segment.status_code == 200
+        ops = segment.json()["operations"]
+        assert [op["op"] for op in ops] == ["remove_background", "segment"]
+        assert len(ops[1]["segments"]) == 2
+        assert len(ops[1]["child_document_ids"]) == 2
+        assert "derived_path" in ops[1]
+
+        children = sorted(
+            db.query(Document, parent_id=doc.id, doc_type=DocType.chunk),
+            key=lambda child: child.sequence or 0,
+        )
+        assert [child.sequence for child in children] == [1, 2]
+        assert [child.path for child in children] == [doc.path, doc.path]
+        assert children[0].bbox == (10, 10, 20, 20)
+        assert children[1].bbox == (65, 20, 25, 25)
+        assert children[0].metadata["view_kind"] == "image_segment"
+        assert children[0].metadata["source_document_id"] == doc.id
+
 
 class TestImagePreviewRoute:
     def test_preview_returns_original_without_edits(self, client, db, tmp_path):
@@ -229,6 +283,26 @@ class TestImagePreviewRoute:
         assert edited_img.mode == "RGBA"
         assert edited_img.getpixel((0, 0))[3] == 0
         assert edited_img.getpixel((30, 20))[3] == 255
+
+    def test_preview_regenerates_after_segment_without_copying_source(
+        self, client, db, tmp_path
+    ):
+        doc = _make_segmentable_image_doc(db, tmp_path)
+        segment = client.post(
+            f"/api/images/{doc.id}/operations/segment",
+            json={"method": "foreground", "threshold": 5, "min_area": 50},
+        )
+        assert segment.status_code == 200
+
+        edited = client.get(f"/api/images/{doc.id}/preview")
+        assert edited.status_code == 200
+        assert edited.headers["content-type"].startswith("image/jpeg")
+        img = Image.open(io.BytesIO(edited.content))
+        assert img.size == (100, 60)
+
+        children = db.query(Document, parent_id=doc.id, doc_type=DocType.chunk)
+        assert len(children) == 2
+        assert all(child.path == doc.path for child in children)
 
     def test_preview_missing_source_returns_404(self, client, db):
         doc = Document(name="missing.jpg", path="/tmp/does-not-exist.jpg", file_type=FileType.image)
