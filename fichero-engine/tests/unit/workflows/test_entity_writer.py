@@ -377,9 +377,12 @@ class TestSaveClaim:
             confidence=0.7,
         )
 
-        assert second == first
+        assert second != first
         claims = db.all(KnowledgeClaim)
-        assert len(claims) == 1
+        assert len(claims) == 2
+        doc_ids = {c.source_document_id for c in claims}
+        assert doc_ids == {"doc_corroborate_1", "doc_corroborate_2"}
+        # Canonical (first) claim should still be enriched with corroboration data.
         loaded = db.get(KnowledgeClaim, first)
         assert loaded is not None
         assert loaded.corroboration_count == 2
