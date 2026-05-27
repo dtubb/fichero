@@ -31977,6 +31977,79 @@
         ],
         "title": "AttributesResponse"
       },
+      "AttributionRole": {
+        "type": "string",
+        "enum": [
+          "asserter",
+          "reporter",
+          "recorder",
+          "editor",
+          "translator",
+          "extractor",
+          "source_document"
+        ],
+        "title": "AttributionRole"
+      },
+      "AttributionStep": {
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/AttributionRole"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
+          },
+          "entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Entity Id"
+          },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Label"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/EvidenceBasis",
+            "default": "asserted"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "default": 0.5
+          },
+          "source_excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Excerpt"
+          },
+          "source_field": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Field"
+          },
+          "order": {
+            "type": "integer",
+            "title": "Order",
+            "default": 0
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "title": "AttributionStep",
+        "description": "One actor in a claim attribution chain."
+      },
       "AuthorType": {
         "type": "string",
         "enum": [
@@ -37191,6 +37264,16 @@
         ],
         "title": "EpistemicStatus"
       },
+      "EvidenceBasis": {
+        "type": "string",
+        "enum": [
+          "asserted",
+          "source_anchored",
+          "inferred"
+        ],
+        "title": "EvidenceBasis",
+        "description": "How an evidential dimension was established."
+      },
       "EvidenceChain": {
         "properties": {
           "claim_id": {
@@ -37266,6 +37349,210 @@
           "step_type"
         ],
         "title": "EvidenceChainItem"
+      },
+      "EvidentialDateRange": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "start": {
+            "type": "string",
+            "nullable": true,
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "nullable": true,
+            "title": "End"
+          },
+          "open_start": {
+            "type": "boolean",
+            "title": "Open Start",
+            "default": false
+          },
+          "open_end": {
+            "type": "boolean",
+            "title": "Open End",
+            "default": false
+          },
+          "circa": {
+            "type": "boolean",
+            "title": "Circa",
+            "default": false
+          },
+          "precision": {
+            "type": "string",
+            "nullable": true,
+            "title": "Precision"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Label"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/EvidenceBasis"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "default": 0.5
+          },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id"
+          },
+          "source_page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Page Label"
+          },
+          "source_field": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Field"
+          },
+          "source_excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Excerpt"
+          },
+          "source_char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char Start"
+          },
+          "source_char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char End"
+          },
+          "rationale": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rationale"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "extractor"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "basis"
+        ],
+        "title": "EvidentialDateRange",
+        "description": "Temporal evidence for a claim/entity, including basis and confidence."
+      },
+      "EvidentialPlace": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "geometry_type": {
+            "$ref": "#/components/schemas/PlaceGeometryType",
+            "default": "unknown"
+          },
+          "places": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Places"
+          },
+          "lat": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "nullable": true,
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "nullable": true,
+            "title": "Lon"
+          },
+          "precision_m": {
+            "type": "number",
+            "nullable": true,
+            "title": "Precision M"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Bbox"
+          },
+          "geojson": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Geojson"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/EvidenceBasis"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "default": 0.5
+          },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id"
+          },
+          "source_page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Page Label"
+          },
+          "source_field": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Field"
+          },
+          "source_excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Excerpt"
+          },
+          "rationale": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rationale"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "extractor"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "label",
+          "basis"
+        ],
+        "title": "EvidentialPlace",
+        "description": "Spatial evidence for a claim/entity, from points through named sets."
       },
       "ExecuteAcceptedResponse": {
         "properties": {
@@ -39579,6 +39866,14 @@
             "title": "Time Precision",
             "description": "'year' | 'month' | 'day' | 'range' | 'unknown'"
           },
+          "date_values": {
+            "items": {
+              "$ref": "#/components/schemas/EvidentialDateRange"
+            },
+            "type": "array",
+            "title": "Date Values",
+            "description": "Structured temporal evidence ranges. Each value records basis/assertion type, confidence, and source anchoring."
+          },
           "source_bbox": {
             "items": {
               "type": "number"
@@ -39818,6 +40113,14 @@
             "title": "Claim Location",
             "description": "Free-text location where this claim's events occurred or are spatially scoped to. Complements claim_geo for human-readable place names when exact coordinates are unavailable."
           },
+          "place_values": {
+            "items": {
+              "$ref": "#/components/schemas/EvidentialPlace"
+            },
+            "type": "array",
+            "title": "Place Values",
+            "description": "Structured spatial evidence values. Supports named sets, regions, paths, and points with basis/confidence."
+          },
           "temporal_context": {
             "type": "string",
             "nullable": true,
@@ -39835,6 +40138,48 @@
             "nullable": true,
             "title": "Confidence Source",
             "description": "Where the `confidence` value came from: 'llm_logprob' / 'heuristic' / 'human_review' / 'corroboration' / 'default'. Lets the inspector explain why a claim is rated 0.7 instead of treating the number as load-bearing."
+          },
+          "attribution_chain": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionStep"
+            },
+            "type": "array",
+            "title": "Attribution Chain",
+            "description": "Ordered attribution chain: speaker/asserter, reporter, recorder/source document, editor, translator, extractor."
+          },
+          "source_supports": {
+            "items": {
+              "$ref": "#/components/schemas/SourceSupport"
+            },
+            "type": "array",
+            "title": "Source Supports",
+            "description": "Per-source evidential support for this canonical claim, including source-anchored date/place values."
+          },
+          "corroboration_count": {
+            "type": "integer",
+            "title": "Corroboration Count",
+            "description": "Number of distinct source documents supporting this claim.",
+            "default": 1
+          },
+          "corroborating_source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Corroborating Source Ids"
+          },
+          "evidential_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Evidential Confidence"
+          },
+          "evidential_confidence_source": {
+            "type": "string",
+            "nullable": true,
+            "title": "Evidential Confidence Source",
+            "description": "Why the evidential confidence was assigned."
           },
           "predicate_canonical": {
             "type": "string",
@@ -40080,6 +40425,39 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
+          },
+          "date_values": {
+            "items": {
+              "$ref": "#/components/schemas/EvidentialDateRange"
+            },
+            "type": "array",
+            "title": "Date Values"
+          },
+          "place_values": {
+            "items": {
+              "$ref": "#/components/schemas/EvidentialPlace"
+            },
+            "type": "array",
+            "title": "Place Values"
+          },
+          "attribution_chain": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionStep"
+            },
+            "type": "array",
+            "title": "Attribution Chain"
+          },
+          "source_supports": {
+            "items": {
+              "$ref": "#/components/schemas/SourceSupport"
+            },
+            "type": "array",
+            "title": "Source Supports"
+          },
+          "corroboration_count": {
+            "type": "integer",
+            "title": "Corroboration Count",
+            "default": 0
           },
           "merged_into_id": {
             "type": "string",
@@ -42113,7 +42491,108 @@
         ],
         "title": "NodeCreateRequest"
       },
-      "NodeDef": {
+      "NodeDef-Input": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique node identifier"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool",
+            "description": "Tool function name from registry"
+          },
+          "input_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Input Ports",
+            "description": "Input connection ports (populated from registry, not stored)"
+          },
+          "output_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Output Ports",
+            "description": "Output connection ports (populated from registry, not stored)"
+          },
+          "input_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/InputMapping"
+            },
+            "type": "array",
+            "title": "Input Mappings",
+            "description": "Maps input ports to data sources from previous nodes"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs",
+            "description": "Input values for the tool (supports path resolution)"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config",
+            "description": "Static tool configuration (not resolved)"
+          },
+          "output_schema": {
+            "$ref": "#/components/schemas/OutputSchema",
+            "nullable": true,
+            "description": "JSON Schema for structured LLM output"
+          },
+          "position_x": {
+            "type": "number",
+            "title": "Position X",
+            "default": 0.0
+          },
+          "position_y": {
+            "type": "number",
+            "title": "Position Y",
+            "default": 0.0
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name",
+            "default": ""
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name",
+            "default": ""
+          },
+          "uses_llm": {
+            "type": "boolean",
+            "title": "Uses Llm",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool"
+        ],
+        "title": "NodeDef",
+        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
+      },
+      "NodeDef-Output": {
         "properties": {
           "id": {
             "type": "string",
@@ -43174,6 +43653,17 @@
         ],
         "title": "PdfBackfillResponse",
         "description": "Result of /pdfs/backfill-pages \u2014 how many PDFs needed pages\ncreated and how many pages were created in total."
+      },
+      "PlaceGeometryType": {
+        "type": "string",
+        "enum": [
+          "point",
+          "region",
+          "path",
+          "set",
+          "unknown"
+        ],
+        "title": "PlaceGeometryType"
       },
       "PlanCreateRequest": {
         "properties": {
@@ -46850,8 +47340,7 @@
           "content_preview",
           "metadata"
         ],
-        "title": "SearchResult",
-        "description": "Search result with score and document reference."
+        "title": "SearchResult"
       },
       "SearchSource": {
         "properties": {
@@ -47475,6 +47964,81 @@
         "type": "object",
         "title": "SourceMetadataProvenance",
         "description": "Per-field provenance tracking for source metadata."
+      },
+      "SourceSupport": {
+        "properties": {
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "source_page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Page Label"
+          },
+          "source_excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Excerpt"
+          },
+          "source_char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char Start"
+          },
+          "source_char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char End"
+          },
+          "source_bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Source Bbox"
+          },
+          "support_basis": {
+            "$ref": "#/components/schemas/EvidenceBasis",
+            "default": "asserted"
+          },
+          "support_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Support Confidence",
+            "default": 0.5
+          },
+          "date_values": {
+            "items": {
+              "$ref": "#/components/schemas/EvidentialDateRange"
+            },
+            "type": "array",
+            "title": "Date Values"
+          },
+          "place_values": {
+            "items": {
+              "$ref": "#/components/schemas/EvidentialPlace"
+            },
+            "type": "array",
+            "title": "Place Values"
+          },
+          "attribution_chain": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionStep"
+            },
+            "type": "array",
+            "title": "Attribution Chain"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "source_document_id"
+        ],
+        "title": "SourceSupport",
+        "description": "Per-source evidence supporting a canonical claim/entity."
       },
       "SourceType": {
         "type": "string",
@@ -50252,7 +50816,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef"
+              "$ref": "#/components/schemas/NodeDef-Input"
             },
             "type": "array",
             "title": "Nodes"
@@ -50486,7 +51050,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef"
+              "$ref": "#/components/schemas/NodeDef-Output"
             },
             "type": "array",
             "title": "Nodes"

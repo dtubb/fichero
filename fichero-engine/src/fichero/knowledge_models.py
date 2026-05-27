@@ -425,6 +425,116 @@ class GeoPoint(BaseModel):
     place_name: str | None = None
 
 
+class EvidenceBasis(str, Enum):
+    """How an evidential dimension was established."""
+
+    asserted = "asserted"
+    source_anchored = "source_anchored"
+    inferred = "inferred"
+
+
+class PlaceGeometryType(str, Enum):
+    point = "point"
+    region = "region"
+    path = "path"
+    set = "set"
+    unknown = "unknown"
+
+
+class AttributionRole(str, Enum):
+    asserter = "asserter"
+    reporter = "reporter"
+    recorder = "recorder"
+    editor = "editor"
+    translator = "translator"
+    extractor = "extractor"
+    source_document = "source_document"
+
+
+class EvidentialDateRange(BaseModel):
+    """Temporal evidence for a claim/entity, including basis and confidence."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    start: str | None = None
+    end: str | None = None
+    open_start: bool = False
+    open_end: bool = False
+    circa: bool = False
+    precision: str | None = None
+    label: str | None = None
+    basis: EvidenceBasis
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    source_document_id: str | None = None
+    source_page_label: str | None = None
+    source_field: str | None = None
+    source_excerpt: str | None = None
+    source_char_start: int | None = None
+    source_char_end: int | None = None
+    rationale: str | None = None
+    created_by: str = "extractor"
+
+
+class EvidentialPlace(BaseModel):
+    """Spatial evidence for a claim/entity, from points through named sets."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    label: str
+    geometry_type: PlaceGeometryType = PlaceGeometryType.unknown
+    places: list[str] = Field(default_factory=list)
+    lat: float | None = Field(default=None, ge=-90.0, le=90.0)
+    lon: float | None = Field(default=None, ge=-180.0, le=180.0)
+    precision_m: float | None = None
+    bbox: list[float] | None = None
+    geojson: dict | None = None
+    basis: EvidenceBasis
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    source_document_id: str | None = None
+    source_page_label: str | None = None
+    source_field: str | None = None
+    source_excerpt: str | None = None
+    rationale: str | None = None
+    created_by: str = "extractor"
+
+
+class AttributionStep(BaseModel):
+    """One actor in a claim attribution chain."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    role: AttributionRole
+    name: str | None = None
+    entity_id: str | None = None
+    document_id: str | None = None
+    label: str | None = None
+    basis: EvidenceBasis = EvidenceBasis.asserted
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    source_excerpt: str | None = None
+    source_field: str | None = None
+    order: int = 0
+
+
+class SourceSupport(BaseModel):
+    """Per-source evidence supporting a canonical claim/entity."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    source_document_id: str
+    source_page_label: str | None = None
+    source_excerpt: str | None = None
+    source_char_start: int | None = None
+    source_char_end: int | None = None
+    source_bbox: list[float] | None = None
+    support_basis: EvidenceBasis = EvidenceBasis.asserted
+    support_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    date_values: list[EvidentialDateRange] = Field(default_factory=list)
+    place_values: list[EvidentialPlace] = Field(default_factory=list)
+    attribution_chain: list[AttributionStep] = Field(default_factory=list)
+
+
 class ProvenanceStep(BaseModel):
     """One step in a document's chain of custody.
 
@@ -519,6 +629,11 @@ class KnowledgeEntity(BaseModel):
     description: str | None = None
     language: str | None = None
     metadata: dict = Field(default_factory=dict)
+    date_values: list[EvidentialDateRange] = Field(default_factory=list)
+    place_values: list[EvidentialPlace] = Field(default_factory=list)
+    attribution_chain: list[AttributionStep] = Field(default_factory=list)
+    source_supports: list[SourceSupport] = Field(default_factory=list)
+    corroboration_count: int = 0
     merged_into_id: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
@@ -1282,6 +1397,13 @@ class KnowledgeClaim(BaseModel):
         default=None,
         description="'year' | 'month' | 'day' | 'range' | 'unknown'",
     )
+    date_values: list[EvidentialDateRange] = Field(
+        default_factory=list,
+        description=(
+            "Structured temporal evidence ranges. Each value records "
+            "basis/assertion type, confidence, and source anchoring."
+        ),
+    )
     source_bbox: list[float] | None = Field(
         default=None,
         description=(
@@ -1534,6 +1656,13 @@ class KnowledgeClaim(BaseModel):
             "place names when exact coordinates are unavailable."
         ),
     )
+    place_values: list[EvidentialPlace] = Field(
+        default_factory=list,
+        description=(
+            "Structured spatial evidence values. Supports named sets, "
+            "regions, paths, and points with basis/confidence."
+        ),
+    )
     temporal_context: str | None = Field(
         default=None,
         description=(
@@ -1562,6 +1691,30 @@ class KnowledgeClaim(BaseModel):
             "Lets the inspector explain why a claim is rated 0.7 "
             "instead of treating the number as load-bearing."
         ),
+    )
+    attribution_chain: list[AttributionStep] = Field(
+        default_factory=list,
+        description=(
+            "Ordered attribution chain: speaker/asserter, reporter, "
+            "recorder/source document, editor, translator, extractor."
+        ),
+    )
+    source_supports: list[SourceSupport] = Field(
+        default_factory=list,
+        description=(
+            "Per-source evidential support for this canonical claim, "
+            "including source-anchored date/place values."
+        ),
+    )
+    corroboration_count: int = Field(
+        default=1,
+        description="Number of distinct source documents supporting this claim.",
+    )
+    corroborating_source_ids: list[str] = Field(default_factory=list)
+    evidential_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    evidential_confidence_source: str | None = Field(
+        default=None,
+        description="Why the evidential confidence was assigned.",
     )
 
     # --- predicate canonical vocabulary ---

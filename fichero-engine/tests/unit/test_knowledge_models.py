@@ -6,16 +6,24 @@ from pathlib import Path
 import pytest
 
 from fichero.knowledge_models import (
+    AttributionRole,
+    AttributionStep,
+    EvidenceBasis,
+    EvidentialDateRange,
+    EvidentialPlace,
     SourceMetadata,
     ProvenanceInfo,
     KnowledgeClaim,
+    KnowledgeEntity,
     # #1123 attribution taxonomy
     QuotationKind,
     ProvenanceLayer,
     SourceGenre,
     GeoPoint,
+    PlaceGeometryType,
     ProvenanceStep,
     ImageProvenance,
+    SourceSupport,
 )
 
 
@@ -448,6 +456,102 @@ class TestAttributionDuckDBRoundTrip:
             assert isinstance(loaded.claim_geo, GeoPoint)
             assert loaded.claim_geo.lat == 2.4448
             assert loaded.claim_geo.place_name == "Popayán"
+
+
+class TestEvidentialModel:
+    """Temporal/spatial evidential dimensions for claims and entities (#1266)."""
+
+    def test_claim_evidential_defaults_are_empty_lists(self):
+        claim = KnowledgeClaim(text="x", source_document_id="d1")
+        assert claim.date_values == []
+        assert claim.place_values == []
+        assert claim.attribution_chain == []
+        assert claim.source_supports == []
+        assert claim.corroboration_count == 1
+        assert claim.corroborating_source_ids == []
+        assert claim.evidential_confidence is None
+
+    def test_entity_evidential_defaults_are_empty_lists(self):
+        entity = KnowledgeEntity(canonical_name="Popayán")
+        assert entity.date_values == []
+        assert entity.place_values == []
+        assert entity.attribution_chain == []
+        assert entity.source_supports == []
+        assert entity.corroboration_count == 0
+
+    def test_claim_evidential_round_trip(self):
+        from fichero.db import Database
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Database(Path(tmp) / "test.fichero")
+            date = EvidentialDateRange(
+                start="1820-01-01",
+                end="1820-12-31",
+                precision="year",
+                basis=EvidenceBasis.asserted,
+                confidence=0.82,
+                source_document_id="doc-1",
+                source_excerpt="in 1820 Pedro filed",
+            )
+            place = EvidentialPlace(
+                label="Popayán jurisdiction",
+                geometry_type=PlaceGeometryType.region,
+                bbox=[-77.2, 2.1, -76.2, 3.0],
+                basis=EvidenceBasis.source_anchored,
+                confidence=0.55,
+                source_field="source_metadata.place",
+            )
+            chain = [
+                AttributionStep(
+                    role=AttributionRole.asserter,
+                    name="Pedro",
+                    basis=EvidenceBasis.asserted,
+                    confidence=0.8,
+                    order=0,
+                ),
+                AttributionStep(
+                    role=AttributionRole.source_document,
+                    document_id="doc-1",
+                    label="Letter One",
+                    basis=EvidenceBasis.source_anchored,
+                    order=1,
+                ),
+            ]
+            support = SourceSupport(
+                source_document_id="doc-1",
+                source_page_label="3",
+                support_basis=EvidenceBasis.asserted,
+                support_confidence=0.82,
+                date_values=[date],
+                place_values=[place],
+                attribution_chain=chain,
+            )
+            claim = KnowledgeClaim(
+                text="Pedro filed the petition.",
+                source_document_id="doc-1",
+                time_start="1820-01-01",
+                time_end="1820-12-31",
+                time_precision="year",
+                date_values=[date],
+                place_values=[place],
+                attribution_chain=chain,
+                source_supports=[support],
+                corroboration_count=2,
+                corroborating_source_ids=["doc-1", "doc-7"],
+                evidential_confidence=0.87,
+                evidential_confidence_source="corroboration",
+            )
+            db.save(claim)
+
+            loaded = db.get(KnowledgeClaim, claim.id)
+            assert loaded is not None
+            assert loaded.date_values[0].basis == EvidenceBasis.asserted
+            assert loaded.place_values[0].geometry_type == PlaceGeometryType.region
+            assert loaded.attribution_chain[0].role == AttributionRole.asserter
+            assert loaded.source_supports[0].date_values[0].start == "1820-01-01"
+            assert loaded.corroboration_count == 2
+            assert loaded.corroborating_source_ids == ["doc-1", "doc-7"]
+            assert loaded.evidential_confidence == 0.87
 
 
 class TestDocumentProvenance:
