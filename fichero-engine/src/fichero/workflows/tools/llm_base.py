@@ -490,7 +490,12 @@ async def save_artifact(
         )
         if tool_config.update_page_content and not user_edited:
             doc.page_content = content
-            doc.status = Status.completed
+            # In-progress, NOT completed: a content-producing node may be one
+            # of several pipeline steps. The workflow boundary owns the flip to
+            # completed once the whole run finishes, so the green check no
+            # longer appears after just the first step (#1282). See
+            # fichero.workflows.completion.complete_run_documents.
+            doc.status = Status.processing
             doc.updated_at = datetime.now()
             db.save(doc)
 

@@ -752,7 +752,12 @@ async def _propagate_to_page_children(
                 if not isinstance(page_doc.metadata, dict):
                     page_doc.metadata = {}
                 page_doc.page_content = page_text
-                page_doc.status = Status.completed
+                # In-progress, NOT completed: transcription is only the first
+                # pipeline step. The workflow boundary flips this to completed
+                # once ALL steps (NER / extract / KG) finish, so the page's
+                # green check no longer appears mid-run (#1282). See
+                # fichero.workflows.completion.complete_run_documents.
+                page_doc.status = Status.processing
                 db.save(page_doc)
                 db.embed(page_doc)
 

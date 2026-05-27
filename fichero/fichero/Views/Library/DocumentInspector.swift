@@ -791,6 +791,14 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     /// `true` for Page Content; `false` for generated artifacts.
     let defaultExpanded: Bool
 
+    /// When true the content editor expands to fill all available vertical
+    /// space (top-aligned) rather than sizing to its intrinsic content height.
+    /// Set only for the Page Content panel in the Content tab's no-ScrollView
+    /// layout, so the editor runs full-height below the attribute strip with no
+    /// vertical centring (#1286). Left false elsewhere to preserve the
+    /// intrinsic-height sizing the ScrollView path relies on (#960/#1062).
+    let fillsHeight: Bool
+
     @State private var isExpanded: Bool
 
     /// UserDefaults key for this panel's expansion state, keyed by both
@@ -814,11 +822,13 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     init(
         kind: PanelKind,
         defaultExpanded: Bool = true,
+        fillsHeight: Bool = false,
         onDelete: (() -> Void)? = nil,
         onSave: ((String) async -> Void)? = nil
     ) {
         self.kind = kind
         self.defaultExpanded = defaultExpanded
+        self.fillsHeight = fillsHeight
         self.onDelete = onDelete
         self.onSave = onSave
 
@@ -861,19 +871,21 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         Group {
             if isPageContent {
                 // Page Content is the document's PRIMARY content, not an
-                // optional artifact — render it always-expanded with NO
-                // disclosure chrome (#1245). A plain header + body in a VStack
-                // (instead of a DisclosureGroup whose disclosed flexible-height
-                // editor overdrew upward onto the attribute strip) keeps the
-                // content flowing strictly BELOW the attribute rows.
-                VStack(alignment: .leading, spacing: 0) {
-                    header
-                    contentBody
-                        .padding(.top, 2)
-                        .padding(.bottom, 6)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                // optional artifact — render it with NO disclosure chrome and
+                // NO title row. The title is always "Page Content", so the
+                // header is redundant; dropping it reclaims that space and lets
+                // the editor start right below the attribute strip (#1286). The
+                // content is top-aligned and fills the available height when the
+                // panel owns the inspector pane (fillsHeight), so there's no
+                // vertical centring / dead space (#1245, #1286).
+                contentBody
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: fillsHeight ? .infinity : nil,
+                        alignment: .top
+                    )
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     DisclosureGroup(isExpanded: $isExpanded) {
@@ -1017,10 +1029,12 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
                     controller: richTextController
                 )
                 // Width stretches; height comes from AttributedTextEditor's
-                // sizeThatFits (its layoutManager.usedRect). No maxHeight here:
-                // letting it claim .infinity inside the outer ScrollView made
-                // every expanded panel fill the viewport (#960).
-                .frame(maxWidth: .infinity)
+                // sizeThatFits (its layoutManager.usedRect). No maxHeight in the
+                // ScrollView path: letting it claim .infinity there made every
+                // expanded panel fill the viewport (#960). When fillsHeight is
+                // set (Page Content in the no-ScrollView Content tab), the
+                // editor DOES claim .infinity so it runs full-height (#1286).
+                .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : nil)
                 .background(Color(.textBackgroundColor))
                 .cornerRadius(4)
             }
@@ -1385,15 +1399,22 @@ struct DocumentInspectorContentV2: View {
             if mode != .artifactsOnly {
                 ArtifactPanel(
                     kind: .pageContent(text: document.pageContent ?? ""),
+                    // In pageContentOnly there's no outer ScrollView, so the
+                    // editor fills the pane top-down instead of centring (#1286).
+                    fillsHeight: mode == .pageContentOnly,
                     onSave: { newContent in
                         await savePageContent(newContent)
                     }
                 )
                 // In pageContentOnly mode there's no outer ScrollView, so
                 // the panel can safely claim all remaining inspector height.
-                // Without this, the VStack wraps at the editor's sizeThatFits
-                // and leaves dead space below (#1062).
-                .frame(maxWidth: .infinity, maxHeight: mode == .pageContentOnly ? .infinity : nil)
+                // Top alignment keeps the content pinned just below the
+                // attribute strip rather than floating centred (#1062, #1286).
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: mode == .pageContentOnly ? .infinity : nil,
+                    alignment: .top
+                )
             }
 
             // Generated artifacts — only when the mode wants them. Each one

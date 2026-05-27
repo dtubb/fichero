@@ -554,6 +554,31 @@ class BatchManager:
                     item.status = BatchItemStatus.COMPLETED
                     item.completed_at = datetime.now(timezone.utc)
 
+                    # This item's full pipeline is done — flip its documents
+                    # (and their page children) from processing → completed.
+                    # Tool nodes leave docs in `processing` mid-pipeline so the
+                    # per-page green check no longer appears after just the
+                    # first step (#1282). Scoped to THIS item's documents so
+                    # concurrent items don't complete each other's pages.
+                    try:
+                        from fichero.db_manager import db_manager
+                        from fichero.workflows.completion import (
+                            collect_processed_document_ids,
+                            complete_run_documents,
+                        )
+
+                        snapshot = await compiled_graph.aget_state(config)
+                        run_doc_ids = collect_processed_document_ids(
+                            getattr(snapshot, "values", None)
+                        )
+                        item_db = db_manager.get_database(str(self.db_path.parent))
+                        complete_run_documents(item_db, run_doc_ids)
+                    except Exception as completion_exc:
+                        logger.warning(
+                            f"Batch {batch_id} item {item.item_index} "
+                            f"completion failed: {completion_exc}"
+                        )
+
                 except Exception as e:
                     item.status = BatchItemStatus.FAILED
                     item.error = str(e)

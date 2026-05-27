@@ -44,9 +44,10 @@
         body {
             margin: 0;
             font-family: var(--font-system);
-            background:
-                radial-gradient(circle at top left, rgba(13, 107, 111, 0.08), transparent 32%),
-                linear-gradient(180deg, #f9f7f1 0%, #f2ede4 100%);
+            /* Flat macOS-style surface that matches the Document Inspector:
+               the live system background (var(--bg) is overridden from Swift
+               with .textBackgroundColor), not a cream "paper" gradient (#1280). */
+            background: var(--bg);
             color: var(--text);
         }
 
@@ -94,10 +95,10 @@
         }
 
         .panel {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+            /* Flat, square, seamless with the page background — no rounded
+               "paper card" border-radius/shadow. Matches the inspector's flat
+               treatment (#1280). */
+            background: var(--bg);
             padding: 12px;
         }
 
