@@ -13,6 +13,10 @@ def test_release_tier_exposes_001_routes():
     assert "/api/documents" in prefixes
     assert "/api/search" in prefixes
     assert "/api/ingest" in prefixes
+    assert any(
+        prefix == "/api" and "export" in tags
+        for _, prefix, tags in get_route_specs_for_tier("release")
+    )
     assert "/api/storage" in prefixes
     assert "/api/folders" in prefixes
     assert "/api/artifacts" in prefixes
@@ -20,11 +24,16 @@ def test_release_tier_exposes_001_routes():
     assert "/api/providers" in prefixes
     assert "/api/models" in prefixes
     assert "/api/chat" in prefixes
+    assert any(
+        prefix == "/api" and "model-comparison" in tags
+        for _, prefix, tags in get_route_specs_for_tier("release")
+    )
     assert "/api/workflows" in prefixes
     assert "/api/workflow-execution" in prefixes
     # Chains promoted from dev to core for 0.0.2 (#1151)
-    from fichero.api.main import get_route_specs_for_tier
-    chain_tags = [tags for _, _, tags in get_route_specs_for_tier("release") if "chains" in tags]
+    chain_tags = [
+        tags for _, _, tags in get_route_specs_for_tier("release") if "chains" in tags
+    ]
     assert chain_tags, "chains router must be in release tier (#1151)"
 
 

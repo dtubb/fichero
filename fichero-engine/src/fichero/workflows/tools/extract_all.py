@@ -78,6 +78,8 @@ KG_WRITE_CONFIG = {
 # token window) can't accept a full page of dense OCR; 3K chars leaves
 # room for the combined-prompt overhead.
 _MAX_CHUNK_CHARS = 3000
+_LARGE_RUN_PAGE_COUNT = 50
+_PROGRESS_LOG_EVERY_PAGES = 25
 
 
 _INPUT_PORTS = merge_ports(
@@ -117,6 +119,34 @@ _LANGUAGE_CONFIG = {
         ),
     },
 }
+
+
+async def _yield_page_work(
+    phase: str,
+    page_index: int,
+    total_pages: int,
+) -> None:
+    """Cooperate with the server loop during large per-page batches.
+
+    A 443-page catalogue run has thousands of small synchronous post-LLM
+    steps. Each one is fine alone, but the uninterrupted loop can starve
+    `/api/health`. Yield at page boundaries so unrelated requests get a
+    chance to run between pages.
+    """
+    await asyncio.sleep(0)
+    if (
+        total_pages >= _LARGE_RUN_PAGE_COUNT
+        and (
+            (page_index + 1) % _PROGRESS_LOG_EVERY_PAGES == 0
+            or page_index + 1 == total_pages
+        )
+    ):
+        logger.info(
+            "extract_all: %s progress %d/%d pages",
+            phase,
+            page_index + 1,
+            total_pages,
+        )
 
 
 # SVO predicate fields shared across every entity-bearing section in
@@ -1204,7 +1234,11 @@ async def extract_all(
     - oneshot (default): One LLM call per page for all entity types
     - twostage: First extracts entity names, then per-entity claims
     """
-    text, recovered_records = _recover_text_and_records(inputs, state)
+    text, recovered_records = await asyncio.to_thread(
+        _recover_text_and_records,
+        inputs,
+        state,
+    )
     if not text:
         return {"text": "", "value": {}, "error": "No text input"}
 
@@ -1437,6 +1471,11 @@ async def extract_all(
                 for page_idx, (chunk_text, items, page_doc_id) in enumerate(
                     zip(chunks, section_chunks, page_doc_ids)
                 ):
+                    await _yield_page_work(
+                        f"{key} KG write",
+                        page_idx,
+                        len(chunks),
+                    )
                     if not items:
                         continue
                     page_label = f"Page {page_idx + 1}" if len(chunks) > 1 else None
@@ -1467,9 +1506,14 @@ async def extract_all(
                 # Per-page artifact saves so the inspector + cache see
                 # the right shape.
                 if is_per_page:
-                    for chunk_text, items, page_doc_id in zip(
-                        chunks, section_chunks, page_doc_ids
+                    for page_idx, (chunk_text, items, page_doc_id) in enumerate(
+                        zip(chunks, section_chunks, page_doc_ids)
                     ):
+                        await _yield_page_work(
+                            f"{key} artifact save",
+                            page_idx,
+                            len(chunks),
+                        )
                         if not page_doc_id or not items:
                             continue
                         page_md = _render_section_markdown(section, items)
@@ -1484,6 +1528,7 @@ async def extract_all(
                         ))
                 else:
                     # Container-level fallback.
+                    await _yield_page_work(f"{key} artifact save", 0, 1)
                     flat = [item for ic in section_chunks for item in ic]
                     if flat:
                         db_writer.save(Artifact(
@@ -1503,6 +1548,11 @@ async def extract_all(
                 for page_idx, (err, page_doc_id) in enumerate(
                     zip(page_errors, page_doc_ids)
                 ):
+                    await _yield_page_work(
+                        "extraction_error artifact save",
+                        page_idx,
+                        len(page_doc_ids),
+                    )
                     if not err or not page_doc_id:
                         continue
                     db.save(Artifact(
@@ -1528,7 +1578,12 @@ async def extract_all(
                 custom_entity_type_set = set(custom_entity_types)
                 # Use sets while accumulating to keep dedup O(n).
                 seen: dict[str, set[str]] = {}
-                for cr in chunk_results:
+                for chunk_idx, cr in enumerate(chunk_results):
+                    await _yield_page_work(
+                        "custom entity merge",
+                        chunk_idx,
+                        len(chunk_results),
+                    )
                     for type_key, names in (cr.get("additional_entities") or {}).items():
                         if type_key not in custom_entity_type_set:
                             continue
@@ -1543,7 +1598,7 @@ async def extract_all(
 
             # Drain the queued artifact writes before this node returns
             # — downstream folder-cleanup nodes read these artifacts.
-            db_writer.flush()
+            await asyncio.to_thread(db_writer.flush)
             container.updated_at = datetime.now()
             db.save(container)
         except Exception as exc:

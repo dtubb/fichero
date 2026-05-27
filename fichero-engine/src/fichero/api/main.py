@@ -62,6 +62,7 @@ from fichero.db import Database, db_manager
 
 logger = logging.getLogger(__name__)
 
+
 def _install_warning_filters() -> None:
     """Suppress lancedb's over-broad fork-safety advisory.
 
@@ -204,6 +205,7 @@ def _seed_builtin_providers() -> None:
         if apple_provider is not None:
             existing = list(app_db.list_models(apple_provider.id))
             from collections import defaultdict
+
             by_model_id: dict[str, list] = defaultdict(list)
             for m in existing:
                 by_model_id[m.model_id].append(m)
@@ -212,15 +214,16 @@ def _seed_builtin_providers() -> None:
                     continue
                 # Pick the row with the most capabilities as canonical;
                 # tie-break on earliest created_at for stability.
-                rows.sort(key=lambda r: (-len(r.capabilities or []),
-                                         r.created_at or 0))
+                rows.sort(key=lambda r: (-len(r.capabilities or []), r.created_at or 0))
                 keep = rows[0]
                 for dup in rows[1:]:
                     try:
                         app_db.delete_model(dup.id)
                         logger.info(
                             "Collapsed duplicate Apple model %s (%s) — kept %s",
-                            dup.name, dup.id, keep.id,
+                            dup.name,
+                            dup.id,
+                            keep.id,
                         )
                     except Exception as exc:
                         logger.warning(
@@ -322,7 +325,8 @@ def _ensure_default_ai_defaults(app_db, apple_provider_id: str) -> None:
     if written:
         logger.info(
             "Seeded Apple Intelligence as default for %d AI tier keys: %s",
-            len(written), ", ".join(written),
+            len(written),
+            ", ".join(written),
         )
 
 
@@ -365,8 +369,11 @@ def _collapse_duplicate_providers() -> None:
             app_db.conn.commit()
             logger.info(
                 "Collapsed %d duplicate %s providers named %r into %s (reparented %d models)",
-                len(duplicates), key[0].value if hasattr(key[0], "value") else key[0],
-                key[1], canonical.id, len(reparent_pairs),
+                len(duplicates),
+                key[0].value if hasattr(key[0], "value") else key[0],
+                key[1],
+                canonical.id,
+                len(reparent_pairs),
             )
     except Exception as exc:
         logger.warning("Provider duplicate collapse failed: %s", exc)
@@ -383,8 +390,11 @@ def _prewarm_embeddings() -> None:
         cache_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Pre-warming embeddings model: %s", DEFAULT_MODEL)
         import warnings
+
         with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message=".*multilingual-e5-large.*pooling.*")
+            warnings.filterwarnings(
+                "ignore", message=".*multilingual-e5-large.*pooling.*"
+            )
             TextEmbedding(model_name=DEFAULT_MODEL, cache_dir=str(cache_dir))
         logger.info("Embeddings model ready")
     except Exception as exc:
@@ -690,6 +700,7 @@ from fichero.api.routes import (  # noqa: E402
     documents,
     entities,
     entity_inspector,
+    export,
     folders,
     hermeneutics,
     iiif,
@@ -765,6 +776,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (entity_inspector.router, "/api", ["entities"]),
     (kg_search.router, "/api", ["knowledge-graph"]),
     (entities.router, "/api", ["entities"]),
+    (export.router, "/api", ["export"]),
     (folders.router, "/api/folders", ["folders"]),
     (ingest.router, "/api/ingest", ["ingest"]),
     # /api/library — bootstrap a fresh .fichero package from the CLI
@@ -786,6 +798,10 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (settings.router, "", ["settings"]),
     (sources.router, "/api/sources", ["sources"]),
     (models.router, "/api/models", ["models"]),
+    # Model comparison is part of the shipped chat/LLM surface for #1262.
+    # It was already implemented but remained dev-tier gated, so release
+    # engines returned 404 for /api/model-comparison/*.
+    (model_comparison.router, "/api", ["model-comparison"]),
     # claim_curation: KnowledgeClaim curation_state machine
     # (transition / shortlist / curate / reject). Mounts under /api/claims.
     # Renamed from review_queue 2026-05-15 — the file is unrelated to the
@@ -847,7 +863,6 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (integrations.router, "/api", ["integrations"]),
     (local_models.router, "/api", ["local-models"]),
     (mcp_servers.router, "/api", ["mcp-servers"]),
-    (model_comparison.router, "/api", ["model-comparison"]),
     (orchestration.router, "", ["orchestration"]),
     (schedules.router, "/api", ["schedules"]),
     (triggers.router, "/api", ["triggers"]),

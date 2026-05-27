@@ -5,8 +5,9 @@ and compare outputs. Routes live at /api/model-comparison/... (router
 prefix="/model-comparison" mounted at "/api"). Engine calls are mocked.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
+
+from fichero.workflows.model_comparison import ComparisonResult, ModelResult
 
 
 # ---------------------------------------------------------------------------
@@ -69,6 +70,34 @@ class TestGetHistory:
         data = r.json()
         assert "history" in data
 
+    def test_returns_non_empty_history(self, client):
+        comparison = ComparisonResult(
+            prompt="Summarize this",
+            models_compared=["openai/gpt-4o-mini"],
+            results=[
+                ModelResult(
+                    provider="openai",
+                    model="gpt-4o-mini",
+                    response="Summary",
+                    latency_ms=12.0,
+                )
+            ],
+            fastest_model="openai/gpt-4o-mini",
+            cheapest_model="openai/gpt-4o-mini",
+            comparison_id="cmp-1",
+        )
+        mock_engine = MagicMock()
+        mock_engine.get_history.return_value = [comparison.to_dict()]
+
+        with patch(
+            "fichero.api.routes.model_comparison.get_comparison_engine",
+            return_value=mock_engine,
+        ):
+            r = client.get("/api/model-comparison/history")
+
+        assert r.status_code == 200
+        assert r.json()["history"][0]["comparison_id"] == "cmp-1"
+
 
 # ---------------------------------------------------------------------------
 # GET /api/model-comparison/comparison/{id}
@@ -105,3 +134,46 @@ class TestEstimateCost:
         assert "model_estimates" in data
         assert "total_estimated_cost_usd" in data
         assert len(data["model_estimates"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# POST /api/model-comparison/compare
+# ---------------------------------------------------------------------------
+
+
+class TestCompareModels:
+    def test_compare_returns_results(self, client):
+        comparison = ComparisonResult(
+            prompt="Hello",
+            models_compared=["openai/gpt-4o-mini"],
+            results=[
+                ModelResult(
+                    provider="openai",
+                    model="gpt-4o-mini",
+                    response="Hi",
+                    latency_ms=5.0,
+                )
+            ],
+            fastest_model="openai/gpt-4o-mini",
+            cheapest_model="openai/gpt-4o-mini",
+            comparison_id="cmp-route",
+        )
+        mock_engine = MagicMock()
+        mock_engine.compare = AsyncMock(return_value=comparison)
+
+        with patch(
+            "fichero.api.routes.model_comparison.get_comparison_engine",
+            return_value=mock_engine,
+        ):
+            r = client.post(
+                "/api/model-comparison/compare",
+                json={
+                    "prompt": "Hello",
+                    "models": [{"provider": "openai", "model": "gpt-4o-mini"}],
+                },
+            )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["comparison_id"] == "cmp-route"
+        assert data["results"][0]["response"] == "Hi"

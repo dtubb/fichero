@@ -5,9 +5,7 @@ is out of scope here — tests focus on conversation CRUD (list, get, update,
 delete, reorder) and the providers list. Chat routes live at /api/chat/...
 """
 
-import pytest
-
-from fichero.models import Conversation
+from fichero.models import Conversation, Document
 
 
 # ---------------------------------------------------------------------------
@@ -17,6 +15,19 @@ from fichero.models import Conversation
 
 def _make_conv(conv_id: str = "conv-1", title: str = "My Chat") -> Conversation:
     return Conversation(id=conv_id, title=title, messages=[])
+
+
+class _FakeLLM:
+    def __init__(self):
+        self.prompt = ""
+
+    def invoke(self, prompt: str):
+        self.prompt = prompt
+
+        class _Response:
+            content = "Ada Lovelace appears in the archive."
+
+        return _Response()
 
 
 # ---------------------------------------------------------------------------
@@ -37,6 +48,55 @@ class TestListConversations:
         r = client.get("/api/chat/conversations")
         assert r.status_code == 200
         assert len(r.json()["items"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# POST /api/chat
+# ---------------------------------------------------------------------------
+
+
+class TestChatWithSources:
+    def test_chat_scoped_to_document_returns_sources(
+        self, client, db, monkeypatch
+    ):
+        doc = Document(
+            id="doc-chat-source",
+            name="Lovelace notes",
+            page_content="Ada Lovelace wrote notes on the Analytical Engine.",
+        )
+        db.save(doc)
+
+        fake_llm = _FakeLLM()
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: fake_llm,
+        )
+
+        r = client.post(
+            "/api/chat",
+            json={
+                "message": "Who wrote notes on the Analytical Engine?",
+                "document_ids": [doc.id],
+                "include_sources": True,
+                "provider": "openai",
+                "model": "gpt-4o-mini",
+            },
+        )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["message"] == "Ada Lovelace appears in the archive."
+        assert data["sources"] == [
+            {
+                "document_id": doc.id,
+                "document_name": "Lovelace notes",
+                "excerpt": "Ada Lovelace wrote notes on the Analytical Engine.",
+                "relevance_score": 1.0,
+            }
+        ]
+        assert data["model_used"] == "openai/gpt-4o-mini"
+        assert "[Document 1: Lovelace notes]" in fake_llm.prompt
+        assert db.get(Conversation, data["conversation_id"]) is not None
 
 
 # ---------------------------------------------------------------------------
