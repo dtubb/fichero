@@ -145,9 +145,33 @@ def extract_endpoints(openapi_schema: dict) -> dict:
     return endpoints
 
 
+def ensure_named_schemas(openapi_schema: dict, models: list) -> None:
+    """Guarantee specific Pydantic models appear as named components/schemas.
+
+    FastAPI only emits a nested model as a named component when it is reachable
+    during schema generation, and that reachability is non-deterministic across
+    feature tiers (#1275 — the export has produced inconsistent schemas on repeated
+    runs since 2026-05-25). The Swift client hand-wraps Components.Schemas.NodeDef /
+    EdgeDef, so a dropped definition breaks the macOS build. Inject each model's
+    JSON schema (and its nested $defs) when absent, without clobbering a correct
+    emission.
+    """
+    schemas = openapi_schema.setdefault("components", {}).setdefault("schemas", {})
+    for model in models:
+        js = model.model_json_schema(ref_template="#/components/schemas/{model}")
+        for dname, dschema in js.pop("$defs", {}).items():
+            schemas.setdefault(dname, dschema)
+        schemas.setdefault(model.__name__, js)
+
+
 def main():
     # Get OpenAPI schema from FastAPI app
     openapi_schema = app.openapi()
+
+    # #1275: guarantee Swift-hand-wrapped nested models are always named components
+    # (FastAPI nested-model emission is non-deterministic across feature tiers).
+    from fichero.workflows.types import EdgeDef, NodeDef
+    ensure_named_schemas(openapi_schema, [NodeDef, EdgeDef])
 
     # Convert nullable schemas for Swift compatibility
     openapi_schema = convert_nullable_schemas(openapi_schema)
