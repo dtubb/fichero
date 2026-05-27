@@ -465,6 +465,7 @@ async def save_artifact(
         # Create Artifact
         artifact = Artifact(
             document_id=doc.id,
+            source_document_id=doc.id,
             artifact_type=tool_config.artifact_type,
             content=content,
             data=data,

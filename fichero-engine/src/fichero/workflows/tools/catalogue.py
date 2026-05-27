@@ -9,8 +9,10 @@ Contract:
 - Expects aggregated `text` input (from upstream Transcribe → implicit aggregate).
 - Reads `state.selected_doc_ids` to determine the container (folder) on which
   to save the final artifact. If the selection is a single folder doc, save
-  there. If it's a list of file docs sharing a parent, save on the parent.
-- Produces one Artifact on the container doc with type="catalogue", containing:
+  there. If it's a single PDF/file doc, save on that doc. If it's page docs,
+  save on their parent PDF. Mixed selections resolve to the selected parent
+  doc when possible.
+- Produces one Artifact on the resolved doc with type="catalogue", containing:
     - content: markdown rendering of the nine sections (human-readable)
     - data:    parsed JSON matching the nine-section schema
 """
@@ -275,17 +277,18 @@ _CONTAINER_DOC_TYPES = {DocType.folder, DocType.group}
 def _resolve_container_doc(
     selected_doc_ids: list[str], library_path: str
 ) -> Document | None:
-    """Determine which document should receive the catalogue artifact.
+    """Determine which document should receive catalogue output.
 
-    Priority:
-    1. If exactly one doc is a folder/group, use it.
-    2. If all selected docs share a common parent, and the parent is a
-       folder/group, use that parent.
-    3. If any selected doc is a folder/group, use the first such one.
+    The write target follows the selected document hierarchy, not the
+    enclosing folder:
+    - a selected folder/group stays on that folder/group
+    - a selected PDF/file stays on itself
+    - selected page children resolve to their parent PDF
+    - multi-page or mixed selections resolve to the selected parent doc
+      when one of the selected docs is the direct parent of the others
 
-    Returns None rather than a file document — catalogue artifacts only
-    belong on containers (folders / groups), never on individual files.
-    Callers should warn and skip when this happens.
+    Returns None only when the selection cannot be resolved to any real
+    document in the library.
     """
     if not selected_doc_ids or not library_path:
         return None
@@ -296,9 +299,24 @@ def _resolve_container_doc(
     if not docs:
         return None
 
+    if len(docs) == 1:
+        doc = docs[0]
+        if doc.doc_type == DocType.page and doc.parent_id:
+            parent = db.get(Document, doc.parent_id)
+            if parent is not None:
+                return parent
+        return doc
+
     folders = [d for d in docs if d.doc_type in _CONTAINER_DOC_TYPES]
     if len(folders) == 1:
         return folders[0]
+
+    direct_parent_docs = [
+        d for d in docs
+        if d.id in {child.parent_id for child in docs if child.parent_id}
+    ]
+    if len(direct_parent_docs) == 1:
+        return direct_parent_docs[0]
 
     parent_ids = {d.parent_id for d in docs if d.parent_id}
     if len(parent_ids) == 1:
@@ -306,13 +324,16 @@ def _resolve_container_doc(
         parent = db.get(Document, parent_id)
         if parent and parent.doc_type in _CONTAINER_DOC_TYPES:
             return parent
+        if parent is not None:
+            return parent
 
-    # Fallback: first folder in selection.
+    # Fallback: first folder in selection when present.
     if folders:
         return folders[0]
 
-    # No container anywhere in the selection or its parents — nothing to save on.
-    return None
+    # Last resort: the first resolved document. This keeps mixed file
+    # selections from dropping their output on the floor.
+    return docs[0]
 
 
 def _group_documents_by_case(
@@ -347,11 +368,11 @@ def _resolve_write_target(
 ) -> Document | None:
     """Where to attach catalogue / KG writes.
 
-    Prefers a folder/group container (today's behaviour). If no container
-    resolves, falls back to the selected document(s) — for single-file
-    selections (md / txt / jpg, etc) writes attach to the file itself, so
-    extract_all and catalogue work end-to-end on a one-file selection
-    instead of silently discarding their output (#1087, #1105).
+    Prefers the hierarchy-aware document target resolved by
+    `_resolve_container_doc()`. That means folders stay on folders,
+    single PDFs/files stay on themselves, and page children resolve to
+    their parent PDF. If nothing resolves, fall back to the selected
+    document(s) so one-file selections still keep their output.
 
     Returns None only when neither a container nor any valid selected
     document can be loaded — callers should warn-and-skip in that case.

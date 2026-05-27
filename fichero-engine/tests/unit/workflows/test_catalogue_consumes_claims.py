@@ -17,7 +17,7 @@ import pytest
 
 from fichero.knowledge_models import EntityType
 from fichero.llm import LLMConfig
-from fichero.models import Document, DocType
+from fichero.models import Document, DocType, FileType, Artifact
 
 
 @pytest.fixture
@@ -177,3 +177,95 @@ class TestCatalogueSurfacesSilentFailures:
             f"expected error message, got: {result!r}"
         )
         assert "guardrail" in result["error"].lower() or "Catalogue" in result["error"]
+
+
+class TestCatalogueArtifactPlacement:
+    @pytest.mark.asyncio
+    async def test_catalogue_artifact_lands_on_folder_when_folder_selected(
+        self,
+        db,
+        test_package,
+        container_doc,
+        llm_config,
+    ):
+        from fichero.workflows.tools.catalogue import catalogue
+
+        with (
+            patch(
+                "fichero.workflows.tools.catalogue.chat_with_fallback",
+                new=AsyncMock(return_value="Resumen narrative."),
+            ),
+            patch(
+                "fichero.workflows.tools.catalogue._generate_keywords",
+                new=AsyncMock(return_value="keyword-a; keyword-b"),
+            ),
+        ):
+            state = {
+                "library_path": str(test_package),
+                "selected_doc_ids": [container_doc.id],
+            }
+            result = await catalogue(
+                {"text": "Source transcript text"},
+                state,
+                llm_config,
+            )
+
+        assert result["container_id"] == container_doc.id
+
+        target_artifacts = db.query(Artifact, document_id=container_doc.id)
+        assert any(a.artifact_type == "catalogue.narrative" for a in target_artifacts)
+
+        target_doc = db.get(Document, container_doc.id)
+        assert target_doc is not None
+        assert target_doc.page_content == "Resumen narrative."
+
+    @pytest.mark.asyncio
+    async def test_catalogue_artifact_lands_on_pdf_doc_when_pdf_selected(
+        self,
+        db,
+        test_package,
+        container_doc,
+        llm_config,
+    ):
+        from fichero.workflows.tools.catalogue import catalogue
+
+        pdf_doc = Document(
+            name="fixture.pdf",
+            path="/fixture.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            parent_id=container_doc.id,
+        )
+        db.save(pdf_doc)
+
+        with (
+            patch(
+                "fichero.workflows.tools.catalogue.chat_with_fallback",
+                new=AsyncMock(return_value="Resumen narrative."),
+            ),
+            patch(
+                "fichero.workflows.tools.catalogue._generate_keywords",
+                new=AsyncMock(return_value="keyword-a; keyword-b"),
+            ),
+        ):
+            state = {
+                "library_path": str(test_package),
+                "selected_doc_ids": [pdf_doc.id],
+            }
+            result = await catalogue(
+                {"text": "Source transcript text"},
+                state,
+                llm_config,
+            )
+
+        assert result["container_id"] == pdf_doc.id
+
+        target_artifacts = db.query(Artifact, document_id=pdf_doc.id)
+        assert any(a.artifact_type == "catalogue.narrative" for a in target_artifacts)
+
+        target_doc = db.get(Document, pdf_doc.id)
+        assert target_doc is not None
+        assert target_doc.page_content == "Resumen narrative."
+
+        folder_artifacts = db.query(Artifact, document_id=container_doc.id)
+        assert not any(a.artifact_type == "catalogue.narrative" for a in folder_artifacts)

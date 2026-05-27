@@ -224,11 +224,19 @@ class TestIterSectionArtifacts:
 # ---------------------------------------------------------------------------
 
 class _FakeDoc:
-    def __init__(self, id: str, doc_type, parent_id: str | None = None, name: str = "n"):
+    def __init__(
+        self,
+        id: str,
+        doc_type,
+        parent_id: str | None = None,
+        name: str = "n",
+        file_type=None,
+    ):
         self.id = id
         self.doc_type = doc_type
         self.parent_id = parent_id
         self.name = name
+        self.file_type = file_type
 
 
 class TestResolveContainerDoc:
@@ -254,6 +262,13 @@ class TestResolveContainerDoc:
             result = _resolve_container_doc(["F"], "/tmp")
         assert result is folder
 
+    def test_single_pdf_file_selected_is_itself(self):
+        from fichero.models import DocType, FileType
+        pdf = _FakeDoc("pdf", DocType.file, file_type=FileType.pdf)
+        with self._patch_db({"pdf": pdf}):
+            result = _resolve_container_doc(["pdf"], "/tmp")
+        assert result is pdf
+
     def test_common_parent_wins_when_all_files_share_a_parent(self):
         from fichero.models import DocType
         parent = _FakeDoc("P", DocType.folder)
@@ -262,6 +277,14 @@ class TestResolveContainerDoc:
         with self._patch_db({"P": parent, "f1": f1, "f2": f2}):
             result = _resolve_container_doc(["f1", "f2"], "/tmp")
         assert result is parent
+
+    def test_page_child_resolves_to_parent_pdf(self):
+        from fichero.models import DocType, FileType
+        pdf = _FakeDoc("pdf", DocType.file, file_type=FileType.pdf)
+        page = _FakeDoc("p1", DocType.page, parent_id="pdf")
+        with self._patch_db({"pdf": pdf, "p1": page}):
+            result = _resolve_container_doc(["p1"], "/tmp")
+        assert result is pdf
 
     def test_fallback_to_first_folder_when_parents_differ(self):
         from fichero.models import DocType
@@ -274,26 +297,14 @@ class TestResolveContainerDoc:
             result = _resolve_container_doc(["F", "f1", "f2"], "/tmp")
         assert result is folder
 
-    def test_returns_none_when_no_container_in_selection(self):
-        """Files without a container in their selection or parents get None —
-        catalogue artifacts never go on files."""
+    def test_falls_back_to_first_doc_when_no_shared_parent(self):
+        """Multiple files without a shared parent fall back to the first doc."""
         from fichero.models import DocType
         f1 = _FakeDoc("f1", DocType.file, parent_id=None)
         f2 = _FakeDoc("f2", DocType.file, parent_id=None)
         with self._patch_db({"f1": f1, "f2": f2}):
             result = _resolve_container_doc(["f1", "f2"], "/tmp")
-        assert result is None
-
-    def test_parent_must_be_container_type(self):
-        """If the common parent is itself a file (group-like PDF with pages),
-        we don't try to save a catalogue on it — return None."""
-        from fichero.models import DocType
-        pdf = _FakeDoc("pdf", DocType.file)  # not a folder
-        page1 = _FakeDoc("p1", DocType.page, parent_id="pdf")
-        page2 = _FakeDoc("p2", DocType.page, parent_id="pdf")
-        with self._patch_db({"pdf": pdf, "p1": page1, "p2": page2}):
-            result = _resolve_container_doc(["p1", "p2"], "/tmp")
-        assert result is None
+        assert result is f1
 
 
 class TestResolveWriteTarget:
