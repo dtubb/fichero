@@ -767,6 +767,50 @@ class TestSaveArtifact:
             assert "custom_field" in mock_doc.metadata
             assert "description" not in mock_doc.metadata
 
+    @pytest.mark.asyncio
+    async def test_artifact_provenance_points_to_source_document(self):
+        """Test that artifact provenance records source_document_id, not the model."""
+        from fichero.workflows.tools.llm_base import save_artifact, LLMToolConfig
+        from fichero.models import Artifact
+
+        mock_doc = MagicMock()
+        mock_doc.id = "source-doc-id"
+        mock_doc.metadata = {}
+
+        saved_artifact = None
+
+        def capture_artifact(artifact):
+            nonlocal saved_artifact
+            if isinstance(artifact, Artifact):
+                saved_artifact = artifact
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_doc
+        mock_db.save.side_effect = capture_artifact
+
+        tool_config = LLMToolConfig(artifact_type="transcription")
+        llm_config = LLMConfig(provider="apple", model="apple-vision")
+
+        with patch('fichero.db.db_manager') as mock_manager:
+            mock_manager.get_database.return_value = mock_db
+
+            result = await save_artifact(
+                document_id="source-doc-id",
+                file_path=None,
+                content="Transcribed text",
+                data=None,
+                library_path="/test/library.fichero",
+                llm_config=llm_config,
+                task_id="task123",
+                tool_config=tool_config,
+            )
+
+            assert result is not None
+            assert saved_artifact is not None
+            assert saved_artifact.source_document_id == "source-doc-id"
+            assert saved_artifact.model == "apple-vision"
+            assert saved_artifact.provider == "apple"
+
 
 class TestSaveToFile:
     """Test save_to_file function."""

@@ -487,6 +487,7 @@ class Artifact(BaseModel):
     data: dict[str, Any] | None = None  # Structured output
 
     # Provenance
+    source_document_id: str | None = None  # Source document this was extracted from (for page docs, parent PDF)
     run_id: str | None = None
     provider: str | None = None  # "qwen", "openai", "kreuzberg", "human"
     model: str | None = None  # "gpt-4o", "qwen-vl-max"
