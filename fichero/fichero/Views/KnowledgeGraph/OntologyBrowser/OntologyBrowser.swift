@@ -23,7 +23,7 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     /// Swap the detail pane between entity-claims view (default) and a
     /// force-directed graph over the filtered entity set. (#902, partial #889)
     enum ViewMode: String, CaseIterable, Identifiable {
-        case list, graph, chart, timeline
+        case list, graph, chart, timeline, map
         var id: String { rawValue }
         var label: String {
             switch self {
@@ -31,6 +31,7 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
             case .graph: return "Graph"
             case .chart: return "Chart"
             case .timeline: return "Timeline"
+            case .map: return "Map"
             }
         }
         var icon: String {
@@ -39,6 +40,7 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
             case .graph: return "circle.grid.cross"
             case .chart: return "chart.bar"
             case .timeline: return "calendar.day.timeline.left"
+            case .map: return "map"
             }
         }
     }
@@ -288,6 +290,12 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
                 .frame(minWidth: 300)
         case .timeline:
             KGTimelineView(
+                entities: filteredEntities,
+                selectedEntityId: $selectedEntityId
+            )
+            .frame(minWidth: 300)
+        case .map:
+            KGMapView(
                 entities: filteredEntities,
                 selectedEntityId: $selectedEntityId
             )
