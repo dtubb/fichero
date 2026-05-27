@@ -14,6 +14,7 @@ struct ClaimSummaryCard: View {
     @State var contradictions: [Components.Schemas.ContradictionEvidence]?
     @State var evidenceChain: Components.Schemas.EvidenceChain?
     @State var isLoadingDetails: Bool = false
+    @State private var showEditSheet = false
 
     private struct SVOTriple {
         let subject: String
@@ -123,8 +124,19 @@ struct ClaimSummaryCard: View {
                     Button("Rejected") { Task { await updateCuration(.rejected) } }
                 }
                 Divider()
+                Button("Edit claim…") { showEditSheet = true }
+                Divider()
                 Button("Delete claim…", role: .destructive) {
                     deleteClaim()
+                }
+            }
+            .sheet(isPresented: $showEditSheet) {
+                EditClaimSheet(claim: claim) { updated in
+                    NotificationCenter.default.post(
+                        name: .ficheroClaimUpdated,
+                        object: updated.id,
+                        userInfo: ["claim": updated]
+                    )
                 }
             }
         }  // end else (isEmptyContent path)

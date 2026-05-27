@@ -586,6 +586,10 @@ extension Notification.Name {
     /// carries the message). EntityDetailView listens to refresh its
     /// claim list.
     static let ficheroClaimDeleted = Notification.Name("ficheroClaimDeleted")
+    /// Posted after a claim is edited via EditClaimSheet (#1135). `object`
+    /// is the claim ID (String). userInfo["claim"] carries the updated
+    /// KnowledgeClaim value so observers can refresh in place.
+    static let ficheroClaimUpdated = Notification.Name("ficheroClaimUpdated")
 
     /// Posted when the user taps a source-doc citation on a claim card
     /// (or anywhere else that wants to navigate to a claim's source).
