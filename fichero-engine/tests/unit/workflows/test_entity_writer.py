@@ -6,10 +6,14 @@ KnowledgeEntity + KnowledgeClaim KG layer (#728).
 
 from fichero.knowledge_models import (
     EntityType,
+    EvidenceBasis,
     KnowledgeEntity,
     KnowledgeClaim,
+    KnowledgeClaimLink,
     ClaimType,
+    ClaimRelationType,
 )
+from fichero.models import Document, DocType
 
 
 class TestUpsertEntity:
@@ -288,6 +292,106 @@ class TestSaveClaim:
         loaded = db.get(KnowledgeClaim, claim_id)
         assert loaded.entity_ids == []
         assert loaded.metadata.get("date_normalized") == "1930-05-12"
+
+    def test_save_claim_source_anchors_missing_date_and_place(self, db):
+        from fichero.workflows.tools._entity_writer import save_claim
+
+        doc = Document(
+            id="doc_anchor_1",
+            name="1820 petition",
+            doc_type=DocType.file,
+            source_metadata={"issued": "1820", "place": "Popayán jurisdiction"},
+            provenance_chain=[{"action": "recorded", "actor": "court scribe"}],
+        )
+        db.save(doc)
+
+        claim_id = save_claim(
+            db,
+            text="Pedro filed the petition.",
+            source_document_id=doc.id,
+            source_excerpt="Pedro filed the petition.",
+        )
+
+        loaded = db.get(KnowledgeClaim, claim_id)
+        assert loaded is not None
+        assert loaded.date_values[0].basis == EvidenceBasis.source_anchored
+        assert loaded.date_values[0].open_start is True
+        assert loaded.date_values[0].end == "1820-12-31"
+        assert loaded.date_values[0].source_field == "source_metadata.issued"
+        assert loaded.place_values[0].basis == EvidenceBasis.source_anchored
+        assert loaded.place_values[0].label == "Popayán jurisdiction"
+        assert loaded.place_values[0].source_field == "source_metadata.place"
+        assert loaded.source_supports[0].date_values[0].basis == EvidenceBasis.source_anchored
+        assert [step.role.value for step in loaded.attribution_chain] == [
+            "recorder",
+            "source_document",
+        ]
+        assert loaded.attribution_chain[0].name == "court scribe"
+
+    def test_save_claim_keeps_asserted_date_over_source_anchor(self, db):
+        from fichero.workflows.tools._entity_writer import save_claim
+
+        doc = Document(
+            id="doc_anchor_2",
+            name="1933 compiled copy",
+            doc_type=DocType.file,
+            source_metadata={"issued": "1933"},
+        )
+        db.save(doc)
+
+        claim_id = save_claim(
+            db,
+            text="Pedro filed the petition in 1820.",
+            source_document_id=doc.id,
+            time_start="1820-01-01",
+            time_end="1820-12-31",
+            time_precision="year",
+        )
+
+        loaded = db.get(KnowledgeClaim, claim_id)
+        assert loaded is not None
+        assert loaded.date_values[0].basis == EvidenceBasis.asserted
+        assert loaded.date_values[0].start == "1820-01-01"
+        assert loaded.date_values[0].source_field is None
+
+    def test_cross_source_duplicate_folds_into_canonical_supports(self, db):
+        from fichero.workflows.tools._entity_writer import save_claim, upsert_entity
+
+        entity_id = upsert_entity(db, "Pedro", EntityType.person)
+        first = save_claim(
+            db,
+            text="Pedro filed the petition.",
+            source_document_id="doc_corroborate_1",
+            entity_ids=[entity_id],
+            source_page_label="1",
+            source_excerpt="Pedro filed the petition.",
+            confidence=0.6,
+        )
+        second = save_claim(
+            db,
+            text="Pedro filed the petition.",
+            source_document_id="doc_corroborate_2",
+            entity_ids=[entity_id],
+            source_page_label="7",
+            source_excerpt="Pedro filed the petition.",
+            confidence=0.7,
+        )
+
+        assert second == first
+        claims = db.all(KnowledgeClaim)
+        assert len(claims) == 1
+        loaded = db.get(KnowledgeClaim, first)
+        assert loaded is not None
+        assert loaded.corroboration_count == 2
+        assert loaded.corroborating_source_ids == [
+            "doc_corroborate_1",
+            "doc_corroborate_2",
+        ]
+        assert loaded.confidence_source == "corroboration"
+        assert len(loaded.source_supports) == 2
+        links = db.all(KnowledgeClaimLink)
+        assert len(links) == 1
+        assert links[0].relation_type == ClaimRelationType.corroborates
 
     def test_within_page_dedup_skips_near_duplicate(self, db):
         """Regression test for the #896 dedup guard: a second

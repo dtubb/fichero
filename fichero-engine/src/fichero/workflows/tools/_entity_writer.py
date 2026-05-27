@@ -18,12 +18,22 @@ from typing import Optional
 
 from fichero.db import Database
 from fichero.knowledge_models import (
+    AttributionRole,
+    AttributionStep,
     ClaimType,
+    ClaimRelationType,
     EntityType,
+    EvidenceBasis,
     EpistemicStatus,
+    EvidentialDateRange,
+    EvidentialPlace,
+    GeoPoint,
     KnowledgeClaim,
+    KnowledgeClaimLink,
     KnowledgeEntity,
+    PlaceGeometryType,
     QuotationKind,
+    SourceSupport,
 )
 
 logger = logging.getLogger(__name__)
@@ -153,6 +163,554 @@ def _fuzzy_match_existing(
             best = (score, ent)
 
     return best[1] if best[0] >= threshold else None
+
+
+def _coerce_date_values(
+    values: Optional[list[EvidentialDateRange | dict]],
+) -> list[EvidentialDateRange]:
+    return [
+        value
+        if isinstance(value, EvidentialDateRange)
+        else EvidentialDateRange.model_validate(value)
+        for value in values or []
+    ]
+
+
+def _coerce_place_values(
+    values: Optional[list[EvidentialPlace | dict]],
+) -> list[EvidentialPlace]:
+    return [
+        value
+        if isinstance(value, EvidentialPlace)
+        else EvidentialPlace.model_validate(value)
+        for value in values or []
+    ]
+
+
+def _coerce_attribution_chain(
+    values: Optional[list[AttributionStep | dict]],
+) -> list[AttributionStep]:
+    return [
+        value
+        if isinstance(value, AttributionStep)
+        else AttributionStep.model_validate(value)
+        for value in values or []
+    ]
+
+
+def _coerce_source_supports(
+    values: Optional[list[SourceSupport | dict]],
+) -> list[SourceSupport]:
+    return [
+        value
+        if isinstance(value, SourceSupport)
+        else SourceSupport.model_validate(value)
+        for value in values or []
+    ]
+
+
+def _range_from_date_text(
+    raw_value: object,
+    *,
+    basis: EvidenceBasis,
+    confidence: float,
+    source_document_id: str,
+    source_page_label: Optional[str] = None,
+    source_field: Optional[str] = None,
+    source_excerpt: Optional[str] = None,
+    source_char_start: Optional[int] = None,
+    source_char_end: Optional[int] = None,
+    rationale: Optional[str] = None,
+) -> Optional[EvidentialDateRange]:
+    """Convert common document/claim date strings to bounded ranges."""
+    if raw_value is None:
+        return None
+    raw = str(raw_value).strip()
+    if not raw:
+        return None
+
+    circa = bool(re.search(r"\b(ca\.?|circa|c\.)\b", raw, flags=re.IGNORECASE))
+    match = re.search(r"(\d{4})-(\d{2})-(\d{2})", raw)
+    if match:
+        date = match.group(0)
+        return EvidentialDateRange(
+            start=date,
+            end=date,
+            circa=circa,
+            precision="day",
+            label=raw,
+            basis=basis,
+            confidence=confidence,
+            source_document_id=source_document_id,
+            source_page_label=source_page_label,
+            source_field=source_field,
+            source_excerpt=source_excerpt,
+            source_char_start=source_char_start,
+            source_char_end=source_char_end,
+            rationale=rationale,
+        )
+
+    match = re.search(r"(\d{4})-(\d{2})", raw)
+    if match:
+        year, month = match.groups()
+        return EvidentialDateRange(
+            start=f"{year}-{month}-01",
+            end=f"{year}-{month}-31",
+            circa=circa,
+            precision="month",
+            label=raw,
+            basis=basis,
+            confidence=confidence,
+            source_document_id=source_document_id,
+            source_page_label=source_page_label,
+            source_field=source_field,
+            source_excerpt=source_excerpt,
+            source_char_start=source_char_start,
+            source_char_end=source_char_end,
+            rationale=rationale,
+        )
+
+    match = re.search(r"\b(\d{4})\b", raw)
+    if match:
+        year = match.group(1)
+        return EvidentialDateRange(
+            start=f"{year}-01-01",
+            end=f"{year}-12-31",
+            circa=circa,
+            precision="year",
+            label=raw,
+            basis=basis,
+            confidence=confidence,
+            source_document_id=source_document_id,
+            source_page_label=source_page_label,
+            source_field=source_field,
+            source_excerpt=source_excerpt,
+            source_char_start=source_char_start,
+            source_char_end=source_char_end,
+            rationale=rationale,
+        )
+    return None
+
+
+def _metadata_value(metadata: dict, keys: tuple[str, ...]) -> tuple[object, str] | None:
+    for key in keys:
+        value = metadata.get(key)
+        if value not in (None, ""):
+            return value, key
+    return None
+
+
+def _first_source_date_anchor(
+    db: Database,
+    source_document_id: str,
+) -> tuple[object, str] | None:
+    from fichero.models import Document
+
+    doc = db.get(Document, source_document_id)
+    if doc is None:
+        return None
+
+    source_metadata = doc.source_metadata or {}
+    if isinstance(source_metadata, dict):
+        value = _metadata_value(
+            source_metadata,
+            ("issued", "created", "date", "year", "publication_date", "creation_date"),
+        )
+        if value is not None:
+            raw, key = value
+            return raw, f"source_metadata.{key}"
+
+    for index, step in enumerate(doc.provenance_chain or []):
+        if not isinstance(step, dict):
+            continue
+        action = str(step.get("action") or "").lower()
+        if action in {"scanned", "accessed", "downloaded", "digitized", "digitised"}:
+            continue
+        if step.get("date") not in (None, ""):
+            return step["date"], f"provenance_chain[{index}].date"
+
+    return None
+
+
+def _first_source_place_anchor(
+    db: Database,
+    source_document_id: str,
+) -> tuple[object, str] | None:
+    from fichero.models import Document
+
+    doc = db.get(Document, source_document_id)
+    if doc is None:
+        return None
+
+    for field_name, metadata in (
+        ("source_metadata", doc.source_metadata or {}),
+        ("metadata", doc.metadata or {}),
+    ):
+        if not isinstance(metadata, dict):
+            continue
+        value = _metadata_value(
+            metadata,
+            ("place", "location", "origin_place", "publication_place", "region"),
+        )
+        if value is not None:
+            raw, key = value
+            return raw, f"{field_name}.{key}"
+
+    for index, step in enumerate(doc.provenance_chain or []):
+        if isinstance(step, dict) and step.get("location") not in (None, ""):
+            return step["location"], f"provenance_chain[{index}].location"
+
+    return None
+
+
+def _first_source_recorder_anchor(
+    db: Database,
+    source_document_id: str,
+) -> tuple[str | None, str, str] | None:
+    from fichero.models import Document
+
+    doc = db.get(Document, source_document_id)
+    if doc is None:
+        return None
+
+    for index, step in enumerate(doc.provenance_chain or []):
+        if not isinstance(step, dict):
+            continue
+        action = str(step.get("action") or "").lower()
+        if action in {"scanned", "accessed", "downloaded", "digitized", "digitised"}:
+            continue
+        actor = step.get("actor")
+        label = action or step.get("label") or "source provenance"
+        if actor or action:
+            return (
+                str(actor) if actor else None,
+                str(label),
+                f"provenance_chain[{index}]",
+            )
+    return None
+
+
+def _build_attribution_chain(
+    db: Database,
+    *,
+    speaker_name: Optional[str],
+    source_document_id: str,
+    source_page_label: Optional[str],
+    source_excerpt: Optional[str],
+    provider: Optional[str],
+    model: Optional[str],
+    explicit_chain: Optional[list[AttributionStep | dict]],
+) -> list[AttributionStep]:
+    chain = _coerce_attribution_chain(explicit_chain)
+    if chain:
+        return chain
+
+    order = 0
+    if speaker_name:
+        chain.append(
+            AttributionStep(
+                role=AttributionRole.asserter,
+                name=speaker_name,
+                basis=EvidenceBasis.asserted,
+                confidence=0.65,
+                source_excerpt=source_excerpt,
+                order=order,
+            )
+        )
+        order += 1
+    recorder = _first_source_recorder_anchor(db, source_document_id)
+    if recorder is not None:
+        name, label, source_field = recorder
+        chain.append(
+            AttributionStep(
+                role=AttributionRole.recorder,
+                name=name,
+                label=label,
+                basis=EvidenceBasis.source_anchored,
+                confidence=0.55,
+                source_field=source_field,
+                order=order,
+            )
+        )
+        order += 1
+    chain.append(
+        AttributionStep(
+            role=AttributionRole.source_document,
+            document_id=source_document_id,
+            label=source_page_label,
+            basis=EvidenceBasis.source_anchored,
+            confidence=0.7,
+            source_field="KnowledgeClaim.source_document_id",
+            order=order,
+        )
+    )
+    order += 1
+    if provider or model:
+        chain.append(
+            AttributionStep(
+                role=AttributionRole.extractor,
+                name=provider,
+                label=model,
+                basis=EvidenceBasis.inferred,
+                confidence=0.5,
+                order=order,
+            )
+        )
+    return chain
+
+
+def derive_evidential_dimensions(
+    db: Database,
+    *,
+    source_document_id: str,
+    source_page_label: Optional[str],
+    source_excerpt: Optional[str],
+    source_char_start: Optional[int],
+    source_char_end: Optional[int],
+    source_bbox: Optional[list[float]],
+    confidence: float,
+    asserted_date_values: Optional[list[EvidentialDateRange | dict]] = None,
+    asserted_place_values: Optional[list[EvidentialPlace | dict]] = None,
+    time_start: Optional[str] = None,
+    time_end: Optional[str] = None,
+    time_precision: Optional[str] = None,
+    claim_location: Optional[str] = None,
+    claim_geo: Optional[GeoPoint] = None,
+    attribution_chain: Optional[list[AttributionStep | dict]] = None,
+    speaker_name: Optional[str] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+) -> tuple[
+    list[EvidentialDateRange],
+    list[EvidentialPlace],
+    list[AttributionStep],
+    SourceSupport,
+]:
+    date_values = _coerce_date_values(asserted_date_values)
+    if not date_values and (time_start or time_end):
+        date_values.append(
+            EvidentialDateRange(
+                start=time_start,
+                end=time_end or time_start,
+                precision=time_precision,
+                basis=EvidenceBasis.asserted,
+                confidence=confidence,
+                source_document_id=source_document_id,
+                source_page_label=source_page_label,
+                source_excerpt=source_excerpt,
+                source_char_start=source_char_start,
+                source_char_end=source_char_end,
+            )
+        )
+    if not date_values:
+        anchor = _first_source_date_anchor(db, source_document_id)
+        if anchor is not None:
+            raw, source_field = anchor
+            date_value = _range_from_date_text(
+                raw,
+                basis=EvidenceBasis.source_anchored,
+                confidence=0.55,
+                source_document_id=source_document_id,
+                source_page_label=source_page_label,
+                source_field=source_field,
+                source_excerpt=source_excerpt,
+                rationale=(
+                    "Claim text lacks an asserted date; bounded from source "
+                    "document metadata."
+                ),
+            )
+            if date_value is not None:
+                date_value.open_start = True
+                date_values.append(date_value)
+
+    place_values = _coerce_place_values(asserted_place_values)
+    if not place_values and claim_location:
+        place_values.append(
+            EvidentialPlace(
+                label=claim_location,
+                geometry_type=(
+                    PlaceGeometryType.point if claim_geo else PlaceGeometryType.unknown
+                ),
+                lat=claim_geo.lat if claim_geo else None,
+                lon=claim_geo.lon if claim_geo else None,
+                precision_m=claim_geo.precision_m if claim_geo else None,
+                basis=EvidenceBasis.asserted,
+                confidence=confidence,
+                source_document_id=source_document_id,
+                source_page_label=source_page_label,
+                source_excerpt=source_excerpt,
+            )
+        )
+    if not place_values:
+        anchor = _first_source_place_anchor(db, source_document_id)
+        if anchor is not None:
+            raw, source_field = anchor
+            label = str(raw).strip()
+            if label:
+                place_values.append(
+                    EvidentialPlace(
+                        label=label,
+                        geometry_type=PlaceGeometryType.region,
+                        basis=EvidenceBasis.source_anchored,
+                        confidence=0.5,
+                        source_document_id=source_document_id,
+                        source_page_label=source_page_label,
+                        source_field=source_field,
+                        source_excerpt=source_excerpt,
+                        rationale=(
+                            "Claim text lacks an asserted place; derived from "
+                            "source document place metadata."
+                        ),
+                    )
+                )
+
+    chain = _build_attribution_chain(
+        db,
+        speaker_name=speaker_name,
+        source_document_id=source_document_id,
+        source_page_label=source_page_label,
+        source_excerpt=source_excerpt,
+        provider=provider,
+        model=model,
+        explicit_chain=attribution_chain,
+    )
+    support = SourceSupport(
+        source_document_id=source_document_id,
+        source_page_label=source_page_label,
+        source_excerpt=source_excerpt,
+        source_char_start=source_char_start,
+        source_char_end=source_char_end,
+        source_bbox=source_bbox,
+        support_basis=EvidenceBasis.asserted,
+        support_confidence=confidence,
+        date_values=date_values,
+        place_values=place_values,
+        attribution_chain=chain,
+    )
+    return date_values, place_values, chain, support
+
+
+def _same_structured_claim(a: KnowledgeClaim, b: KnowledgeClaim) -> bool:
+    if set(a.entity_ids) != set(b.entity_ids):
+        return False
+
+    a_svo = (a.svo_subject or a.subject_canonical, a.svo_verb, a.svo_object)
+    b_svo = (b.svo_subject or b.subject_canonical, b.svo_verb, b.svo_object)
+    if all(a_svo) and all(b_svo):
+        return a_svo == b_svo
+
+    from difflib import SequenceMatcher
+
+    return SequenceMatcher(None, a.text, b.text).ratio() >= 0.92
+
+
+def _find_cross_source_canonical_claim(
+    db: Database,
+    claim: KnowledgeClaim,
+) -> Optional[KnowledgeClaim]:
+    """Find an existing claim from another source that this claim corroborates."""
+    for prior in db.all(KnowledgeClaim):
+        if prior.source_document_id == claim.source_document_id:
+            continue
+        if _same_structured_claim(prior, claim):
+            return prior
+    return None
+
+
+def _support_key(
+    support: SourceSupport,
+) -> tuple[str, str | None, int | None, int | None]:
+    return (
+        support.source_document_id,
+        support.source_page_label,
+        support.source_char_start,
+        support.source_char_end,
+    )
+
+
+def _merge_unique_by_id(existing: list, incoming: list) -> list:
+    seen = {getattr(item, "id", None) for item in existing}
+    merged = list(existing)
+    for item in incoming:
+        item_id = getattr(item, "id", None)
+        if item_id not in seen:
+            merged.append(item)
+            seen.add(item_id)
+    return merged
+
+
+def _merge_corroborating_claim(
+    db: Database,
+    canonical: KnowledgeClaim,
+    incoming: KnowledgeClaim,
+) -> None:
+    """Fold a cross-source duplicate into the canonical claim's support set."""
+    existing_support_keys = {
+        _support_key(support) for support in canonical.source_supports
+    }
+    for support in incoming.source_supports:
+        if _support_key(support) not in existing_support_keys:
+            canonical.source_supports.append(support)
+            existing_support_keys.add(_support_key(support))
+
+    source_ids = {
+        canonical.source_document_id,
+        incoming.source_document_id,
+        *canonical.source_ids,
+        *incoming.source_ids,
+        *canonical.corroborating_source_ids,
+        *incoming.corroborating_source_ids,
+        *(support.source_document_id for support in canonical.source_supports),
+    }
+    canonical.source_ids = sorted(source_ids - {canonical.source_document_id})
+    canonical.corroborating_source_ids = sorted(source_ids)
+    canonical.corroboration_count = len(source_ids)
+
+    page_labels = {
+        label
+        for label in [
+            canonical.source_page_label,
+            incoming.source_page_label,
+            *canonical.source_page_labels,
+            *incoming.source_page_labels,
+        ]
+        if label
+    }
+    canonical.source_page_labels = sorted(page_labels)
+    canonical.date_values = _merge_unique_by_id(canonical.date_values, incoming.date_values)
+    canonical.place_values = _merge_unique_by_id(canonical.place_values, incoming.place_values)
+    canonical.attribution_chain = _merge_unique_by_id(
+        canonical.attribution_chain,
+        incoming.attribution_chain,
+    )
+    bonus = min(0.2, 0.05 * max(0, canonical.corroboration_count - 1))
+    canonical.confidence = min(
+        1.0,
+        max(canonical.confidence, incoming.confidence) + bonus,
+    )
+    canonical.confidence_source = "corroboration"
+    canonical.evidential_confidence = canonical.confidence
+    canonical.evidential_confidence_source = "corroboration"
+    db.save(canonical)
+
+    link_id = f"corroborates:{canonical.id}:{incoming.source_document_id}"
+    if db.get(KnowledgeClaimLink, link_id) is None:
+        db.save(
+            KnowledgeClaimLink(
+                id=link_id,
+                claim_id=canonical.id,
+                related_claim_id=canonical.id,
+                relation_type=ClaimRelationType.corroborates,
+                link_quality=incoming.confidence,
+                evidence=incoming.source_excerpt,
+                metadata={
+                    "source_document_id": incoming.source_document_id,
+                    "source_page_label": incoming.source_page_label,
+                    "self_link": True,
+                    "reason": "Canonical claim has an additional corroborating source support.",
+                },
+            )
+        )
 
 
 def upsert_entity(
@@ -654,6 +1212,12 @@ def save_claim(
     speaker_name: Optional[str] = None,
     audience: Optional[str] = None,
     confidence_origin: Optional[str] = None,
+    claim_location: Optional[str] = None,
+    claim_geo: Optional[GeoPoint] = None,
+    date_values: Optional[list[EvidentialDateRange | dict]] = None,
+    place_values: Optional[list[EvidentialPlace | dict]] = None,
+    attribution_chain: Optional[list[AttributionStep | dict]] = None,
+    source_supports: Optional[list[SourceSupport | dict]] = None,
 ) -> str:
     """Save a `KnowledgeClaim` row. Returns the claim ID.
 
@@ -727,6 +1291,39 @@ def save_claim(
     if source_language is None:
         source_language = language
 
+    (
+        derived_date_values,
+        derived_place_values,
+        derived_attribution_chain,
+        source_support,
+    ) = derive_evidential_dimensions(
+        db,
+        source_document_id=source_document_id,
+        source_page_label=source_page_label,
+        source_excerpt=source_excerpt,
+        source_char_start=source_char_start,
+        source_char_end=source_char_end,
+        source_bbox=source_bbox,
+        confidence=confidence,
+        asserted_date_values=date_values,
+        asserted_place_values=place_values,
+        time_start=time_start,
+        time_end=time_end,
+        time_precision=time_precision,
+        claim_location=claim_location,
+        claim_geo=claim_geo,
+        attribution_chain=attribution_chain,
+        speaker_name=speaker_name,
+        provider=provider,
+        model=model,
+    )
+    support_values = _coerce_source_supports(source_supports) or [source_support]
+    evidential_confidence_source = (
+        "source_anchored"
+        if any(value.basis == EvidenceBasis.source_anchored for value in derived_date_values + derived_place_values)
+        else confidence_origin
+    )
+
     claim = KnowledgeClaim(
         text=text,
         source_document_id=source_document_id,
@@ -739,6 +1336,10 @@ def save_claim(
         time_start=time_start,
         time_end=time_end,
         time_precision=time_precision,
+        date_values=derived_date_values,
+        claim_location=claim_location,
+        claim_geo=claim_geo,
+        place_values=derived_place_values,
         claim_type=claim_type,
         confidence=confidence,
         metadata=meta,
@@ -765,6 +1366,16 @@ def save_claim(
         speaker_name=speaker_name,
         audience=audience,
         confidence_source=confidence_origin,
+        attribution_chain=derived_attribution_chain,
+        source_supports=support_values,
+        corroboration_count=len({support.source_document_id for support in support_values}),
+        corroborating_source_ids=sorted({support.source_document_id for support in support_values}),
+        evidential_confidence=confidence,
+        evidential_confidence_source=evidential_confidence_source,
     )
+    canonical = _find_cross_source_canonical_claim(db, claim)
+    if canonical is not None:
+        _merge_corroborating_claim(db, canonical, claim)
+        return canonical.id
     db.save(claim)
     return claim.id
