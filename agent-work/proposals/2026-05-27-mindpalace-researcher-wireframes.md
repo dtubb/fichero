@@ -168,6 +168,86 @@ service layer (`MindPalaceService`) is reusable under any of these.
 
 ---
 
+### Wireframe A4 — Room ↔ Sources binding (find a room by its sources; jump back)
+
+A room is **tied to the documents / collections / smart-groups it's built from**. Each node
+carries `SpatialNode.source_id`, so the set of `source_id`s in a room *is* the room's source
+list. The room header surfaces those sources, and every node links back to its source document
++ inspector. This makes a room findable by its sources ("which room has the 1873 deed?") and
+keeps the palace anchored to the real corpus.
+
+```
+├──────────────┬─────────────────────────────────────────────────────┬─────────────────┤
+│ ROOMS      ⊕ │  Room "LFH Catalogue"        Sources ▾ (12)  + Add ▾  │ INSPECTOR       │
+│ ● LFH ⟢12 src│ ┌── Sources in this room ───────────────────────────┐│ ┌─────────────┐ │
+│ ○ People ⟢ 5 │ │ 📄 Deed 1873      📁 Land Collection (8)           ││ │ Node        │ │
+│ ○ Mining ⟢ 9 │ │ 📄 Census 1881    ◧ Smart: "parcels>1870"         ││ │ Deed 1873   │ │
+│              │ │ 📄 Survey map     …                       [Reveal] ││ │ type: source│ │
+│ ▸ find room  │ └───────────────────────────────────────────────────┘│ │ source_id ✓ │ │
+│   by source: │ ┌─────────────────────────────────────────────────┐  │ │             │ │
+│  [deed 1873 ]│ │     ╭───────╮ (selected)                        │  │ │ ┌─────────┐ │ │
+│  → LFH, Land │ │     │📄 Deed │◄── node.source_id → Deed 1873     │  │ │ │ Open     │ │ │
+│              │ │     ╰───────╯                                    │  │ │ │ source → │ │ │
+│              │ │                                                  │  │ │ └─────────┘ │ │
+│              │ └─────────────────────────────────────────────────┘  │ │ [Reveal in  │ │
+│              │  ● 12 nodes from 12 sources                           │ │  Library]   │ │
+└──────────────┴───────────────────────────────────────────────────────┴─────────────────┘
+```
+
+- **Room header `Sources ▾ (12)`** — expands the distinct documents/collections/smart-groups
+  this room is built from (derived from the room's nodes' `source_id`s; collections/smart-groups
+  shown when a node's source resolves to one). `[Reveal]` selects that source in the Library.
+- **Sidebar "find room by source"** — type/drop a document and the sidebar filters/annotates
+  which rooms contain it (each `ROOMS` entry shows a `⟢N src` count). This is the
+  "find a room easily by its sources" path.
+- **Node → source (the get-back affordance, always present):** selecting a node shows
+  `source_id ✓` and the inspector's **[Open source →]** (resolve `source_id` → `Document`,
+  open in the reading surface + inspector) and **[Reveal in Library]**. A node whose
+  `source_id` is nil (a native note) shows no source link.
+
+### Wireframe A5 — Add sources to a room (drag-in + "Add to room…" picker)
+
+Two complementary affordances, both ending in `POST /nodes` (`place_node` with a `source_id`):
+
+**(a) Drag from the Library sidebar/grid onto the canvas** — drop a document (or a whole
+collection / smart-group) into the room; each dropped item becomes a node at the drop point.
+
+```
+   Library sidebar / grid                Mind Palace canvas (drop target)
+   ┌───────────────┐                     ┌─────────────────────────────────────┐
+   │ 📄 Deed 1873  │ ─────drag──────────▶│        ╭───────╮  ← new node placed   │
+   │ 📄 Census ▒▒▒ │   (multi-select     │        │📄 Deed │    at drop point     │
+   │ 📁 Land Coll. │    or a collection) │        ╰───────╯    POST /nodes        │
+   │ ◧ Smart group │                     │   "drop a collection → N nodes"       │
+   └───────────────┘                     └─────────────────────────────────────┘
+```
+
+**(b) "+ Add ▾" in the room header → picker** — for when drag isn't handy (or from inside the
+Mind Palace window). Search the Library; multi-select documents / a collection / a smart-group;
+"Add" places one node per resolved document.
+
+```
+   Room header:  … Sources ▾ (12)   [ + Add ▾ ]
+                                    └─────────────────────────────┐
+                                    │  Add sources to "LFH"        │
+                                    │  🔍 [ deed                ]   │
+                                    │  ☑ 📄 Deed 1873              │
+                                    │  ◻ 📄 Deed 1875              │
+                                    │  ◻ 📁 Land Collection (8)    │  ← adds 8 nodes
+                                    │  ◻ ◧ Smart: parcels>1870     │  ← adds matches
+                                    │            [ Cancel ] [ Add ] │
+                                    └─────────────────────────────┘
+```
+
+- Dropping/adding a **collection or smart-group** expands to its member documents and places
+  one node each (or, optionally, a single node + a `SpatialStack` group — see open question).
+- Drag-in obeys the SwiftUI drop lessons: a single `.onDrop(of:[UTType])` / one `Transferable`
+  on the canvas, not stacked `.dropDestination`s of different types
+  (`feedback_dropdestination_stacking`); keep drop modifiers inline in `body`
+  (`feedback_state_binding_through_value_copy`).
+- Nothing here mutates the Library — `place_node` only records that a document is *shown* in a
+  room. Removing a node (`DELETE /nodes/{id}`) never deletes the document.
+
 ### How the AI-manipulation API maps to the view (the #1269 bridge)
 
 ```
@@ -195,6 +275,8 @@ re-reading the scene. A lightweight "scene changed" signal (poll on focus, or re
 | `Views/MindPalace/SpatialScene3D.swift` *(new — Phase 2)* | RealityKit `RealityView` scene | renders SpatialNode x/y/z + rotation + scale |
 | `Views/MindPalace/RoomListView.swift` *(new)* | sidebar rooms + stacks + 3D/2D toggle | `/rooms`, `/stacks` |
 | `Views/MindPalace/SpatialNodeInspector.swift` *(new)* | node details + **Open source** affordance | resolves `source_id` → `Document` |
+| `Views/MindPalace/RoomSourcesBar.swift` *(new)* | room header `Sources ▾` (distinct source docs/collections/smart-groups) + Reveal | derived from nodes' `source_id` |
+| `Views/MindPalace/AddToRoomPicker.swift` *(new)* | "+ Add ▾" picker + canvas drop target → place nodes | `POST /nodes` (`place_node`) |
 | `Views/MindPalace/ArrangementMenu.swift` *(new)* | Arrange ▾ + AI activity rail | `suggest-arrangement`, `focus` |
 | `Models/FeatureManager.swift` *(edited, exists)* | `isMindPalaceEnabled` | — |
 
@@ -308,6 +390,61 @@ horizontal pressure.
 **Recommendation:** **R1** (3-pane) as the primary; degrade to **R2**'s segmented switcher at
 narrow widths (or as a `PreviewMode`-style option). Both reuse the same panel views.
 
+### Wireframe R3 — Per-project tracking: Archives · Search Terms · Library Destination
+
+Daniel wants a project to track **the archives being searched**, **the search terms tried**,
+the **parts of the project**, and **where findings get filed in the Library**. These surface in
+the Tasks pane's left rail (or a 4th "Project" tab in R2):
+
+```
+├──────────────┬──────────────────────────────────────────────────────────────────────┤
+│ PROJECT      │  "Land tenure 1870s"        Destination: 📁 /Research/LandTenure  [�edit]│
+│ ─ ARCHIVES ─⊕│ ┌── Parts (Plans) ──────────┬── Search terms tried ──────────────────┐ │
+│ 🏛 Archivo    │ │ ▾ Part: Survey            │  ☑ "land deed 1873"      12 hits  ↻     │ │
+│    Nacional   │ │   ☑ Pull deeds            │  ☑ "parcel 12 census"     4 hits  ↻     │ │
+│    ✓ accessed │ │   ◻ Map parcels           │  ◻ "escritura 1873" (es)  0 hits  ↻     │ │
+│ 🏛 ACENET     │ │ ▾ Part: Synthesis         │  + add term…                            │ │
+│    ◷ pending  │ │   ◻ Draft chapter 2       │  (running list, per project)            │ │
+│ + add archive │ └───────────────────────────┴─────────────────────────────────────────┘ │
+│              │  Findings filed to:  📁 /Research/LandTenure  (3 docs imported)          │
+└──────────────┴──────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Archives rail** (left) — first-class list of repositories being researched ("Archivo
+  Nacional", "ACENET") with an access-status badge.
+- **Parts** = the project's **Plans** (each Plan is a phase/part with its Tasks).
+- **Search terms tried** — a running per-project list with hit-counts and a re-run (↻) button.
+- **Destination** (header) — the target **Library folder/collection** where found materials get
+  filed; "Findings filed to" shows what's landed there.
+
+### Backend support vs. gaps (checked against `research_crud.py`, `research_notes.py`,
+`research_models.py`, and the `/api/research` contract)
+
+| # | Tracked item | Status | Backing model / field | Notes |
+|---|---|---|---|---|
+| 1 | **Archives** | ⚠️ **PARTIAL** | `SearchSource` (`source_type` enum `url/folder/database/api`, `label`, `url`, `description`, `access_status`, `reliability`) | An archive *can* be stored as a `SearchSource` of type `database`/`url` — `label`="Archivo Nacional", `access_status`, `reliability` all fit. But there's **no `archive` source_type** and no first-class Archive entity, so "archive" and "a web URL source" are conflated. `_build_term_plan` emits an `archives` text array into `Plan.metadata`, but those are *suggestions*, not trackable records. **Recommend**: add `archive` (and maybe `repository`) to `SearchSourceType`, or a thin `ResearchArchive` model. → **Gap G1 (optional, low).** |
+| 2 | **Search terms tried** | ❌ **NEEDS NEW BACKEND** | none dedicated | `WebSearchRequest.query` is **transient** (not persisted as a list). `Plan.metadata.research_term` stores *one* term per plan as a side effect of `create_plan(term=…)`, and `_build_term_plan` expands a term — but there is **no per-project "terms tried" list with hit-counts**. **Recommend**: a `ResearchSearchTerm` model (`project_id`, `term`, `language`, `result_count`, `last_run_at`, `tool`) + `GET/POST /projects/{id}/search-terms`; or, interim, append each query to `project.metadata["search_terms"]`. → **Gap G2 (real, medium).** |
+| 3 | **Different parts of project** | ✅ **SUPPORTED** | `ResearchPlan` (`project_id`, `name`, `description`, `status`, `order_index`) → `ResearchTask` → `ResearchStep` | "Parts" map cleanly onto **Plans** (a Plan = a part/phase, ordered via `order_index`). No new backend needed; if a *lighter* grouping than Plan→Task→Step is wanted, that's a UI-only simplification (show Plans as "parts", hide Steps). → **No gap.** |
+| 4 | **Destination in Library** | ❌ **NEEDS NEW BACKEND** | none on `ResearchProject` | `folder_path` exists on `SavedSearch`, `Workflow`, `Conversation`, etc., but **not on `ResearchProject`**. There is no link from a project to a target Library folder/collection where findings land. **Recommend**: add `target_folder_path: str | None` (or `library_destination`) to `ResearchProject`. Per the **0.0.x no-migration rule**, add the field to the Pydantic model + `_ensure_table` (no ALTER). Interim: `project.metadata["target_folder_path"]`. Also needs the "file this source into the Library" action (ties to Researcher open-question #5). → **Gap G3 (real, medium).** |
+
+### Backend gaps to file as separate tasks (design-flagged, not implemented here)
+
+- **G1 (optional):** Extend `SearchSourceType` with `archive`/`repository`, **or** add a thin
+  `ResearchArchive` model + `GET/POST /projects/{id}/archives`. Lets archives be tracked as
+  first-class items rather than overloading generic sources.
+- **G2 (required for "search terms tried"):** Add `ResearchSearchTerm`
+  (`project_id`, `term`, `language`, `result_count`, `last_run_at`, `tool`) with
+  `GET/POST /projects/{id}/search-terms`, and have `web-search` optionally record the query
+  against the project. Interim path: persist into `project.metadata["search_terms"]`.
+- **G3 (required for "destination in Library"):** Add `target_folder_path` to
+  `ResearchProject` (model + `_ensure_table`, no ALTER per 0.0.x rule) and a "file source into
+  Library" action that imports a fetched document into that folder as a real `Document`.
+
+> The 3-pane Researcher UI (R1/R2) ships **without** G1–G3 using what exists today (Plans as
+> parts, sources, notes, web tools). Archives (interim via `SearchSource`), search-terms, and
+> Library-destination panels light up fully once the gaps land — they should be **filed now**
+> so the UI and backend converge.
+
 ### New Swift files (Researcher, when approved to build)
 
 | File | Role | Calls |
@@ -318,8 +455,12 @@ narrow widths (or as a `PreviewMode`-style option). Both reuse the same panel vi
 | `Views/Research/ResearchWorkspaceView.swift` *(new)* | 3-pane (HStack + ResizableDivider) host | — |
 | `Views/Research/ResearchChatPane.swift` *(new)* | project-scoped chat | existing chat services |
 | `Views/Research/ResearchBrowserPane.swift` *(new)* | web search/navigate/fetch + save | `/tools/*`, `POST /sources`, `/notes` |
-| `Views/Research/ResearchTasksPane.swift` *(new)* | plans→tasks→steps + checklists + notes | `/plans`,`/tasks`,`/steps`,`/checklists`,`/notes` |
+| `Views/Research/ResearchTasksPane.swift` *(new)* | plans (parts)→tasks→steps + checklists + notes | `/plans`,`/tasks`,`/steps`,`/checklists`,`/notes` |
+| `Views/Research/ResearchProjectPane.swift` *(new)* | Archives rail + Search-terms list + Library-destination header (R3) | `/sources` (archives interim), G2 search-terms, G3 destination |
 | `Models/FeatureManager.swift` *(edit)* | add `isResearchEnabled` flag | — |
+
+> `ResearchProjectPane` renders against what exists today (archives as `SearchSource`s, Plans
+> as parts) and lights up the search-terms + destination affordances once gaps **G2/G3** land.
 
 ### OPEN QUESTIONS — Researcher
 
@@ -369,14 +510,24 @@ the same `/api/mind-palace` endpoints (the #1269 MCP bridge). Rooms are a worksp
 always jump back to the source document + inspector. Three layout variants are drawn: **A1**
 sidebar-mode + main-view canvas + inspector (recommended first mock), **A2** separate window
 (today's reference code; the path to an immersive Vision-Pro space), and **A3** A1 plus an AI-
-arrangement rail. Open questions center on A1-vs-A2, RealityKit-vs-SceneKit, what a 3D node
-looks like, how docs enter a room, and the AI co-editing UX.
+arrangement rail. A room is **tied to its sources** (each node's `SpatialNode.source_id`): the
+room header lists the documents/collections/smart-groups it's built from (so a room is findable
+by its sources), every node jumps back to its source document + inspector (**A4**), and an easy
+**add-sources** flow (drag from Library + an "+ Add ▾" picker, both calling `place_node`)
+populates the room without touching the Library (**A5**) — all backend-supported today. Open
+questions center on A1-vs-A2, RealityKit-vs-SceneKit, what a 3D node looks like, how docs enter
+a room, and the AI co-editing UX.
 
 **Researcher** — A sidebar **Projects** workspace: pick a project, work in a 3-pane layout of
 **Chat | Web browser | Tasks & milestones** (with notes/checklists/sources), all backed by the
 complete `/api/research` CRUD + the SSRF-guarded `web-search`/`browser-navigate`/`document-fetch`
 tools. It is **manual and tool-assisted — no autonomous agent runner** (explicitly out of
 scope). **R1** (3-pane) is recommended, degrading to **R2** (segmented single-pane) at narrow
-widths. Open questions: rendered-web-view vs text reader for the browser pane, chat scope/model,
-keeping research tasks independent of the GitHub backlog, sidebar-mode placement, and whether
-"Save as source" also imports the doc into the Library corpus.
+widths. Per-project tracking (**R3**) adds **Archives**, **Search terms tried**, project
+**Parts**, and a **Library destination** — a backend check shows Parts map to existing
+**Plans** (✅) and Archives partly fit existing **`SearchSource`** (⚠️), but **search-terms**
+and **Library-destination** need new backend (**gaps G2 + G3**, with optional **G1** to make
+archives first-class); all three are flagged to file as tasks so UI and backend converge. Open
+questions: rendered-web-view vs text reader for the browser pane, chat scope/model, keeping
+research tasks independent of the GitHub backlog, sidebar-mode placement, and whether "Save as
+source" also imports the doc into the Library corpus.
