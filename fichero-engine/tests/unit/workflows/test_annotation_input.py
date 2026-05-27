@@ -75,7 +75,9 @@ class TestCropImage:
     def test_returns_png_bytes_for_bbox(self, big_image):
         ann = Annotation(
             document_id="d", kind=AnnotationKind.highlight,
-            bbox=[80, 80, 40, 40],
+            # bbox is normalized [0,1] fractions (x,y,w,h): 0.4,0.4,0.2,0.2
+            # on a 200×200 image = a 40×40 crop at (80,80), inside the blue square.
+            bbox=[0.4, 0.4, 0.2, 0.2],
         )
         png = crop_image(big_image, ann)
         assert png is not None
