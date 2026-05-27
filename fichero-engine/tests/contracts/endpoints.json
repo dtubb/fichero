@@ -3652,6 +3652,18 @@
         "response_model": "ImageEditChainResponse"
       },
       {
+        "method": "POST",
+        "path": "/images/{document_id}/operations/enhance",
+        "operation_id": "enhance_image_api_images__document_id__operations_enhance_post",
+        "summary": "Enhance Image",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "EnhanceOperationRequest",
+        "response_model": "ImageEditChainResponse"
+      },
+      {
         "method": "GET",
         "path": "/images/{document_id}/preview",
         "operation_id": "preview_image_api_images__document_id__preview_get",

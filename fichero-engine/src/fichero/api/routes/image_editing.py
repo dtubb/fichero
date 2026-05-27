@@ -1,4 +1,4 @@
-"""Image editing API routes (#462, #463).
+"""Image editing API routes (#462, #463, #466).
 
 Stores per-document non-destructive edit chains and renders previews on demand.
 """
@@ -45,6 +45,14 @@ class RotateOperationRequest(BaseModel):
     angle: float
     expand: bool = True
     page: int = 1
+
+
+class EnhanceOperationRequest(BaseModel):
+    brightness: float = Field(1.0, ge=0.0)
+    contrast: float = Field(1.0, ge=0.0)
+    sharpen: float = Field(1.0, ge=0.0)
+    auto_levels: bool = False
+    page: int = Field(1, ge=1)
 
 
 def _get_or_404_document(db: Database, document_id: str) -> Document:
@@ -119,6 +127,28 @@ def _apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     if name == "contrast":
         factor = float(params.get("factor", 1.0))
         return ImageEnhance.Contrast(image).enhance(factor)
+
+    if name == "sharpen":
+        factor = float(params.get("factor", 1.0))
+        return ImageEnhance.Sharpness(image).enhance(factor)
+
+    if name == "auto_levels":
+        return ImageOps.autocontrast(image)
+
+    if name == "enhance":
+        enhanced = image
+        if bool(params.get("auto_levels", False)):
+            enhanced = ImageOps.autocontrast(enhanced)
+        enhanced = ImageEnhance.Brightness(enhanced).enhance(
+            float(params.get("brightness", 1.0))
+        )
+        enhanced = ImageEnhance.Contrast(enhanced).enhance(
+            float(params.get("contrast", 1.0))
+        )
+        enhanced = ImageEnhance.Sharpness(enhanced).enhance(
+            float(params.get("sharpen", 1.0))
+        )
+        return enhanced
 
     if name == "grayscale":
         return ImageOps.grayscale(image).convert("RGB")
@@ -242,6 +272,40 @@ async def rotate_image(
         "params": {
             "angle": request.angle,
             "expand": request.expand,
+        },
+    }
+    derived = _apply_operation(base, op)
+    op["derived_path"] = _write_derived_image(document_id, request.page, derived)
+    op["created_at"] = datetime.now().isoformat()
+
+    chain = _append_operation(db, document_id, op)
+    return ImageEditChainResponse(
+        document_id=document_id,
+        operations=chain.operations,
+        updated_at=chain.updated_at,
+    )
+
+
+@router.post("/{document_id}/operations/enhance", response_model=ImageEditChainResponse)
+async def enhance_image(
+    document_id: str,
+    request: EnhanceOperationRequest,
+    db: Database = Depends(get_library_database),
+) -> ImageEditChainResponse:
+    doc = _get_or_404_document(db, document_id)
+    source_path = resolve_source(doc)
+    if not source_path:
+        raise HTTPException(status_code=404, detail="Source file not available")
+
+    base = _load_source_image(source_path, page=request.page)
+    op = {
+        "op": "enhance",
+        "page": request.page,
+        "params": {
+            "brightness": request.brightness,
+            "contrast": request.contrast,
+            "sharpen": request.sharpen,
+            "auto_levels": request.auto_levels,
         },
     }
     derived = _apply_operation(base, op)

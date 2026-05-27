@@ -1,4 +1,4 @@
-"""Tests for image-editing routes (#462, #463)."""
+"""Tests for image-editing routes (#462, #463, #466)."""
 
 from __future__ import annotations
 
@@ -12,6 +12,19 @@ from fichero.models import Document, FileType
 def _make_image_doc(db, tmp_path, name: str = "sample.jpg", size: tuple[int, int] = (80, 50)):
     image_path = tmp_path / name
     img = Image.new("RGB", size, "white")
+    img.putpixel((0, 0), (255, 0, 0))
+    img.save(image_path, format="JPEG")
+
+    doc = Document(name=name, path=str(image_path), file_type=FileType.image)
+    db.save(doc)
+    return doc
+
+
+def _make_gray_image_doc(
+    db, tmp_path, name: str = "gray.jpg", size: tuple[int, int] = (80, 50)
+):
+    image_path = tmp_path / name
+    img = Image.new("RGB", size, (128, 128, 128))
     img.putpixel((0, 0), (255, 0, 0))
     img.save(image_path, format="JPEG")
 
@@ -77,6 +90,30 @@ class TestImageEditChainRoutes:
         assert ops[0]["params"] == {"angle": 90.0, "expand": True}
         assert "derived_path" in ops[0]
 
+    def test_enhance_operation_appends_chain(self, client, db, tmp_path):
+        doc = _make_gray_image_doc(db, tmp_path)
+        enhance = client.post(
+            f"/api/images/{doc.id}/operations/enhance",
+            json={
+                "brightness": 0.5,
+                "contrast": 1.25,
+                "sharpen": 1.5,
+                "auto_levels": True,
+                "page": 1,
+            },
+        )
+        assert enhance.status_code == 200
+        ops = enhance.json()["operations"]
+        assert len(ops) == 1
+        assert ops[0]["op"] == "enhance"
+        assert ops[0]["params"] == {
+            "brightness": 0.5,
+            "contrast": 1.25,
+            "sharpen": 1.5,
+            "auto_levels": True,
+        }
+        assert "derived_path" in ops[0]
+
 
 class TestImagePreviewRoute:
     def test_preview_returns_original_without_edits(self, client, db, tmp_path):
@@ -125,6 +162,25 @@ class TestImagePreviewRoute:
         assert r.status_code == 200
         img = Image.open(io.BytesIO(r.content))
         assert img.size == (50, 80)
+
+    def test_preview_regenerates_from_enhance_operation_chain(self, client, db, tmp_path):
+        doc = _make_gray_image_doc(db, tmp_path, size=(60, 40))
+        enhance = client.post(
+            f"/api/images/{doc.id}/operations/enhance",
+            json={"brightness": 0.5, "contrast": 1.0, "sharpen": 1.0},
+        )
+        assert enhance.status_code == 200
+
+        original = client.get(f"/api/images/{doc.id}/preview?apply_edits=false")
+        edited = client.get(f"/api/images/{doc.id}/preview")
+        assert original.status_code == 200
+        assert edited.status_code == 200
+
+        original_img = Image.open(io.BytesIO(original.content))
+        edited_img = Image.open(io.BytesIO(edited.content))
+        assert original_img.size == (60, 40)
+        assert edited_img.size == (60, 40)
+        assert original_img.getpixel((30, 20))[0] > edited_img.getpixel((30, 20))[0]
 
     def test_preview_missing_source_returns_404(self, client, db):
         doc = Document(name="missing.jpg", path="/tmp/does-not-exist.jpg", file_type=FileType.image)

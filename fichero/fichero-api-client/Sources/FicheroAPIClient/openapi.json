@@ -8572,6 +8572,68 @@
         }
       }
     },
+    "/api/images/{document_id}/operations/enhance": {
+      "post": {
+        "tags": [
+          "images",
+          "images"
+        ],
+        "summary": "Enhance Image",
+        "operationId": "enhance_image_api_images__document_id__operations_enhance_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnhanceOperationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageEditChainResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/images/{document_id}/preview": {
       "get": {
         "tags": [
@@ -36219,6 +36281,41 @@
           "table"
         ],
         "title": "EmbedEntitiesResponse"
+      },
+      "EnhanceOperationRequest": {
+        "properties": {
+          "brightness": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Brightness",
+            "default": 1.0
+          },
+          "contrast": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Contrast",
+            "default": 1.0
+          },
+          "sharpen": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Sharpen",
+            "default": 1.0
+          },
+          "auto_levels": {
+            "type": "boolean",
+            "title": "Auto Levels",
+            "default": false
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "title": "EnhanceOperationRequest"
       },
       "EntitiesPageResponse": {
         "properties": {
