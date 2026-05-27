@@ -1213,7 +1213,11 @@ async def _run_two_stage(
 
             # Write this entity's KG rows immediately — partial runs leave
             # partial KG instead of nothing (#1263 incremental resilience).
-            if section and section["name"] not in _skip_sections and claims and db:
+            # Guard on `container` (needed for container.id), not `db`: db is
+            # only required for the optional inline write. When db=None the
+            # payload is still built so the downstream kg_writer node can
+            # persist it with its own connection (#1285).
+            if section and section["name"] not in _skip_sections and claims and container:
                 items = _build_entity_items_for_section(entity, section_key, claims)
                 if items:
                     kg_payload.append({
@@ -1227,7 +1231,7 @@ async def _run_two_stage(
                         "model": getattr(llm_config, "model", None),
                         "grounding_text": entity_context,
                     })
-                    if persist_kg:
+                    if persist_kg and db:
                         try:
                             _write_kg_rows(
                                 db, section, items, container.id,
@@ -1291,7 +1295,7 @@ def _render_extraction_markdown(extraction: _Extraction) -> str:
     ]:
         if items:
             items_text = "\n".join(
-                f"- {item.name if hasattr(item, 'name') else item.event}: {item.verb} {item.object}".strip()
+                f"- {getattr(item, 'name', None) or getattr(item, 'date', None) or getattr(item, 'event', '?')}: {item.verb} {item.object}".strip()
                 for item in items
             )
             parts.append(f"## {key.title()}\n{items_text}")
