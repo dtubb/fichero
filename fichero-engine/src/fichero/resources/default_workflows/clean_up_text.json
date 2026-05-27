@@ -1,0 +1,67 @@
+{
+  "name": "Clean Up Text",
+  "description": "Transcribe each file (reusing any existing text layer), then clean the extracted text with an LLM: fix OCR noise, normalize whitespace and hyphenation, and strip page headers/footers and scanning artefacts — preserving the original meaning. The cleanup behaviour (aspect toggles, prompt, and model) is fully editable on the Clean Up Text node. The LLM node uses the $small model alias — set your default small model in Settings → AI Defaults.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Clean Up",
+  "tags": ["preset", "cleanup", "text", "ocr", "small"],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "transcribe",
+      "tool": "transcribe",
+      "label": "Transcribe each file",
+      "position_x": 280,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "vision_mode": "auto",
+        "language": "en",
+        "update_page_content": true
+      }
+    },
+    {
+      "id": "clean_text",
+      "tool": "clean_text",
+      "label": "Clean Up Text",
+      "position_x": 480,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "provider_name": "$small",
+        "fix_ocr": true,
+        "normalize_whitespace": true,
+        "fix_hyphenation": true,
+        "strip_artifacts": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-files-transcribe",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-transcribe-clean_text",
+      "source": "transcribe",
+      "target": "clean_text",
+      "source_port": "text",
+      "target_port": "text"
+    }
+  ]
+}
