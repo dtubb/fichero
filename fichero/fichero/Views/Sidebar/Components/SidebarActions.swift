@@ -26,15 +26,43 @@ extension SidebarView {
             return
         }
         let mode = sidebarState.selectedImportMode
+
+        // Resolve a destination folder, mirroring the drag-drop path
+        // (handleExternalFileDrop): import into the selected folder if one is
+        // selected, otherwise route to the library Inbox. A nil parentId lands
+        // documents at the bare library root, where they don't render in the
+        // sidebar — so a successful menu/file-picker import looked like a
+        // no-op. That missing routing was the broken-import root cause.
+        let parentId = importDestinationFolderId(in: library)
+
         logger.info("Importing \(urls.count) files to library: \(library.displayName)")
         do {
-            _ = try await library.importService.importFiles(urls, mode: mode)
+            _ = try await library.importService.importFiles(urls, mode: mode, parentId: parentId)
             logger.info("Imported \(urls.count) files using mode: \(mode.rawValue)")
         } catch {
             logger.error("Failed to import files: \(error)")
         }
+        // Refresh twice — once immediately, again after 500ms — to catch the
+        // race where the backend hasn't finished indexing when the first
+        // refresh fires (same hardening the drop path already has).
+        await library.documentStore.refresh()
+        try? await Task.sleep(for: .milliseconds(500))
         await library.documentStore.refresh()
         rebuildCaches()
+    }
+
+    /// Folder a menu/file-picker import should land in: the selected folder if
+    /// one is selected, otherwise the library Inbox. Never returns nil-to-root
+    /// silently — root-level documents are invisible in the sidebar tree.
+    private func importDestinationFolderId(in library: LibraryManager.LibraryReference) -> String? {
+        if let selectedItem,
+           case .document(let doc) = selectedItem.itemType,
+           doc.docType == .folder {
+            return doc.id
+        }
+        return library.documentStore.collections.first {
+            $0.name == "Inbox" && $0.parentId == nil && $0.docType == .folder
+        }?.id
     }
 
     /// Rename the selected item
