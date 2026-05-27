@@ -30,6 +30,7 @@ router = APIRouter(prefix="/annotations")
 class AnnotationCreateRequest(BaseModel):
     document_id: str
     kind: AnnotationKind
+    page_index: int | None = None
     page_label: str | None = None
     char_start: int | None = None
     char_end: int | None = None

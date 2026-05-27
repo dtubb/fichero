@@ -72,7 +72,13 @@ def crop_image(
     try:
         with Image.open(path) as img:
             x, y, w, h = annotation.bbox
-            crop = img.crop((int(x), int(y), int(x + w), int(y + h)))
+            iw, ih = img.size
+            # Denormalize from [0,1] fractions to pixel coordinates.
+            px = int(x * iw)
+            py = int(y * ih)
+            pw = int(w * iw)
+            ph = int(h * ih)
+            crop = img.crop((px, py, px + pw, py + ph))
             buf = io.BytesIO()
             crop.save(buf, format="PNG")
             return buf.getvalue()
@@ -105,7 +111,7 @@ def crop_pdf_page(
     if not path.exists():
         return None
 
-    page_idx = _parse_page_index(annotation.page_label)
+    page_idx = annotation.page_index if annotation.page_index is not None else _parse_page_index(annotation.page_label)
     try:
         doc = fitz.open(str(path))
         if page_idx is None or page_idx < 0 or page_idx >= doc.page_count:
@@ -116,7 +122,13 @@ def crop_pdf_page(
         matrix = fitz.Matrix(zoom, zoom)
         if annotation.bbox and len(annotation.bbox) == 4:
             x, y, w, h = annotation.bbox
-            clip = fitz.Rect(x, y, x + w, y + h)
+            rect = page.rect
+            # Denormalize from [0,1] fractions to PDF point coordinates.
+            px = x * rect.width
+            py = y * rect.height
+            pw = w * rect.width
+            ph = h * rect.height
+            clip = fitz.Rect(px, py, px + pw, py + ph)
             pixmap = page.get_pixmap(matrix=matrix, clip=clip)
         else:
             pixmap = page.get_pixmap(matrix=matrix)
