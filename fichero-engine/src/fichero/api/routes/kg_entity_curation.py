@@ -22,6 +22,7 @@ from fichero.knowledge_models import (
     EntityMergeOperationType,
     EntityType,
     KnowledgeEntity,
+    KnowledgeClaim,
 )
 from fichero.models import EntityAuditListResponse, KGGraphListResponse
 
@@ -121,6 +122,18 @@ async def merge_entities(
     if request.merged_description:
         absorber.description = request.merged_description
     absorber.updated_at = now
+
+    # Re-point claims: replace absorbed entity IDs with the absorber ID so
+    # claim queries on the absorber surface all previously-absorbed evidence.
+    absorbed_ids = {e.id for e in absorbed}
+    for claim in db.query(KnowledgeClaim):
+        old_ids = claim.entity_ids or []
+        if any(eid in absorbed_ids for eid in old_ids):
+            new_ids = [absorber.id if eid in absorbed_ids else eid for eid in old_ids]
+            seen: set[str] = set()
+            claim.entity_ids = [eid for eid in new_ids if not (eid in seen or seen.add(eid))]  # type: ignore[func-returns-value]
+            claim.updated_at = now
+            db.save(claim)
 
     audit = EntityMergeAudit(
         operation_type=EntityMergeOperationType.merge,
