@@ -8,6 +8,7 @@ tracking cost, latency, and response quality for comparison.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 import uuid
@@ -19,7 +20,13 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
-from fichero.llm import get_langchain_model, LLMConfig, vision
+from fichero.llm import (
+    AppleUnavailableError,
+    LLMConfig,
+    get_langchain_model,
+    resolve_model_alias,
+    vision,
+)
 from fichero.workflows.registry import register_tool
 from fichero.workflows.types import DataType, PortDef, State
 
@@ -43,6 +50,12 @@ class ModelResult:
     output_tokens: int = 0
     cost_usd: float = 0.0
     error: str | None = None
+    structured_decode_success: bool | None = None
+    structured_decode_error: str | None = None
+    guardrail_fallback_used: bool = False
+    fallback_provider: str | None = None
+    fallback_model: str | None = None
+    raw_response: Any | None = None
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self) -> dict[str, Any]:
@@ -55,6 +68,12 @@ class ModelResult:
             "output_tokens": self.output_tokens,
             "cost_usd": self.cost_usd,
             "error": self.error,
+            "structured_decode_success": self.structured_decode_success,
+            "structured_decode_error": self.structured_decode_error,
+            "guardrail_fallback_used": self.guardrail_fallback_used,
+            "fallback_provider": self.fallback_provider,
+            "fallback_model": self.fallback_model,
+            "raw_response": self.raw_response,
             "timestamp": self.timestamp,
         }
 
@@ -106,6 +125,14 @@ class ComparisonRequest(BaseModel):
     )
     timeout_seconds: int = Field(default=120, description="Timeout per model")
     include_cost_tracking: bool = Field(default=True, description="Track costs")
+    expect_json: bool = Field(
+        default=False,
+        description="Mark structured_decode_success by parsing each response as JSON",
+    )
+    response_schema: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional JSON schema requested by the UI for structured output",
+    )
 
 
 # =============================================================================
@@ -276,7 +303,11 @@ class ModelComparisonEngine:
         # Run all models in parallel
         tasks = [
             self._run_model(
-                spec, request.prompt, request.system_prompt, request.timeout_seconds
+                spec,
+                request.prompt,
+                request.system_prompt,
+                request.timeout_seconds,
+                expect_json=request.expect_json or request.response_schema is not None,
             )
             for spec in request.models
         ]
@@ -343,32 +374,15 @@ class ModelComparisonEngine:
         prompt: str,
         system_prompt: str | None,
         timeout_seconds: int,
+        *,
+        expect_json: bool = False,
     ) -> ModelResult:
         """Run a single model and collect metrics."""
         start_time = time.time()
 
         try:
-            config = LLMConfig(
-                provider=spec.provider,
-                model=spec.model,
-                temperature=spec.temperature,
-                max_tokens=spec.max_tokens,
-            )
-
-            model = get_langchain_model(config)
-
-            # Build messages
-            from langchain_core.messages import HumanMessage, SystemMessage
-
-            messages = []
-            if system_prompt:
-                messages.append(SystemMessage(content=system_prompt))
-            messages.append(HumanMessage(content=prompt))
-
-            # Run with timeout
-            response = await asyncio.wait_for(
-                model.ainvoke(messages),
-                timeout=timeout_seconds,
+            response, fallback = await self._invoke_model_with_optional_fallback(
+                spec, prompt, system_prompt, timeout_seconds
             )
 
             latency_ms = (time.time() - start_time) * 1000
@@ -404,6 +418,16 @@ class ModelComparisonEngine:
                 output_tokens = len(response.content) // 4
 
             cost = estimate_cost(spec.model, input_tokens, output_tokens)
+            structured_success = None
+            structured_error = None
+            raw_response = None
+            if expect_json:
+                try:
+                    raw_response = json.loads(response.content)
+                    structured_success = True
+                except (TypeError, json.JSONDecodeError) as exc:
+                    structured_success = False
+                    structured_error = str(exc)
 
             return ModelResult(
                 provider=spec.provider,
@@ -413,6 +437,12 @@ class ModelComparisonEngine:
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 cost_usd=cost,
+                structured_decode_success=structured_success,
+                structured_decode_error=structured_error,
+                guardrail_fallback_used=fallback is not None,
+                fallback_provider=fallback.provider if fallback else None,
+                fallback_model=fallback.model if fallback else None,
+                raw_response=raw_response,
             )
 
         except asyncio.TimeoutError:
@@ -432,6 +462,57 @@ class ModelComparisonEngine:
                 latency_ms=(time.time() - start_time) * 1000,
                 error=str(e),
             )
+
+    async def _invoke_model_with_optional_fallback(
+        self,
+        spec: ModelSpec,
+        prompt: str,
+        system_prompt: str | None,
+        timeout_seconds: int,
+    ) -> tuple[Any, ModelSpec | None]:
+        """Invoke a model and record when Apple guardrail fallback is used."""
+        try:
+            return await self._invoke_model(spec, prompt, system_prompt, timeout_seconds), None
+        except AppleUnavailableError:
+            provider, model = resolve_model_alias("$large", "")
+            if provider == spec.provider and model == spec.model:
+                raise
+            fallback_spec = ModelSpec(
+                provider=provider,
+                model=model,
+                temperature=spec.temperature,
+                max_tokens=spec.max_tokens,
+            )
+            return (
+                await self._invoke_model(
+                    fallback_spec, prompt, system_prompt, timeout_seconds
+                ),
+                fallback_spec,
+            )
+
+    async def _invoke_model(
+        self,
+        spec: ModelSpec,
+        prompt: str,
+        system_prompt: str | None,
+        timeout_seconds: int,
+    ) -> Any:
+        config = LLMConfig(
+            provider=spec.provider,
+            model=spec.model,
+            temperature=spec.temperature,
+            max_tokens=spec.max_tokens,
+        )
+        model = get_langchain_model(config)
+
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        messages = []
+        if system_prompt:
+            messages.append(SystemMessage(content=system_prompt))
+        messages.append(HumanMessage(content=prompt))
+
+        return await asyncio.wait_for(model.ainvoke(messages), timeout=timeout_seconds)
 
     def get_history(self, limit: int = 10) -> list[dict]:
         """Get recent comparison history."""
@@ -726,6 +807,12 @@ class ModelComparisonEngine:
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 cost_usd=cost,
+                structured_decode_success=isinstance(result, dict)
+                and not bool(result.get("error")),
+                structured_decode_error=str(result.get("error"))
+                if isinstance(result, dict) and result.get("error")
+                else None,
+                raw_response=result if isinstance(result, dict) else None,
             )
 
         except asyncio.TimeoutError:

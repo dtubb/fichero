@@ -7,7 +7,31 @@ prefix="/model-comparison" mounted at "/api"). Engine calls are mocked.
 
 from unittest.mock import MagicMock, patch, AsyncMock
 
+from fichero.models import Model, Provider, ProviderType
 from fichero.workflows.model_comparison import ComparisonResult, ModelResult
+
+
+def _seed_model(
+    app_db,
+    *,
+    provider_type=ProviderType.openai,
+    provider_name="OpenAI",
+    model_id="gpt-4o-mini",
+    input_cost=0.15,
+    output_cost=0.60,
+):
+    provider = Provider(name=provider_name, provider_type=provider_type)
+    app_db.save_provider(provider)
+    app_db.save_model(
+        Model(
+            provider_id=provider.id,
+            name=model_id,
+            model_id=model_id,
+            input_cost=input_cost,
+            output_cost=output_cost,
+        )
+    )
+    return provider
 
 
 # ---------------------------------------------------------------------------
@@ -16,14 +40,16 @@ from fichero.workflows.model_comparison import ComparisonResult, ModelResult
 
 
 class TestListModels:
-    def test_returns_model_list(self, client):
+    def test_returns_model_list(self, client, app_db):
+        _seed_model(app_db)
         r = client.get("/api/model-comparison/models")
         assert r.status_code == 200
         data = r.json()
         assert "models" in data
         assert len(data["models"]) > 0
 
-    def test_models_have_required_fields(self, client):
+    def test_models_have_required_fields(self, client, app_db):
+        _seed_model(app_db)
         r = client.get("/api/model-comparison/models")
         assert r.status_code == 200
         for model in r.json()["models"]:
@@ -38,14 +64,16 @@ class TestListModels:
 
 
 class TestGetPresets:
-    def test_returns_presets(self, client):
+    def test_returns_presets(self, client, app_db):
+        _seed_model(app_db)
         r = client.get("/api/model-comparison/presets")
         assert r.status_code == 200
         data = r.json()
         assert "presets" in data
         assert len(data["presets"]) > 0
 
-    def test_presets_have_models(self, client):
+    def test_presets_have_models(self, client, app_db):
+        _seed_model(app_db)
         r = client.get("/api/model-comparison/presets")
         assert r.status_code == 200
         for preset in r.json()["presets"]:
@@ -177,3 +205,92 @@ class TestCompareModels:
         data = r.json()
         assert data["comparison_id"] == "cmp-route"
         assert data["results"][0]["response"] == "Hi"
+
+    def test_compare_uses_settings_models_when_request_omits_models(
+        self, client, app_db
+    ):
+        _seed_model(app_db)
+        comparison = ComparisonResult(
+            prompt="Hello",
+            models_compared=["openai/gpt-4o-mini"],
+            results=[
+                ModelResult(
+                    provider="openai",
+                    model="gpt-4o-mini",
+                    response="Hi",
+                    latency_ms=5.0,
+                )
+            ],
+            comparison_id="cmp-settings",
+        )
+        mock_engine = MagicMock()
+        mock_engine.compare = AsyncMock(return_value=comparison)
+
+        with patch(
+            "fichero.api.routes.model_comparison.get_comparison_engine",
+            return_value=mock_engine,
+        ):
+            r = client.post(
+                "/api/model-comparison/compare",
+                json={"prompt": "Hello"},
+            )
+
+        assert r.status_code == 200
+        request = mock_engine.compare.await_args.args[0]
+        assert request.models[0].provider == "openai"
+        assert request.models[0].model == "gpt-4o-mini"
+
+
+class TestCompareWorkflowNode:
+    def test_compare_node_returns_apply_patches(self, client, app_db):
+        _seed_model(app_db)
+        comparison = ComparisonResult(
+            prompt="[Tool: model_comparison] {'prompt': 'Pinned'}",
+            models_compared=["openai/gpt-4o-mini"],
+            results=[
+                ModelResult(
+                    provider="openai",
+                    model="gpt-4o-mini",
+                    response="Best result",
+                    latency_ms=7.0,
+                    structured_decode_success=True,
+                    raw_response={"text": "Best result"},
+                )
+            ],
+            comparison_id="cmp-node",
+        )
+        mock_engine = MagicMock()
+        mock_engine.compare_tool = AsyncMock(return_value=comparison)
+
+        with patch(
+            "fichero.api.routes.model_comparison.get_comparison_engine",
+            return_value=mock_engine,
+        ):
+            r = client.post(
+                "/api/model-comparison/compare-node",
+                json={
+                    "workflow": {
+                        "id": "wf-1",
+                        "name": "Workflow",
+                        "nodes": [
+                            {
+                                "id": "node-1",
+                                "tool": "model_comparison",
+                                "inputs": {"prompt": "Pinned"},
+                                "uses_llm": True,
+                            }
+                        ],
+                        "edges": [],
+                    },
+                    "node_id": "node-1",
+                },
+            )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["node_id"] == "node-1"
+        assert data["input_snapshot"]["prompt"] == "Pinned"
+        assert data["choices"][0]["apply_patch"] == {
+            "provider_name": "openai",
+            "model_name": "gpt-4o-mini",
+        }
