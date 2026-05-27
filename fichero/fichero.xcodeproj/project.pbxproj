@@ -150,6 +150,7 @@
 		3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */; };
 		4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
 		4EBA402FBE51F9F56366C3A5 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */; };
+		54A07EFB77CACCF2E0ADDD84 /* ImageEditingServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AA2442EE35411B543D0868B /* ImageEditingServiceGenerated.swift */; };
 		56DCD53ACD6483561CF542B3 /* KGTemporalSpatial.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43EAB861267206E7A929830F /* KGTemporalSpatial.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
 		64574A29B56CBA1F27542556 /* BackendSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */; };
@@ -547,6 +548,7 @@
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
 		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
 		397DBEE7CB99C18C680AB85E /* UITestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UITestSupport.swift; sourceTree = "<group>"; };
+		3AA2442EE35411B543D0868B /* ImageEditingServiceGenerated.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageEditingServiceGenerated.swift; sourceTree = "<group>"; };
 		3E8C3EFBCE91C295309468AB /* ThinkingModePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThinkingModePicker.swift; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
 		4121 /* PerformanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceService.swift; sourceTree = "<group>"; };
@@ -1183,6 +1185,7 @@
 				20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */,
 				300A8405FFC476E5124372AE /* APIClient+Types.swift */,
 				397DBEE7CB99C18C680AB85E /* UITestSupport.swift */,
+				3AA2442EE35411B543D0868B /* ImageEditingServiceGenerated.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -2057,6 +2060,7 @@
 				0A667D33534B55BD383F4D55 /* KGMapView.swift in Sources */,
 				56DCD53ACD6483561CF542B3 /* KGTemporalSpatial.swift in Sources */,
 				E16CECCFD4B4BCE53B2FEC36 /* KGTimelineView.swift in Sources */,
+				54A07EFB77CACCF2E0ADDD84 /* ImageEditingServiceGenerated.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
