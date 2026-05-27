@@ -37,6 +37,9 @@ struct ImageEditorView: View {
     /// Marquee selection in normalized image space (0…1); nil when none (#1265).
     @State private var marqueeSelection: CGRect?
 
+    /// Creates region (bbox) annotations from the marquee selection (#1276).
+    @StateObject private var annotationService = AnnotationService()
+
     /// Image documents in the current multi-selection (for batch-apply).
     private var selectedImages: [Document] {
         siblingImages.filter { selectedDocumentIDs.contains($0.id) }
@@ -156,6 +159,15 @@ private extension ImageEditorView {
                 .disabled(model.isBusy)
                 .help("Crop the image to the selected region")
                 .accessibilityIdentifier("imageEditCropToSelection")
+
+                Button {
+                    Task { await annotateSelection() }
+                } label: {
+                    Label("Annotate", systemImage: "highlighter")
+                }
+                .disabled(model.isBusy)
+                .help("Save the selected region as an annotation on this image")
+                .accessibilityIdentifier("imageEditAnnotateSelection")
             }
 
             if selectedImages.count > 1 {
@@ -268,6 +280,26 @@ private extension ImageEditorView {
         guard width > 0, height > 0 else { return }
         await model.crop(left: left, top: top, width: width, height: height)
         marqueeSelection = nil
+    }
+
+    /// Persist the marquee as a region annotation (`bbox` = [x, y, width, height]
+    /// as 0…1 fractions of the image) on the active document (#1276). Clears the
+    /// selection on success so the toolbar reverts to its normal state.
+    private func annotateSelection() async {
+        guard let selection = marqueeSelection, selection.width > 0, selection.height > 0 else { return }
+        let bbox = [
+            Double(selection.minX),
+            Double(selection.minY),
+            Double(selection.width),
+            Double(selection.height)
+        ]
+        let created = await annotationService.addNote(
+            documentId: activeDocument.id,
+            text: "",
+            bbox: bbox,
+            kind: .highlight
+        )
+        if created != nil { marqueeSelection = nil }
     }
 
     private func toolButton(_ systemImage: String, help: String, action: @escaping () -> Void) -> some View {
