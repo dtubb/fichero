@@ -19,6 +19,8 @@ func isRunningXCTests() -> Bool {
     return env["XCTestConfigurationFilePath"] != nil || env["XCTestBundlePath"] != nil
 }
 
+// `isUITesting()` / `uiTestSupportDirectory()` live in UITestSupport.swift (#1230).
+
 /// Manages the embedded Python backend lifecycle
 @MainActor
 final class EmbeddedBackendService: ObservableObject {
@@ -58,8 +60,8 @@ final class EmbeddedBackendService: ObservableObject {
         // the (often unbuilt) bundled engine NOR fatally terminate when it's
         // missing — `showBackendError` calls NSApplication.terminate, which
         // kills the test runner before a single test executes.
-        if isPreview || isRunningXCTests() {
-            logger.info("Preview / playground / XCTest host — connecting to external if up, else no-op")
+        if isPreview || isRunningXCTests() || isUITesting() {
+            logger.info("Preview / playground / XCTest host / UI-test — connecting to external if up, else no-op")
             do {
                 try await waitForBackend(timeout: 1.5)
                 status = .running

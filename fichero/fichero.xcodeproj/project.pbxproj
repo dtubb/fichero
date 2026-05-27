@@ -346,6 +346,7 @@
 		C835851846598745D40790B6 /* EntityDetailView+FilterChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = D18BA434B3CB3A8C31139293 /* EntityDetailView+FilterChips.swift */; };
 		C96A47B8A003AF3A6FC98CF8 /* AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C07B489C8F89204C43BD6E46 /* AISettingsView.swift */; };
 		D2A64087B8C786EE95E842A5 /* LocalModelsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */; };
+		D9D582D305FA54570A7F6093 /* UITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 397DBEE7CB99C18C680AB85E /* UITestSupport.swift */; };
 		DA49843739ACA26F5AD0759C /* AISettingsView+Tabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4189C51250E0B39E05CD87B /* AISettingsView+Tabs.swift */; };
 		DA731A1441637DFFBE146AD4 /* EntityDetailView+Claims.swift in Sources */ = {isa = PBXBuildFile; fileRef = A99ACF7102EB736967DDAE57 /* EntityDetailView+Claims.swift */; };
 		DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */; };
@@ -539,6 +540,7 @@
 		371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BackendSettingsView.swift; path = fichero/Views/Settings/BackendSettingsView.swift; sourceTree = SOURCE_ROOT; };
 		377DA5DA45FB4CE09C7F76FF /* LibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryManager.swift; sourceTree = "<group>"; };
 		38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComparisonDetailView.swift; sourceTree = "<group>"; };
+		397DBEE7CB99C18C680AB85E /* UITestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UITestSupport.swift; sourceTree = "<group>"; };
 		3E8C3EFBCE91C295309468AB /* ThinkingModePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThinkingModePicker.swift; sourceTree = "<group>"; };
 		4119 /* CacheModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheModel.swift; sourceTree = "<group>"; };
 		4121 /* PerformanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceService.swift; sourceTree = "<group>"; };
@@ -1162,6 +1164,7 @@
 				20D8EE3B2F4BE0D8006950A3 /* ActionsService.swift */,
 				20D8EE3D2F4BE1AB006950A3 /* ActionLibraryService.swift */,
 				300A8405FFC476E5124372AE /* APIClient+Types.swift */,
+				397DBEE7CB99C18C680AB85E /* UITestSupport.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1509,7 +1512,7 @@
 			name = FicheroUITests;
 			productName = FicheroUITests;
 			productReference = A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
@@ -2029,6 +2032,7 @@
 				E8C9269492F9A675CF7ABDFE /* PDFLoupeOverlay.swift in Sources */,
 				82E7E9935A5A324121ECB468 /* DocumentKGWebPane.swift in Sources */,
 				019CE6D6AA066E977DCB6813 /* ContentView+KnowledgeSurface.swift in Sources */,
+				D9D582D305FA54570A7F6093 /* UITestSupport.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -2324,46 +2328,32 @@
 		A10521C82EFDC94100B28C3E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
-				);
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = Debug;
 		};
 		A10521C92EFDC94100B28C3E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				LIBRARY_SEARCH_PATHS = (
-					"$(SRCROOT)/fichero/Views/Library/DocumentInspector",
-					"$(SRCROOT)/fichero/Views/Automation/TriggerEditorView",
-					"$(SRCROOT)/fichero/Views/Components",
-					"$(SRCROOT)/fichero/Views/Settings",
-				);
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.fichero.fichero.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+				TEST_TARGET_NAME = Fichero;
 			};
 			name = Release;
 		};

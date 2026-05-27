@@ -6,7 +6,7 @@ import SwiftUI
 
 extension ContentView {
     private var clampedWidescreenContentPaneWidth: CGFloat {
-        CGFloat(min(max(widescreenContentPaneWidth, 180), 900))
+        CGFloat(min(max(widescreenContentPaneWidth, ContentView.contentListMinWidth), 900))
     }
 
     var effectiveCenterIdealWidth: Double {
@@ -94,6 +94,8 @@ extension ContentView {
                 }
                 Spacer(minLength: 0)
             }
+            // XCUITest hook for the view-mode rail (#1230).
+            .accessibilityIdentifier("viewModeRail")
         }
     }
 
@@ -119,6 +121,8 @@ extension ContentView {
         )
         .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
         .help("View as: \(mode.rawValue)")
+        // Stable per-mode XCUITest hook, e.g. "viewMode-List" (#1230).
+        .accessibilityIdentifier("viewMode-\(mode.rawValue)")
     }
 
     @ViewBuilder
@@ -187,7 +191,7 @@ extension ContentView {
 
                         ResizableDivider(
                             width: $widescreenContentPaneWidth,
-                            minWidth: 180,
+                            minWidth: ContentView.contentListMinWidth,
                             maxWidth: 900,
                             edge: .leading
                         )

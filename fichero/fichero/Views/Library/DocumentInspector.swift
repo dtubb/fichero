@@ -103,10 +103,14 @@ struct DocumentInspector: View {
                 )
                 .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
                 .help(tab.rawValue)
+                // Stable per-tab XCUITest hook, e.g. "inspectorTab-Content" (#1230).
+                .accessibilityIdentifier("inspectorTab-\(tab.rawValue)")
             }
         }
         .padding(.horizontal, 8)
         .frame(height: MiniToolbar<EmptyView>.standardHeight)
+        // XCUITest hook for the inspector tab bar (#1230).
+        .accessibilityIdentifier("inspectorTabBar")
     }
 
     /// Tab content for the selected tab
@@ -277,7 +281,7 @@ struct DocumentInspector: View {
 /// document: status, kind, ingest mode, timestamps. The list is intentionally
 /// short — anything more belongs in the Info tab. See
 /// docs/architecture/swiftui/inspector_redesign.md.
-struct DisplayAttributesStrip: View {
+struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
     let document: Document
 
     // Artifacts are loaded lazily so the user can opt to surface them as rows
@@ -294,8 +298,22 @@ struct DisplayAttributesStrip: View {
     /// Artifact types the user has chosen to surface, comma-joined. Default
     /// empty → no artifacts shown; they are opt-in.
     @AppStorage("inspector.attributeStrip.artifacts") private var shownArtifactsRaw: String = ""
+    /// Knowledge-graph summaries the user has surfaced ("entities","claims"),
+    /// comma-joined. Opt-in like artifacts (#1246).
+    @AppStorage("inspector.attributeStrip.kg") private var shownKGRaw: String = ""
+    /// Document-metadata keys the user has surfaced, comma-joined. File
+    /// metadata/info and any imported JSON all live in `document.metadata`,
+    /// so this one bucket covers both. Opt-in (#1246).
+    @AppStorage("inspector.attributeStrip.metadata") private var shownMetadataRaw: String = ""
+
+    /// Knowledge-graph reads come from the same service the KG tab uses.
+    @EnvironmentObject private var entityService: EntityServiceGenerated
 
     @State private var artifacts: [Artifact] = []
+    /// KG counts for this document, nil until loaded (or on load failure).
+    /// Drives the opt-in Entities/Claims rows (#1246).
+    @State private var entityCount: Int?
+    @State private var claimCount: Int?
 
     /// The fixed document attributes the strip can show. Case order is the
     /// display order. `path` is additionally gated on the document having one.
@@ -314,16 +332,34 @@ struct DisplayAttributesStrip: View {
         }
     }
 
-    /// A single rendered line in the strip — either a fixed attribute or a
-    /// surfaced artifact type. Unifying them lets one `ForEach` interleave the
-    /// divider logic without an index-vs-data mismatch.
+    /// Knowledge-graph summaries the strip can surface — peers to artifacts,
+    /// each an opt-in count row (#1246).
+    enum KGItem: String, CaseIterable, Identifiable {
+        case entities, claims
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .entities: return "Entities"
+            case .claims: return "Claims"
+            }
+        }
+    }
+
+    /// A single rendered line in the strip — a fixed attribute, a KG summary,
+    /// a surfaced artifact type, or a document-metadata key. Unifying them lets
+    /// one `ForEach` interleave the divider logic without an index-vs-data
+    /// mismatch. (#1229, extended for KG + metadata in #1246.)
     private enum StripRow: Identifiable {
         case attribute(DisplayAttribute)
+        case knowledge(KGItem)
         case artifact(String)
+        case metadata(String)
         var id: String {
             switch self {
             case .attribute(let attr): return "attr:\(attr.rawValue)"
+            case .knowledge(let item): return "kg:\(item.rawValue)"
             case .artifact(let type): return "art:\(type)"
+            case .metadata(let key): return "meta:\(key)"
             }
         }
     }
@@ -336,21 +372,56 @@ struct DisplayAttributesStrip: View {
         Set(shownArtifactsRaw.split(separator: ",").map(String.init))
     }
 
+    private var shownKGItems: Set<String> {
+        Set(shownKGRaw.split(separator: ",").map(String.init))
+    }
+
+    private var shownMetadataKeys: Set<String> {
+        Set(shownMetadataRaw.split(separator: ",").map(String.init))
+    }
+
     /// Distinct artifact types available for this document, sorted for a stable
     /// menu + row order.
     private var availableArtifactTypes: [String] {
         Array(Set(artifacts.map(\.artifactType))).sorted()
     }
 
-    /// The ordered rows to render: visible fixed attributes first, then any
-    /// artifact types the user has switched on.
+    /// Internal/derived metadata keys that aren't useful as surfaced rows —
+    /// hashes, MIME guts, the raw page-content blobs, and the LINK bookmark.
+    /// Matches the noise filter the Info tab's Technical Metadata uses.
+    private static let noisyMetadataKeys: Set<String> = [
+        "checksum", "hash", "md5", "sha256",
+        "mime_type", "mimetype", "content_type",
+        "page_content", "page_content_rtf",
+        "transcription", "bookmark"
+    ]
+
+    /// Document-metadata keys worth surfacing (file metadata/info + any
+    /// imported JSON), noise filtered out, sorted for a stable menu order.
+    private var availableMetadataKeys: [String] {
+        document.metadata.keys
+            .filter { !Self.noisyMetadataKeys.contains($0.lowercased()) }
+            .sorted()
+    }
+
+    /// The ordered rows to render: visible fixed attributes, then the
+    /// knowledge-graph summaries, artifact types, and metadata keys the user
+    /// has switched on. Every source is opt-in past the fixed attributes, so
+    /// the Content tab can surface *everything* available for the selection
+    /// without crowding the default view (#1246).
     private var rows: [StripRow] {
         var result = DisplayAttribute.allCases
             .filter { shouldRender($0) }
             .map { StripRow.attribute($0) }
+        result += KGItem.allCases
+            .filter { shownKGItems.contains($0.rawValue) }
+            .map { StripRow.knowledge($0) }
         result += availableArtifactTypes
             .filter { shownArtifactTypes.contains($0) }
             .map { StripRow.artifact($0) }
+        result += availableMetadataKeys
+            .filter { shownMetadataKeys.contains($0) }
+            .map { StripRow.metadata($0) }
         return result
     }
 
@@ -368,7 +439,11 @@ struct DisplayAttributesStrip: View {
         .padding(.vertical, 6)
         .background(Color(.controlBackgroundColor))
         .task(id: document.id) {
-            await loadArtifacts()
+            // Artifacts and KG counts are independent reads — fetch them
+            // concurrently so the strip populates without serial latency.
+            async let artifactLoad: Void = loadArtifacts()
+            async let knowledgeLoad: Void = loadKnowledgeGraph()
+            _ = await (artifactLoad, knowledgeLoad)
         }
     }
 
@@ -393,10 +468,22 @@ struct DisplayAttributesStrip: View {
                     Toggle(attr.label, isOn: binding(for: attr))
                 }
             }
+            Section("Knowledge Graph") {
+                ForEach(KGItem.allCases) { item in
+                    Toggle(item.label, isOn: kgBinding(for: item))
+                }
+            }
             if !availableArtifactTypes.isEmpty {
                 Section("Artifacts") {
                     ForEach(availableArtifactTypes, id: \.self) { type in
                         Toggle(displayName(for: type), isOn: artifactBinding(for: type))
+                    }
+                }
+            }
+            if !availableMetadataKeys.isEmpty {
+                Section("Metadata") {
+                    ForEach(availableMetadataKeys, id: \.self) { key in
+                        Toggle(metadataLabel(for: key), isOn: metadataBinding(for: key))
                     }
                 }
             }
@@ -407,7 +494,7 @@ struct DisplayAttributesStrip: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help("Choose which attributes and artifacts to show")
+        .help("Choose which attributes, knowledge graph, artifacts, and metadata to show")
     }
 
     // MARK: - Visibility + bindings
@@ -444,6 +531,28 @@ struct DisplayAttributesStrip: View {
         )
     }
 
+    private func kgBinding(for item: KGItem) -> Binding<Bool> {
+        Binding(
+            get: { shownKGItems.contains(item.rawValue) },
+            set: { show in
+                var set = shownKGItems
+                if show { set.insert(item.rawValue) } else { set.remove(item.rawValue) }
+                shownKGRaw = set.sorted().joined(separator: ",")
+            }
+        )
+    }
+
+    private func metadataBinding(for key: String) -> Binding<Bool> {
+        Binding(
+            get: { shownMetadataKeys.contains(key) },
+            set: { show in
+                var set = shownMetadataKeys
+                if show { set.insert(key) } else { set.remove(key) }
+                shownMetadataRaw = set.sorted().joined(separator: ",")
+            }
+        )
+    }
+
     // MARK: - Row rendering
 
     @ViewBuilder
@@ -451,9 +560,21 @@ struct DisplayAttributesStrip: View {
         switch item {
         case .attribute(let attr):
             attributeRow(attr)
+        case .knowledge(let kgItem):
+            kgRow(kgItem)
         case .artifact(let type):
             row(displayName(for: type), value: artifactValue(for: type))
+        case .metadata(let key):
+            row(metadataLabel(for: key), value: metadataValue(for: key))
         }
+    }
+
+    /// A KG summary row. The count is the meaningful bit, so it's emphasised
+    /// (primary, semibold) rather than rendered as flat secondary text — the
+    /// "intelligently highlighted" treatment Daniel asked for (#1246).
+    private func kgRow(_ item: KGItem) -> some View {
+        let count: Int? = (item == .entities) ? entityCount : claimCount
+        return row(item.label, value: count.map(String.init) ?? "—", emphasis: true)
     }
 
     @ViewBuilder
@@ -499,6 +620,62 @@ struct DisplayAttributesStrip: View {
         }
     }
 
+    /// Load KG counts for the opt-in Entities/Claims rows. Mirrors the KG
+    /// tab's claim query (include_descendants picks up page-doc claims on a
+    /// container); the entity count is the distinct set of every entity any
+    /// claim references. Counts only — no per-entity fetch (#1246).
+    private func loadKnowledgeGraph() async {
+        do {
+            let claims = try await entityService.listClaims(
+                sourceDocumentId: document.id,
+                includeDescendants: true,
+                limit: 500
+            )
+            claimCount = claims.count
+            entityCount = Set(claims.flatMap { $0.entityIds ?? [] }).count
+        } catch is CancellationError {
+            // Superseded by a newer selection — leave the last counts in place.
+        } catch {
+            // KG is optional context — clear the counts so the rows show "—"
+            // while the toggles stay available.
+            claimCount = nil
+            entityCount = nil
+        }
+    }
+
+    // MARK: - Metadata helpers
+
+    /// Title-case a raw metadata key (e.g. "File_Size" → "File Size").
+    private func metadataLabel(for key: String) -> String {
+        key.replacingOccurrences(of: "_", with: " ")
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+    }
+
+    /// Render a metadata value for the strip. Byte sizes are formatted, JSON
+    /// collections are summarised by shape, everything else stringified — so
+    /// the meaningful bit reads cleanly in a one-line row (#1246).
+    private func metadataValue(for key: String) -> String {
+        guard let raw = document.metadata[key]?.value else { return "—" }
+        let lower = key.lowercased()
+        if lower.contains("size") || lower.contains("bytes") {
+            if let intVal = raw as? Int {
+                return ByteCountFormatter.string(fromByteCount: Int64(intVal), countStyle: .file)
+            }
+            if let strVal = raw as? String, let intVal = Int(strVal) {
+                return ByteCountFormatter.string(fromByteCount: Int64(intVal), countStyle: .file)
+            }
+        }
+        if let array = raw as? [Any] {
+            return array.count == 1 ? "1 item" : "\(array.count) items"
+        }
+        if let dict = raw as? [String: Any] {
+            return dict.count == 1 ? "1 field" : "\(dict.count) fields"
+        }
+        return String(describing: raw)
+    }
+
     // MARK: - Row helpers
 
     @ViewBuilder
@@ -506,7 +683,8 @@ struct DisplayAttributesStrip: View {
         _ label: String,
         value: String,
         color: Color = .primary,
-        monospaced: Bool = false
+        monospaced: Bool = false,
+        emphasis: Bool = false
     ) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(label)
@@ -515,6 +693,9 @@ struct DisplayAttributesStrip: View {
                 .frame(width: 64, alignment: .leading)
             Text(value)
                 .font(monospaced ? .caption.monospaced() : .caption)
+                // Emphasised rows (e.g. KG counts) get semibold weight so the
+                // meaningful value stands out from the flat secondary label.
+                .fontWeight(emphasis ? .semibold : .regular)
                 .foregroundStyle(color)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -654,6 +835,13 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     @State private var lastSeededContent: String = ""
     @StateObject private var richTextController = RichTextController()
 
+    /// Page Content is primary content and renders always-expanded with no
+    /// collapse chrome; generated artifacts stay collapsable (#1245).
+    private var isPageContent: Bool {
+        if case .pageContent = kind { return true }
+        return false
+    }
+
     var body: some View {
         // Daniel feedback 2026-04-27: drop the rounded-rect box outline (no
         // horizontal lines), let the editor go full panel width (no inner
@@ -666,16 +854,35 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         // expanded siblings, SwiftUI's VStack splits space equally. When
         // collapsed, the panel has no flex, so it shrinks to its header
         // height (~30 px) and lets siblings absorb the freed space.
-        VStack(alignment: .leading, spacing: 0) {
-            DisclosureGroup(isExpanded: $isExpanded) {
-                contentBody
-                    .padding(.bottom, 6)
-                    .padding(.top, 2)
-            } label: {
-                header
+        Group {
+            if isPageContent {
+                // Page Content is the document's PRIMARY content, not an
+                // optional artifact — render it always-expanded with NO
+                // disclosure chrome (#1245). A plain header + body in a VStack
+                // (instead of a DisclosureGroup whose disclosed flexible-height
+                // editor overdrew upward onto the attribute strip) keeps the
+                // content flowing strictly BELOW the attribute rows.
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    contentBody
+                        .padding(.top, 2)
+                        .padding(.bottom, 6)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    DisclosureGroup(isExpanded: $isExpanded) {
+                        contentBody
+                            .padding(.bottom, 6)
+                            .padding(.top, 2)
+                    } label: {
+                        header
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
         }
         // Sizing: AttributedTextEditor now reports its layoutManager-used
         // height via sizeThatFits, so an expanded panel matches its actual
@@ -683,7 +890,11 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         // a sliver (Daniel 2026-05-05: "the height was 0"); long artifacts
         // grow naturally and the outer ScrollView handles overflow (#960).
         // Collapsed panels have no frame and shrink to header height (~30 px).
-        .frame(minHeight: isExpanded ? 60 : nil)
+        // Page Content is never collapsed, so it always gets the min.
+        .frame(minHeight: (isPageContent || isExpanded) ? 60 : nil)
+        // Clip so the editor's AppKit text view can't paint outside the panel's
+        // SwiftUI frame onto the attribute strip above it (#1245).
+        .clipped()
         .onChange(of: isExpanded) { _, newValue in
             // Persist the user's choice so it carries across documents
             // and across app launches. See `storageKey(for:)` for keying.
