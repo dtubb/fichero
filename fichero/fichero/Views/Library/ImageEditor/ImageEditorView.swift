@@ -12,15 +12,41 @@ import SwiftUI
 /// follow-up commits.
 struct ImageEditorView: View {
     let document: Document
+    /// Optional hook so the host can sync app selection when the user steps to
+    /// a sibling image, keeping the window-level inspector pointed at the same
+    /// document (#1265). When nil, navigation is still handled internally.
+    var onNavigate: ((String) -> Void)?
 
     @EnvironmentObject private var apiClient: APIClient
+    @EnvironmentObject private var documentStore: DocumentStore
     @StateObject private var model = ImageEditorModel()
+
+    /// Document currently loaded in the editor. Seeded from `document` and
+    /// updated by prev/next so the canvas follows even when the host doesn't
+    /// wire `onNavigate`.
+    @State private var activeDocumentID: String = ""
 
     // Enhance popover state (sliders default to "no change" = 1.0).
     @State private var brightness: Double = 1.0
     @State private var contrast: Double = 1.0
     @State private var sharpen: Double = 1.0
     @State private var showEnhancePopover = false
+
+    /// Sibling images in the current folder, in display order — the prev/next set.
+    private var siblingImages: [Document] {
+        documentStore.currentDocuments.filter { $0.fileType == .image }
+    }
+
+    /// The document the editor is actually showing (resolved from the active id).
+    private var activeDocument: Document {
+        siblingImages.first(where: { $0.id == activeDocumentID })
+            ?? documentStore.currentDocuments.first(where: { $0.id == activeDocumentID })
+            ?? document
+    }
+
+    private var currentIndex: Int? {
+        siblingImages.firstIndex(where: { $0.id == activeDocument.id })
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,6 +65,8 @@ struct ImageEditorView: View {
             }
         }
         .task(id: document.id) {
+            // External selection changed (host drove a new document).
+            activeDocumentID = document.id
             await model.configure(apiClient: apiClient, documentId: document.id)
         }
         .alert(
@@ -58,6 +86,10 @@ struct ImageEditorView: View {
 
     private var toolbar: some View {
         HStack(spacing: 12) {
+            navigationCluster
+
+            Divider().frame(height: 20)
+
             // #469 original↔edited toggle.
             Picker("", selection: editedBinding) {
                 Text("Original").tag(false)
@@ -106,6 +138,53 @@ struct ImageEditorView: View {
         .padding(.horizontal, 12)
         .frame(height: 44)
         .background(Color(.windowBackgroundColor))
+    }
+
+    /// Prev/next stepping through sibling images (#1265).
+    @ViewBuilder
+    private var navigationCluster: some View {
+        let index = currentIndex
+        let total = siblingImages.count
+        HStack(spacing: 6) {
+            Button {
+                Task { await step(by: -1) }
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .buttonStyle(.borderless)
+            .disabled(model.isBusy || (index ?? 0) <= 0)
+            .help("Previous image")
+            .accessibilityIdentifier("imageEditorPrev")
+
+            if let index, total > 0 {
+                Text("\(index + 1) / \(total)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 44)
+            }
+
+            Button {
+                Task { await step(by: 1) }
+            } label: {
+                Image(systemName: "chevron.right")
+            }
+            .buttonStyle(.borderless)
+            .disabled(model.isBusy || index == nil || (index ?? 0) >= total - 1)
+            .help("Next image")
+            .accessibilityIdentifier("imageEditorNext")
+        }
+    }
+
+    /// Move `delta` positions through `siblingImages`, loading the neighbour and
+    /// (if wired) syncing app selection so the window inspector follows.
+    private func step(by delta: Int) async {
+        guard let index = currentIndex else { return }
+        let target = index + delta
+        guard siblingImages.indices.contains(target) else { return }
+        let neighbour = siblingImages[target]
+        activeDocumentID = neighbour.id
+        onNavigate?(neighbour.id)
+        await model.configure(apiClient: apiClient, documentId: neighbour.id)
     }
 
     private func toolButton(_ systemImage: String, help: String, action: @escaping () -> Void) -> some View {

@@ -212,6 +212,9 @@ extension ContentView {
                                 showHeader: false,
                                 onPDFPageIndexChange: { index in
                                     syncGridSelectionToPDFPage(index: index)
+                                },
+                                onNavigateToDocument: { docId in
+                                    selectDocument(withId: docId)
                                 }
                             )
                             .overlay { paneFocusIndicator(for: .preview) }

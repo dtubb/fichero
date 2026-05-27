@@ -19,7 +19,7 @@ extension ContentView {
     // MARK: - Document and Navigation Helpers
 
     /// Select a document by ID
-    private func selectDocument(withId documentId: String) {
+    func selectDocument(withId documentId: String) {
         if let doc = documentStore.currentDocuments.first(where: { $0.id == documentId }) {
             detailDocument = doc
             browserSelection = [documentId]
