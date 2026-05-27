@@ -20,6 +20,7 @@ extension Notification.Name {
 /// about the document".
 enum InspectorTab: String, CaseIterable, Identifiable {
     case content = "Content"
+    case annotations = "Annotations"
     case knowledgeGraph = "Knowledge Graph"
     case map = "Map"
     case artifacts = "Artifacts"
@@ -30,6 +31,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .content: return "doc.text"
+        case .annotations: return "highlighter"
         case .knowledgeGraph: return "point.3.connected.trianglepath.dotted"
         case .map: return "map"
         case .artifacts: return "shippingbox"
@@ -119,6 +121,8 @@ struct DocumentInspector: View {
         switch selectedTab {
         case .content:
             contentTab(for: doc)
+        case .annotations:
+            DocumentInspectorAnnotationsTab(document: doc)
         case .knowledgeGraph:
             knowledgeGraphTab(for: doc)
         case .map:
