@@ -13460,7 +13460,7 @@
           "model-comparison"
         ],
         "summary": "List Available Models",
-        "description": "List available models with pricing information.",
+        "description": "List enabled Settings models with pricing information.",
         "operationId": "list_available_models_api_model_comparison_models_get",
         "responses": {
           "200": {
@@ -13526,7 +13526,7 @@
           "model-comparison"
         ],
         "summary": "Get Comparison Presets",
-        "description": "Get preset model combinations for common comparison scenarios.",
+        "description": "Get Settings-backed model presets for common comparison scenarios.",
         "operationId": "get_comparison_presets_api_model_comparison_presets_get",
         "responses": {
           "200": {
@@ -13634,6 +13634,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ComparisonResultResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/model-comparison/compare-node": {
+      "post": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Compare Workflow Node",
+        "description": "Compare one workflow node across Settings-configured models.",
+        "operationId": "compare_workflow_node_api_model_comparison_compare_node_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeCompareRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeComparisonResponse"
                 }
               }
             }
@@ -34483,17 +34537,7 @@
             },
             "type": "array",
             "title": "Models",
-            "description": "Models to compare",
-            "default": [
-              {
-                "provider": "openai",
-                "model": "gpt-4o"
-              },
-              {
-                "provider": "anthropic",
-                "model": "claude-3-5-sonnet-20241022"
-              }
-            ]
+            "description": "Models to compare"
           },
           "system_prompt": {
             "type": "string",
@@ -34506,6 +34550,19 @@
             "title": "Timeout Seconds",
             "description": "Timeout per model",
             "default": 60
+          },
+          "expect_json": {
+            "type": "boolean",
+            "title": "Expect Json",
+            "description": "Mark structured decode success by parsing responses as JSON",
+            "default": false
+          },
+          "response_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Response Schema",
+            "description": "Optional JSON schema requested by the comparison UI"
           }
         },
         "type": "object",
@@ -41981,6 +42038,11 @@
           "output_price_per_million": {
             "type": "number",
             "title": "Output Price Per Million"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
           }
         },
         "type": "object",
@@ -42156,6 +42218,35 @@
             "type": "string",
             "nullable": true,
             "title": "Error"
+          },
+          "structured_decode_success": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Structured Decode Success"
+          },
+          "structured_decode_error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Structured Decode Error"
+          },
+          "guardrail_fallback_used": {
+            "type": "boolean",
+            "title": "Guardrail Fallback Used",
+            "default": false
+          },
+          "fallback_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Fallback Provider"
+          },
+          "fallback_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Fallback Model"
+          },
+          "raw_response": {
+            "nullable": true,
+            "title": "Raw Response"
           },
           "timestamp": {
             "type": "string",
@@ -42543,6 +42634,144 @@
         "title": "NeighborhoodResponse",
         "description": "Focus entity + neighbors + SVO edges. Bounded by `hops` + `limit`.\n\nNeighbors are ranked-then-truncated when more than ``limit`` are\nreachable \u2014 see the ``rank`` query param. (#993)"
       },
+      "NodeCompareRequest": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow Id",
+            "description": "Saved workflow ID when workflow is not supplied"
+          },
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowDef",
+            "nullable": true,
+            "description": "Unsaved workflow definition from the editor"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id",
+            "description": "Node to run across models"
+          },
+          "models": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Models",
+            "description": "Models to compare"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs",
+            "description": "Pinned workflow inputs for resolving this node"
+          },
+          "outputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Outputs",
+            "description": "Pinned upstream node outputs for resolving this node"
+          },
+          "input_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Input Files"
+          },
+          "pinned_inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Pinned Inputs",
+            "description": "Resolved node inputs that override mappings/static inputs"
+          },
+          "workflow_config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Workflow Config"
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "title": "Timeout Seconds",
+            "description": "Timeout per model",
+            "default": 120
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id"
+        ],
+        "title": "NodeCompareRequest"
+      },
+      "NodeComparisonItem": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "apply_patch": {
+            "$ref": "#/components/schemas/NodeModelApplyPatch"
+          },
+          "result": {
+            "$ref": "#/components/schemas/ModelResultResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "apply_patch",
+          "result"
+        ],
+        "title": "NodeComparisonItem"
+      },
+      "NodeComparisonResponse": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow Id"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "tool_name": {
+            "type": "string",
+            "title": "Tool Name"
+          },
+          "input_snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Input Snapshot"
+          },
+          "comparison": {
+            "$ref": "#/components/schemas/ComparisonResultResponse"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/NodeComparisonItem"
+            },
+            "type": "array",
+            "title": "Choices"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "node_id",
+          "tool_name",
+          "input_snapshot",
+          "comparison",
+          "choices"
+        ],
+        "title": "NodeComparisonResponse"
+      },
       "NodeCreateRequest": {
         "properties": {
           "room_id": {
@@ -42615,7 +42844,7 @@
         ],
         "title": "NodeCreateRequest"
       },
-      "NodeDef": {
+      "NodeDef-Input": {
         "properties": {
           "id": {
             "type": "string",
@@ -42715,6 +42944,125 @@
         ],
         "title": "NodeDef",
         "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
+      },
+      "NodeDef-Output": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique node identifier"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool",
+            "description": "Tool function name from registry"
+          },
+          "input_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Input Ports",
+            "description": "Input connection ports (populated from registry, not stored)"
+          },
+          "output_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Output Ports",
+            "description": "Output connection ports (populated from registry, not stored)"
+          },
+          "input_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/InputMapping"
+            },
+            "type": "array",
+            "title": "Input Mappings",
+            "description": "Maps input ports to data sources from previous nodes"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs",
+            "description": "Input values for the tool (supports path resolution)"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config",
+            "description": "Static tool configuration (not resolved)"
+          },
+          "output_schema": {
+            "$ref": "#/components/schemas/OutputSchema",
+            "nullable": true,
+            "description": "JSON Schema for structured LLM output"
+          },
+          "position_x": {
+            "type": "number",
+            "title": "Position X",
+            "default": 0.0
+          },
+          "position_y": {
+            "type": "number",
+            "title": "Position Y",
+            "default": 0.0
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name",
+            "default": ""
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name",
+            "default": ""
+          },
+          "uses_llm": {
+            "type": "boolean",
+            "title": "Uses Llm",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool"
+        ],
+        "title": "NodeDef",
+        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
+      },
+      "NodeModelApplyPatch": {
+        "properties": {
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name"
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_name",
+          "model_name"
+        ],
+        "title": "NodeModelApplyPatch"
       },
       "NodeMoveRequest": {
         "properties": {
@@ -47050,8 +47398,7 @@
           "char_start",
           "char_end"
         ],
-        "title": "SearchAnchor",
-        "description": "Stable character-position anchor within the indexed transcript text."
+        "title": "SearchAnchor"
       },
       "SearchExcerpt": {
         "properties": {
@@ -47090,8 +47437,7 @@
           "match_end",
           "anchor"
         ],
-        "title": "SearchExcerpt",
-        "description": "Transcript excerpt generated from the search layer's indexed text."
+        "title": "SearchExcerpt"
       },
       "SearchExplainRequest": {
         "properties": {
@@ -47473,8 +47819,7 @@
           "content_preview",
           "metadata"
         ],
-        "title": "SearchResult",
-        "description": "Search result with score and document reference."
+        "title": "SearchResult"
       },
       "SearchSource": {
         "properties": {
@@ -49367,17 +49712,7 @@
             },
             "type": "array",
             "title": "Models",
-            "description": "Models to compare",
-            "default": [
-              {
-                "provider": "openai",
-                "model": "gpt-4o"
-              },
-              {
-                "provider": "anthropic",
-                "model": "claude-3-5-sonnet-20241022"
-              }
-            ]
+            "description": "Models to compare"
           },
           "tool_config": {
             "additionalProperties": true,
@@ -50748,17 +51083,7 @@
             },
             "type": "array",
             "title": "Models",
-            "description": "Vision-capable models to compare",
-            "default": [
-              {
-                "provider": "openai",
-                "model": "gpt-4o"
-              },
-              {
-                "provider": "anthropic",
-                "model": "claude-3-5-sonnet-20241022"
-              }
-            ]
+            "description": "Vision-capable models to compare"
           },
           "detail": {
             "type": "string",
@@ -50988,7 +51313,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef"
+              "$ref": "#/components/schemas/NodeDef-Input"
             },
             "type": "array",
             "title": "Nodes"
@@ -51222,7 +51547,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef"
+              "$ref": "#/components/schemas/NodeDef-Output"
             },
             "type": "array",
             "title": "Nodes"

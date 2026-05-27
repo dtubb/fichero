@@ -5056,6 +5056,16 @@
         "response_model": "ComparisonResultResponse"
       },
       {
+        "method": "POST",
+        "path": "/model-comparison/compare-node",
+        "operation_id": "compare_workflow_node_api_model_comparison_compare_node_post",
+        "summary": "Compare Workflow Node",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "NodeCompareRequest",
+        "response_model": "NodeComparisonResponse"
+      },
+      {
         "method": "GET",
         "path": "/model-comparison/tools",
         "operation_id": "list_available_tools_api_model_comparison_tools_get",
