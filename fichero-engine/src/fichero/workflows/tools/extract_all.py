@@ -1357,13 +1357,14 @@ async def extract_all(
         # decoder cannot emit invalid JSON — the entire prompt-and-parse
         # failure class (Unterminated string, single-quoted JSON, prose
         # before/after the object) is gone (#799/#819 / #838 follow-up).
-        # Single-model structured extraction only.
-        # Do not auto-fallback here: fallback chains can hide model
-        # quality/config errors and produce silent degradations.
+        # Use the fallback wrapper so guardrail refusals and
+        # unsupported_language/locale errors (#1284) auto-retry on the
+        # user's configured $large model instead of counting as chunk
+        # failures and producing an empty catalogue.
         call_start = time.monotonic()
         try:
             async with extraction_sem:
-                extraction = await chat_structured(
+                extraction = await chat_structured_with_fallback(
                     prompt=chunk_text,
                     schema=_Extraction,
                     config=llm_config,
