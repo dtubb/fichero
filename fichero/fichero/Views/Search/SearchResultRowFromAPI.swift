@@ -58,12 +58,16 @@ struct SearchResultRowFromAPI: View {
                 }
 
                 // Content preview or highlights — render `**term**`
-                // markers (added by the backend) as bold so the matched
-                // span actually visually stands out (#481).
+                // markers (added by the backend) as colored highlights.
+                // Entity matches (#1052) get accent color + background;
+                // search-term matches get bold + primary foreground (#481).
                 if let highlights = result.highlights, !highlights.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(highlights.prefix(2), id: \.self) { highlight in
-                            Text(SearchResultRowFromAPI.attributedHighlight(highlight))
+                            Text(SearchResultRowFromAPI.attributedHighlight(
+                                highlight,
+                                matchSource: matchSourceLabel
+                            ))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .lineLimit(2)
@@ -98,11 +102,16 @@ struct SearchResultRowFromAPI: View {
         return nil
     }
 
-    /// Build an AttributedString with `**...**` spans bolded. The
-    /// backend wraps the matched query in `**` markers via simple
-    /// regex replace; we render those as bold visual highlights instead
-    /// of showing literal asterisks (#481).
-    static func attributedHighlight(_ raw: String) -> AttributedString {
+    /// Build an AttributedString with `**...**` spans highlighted.
+    /// Styling depends on matchSource: entity matches get accent color with
+    /// background (#1052); search-term matches (fulltext, semantic) get
+    /// bold with primary foreground (#481).
+    static func attributedHighlight(
+        _ raw: String,
+        matchSource: String? = nil
+    ) -> AttributedString {
+        let isEntityMatch = matchSource?.localizedCaseInsensitiveContains("entity") ?? false
+
         var attributed = AttributedString()
         var remaining = raw[...]
         while let openRange = remaining.range(of: "**") {
@@ -110,11 +119,20 @@ struct SearchResultRowFromAPI: View {
             attributed += AttributedString(prefix)
             let afterOpen = remaining[openRange.upperBound...]
             if let closeRange = afterOpen.range(of: "**") {
-                let bolded = afterOpen[..<closeRange.lowerBound]
-                var bold = AttributedString(bolded)
-                bold.font = .caption.bold()
-                bold.foregroundColor = .primary
-                attributed += bold
+                let highlighted = afterOpen[..<closeRange.lowerBound]
+                var span = AttributedString(highlighted)
+
+                if isEntityMatch {
+                    // KG entity match: accent color text with background
+                    span.foregroundColor = .accentColor
+                    span.backgroundColor = .accentColor.opacity(0.15)
+                } else {
+                    // Search-term match: bold with primary foreground
+                    span.font = .caption.bold()
+                    span.foregroundColor = .primary
+                }
+
+                attributed += span
                 remaining = afterOpen[closeRange.upperBound...]
             } else {
                 attributed += AttributedString(afterOpen)
