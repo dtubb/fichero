@@ -38,26 +38,44 @@ extension AISettingsView {
     }
 
     /// Capability requirement for a Defaults tier — used by modelPicker
-    /// to filter the dropdown to only models that support the tier's purpose.
-    /// `.text` includes any LLM; `.any` shows everything for $small/$large pickers. (#940)
+    /// to filter the dropdown to only models whose capability fits the slot.
+    /// Matches against the model's capability strings as reported by the
+    /// provider/registry; it never hardcodes model ids (#940 / #1290).
+    /// A model fits a tier when its capabilities intersect the tier's set:
+    ///   - `.text`   → Text / $small / $large (chat/completion LLMs)
+    ///   - `.vision` → Vision / Video (image understanding & OCR)
+    ///   - `.audio`  → Audio (speech-to-text / transcription)
+    ///   - `.any`    → no filtering (fallback)
     enum TierCapability {
         case text
         case vision
         case audio
         case any
 
-        func matches(_ model: ModelInfo) -> Bool {
+        /// Capability strings (lowercased) that satisfy this tier.
+        private var acceptedCapabilities: Set<String> {
             switch self {
-            case .text:
-                return !(model.supportsVision || model.supportsAudioInput)
-                    || model.modelId == "apple-intelligence"
-            case .vision:
-                return model.supportsVision
-            case .audio:
-                return model.supportsAudioInput
-            case .any:
-                return true
+            case .text: return ["text", "chat", "llm"]
+            case .vision: return ["vision", "ocr"]
+            case .audio: return ["audio", "transcription"]
+            case .any: return []
             }
+        }
+
+        func matches(_ model: ModelInfo) -> Bool {
+            let accepted = acceptedCapabilities
+            if accepted.isEmpty { return true }  // .any
+
+            let caps = Set(model.capabilities.map { $0.lowercased() })
+            if !caps.isDisjoint(with: accepted) { return true }
+
+            // Tolerate legacy rows that carry no capability metadata
+            // (cloud models added before registry-derived caps, #1290):
+            // treat an unknown model as LLM-shaped since chat is the
+            // registry default. Vision/Audio require explicit caps so a
+            // text model never leaks into those slots.
+            if case .text = self { return caps.isEmpty }
+            return false
         }
     }
 
@@ -67,19 +85,16 @@ extension AISettingsView {
         models: [ModelInfo],
         tier: TierCapability = .any,
         ) -> some View {
-        let currentSelection = selection.wrappedValue
-        let hasCurrentSelection = !currentSelection.isEmpty
+        // Only offer models whose capability fits this slot. A saved
+        // value that no longer fits (legacy bad data) is simply not
+        // listed, so the Picker shows "None" and the user must re-pick a
+        // valid model — a capability mismatch can't be selected or saved.
+        // The old "(saved — wrong capability)" escape-hatch row is gone
+        // by design (#1290).
         let filtered = models.filter { tier.matches($0) }
-        let hasCurrentInList = filtered.contains { $0.modelId == currentSelection }
 
         Picker("Model", selection: selection) {
             Text("None").tag("")
-            if hasCurrentSelection && !hasCurrentInList {
-                // Show the saved value even when filtered-out so the
-                // user can see "this saved selection doesn't match the
-                // tier" instead of a silent reset.
-                Text("\(currentSelection) (saved — wrong capability)").tag(currentSelection)
-            }
             ForEach(filtered, id: \.modelId) { model in
                 Text(model.fullName).tag(model.modelId)
             }
@@ -186,7 +201,8 @@ extension AISettingsView {
                 supportsWebSearch: false,
                 supportsStreaming: false,
                 supportsBatchApi: false,
-                provider: providerType
+                provider: providerType,
+                capabilities: user.capabilities
             )
         }
     }

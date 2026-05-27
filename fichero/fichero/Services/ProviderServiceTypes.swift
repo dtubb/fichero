@@ -194,6 +194,15 @@ struct ModelInfo: Codable, Identifiable, Hashable {
     // Provider info
     let provider: String?
 
+    /// Raw capability strings as reported by the provider/registry
+    /// (e.g. "text", "vision", "ocr", "audio", "transcription", "tools").
+    /// Populated from a user-configured model row; the discovery endpoint
+    /// reports capabilities as the `supports*` bools above, so this stays
+    /// empty there. Used by the Settings → Defaults capability filter to
+    /// match a model to its slot without hardcoding model ids (#1290).
+    /// Omitted from `CodingKeys` — it is never (de)serialized.
+    var capabilities: [String] = []
+
     var id: String { modelId }
 
     enum CodingKeys: String, CodingKey {
