@@ -31982,6 +31982,11 @@
             "nullable": true,
             "title": "Data"
           },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id"
+          },
           "run_id": {
             "type": "string",
             "nullable": true,
