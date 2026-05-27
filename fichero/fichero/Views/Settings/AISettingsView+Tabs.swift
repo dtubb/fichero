@@ -54,7 +54,9 @@ extension AISettingsView {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 providerPicker(selection: $defaults.smallProvider)
-                modelPicker(selection: $defaults.smallModel, models: smallModels)
+                // $small resolves a chat/completion LLM — filter to the
+                // text tier so OCR / transcription models can't be picked. (#1290)
+                modelPicker(selection: $defaults.smallModel, models: smallModels, tier: .text)
             }
 
             Section("Default Large Model ($large)") {
@@ -66,7 +68,9 @@ extension AISettingsView {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 providerPicker(selection: $defaults.largeProvider)
-                modelPicker(selection: $defaults.largeModel, models: largeModels)
+                // $large resolves a frontier chat LLM — filter to the
+                // text tier so OCR / transcription models can't be picked. (#1290)
+                modelPicker(selection: $defaults.largeModel, models: largeModels, tier: .text)
             }
 
             Section {

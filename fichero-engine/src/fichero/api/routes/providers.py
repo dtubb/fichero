@@ -581,6 +581,54 @@ def _canonical_capabilities_for_model_id(model_id: str) -> list[str]:
     return list(_CANONICAL_APPLE_CAPABILITIES.get(model_id, []))
 
 
+def _derive_capabilities_from_registry(provider_type: str, model_id: str) -> list[str]:
+    r"""Derive a capability list for a cloud model from LiteLLM's registry.
+
+    The +Add Model request carries only a `model_id`, so before #1290
+    every cloud model was saved with `capabilities=[]` (the canonical
+    lookup only knows the built-in Apple ids). With no capability
+    metadata, the Defaults capability filter couldn't tell which tier a
+    model fits, so saved cloud models surfaced as
+    "(saved — wrong capability)" in the Settings → Defaults pickers.
+
+    Read the capabilities from the registry instead of hardcoding them —
+    mirror the flags LiteLLM already exposes (`mode`, `supports_vision`,
+    `supports_audio_input`, `supports_function_calling`). The strings
+    emitted here match the tier vocabulary the Defaults picker filters
+    on: ``text``/``vision``/``audio``/``transcription``/``tools``.
+    Returns ``[]`` when the model is unknown to the registry.
+    """
+    try:
+        from fichero.llm import list_models_for_provider as llm_list_models
+
+        registry = {m["model_id"]: m for m in llm_list_models(provider_type)}
+    except Exception as exc:  # pragma: no cover - registry lookup is best-effort
+        logger.warning("Capability derivation failed for %s: %s", model_id, exc)
+        return []
+
+    info = registry.get(model_id)
+    if not info:
+        return []
+
+    caps: list[str] = []
+    mode = str(info.get("mode") or "chat").lower()
+
+    if mode in ("chat", "completion", "responses"):
+        caps.append("text")
+    if mode == "audio_transcription" or info.get("supports_audio_input"):
+        caps.extend(["audio", "transcription"])
+    if info.get("supports_vision"):
+        caps.append("vision")
+    if info.get("supports_function_calling"):
+        caps.append("tools")
+    if mode == "embedding":
+        caps.append("embedding")
+
+    # De-duplicate while preserving first-seen order.
+    seen: set[str] = set()
+    return [c for c in caps if not (c in seen or seen.add(c))]
+
+
 @router.post("/{provider_id}/models")
 async def add_model_to_provider(
     provider_id: str,
@@ -604,7 +652,17 @@ async def add_model_to_provider(
     # text). Without this lookup, the saved row had \\\`capabilities=[]\\\`
     # so the inspector lost the capability badges and the Defaults
     # picker couldn't filter (#940 hard-blocked).
+    #
+    # Cloud models aren't in that built-in map, so derive their
+    # capabilities from the LiteLLM registry instead of saving them
+    # capability-less (#1290) — otherwise the Defaults pickers can't
+    # tell which slot a cloud model fits and reject the saved choice
+    # as "(saved — wrong capability)".
     capabilities = _canonical_capabilities_for_model_id(request.model_id)
+    if not capabilities:
+        capabilities = _derive_capabilities_from_registry(
+            provider.provider_type.value, request.model_id
+        )
 
     model = Model(
         provider_id=provider_id,
