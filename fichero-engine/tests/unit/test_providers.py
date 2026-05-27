@@ -828,3 +828,102 @@ class TestCollapseDuplicateProviders:
         models_b = app_db.list_models(prov_b.id)
         assert not any(m.id == model.id for m in models_a)
         assert any(m.id == model.id for m in models_b)
+
+
+# =============================================================================
+# Capability Derivation Tests (#1290)
+# =============================================================================
+
+class TestCapabilityDerivation:
+    """Cloud models must carry registry-derived capabilities so the
+    Settings → Defaults pickers can filter them into the right slot
+    instead of rejecting the saved choice as "(saved — wrong capability)".
+    """
+
+    @staticmethod
+    def _registry(rows):
+        return patch(
+            "fichero.llm.list_models_for_provider",
+            return_value=rows,
+        )
+
+    def test_chat_model_derives_text_and_tools(self):
+        from fichero.api.routes.providers import (
+            _derive_capabilities_from_registry,
+        )
+
+        rows = [{
+            "model_id": "gpt-4o-mini",
+            "mode": "chat",
+            "supports_vision": False,
+            "supports_function_calling": True,
+            "supports_audio_input": False,
+        }]
+        with self._registry(rows):
+            caps = _derive_capabilities_from_registry("openai", "gpt-4o-mini")
+        assert caps == ["text", "tools"]
+
+    def test_vision_chat_model_derives_text_and_vision(self):
+        from fichero.api.routes.providers import (
+            _derive_capabilities_from_registry,
+        )
+
+        rows = [{
+            "model_id": "gpt-4o",
+            "mode": "chat",
+            "supports_vision": True,
+            "supports_function_calling": True,
+            "supports_audio_input": False,
+        }]
+        with self._registry(rows):
+            caps = _derive_capabilities_from_registry("openai", "gpt-4o")
+        # text (chat) fits $small/$large/Text; vision fits the Vision slot.
+        assert "text" in caps
+        assert "vision" in caps
+        assert "tools" in caps
+
+    def test_transcription_model_derives_audio_and_transcription(self):
+        from fichero.api.routes.providers import (
+            _derive_capabilities_from_registry,
+        )
+
+        rows = [{
+            "model_id": "whisper-1",
+            "mode": "audio_transcription",
+            "supports_vision": False,
+            "supports_function_calling": False,
+            "supports_audio_input": False,
+        }]
+        with self._registry(rows):
+            caps = _derive_capabilities_from_registry("openai", "whisper-1")
+        # The Audio slot accepts either "audio" or "transcription".
+        assert caps == ["audio", "transcription"]
+
+    def test_embedding_model_is_not_text(self):
+        from fichero.api.routes.providers import (
+            _derive_capabilities_from_registry,
+        )
+
+        rows = [{
+            "model_id": "text-embedding-3-small",
+            "mode": "embedding",
+            "supports_vision": False,
+            "supports_function_calling": False,
+            "supports_audio_input": False,
+        }]
+        with self._registry(rows):
+            caps = _derive_capabilities_from_registry(
+                "openai", "text-embedding-3-small"
+            )
+        # Embeddings are not chat models — must NOT claim the text tier.
+        assert "text" not in caps
+        assert caps == ["embedding"]
+
+    def test_unknown_model_returns_empty(self):
+        from fichero.api.routes.providers import (
+            _derive_capabilities_from_registry,
+        )
+
+        with self._registry([]):
+            caps = _derive_capabilities_from_registry("openai", "not-a-real-model")
+        assert caps == []
