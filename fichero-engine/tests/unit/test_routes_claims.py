@@ -5,11 +5,12 @@ document, excerpt, confidence). Tests verify CRUD, filtering, and validation
 (source document must exist). Uses real in-memory DB fixtures.
 """
 
-import pytest
 from datetime import datetime
 from fichero.knowledge_models import (
+    ClaimRelationType,
     ClaimCurationState,
     KnowledgeClaim,
+    KnowledgeClaimLink,
     KnowledgeEntity,
     EntityType,
 )
@@ -177,6 +178,70 @@ class TestPatchClaim:
         assert r.status_code == 200
         assert r.json()["curation_state"] == "curated"
 
+    def test_patch_svo_fields_recomputes_canonical_predicate(self, client, db):
+        doc = _make_document(db)
+        claim = _make_claim(db, doc)
+        r = client.patch(
+            f"/api/claims/{claim.id}",
+            json={
+                "subject_canonical": "Alice",
+                "predicate_verb": "served as",
+                "object_phrase": "mayor",
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["predicate_canonical"] == "served_as"
+        assert data["svo_subject"] == "Alice"
+        assert data["svo_verb"] == "served_as"
+        assert data["svo_object"] == "mayor"
+
+    def test_patch_allows_null_clearing_editable_fields(self, client, db):
+        doc = _make_document(db)
+        claim = _make_claim(db, doc)
+        claim.source_excerpt = "original excerpt"
+        db.save(claim)
+        r = client.patch(f"/api/claims/{claim.id}", json={"source_excerpt": None})
+        assert r.status_code == 200
+        assert r.json()["source_excerpt"] is None
+
+    def test_patch_missing_subject_entity_returns_404(self, client, db):
+        doc = _make_document(db)
+        claim = _make_claim(db, doc)
+        r = client.patch(
+            f"/api/claims/{claim.id}",
+            json={"subject_entity_id": "no-such-entity"},
+        )
+        assert r.status_code == 404
+
     def test_patch_missing_returns_404(self, client):
         r = client.patch("/api/claims/no-such-id", json={"text": "X"})
+        assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/claims/{claim_id}
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteClaim:
+    def test_delete_removes_claim_and_incident_links(self, client, db):
+        doc = _make_document(db)
+        left = _make_claim(db, doc, "Left claim")
+        right = _make_claim(db, doc, "Right claim")
+        link = KnowledgeClaimLink(
+            claim_id=left.id,
+            related_claim_id=right.id,
+            relation_type=ClaimRelationType.supports,
+        )
+        db.save(link)
+
+        r = client.delete(f"/api/claims/{left.id}")
+        assert r.status_code == 204
+        assert db.get(KnowledgeClaim, left.id) is None
+        assert db.get(KnowledgeClaim, right.id) is not None
+        assert db.get(KnowledgeClaimLink, link.id) is None
+
+    def test_delete_missing_returns_404(self, client):
+        r = client.delete("/api/claims/no-such-id")
         assert r.status_code == 404
