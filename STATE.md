@@ -1,22 +1,26 @@
 # STATE.md — Fichero
 
-## 2026-05-28 MORNING — HANDOFF (where we are; resume here)
+## 2026-05-28 LATE-MORNING — HANDOFF (where we are; resume here)
 
-**Trunk `0.0.2` @ `f74f10d7`, build-green.** Manager paused ~9:15pm May 27 at 99% Claude usage; lanes kept working but nothing merged after Mind Palace.
+**Trunk `0.0.2` @ `ce89deb5`, all gates green, pushed.** Worked independently ~7:45am→noon May 28. Researcher + #1296 brought in & fixed; Mind Palace MCP shipped.
 
-**SHIPPED overnight May 27 (all gate-verified, in trunk):** #1290 settings-cap · #1285 KG-persist (+audit: 0→38 ent/45 claims) · #1219 menu-import · #1293 Stage-2 labels · Clean Up Text tool+preset · #926 translation (1-step + multi-step AI-check) · #1291 catalogue→doc target · #1292 artifact provenance · #1294 over-poll · **Mind Palace full A1** (RealityKit 3D + 2D toggle, rooms, node inspector w/ Open-source, room↔sources, add-sources; flag `mindPalace` default ON). KG GOAL DONE (3295 pytest green).
+**SHIPPED this morning (gate-verified, in trunk, pushed):**
+- **Researcher** (cherry-picked sonnet's 4 commits — branch was based pre-Mind-Palace, so cherry-pick not merge; see [[feedback_agent_worktree_base]]). Build gate caught 6 integration gaps (pbxproj union, `@ViewBuilder` early-return, `.research` exhaustive cases, `.inProgress` enum) → `15d08b17`.
+- **Researcher 4 runtime bugs** the FE↔BE review found (raw APIClient = runtime, not compile, failures): GET `/projects/{id}/tasks` 404 (added project-level tasks aggregation route), POST notes path 404 (fixed Swift path → `/notes`), `library_destination_folder_id` dropped on create+update (added to request models + handlers). Direct-handler regression tests (routes are dev-tier gated out of TestClient). → `724ce50c`.
+- **#1296** haiku KG keyword-claim entity_ids test → `d65ae322`.
+- **Mind Palace MCP tools (#1269 slice)** — 7 `FicheroClient.palace_*` + `@mcp.tool()` (rooms, scene, place/move/connect/arrange/focus) so the AI can drive the palace. MockTransport tests. → `ce89deb5`.
+- **Mind Palace FE↔BE wiring reviewed CLEAN** (generated typed client, no changes needed).
 
-**FIRST JOB — gate + merge these UNMERGED lane branches (independently verify, don't trust self-reports — memory feedback_independently_verify_lane_test_claims):**
-- `sonnet` (4 ahead) = **Researcher full build** + `docs(security): data-diode trust boundary` (capability isolation per memory feedback_researcher_capability_isolation). Gate: ruff+full pytest if backend; regen `sync_openapi_schema.sh`+commit if a schema/model field changed; swiftlint + `mcp__xcode__BuildProject(windowtab1, NEVER FicheroUITests)`; new .swift⇒`ruby scripts/add-swift-file.rb`. EXPECT exhaustive-`viewMode`/`sidebarMode` switch breaks like Mind Palace had (fix-forward: add `.research` case) + possible NodeDef-style contract issues.
-- `haiku` (1 ahead) = **#1296** keyword-claim entity_ids + test. Gate: ruff+pytest. Close #1296.
+**RESUME — next contained work, in priority order:**
+1. **#1299 visual verification** — add self-contained mock-data `#Preview` to new Researcher/Mind-Palace views so `mcp__xcode__RenderPreview` can snapshot them (Daniel wants to "look at pictures"). Watch the @EnvironmentObject-timeout gotcha — inject a mock service.
+2. **#1269 remainder** (large, needs Opus/Codex frontier): the *agentic chatbot* + full-app MCP surface beyond Mind Palace. The thin FastMCP server (`mcp_server.py`) is the place to extend (one tool per real client method — NOT the removed `fichero_mp_*` fantasy surface, see acd349a2).
+3. Researcher INFO-level polish: web-search response drops `source_name`/`published_date`/`relevance_score` (wire when UI needs them).
 
-**DIDN'T LAND / re-dispatch:** `opus` → **MCP #1269** (AI-arranges-palace + Fichero access) = 0 commits, stalled on usage ceiling — re-dispatch.
+**QUEUED for Codex (HARD-capped till May 31 4:38pm — do NOT pile on Claude):** #1277/#1278/#1279 book-extraction, #1258 KG-claim CRUD. Daniel may top up Codex credits at the office.
 
-**QUEUED for Codex (HARD-capped till May 31 4:38pm, live-tested — do NOT pile on Claude):** #1277/#1278/#1279 book-extraction, #1258 KG-claim CRUD, MCP-overflow.
+**HELD:** #1298 S0 core-tier promotion reverted (regen splits NodeDef→Input/Output, breaks WorkflowServiceGenerated.swift; tag `s0-core-promotion`=bc8c6e75; NOT needed for dev-tier testing). XCUITest #1230/#1242 BLOCKED on Daniel's one-time macOS TCC grant (Accessibility+Automation).
 
-**HELD / follow-ups:** #1298 S0 core-tier promotion reverted (regen splits NodeDef→Input/Output, breaks WorkflowServiceGenerated.swift; tag `s0-core-promotion`=bc8c6e75; NOT needed for dev-tier testing). #1299 visual verification — add mock-data `#Preview` to new Mind-Palace/Researcher views for `mcp__xcode__RenderPreview`; XCUITest #1230/#1242 BLOCKED on Daniel's one-time macOS TCC grant (Accessibility+Automation). FE↔BE review subagent bounced on its session limit — re-run after usage resets.
-
-**RULES:** never push main; tests/gates in this trunk worktree; independently re-run gates; never FicheroUITests (TCC hang); any openapi/schema/router-tier change ⇒ trunk Swift BuildProject; don't pollute :8765 (Daniel's live backend); verify GH issue # before closing (a local task-id collided with GH #282 once); Codex caps ⇒ queue, not Claude-pile; conserve manager context + Claude usage.
+**RULES:** never push main; tests/gates in this trunk worktree; independently re-run gates ([[feedback_independently_verify_lane_test_claims]]); never FicheroUITests (TCC hang); any openapi/schema/router-tier change ⇒ trunk Swift BuildProject; cross-feature merges that extend an enum ⇒ Swift build is the real gate (catches non-exhaustive switches a pytest-only gate misses); don't pollute :8765 (Daniel's live backend); verify GH issue # before closing; Codex caps ⇒ queue, not Claude-pile; conserve context + usage.
 
 ---
 
