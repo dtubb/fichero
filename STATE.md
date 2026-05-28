@@ -1,5 +1,25 @@
 # STATE.md — Fichero
 
+## 2026-05-28 MORNING — HANDOFF (where we are; resume here)
+
+**Trunk `0.0.2` @ `f74f10d7`, build-green.** Manager paused ~9:15pm May 27 at 99% Claude usage; lanes kept working but nothing merged after Mind Palace.
+
+**SHIPPED overnight May 27 (all gate-verified, in trunk):** #1290 settings-cap · #1285 KG-persist (+audit: 0→38 ent/45 claims) · #1219 menu-import · #1293 Stage-2 labels · Clean Up Text tool+preset · #926 translation (1-step + multi-step AI-check) · #1291 catalogue→doc target · #1292 artifact provenance · #1294 over-poll · **Mind Palace full A1** (RealityKit 3D + 2D toggle, rooms, node inspector w/ Open-source, room↔sources, add-sources; flag `mindPalace` default ON). KG GOAL DONE (3295 pytest green).
+
+**FIRST JOB — gate + merge these UNMERGED lane branches (independently verify, don't trust self-reports — memory feedback_independently_verify_lane_test_claims):**
+- `sonnet` (4 ahead) = **Researcher full build** + `docs(security): data-diode trust boundary` (capability isolation per memory feedback_researcher_capability_isolation). Gate: ruff+full pytest if backend; regen `sync_openapi_schema.sh`+commit if a schema/model field changed; swiftlint + `mcp__xcode__BuildProject(windowtab1, NEVER FicheroUITests)`; new .swift⇒`ruby scripts/add-swift-file.rb`. EXPECT exhaustive-`viewMode`/`sidebarMode` switch breaks like Mind Palace had (fix-forward: add `.research` case) + possible NodeDef-style contract issues.
+- `haiku` (1 ahead) = **#1296** keyword-claim entity_ids + test. Gate: ruff+pytest. Close #1296.
+
+**DIDN'T LAND / re-dispatch:** `opus` → **MCP #1269** (AI-arranges-palace + Fichero access) = 0 commits, stalled on usage ceiling — re-dispatch.
+
+**QUEUED for Codex (HARD-capped till May 31 4:38pm, live-tested — do NOT pile on Claude):** #1277/#1278/#1279 book-extraction, #1258 KG-claim CRUD, MCP-overflow.
+
+**HELD / follow-ups:** #1298 S0 core-tier promotion reverted (regen splits NodeDef→Input/Output, breaks WorkflowServiceGenerated.swift; tag `s0-core-promotion`=bc8c6e75; NOT needed for dev-tier testing). #1299 visual verification — add mock-data `#Preview` to new Mind-Palace/Researcher views for `mcp__xcode__RenderPreview`; XCUITest #1230/#1242 BLOCKED on Daniel's one-time macOS TCC grant (Accessibility+Automation). FE↔BE review subagent bounced on its session limit — re-run after usage resets.
+
+**RULES:** never push main; tests/gates in this trunk worktree; independently re-run gates; never FicheroUITests (TCC hang); any openapi/schema/router-tier change ⇒ trunk Swift BuildProject; don't pollute :8765 (Daniel's live backend); verify GH issue # before closing (a local task-id collided with GH #282 once); Codex caps ⇒ queue, not Claude-pile; conserve manager context + Claude usage.
+
+---
+
 ## 2026-05-27 ~10:45 — CONSOLIDATED (everything merged into 0.0.2)
 
 **All lane work is merged into `0.0.2` (`c51054cf`) and all 6 worktrees forward-synced to it.** Trunk Swift build green; full Python verify run as the final gate (~3200 tests). HISTORY.md has the full landing list.

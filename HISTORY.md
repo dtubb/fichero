@@ -2356,3 +2356,10 @@ Two sessions continuing #1178 (transcription profiles) and paleography pipeline 
 - Resolved the pi lane `HISTORY.md` merge conflict by preserving both the SwiftUI loupe session notes and the backend `#241` provider-validation session notes.
 - Recorded the 23:30 ADT manager restart reminder for `f_claude_worker` and `f_codex_worker`.
 - Updated `STATE.md` and `MEMORY.md` with the current coordination context for the next handoff.
+
+## 2026-05-27→28 — Overnight autonomous session (manager)
+
+- Shipped to 0.0.2 (all gate-verified): #1290 settings-cap, #1285 KG-persist+audit (0→38 ent/45 claims), #1219 menu-import, #1293 Stage-2 labels, Clean Up Text tool+preset, #926 translation (1-step + multi-step AI-check), #1291 catalogue→doc target, #1292 artifact provenance, #1294 over-poll, **Mind Palace full A1** (RealityKit 3D + 2D toggle, rooms, inspector, room↔sources, add-sources; flag mindPalace default ON). KG goal complete (3295 pytest).
+- Caught + reverted S0 core-tier promotion (#1298: regen splits NodeDef→Input/Output, breaks Swift wrapper; tag s0-core-promotion). Filed #1297 (mind-palace phase-2), #1299 (visual verification via RenderPreview / XCUITest pending TCC).
+- Lesson: a lane reported tests green that reproduced as failures on clean trunk → manager must independently re-run gates (memory feedback_independently_verify_lane_test_claims). Researcher security: capability isolation / data-diode (memory feedback_researcher_capability_isolation).
+- UNMERGED at session end (next session's first job): sonnet=Researcher (4 commits), haiku=#1296 (1 commit). opus MCP #1269 didn't land (usage ceiling). Codex hard-capped till May 31.
