@@ -13,6 +13,7 @@ Covers:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -23,8 +24,10 @@ from fichero.llm import (
     AppleUnavailableError,
     GuardrailViolationError,
     LLMConfig,
+    ProviderQuotaError,
     StructuredDecodeError,
     UnsupportedLocaleError,
+    _PROVIDER_QUOTA_HITS,
     _compute_timeout,
     _pydantic_to_apple_schema,
     _raise_from_bridge_stderr,
@@ -547,6 +550,73 @@ class TestChatStructuredDispatch:
         assert captured_messages[0].content == "instructions"
         assert isinstance(captured_messages[1], HumanMessage)
         assert captured_messages[1].content == "user prompt"
+
+
+class TestProviderQuotaHandling:
+    class _QuotaError(Exception):
+        def __init__(self, message: str = "Key limit exceeded (weekly limit)"):
+            super().__init__(message)
+            self.status_code = 403
+            self.response = SimpleNamespace(status_code=403)
+
+    @pytest.mark.asyncio
+    async def test_chat_structured_raises_typed_quota_error_once(self):
+        _PROVIDER_QUOTA_HITS.clear()
+        cfg = LLMConfig(provider="openrouter", model="gpt-5")
+
+        quota_error = self._QuotaError()
+        structured_model = MagicMock()
+        structured_model.ainvoke = AsyncMock(side_effect=quota_error)
+        base_model = MagicMock()
+        base_model.profile = {"structured_output": True}
+        base_model.with_structured_output = MagicMock(return_value=structured_model)
+
+        tracker = MagicMock()
+        with patch("fichero.llm.get_langchain_model", return_value=base_model), \
+             patch("fichero.workflows.activity.get_activity_tracker", return_value=tracker), \
+             patch("fichero.llm.logger.warning") as warn:
+            with pytest.raises(ProviderQuotaError, match="Provider openrouter quota/limit hit"):
+                await chat_structured(prompt="x", schema=_Result, config=cfg)
+            with pytest.raises(ProviderQuotaError):
+                await chat_structured(prompt="y", schema=_Result, config=cfg)
+
+        assert warn.call_count == 1
+        assert tracker.log.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_structured_fallback_uses_large_env_override(self, monkeypatch):
+        monkeypatch.setenv("FICHERO_LARGE_PROVIDER", "openai")
+        monkeypatch.setenv("FICHERO_LARGE_MODEL", "mlx-local")
+        monkeypatch.setenv("FICHERO_LARGE_BASE_URL", "http://127.0.0.1:8765/v1")
+        cfg = LLMConfig(provider="apple", model="apple-intelligence")
+
+        calls: list[LLMConfig] = []
+
+        async def fake_chat_structured(
+            prompt,
+            schema,
+            config,
+            system=None,
+            include_schema_in_prompt=None,
+            use_case=None,
+            permissive_guardrails=False,
+        ):
+            calls.append(config)
+            if len(calls) == 1:
+                raise AppleUnavailableError("guardrail")
+            return _Result(answer="from-env")
+
+        with patch("fichero.llm.chat_structured", new=fake_chat_structured):
+            result = await chat_structured_with_fallback(
+                prompt="x", schema=_Result, config=cfg
+            )
+
+        assert result == _Result(answer="from-env")
+        assert len(calls) == 2
+        fallback_config = calls[1]
+        assert fallback_config.provider == "openai"
+        assert fallback_config.model == "mlx-local"
+        assert fallback_config.api_base == "http://127.0.0.1:8765/v1"
 
 
 # =============================================================================

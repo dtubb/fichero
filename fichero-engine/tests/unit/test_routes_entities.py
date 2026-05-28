@@ -106,6 +106,23 @@ class TestListEntities:
         names = {e["canonical_name"] for e in r.json()["items"]}
         assert names == {"Charlie"}
 
+    def test_default_list_hides_bare_dates_but_search_can_find_them(self, client, db):
+        _make_entity(db, "Alice", EntityType.person)
+        _make_entity(db, "1960", EntityType.other)
+        _make_entity(db, "1891-03-08", EntityType.other)
+
+        r = client.get("/api/entities")
+        assert r.status_code == 200
+        names = [e["canonical_name"] for e in r.json()["items"]]
+        assert "Alice" in names
+        assert "1960" not in names
+        assert "1891-03-08" not in names
+
+        r = client.get("/api/entities?q=1960")
+        assert r.status_code == 200
+        names = [e["canonical_name"] for e in r.json()["items"]]
+        assert "1960" in names
+
 
 # ---------------------------------------------------------------------------
 # POST /api/entities (upsert)

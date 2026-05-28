@@ -587,6 +587,56 @@ class ImageProvenance(BaseModel):
     )
 
 
+class BookStructureNode(BaseModel):
+    """Hierarchical book structure anchored to a source document's pages.
+
+    A node represents a chapter / section / subsection range over the flat
+    page list for a parent PDF. The rows are intentionally parallel to the
+    page tree: pages stay where they are, and structure nodes reference
+    ``start_sequence`` / ``end_sequence`` instead of re-parenting page rows.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    source_document_id: str = Field(
+        description="Parent PDF / book document this structure was derived from."
+    )
+    title: str = Field(description="Heading text from the outline / TOC.")
+    level: int = Field(
+        ge=1,
+        description="Outline depth, where 1=chapter, 2=section, 3=subsection.",
+    )
+    kind: str = Field(
+        default="section",
+        description="Human-readable structural kind (chapter/section/subsection).",
+    )
+    start_sequence: int = Field(
+        ge=1,
+        description="1-based page sequence where this node begins.",
+    )
+    end_sequence: int | None = Field(
+        default=None,
+        ge=1,
+        description="1-based page sequence where this node ends, inclusive.",
+    )
+    parent_structure_id: str | None = Field(
+        default=None,
+        description="Parent structure node in the hierarchy (null at root).",
+    )
+    basis: str = Field(
+        default="toc",
+        description="Provenance basis: 'toc', 'heuristic', or 'llm'.",
+    )
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    source_page_label: str | None = None
+    source_excerpt: str | None = None
+    source_char_start: int | None = None
+    source_char_end: int | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_by: str = "extractor"
+
+
 class InclusionScopeType(str, Enum):
     library = "library"
     folder = "folder"
