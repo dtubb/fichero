@@ -134,6 +134,21 @@ struct SidebarModeSection: View {
                     sidebarMode?.wrappedValue = .activity
                 }
             }
+
+            if featureManager.isMindPalaceEnabled {
+                Divider()
+
+                // Mind Palace mode (7) — spatial 3D-2D space
+                SidebarModeButton(
+                    mode: .mindPalace,
+                    label: SidebarMode.mindPalace.label,
+                    icon: SidebarMode.mindPalace.icon,
+                    shortcut: SidebarMode.mindPalace.shortcutNumber,
+                    current: currentMode
+                ) {
+                    sidebarMode?.wrappedValue = .mindPalace
+                }
+            }
         }
     }
 }
@@ -176,7 +191,7 @@ struct LibraryLayoutSection: View {
         switch mode {
         case .library, .search:
             return true
-        case .chat, .workflows, .automation, .activity:
+        case .chat, .workflows, .automation, .activity, .mindPalace:
             return false
         }
     }
@@ -351,7 +366,7 @@ struct PreviewModeSection: View {
             return [.none, .standard, .widescreen]
         case .chat:
             return [.none, .standard, .widescreen]
-        case .workflows, .automation, .activity:
+        case .workflows, .automation, .activity, .mindPalace:
             return []
         }
     }

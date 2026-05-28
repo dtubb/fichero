@@ -48,6 +48,8 @@ extension ContentView {
             }
         case .ontology:
             viewName = "Knowledge Graph"
+        case .mindPalace:
+            viewName = "Mind Palace"
         }
 
         return viewName
@@ -120,7 +122,7 @@ extension ContentView {
         switch sidebarMode {
         case .library, .search, .workflows:
             return true
-        case .chat, .automation, .activity:
+        case .chat, .automation, .activity, .mindPalace:
             return false
         }
     }
@@ -149,7 +151,7 @@ extension ContentView {
             // 0.0.1: keep workflow presentation simple and explicit.
             // Icon = visual graph/canvas, List = ordered execution steps.
             return [.icon, .list]
-        case .chat, .automation, .activity:
+        case .chat, .automation, .activity, .mindPalace:
             return [.icon]
         }
     }
@@ -177,7 +179,7 @@ extension ContentView {
             return [.none, .standard, .widescreen]
         case .chat:
             return [.none, .standard, .widescreen]
-        case .workflows, .automation, .activity:
+        case .workflows, .automation, .activity, .mindPalace:
             return []
         }
     }

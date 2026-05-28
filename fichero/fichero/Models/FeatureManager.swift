@@ -6,7 +6,7 @@ import SwiftUI
 @MainActor
 class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
-    private static let releaseProfileVersion = 25
+    private static let releaseProfileVersion = 27
     private static let workflowV001EnabledTools =
         "files,collection,folder,aggregate,transcribe,catalogue,"
         + "extract_entities,key_people,timeline,keywords,summarize_file,"
@@ -53,6 +53,7 @@ class FeatureManager: ObservableObject {
     @AppStorage("fichero.features.mcp") private var mcpEnabledInternal: Bool = false
     @AppStorage("fichero.features.integrations") private var integrationsEnabledInternal: Bool = false
     @AppStorage("fichero.features.activity") private var activityEnabledInternal: Bool = false
+    @AppStorage("fichero.features.mind_palace") private var mindPalaceEnabledInternal: Bool = false
     @AppStorage("fichero.features.settings_general_tab")
     private var settingsGeneralTabEnabledInternal: Bool = true
     @AppStorage("fichero.features.settings_backend_tab")
@@ -113,6 +114,9 @@ class FeatureManager: ObservableObject {
     var isMCPEnabled: Bool { allFeaturesEnabled || mcpEnabledInternal }
     var isIntegrationsEnabled: Bool { allFeaturesEnabled || integrationsEnabledInternal }
     var isActivityEnabled: Bool { allFeaturesEnabled || activityEnabledInternal }
+    /// Mind Palace / spatial 3D-2D space. Defaulted OFF; backend (`/api/mind-palace`)
+    /// is complete but the SwiftUI surface is Phase 1 (read-only 2D projection).
+    var isMindPalaceEnabled: Bool { allFeaturesEnabled || mindPalaceEnabledInternal }
     var isLibraryAdvancedViewsEnabled: Bool {
         allFeaturesEnabled || libraryAdvancedViewsEnabledInternal
     }
@@ -187,6 +191,11 @@ class FeatureManager: ObservableObject {
         mcpEnabledInternal = false
         integrationsEnabledInternal = false
         activityEnabledInternal = true
+        // Mind Palace is ON during dev so Daniel can see the full feature and
+        // flip it off if it's not ready. TODO: revisit the release default
+        // before shipping 0.0.2 — likely OFF until the spatial UX is signed off.
+        mindPalaceEnabledInternal = true
+
         settingsGeneralTabEnabledInternal = true
         settingsBackendTabEnabledInternal = true
         settingsModelsTabEnabledInternal = true

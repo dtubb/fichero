@@ -20,6 +20,17 @@ extension SidebarView {
 
     @ViewBuilder
     var sidebarContent: some View {
+        if sidebarMode == .mindPalace {
+            // Mind Palace mode shows its rooms list here; the canvas + node
+            // inspector render in the main content area (MindPalaceContainer).
+            RoomListView()
+        } else {
+            standardSidebarContent
+        }
+    }
+
+    @ViewBuilder
+    var standardSidebarContent: some View {
         VStack(spacing: 0) {
             // Breathing room between the window's title bar and the sidebar's
             // first row. Without this the 'Library' header sits flush against

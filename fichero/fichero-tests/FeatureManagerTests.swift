@@ -13,6 +13,8 @@ final class FeatureManagerTests: XCTestCase {
         XCTAssertTrue(featureManager.isWorkflowsEnabled)
         XCTAssertTrue(featureManager.isActivityEnabled)
         XCTAssertTrue(featureManager.isSettingsGeneralTabEnabled)
+        // Mind Palace ships ON during dev (Daniel-facing); revisit before release.
+        XCTAssertTrue(featureManager.isMindPalaceEnabled)
 
         // Disabled in v0.0.1
         XCTAssertFalse(featureManager.isChatEnabled)
