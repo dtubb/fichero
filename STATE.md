@@ -361,3 +361,14 @@ Top priorities:
 **KG-GEN (Daniel's headline):** running Catalogue on `tubb2020shift - Preface.pdf` (lib `CLI Preface+Ch1 Clean 20260523-063533.fichero`) — **changed that library's `large_provider/large_model` → apple/apple-intelligence** (was openrouter/sonnet-4.6, capped) so extraction is FREE on-device (English book; aligns with Daniel's "local models won't run out"). Verify KG rows when bg `b0uxswxoh` done, then scale to Chapter 1. NOTE: revert large→openrouter if Daniel prefers, but apple is cap-safe.
 
 **GH triage:** gpt_mini closed 6 (#1277/#1278/#1255/#1257-partial etc.); manager REOPENED #1289 (onboarding not built) + #1258 (UI not built) — over-closed. Be conservative closing multi-part features.
+
+## 2026-05-28 ~17:30 — CHECKPOINT (integration done; KG-gen needs a focused retry)
+
+**ALL INTEGRATION + STABILITY DONE & PUSHED (trunk green):** 6 lanes merged · oMLX provider · tier promotion dev→release (all gated features shippable) · #1302 KG-WebKit click→inspector + sidebar-KG retired · **#1275 NodeDef determinism FIXED** (pinned to split + test guard — ended the flip-flop that broke the Swift build ~4× tonight). Trunk @ 4b99b7a9.
+
+**STILL OPEN:**
+- **codex53 #1257** (KG-viz suite, Swift) — committed on lane (1 ahead), NOT merged. Next tick: merge + BuildProject gate (Swift; NodeDef now stable so should be clean).
+- **gpt_mini triage** done (closed dupes; manager reopened #1289/#1258 over-closes).
+- **KG-GEN — NOT YET WORKING.** Ran Catalogue on tubb2020shift Preface (lib 'CLI Preface+Ch1 Clean 20260523-063533.fichero', large set to free apple-intelligence). Transcribe succeeded (~25s) but extract_all persisted **0 entities/claims/catalogue** (document-kg empty). CLI --wait timed out at 300s; engine kept running but result is empty + activity log now empty. ROOT-CAUSE TBD: either extract_all still running (slow on-device, 15 pages), or silently produced nothing, or scoped to page children. **NEXT TICK PLAN:** run Catalogue on a SINGLE already-transcribed PAGE doc (fast ~1-2min, deterministic) to prove KG end-to-end; if it works, scale; if a single page also yields 0, it's an extract_all/persist bug to investigate (re-check the #1285 catalogue-writes-KG path with Apple Intelligence on English academic prose — possibly structured extraction returns empty). Get the page doc id via `fichero --json docs list` (items is a list; doc_type=='page').
+
+**LANES IDLE:** gpt, gpt_mini (re-dispatch on backlog next tick). codex53 #1257 pending merge.
