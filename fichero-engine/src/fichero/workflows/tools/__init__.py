@@ -85,6 +85,7 @@ from fichero.workflows.tools import research
 from fichero.workflows.tools import aggregate
 from fichero.workflows.tools import ocr_cleanup  # noqa: F401  (#925)
 from fichero.workflows.tools import text_reflow  # noqa: F401  (#1260)
+from fichero.workflows.tools import book_index  # noqa: F401  (#1278)
 
 # Output tools
 from fichero.workflows.tools import write_file
@@ -149,6 +150,7 @@ __all__ = [
     "aggregate",
     "ocr_cleanup",
     "text_reflow",
+    "book_index",
     # Output
     "write_file",
 ]
