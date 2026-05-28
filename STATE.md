@@ -351,3 +351,13 @@ Top priorities:
 - Register every new `.swift` file with `ruby scripts/add-swift-file.rb fichero/fichero/Path/To/File.swift`
 - GitHub Issues is the canonical backlog; commit directly to `0.0.2`
 - Never hand-edit `openapi.json` or generated `fichero-api-client` sources
+
+## 2026-05-28 ~17:10 — OVERNIGHT PROGRESS (durable checkpoint)
+
+**SHIPPED to 0.0.2 tonight (all gated+pushed):** opus MCP (24 `fichero_mp_*` tools) · codex53 oMLX provider + #1277 citation-usage + #1258 claim-edit backend · gpt #1279 book-structure + provider-quota resilience + #1283 startup-auth + #1295 date-entity filter · gpt_mini #1278 book-index + #1288 audit + #1239 ACENET docs · **NodeDef Swift fix** · **TIER PROMOTION dev→release (#1298)** — ALL gated features (Mind Palace/Research/MCP/local-models/iiif/citation/actions/integrations/orchestration/schedules/triggers) now in `_CORE` · **#1302 KG WebKit click→inspector + sidebar-KG retired**. Trunk `928608b9`. All 6 lanes cleared.
+
+**IN FLIGHT:** codex53=#1257 KG-viz · gpt=#1275 NodeDef determinism harden · gpt_mini=triage #1150-1240.
+
+**KG-GEN (Daniel's headline):** running Catalogue on `tubb2020shift - Preface.pdf` (lib `CLI Preface+Ch1 Clean 20260523-063533.fichero`) — **changed that library's `large_provider/large_model` → apple/apple-intelligence** (was openrouter/sonnet-4.6, capped) so extraction is FREE on-device (English book; aligns with Daniel's "local models won't run out"). Verify KG rows when bg `b0uxswxoh` done, then scale to Chapter 1. NOTE: revert large→openrouter if Daniel prefers, but apple is cap-safe.
+
+**GH triage:** gpt_mini closed 6 (#1277/#1278/#1255/#1257-partial etc.); manager REOPENED #1289 (onboarding not built) + #1258 (UI not built) — over-closed. Be conservative closing multi-part features.
