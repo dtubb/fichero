@@ -23,6 +23,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 # Add API src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -72,6 +73,49 @@ def convert_nullable_schemas(obj: dict | list) -> dict | list:
     return result
 
 
+def _replace_schema_refs(obj: Any, ref_map: dict[str, str]) -> Any:
+    """Recursively replace component $ref targets with canonical names."""
+    if isinstance(obj, list):
+        return [_replace_schema_refs(item, ref_map) for item in obj]
+
+    if not isinstance(obj, dict):
+        return obj
+
+    result: dict[str, Any] = {}
+    for key, value in obj.items():
+        if key == "$ref" and isinstance(value, str):
+            for alias, canonical in ref_map.items():
+                alias_ref = f"#/components/schemas/{alias}"
+                if value == alias_ref:
+                    result[key] = f"#/components/schemas/{canonical}"
+                    break
+            else:
+                result[key] = value
+            continue
+        result[key] = _replace_schema_refs(value, ref_map)
+    return result
+
+
+def _canonicalize_schema_aliases(openapi_schema: dict) -> None:
+    """Collapse split workflow schema variants back to their canonical names."""
+    ref_map = {
+        "NodeDefInput": "NodeDef",
+        "NodeDefOutput": "NodeDef",
+        "EdgeDefInput": "EdgeDef",
+        "EdgeDefOutput": "EdgeDef",
+    }
+
+    schemas = openapi_schema.setdefault("components", {}).setdefault("schemas", {})
+    for alias, canonical in ref_map.items():
+        alias_schema = schemas.pop(alias, None)
+        if canonical not in schemas and alias_schema is not None:
+            schemas[canonical] = alias_schema
+
+    # Prefer the canonical model-json-schema injected by ensure_named_schemas
+    # and rewrite any lingering split refs in-place.
+    openapi_schema.update(_replace_schema_refs(openapi_schema, ref_map))
+
+
 def extract_endpoints(openapi_schema: dict) -> dict:
     """
     Extract a simplified endpoint list from OpenAPI schema.
@@ -80,11 +124,11 @@ def extract_endpoints(openapi_schema: dict) -> dict:
     """
     endpoints = {}
 
-    for path, methods in openapi_schema.get("paths", {}).items():
+    for path, methods in sorted(openapi_schema.get("paths", {}).items()):
         # Remove /api prefix for cleaner paths
         clean_path = path.replace("/api", "", 1) if path.startswith("/api") else path
 
-        for method, details in methods.items():
+        for method, details in sorted(methods.items()):
             if method in ["get", "post", "put", "patch", "delete"]:
                 # Group by first path segment (resource)
                 segments = clean_path.strip("/").split("/")
@@ -101,7 +145,7 @@ def extract_endpoints(openapi_schema: dict) -> dict:
 
                 # Extract query parameters
                 query_params = []
-                for param in details.get("parameters", []):
+                for param in sorted(details.get("parameters", []), key=lambda p: p.get("name", "")):
                     if param.get("in") == "query":
                         query_params.append({
                             "name": param["name"],
@@ -142,7 +186,39 @@ def extract_endpoints(openapi_schema: dict) -> dict:
                     "response_model": response_model,
                 })
 
-    return endpoints
+    for resource, entries in list(endpoints.items()):
+        endpoints[resource] = sorted(
+            entries,
+            key=lambda entry: (entry["path"], entry["method"], entry.get("operation_id") or ""),
+        )
+
+    return dict(sorted(endpoints.items()))
+
+
+def build_openapi_schema() -> dict:
+    """Build the canonical OpenAPI schema used for contracts and Swift sync."""
+    # Get OpenAPI schema from FastAPI app
+    openapi_schema = app.openapi()
+
+    # #1275: guarantee Swift-hand-wrapped nested models are always named components
+    # (FastAPI nested-model emission is non-deterministic across feature tiers).
+    from fichero.workflows.types import EdgeDef, NodeDef
+    ensure_named_schemas(openapi_schema, [NodeDef, EdgeDef])
+    _canonicalize_schema_aliases(openapi_schema)
+
+    # Convert nullable schemas for Swift compatibility
+    openapi_schema = convert_nullable_schemas(openapi_schema)
+
+    # Use OpenAPI 3.0.3 for better Swift compatibility (nullable is a 3.0 feature)
+    openapi_schema["openapi"] = "3.0.3"
+    return openapi_schema
+
+
+def build_endpoints(openapi_schema: dict | None = None) -> dict:
+    """Build the simplified endpoint listing from a canonical OpenAPI schema."""
+    if openapi_schema is None:
+        openapi_schema = build_openapi_schema()
+    return extract_endpoints(openapi_schema)
 
 
 def ensure_named_schemas(openapi_schema: dict, models: list) -> None:
@@ -165,19 +241,7 @@ def ensure_named_schemas(openapi_schema: dict, models: list) -> None:
 
 
 def main():
-    # Get OpenAPI schema from FastAPI app
-    openapi_schema = app.openapi()
-
-    # #1275: guarantee Swift-hand-wrapped nested models are always named components
-    # (FastAPI nested-model emission is non-deterministic across feature tiers).
-    from fichero.workflows.types import EdgeDef, NodeDef
-    ensure_named_schemas(openapi_schema, [NodeDef, EdgeDef])
-
-    # Convert nullable schemas for Swift compatibility
-    openapi_schema = convert_nullable_schemas(openapi_schema)
-
-    # Use OpenAPI 3.0.3 for better Swift compatibility (nullable is a 3.0 feature)
-    openapi_schema["openapi"] = "3.0.3"
+    openapi_schema = build_openapi_schema()
 
     # Create output directory
     output_dir = Path(__file__).parent.parent / "tests" / "contracts"
@@ -190,7 +254,7 @@ def main():
     print(f"✓ OpenAPI schema exported to {openapi_path}")
 
     # Extract and save simplified endpoints
-    endpoints = extract_endpoints(openapi_schema)
+    endpoints = build_endpoints(openapi_schema)
     endpoints_path = output_dir / "endpoints.json"
     with open(endpoints_path, "w") as f:
         json.dump({
