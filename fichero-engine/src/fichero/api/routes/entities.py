@@ -7,6 +7,7 @@ providing a clean separation from the broader knowledge graph functionality.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 from collections import defaultdict
 from pathlib import Path
@@ -36,6 +37,10 @@ from fichero.models import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/entities", tags=["entities"])
+
+_BARE_DATE_NAME_RE = re.compile(
+    r"^\d{4}(?:-\d{2}(?:-\d{2})?)?$"
+)
 
 
 # =============================================================================
@@ -243,6 +248,22 @@ def _normalize_text(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
+def _is_date_like_entity(entity: KnowledgeEntity) -> bool:
+    """Return True for bare date entities that clutter the browser.
+
+    We keep these rows in the database for provenance / claim links, but the
+    default entity browser should prefer named entities. The audit surfaced
+    canonical names like ``1960`` and ``1891-03-08`` as visually noisy peers
+    to people and places, so we hide them by default unless the caller is
+    explicitly searching or filtering.
+    """
+    kind = getattr(entity, "entity_type", None)
+    kind_value = kind.value if hasattr(kind, "value") else str(kind or "")
+    if kind_value == "date":
+        return True
+    return bool(_BARE_DATE_NAME_RE.match((entity.canonical_name or "").strip()))
+
+
 def _build_alias_to_entity_id_map(db: Database) -> dict[str, str]:
     """Build a mapping of normalized aliases to entity IDs."""
     alias_map: dict[str, str] = {}
@@ -324,6 +345,10 @@ async def list_entities(
             if entity_type
             else db.all(KnowledgeEntity)
         )
+        if q is None and entity_type is None and document_id is None:
+            entities = [
+                entity for entity in entities if not _is_date_like_entity(entity)
+            ]
 
     needle = _normalize_text(q)
     if needle:
