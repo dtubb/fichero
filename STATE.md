@@ -16,7 +16,10 @@
 2. **#1269 remainder** (large, needs Opus/Codex frontier): the *agentic chatbot* + full-app MCP surface beyond Mind Palace. The thin FastMCP server (`mcp_server.py`) is the place to extend (one tool per real client method — NOT the removed `fichero_mp_*` fantasy surface, see acd349a2).
 3. Researcher INFO-level polish: web-search response drops `source_name`/`published_date`/`relevance_score` (wire when UI needs them).
 
-**QUEUED for Codex (HARD-capped till May 31 4:38pm — do NOT pile on Claude):** #1277/#1278/#1279 book-extraction, #1258 KG-claim CRUD. Daniel may top up Codex credits at the office.
+**LANES (reconfigured 2026-05-28 ~12:35):** Daniel bought **Codex Pro** → Codex UNCAPPED (live-verified: codex53 replied READY). **Claude worker lanes PARKED until Saturday (May 30)** per Daniel — do NOT dispatch to opus/sonnet/haiku/planner/integrator/reviewer/bugtriage; they sit idle (zero cost); autoloop already terminated. Manager (this session) keeps coordinating Codex + gates/merges their backend work.
+- **DISPATCHED to Codex (backend-only, dev-tier, no openapi/Swift — Claude can't gate Swift while parked):** codex53→**#1277** (in-text citation USAGE extraction), gpt→**#1279** (book STRUCTURE chapters/sections), gpt_mini→**#1278** (back-of-book index→topic entities). All three confirmed Working. They commit to their lane branch, do NOT push/PR; manager gates (ruff + trunk-venv pytest) + merges.
+- **STILL QUEUED:** #1258 KG-claim CRUD (has a Swift UI part — defer the UI until Claude lanes return Saturday; Codex can do backend CRUD if a lane frees up).
+- **Gate Codex work via trunk venv (lanes have no .venv):** `/Users/danieltubb/code/fichero-0.0.2/.venv/bin/ruff check ~/code/fichero-<lane>/fichero-engine/src/` and `PYTHONPATH=~/code/fichero-<lane>/fichero-engine/src .venv/bin/python -m pytest ~/code/fichero-<lane>/fichero-engine/tests/unit/ -q`.
 
 **HELD:** #1298 S0 core-tier promotion reverted (regen splits NodeDef→Input/Output, breaks WorkflowServiceGenerated.swift; tag `s0-core-promotion`=bc8c6e75; NOT needed for dev-tier testing). XCUITest #1230/#1242 BLOCKED on Daniel's one-time macOS TCC grant (Accessibility+Automation).
 
