@@ -27,7 +27,13 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from fichero.db import db_manager
-from fichero.llm import LLMConfig, chat_structured, chat_structured_with_fallback, resolve_model_alias
+from fichero.llm import (
+    LLMConfig,
+    ProviderQuotaError,
+    chat_structured,
+    chat_structured_with_fallback,
+    resolve_model_alias,
+)
 from fichero.models import Artifact, Document, DocType, FileType
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_write_target
@@ -360,6 +366,8 @@ async def _extract_entities_only(
                 include_schema_in_prompt=False,
                 permissive_guardrails=True,
             )
+    except ProviderQuotaError:
+        raise
     except Exception as exc:
         elapsed = time.monotonic() - call_start
         chunk_timings.append(elapsed)
@@ -408,6 +416,8 @@ async def _extract_claims_for_entity(
             }
             for claim in result.claims
         ]
+    except ProviderQuotaError:
+        raise
     except Exception as exc:
         logger.warning(f"Stage 2 claim extraction failed for {entity_name}: {exc}")
         return []
@@ -1472,6 +1482,8 @@ async def extract_all(
                     raise RuntimeError(
                         "thin structured extraction output (no auto-fallback enabled)"
                     )
+        except ProviderQuotaError:
+            raise
         except Exception as exc:
             elapsed = time.monotonic() - call_start
             chunk_timings.append(elapsed)

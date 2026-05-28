@@ -39,7 +39,11 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from fichero.db import db_manager
 from fichero.kg._common import parse_kwarg_repr
-from fichero.llm import LLMConfig, chat_structured_with_fallback
+from fichero.llm import (
+    LLMConfig,
+    ProviderQuotaError,
+    chat_structured_with_fallback,
+)
 from fichero.models import Artifact
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_write_target
@@ -1261,6 +1265,8 @@ async def _run_extractor(
                 use_case=section_use_case,
                 permissive_guardrails=True,
             )
+        except ProviderQuotaError:
+            raise
         except Exception as exc:
             msg = f"structured LLM call failed: {exc}"
             logger.error(f"{section['name']} {msg}")

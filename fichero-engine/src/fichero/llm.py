@@ -42,6 +42,7 @@ import contextvars
 import logging
 import os
 import re
+import threading
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import AsyncIterator, Any, Literal as _Literal
@@ -315,6 +316,157 @@ class StructuredDecodeError(AppleUnavailableError):
         self.kind = kind
 
 
+class ProviderQuotaError(RuntimeError):
+    """Raised when a remote provider reports quota / limit exhaustion."""
+
+    def __init__(
+        self,
+        provider: str,
+        *,
+        status_code: int | None = None,
+        detail: str | None = None,
+        model: str | None = None,
+    ) -> None:
+        self.provider = provider
+        self.status_code = status_code
+        self.detail = detail
+        self.model = model
+        super().__init__(
+            "Provider "
+            f"{provider} quota/limit hit — set a different $large provider in Settings"
+        )
+
+
+_PROVIDER_QUOTA_HITS: set[str] = set()
+_PROVIDER_QUOTA_HITS_LOCK = threading.Lock()
+
+
+def _log_provider_quota_hit(
+    provider: str,
+    model: str | None = None,
+    detail: str | None = None,
+) -> None:
+    """Log a provider quota hit once per provider/model for the process."""
+    provider_key = (provider or "unknown").strip().lower() or "unknown"
+    model_key = (model or "").strip().lower() or "*"
+    quota_key = f"{provider_key}/{model_key}"
+    with _PROVIDER_QUOTA_HITS_LOCK:
+        if quota_key in _PROVIDER_QUOTA_HITS:
+            return
+        _PROVIDER_QUOTA_HITS.add(quota_key)
+
+    message = (
+        f"Provider {provider or 'unknown'} quota/limit hit — "
+        "set a different $large provider in Settings"
+    )
+    logger.warning(message)
+    if detail:
+        logger.debug("%s detail: %s", provider or "unknown", detail)
+
+    try:
+        from fichero.workflows.activity import get_activity_tracker
+        from fichero.workflows.activity_types import ActivityLevel, ActivityType
+
+        tracker = get_activity_tracker()
+        tracker.log(
+            type=ActivityType.SYSTEM_WARNING,
+            level=ActivityLevel.WARNING,
+            message=message,
+            metadata={"provider": provider or "unknown"},
+        )
+    except Exception:
+        # Activity logging is best-effort; the Python logger above is the
+        # guaranteed fallback.
+        pass
+
+
+def _extract_exc_status_code(exc: BaseException) -> int | None:
+    """Pull a status code off common provider exception shapes."""
+    for attr in ("status_code", "status", "http_status", "code"):
+        value = getattr(exc, attr, None)
+        try:
+            if value is not None:
+                return int(value)
+        except (TypeError, ValueError):
+            continue
+
+    response = getattr(exc, "response", None)
+    if response is not None:
+        for attr in ("status_code", "status"):
+            value = getattr(response, attr, None)
+            try:
+                if value is not None:
+                    return int(value)
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
+def _extract_exc_message(exc: BaseException) -> str:
+    parts = [type(exc).__name__, str(exc)]
+    for attr in ("message", "detail", "error"):
+        value = getattr(exc, attr, None)
+        if isinstance(value, str):
+            parts.append(value)
+        elif value is not None:
+            parts.append(str(value))
+    response = getattr(exc, "response", None)
+    if response is not None:
+        for attr in ("text", "reason", "content"):
+            value = getattr(response, attr, None)
+            if isinstance(value, str):
+                parts.append(value)
+            elif value is not None:
+                parts.append(str(value))
+    body = getattr(exc, "body", None)
+    if body is not None:
+        parts.append(str(body))
+    return " ".join(part for part in parts if part)
+
+
+def _is_provider_quota_error(exc: BaseException) -> tuple[bool, int | None, str]:
+    """Return quota detection status, status code, and a detail string."""
+    status_code = _extract_exc_status_code(exc)
+    message = _extract_exc_message(exc)
+    lower = message.lower()
+
+    quota_keywords = (
+        "insufficient_quota",
+        "insufficient quota",
+        "quota exceeded",
+        "key limit exceeded",
+        "limit exceeded",
+        "rate limit",
+        "rate_limit",
+        "too many requests",
+    )
+
+    if status_code in {402, 429}:
+        return True, status_code, message
+    if status_code == 403 and any(token in lower for token in quota_keywords):
+        return True, status_code, message
+    if any(token in lower for token in quota_keywords):
+        return True, status_code, message
+    return False, status_code, message
+
+
+def _raise_provider_quota_error(
+    config: LLMConfig,
+    exc: BaseException,
+) -> None:
+    """Convert quota/limit provider errors into a typed exception."""
+    is_quota, status_code, detail = _is_provider_quota_error(exc)
+    if not is_quota:
+        return
+    _log_provider_quota_hit(config.provider, model=config.model, detail=detail)
+    raise ProviderQuotaError(
+        config.provider,
+        status_code=status_code,
+        detail=detail,
+        model=config.model,
+    ) from exc
+
+
 def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
     """Resolve $small / $large aliases against app-level settings.
 
@@ -331,6 +483,11 @@ def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
     if raw not in _MODEL_ALIASES:
         return (provider, model)
 
+    env_provider = os.environ.get(f"FICHERO_{raw[1:].upper()}_PROVIDER")
+    env_model = os.environ.get(f"FICHERO_{raw[1:].upper()}_MODEL")
+    if env_provider and env_model:
+        return (env_provider, env_model)
+
     from fichero.app_db import get_app_db
     db = get_app_db()
     tier = "small" if raw == "$small" else "large"
@@ -344,6 +501,34 @@ def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
             f"Default {tier} model."
         )
     return (resolved_provider, resolved_model)
+
+
+def _resolve_tier_transport_settings(tier: str) -> tuple[str | None, str | None]:
+    """Resolve env-only overrides for a tier's transport settings."""
+    tier_name = tier.upper()
+    base_url = (
+        os.environ.get(f"FICHERO_{tier_name}_BASE_URL")
+        or os.environ.get(f"FICHERO_{tier_name}_API_BASE")
+    )
+    api_key = os.environ.get(f"FICHERO_{tier_name}_API_KEY")
+    return base_url, api_key
+
+
+def _build_fallback_config(config: LLMConfig, tier: str = "large") -> LLMConfig:
+    """Build a tier fallback config, including transport overrides."""
+    fallback_provider, fallback_model = resolve_model_alias(f"${tier}", "")
+    base_url, api_key = _resolve_tier_transport_settings(tier)
+    return LLMConfig(
+        provider=fallback_provider,
+        model=fallback_model,
+        temperature=config.temperature,
+        max_tokens=config.max_tokens,
+        api_key=api_key or config.api_key,
+        api_base=base_url or config.api_base,
+        timeout=config.timeout,
+        extra=dict(config.extra),
+        reasoning_effort=config.reasoning_effort,
+    )
 
 
 # =============================================================================
@@ -469,6 +654,9 @@ async def chat(
                 f"LangChain {config.provider}/{config.model} chat exceeded "
                 f"{budget}s — provider hang"
             ) from exc
+        except Exception as exc:
+            _raise_provider_quota_error(config, exc)
+            raise
         # Surface usage_metadata to the cost-tracking layer (#844 item 8 +
         # #852). AIMessage.usage_metadata is the LangChain ≥0.3 standard
         # shape: input_tokens / output_tokens / total_tokens dict.
@@ -520,7 +708,7 @@ async def chat_with_fallback(
         # Catches GuardrailViolationError, UnsupportedLocaleError, and any
         # future "Apple can't proceed" subclass uniformly.
         try:
-            large_provider, large_model = resolve_model_alias("$large", "")
+            large_config = _build_fallback_config(config, "large")
         except ValueError:
             # No $large configured — surface the original error so the
             # caller knows it was Apple's refusal, not a missing key.
@@ -531,29 +719,19 @@ async def chat_with_fallback(
             )
             raise apple_exc
 
-        fallback_config = LLMConfig(
-            provider=large_provider,
-            model=large_model,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            api_key=config.api_key,
-            api_base=config.api_base,
-            timeout=config.timeout,
-            extra=dict(config.extra),
-        )
         # #1001: warning, not info — falling back to a cloud provider is a
         # billing event + an offline-mode regression. Make it loud and
         # greppable so it isn't a silent surprise on every run.
         logger.warning(
             "Apple Intelligence unavailable (%s); falling back to PAID "
             "remote model $large = %s/%s — this request now incurs cost.",
-            type(apple_exc).__name__, large_provider, large_model,
+            type(apple_exc).__name__, large_config.provider, large_config.model,
         )
         # Permissive guardrails is Apple-only and has no effect here.
-        result = await chat(prompt, fallback_config, system=system)
+        result = await chat(prompt, large_config, system=system)
         logger.info(
             "Fallback to %s/%s succeeded.",
-            large_provider, large_model,
+            large_config.provider, large_config.model,
         )
         return result
 
@@ -1236,7 +1414,11 @@ async def chat_with_tools(
         messages = _convert_to_langchain_messages(prompt)
 
     # Call model with tools
-    response = await model_with_tools.ainvoke(messages)
+    try:
+        response = await model_with_tools.ainvoke(messages)
+    except Exception as exc:
+        _raise_provider_quota_error(config, exc)
+        raise
 
     # Extract tool calls from response
     tool_calls = []
@@ -1278,7 +1460,11 @@ async def structured_output(
     structured_model = model.with_structured_output(schema)
 
     # Call model
-    result = await structured_model.ainvoke([HumanMessage(content=prompt)])
+    try:
+        result = await structured_model.ainvoke([HumanMessage(content=prompt)])
+    except Exception as exc:
+        _raise_provider_quota_error(config, exc)
+        raise
 
     return result
 
@@ -1373,6 +1559,9 @@ async def chat_structured(
             f"LangChain {config.provider}/{config.model} structured call "
             f"exceeded {budget}s — provider hang"
         ) from exc
+    except Exception as exc:
+        _raise_provider_quota_error(config, exc)
+        raise
 
     # `result` is a dict {'raw': AIMessage, 'parsed': Schema, 'parsing_error': ...}
     # when include_raw=True. Older code paths and tests that mocked
@@ -1471,7 +1660,7 @@ async def chat_structured_with_fallback(
                 apple_exc = retry_exc
 
         try:
-            large_provider, large_model = resolve_model_alias("$large", "")
+            large_config = _build_fallback_config(config, "large")
         except ValueError:
             logger.warning(
                 "Structured-call %s but no $large fallback configured; "
@@ -1480,21 +1669,10 @@ async def chat_structured_with_fallback(
             )
             raise apple_exc
 
-        if large_provider == config.provider and large_model == config.model:
+        if large_config.provider == config.provider and large_config.model == config.model:
             # $large resolves to the same model we just tried — no point
             # retrying. Surface the original error.
             raise apple_exc
-
-        fallback_config = LLMConfig(
-            provider=large_provider,
-            model=large_model,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens,
-            api_key=config.api_key,
-            api_base=config.api_base,
-            timeout=config.timeout,
-            extra=dict(config.extra),
-        )
         # #1001: flag the cost explicitly — the structured extractor path
         # (Extract All Entities, catalogue) hits this on guardrail refusals,
         # and a silent swap to a paid provider is a billing surprise.
@@ -1502,14 +1680,14 @@ async def chat_structured_with_fallback(
             "Apple Intelligence unavailable for structured call (%s); "
             "falling back to PAID remote model $large = %s/%s — this "
             "request now incurs cost.",
-            type(apple_exc).__name__, large_provider, large_model,
+            type(apple_exc).__name__, large_config.provider, large_config.model,
         )
         # The fallback provider is LangChain-based, so the Apple-only
         # include_schema_in_prompt parameter is ignored on that path.
-        result = await chat_structured(prompt, schema, fallback_config, system=system)
+        result = await chat_structured(prompt, schema, large_config, system=system)
         logger.info(
             "Structured fallback to %s/%s succeeded.",
-            large_provider, large_model,
+            large_config.provider, large_config.model,
         )
         return result
 

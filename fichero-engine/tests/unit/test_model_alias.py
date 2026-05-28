@@ -65,3 +65,8 @@ class TestResolveModelAlias:
             )
             with pytest.raises(ValueError, match="Default large model"):
                 resolve_model_alias("$large", "")
+
+    def test_env_override_wins_for_large(self, monkeypatch):
+        monkeypatch.setenv("FICHERO_LARGE_PROVIDER", "openai")
+        monkeypatch.setenv("FICHERO_LARGE_MODEL", "mlx-local")
+        assert resolve_model_alias("$large", "") == ("openai", "mlx-local")
