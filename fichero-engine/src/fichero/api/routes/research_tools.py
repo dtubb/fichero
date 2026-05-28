@@ -1,5 +1,29 @@
 """Research Agents sandboxed tool routes — web search, browser navigate, document fetch.
 
+TRUST BOUNDARY — CAPABILITY ISOLATION
+======================================
+This module enforces a strict data-diode between the internet-egress layer and the
+user's private corpus (documents, KG, notes):
+
+  INTERNET ──(inward-only)──▶ import gate ──▶ Library (Document rows)
+                                                        │
+                                                        ▼
+                                          (read-only, never flows back out)
+
+Rules that MUST hold for every endpoint in this file:
+1. SSRF guard (see _is_safe_url / _is_sandbox_violation) — blocks loopback, RFC-1918,
+   cloud-metadata, and non-HTTP/S schemes on all outbound requests, including redirect hops.
+2. Internet-egress endpoints (web-search, browser-navigate) carry NO db dependency.
+   They cannot read or write the corpus — they are purely internet-facing.
+3. Import endpoints (document-fetch, browser-save) accept a `db` reference but use it
+   WRITE-ONLY: they never query existing documents/KG rows and never include corpus data
+   in the outbound HTTP request or its headers. The only information that flows outward
+   is {url, HTTP headers}; bytes flow inward as a new Document.
+4. If a future AI sub-agent drives browsing, it MUST be run as an isolated agent whose
+   tool list is restricted to internet-egress tools only (search/fetch/navigate).
+   It MUST NOT be given library-read or KG-read tools. The sub-agent produces a URL;
+   the import gate is the only crossing point into the library.
+
 All routes perform SSRF-safe URL validation before making external HTTP requests.
 Internal/private IP ranges and blocked URL schemes are rejected at the boundary.
 """

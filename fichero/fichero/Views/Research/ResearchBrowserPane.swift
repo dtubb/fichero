@@ -5,6 +5,15 @@ import WebKit
 
 private let logger = Logger(subsystem: "com.fichero.fichero", category: "ResearchBrowserPane")
 
+// TRUST BOUNDARY — CAPABILITY ISOLATION
+// The WKWebView in this pane has free internet egress (user-controlled browser).
+// Its only crossing point INTO the library is saveToLibrary(), which sends
+// {url, project_id, folder_id} to POST /api/research/tools/browser-save.
+// No library document content, KG data, or user corpus ever flows outward through
+// this pane. If an AI sub-agent is added to drive browsing, it must be isolated:
+// internet-only tools (search/fetch/navigate), no library-read or KG-read tools.
+// See research_tools.py module docstring for the full data-diode contract.
+
 // MARK: - WKWebView representable
 
 struct WebBrowserView: NSViewRepresentable {
