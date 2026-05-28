@@ -62,13 +62,6 @@ extension ContentView {
     // MARK: - Center Content (with Layout Modes)
 
     var showModeRail: Bool {
-        // Hide the icons/list/table/map mode strip in KG mode (#895).
-        // KG entry lives inside the library sidebar section so
-        // sidebarMode stays .library, but the OntologyBrowser has its
-        // own MiniToolbar — stacking both bars looks wrong. Workflows
-        // doesn't have this problem because sidebarMode flips to
-        // .workflows when the user clicks Workflows.
-        if case .ontology = viewMode { return false }
         return (sidebarMode == .library || sidebarMode == .search)
             && showViewModePicker
             && availableViewDisplayModes.count > 1
@@ -296,7 +289,7 @@ extension ContentView {
         case .workflow, .chain:
             EmptyView()
 
-        case .batches, .batch, .automation, .schedule, .trigger, .activity, .ontology, .mindPalace:
+        case .batches, .batch, .automation, .schedule, .trigger, .activity, .mindPalace:
             EmptyView()
         }
     }
@@ -335,18 +328,6 @@ extension ContentView {
                     addNodeFromTool(tool, at: position)
                 }
             )
-
-        case .ontology:
-            // Entity inspector placeholder — wired in #1190/#1196
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Entity Inspector")
-                    .font(.headline)
-                Text("Select an entity in the Knowledge Graph to see its profile.")
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer()
-            }
-            .padding()
 
         case .batches, .batch, .automation, .schedule, .trigger, .activity, .mindPalace:
             VStack(alignment: .leading, spacing: 8) {

@@ -16,7 +16,6 @@ enum AppViewMode: Equatable {
     case schedule(ScheduleInfo?)         // Schedule detail/creation view
     case trigger(TriggerInfo?)           // Trigger detail/creation view
     case activity(SelectedActivityRun?)  // All workflow runs - optional selected run for detail view
-    case ontology  // Knowledge-graph entity browser (#498)
     case mindPalace  // Spatial 3D-2D space — rooms of archival material
 
     var category: ItemCategory {
@@ -27,7 +26,6 @@ enum AppViewMode: Equatable {
         case .workflow, .chain: return .workflow
         case .batches, .batch, .automation, .schedule, .trigger: return .workflow
         case .activity: return .workflow
-        case .ontology: return .folder
         case .mindPalace: return .folder
         }
     }

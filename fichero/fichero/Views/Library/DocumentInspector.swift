@@ -64,6 +64,12 @@ struct DocumentInspector: View {
         }
         .frame(minWidth: 220, maxWidth: .infinity, maxHeight: .infinity)
         .environmentObject(claimFocusState)
+        .onReceive(NotificationCenter.default.publisher(for: .ficheroOpenClaimSource)) { note in
+            guard let info = note.userInfo else { return }
+            if info["claimId"] is String || info["entityId"] is String {
+                selectedTab = .knowledgeGraph
+            }
+        }
     }
 
     // MARK: - Document Detail

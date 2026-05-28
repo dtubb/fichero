@@ -186,12 +186,6 @@ extension ContentView {
                 }
             }
 
-        case .ontology:
-            // Knowledge Graph entity browser (#498). Lists entities
-            // across the library, click → see all claims mentioning
-            // that entity. Per-library scope.
-            OntologyBrowser()
-
         case .mindPalace:
             // Spatial 3D-2D space. Rooms live in the sidebar (RoomListView);
             // this is the canvas + node inspector. State is shared via

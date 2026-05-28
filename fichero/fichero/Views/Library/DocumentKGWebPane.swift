@@ -96,8 +96,6 @@ struct DocumentKGWebPane: NSViewRepresentable {
     /// switcher as fixed, never-scrolling AppKit chrome (#1228 follow-up).
     var activeTab: String = KGSurfaceTab.transcript.rawValue
     var activePageNumber: Int?
-    var onEntitySelected: (String, String?) -> Void = { _, _ in }
-    var onClaimSelected: (String, String?, String?) -> Void = { _, _, _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -223,17 +221,76 @@ struct DocumentKGWebPane: NSViewRepresentable {
             switch kind {
             case "entitySelected":
                 guard let entityId = body["entityId"] as? String else { return }
-                parent.onEntitySelected(entityId, body["sourceDocumentId"] as? String)
+                postOpenSourceNotification(
+                    documentId: body["sourceDocumentId"] as? String,
+                    entityId: entityId,
+                    claimId: body["claimId"] as? String,
+                    passage: body["passage"] as? String,
+                    body: body
+                )
             case "claimSelected":
                 guard let claimId = body["claimId"] as? String else { return }
-                parent.onClaimSelected(
-                    claimId,
-                    body["sourceDocumentId"] as? String,
-                    body["passage"] as? String
+                postOpenSourceNotification(
+                    documentId: body["sourceDocumentId"] as? String,
+                    entityId: body["entityId"] as? String,
+                    claimId: claimId,
+                    passage: body["passage"] as? String,
+                    body: body
                 )
             default:
                 break
             }
+        }
+
+        private func postOpenSourceNotification(
+            documentId: String?,
+            entityId: String?,
+            claimId: String?,
+            passage: String?,
+            body: [String: Any]
+        ) {
+            var info: [String: Any] = [
+                "documentId": documentId ?? parent.documentId
+            ]
+            if let entityId, !entityId.isEmpty {
+                info["entityId"] = entityId
+            }
+            if let claimId, !claimId.isEmpty {
+                info["claimId"] = claimId
+            }
+            if let passage, !passage.isEmpty {
+                info["excerpt"] = passage
+                info["claimText"] = passage
+            }
+            if let pageLabel = pageLabel(from: body) {
+                info["pageLabel"] = pageLabel
+            }
+            NotificationCenter.default.post(
+                name: .ficheroOpenClaimSource,
+                object: nil,
+                userInfo: info
+            )
+        }
+
+        private func pageLabel(from body: [String: Any]) -> String? {
+            if let pageLabel = body["pageLabel"] as? String,
+               !pageLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return pageLabel
+            }
+            if let sourcePageLabel = body["sourcePageLabel"] as? String,
+               !sourcePageLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return sourcePageLabel
+            }
+            if let pageNumber = body["pageNumber"] as? Int {
+                return String(pageNumber)
+            }
+            if let pageNumber = body["pageNumber"] as? Double {
+                return String(Int(pageNumber))
+            }
+            if let pageNumber = body["pageNumber"] as? NSNumber {
+                return String(pageNumber.intValue)
+            }
+            return nil
         }
     }
 }
@@ -279,8 +336,6 @@ struct DocumentKGSurface: View {
     let libraryPath: String
     var selectedClaimId: String?
     var activePageNumber: Int?
-    var onEntitySelected: (String, String?) -> Void = { _, _ in }
-    var onClaimSelected: (String, String?, String?) -> Void = { _, _, _ in }
 
     @State private var activeTab: KGSurfaceTab = .transcript
 
@@ -307,9 +362,7 @@ struct DocumentKGSurface: View {
                 libraryPath: libraryPath,
                 selectedClaimId: selectedClaimId,
                 activeTab: activeTab.rawValue,
-                activePageNumber: activePageNumber,
-                onEntitySelected: onEntitySelected,
-                onClaimSelected: onClaimSelected
+                activePageNumber: activePageNumber
             )
         }
     }

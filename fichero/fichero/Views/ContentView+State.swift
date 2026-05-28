@@ -46,8 +46,6 @@ extension ContentView {
             } else {
                 viewName = "Activity"
             }
-        case .ontology:
-            viewName = "Knowledge Graph"
         case .mindPalace:
             viewName = "Mind Palace"
         }
@@ -102,7 +100,7 @@ extension ContentView {
     /// Only show for content modes (library, search, chat, workflows)
     var showNavigationToolbar: Bool {
         switch viewMode {
-        case .library, .search, .chat, .comparison, .workflow, .chain, .ontology:
+        case .library, .search, .chat, .comparison, .workflow, .chain:
             return true
         case .batches, .batch, .automation, .schedule, .trigger, .activity, .mindPalace:
             return false

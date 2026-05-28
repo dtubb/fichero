@@ -764,25 +764,29 @@ struct ContentView: View {
                 if sidebarMode != .library {
                     sidebarMode = .library
                 }
-                // Select the doc so the center pane swaps to its preview.
-                // If the doc isn't in the currently-loaded set (different
-                // library / folder scope), we still post the navigate event
-                // — the PDF preview will be a no-op until the user manually
-                // navigates to the library containing it. Cross-library
-                // open-source is a future enhancement.
-                if let doc = documentStore.currentDocuments.first(where: { $0.id == docId }) {
-                    documentStore.selectedDocument = doc
-                    detailDocument = doc
+                showInspectorSidebar = true
+                focusedPane = .inspector
+                if let claimId = info["claimId"] as? String {
+                    claimFocusState.selectClaim(
+                        claimId: claimId,
+                        claimText: (info["claimText"] as? String) ?? (info["excerpt"] as? String),
+                        sourceDocumentId: docId,
+                        pageLabel: info["pageLabel"] as? String,
+                        charStart: info["charStart"] as? Int,
+                        charEnd: info["charEnd"] as? Int
+                    )
                 }
-                // Forward a page-navigation request that the PDF preview
-                // listens for via PDFPageView's coordinator. Posting
-                // userInfo verbatim so future highlight overlays can use
-                // charStart/charEnd without another wire-up.
-                NotificationCenter.default.post(
-                    name: .ficheroNavigateToPage,
-                    object: nil,
-                    userInfo: info
-                )
+                // Resolve page-child source documents to their parent file and
+                // select it. Then forward the page-navigation request that
+                // PDFPageView consumes for scrolling/highlighting.
+                Task { @MainActor in
+                    await navigateToSourcePage(docId)
+                    NotificationCenter.default.post(
+                        name: .ficheroNavigateToPage,
+                        object: nil,
+                        userInfo: info
+                    )
+                }
             }
             .modifier(
                 MainContentModifiers(

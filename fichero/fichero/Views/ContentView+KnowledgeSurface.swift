@@ -8,20 +8,7 @@ extension ContentView {
                 documentId: document.id,
                 libraryPath: libraryPath,
                 selectedClaimId: claimFocusState.selectedClaimId,
-                activePageNumber: activePageNumber,
-                onEntitySelected: { _, sourceDocumentId in
-                    guard let sourceDocumentId else { return }
-                    Task { @MainActor in
-                        await navigateToSourcePage(sourceDocumentId)
-                    }
-                },
-                onClaimSelected: { claimId, sourceDocumentId, _ in
-                    ClaimFocusState.shared.selectClaim(claimId: claimId)
-                    guard let sourceDocumentId else { return }
-                    Task { @MainActor in
-                        await navigateToSourcePage(sourceDocumentId)
-                    }
-                }
+                activePageNumber: activePageNumber
             )
         } else {
             VStack(spacing: 8) {
