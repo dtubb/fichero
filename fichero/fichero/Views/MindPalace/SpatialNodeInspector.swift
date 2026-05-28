@@ -95,3 +95,33 @@ struct SpatialNodeInspector: View {
         )
     }
 }
+
+// MARK: - Previews (#1299 — self-contained mock data for RenderPreview)
+
+/// Decode a MindPalaceNode from inline JSON so previews need no live service.
+private func _previewNode(_ json: String) -> MindPalaceNode {
+    // swiftlint:disable:next force_try
+    try! JSONDecoder().decode(MindPalaceNode.self, from: Data(json.utf8))
+}
+
+#Preview("Node with source") {
+    SpatialNodeInspector(node: _previewNode("""
+    {"id":"n1","roomId":"r1","nodeType":"source","sourceId":"doc-1",
+     "label":"Letter from Buenos Aires, 1923","positionX":1.2,"positionY":3.4,
+     "positionZ":0,"scale":1}
+    """))
+    .frame(width: 280, height: 440)
+}
+
+#Preview("Native note (no source)") {
+    SpatialNodeInspector(node: _previewNode("""
+    {"id":"n2","roomId":"r1","nodeType":"note",
+     "label":"Working hypothesis","positionX":0,"positionY":0,"positionZ":0,"scale":1}
+    """))
+    .frame(width: 280, height: 440)
+}
+
+#Preview("Empty selection") {
+    SpatialNodeInspector(node: nil)
+        .frame(width: 280, height: 440)
+}
