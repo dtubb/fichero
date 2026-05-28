@@ -23,6 +23,7 @@ import SwiftUI
 struct KGTimelineView: View {
     let entities: [Components.Schemas.KnowledgeEntity]
     @Binding var selectedEntityId: String?
+    var sourceDocumentId: String?
 
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
     @State private var isLoading = false
@@ -250,6 +251,7 @@ struct KGTimelineView: View {
         // entity. Claims with no resolved entity are kept (otherwise they'd
         // silently vanish) only when no focus is active.
         if ids.isEmpty { return !focusOnSelection }
+        if scopeEntityIds.isEmpty { return !focusOnSelection }
         return !ids.isDisjoint(with: scopeEntityIds)
     }
 
@@ -274,7 +276,11 @@ struct KGTimelineView: View {
         loadError = nil
         defer { isLoading = false }
         do {
-            claims = try await library.entityService.listClaims(limit: 500)
+            claims = try await library.entityService.listClaims(
+                sourceDocumentId: sourceDocumentId,
+                includeDescendants: sourceDocumentId != nil,
+                limit: 500
+            )
         } catch {
             loadError = error.localizedDescription
         }
