@@ -78,6 +78,53 @@ enum DocumentKGPaneRoute {
         """
     }
 
+    static func scrollSyncScript(pageCount: Int?) -> String {
+        let count = max(pageCount ?? 0, 0)
+        return """
+        (function() {
+            window.ficheroPageCount = \(count);
+            window.ficheroScrollSyncSuppress = false;
+            window.ficheroScrollToPage = function(pageNumber, pageCount) {
+                var count = pageCount || window.ficheroPageCount || 0;
+                var page = Number(pageNumber);
+                var scroller = document.querySelector('.content') || document.scrollingElement;
+                if (!scroller || count <= 1 || !Number.isFinite(page)) { return; }
+                var maxScroll = scroller.scrollHeight - scroller.clientHeight;
+                if (maxScroll <= 0) { return; }
+                var progress = Math.max(0, Math.min(1, (page - 1) / Math.max(count - 1, 1)));
+                window.ficheroScrollSyncSuppress = true;
+                scroller.scrollTop = progress * maxScroll;
+                window.setTimeout(function() { window.ficheroScrollSyncSuppress = false; }, 180);
+            };
+            if (window.ficheroScrollSyncInstalled) { return; }
+            window.ficheroScrollSyncInstalled = true;
+            var lastPage = null;
+            var timer = null;
+            function notifyPageFromScroll() {
+                var count = window.ficheroPageCount || 0;
+                var scroller = document.querySelector('.content') || document.scrollingElement;
+                var handler = window.webkit?.messageHandlers?.ficheroBridge;
+                if (!scroller || !handler || count <= 1 || window.ficheroScrollSyncSuppress) { return; }
+                var maxScroll = scroller.scrollHeight - scroller.clientHeight;
+                if (maxScroll <= 0) { return; }
+                var progress = Math.max(0, Math.min(1, scroller.scrollTop / maxScroll));
+                var page = Math.max(1, Math.min(count, Math.round(progress * (count - 1)) + 1));
+                if (page === lastPage) { return; }
+                lastPage = page;
+                handler.postMessage({ kind: 'pageSelected', pageNumber: page });
+            }
+            function scheduleNotify() {
+                window.clearTimeout(timer);
+                timer = window.setTimeout(notifyPageFromScroll, 90);
+            }
+            var scroller = document.querySelector('.content') || document.scrollingElement;
+            if (scroller) {
+                scroller.addEventListener('scroll', scheduleNotify, { passive: true });
+            }
+        })();
+        """
+    }
+
     static func jsStringLiteral(_ raw: String) -> String {
         raw
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -96,6 +143,8 @@ struct DocumentKGWebPane: NSViewRepresentable {
     /// switcher as fixed, never-scrolling AppKit chrome (#1228 follow-up).
     var activeTab: String = KGSurfaceTab.transcript.rawValue
     var activePageNumber: Int?
+    var pageCount: Int?
+    var onPageSelected: (Int) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -120,6 +169,13 @@ struct DocumentKGWebPane: NSViewRepresentable {
         controller.addUserScript(
             WKUserScript(
                 source: DocumentKGPaneRoute.themeInjectionScript(),
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+        )
+        controller.addUserScript(
+            WKUserScript(
+                source: DocumentKGPaneRoute.scrollSyncScript(pageCount: pageCount),
                 injectionTime: .atDocumentEnd,
                 forMainFrameOnly: true
             )
@@ -198,6 +254,9 @@ struct DocumentKGWebPane: NSViewRepresentable {
                 lastActivePageNumber = parent.activePageNumber
                 if let pageNumber = parent.activePageNumber {
                     webView.evaluateJavaScript("window.fichero?.setActivePage(\(pageNumber));")
+                    if let pageCount = parent.pageCount {
+                        webView.evaluateJavaScript("window.ficheroScrollToPage?.(\(pageNumber), \(pageCount));")
+                    }
                 }
             }
         }
@@ -205,6 +264,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             injectContext(into: webView)
             webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
+            webView.evaluateJavaScript(DocumentKGPaneRoute.scrollSyncScript(pageCount: parent.pageCount))
             syncSelection(into: webView)
         }
 
@@ -237,6 +297,9 @@ struct DocumentKGWebPane: NSViewRepresentable {
                     passage: body["passage"] as? String,
                     body: body
                 )
+            case "pageSelected":
+                guard let pageNumber = pageNumber(from: body) else { return }
+                parent.onPageSelected(max(0, pageNumber - 1))
             default:
                 break
             }
@@ -289,6 +352,19 @@ struct DocumentKGWebPane: NSViewRepresentable {
             }
             if let pageNumber = body["pageNumber"] as? NSNumber {
                 return String(pageNumber.intValue)
+            }
+            return nil
+        }
+
+        private func pageNumber(from body: [String: Any]) -> Int? {
+            if let pageNumber = body["pageNumber"] as? Int {
+                return pageNumber
+            }
+            if let pageNumber = body["pageNumber"] as? Double {
+                return Int(pageNumber)
+            }
+            if let pageNumber = body["pageNumber"] as? NSNumber {
+                return pageNumber.intValue
             }
             return nil
         }

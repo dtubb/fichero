@@ -2,13 +2,20 @@ import SwiftUI
 
 extension ContentView {
     @ViewBuilder
-    func knowledgeSurface(for document: Document?, activePageNumber: Int?) -> some View {
+    func knowledgeSurface(
+        for document: Document?,
+        activePageNumber: Int?,
+        pageCount: Int?,
+        onPageSelected: @escaping (Int) -> Void
+    ) -> some View {
         if let document, let libraryPath = apiClient.currentLibraryPath, !libraryPath.isEmpty {
             DocumentKGSurface(
                 documentId: document.id,
                 libraryPath: libraryPath,
                 selectedClaimId: claimFocusState.selectedClaimId,
-                activePageNumber: activePageNumber
+                activePageNumber: activePageNumber,
+                pageCount: pageCount,
+                onPageSelected: onPageSelected
             )
         } else {
             VStack(spacing: 8) {
