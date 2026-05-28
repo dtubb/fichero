@@ -1,5 +1,22 @@
 # STATE.md — Fichero
 
+## 2026-05-28 ~16:30 — OVERNIGHT RUNBOOK (Daniel away; full autonomy; prefer Codex; 30-min ticks)
+
+**Daniel's overnight goals:** (1) integrate all lane work into 0.0.2; (2) **enable ALL feature-gated features in the UI** (Research, Mind Palace, +) so he can see/test them → promote dev→release tier + fix the NodeDef→Input/Output Swift break (#1298); (3) audit backend features not surfaced in UI (#1288, gpt_mini running); (4) triage GitHub backlog (200 open) systematically newest→oldest: each issue ends done / completed / closed-wontfix; (5) prefer LOCAL models (oMLX) for fichero inference (won't run out); (6) gate everything: test + Xcode build + `sync_openapi_schema.sh` + design standards.
+
+**INTEGRATION ORDER (merge to 0.0.2, gate each, then forward-sync+clear that lane):**
+1. **MCP reconciliation** (DECISION LOCKED): adopt opus `origin/opus` `04a764b8` `fichero_mp_*` (24 tools) as canonical; **revert my `ce89deb5` `fichero_palace_*`** first to avoid dup tools; skip gpt_mini's older KG-MCP commit (superseded). Then `git merge origin/opus`; gate `pytest test_mcp_server.py test_cli_client.py`. No openapi/Swift change.
+2. **codex53**: #1277 citation-usage, #1258 claim-CRUD, **oMLX provider** (verify committed; touches openapi+Swift picker → regen + manager BuildProject).
+3. **gpt**: #1279 book-structure, provider-quota-resilience, #1283 startup-403.
+4. **gpt_mini**: #1278 book-index, #1288 audit (.md, just commit).
+5. After ALL merged + green: **promote dev→release tier** as ONE openapi change + fix NodeDef Swift break + BuildProject; flip any frontend gates ON.
+6. **Forward-sync** opus/haiku/sonnet/gpt/gpt_mini/codex53 → reset --hard origin/0.0.2 (ONLY after their work is merged). Clear session-ended lanes (opus/haiku/sonnet done per Daniel).
+7. Re-dispatch Codex lanes (currently idle/paused) on next backlog issues.
+
+**GATE CMDS:** ruff `~/code/fichero-0.0.2/.venv/bin/ruff check fichero-engine/src/`; pytest `PYTHONPATH=fichero-engine/src .venv/bin/python -m pytest fichero-engine/tests/unit/ -q` (known-red: dedup test); Swift `mcp__xcode__BuildProject(windowtab1)`; openapi `bash fichero-engine/scripts/sync_openapi_schema.sh` + commit. Never push main; never FicheroUITests.
+
+---
+
 ## 2026-05-28 ~16:10 — INTEGRATION QUEUE + TIER-PROMOTION (resume here)
 
 **Division of labor (Daniel):** Codex = implementation (uncapped, Pro); Claude manager = integration/merge/gate/review/Swift-build. Claude worker lanes (opus/sonnet/haiku) **session-ended by Daniel** — parked till Sat.
