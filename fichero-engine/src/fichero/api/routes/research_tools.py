@@ -21,6 +21,8 @@ from fichero.models import DocType, Document
 from fichero.research_models import (
     BrowserNavigateRequest,
     BrowserNavigateResponse,
+    BrowserSaveRequest,
+    BrowserSaveResponse,
     DocumentFetchRequest,
     DocumentFetchResponse,
     WebSearchRequest,
@@ -468,3 +470,134 @@ async def execute_document_fetch(
         success=True,
         error=None,
     )
+
+
+# ─── Extension to mime → file extension lookup ───────────────────────────────
+
+_MIME_TO_EXT: dict[str, str] = {
+    "application/pdf": ".pdf",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/tiff": ".tif",
+    "text/html": ".html",
+    "text/plain": ".txt",
+    "application/json": ".json",
+    "application/msword": ".doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+}
+
+
+def _ext_from_content_type(content_type: str | None, url: str) -> str:
+    """Best-effort extension from Content-Type, falling back to URL path."""
+    if content_type:
+        mime = content_type.split(";")[0].strip().lower()
+        if mime in _MIME_TO_EXT:
+            return _MIME_TO_EXT[mime]
+    # Fall back to URL path extension
+    from pathlib import Path as _Path
+    suffix = _Path(urlparse(url).path).suffix
+    return suffix if suffix else ".bin"
+
+
+@router.post("/tools/browser-save", response_model=BrowserSaveResponse)
+async def browser_save(
+    request: BrowserSaveRequest,
+    db: Database = Depends(get_library_database),
+) -> BrowserSaveResponse:
+    """Download a URL as raw bytes and import it into the library as a real Document."""
+    import tempfile
+    from pathlib import Path as _Path
+    from fichero.ingest import ingest_file, IngestMode
+
+    if _is_sandbox_violation(request.url):
+        raise HTTPException(status_code=400, detail="URL scheme not allowed in sandboxed fetch")
+
+    is_safe, error_msg = _is_safe_url(request.url)
+    if not is_safe:
+        raise HTTPException(status_code=400, detail=f"URL not allowed: {error_msg}")
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(120.0, connect=10.0),
+            follow_redirects=False,
+        ) as client:
+            headers = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+                ),
+            }
+            resp = await _safe_http_get(client, request.url, headers=headers)
+            content_type = str(resp.headers.get("content-type", "application/octet-stream"))
+            raw_bytes: bytes = resp.content
+    except HTTPException:
+        raise
+    except httpx.TimeoutException:
+        return BrowserSaveResponse(url=request.url, success=False, error="Fetch timed out")
+    except Exception as e:
+        return BrowserSaveResponse(url=request.url, success=False, error=f"Fetch failed: {e}")
+
+    ext = _ext_from_content_type(content_type, request.url)
+
+    # Derive display name: caller suggestion > URL basename > "download"
+    if request.suggested_name:
+        display_name = request.suggested_name
+        if not _Path(display_name).suffix:
+            display_name += ext
+    else:
+        url_basename = _Path(urlparse(request.url).path).name
+        display_name = url_basename if url_basename else f"download{ext}"
+
+    fd, temp_path_str = tempfile.mkstemp(suffix=ext, prefix="fichero_browser_save_")
+    temp_path = _Path(temp_path_str)
+    try:
+        import os
+        with os.fdopen(fd, "wb") as f:
+            f.write(raw_bytes)
+
+        package_path = _Path(db.path).parent
+        doc = ingest_file(
+            path=temp_path,
+            mode=IngestMode.COPY,
+            parent_id=request.parent_folder_id,
+            extract_metadata=True,
+            extract_text=True,
+            save=True,
+            db=db,
+            package_path=package_path,
+        )
+
+        # Fix display name (ingest derives from temp filename)
+        if doc.name != display_name:
+            doc.name = display_name
+            db.save(doc)
+
+        # Tag with research context
+        doc.metadata = {
+            **(doc.metadata or {}),
+            "source_url": request.url,
+            "research_project_id": request.project_id,
+            "content_type": content_type,
+            "saved_at": datetime.now().isoformat(),
+            **request.metadata,
+        }
+        db.save(doc)
+
+        return BrowserSaveResponse(
+            url=request.url,
+            document_id=doc.id,
+            document_name=doc.name,
+            file_path=doc.path,
+            content_type=content_type,
+            size_bytes=len(raw_bytes),
+            success=True,
+            error=None,
+        )
+    except Exception as e:
+        return BrowserSaveResponse(url=request.url, success=False, error=f"Import failed: {e}")
+    finally:
+        try:
+            temp_path.unlink()
+        except OSError:
+            pass

@@ -73,6 +73,7 @@ class ResearchProject(BaseModel):
     description: str = ""
     status: ProjectStatus = ProjectStatus.active
     created_by: str = "human"
+    library_destination_folder_id: str | None = None
     metadata: dict = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
@@ -271,5 +272,24 @@ class DocumentFetchResponse(BaseModel):
     content: str | None = None
     content_type: str | None = None
     source_id: str | None = None  # Layer 1 Source ID if created
+    success: bool
+    error: str | None = None
+
+
+class BrowserSaveRequest(BaseModel):
+    url: str
+    project_id: str
+    suggested_name: str | None = None  # override filename; derived from URL if absent
+    parent_folder_id: str | None = None  # library folder to save into
+    metadata: dict = Field(default_factory=dict)
+
+
+class BrowserSaveResponse(BaseModel):
+    url: str
+    document_id: str | None = None
+    document_name: str | None = None
+    file_path: str | None = None
+    content_type: str | None = None
+    size_bytes: int | None = None
     success: bool
     error: str | None = None
