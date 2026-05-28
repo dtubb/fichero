@@ -285,3 +285,77 @@ def test_context_manager_closes(monkeypatch):
     with _client(handler) as c:
         c.health()
     assert c._client.is_closed
+
+
+# -- mind palace (spatial) -------------------------------------------------
+# Verify the #1269 MCP-facing client methods construct the right
+# path/method/body so an agent can drive a room.
+def test_palace_scene_path():
+    handler, seen = _capture()
+    _client(handler).palace_scene("room-1")
+    assert seen[0].method == "GET"
+    assert seen[0].url.path == "/api/mind-palace/rooms/room-1/scene"
+
+
+def test_palace_place_node_posts_body():
+    import json as _json
+
+    handler, seen = _capture()
+    _client(handler).palace_place_node(
+        "room-1", "source", source_id="doc-9", label="Letter", position_x=1.0
+    )
+    req = seen[0]
+    assert req.method == "POST"
+    assert req.url.path == "/api/mind-palace/nodes"
+    body = _json.loads(req.content)
+    assert body["room_id"] == "room-1"
+    assert body["node_type"] == "source"
+    assert body["source_id"] == "doc-9"
+    assert body["position_x"] == 1.0
+    assert body["created_by"] == "ai"
+
+
+def test_palace_move_node_patches():
+    import json as _json
+
+    handler, seen = _capture()
+    _client(handler).palace_move_node(
+        "node-1", position_x=2.0, position_y=3.0, scale=1.5
+    )
+    req = seen[0]
+    assert req.method == "PATCH"
+    assert req.url.path == "/api/mind-palace/nodes/node-1"
+    body = _json.loads(req.content)
+    assert body["position_x"] == 2.0
+    assert body["scale"] == 1.5
+
+
+def test_palace_connect_posts_body():
+    import json as _json
+
+    handler, seen = _capture()
+    _client(handler).palace_connect("room-1", "n-a", "n-b")
+    body = _json.loads(seen[0].content)
+    assert seen[0].url.path == "/api/mind-palace/connections"
+    assert body["source_node_id"] == "n-a"
+    assert body["target_node_id"] == "n-b"
+    assert body["connection_type"] == "semantic"
+
+
+def test_palace_arrange_posts_node_ids():
+    import json as _json
+
+    handler, seen = _capture()
+    _client(handler).palace_arrange("room-1", ["n-a", "n-b"], arrangement_type="thematic")
+    assert seen[0].url.path == "/api/mind-palace/rooms/room-1/suggest-arrangement"
+    body = _json.loads(seen[0].content)
+    assert body["node_ids"] == ["n-a", "n-b"]
+    assert body["arrangement_type"] == "thematic"
+
+
+def test_palace_focus_uses_query_params():
+    handler, seen = _capture()
+    _client(handler).palace_focus("room-1", "node-7")
+    assert seen[0].url.path == "/api/mind-palace/rooms/room-1/focus"
+    assert seen[0].url.params["node_id"] == "node-7"
+    assert seen[0].url.params["user_id"] == "user"

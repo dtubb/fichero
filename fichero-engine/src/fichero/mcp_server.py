@@ -237,6 +237,118 @@ def fichero_activity(limit: int = 50) -> Any:
         return client.recent_activity(limit=limit)
 
 
+# -- mind palace (the AI's spatial workspace, #1269) -----------------------
+@mcp.tool()
+def fichero_palace_rooms() -> Any:
+    """List the Mind Palace rooms (spatial workspaces) in the library."""
+    with _client() as client:
+        return client.palace_rooms()
+
+
+@mcp.tool()
+def fichero_palace_scene(room_id: str) -> Any:
+    """Read a room's full spatial scene: nodes, connections, and stacks.
+
+    Use this to see what's currently in the room before rearranging it.
+    """
+    with _client() as client:
+        return client.palace_scene(room_id)
+
+
+@mcp.tool()
+def fichero_palace_place_node(
+    room_id: str,
+    node_type: str,
+    source_id: Optional[str] = None,
+    label: str = "",
+    position_x: float = 0.0,
+    position_y: float = 0.0,
+    position_z: float = 0.0,
+) -> Any:
+    """Place a node in a room.
+
+    Args:
+        room_id: Target room.
+        node_type: One of source, claim, note, entity, transcription.
+        source_id: Optional document/claim/entity ID this node represents.
+        label: Display label.
+        position_x/y/z: Initial position in the room's 3D space.
+    """
+    with _client() as client:
+        return client.palace_place_node(
+            room_id,
+            node_type,
+            source_id=source_id,
+            label=label,
+            position_x=position_x,
+            position_y=position_y,
+            position_z=position_z,
+        )
+
+
+@mcp.tool()
+def fichero_palace_move_node(
+    node_id: str,
+    position_x: float,
+    position_y: float,
+    position_z: float = 0.0,
+    scale: Optional[float] = None,
+) -> Any:
+    """Move (and optionally scale) a node — how the AI rearranges the palace."""
+    with _client() as client:
+        return client.palace_move_node(
+            node_id,
+            position_x=position_x,
+            position_y=position_y,
+            position_z=position_z,
+            scale=scale,
+        )
+
+
+@mcp.tool()
+def fichero_palace_connect(
+    room_id: str,
+    source_node_id: str,
+    target_node_id: str,
+    connection_type: str = "semantic",
+) -> Any:
+    """Draw a connection between two nodes.
+
+    connection_type: one of evidentiary, semantic, ontological, hermeneutic,
+    user_drawn.
+    """
+    with _client() as client:
+        return client.palace_connect(
+            room_id,
+            source_node_id,
+            target_node_id,
+            connection_type=connection_type,
+        )
+
+
+@mcp.tool()
+def fichero_palace_arrange(
+    room_id: str,
+    node_ids: list[str],
+    arrangement_type: str = "semantic",
+) -> Any:
+    """Auto-arrange the given nodes by a strategy.
+
+    arrangement_type: one of semantic, chronological, thematic.
+    """
+    with _client() as client:
+        return client.palace_arrange(
+            room_id, node_ids, arrangement_type=arrangement_type
+        )
+
+
+@mcp.tool()
+def fichero_palace_focus(room_id: str, node_id: Optional[str] = None) -> Any:
+    """Focus the room's camera on a node (or clear focus when node_id is None)."""
+    with _client() as client:
+        return client.palace_focus(room_id, node_id)
+
+
 def main() -> None:
     """Console entry point — runs the MCP server over stdio."""
     parser = argparse.ArgumentParser(description="Fichero MCP server")
