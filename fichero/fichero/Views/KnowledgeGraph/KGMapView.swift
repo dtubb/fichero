@@ -23,6 +23,7 @@ import SwiftUI
 struct KGMapView: View {
     let entities: [Components.Schemas.KnowledgeEntity]
     @Binding var selectedEntityId: String?
+    var sourceDocumentId: String?
 
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
     @State private var isLoading = false
@@ -203,6 +204,7 @@ struct KGMapView: View {
             guard ids.contains(selectedEntityId) else { return false }
         }
         if ids.isEmpty { return !focusOnSelection }
+        if scopeEntityIds.isEmpty { return !focusOnSelection }
         return !ids.isDisjoint(with: scopeEntityIds)
     }
 
@@ -216,7 +218,11 @@ struct KGMapView: View {
         loadError = nil
         defer { isLoading = false }
         do {
-            claims = try await library.entityService.listClaims(limit: 500)
+            claims = try await library.entityService.listClaims(
+                sourceDocumentId: sourceDocumentId,
+                includeDescendants: sourceDocumentId != nil,
+                limit: 500
+            )
             // Reframe to fit the freshly-loaded pins.
             cameraPosition = .automatic
         } catch {
