@@ -1,5 +1,24 @@
 # STATE.md — Fichero
 
+## 2026-05-28 ~16:10 — INTEGRATION QUEUE + TIER-PROMOTION (resume here)
+
+**Division of labor (Daniel):** Codex = implementation (uncapped, Pro); Claude manager = integration/merge/gate/review/Swift-build. Claude worker lanes (opus/sonnet/haiku) **session-ended by Daniel** — parked till Sat.
+
+**Already in trunk (verified):** #1296 (`d65ae322`), sonnet Researcher + 4-bug fix (`15d08b17`/`724ce50c`), my `fichero_palace_*` MCP (`ce89deb5`), Mind Palace A1, oMLX-provider in flight.
+
+**UNMERGED lane commits to integrate (gate: ruff + trunk-venv pytest; Swift⇒manager BuildProject):**
+- `codex53`: #1277 citation-usage + #1258 claim-CRUD-backend + **oMLX-provider (in flight, bg becdx747w)**
+- `gpt`: #1279 book-structure + provider-quota-resilience/`$large` configurable base
+- `gpt_mini`: #1278 book-index + KG-MCP-read-tools
+- `opus` (`04a764b8`): **MCP superset** (`fichero_mp_*` 21 CRUD + 3 KG reads). RECONCILE: adopt this as canonical; supersede/revert my `fichero_palace_*` + gpt_mini's KG-tools to avoid duplicate tools for the same endpoints.
+- `haiku` (`5ed6082b`): "router promotion" checkpoint — inspect; feeds the tier directive below.
+
+**NEW DIRECTIVE (Daniel, priority):** promote dev-tier (Mind Palace, Research, MCP, new extractors) → **RELEASE tier** so he can review in-app ("turn off later if it doesn't work"). REQUIRES fixing the **NodeDef→NodeDefInput/Output** Swift break that forced the #1298 revert (regen `sync_openapi_schema.sh` + fix `WorkflowServiceGenerated.swift`). Do as ONE openapi change **after oMLX merges** (never 2 concurrent openapi lanes). Code→Codex, Swift gate→manager.
+
+**oMLX wired:** local OpenAI-compatible server at `http://127.0.0.1:8000/v1`, key `coCuQ…` (see [[reference_omlx_via_pi]]). Bug found: `lmstudio`/`ollama` discovery hardcodes `:1234` (provider_models.py:456) — codex53's oMLX task fixes discovery to be base-aware. Daniel wants a first-class **oMLX** entry in the provider picker (#1300 has onboarding ideas too).
+
+---
+
 ## 2026-05-28 LATE-MORNING — HANDOFF (where we are; resume here)
 
 **Trunk `0.0.2` @ `ce89deb5`, all gates green, pushed.** Worked independently ~7:45am→noon May 28. Researcher + #1296 brought in & fixed; Mind Palace MCP shipped.
