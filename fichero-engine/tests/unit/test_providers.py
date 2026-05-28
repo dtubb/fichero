@@ -24,6 +24,7 @@ class TestProviderCatalog:
         assert ProviderType.huggingface.value == "huggingface"
         assert ProviderType.ollama.value == "ollama"
         assert ProviderType.lmstudio.value == "lmstudio"
+        assert ProviderType.omlx.value == "omlx"
 
     def test_providers_dict_has_all_types(self):
         """Test PROVIDERS dict contains all provider types."""
@@ -49,7 +50,7 @@ class TestProviderCatalog:
         from fichero.providers import get_local_providers
 
         local = get_local_providers()
-        assert len(local) >= 2  # ollama and lmstudio
+        assert len(local) >= 3  # ollama, lmstudio, and omlx
 
         for p in local:
             assert p.is_local is True
@@ -863,6 +864,14 @@ class TestCapabilityDerivation:
             caps = _derive_capabilities_from_registry("openai", "gpt-4o-mini")
         assert caps == ["text", "tools"]
 
+    def test_omlx_vision_model_derives_text_and_vision(self):
+        from fichero.api.routes.providers import (
+            _derive_capabilities_from_registry,
+        )
+
+        caps = _derive_capabilities_from_registry("omlx", "Nanonets-OCR")
+        assert caps == ["text", "vision"]
+
     def test_vision_chat_model_derives_text_and_vision(self):
         from fichero.api.routes.providers import (
             _derive_capabilities_from_registry,
@@ -927,3 +936,22 @@ class TestCapabilityDerivation:
         with self._registry([]):
             caps = _derive_capabilities_from_registry("openai", "not-a-real-model")
         assert caps == []
+
+
+class TestProviderModelDiscoveryHelpers:
+    def test_openai_models_url_accepts_base_with_or_without_v1(self):
+        from fichero.api.routes.provider_models import _openai_models_url
+
+        assert (
+            _openai_models_url("http://localhost:8000")
+            == "http://localhost:8000/v1/models"
+        )
+        assert (
+            _openai_models_url("http://localhost:8000/v1")
+            == "http://localhost:8000/v1/models"
+        )
+
+    def test_local_server_root_strips_openai_compatible_suffix(self):
+        from fichero.api.routes.provider_models import _local_server_root
+
+        assert _local_server_root("http://localhost:11434/v1") == "http://localhost:11434"

@@ -46,6 +46,21 @@ extension AddProviderSheet {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+
+                        if entry.providerType == "omlx" {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("API Key (optional)")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+
+                                SecureField("Any local key", text: $apiKey)
+                                    .textFieldStyle(.roundedBorder)
+
+                                Text("oMLX accepts an arbitrary local key; it does not need an OpenAI sk- key.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     } else if !entry.isLocal {
                         // Cloud providers: API key optional (can add later)
                         VStack(alignment: .leading, spacing: 6) {

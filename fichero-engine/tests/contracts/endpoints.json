@@ -6275,6 +6275,39 @@
         "response_model": "ChainCancelResponse"
       }
     ],
+    "citation-usages": [
+      {
+        "method": "GET",
+        "path": "/citation-usages",
+        "operation_id": "list_citation_usages_api_citation_usages_get",
+        "summary": "List Citation Usages",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "source_document_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "target_document_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "reference_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "stance",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "CitationUsageListResponse"
+      }
+    ],
     "mind-palace": [
       {
         "method": "POST",
@@ -6855,6 +6888,18 @@
       },
       {
         "method": "GET",
+        "path": "/research/projects/{project_id}/tasks",
+        "operation_id": "list_project_tasks_api_research_projects__project_id__tasks_get",
+        "summary": "List Project Tasks",
+        "path_params": [
+          "project_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ResearchCrudListResponse"
+      },
+      {
+        "method": "GET",
         "path": "/research/tasks/{task_id}",
         "operation_id": "get_task_api_research_tasks__task_id__get",
         "summary": "Get Task",
@@ -7049,6 +7094,16 @@
         "query_params": [],
         "request_model": "DocumentFetchRequest",
         "response_model": "DocumentFetchResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/research/tools/browser-save",
+        "operation_id": "browser_save_api_research_tools_browser_save_post",
+        "summary": "Browser Save",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BrowserSaveRequest",
+        "response_model": "BrowserSaveResponse"
       }
     ],
     "iiif": [

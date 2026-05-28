@@ -598,6 +598,16 @@ def _derive_capabilities_from_registry(provider_type: str, model_id: str) -> lis
     on: ``text``/``vision``/``audio``/``transcription``/``tools``.
     Returns ``[]`` when the model is unknown to the registry.
     """
+    if provider_type == "omlx":
+        model_lower = model_id.lower()
+        caps = ["text"]
+        if any(
+            token in model_lower
+            for token in ("vl", "vision", "ocr", "nanonets", "chandra")
+        ):
+            caps.append("vision")
+        return caps
+
     try:
         from fichero.llm import list_models_for_provider as llm_list_models
 

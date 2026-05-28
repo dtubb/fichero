@@ -2007,6 +2007,7 @@ _OPENAI_COMPATIBLE_BASE_URLS: dict[str, str] = {
     # the per-config api_base wins when set, these are the defaults.
     "ollama": "http://localhost:11434/v1",
     "lmstudio": "http://localhost:1234/v1",
+    "omlx": "http://localhost:8000/v1",
     "groq": "https://api.groq.com/openai/v1",
     "together": "https://api.together.xyz/v1",
     "deepseek": "https://api.deepseek.com/v1",
@@ -2020,7 +2021,7 @@ _OPENAI_COMPATIBLE_BASE_URLS: dict[str, str] = {
 # Providers that speak OpenAI but accept any string for the api_key
 # field — the actual auth is unsigned localhost. We pass a placeholder
 # so ChatOpenAI's required-key check doesn't reject empty.
-_KEYLESS_OPENAI_COMPATIBLE: set[str] = {"ollama", "lmstudio"}
+_KEYLESS_OPENAI_COMPATIBLE: set[str] = {"ollama", "lmstudio", "omlx"}
 
 
 def get_langchain_model(config: LLMConfig) -> Any:
