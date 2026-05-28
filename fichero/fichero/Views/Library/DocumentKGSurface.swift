@@ -45,6 +45,8 @@ struct DocumentKGSurface: View {
     let libraryPath: String
     var selectedClaimId: String?
     var activePageNumber: Int?
+    var pageCount: Int?
+    var onPageSelected: (Int) -> Void = { _ in }
 
     @State private var activeTab: KGSurfaceTab = .transcript
     @State private var selectedEntityId: String?
@@ -76,7 +78,9 @@ struct DocumentKGSurface: View {
                 libraryPath: libraryPath,
                 selectedClaimId: selectedClaimId,
                 activeTab: activeTab.rawValue,
-                activePageNumber: activePageNumber
+                activePageNumber: activePageNumber,
+                pageCount: pageCount,
+                onPageSelected: onPageSelected
             )
         case .claims:
             ScrollView {

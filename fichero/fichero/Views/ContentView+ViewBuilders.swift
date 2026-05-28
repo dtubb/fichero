@@ -224,7 +224,11 @@ extension ContentView {
 
                         knowledgeSurface(
                             for: detailDocument,
-                            activePageNumber: detailPDFPath == nil ? nil : selectedPageIndex + 1
+                            activePageNumber: detailPDFPath == nil ? nil : selectedPageIndex + 1,
+                            pageCount: pdfDocPages.isEmpty ? nil : pdfDocPages.count,
+                            onPageSelected: { index in
+                                syncGridSelectionToPDFPage(index: index)
+                            }
                         )
                         .frame(width: CGFloat(pageContentPaneWidth))
                     }
