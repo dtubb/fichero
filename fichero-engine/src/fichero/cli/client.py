@@ -1080,3 +1080,272 @@ class FicheroClient:
         """
         raw = self.request("POST", "/api/registry/update-access", params={"path": path})
         return KnownLibrary.model_validate(raw)
+
+    # -- mind palace (Layer 6 spatial workspace, #1269) --------------------
+    # These wrap the dev-tier ``/api/mind-palace`` routes so an agent can
+    # *arrange* the palace — place/move/stack/link nodes, suggest layouts,
+    # save the camera — and read the current scene back. They return the raw
+    # parsed JSON (``Any``) rather than a validated model: the list endpoints
+    # use the ``MindPalaceListResponse`` envelope whose ``items`` are
+    # ``list[Any]``, and the spatial surface is still evolving (typing is a
+    # follow-up, per the module docstring's "custom shapes return Any" rule).
+    #
+    # Note: the mind-palace router is dev-tier. The engine must run with
+    # ``FICHERO_FEATURE_TIER=dev`` for these to resolve (the app-embedded
+    # backend already does; a standalone ``release`` engine returns 404).
+
+    def mp_list_rooms(
+        self,
+        *,
+        room_type: str | None = None,
+        owner_id: str | None = None,
+    ) -> Any:
+        """List spatial rooms, optionally filtered by type or owner."""
+        return self.request(
+            "GET",
+            "/api/mind-palace/rooms",
+            params={"room_type": room_type, "owner_id": owner_id},
+        )
+
+    def mp_get_room(self, room_id: str) -> Any:
+        """Fetch a single room by ID."""
+        return self.request("GET", f"/api/mind-palace/rooms/{room_id}")
+
+    def mp_create_room(
+        self,
+        name: str,
+        *,
+        description: str = "",
+        room_type: str = "research",
+        owner_id: str = "user",
+    ) -> Any:
+        """Create a new spatial room (research / synthesis / presentation)."""
+        return self.request(
+            "POST",
+            "/api/mind-palace/rooms",
+            json={
+                "name": name,
+                "description": description,
+                "room_type": room_type,
+                "owner_id": owner_id,
+            },
+        )
+
+    def mp_scene_summary(self, room_id: str) -> Any:
+        """Counts of nodes/connections/stacks/notes (+ node-type breakdown)."""
+        return self.request("GET", f"/api/mind-palace/rooms/{room_id}/scene")
+
+    def mp_list_nodes(
+        self, room_id: str, *, node_type: str | None = None
+    ) -> Any:
+        """List the nodes in a room, optionally filtered by node type."""
+        return self.request(
+            "GET",
+            "/api/mind-palace/nodes",
+            params={"room_id": room_id, "node_type": node_type},
+        )
+
+    def mp_get_node(self, node_id: str) -> Any:
+        """Fetch a single spatial node by ID."""
+        return self.request("GET", f"/api/mind-palace/nodes/{node_id}")
+
+    def mp_place_node(
+        self,
+        room_id: str,
+        node_type: str,
+        *,
+        source_id: str | None = None,
+        label: str = "",
+        position_x: float = 0.0,
+        position_y: float = 0.0,
+        position_z: float = 0.0,
+        scale: float = 1.0,
+        created_by: str = "agent",
+    ) -> Any:
+        """Place a new node in a room at the given position."""
+        return self.request(
+            "POST",
+            "/api/mind-palace/nodes",
+            json={
+                "room_id": room_id,
+                "node_type": node_type,
+                "source_id": source_id,
+                "label": label,
+                "position_x": position_x,
+                "position_y": position_y,
+                "position_z": position_z,
+                "scale": scale,
+                "created_by": created_by,
+            },
+        )
+
+    def mp_move_node(
+        self,
+        node_id: str,
+        position_x: float,
+        position_y: float,
+        position_z: float,
+        *,
+        scale: float | None = None,
+    ) -> Any:
+        """Move (and optionally rescale) a node to a new position."""
+        body: dict[str, Any] = {
+            "position_x": position_x,
+            "position_y": position_y,
+            "position_z": position_z,
+        }
+        if scale is not None:
+            body["scale"] = scale
+        return self.request(
+            "PATCH", f"/api/mind-palace/nodes/{node_id}", json=body
+        )
+
+    def mp_remove_node(self, node_id: str) -> Any:
+        """Remove a node from its room."""
+        return self.request("DELETE", f"/api/mind-palace/nodes/{node_id}")
+
+    def mp_list_connections(
+        self, room_id: str, *, connection_type: str | None = None
+    ) -> Any:
+        """List the connections (links) in a room."""
+        return self.request(
+            "GET",
+            "/api/mind-palace/connections",
+            params={"room_id": room_id, "connection_type": connection_type},
+        )
+
+    def mp_create_connection(
+        self,
+        room_id: str,
+        source_node_id: str,
+        target_node_id: str,
+        connection_type: str,
+        *,
+        link_subtype: str | None = None,
+        created_by: str = "agent",
+    ) -> Any:
+        """Draw a typed connection between two nodes in a room."""
+        return self.request(
+            "POST",
+            "/api/mind-palace/connections",
+            json={
+                "room_id": room_id,
+                "source_node_id": source_node_id,
+                "target_node_id": target_node_id,
+                "connection_type": connection_type,
+                "link_subtype": link_subtype,
+                "created_by": created_by,
+            },
+        )
+
+    def mp_remove_connection(self, connection_id: str) -> Any:
+        """Remove a connection."""
+        return self.request(
+            "DELETE", f"/api/mind-palace/connections/{connection_id}"
+        )
+
+    def mp_list_stacks(self, room_id: str) -> Any:
+        """List the stacks (grouped node piles) in a room."""
+        return self.request(
+            "GET", "/api/mind-palace/stacks", params={"room_id": room_id}
+        )
+
+    def mp_get_stack(self, stack_id: str) -> Any:
+        """Fetch a single stack by ID."""
+        return self.request("GET", f"/api/mind-palace/stacks/{stack_id}")
+
+    def mp_create_stack(
+        self,
+        room_id: str,
+        *,
+        name: str = "",
+        node_ids: list[str] | None = None,
+        position_x: float = 0.0,
+        position_y: float = 0.0,
+        position_z: float = 0.0,
+    ) -> Any:
+        """Create a stack that groups nodes together."""
+        return self.request(
+            "POST",
+            "/api/mind-palace/stacks",
+            json={
+                "room_id": room_id,
+                "name": name,
+                "node_ids": node_ids or [],
+                "position_x": position_x,
+                "position_y": position_y,
+                "position_z": position_z,
+            },
+        )
+
+    def mp_add_to_stack(self, stack_id: str, node_id: str) -> Any:
+        """Add a node to an existing stack."""
+        return self.request(
+            "POST", f"/api/mind-palace/stacks/{stack_id}/nodes/{node_id}"
+        )
+
+    def mp_remove_from_stack(self, stack_id: str, node_id: str) -> Any:
+        """Remove a node from a stack."""
+        return self.request(
+            "DELETE", f"/api/mind-palace/stacks/{stack_id}/nodes/{node_id}"
+        )
+
+    def mp_get_viewport(self, room_id: str, *, user_id: str = "user") -> Any:
+        """Get the saved camera viewport for a room (defaults if unset)."""
+        return self.request(
+            "GET", f"/api/mind-palace/rooms/{room_id}/viewport/{user_id}"
+        )
+
+    def mp_save_viewport(
+        self,
+        room_id: str,
+        *,
+        user_id: str = "user",
+        camera_x: float = 0.0,
+        camera_y: float = 0.0,
+        camera_z: float = 10.0,
+        focus_node_id: str | None = None,
+        zoom_level: float = 1.0,
+        bookmark_name: str | None = None,
+    ) -> Any:
+        """Save the camera viewport (optionally bookmarked) for a room."""
+        return self.request(
+            "POST",
+            f"/api/mind-palace/rooms/{room_id}/viewport/{user_id}",
+            json={
+                "camera_x": camera_x,
+                "camera_y": camera_y,
+                "camera_z": camera_z,
+                "focus_node_id": focus_node_id,
+                "zoom_level": zoom_level,
+                "bookmark_name": bookmark_name,
+            },
+        )
+
+    def mp_focus(
+        self, room_id: str, node_id: str, *, user_id: str = "user"
+    ) -> Any:
+        """Focus the viewport on a specific node (node_id/user_id are query params)."""
+        return self.request(
+            "POST",
+            f"/api/mind-palace/rooms/{room_id}/focus",
+            params={"user_id": user_id, "node_id": node_id},
+        )
+
+    def mp_suggest_arrangement(
+        self,
+        room_id: str,
+        node_ids: list[str],
+        *,
+        arrangement_type: str = "semantic",
+    ) -> Any:
+        """Ask the backend to propose positions for the given nodes.
+
+        ``arrangement_type`` is one of semantic / chronological / thematic.
+        Returns the updated node objects with their suggested positions.
+        """
+        return self.request(
+            "POST",
+            f"/api/mind-palace/rooms/{room_id}/suggest-arrangement",
+            json={"node_ids": node_ids, "arrangement_type": arrangement_type},
+        )
