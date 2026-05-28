@@ -38,6 +38,8 @@ from typing import Any, Optional
 from mcp.server.fastmcp import FastMCP
 
 from fichero.cli import FicheroClient
+from fichero.api.routes.mind_palace import MindPalaceDeletedResponse
+from fichero.spatial_models import NativeNote
 
 logger = logging.getLogger(__name__)
 
@@ -328,6 +330,88 @@ def fichero_mp_scene_summary(room_id: str) -> Any:
     """Get a room's scene summary: node/connection/stack/note counts + node-type breakdown."""
     with _client() as client:
         return client.mp_scene_summary(room_id)
+
+
+# -- mind palace: notes ---------------------------------------------------
+@mcp.tool()
+def fichero_mp_create_note(
+    content: str,
+    room_id: Optional[str] = None,
+    note_type: str = "user",
+    author_id: str = "user",
+    linked_claim_ids: Optional[list[str]] = None,
+    linked_source_ids: Optional[list[str]] = None,
+    linked_entity_ids: Optional[list[str]] = None,
+    metadata: Optional[dict[str, Any]] = None,
+) -> NativeNote:
+    """Create a first-class text note in Mind Palace."""
+    with _client() as client:
+        return client.mp_create_note(
+            content,
+            room_id=room_id,
+            note_type=note_type,
+            author_id=author_id,
+            linked_claim_ids=linked_claim_ids,
+            linked_source_ids=linked_source_ids,
+            linked_entity_ids=linked_entity_ids,
+            metadata=metadata,
+        )
+
+
+@mcp.tool()
+def fichero_mp_list_notes(
+    room_id: Optional[str] = None,
+    note_type: Optional[str] = None,
+    status: Optional[str] = None,
+    author_id: Optional[str] = None,
+) -> list[NativeNote]:
+    """List Mind Palace notes, optionally filtered by room / type / status."""
+    with _client() as client:
+        return client.mp_list_notes(
+            room_id=room_id,
+            note_type=note_type,
+            status=status,
+            author_id=author_id,
+        )
+
+
+@mcp.tool()
+def fichero_mp_get_note(note_id: str) -> NativeNote:
+    """Fetch a single Mind Palace note by ID."""
+    with _client() as client:
+        return client.mp_get_note(note_id)
+
+
+@mcp.tool()
+def fichero_mp_update_note(
+    note_id: str,
+    content: Optional[str] = None,
+    note_type: Optional[str] = None,
+    status: Optional[str] = None,
+    linked_claim_ids: Optional[list[str]] = None,
+    linked_source_ids: Optional[list[str]] = None,
+    linked_entity_ids: Optional[list[str]] = None,
+    metadata: Optional[dict[str, Any]] = None,
+) -> NativeNote:
+    """Patch a Mind Palace note."""
+    with _client() as client:
+        return client.mp_update_note(
+            note_id,
+            content=content,
+            note_type=note_type,
+            status=status,
+            linked_claim_ids=linked_claim_ids,
+            linked_source_ids=linked_source_ids,
+            linked_entity_ids=linked_entity_ids,
+            metadata=metadata,
+        )
+
+
+@mcp.tool()
+def fichero_mp_delete_note(note_id: str) -> MindPalaceDeletedResponse:
+    """Delete a Mind Palace note."""
+    with _client() as client:
+        return client.mp_delete_note(note_id)
 
 
 # -- mind palace: nodes ----------------------------------------------------
