@@ -39,6 +39,7 @@ import json
 import logging
 import mimetypes
 import shutil
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
@@ -329,6 +330,8 @@ def ingest_file(
         if file_type == FileType.pdf:
             _create_pdf_page_children(doc, path, db, auto_embed=auto_embed)
 
+        _touch_ancestor_documents(db, doc.parent_id)
+
     return doc
 
 
@@ -416,6 +419,8 @@ def _create_pdf_page_children(
                 db.embed(page_doc)
             except Exception as exc:
                 logger.debug("Embedding failed for page %s: %s", page_number, exc)
+
+        _touch_ancestor_documents(db, page_doc.parent_id)
 
         pages.append(page_doc)
 
@@ -800,6 +805,7 @@ def ingest_folder(
         )
         db.save(folder_doc)
         folder_id = folder_doc.id
+        _touch_ancestor_documents(db, folder_doc.parent_id)
         logger.info(
             f"Created folder: {folder.name} "
             f"(parent_id={parent_id or 'root'})"
@@ -850,6 +856,18 @@ def ingest_folder(
 
     logger.info(f"Ingested {len(documents)} files from {folder.name}")
     return documents
+
+
+def _touch_ancestor_documents(db: "Database", parent_id: str | None) -> None:
+    """Refresh updated_at on the ancestor chain for a newly ingested child."""
+    current_parent_id = parent_id
+    while current_parent_id:
+        parent = db.get(Document, current_parent_id)
+        if not parent:
+            break
+        parent.updated_at = datetime.now()
+        db.save(parent)
+        current_parent_id = parent.parent_id
 
 
 def _ensure_folder_hierarchy(

@@ -506,6 +506,37 @@ class TestIngestFolder:
         assert progress_calls[-1][0] == 2  # Final current
         assert progress_calls[-1][1] == 2  # Total
 
+    @patch("fichero.bookmarks.create_bookmark", return_value=None)
+    def test_touches_parent_collection_when_child_is_ingested(
+        self, mock_bookmark, tmp_path
+    ):
+        """Child ingest should refresh the parent folder timestamp."""
+        from fichero.ingest import ingest_folder
+        from fichero.models import DocType, Document
+
+        (tmp_path / "file1.txt").write_text("hello")
+
+        saved: dict[str, Document] = {}
+        mock_db = MagicMock()
+
+        def save(obj, auto_embed=False):
+            saved[obj.id] = obj
+
+        def get(model, doc_id):
+            return saved.get(doc_id)
+
+        mock_db.save.side_effect = save
+        mock_db.get.side_effect = get
+        docs = ingest_folder(tmp_path, db=mock_db)
+
+        folder_saves = [
+            call
+            for call in mock_db.save.call_args_list
+            if call.args and getattr(call.args[0], "doc_type", None) == DocType.folder
+        ]
+        assert len(docs) == 1
+        assert len(folder_saves) == 2
+
 
 class TestCopyToLibrary:
     """Tests for _copy_to_library function."""
