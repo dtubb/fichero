@@ -46,6 +46,7 @@ struct ContentView: View {
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @EnvironmentObject var claimFocusState: ClaimFocusState
+    @EnvironmentObject var researchService: ResearchService
 
     // MARK: - State (synced with @SceneStorage for persistence)
 

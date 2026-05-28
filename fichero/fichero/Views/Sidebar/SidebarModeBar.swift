@@ -55,6 +55,16 @@ struct SidebarModeBar: View {
                         selectMode(.workflows)
                     }
                 }
+
+                if featureManager.isResearchEnabled {
+                    SidebarModeIcon(
+                        mode: .research,
+                        isSelected: selectedMode == .research,
+                        badgeCount: 0
+                    ) {
+                        selectMode(.research)
+                    }
+                }
             }
 
             if featureManager.isAutomationEnabled {

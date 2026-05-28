@@ -57,6 +57,7 @@ struct LibraryWindow: View {
                 .environmentObject(library.modelService)
                 .environmentObject(library.artifactService)
                 .environmentObject(library.entityService)
+                .environmentObject(library.researchService)
                 .environment(executionObserver)
             } else {
                 // Welcome screen - no library open yet

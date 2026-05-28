@@ -39,10 +39,14 @@ extension SidebarView {
             Spacer()
                 .frame(height: 12)
 
-            unifiedContent
+            if sidebarMode == .research {
+                ResearchProjectListView()
+            } else {
+                unifiedContent
+            }
 
-            // Bottom toolbar
-            if shouldShowBottomToolbar {
+            // Bottom toolbar (not shown for research — ResearchProjectListView has its own)
+            if shouldShowBottomToolbar && sidebarMode != .research {
                 Divider()
                 SidebarBottomToolbar(
                     createSearch: createNewSearch,

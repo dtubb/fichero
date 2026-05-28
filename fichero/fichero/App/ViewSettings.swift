@@ -12,7 +12,7 @@ class ViewSettings: ObservableObject {
 // MARK: - View Mode Enums
 
 /// Sidebar mode selection - Xcode-style mode switching
-/// Order: Content (1-4), Automation (5), Monitoring (6)
+/// Order: Content (1-4), Research (5), Automation (6), Monitoring (7)
 enum SidebarMode: String, CaseIterable {
     case library      // 1: Documents, folders
     case search       // 2: Saved searches + search bar
@@ -21,6 +21,7 @@ enum SidebarMode: String, CaseIterable {
     case automation   // 5: Schedules + triggers
     case activity     // 6: All workflow runs (running + completed + failed) with logs/errors
     case mindPalace   // 7: Spatial 3D-2D space — rooms of archival material
+    case research     // 8: Research projects + workspace
 
     /// SF Symbol icon name for this mode
     var icon: String {
@@ -29,6 +30,7 @@ enum SidebarMode: String, CaseIterable {
         case .search: "magnifyingglass"
         case .chat: "bubble.left.and.bubble.right"
         case .workflows: "bolt"
+        case .research: "flask"
         case .automation: "gearshape.2"
         case .activity: "clock"
         case .mindPalace: "cube.transparent"
@@ -42,6 +44,7 @@ enum SidebarMode: String, CaseIterable {
         case .search: "Search"
         case .chat: "Chat"
         case .workflows: "Workflows"
+        case .research: "Research"
         case .automation: "Automation"
         case .activity: "Activity"
         case .mindPalace: "Mind Palace"
@@ -58,6 +61,7 @@ enum SidebarMode: String, CaseIterable {
         case .automation: "5"
         case .activity: "6"
         case .mindPalace: "7"
+        case .research: "8"
         }
     }
 }

@@ -61,6 +61,7 @@ class LibraryManager: ObservableObject {
         let batchService: BatchServiceGenerated
         let automationService: AutomationServiceGenerated
         let chainService: ChainService
+        let researchService: ResearchService
 
         // Security-scoped resource tracking
         private nonisolated(unsafe) var isAccessingSecurityScope: Bool = false
@@ -120,6 +121,7 @@ class LibraryManager: ObservableObject {
             self.batchService = BatchServiceGenerated(ficheroClient: self.ficheroClient)
             self.automationService = AutomationServiceGenerated(ficheroClient: self.ficheroClient)
             self.chainService = ChainService(apiClient: self.apiClient)
+            self.researchService = ResearchService(apiClient: self.apiClient)
 
             // Start accessing security-scoped resource if requested
             if startAccessing {

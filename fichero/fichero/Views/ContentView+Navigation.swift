@@ -25,6 +25,22 @@ extension ContentView {
 
     @ViewBuilder
     var contentView: some View {
+        // Research mode intercepts before normal viewMode routing.
+        if sidebarMode == .research {
+            if let project = researchService.projects.first(where: { $0.id == researchService.selectedProjectId })
+                ?? researchService.projects.first {
+                ResearchWorkspaceView(project: project)
+                    .environmentObject(researchService)
+            } else {
+                ContentUnavailableView(
+                    "No Research Project",
+                    systemImage: "flask",
+                    description: Text("Create a project in the sidebar to start researching.")
+                )
+            }
+            return
+        }
+
         switch viewMode {
         case .library:
             LibraryView(

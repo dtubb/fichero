@@ -122,7 +122,7 @@ extension ContentView {
         switch sidebarMode {
         case .library, .search, .workflows:
             return true
-        case .chat, .automation, .activity, .mindPalace:
+        case .chat, .automation, .activity, .mindPalace, .research:
             return false
         }
     }
@@ -151,7 +151,7 @@ extension ContentView {
             // 0.0.1: keep workflow presentation simple and explicit.
             // Icon = visual graph/canvas, List = ordered execution steps.
             return [.icon, .list]
-        case .chat, .automation, .activity, .mindPalace:
+        case .chat, .automation, .activity, .mindPalace, .research:
             return [.icon]
         }
     }
@@ -179,7 +179,7 @@ extension ContentView {
             return [.none, .standard, .widescreen]
         case .chat:
             return [.none, .standard, .widescreen]
-        case .workflows, .automation, .activity, .mindPalace:
+        case .workflows, .automation, .activity, .mindPalace, .research:
             return []
         }
     }

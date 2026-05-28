@@ -6,7 +6,9 @@ import SwiftUI
 @MainActor
 class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
-    private static let releaseProfileVersion = 27
+    // Bumped past both Mind Palace (27) and Researcher (26) so the new
+    // mindPalace + research flag defaults are re-applied on existing installs.
+    private static let releaseProfileVersion = 28
     private static let workflowV001EnabledTools =
         "files,collection,folder,aggregate,transcribe,catalogue,"
         + "extract_entities,key_people,timeline,keywords,summarize_file,"
@@ -98,6 +100,7 @@ class FeatureManager: ObservableObject {
     private var pdfScrollGridSyncEnabledInternal: Bool = false
     @AppStorage("fichero.features.claim_highlight_sync")
     private var claimHighlightSyncEnabledInternal: Bool = false
+    @AppStorage("fichero.features.research") private var researchEnabledInternal: Bool = true
     @AppStorage("fichero.features.release_profile_version")
     private var releaseProfileVersionApplied: Int = 0
 
@@ -167,6 +170,7 @@ class FeatureManager: ObservableObject {
     var isPdfScrollGridSyncEnabled: Bool { allFeaturesEnabled || pdfScrollGridSyncEnabledInternal }
     /// Bidirectional claim highlight sync across PDF, Content, and Inspector panes. Defaulted OFF.
     var isClaimHighlightSyncEnabled: Bool { allFeaturesEnabled || claimHighlightSyncEnabledInternal }
+    var isResearchEnabled: Bool { allFeaturesEnabled || researchEnabledInternal }
 
     private init() {
         applyReleaseProfileDefaultsIfNeeded()
@@ -216,6 +220,7 @@ class FeatureManager: ObservableObject {
         workflowLangGraphPreviewEnabledInternal = false
         workflowFilesToolbarEnabledInternal = true
         workflowRunOnSelectionEnabledInternal = true
+        researchEnabledInternal = true
         releaseProfileVersionApplied = Self.releaseProfileVersion
     }
 
