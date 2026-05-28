@@ -850,19 +850,16 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # Workflow chains: multi-step sequenced pipelines with output mappings.
     # Promoted from dev-tier to core for 0.0.2 (#1151).
     (chains.router, "/api", ["chains"]),
-]
-
-_DEV_ROUTE_SPECS: list[RouteSpec] = [
+    # ── Promoted dev→release for 0.0.2 (Daniel 2026-05-28): ship ALL gated
+    #    features so they're reviewable in release builds; demote individually
+    #    if one isn't ready. Safe re #1298 — openapi is exported at dev tier
+    #    (core+dev union, invariant under this move) and the NodeDef→Input/
+    #    Output Swift fix landed (adb1603e). ──
     (search_explain.router, "/api", ["search-explanation"]),
     (citation_usages.router, "/api", ["citation-usages"]),
-    # /api/interpretations + /api/graph/* deprecated 2026-05-12 — no
-    # Swift consumers; useful endpoints (taxonomy, traverse, metrics)
-    # ported into /api/kg/interpretations and /api/kg/graph. (#919 5b)
-    # Routers stay imported for diff history but are NOT registered.
     (mind_palace.router, "/api/mind-palace", ["mind-palace"]),
     (research_agents.router, "/api/research", ["research"]),
     (iiif.router, "/api/iiif", ["iiif"]),
-    # Staged routes — feature-gated behind dev tier
     (actions.router, "/api", ["actions"]),
     (integrations.router, "/api", ["integrations"]),
     (local_models.router, "/api", ["local-models"]),
@@ -871,6 +868,12 @@ _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (schedules.router, "/api", ["schedules"]),
     (triggers.router, "/api", ["triggers"]),
 ]
+
+# All former dev-tier routers promoted to _CORE for 0.0.2 release review
+# (Daniel 2026-05-28). Kept as an empty list so the tier plumbing
+# (get_route_specs_for_tier) stays intact; re-add a spec here to demote a
+# feature back to dev-only.
+_DEV_ROUTE_SPECS: list[RouteSpec] = []
 
 
 def resolve_feature_tier() -> str:
