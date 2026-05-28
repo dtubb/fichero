@@ -150,7 +150,7 @@ struct ResearchTasksPane: View {
     private func taskIcon(_ status: ResearchTaskStatus) -> String {
         switch status {
         case .pending: return "circle"
-        case .in_progress: return "circle.dotted"
+        case .inProgress: return "circle.dotted"
         case .completed: return "checkmark.circle.fill"
         case .blocked: return "exclamationmark.circle"
         case .cancelled: return "xmark.circle"
@@ -160,7 +160,7 @@ struct ResearchTasksPane: View {
     private func taskColor(_ status: ResearchTaskStatus) -> Color {
         switch status {
         case .pending: return .secondary
-        case .in_progress: return .blue
+        case .inProgress: return .blue
         case .completed: return .green
         case .blocked: return .orange
         case .cancelled: return .secondary

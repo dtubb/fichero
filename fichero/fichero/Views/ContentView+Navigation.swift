@@ -38,9 +38,7 @@ extension ContentView {
                     description: Text("Create a project in the sidebar to start researching.")
                 )
             }
-            return
-        }
-
+        } else {
         switch viewMode {
         case .library:
             LibraryView(
@@ -199,6 +197,7 @@ extension ContentView {
             // this is the canvas + node inspector. State is shared via
             // MindPalaceState.
             MindPalaceContainer()
+        }
         }
     }
 }

@@ -49,6 +49,8 @@ struct SidebarModeIcon: View {
             return "clock.fill"
         case .mindPalace:
             return "cube.transparent.fill"
+        case .research:
+            return "flask.fill"
         }
     }
 

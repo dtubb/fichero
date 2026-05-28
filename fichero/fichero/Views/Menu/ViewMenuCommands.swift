@@ -191,7 +191,7 @@ struct LibraryLayoutSection: View {
         switch mode {
         case .library, .search:
             return true
-        case .chat, .workflows, .automation, .activity, .mindPalace:
+        case .chat, .workflows, .automation, .activity, .mindPalace, .research:
             return false
         }
     }
@@ -366,7 +366,7 @@ struct PreviewModeSection: View {
             return [.none, .standard, .widescreen]
         case .chat:
             return [.none, .standard, .widescreen]
-        case .workflows, .automation, .activity, .mindPalace:
+        case .workflows, .automation, .activity, .mindPalace, .research:
             return []
         }
     }

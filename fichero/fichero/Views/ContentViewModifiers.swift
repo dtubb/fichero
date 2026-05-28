@@ -294,6 +294,10 @@ struct MainContentModifiers: ViewModifier {
             viewMode = .activity(nil)
         case .mindPalace:
             viewMode = .mindPalace
+        case .research:
+            // Research has no ViewMode case; contentView intercepts on
+            // sidebarMode == .research, so leave viewMode untouched.
+            break
         }
     }
 
