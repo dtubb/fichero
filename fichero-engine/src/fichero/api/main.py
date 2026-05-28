@@ -690,6 +690,7 @@ from fichero.api.routes import (  # noqa: E402
     bibliography,
     chains,
     chat,
+    citation_usages,
     citation_rendering,
     citations,
     claim_curation,
@@ -853,6 +854,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
 
 _DEV_ROUTE_SPECS: list[RouteSpec] = [
     (search_explain.router, "/api", ["search-explanation"]),
+    (citation_usages.router, "/api", ["citation-usages"]),
     # /api/interpretations + /api/graph/* deprecated 2026-05-12 — no
     # Swift consumers; useful endpoints (taxonomy, traverse, metrics)
     # ported into /api/kg/interpretations and /api/kg/graph. (#919 5b)

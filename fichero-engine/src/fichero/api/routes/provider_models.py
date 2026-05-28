@@ -14,6 +14,8 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from fichero.app_db import get_app_db
+from fichero.keychain import get_api_key
 from fichero.providers import get_provider_info
 
 logger = logging.getLogger(__name__)
@@ -186,6 +188,26 @@ RECOMMENDED_MODELS: dict[str, list[dict]] = {
             "description": "Nanonets OCR-S model for OCR and layout-aware document transcription.",
         },
     ],
+    "omlx": [
+        {
+            "model_id": "Qwen3-VL",
+            "is_recommended": True,
+            "supports_vision": True,
+            "description": "Local MLX vision model for OCR and document understanding.",
+        },
+        {
+            "model_id": "Nanonets-OCR",
+            "is_recommended": True,
+            "supports_vision": True,
+            "description": "Local OCR-focused MLX model.",
+        },
+        {
+            "model_id": "Chandra-OCR",
+            "is_recommended": True,
+            "supports_vision": True,
+            "description": "Local OCR-focused MLX model.",
+        },
+    ],
     "cohere": [
         {"model_id": "command-r-plus", "is_recommended": True},
         {"model_id": "command-r"},
@@ -316,6 +338,38 @@ class UserModelListResponse(BaseModel):
     count: int
 
 
+def _configured_api_base(provider_type: str, default: str) -> str:
+    """Return the first configured api_base for provider_type, else default."""
+    try:
+        app_db = get_app_db()
+        for provider in app_db.list_providers():
+            if provider.provider_type.value == provider_type and provider.api_base:
+                return provider.api_base.rstrip("/")
+    except Exception as exc:
+        logger.debug("Provider api_base lookup failed for %s: %s", provider_type, exc)
+    return default.rstrip("/")
+
+
+def _openai_models_url(api_base: str) -> str:
+    base = api_base.rstrip("/")
+    if base.endswith("/v1"):
+        return f"{base}/models"
+    return f"{base}/v1/models"
+
+
+def _local_server_root(api_base: str) -> str:
+    base = api_base.rstrip("/")
+    return base[:-3] if base.endswith("/v1") else base
+
+
+def _local_model_is_vision(model_id: str) -> bool:
+    model_lower = model_id.lower()
+    return any(
+        token in model_lower
+        for token in ("vl", "vision", "ocr", "nanonets", "chandra")
+    )
+
+
 # =============================================================================
 # Request Models
 # =============================================================================
@@ -415,10 +469,10 @@ async def list_models_for_provider(
     # Ollama - query local server
     elif provider_type == "ollama":
         try:
+            api_base = _configured_api_base("ollama", "http://localhost:11434")
+            tags_url = f"{_local_server_root(api_base)}/api/tags"
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    "http://localhost:11434/api/tags", timeout=5.0
-                )
+                response = await client.get(tags_url, timeout=5.0)
                 if response.status_code == 200:
                     data = response.json()
                     for m in data.get("models", []):
@@ -451,10 +505,10 @@ async def list_models_for_provider(
     # LM Studio - query local server
     elif provider_type == "lmstudio":
         try:
+            api_base = _configured_api_base("lmstudio", "http://localhost:1234")
+            models_url = _openai_models_url(api_base)
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    "http://localhost:1234/v1/models", timeout=5.0
-                )
+                response = await client.get(models_url, timeout=5.0)
                 if response.status_code == 200:
                     data = response.json()
                     for m in data.get("data", []):
@@ -502,6 +556,59 @@ async def list_models_for_provider(
                         )
         except Exception as e:
             logger.warning(f"Failed to query LM Studio: {e}")
+
+    # oMLX - local OpenAI-compatible MLX server
+    elif provider_type == "omlx":
+        try:
+            api_base = _configured_api_base("omlx", "http://localhost:8000/v1")
+            headers = {}
+            api_key = get_api_key("omlx")
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    _openai_models_url(api_base),
+                    headers=headers,
+                    timeout=5.0,
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    curated_models = {
+                        m["model_id"]: m
+                        for m in RECOMMENDED_MODELS.get(provider_type, [])
+                    }
+                    for m in data.get("data", []):
+                        model_id = m["id"]
+                        curated = curated_models.get(model_id, {})
+                        is_vision = bool(
+                            curated.get("supports_vision")
+                            or _local_model_is_vision(model_id)
+                        )
+                        desc = curated.get("description")
+                        if not desc:
+                            if is_vision:
+                                desc = (
+                                    "Local MLX vision/OCR model. Runs locally, free."
+                                )
+                            else:
+                                desc = (
+                                    "Local OpenAI-compatible MLX model. Runs locally, free."
+                                )
+                        models.append(
+                            ModelResponse(
+                                model_id=model_id,
+                                full_name=model_id,
+                                input_cost_per_million=0,
+                                output_cost_per_million=0,
+                                supports_vision=is_vision,
+                                description=desc,
+                                is_local=True,
+                                is_recommended=bool(curated.get("is_recommended")),
+                                provider="omlx",
+                            )
+                        )
+        except Exception as e:
+            logger.warning(f"Failed to query oMLX: {e}")
 
     # Cloud providers - combine curated recommendations with LiteLLM registry
     else:

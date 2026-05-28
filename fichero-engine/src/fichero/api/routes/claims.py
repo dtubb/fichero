@@ -20,7 +20,10 @@ from fichero.knowledge_models import (
     EpistemicStatus,
     GeoPoint,
     KnowledgeClaim,
+    KnowledgeClaimLink,
     KnowledgeEntity,
+    MutationLog,
+    MutationOperationType,
     PredictionMetadata,
     ProvenanceLayer,
     QuotationKind,
@@ -95,10 +98,14 @@ class ClaimPatchRequest(BaseModel):
     """Request to patch/update a knowledge claim."""
 
     text: str | None = None
+    source_document_id: str | None = None
     source_segment_id: str | None = None
     source_page_label: str | None = None
     source_excerpt: str | None = None
     source_ref: str | None = None
+    source_char_start: int | None = None
+    source_char_end: int | None = None
+    source_bbox: list[float] | None = None
     entity_ids: list[str] | None = None
     curation_state: ClaimCurationState | None = None
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -113,6 +120,104 @@ class ClaimPatchRequest(BaseModel):
     source_languages: list[str] | None = None
     claim_type: ClaimType | None = None
     epistemic_status: EpistemicStatus | None = None
+    subject_canonical: str | None = None
+    subject_entity_id: str | None = None
+    predicate_verb: str | None = None
+    predicate_canonical: str | None = None
+    object_phrase: str | None = None
+    svo_subject: str | None = None
+    svo_verb: str | None = None
+    svo_object: str | None = None
+    time_start: str | None = None
+    time_end: str | None = None
+    time_precision: str | None = None
+    speaker_name: str | None = None
+    speaker_entity_id: str | None = None
+    subject_of_inquiry_entity_id: str | None = None
+    scribe_name: str | None = None
+    scribe_entity_id: str | None = None
+    editor_name: str | None = None
+    editor_entity_id: str | None = None
+    quotation_kind: QuotationKind | None = None
+    provenance_layer: ProvenanceLayer | None = None
+    source_language: str | None = None
+    translation_chain: list[str] | None = None
+    audience: str | None = None
+    source_genre: SourceGenre | None = None
+    claim_recorded_at: str | None = None
+    claim_geo: GeoPoint | None = None
+    confidence_source: str | None = None
+
+
+def _validate_claim_references(db: Database, data: dict[str, Any]) -> None:
+    """Validate editable foreign-key-ish claim references."""
+    if data.get("source_document_id") is not None:
+        source_doc = db.get(Document, data["source_document_id"])
+        if source_doc is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Source document not found: {data['source_document_id']}",
+            )
+
+    entity_ids = data.get("entity_ids")
+    if entity_ids is not None:
+        missing_entities = [
+            entity_id
+            for entity_id in entity_ids
+            if db.get(KnowledgeEntity, entity_id) is None
+        ]
+        if missing_entities:
+            raise HTTPException(
+                status_code=404, detail=f"Unknown entities: {missing_entities}"
+            )
+
+    for field in (
+        "subject_entity_id",
+        "speaker_entity_id",
+        "subject_of_inquiry_entity_id",
+        "scribe_entity_id",
+        "editor_entity_id",
+    ):
+        entity_id = data.get(field)
+        if entity_id is not None and db.get(KnowledgeEntity, entity_id) is None:
+            raise HTTPException(
+                status_code=404, detail=f"Unknown entity for {field}: {entity_id}"
+            )
+
+
+def _apply_claim_patch(claim: KnowledgeClaim, data: dict[str, Any]) -> None:
+    """Apply patch fields and keep canonical SVO fields consistent."""
+    from fichero.kg._common import canonical_verb
+
+    if "text" in data and isinstance(data["text"], str):
+        data["text"] = data["text"].strip()
+
+    if "predicate_verb" in data and "predicate_canonical" not in data:
+        data["predicate_canonical"] = canonical_verb(data["predicate_verb"])
+    if "predicate_verb" in data and "svo_verb" not in data:
+        data["svo_verb"] = data.get("predicate_canonical")
+    if "subject_canonical" in data and "svo_subject" not in data:
+        data["svo_subject"] = data.get("subject_canonical")
+    if "object_phrase" in data and "svo_object" not in data:
+        data["svo_object"] = data.get("object_phrase")
+
+    for key, value in data.items():
+        setattr(claim, key, value)
+    claim.updated_at = datetime.now()
+
+
+def _delete_claim_links_for_claim(db: Database, claim_id: str) -> list[dict[str, Any]]:
+    """Delete KnowledgeClaimLink rows that would orphan after claim deletion."""
+    links = [
+        link
+        for link in db.query(KnowledgeClaimLink)
+        if link.claim_id == claim_id or link.related_claim_id == claim_id
+    ]
+    snapshots: list[dict[str, Any]] = []
+    for link in links:
+        snapshots.append(link.model_dump(mode="json"))
+        db.delete(link)
+    return snapshots
 
 
 # =============================================================================
@@ -235,24 +340,9 @@ async def patch_claim(
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
 
-    data = request.model_dump(exclude_unset=True, exclude_none=True)
-
-    # Validate entity IDs if provided
-    if "entity_ids" in data and data["entity_ids"] is not None:
-        missing_entities = [
-            entity_id
-            for entity_id in data["entity_ids"]
-            if db.get(KnowledgeEntity, entity_id) is None
-        ]
-        if missing_entities:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown entities: {missing_entities}"
-            )
-
-    # Update claim fields
-    for key, value in data.items():
-        setattr(claim, key, value)
-    claim.updated_at = datetime.now()
+    data = request.model_dump(exclude_unset=True)
+    _validate_claim_references(db, data)
+    _apply_claim_patch(claim, data)
     db.save(claim)
     return claim
 
@@ -285,16 +375,16 @@ async def delete_claim(
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
     before_state = claim.model_dump(mode="json")
+    deleted_links = _delete_claim_links_for_claim(db, claim_id)
     db.delete(claim)
 
     # Mutation log row for undo. (#901)
     try:
-        from fichero.knowledge_models import MutationLog, MutationOperationType
         db.save(MutationLog(
             entity_type="KnowledgeClaim",
             entity_id=claim_id,
             operation=MutationOperationType.delete,
-            before_state=before_state,
+            before_state={**before_state, "deleted_claim_links": deleted_links},
             after_state=None,
         ))
     except Exception as exc:

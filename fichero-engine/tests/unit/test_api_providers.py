@@ -7,7 +7,7 @@ These are unit tests that don't require a running server.
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import tempfile
 from pathlib import Path
 
@@ -115,7 +115,7 @@ class TestProviderCatalog:
         response = client.get(f"{API_BASE}/providers/catalog")
         data = response.json()["items"]
 
-        local_types = {"apple", "ollama", "lmstudio"}
+        local_types = {"apple", "ollama", "lmstudio", "omlx"}
 
         for provider in data:
             if provider["type"] in local_types:
@@ -262,6 +262,16 @@ class TestModelsAPI:
             assert "full_name" in model
             assert "input_cost_per_million" in model
             assert "output_cost_per_million" in model
+
+    def test_omlx_catalog_entry(self):
+        response = client.get(f"{API_BASE}/providers/catalog/omlx")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["type"] == "omlx"
+        assert data["name"] == "oMLX"
+        assert data["is_local"] is True
+        assert data["supports_vision"] is True
 
 
 # =============================================================================

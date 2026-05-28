@@ -37,6 +37,7 @@ class ProviderType(str, Enum):
     # Local servers
     ollama = "ollama"
     lmstudio = "lmstudio"
+    omlx = "omlx"
     # Open source / aggregators
     huggingface = "huggingface"
     openrouter = "openrouter"  # Multi-provider aggregator
@@ -137,8 +138,22 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         color="indigo",
         sort_order=2,
     ),
+    ProviderType.omlx: ProviderInfo(
+        type=ProviderType.omlx,
+        name="oMLX",
+        description="Local OpenAI-compatible MLX server for Qwen3-VL, Nanonets-OCR, and Chandra-OCR",
+        api_key_env=None,
+        api_key_url=None,
+        is_local=True,
+        supports_vision=True,
+        supports_embeddings=False,
+        default_model="local-model",
+        icon="cpu",
+        color="teal",
+        sort_order=3,
+    ),
     # ==========================================================================
-    # Open Source - sort_order 3
+    # Open Source - sort_order 4
     # ==========================================================================
     ProviderType.huggingface: ProviderInfo(
         type=ProviderType.huggingface,
@@ -152,7 +167,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="face.smiling",
         logo_asset="Providers/HuggingFace",
         color="yellow",
-        sort_order=3,
+        sort_order=4,
     ),
     ProviderType.openrouter: ProviderInfo(
         type=ProviderType.openrouter,
@@ -166,10 +181,10 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="point.3.connected.trianglepath.dotted",  # Network/routing icon
         logo_asset="Providers/OpenRouter",
         color="teal",
-        sort_order=4,
+        sort_order=5,
     ),
     # ==========================================================================
-    # Cloud Providers - sort_order 5+
+    # Cloud Providers - sort_order 6+
     # ==========================================================================
     ProviderType.openai: ProviderInfo(
         type=ProviderType.openai,
@@ -183,7 +198,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="sparkles",
         logo_asset="Providers/OpenAI",
         color="green",
-        sort_order=5,
+        sort_order=6,
     ),
     ProviderType.anthropic: ProviderInfo(
         type=ProviderType.anthropic,
@@ -197,7 +212,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="brain",
         logo_asset="Providers/Anthropic",
         color="orange",
-        sort_order=6,
+        sort_order=7,
     ),
     ProviderType.google: ProviderInfo(
         type=ProviderType.google,
@@ -211,7 +226,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="globe",
         logo_asset="Providers/GoogleAI",
         color="blue",
-        sort_order=7,
+        sort_order=8,
     ),
     ProviderType.groq: ProviderInfo(
         type=ProviderType.groq,
@@ -225,7 +240,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="bolt.fill",
         logo_asset="Providers/Groq",
         color="orange",
-        sort_order=8,
+        sort_order=9,
     ),
     ProviderType.together: ProviderInfo(
         type=ProviderType.together,
@@ -239,7 +254,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="square.stack.3d.up",
         logo_asset="Providers/TogetherAI",
         color="teal",
-        sort_order=9,
+        sort_order=10,
     ),
     ProviderType.deepseek: ProviderInfo(
         type=ProviderType.deepseek,
@@ -253,7 +268,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="water.waves",
         logo_asset="Providers/DeepSeek",
         color="cyan",
-        sort_order=10,
+        sort_order=11,
     ),
     ProviderType.mistral: ProviderInfo(
         type=ProviderType.mistral,
@@ -267,7 +282,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="wind",
         logo_asset="Providers/MistralAI",
         color="blue",
-        sort_order=11,
+        sort_order=12,
     ),
     ProviderType.cohere: ProviderInfo(
         type=ProviderType.cohere,
@@ -281,10 +296,10 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="text.alignleft",
         logo_asset="Providers/Cohere",
         color="pink",
-        sort_order=12,
+        sort_order=13,
     ),
     # ==========================================================================
-    # Additional LiteLLM Providers - sort_order 13+
+    # Additional LiteLLM Providers - sort_order 14+
     # ==========================================================================
     ProviderType.dashscope: ProviderInfo(
         type=ProviderType.dashscope,
@@ -298,7 +313,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="eye.circle.fill",
         logo_asset="Providers/DashScope",
         color="orange",
-        sort_order=13,
+        sort_order=14,
     ),
     ProviderType.xai: ProviderInfo(
         type=ProviderType.xai,
@@ -312,7 +327,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="x.circle.fill",  # X logo style
         logo_asset="Providers/xAI",
         color="gray",
-        sort_order=14,
+        sort_order=15,
     ),
     ProviderType.perplexity: ProviderInfo(
         type=ProviderType.perplexity,
@@ -326,7 +341,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="magnifyingglass.circle.fill",
         logo_asset="Providers/Perplexity",
         color="teal",
-        sort_order=15,
+        sort_order=16,
     ),
     ProviderType.fireworks: ProviderInfo(
         type=ProviderType.fireworks,
@@ -340,7 +355,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="flame.fill",
         logo_asset="Providers/Fireworks",
         color="red",
-        sort_order=16,
+        sort_order=17,
     ),
     ProviderType.azure: ProviderInfo(
         type=ProviderType.azure,
@@ -354,7 +369,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="cloud.fill",
         logo_asset="Providers/Azure",
         color="blue",
-        sort_order=17,
+        sort_order=18,
     ),
     ProviderType.bedrock: ProviderInfo(
         type=ProviderType.bedrock,
@@ -368,7 +383,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="square.stack.3d.up.fill",
         logo_asset="Providers/Bedrock",
         color="orange",
-        sort_order=18,
+        sort_order=19,
     ),
 }
 

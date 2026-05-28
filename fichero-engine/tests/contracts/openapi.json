@@ -23383,6 +23383,89 @@
         }
       }
     },
+    "/api/citation-usages": {
+      "get": {
+        "tags": [
+          "citation-usages"
+        ],
+        "summary": "List Citation Usages",
+        "description": "List body-pass citation usages extracted by ``citation_usage_extract``.",
+        "operationId": "list_citation_usages_api_citation_usages_get",
+        "parameters": [
+          {
+            "name": "source_document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Source Document Id"
+            }
+          },
+          {
+            "name": "target_document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Target Document Id"
+            }
+          },
+          {
+            "name": "reference_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Reference Id"
+            }
+          },
+          {
+            "name": "stance",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Stance"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitationUsageListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/mind-palace/rooms": {
       "post": {
         "tags": [
@@ -25727,6 +25810,58 @@
         }
       }
     },
+    "/api/research/projects/{project_id}/tasks": {
+      "get": {
+        "tags": [
+          "research"
+        ],
+        "summary": "List Project Tasks",
+        "description": "All tasks across every plan in a project.\n\nThe Researcher Tasks pane is project-scoped, but tasks hang off plans\n(task.plan_id -> plan.project_id). Aggregate them here so the frontend\nhas a single project-level list endpoint.",
+        "operationId": "list_project_tasks_api_research_projects__project_id__tasks_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchCrudListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/research/tasks/{task_id}": {
       "get": {
         "tags": [
@@ -26620,6 +26755,59 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DocumentFetchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/research/tools/browser-save": {
+      "post": {
+        "tags": [
+          "research"
+        ],
+        "summary": "Browser Save",
+        "description": "Download a URL as raw bytes and import it into the library as a real Document.",
+        "operationId": "browser_save_api_research_tools_browser_save_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrowserSaveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserSaveResponse"
                 }
               }
             }
@@ -32618,6 +32806,87 @@
         ],
         "title": "BrowserNavigateResponse"
       },
+      "BrowserSaveRequest": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "suggested_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Suggested Name"
+          },
+          "parent_folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Folder Id"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "project_id"
+        ],
+        "title": "BrowserSaveRequest"
+      },
+      "BrowserSaveResponse": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "document_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Name"
+          },
+          "file_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "File Path"
+          },
+          "content_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Content Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Size Bytes"
+          },
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "success"
+        ],
+        "title": "BrowserSaveResponse"
+      },
       "CacheClearResponse": {
         "properties": {
           "entries_deleted": {
@@ -33667,6 +33936,59 @@
         "type": "object",
         "title": "CitationPatchRequest"
       },
+      "CitationUsageItem": {
+        "properties": {
+          "citation": {
+            "$ref": "#/components/schemas/DocumentCitation"
+          },
+          "claim": {
+            "$ref": "#/components/schemas/KnowledgeClaim",
+            "nullable": true
+          },
+          "reference_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reference Id"
+          },
+          "stance": {
+            "type": "string",
+            "nullable": true,
+            "title": "Stance"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "citation"
+        ],
+        "title": "CitationUsageItem"
+      },
+      "CitationUsageListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CitationUsageItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "CitationUsageListResponse"
+      },
       "ClaimCountsResponse": {
         "properties": {
           "counts": {
@@ -34051,6 +34373,11 @@
             "nullable": true,
             "title": "Text"
           },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id"
+          },
           "source_segment_id": {
             "type": "string",
             "nullable": true,
@@ -34070,6 +34397,24 @@
             "type": "string",
             "nullable": true,
             "title": "Source Ref"
+          },
+          "source_char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char Start"
+          },
+          "source_char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char End"
+          },
+          "source_bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Source Bbox"
           },
           "entity_ids": {
             "items": {
@@ -34155,6 +34500,140 @@
           "epistemic_status": {
             "$ref": "#/components/schemas/EpistemicStatus",
             "nullable": true
+          },
+          "subject_canonical": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Canonical"
+          },
+          "subject_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Entity Id"
+          },
+          "predicate_verb": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate Verb"
+          },
+          "predicate_canonical": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate Canonical"
+          },
+          "object_phrase": {
+            "type": "string",
+            "nullable": true,
+            "title": "Object Phrase"
+          },
+          "svo_subject": {
+            "type": "string",
+            "nullable": true,
+            "title": "Svo Subject"
+          },
+          "svo_verb": {
+            "type": "string",
+            "nullable": true,
+            "title": "Svo Verb"
+          },
+          "svo_object": {
+            "type": "string",
+            "nullable": true,
+            "title": "Svo Object"
+          },
+          "time_start": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time Start"
+          },
+          "time_end": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time End"
+          },
+          "time_precision": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time Precision"
+          },
+          "speaker_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Speaker Name"
+          },
+          "speaker_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Speaker Entity Id"
+          },
+          "subject_of_inquiry_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Of Inquiry Entity Id"
+          },
+          "scribe_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Scribe Name"
+          },
+          "scribe_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Scribe Entity Id"
+          },
+          "editor_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Editor Name"
+          },
+          "editor_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Editor Entity Id"
+          },
+          "quotation_kind": {
+            "$ref": "#/components/schemas/QuotationKind",
+            "nullable": true
+          },
+          "provenance_layer": {
+            "$ref": "#/components/schemas/ProvenanceLayer",
+            "nullable": true
+          },
+          "source_language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Language"
+          },
+          "translation_chain": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Translation Chain"
+          },
+          "audience": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audience"
+          },
+          "source_genre": {
+            "$ref": "#/components/schemas/SourceGenre",
+            "nullable": true
+          },
+          "claim_recorded_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Recorded At"
+          },
+          "claim_geo": {
+            "$ref": "#/components/schemas/GeoPoint",
+            "nullable": true
+          },
+          "confidence_source": {
+            "type": "string",
+            "nullable": true,
+            "title": "Confidence Source"
           }
         },
         "type": "object",
@@ -42860,7 +43339,108 @@
         ],
         "title": "NodeCreateRequest"
       },
-      "NodeDef": {
+      "NodeDef-Input": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique node identifier"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool",
+            "description": "Tool function name from registry"
+          },
+          "input_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Input Ports",
+            "description": "Input connection ports (populated from registry, not stored)"
+          },
+          "output_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Output Ports",
+            "description": "Output connection ports (populated from registry, not stored)"
+          },
+          "input_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/InputMapping"
+            },
+            "type": "array",
+            "title": "Input Mappings",
+            "description": "Maps input ports to data sources from previous nodes"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs",
+            "description": "Input values for the tool (supports path resolution)"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config",
+            "description": "Static tool configuration (not resolved)"
+          },
+          "output_schema": {
+            "$ref": "#/components/schemas/OutputSchema",
+            "nullable": true,
+            "description": "JSON Schema for structured LLM output"
+          },
+          "position_x": {
+            "type": "number",
+            "title": "Position X",
+            "default": 0.0
+          },
+          "position_y": {
+            "type": "number",
+            "title": "Position Y",
+            "default": 0.0
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name",
+            "default": ""
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name",
+            "default": ""
+          },
+          "uses_llm": {
+            "type": "boolean",
+            "title": "Uses Llm",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool"
+        ],
+        "title": "NodeDef",
+        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
+      },
+      "NodeDef-Output": {
         "properties": {
           "id": {
             "type": "string",
@@ -44736,6 +45316,11 @@
             "$ref": "#/components/schemas/fichero__research_models__ProjectStatus",
             "nullable": true
           },
+          "library_destination_folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Library Destination Folder Id"
+          },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
@@ -46380,6 +46965,11 @@
             "title": "Created By",
             "default": "human"
           },
+          "library_destination_folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Library Destination Folder Id"
+          },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
@@ -47313,8 +47903,7 @@
           "char_start",
           "char_end"
         ],
-        "title": "SearchAnchor",
-        "description": "Stable character-position anchor within the indexed transcript text."
+        "title": "SearchAnchor"
       },
       "SearchExcerpt": {
         "properties": {
@@ -47353,8 +47942,7 @@
           "match_end",
           "anchor"
         ],
-        "title": "SearchExcerpt",
-        "description": "Transcript excerpt generated from the search layer's indexed text."
+        "title": "SearchExcerpt"
       },
       "SearchExplainRequest": {
         "properties": {
@@ -47736,8 +48324,7 @@
           "content_preview",
           "metadata"
         ],
-        "title": "SearchResult",
-        "description": "Search result with score and document reference."
+        "title": "SearchResult"
       },
       "SearchSource": {
         "properties": {
@@ -51231,7 +51818,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef"
+              "$ref": "#/components/schemas/NodeDef-Input"
             },
             "type": "array",
             "title": "Nodes"
@@ -51465,7 +52052,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef"
+              "$ref": "#/components/schemas/NodeDef-Output"
             },
             "type": "array",
             "title": "Nodes"
@@ -52307,6 +52894,11 @@
             "title": "Created By",
             "default": "human"
           },
+          "library_destination_folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Library Destination Folder Id"
+          },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
@@ -52515,6 +53107,108 @@
           "archived"
         ],
         "title": "ProjectStatus"
+      },
+      "NodeDef": {
+        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode).",
+        "properties": {
+          "id": {
+            "description": "Unique node identifier",
+            "title": "Id",
+            "type": "string"
+          },
+          "tool": {
+            "description": "Tool function name from registry",
+            "title": "Tool",
+            "type": "string"
+          },
+          "input_ports": {
+            "description": "Input connection ports (populated from registry, not stored)",
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "title": "Input Ports",
+            "type": "array"
+          },
+          "output_ports": {
+            "description": "Output connection ports (populated from registry, not stored)",
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "title": "Output Ports",
+            "type": "array"
+          },
+          "input_mappings": {
+            "description": "Maps input ports to data sources from previous nodes",
+            "items": {
+              "$ref": "#/components/schemas/InputMapping"
+            },
+            "title": "Input Mappings",
+            "type": "array"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "description": "Input values for the tool (supports path resolution)",
+            "title": "Inputs",
+            "type": "object"
+          },
+          "config": {
+            "additionalProperties": true,
+            "description": "Static tool configuration (not resolved)",
+            "title": "Config",
+            "type": "object"
+          },
+          "output_schema": {
+            "$ref": "#/components/schemas/OutputSchema",
+            "nullable": true,
+            "default": null,
+            "description": "JSON Schema for structured LLM output"
+          },
+          "position_x": {
+            "default": 0.0,
+            "title": "Position X",
+            "type": "number"
+          },
+          "position_y": {
+            "default": 0.0,
+            "title": "Position Y",
+            "type": "number"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "provider_name": {
+            "default": "",
+            "title": "Provider Name",
+            "type": "string"
+          },
+          "model_name": {
+            "default": "",
+            "title": "Model Name",
+            "type": "string"
+          },
+          "uses_llm": {
+            "default": false,
+            "title": "Uses Llm",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tool"
+        ],
+        "title": "NodeDef",
+        "type": "object"
       }
     }
   }

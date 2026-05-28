@@ -8,6 +8,7 @@ extension AddProviderSheet {
         switch type {
         case "ollama": return "http://localhost:11434"
         case "lmstudio": return "http://localhost:1234"
+        case "omlx": return "http://localhost:8000/v1"
         default: return ""
         }
     }

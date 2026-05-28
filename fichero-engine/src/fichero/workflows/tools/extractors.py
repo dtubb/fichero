@@ -328,6 +328,40 @@ _SECTIONS: list[dict[str, Any]] = [
         ),
     },
     {
+        "name": "citation_usage_extract",
+        "display": "Extract Citation Usage",
+        "artifact": "citation_usages",
+        "entity_type": None,
+        "icon": "quote.bubble",
+        "color": "teal",
+        "schema_key": "citation_usages",
+        "item_shape": (
+            '{"marker": "...", "cited_work": "...", '
+            '"stance": "cites|supports|extends_reading|contests_reading|'
+            'critiques|defends", "claim_text": "...", '
+            '"excerpt": "...", "char_start": 0, "char_end": 12, '
+            '"confidence": 0.8}'
+        ),
+        "instruction": (
+            "Detect every in-text citation marker in the document body "
+            "(Author-Year, numeric bracket references like [12], and "
+            "footnote/endnote reference markers). For each marker, infer "
+            "which cited work it points to, summarize exactly HOW the "
+            "author uses that source, and classify the stance. "
+            "'marker' is the literal citation marker as written. "
+            "'cited_work' is the best author/year/title label you can "
+            "infer from the surrounding text. 'stance' must be one of: "
+            "cites, supports, extends_reading, contests_reading, critiques, "
+            "defends. 'claim_text' is a short statement of the author's "
+            "use of the source. 'excerpt' is the shortest surrounding "
+            "sentence or paragraph containing the citation marker. "
+            "'char_start' and 'char_end' are offsets for the marker inside "
+            "the provided text chunk when you can determine them; use null "
+            "when unsure. Skip bibliography entries themselves unless the "
+            "body text discusses how a source is being used."
+        ),
+    },
+    {
         "name": "quotes_extract",
         "display": "Extract Quotes",
         "artifact": "quotes",
@@ -724,6 +758,48 @@ class _SectionLegalReference(BaseModel):
     warrant: str = _WARRANT_FIELD
 
 
+class _SectionCitationUsage(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_defaults(cls, data):
+        if isinstance(data, dict):
+            data.setdefault("confidence", 0.5)
+            data.setdefault("char_start", None)
+            data.setdefault("char_end", None)
+        return data
+
+    marker: str = Field(
+        description="Literal in-text citation marker as written, e.g. '(Smith 1999)' or '[12]'."
+    )
+    cited_work: str = Field(
+        description="Best author/year/title label for the cited work."
+    )
+    stance: str = Field(
+        description=(
+            "How the author uses the cited work: cites, supports, "
+            "extends_reading, contests_reading, critiques, or defends."
+        )
+    )
+    claim_text: str = Field(
+        description="Short statement of how the author uses the cited work."
+    )
+    excerpt: str = Field(
+        description=(
+            "Shortest surrounding sentence or paragraph containing the "
+            "citation marker, copied verbatim."
+        )
+    )
+    char_start: int | None = Field(
+        default=None,
+        description="Start offset of marker in this text chunk when known.",
+    )
+    char_end: int | None = Field(
+        default=None,
+        description="End offset of marker in this text chunk when known.",
+    )
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
 class _SectionQuote(BaseModel):
     @model_validator(mode="before")
     @classmethod
@@ -777,6 +853,7 @@ _SECTION_SCHEMAS: dict[str, type[BaseModel]] = {
     "mines": _make_section_schema(_SectionMine, "mines"),
     "properties": _make_section_schema(_SectionProperty, "properties"),
     "legal_references": _make_section_schema(_SectionLegalReference, "legal_references"),
+    "citation_usages": _make_section_schema(_SectionCitationUsage, "citation_usages"),
     "quotes": _make_section_schema(_SectionQuote, "quotes"),
 }
 
@@ -1644,6 +1721,212 @@ def _event_grounded_in_text(event_name: str, source_text: str | None) -> bool:
     return any(tok in src_lower for tok in content_tokens)
 
 
+def _reference_match_labels(reference) -> list[str]:
+    """Labels used to resolve an extracted marker to a bibliography row."""
+    labels: list[str] = []
+    authors = [str(a).strip() for a in (getattr(reference, "authors", None) or [])]
+    year = getattr(reference, "year", None)
+    title = str(getattr(reference, "title", "") or "").strip()
+    first_author = authors[0] if authors else ""
+    surname = first_author.split(",", 1)[0].strip() if first_author else ""
+    if not surname and first_author:
+        surname = first_author.split()[-1]
+
+    for value in (
+        title,
+        f"{surname} {year}".strip(),
+        f"{surname} ({year})".strip(),
+        f"{surname}, {year}".strip(", "),
+        f"{surname} {year} {title}".strip(),
+        getattr(reference, "bibtex", ""),
+        getattr(reference, "doi", ""),
+    ):
+        value = str(value or "").strip()
+        if value and value not in labels:
+            labels.append(value)
+    return labels
+
+
+def _bibliography_candidates(db, source_document_id: str) -> tuple[dict[str, Any], list[str]]:
+    """Return match labels for references cited by this document."""
+    from fichero.knowledge_models import Reference, ReferenceProvenance
+
+    linked_reference_ids = {
+        link.reference_id
+        for link in db.query(ReferenceProvenance, document_id=source_document_id)
+    }
+    references = [
+        ref for ref in db.query(Reference)
+        if not linked_reference_ids or ref.id in linked_reference_ids
+    ]
+    by_label: dict[str, Any] = {}
+    labels: list[str] = []
+    for reference in references:
+        for label in _reference_match_labels(reference):
+            by_label[label] = reference
+            labels.append(label)
+    return by_label, labels
+
+
+def _normalise_usage_span(
+    item: dict[str, Any],
+    page_excerpt: str | None,
+) -> tuple[int | None, int | None]:
+    char_start = item.get("char_start")
+    char_end = item.get("char_end")
+    try:
+        if char_start is not None:
+            char_start = int(char_start)
+        if char_end is not None:
+            char_end = int(char_end)
+    except (TypeError, ValueError):
+        char_start = None
+        char_end = None
+    if (
+        isinstance(char_start, int)
+        and isinstance(char_end, int)
+        and char_start >= 0
+        and char_end >= char_start
+    ):
+        return char_start, char_end
+
+    marker = str(item.get("marker") or "").strip()
+    if marker and page_excerpt:
+        idx = page_excerpt.find(marker)
+        if idx >= 0:
+            return idx, idx + len(marker)
+    return None, None
+
+
+def _write_citation_usage_rows(
+    db,
+    items: list[Any],
+    container_id: str,
+    page_label: str | None = None,
+    source_excerpt: str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+) -> None:
+    """Persist body citation usages as DocumentCitation + KnowledgeClaim."""
+    from fichero.kg._common import canonical_hermeneutic_predicate, slug_verb
+    from fichero.knowledge_models import ClaimType, DocumentCitation, KnowledgeClaim
+    from fichero.models import Document as DocumentModel
+    from fichero.workflows.tools._entity_writer import save_claim
+    from fichero.workflows.tools.llm_prompting import match_to_reference
+
+    label_to_reference, reference_labels = _bibliography_candidates(db, container_id)
+    source_doc = db.get(DocumentModel, container_id)
+    speaker_name: str | None = None
+    if source_doc and source_doc.source_metadata:
+        authors = source_doc.source_metadata.get("authors") or []
+        if authors:
+            speaker_name = str(authors[0] or "").strip() or None
+
+    written = 0
+    for raw_item in items:
+        if not isinstance(raw_item, dict):
+            continue
+        item = _normalize_kwarg_repr_fields(raw_item)
+        marker = str(item.get("marker") or "").strip()
+        cited_work = str(item.get("cited_work") or "").strip()
+        claim_text = str(item.get("claim_text") or "").strip()
+        excerpt = str(item.get("excerpt") or "").strip() or source_excerpt
+        if not marker and not cited_work:
+            continue
+
+        matched_label = match_to_reference(cited_work or marker, reference_labels)
+        reference = label_to_reference.get(matched_label or "")
+        target_document_id = (
+            getattr(reference, "realized_as_document_id", None)
+            if reference is not None
+            else None
+        )
+        char_start, char_end = _normalise_usage_span(item, source_excerpt)
+        try:
+            confidence = float(item.get("confidence", 0.5))
+        except (TypeError, ValueError):
+            confidence = 0.5
+        confidence = max(0.0, min(1.0, confidence))
+
+        stance = str(item.get("stance") or "cites").strip() or "cites"
+        predicate_canonical = (
+            canonical_hermeneutic_predicate(stance)
+            or slug_verb(stance)
+            or "cites"
+        )
+        reference_id = getattr(reference, "id", None) if reference is not None else None
+        target_label = cited_work or marker
+        citation = DocumentCitation(
+            source_document_id=container_id,
+            target_document_id=target_document_id,
+            target_citation_text=target_label,
+            page_label=page_label,
+            char_start=char_start,
+            char_end=char_end,
+            confidence=confidence,
+            detector="llm-usage",
+            metadata={
+                "marker": marker,
+                "cited_work": cited_work,
+                "matched_reference_id": reference_id,
+                "matched_reference_label": matched_label,
+                "stance": stance,
+                "predicate_canonical": predicate_canonical,
+                "claim_text": claim_text,
+                "excerpt": excerpt,
+            },
+        )
+        db.save(citation)
+
+        claim_id = save_claim(
+            db,
+            text=claim_text or f"{target_label} is cited.",
+            source_document_id=container_id,
+            entity_ids=[],
+            source_excerpt=excerpt,
+            source_page_label=page_label,
+            source_char_start=char_start,
+            source_char_end=char_end,
+            claim_type=ClaimType.interpretation,
+            confidence=confidence,
+            metadata={
+                "citation_id": citation.id,
+                "reference_id": reference_id,
+                "target_document_id": target_document_id,
+                "target_citation_text": target_label,
+                "marker": marker,
+                "stance": stance,
+                "predicate_canonical": predicate_canonical,
+                "usage_join": "DocumentCitation.metadata.claim_id",
+            },
+            subject_canonical=speaker_name,
+            predicate_verb=stance,
+            object_phrase=target_label,
+            svo_subject=speaker_name,
+            svo_verb=predicate_canonical,
+            svo_object=target_label,
+            provider=provider,
+            model=model,
+            speaker_name=speaker_name,
+            confidence_origin="llm",
+        )
+        citation.metadata["claim_id"] = claim_id
+        db.save(citation)
+        claim = db.get(KnowledgeClaim, claim_id)
+        if claim is not None:
+            claim.predicate_canonical = predicate_canonical
+            db.save(claim)
+        written += 1
+
+    logger.info(
+        "_write_citation_usage_rows: %s on %s — items_in=%d usages_written=%d",
+        page_label or "whole-doc",
+        container_id,
+        len(items),
+        written,
+    )
+
+
 def _write_kg_rows(
     db,
     section: dict[str, Any],
@@ -1673,6 +1956,18 @@ def _write_kg_rows(
     storage; grounding_text is the full chunk so the check sees the
     whole context. None disables the guard (fail-open).
     """
+    if section.get("name") == "citation_usage_extract":
+        _write_citation_usage_rows(
+            db,
+            items,
+            container_id,
+            page_label=page_label,
+            source_excerpt=source_excerpt,
+            provider=provider,
+            model=model,
+        )
+        return
+
     from fichero.knowledge_models import ClaimType, EpistemicStatus, EntityType
     from fichero.workflows.tools._entity_writer import upsert_entity, save_claim
     from fichero.kg._common import slug_verb

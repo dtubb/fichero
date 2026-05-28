@@ -86,6 +86,15 @@ class TestValidateProviderConfig:
         """Local providers shouldn't require API keys."""
         validate_provider_config("apple")
         validate_provider_config("ollama")
+        validate_provider_config("omlx")
+
+    def test_omlx_accepts_arbitrary_local_key(self):
+        """oMLX is local OpenAI-compatible and must not require sk- keys."""
+        validate_provider_config(
+            "omlx",
+            api_key="local-omlx-key",
+            api_base="http://localhost:8000/v1",
+        )
 
     def test_cloud_provider_requires_key(self):
         """Cloud providers should require API keys."""
