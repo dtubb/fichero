@@ -107,6 +107,8 @@ struct ContentView: View {
     @StateObject var itemRegistry = ItemTypeRegistry()
     @StateObject var performanceService = PerformanceService()
     @State var toolbarSearchText: String = ""
+    @State var navigationHistory = AppNavigationHistory()
+    @State var isRestoringNavigationHistory = false
 
     // Error service (using singleton pattern)
     @ObservedObject var errorService = ErrorService.shared
@@ -301,6 +303,7 @@ struct ContentView: View {
                         detailDocument = documentStore.currentDocuments.first(where: { $0.id == firstSelectedId })
                     }
                 }
+                recordNavigationEntry()
             }
             .onChange(of: documentStore.collections) { oldCollections, newCollections in
                 // Re-restore view mode once data loads (collections arrive after API responds)
@@ -342,6 +345,35 @@ struct ContentView: View {
                 }
             }
             .toolbar {
+                ToolbarItemGroup(placement: .navigation) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showSidebar.toggle()
+                        }
+                    } label: {
+                        Image(systemName: "sidebar.left")
+                    }
+                    .help(showSidebar ? "Hide Sidebar" : "Show Sidebar")
+
+                    Button {
+                        navigateBack()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                    .help("Back (⌘[)")
+                    .keyboardShortcut("[", modifiers: [.command])
+                    .disabled(!navigationHistory.canGoBack)
+
+                    Button {
+                        navigateForward()
+                    } label: {
+                        Image(systemName: "chevron.right")
+                    }
+                    .help("Forward (⌘])")
+                    .keyboardShortcut("]", modifiers: [.command])
+                    .disabled(!navigationHistory.canGoForward)
+                }
+
                 // Left side: Layout picker, View mode picker, Plus button
                 // Conditional based on sidebar mode
                 if showNavigationToolbar {
@@ -536,6 +568,7 @@ struct ContentView: View {
                 }
             }
             .onChange(of: viewMode) { oldMode, newMode in
+                guard !isRestoringNavigationHistory else { return }
                 // Auto-save only when leaving the currently edited workflow.
                 // Skip workflow->same-workflow transitions (e.g., sidebar rename refresh),
                 // which can otherwise overwrite a fresh rename with stale editor state.
@@ -567,8 +600,10 @@ struct ContentView: View {
                 let (type, id) = serializeViewMode(newMode)
                 storedViewModeType = type
                 storedViewModeItemId = id
+                recordNavigationEntry()
             }
             .onChange(of: selectedSidebarItemId) { _, newFolderId in
+                if isRestoringNavigationHistory { return }
                 // Restore per-folder view mode when switching folders.
                 // Priority: per-folder save > global default > current
                 // SceneStorage value. The global default protects against
@@ -712,6 +747,8 @@ struct ContentView: View {
                 // Keep documentStore.selectedDocument in sync so WorkflowEditor
                 // toolbar button sees the current document at run time.
                 documentStore.selectedDocument = newDoc
+                guard !isRestoringNavigationHistory else { return }
+                recordNavigationEntry()
             }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                 // Auto-save workflow when app quits
