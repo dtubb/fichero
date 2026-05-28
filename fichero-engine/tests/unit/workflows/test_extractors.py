@@ -25,6 +25,7 @@ EXTRACTOR_NAMES = [
     "mines_extract",
     "properties_extract",
     "legal_references_extract",
+    "citation_usage_extract",
     "keywords_extract",
     "quotes_extract",
 ]
@@ -64,6 +65,14 @@ class TestPromptBuilding:
         prompt = _build_section_prompt(section, "Spanish")
         # Keywords is a flat array of strings, not objects
         assert '"keywords": ["keyword"]' in prompt
+
+    def test_citation_usage_prompt_requests_body_usage_fields(self):
+        section = next(s for s in _SECTIONS if s["name"] == "citation_usage_extract")
+        prompt = _build_section_prompt(section, "English")
+        assert "citation_usages" in prompt
+        assert "marker" in prompt
+        assert "stance" in prompt
+        assert "claim_text" in prompt
 
 
 class TestEntityTypeDisambiguation:
@@ -224,6 +233,7 @@ class TestSectionConfig:
     def test_artifact_types_match_existing(self):
         # Artifact types must match what DocumentInspectorArtifactsTab renders.
         known = {"people", "places", "organizations", "dates", "rivers",
-                 "events", "mines", "properties", "legal_references", "keywords", "quotes"}
+                 "events", "mines", "properties", "legal_references",
+                 "citation_usages", "keywords", "quotes"}
         for section in _SECTIONS:
             assert section["artifact"] in known

@@ -417,7 +417,11 @@ def test_source_text_absent_falls_back_to_predicate(_capture_save_claim) -> None
 
 @pytest.mark.parametrize(
     "section_name,artifact",
-    [(s["name"], s["artifact"]) for s in _SECTIONS if s["name"] != "keywords_extract"],
+    [
+        (s["name"], s["artifact"])
+        for s in _SECTIONS
+        if s["name"] not in {"keywords_extract", "citation_usage_extract"}
+    ],
 )
 def test_every_section_prompt_mentions_svo(section_name: str, artifact: str) -> None:
     """Every entity-bearing section's instruction must point the LLM at
