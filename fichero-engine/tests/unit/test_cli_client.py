@@ -273,6 +273,70 @@ def test_token_missing_file_returns_none(monkeypatch, tmp_path):
     assert client_module._read_token() is None
 
 
+def test_request_picks_up_token_after_startup_gap(monkeypatch, tmp_path):
+    """A client constructed before the token file exists should recover once
+    the engine writes the shared secret, rather than leaking a startup 403."""
+
+    token_path = tmp_path / ".api-key"
+    monkeypatch.delenv("FICHERO_API_KEY", raising=False)
+    monkeypatch.setattr(client_module, "_TOKEN_PATH", token_path)
+
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        auth = request.headers.get("authorization")
+        if auth != "Bearer fresh-token":
+            return httpx.Response(403, text="missing or invalid Authorization header")
+        return httpx.Response(200, json=[])
+
+    client = FicheroClient(
+        base_url="http://test",
+        library_path="/tmp/Lib.fichero",
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        token_path.write_text("fresh-token", encoding="utf-8")
+        docs = client.list_documents()
+    finally:
+        client.close()
+
+    assert docs == []
+    assert len(seen) == 1
+    assert seen[0].headers["authorization"] == "Bearer fresh-token"
+
+
+def test_request_picks_up_library_path_after_startup_gap(monkeypatch):
+    """A client created before the active library path is available should
+    attach it once the window sets FICHERO_LIBRARY_PATH."""
+
+    monkeypatch.delenv("FICHERO_API_KEY", raising=False)
+    monkeypatch.delenv("FICHERO_LIBRARY_PATH", raising=False)
+
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        library_path = request.headers.get("x-fichero-library-path")
+        if library_path != "/tmp/Lib.fichero":
+            return httpx.Response(403, text="missing or invalid X-Fichero-Library-Path")
+        return httpx.Response(200, json=[])
+
+    client = FicheroClient(
+        base_url="http://test",
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        monkeypatch.setenv("FICHERO_LIBRARY_PATH", "/tmp/Lib.fichero")
+        docs = client.list_documents()
+    finally:
+        client.close()
+
+    assert docs == []
+    assert len(seen) == 1
+    assert seen[0].headers["x-fichero-library-path"] == "/tmp/Lib.fichero"
+
+
 def test_base_url_falls_back_to_default(monkeypatch):
     monkeypatch.delenv("FICHERO_API_URL", raising=False)
     c = FicheroClient(token="x")

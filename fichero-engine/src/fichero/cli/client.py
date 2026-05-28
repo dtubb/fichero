@@ -147,9 +147,15 @@ class FicheroClient:
         self.base_url = (
             base_url or os.environ.get("FICHERO_API_URL") or DEFAULT_BASE_URL
         ).rstrip("/")
-        self.library_path = library_path or os.environ.get("FICHERO_LIBRARY_PATH")
-        # token="" is honoured (explicit "no token"); token=None means discover.
+        # token="" is honoured (explicit "no token"); token=None means discover
+        # from disk on demand so the client can survive startup ordering races.
+        self._discover_token = token is None
         self.token = token if token is not None else _read_token()
+        # library_path="" is honoured (explicit "no library"); library_path=None
+        # means discover from the environment on demand so a late-bound window
+        # can still recover without reconstructing the client.
+        self._discover_library_path = library_path is None
+        self.library_path = library_path or os.environ.get("FICHERO_LIBRARY_PATH")
         self._client = httpx.Client(
             base_url=self.base_url, timeout=timeout, transport=transport
         )
@@ -165,7 +171,31 @@ class FicheroClient:
         self.close()
 
     # -- core --------------------------------------------------------------
+    def _refresh_auth_context(self) -> bool:
+        """Refresh lazily discovered auth headers from their live sources.
+
+        The shared-secret token is written by the engine at startup and the
+        library path may not be available until the active document/window has
+        finished restoring. A client that snapshots either value too early can
+        emit a burst of unauthenticated requests during startup and then work
+        moments later. Re-reading the live sources keeps the first protected
+        request from being permanently stale.
+        """
+        changed = False
+        if self._discover_token:
+            refreshed = _read_token()
+            if refreshed and refreshed != self.token:
+                self.token = refreshed
+                changed = True
+        if self._discover_library_path:
+            refreshed_path = os.environ.get("FICHERO_LIBRARY_PATH")
+            if refreshed_path and refreshed_path != self.library_path:
+                self.library_path = refreshed_path
+                changed = True
+        return changed
+
     def _headers(self) -> dict[str, str]:
+        self._refresh_auth_context()
         headers: dict[str, str] = {}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
@@ -186,6 +216,7 @@ class FicheroClient:
 
         Raises FicheroError on connection failure or any non-2xx status.
         """
+        self._refresh_auth_context()
         try:
             response = self._client.request(
                 method,
@@ -202,6 +233,24 @@ class FicheroClient:
             ) from exc
         except httpx.HTTPError as exc:
             raise FicheroError(f"{method} {path} failed: {exc}") from exc
+
+        if response.status_code in {401, 403} and self._refresh_auth_context():
+            try:
+                response = self._client.request(
+                    method,
+                    path,
+                    params=_clean(params),
+                    json=json,
+                    files=files,
+                    headers=self._headers(),
+                )
+            except httpx.ConnectError as exc:
+                raise FicheroError(
+                    f"Cannot connect to the Fichero backend at {self.base_url}. "
+                    "Is the engine running?"
+                ) from exc
+            except httpx.HTTPError as exc:
+                raise FicheroError(f"{method} {path} failed: {exc}") from exc
 
         if response.status_code >= 400:
             raise FicheroError(
