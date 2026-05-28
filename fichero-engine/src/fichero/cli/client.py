@@ -45,6 +45,7 @@ from fichero.api.routes.kg_graph import NeighborhoodResponse
 from fichero.api.routes.kg_rebuild import KGResetResponse, RebuildResponse
 from fichero.api.routes.kg_search import KGSearchResponse
 from fichero.api.routes.provider_models import ProviderResponse
+from fichero.api.routes.mind_palace import MindPalaceDeletedResponse
 from fichero.api.routes.search import SearchResponse
 from fichero.api.routes.settings import AIDefaults
 from fichero.api.routes.workflow_execution.schemas import (
@@ -57,6 +58,7 @@ from fichero.api.routes.workflow_execution.threads import (
     ThreadDeletedResponse,
 )
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.spatial_models import NativeNote
 from fichero.models import (
     Artifact,
     ClaimListResponse,
@@ -1183,6 +1185,97 @@ class FicheroClient:
     def mp_scene_summary(self, room_id: str) -> Any:
         """Counts of nodes/connections/stacks/notes (+ node-type breakdown)."""
         return self.request("GET", f"/api/mind-palace/rooms/{room_id}/scene")
+
+    def mp_create_note(
+        self,
+        content: str,
+        *,
+        room_id: str | None = None,
+        note_type: str = "user",
+        author_id: str = "user",
+        linked_claim_ids: list[str] | None = None,
+        linked_source_ids: list[str] | None = None,
+        linked_entity_ids: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> NativeNote:
+        """Create a first-class text note in Mind Palace."""
+        raw = self.request(
+            "POST",
+            "/api/mind-palace/notes",
+            json={
+                "room_id": room_id,
+                "content": content,
+                "note_type": note_type,
+                "author_id": author_id,
+                "linked_claim_ids": linked_claim_ids or [],
+                "linked_source_ids": linked_source_ids or [],
+                "linked_entity_ids": linked_entity_ids or [],
+                "metadata": metadata or {},
+            },
+        )
+        return NativeNote.model_validate(raw)
+
+    def mp_list_notes(
+        self,
+        *,
+        room_id: str | None = None,
+        note_type: str | None = None,
+        status: str | None = None,
+        author_id: str | None = None,
+    ) -> list[NativeNote]:
+        """List Mind Palace notes, optionally filtered by room/type/status."""
+        raw = self.request(
+            "GET",
+            "/api/mind-palace/notes",
+            params=_clean(
+                {
+                    "room_id": room_id,
+                    "note_type": note_type,
+                    "status": status,
+                    "author_id": author_id,
+                }
+            ),
+        )
+        return [NativeNote.model_validate(item) for item in _expect_list(raw, "/api/mind-palace/notes")]
+
+    def mp_get_note(self, note_id: str) -> NativeNote:
+        """Fetch a single Mind Palace note by ID."""
+        raw = self.request("GET", f"/api/mind-palace/notes/{note_id}")
+        return NativeNote.model_validate(raw)
+
+    def mp_update_note(
+        self,
+        note_id: str,
+        *,
+        content: str | None = None,
+        note_type: str | None = None,
+        status: str | None = None,
+        linked_claim_ids: list[str] | None = None,
+        linked_source_ids: list[str] | None = None,
+        linked_entity_ids: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> NativeNote:
+        """Patch a Mind Palace note."""
+        body: dict[str, Any] = {
+            "content": content,
+            "note_type": note_type,
+            "status": status,
+            "linked_claim_ids": linked_claim_ids,
+            "linked_source_ids": linked_source_ids,
+            "linked_entity_ids": linked_entity_ids,
+            "metadata": metadata,
+        }
+        raw = self.request(
+            "PATCH",
+            f"/api/mind-palace/notes/{note_id}",
+            json=_clean(body),
+        )
+        return NativeNote.model_validate(raw)
+
+    def mp_delete_note(self, note_id: str) -> MindPalaceDeletedResponse:
+        """Delete a Mind Palace note."""
+        raw = self.request("DELETE", f"/api/mind-palace/notes/{note_id}")
+        return MindPalaceDeletedResponse.model_validate(raw)
 
     def mp_list_nodes(
         self, room_id: str, *, node_type: str | None = None

@@ -43,6 +43,11 @@ EXPECTED_TOOLS = {
     "fichero_mp_get_room",
     "fichero_mp_create_room",
     "fichero_mp_scene_summary",
+    "fichero_mp_create_note",
+    "fichero_mp_list_notes",
+    "fichero_mp_get_note",
+    "fichero_mp_update_note",
+    "fichero_mp_delete_note",
     "fichero_mp_list_nodes",
     "fichero_mp_get_node",
     "fichero_mp_place_node",
@@ -245,6 +250,110 @@ def test_auth_and_library_headers_are_set(monkeypatch):
         mcp_server.fichero_activity()
     assert seen[0].headers["authorization"] == "Bearer test-token"
     assert seen[0].headers["x-fichero-library-path"] == "/tmp/Lib.fichero"
+
+
+def test_mp_create_note_hits_note_endpoint(monkeypatch):
+    note_body = {
+        "id": "note-1",
+        "content": "A note",
+        "room_id": "room-1",
+        "note_type": "user",
+        "author_id": "user",
+        "status": "draft",
+        "linked_claim_ids": [],
+        "linked_source_ids": [],
+        "linked_entity_ids": [],
+        "metadata": {},
+    }
+    with _mock_client(monkeypatch, body=note_body) as seen:
+        note = mcp_server.fichero_mp_create_note(
+            "A note",
+            room_id="room-1",
+            linked_entity_ids=["entity-1"],
+        )
+    assert seen[0].url.path == "/api/mind-palace/notes"
+    assert json.loads(seen[0].content) == {
+        "room_id": "room-1",
+        "content": "A note",
+        "note_type": "user",
+        "author_id": "user",
+        "linked_claim_ids": [],
+        "linked_source_ids": [],
+        "linked_entity_ids": ["entity-1"],
+        "metadata": {},
+    }
+    assert note.id == "note-1"
+
+
+def test_mp_list_notes_passes_filters(monkeypatch):
+    note_body = {
+        "id": "note-2",
+        "content": "A note",
+        "room_id": "room-1",
+        "note_type": "ai_workspace",
+        "author_id": "ai",
+        "status": "draft",
+        "linked_claim_ids": [],
+        "linked_source_ids": [],
+        "linked_entity_ids": [],
+        "metadata": {},
+    }
+    with _mock_client(monkeypatch, body={"items": [note_body], "count": 1}) as seen:
+        notes = mcp_server.fichero_mp_list_notes(
+            room_id="room-1",
+            note_type="ai_workspace",
+            author_id="ai",
+        )
+    assert dict(seen[0].url.params) == {
+        "room_id": "room-1",
+        "note_type": "ai_workspace",
+        "author_id": "ai",
+    }
+    assert len(notes) == 1
+    assert notes[0].id == "note-2"
+
+
+def test_mp_get_update_delete_note_hit_expected_paths(monkeypatch):
+    note_body = {
+        "id": "note-3",
+        "content": "Old content",
+        "room_id": "room-1",
+        "note_type": "user",
+        "author_id": "user",
+        "status": "draft",
+        "linked_claim_ids": [],
+        "linked_source_ids": [],
+        "linked_entity_ids": [],
+        "metadata": {},
+    }
+
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.method == "PATCH":
+            return httpx.Response(200, json={**note_body, "content": "Updated"})
+        if request.method == "DELETE":
+            return httpx.Response(200, json={"status": "deleted"})
+        return httpx.Response(200, json=note_body)
+
+    with _mock_client(monkeypatch, handler=handler):
+        got = mcp_server.fichero_mp_get_note("note-3")
+        updated = mcp_server.fichero_mp_update_note(
+            "note-3", content="Updated", status="surfaced"
+        )
+        deleted = mcp_server.fichero_mp_delete_note("note-3")
+
+    assert [req.method for req in seen] == ["GET", "PATCH", "DELETE"]
+    assert seen[0].url.path == "/api/mind-palace/notes/note-3"
+    assert json.loads(seen[1].content) == {
+        "content": "Updated",
+        "status": "surfaced",
+    }
+    assert seen[2].url.path == "/api/mind-palace/notes/note-3"
+    assert got.id == "note-3"
+    assert updated.content == "Updated"
+    assert deleted.status == "deleted"
 
 
 # A handler that records each httpx.Request (so URL/path/body can be asserted)
