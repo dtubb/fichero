@@ -8,11 +8,9 @@ plans contain tasks, tasks contain steps. Routes live at /api/research/...
 import pytest
 
 from fichero.research_models import (
-    ProjectStatus,
     ResearchPlan,
     ResearchProject,
     ResearchTask,
-    TaskStatus,
 )
 
 
@@ -228,3 +226,68 @@ class TestListPlanTasks:
         r = client.get(f"{BASE}/plans/plan-lt/tasks")
         assert r.status_code == 200
         assert len(r.json()["items"]["items"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Direct-handler tests (#1297 follow-up: FE↔BE review fixes)
+#
+# The HTTP routes above are dev-tier gated out of the TestClient (#1151), so
+# these call the route coroutines directly with the `db` fixture to verify the
+# handler logic the FE↔BE review flagged:
+#   - library_destination_folder_id round-trips on create + update
+#   - GET /projects/{id}/tasks aggregates tasks across a project's plans
+# ---------------------------------------------------------------------------
+
+
+class TestProjectFolderDestinationHandlers:
+    async def test_create_persists_library_destination_folder_id(self, db):
+        from fichero.api.routes.research_crud import (
+            ProjectCreateRequest,
+            create_project,
+        )
+
+        project = await create_project(
+            ProjectCreateRequest(
+                name="With Folder", library_destination_folder_id="folder-abc"
+            ),
+            db=db,
+        )
+        assert project.library_destination_folder_id == "folder-abc"
+        # Re-read from the DB to confirm it was actually written.
+        assert db.get(ResearchProject, project.id).library_destination_folder_id == "folder-abc"
+
+    async def test_update_changes_library_destination_folder_id(self, db):
+        from fichero.api.routes.research_crud import (
+            ProjectUpdateRequest,
+            update_project,
+        )
+
+        db.save(_make_project("p-folder", "Folder Project"))
+        updated = await update_project(
+            "p-folder",
+            ProjectUpdateRequest(library_destination_folder_id="folder-xyz"),
+            db=db,
+        )
+        assert updated.library_destination_folder_id == "folder-xyz"
+        assert db.get(ResearchProject, "p-folder").library_destination_folder_id == "folder-xyz"
+
+
+class TestListProjectTasksHandler:
+    async def test_aggregates_tasks_across_all_plans_in_project(self, db):
+        from fichero.api.routes.research_crud import list_project_tasks
+
+        db.save(_make_project("proj-agg"))
+        db.save(_make_plan("plan-a", "proj-agg"))
+        db.save(_make_plan("plan-b", "proj-agg"))
+        db.save(_make_task("ta-1", "plan-a"))
+        db.save(_make_task("ta-2", "plan-a"))
+        db.save(_make_task("tb-1", "plan-b"))
+        # A task in an unrelated project's plan must NOT leak in.
+        db.save(_make_project("proj-other"))
+        db.save(_make_plan("plan-other", "proj-other"))
+        db.save(_make_task("to-1", "plan-other"))
+
+        result = await list_project_tasks("proj-agg", db=db)
+        assert result.count == 3
+        plan_ids = {t.plan_id for t in result.items}
+        assert plan_ids == {"plan-a", "plan-b"}

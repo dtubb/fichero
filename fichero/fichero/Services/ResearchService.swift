@@ -142,7 +142,9 @@ class ResearchService: ObservableObject {
         noteType: String = "observation", tags: [String] = []
     ) async throws -> ResearchNote {
         let req = NoteCreateRequest(projectId: projectId, taskId: taskId, noteType: noteType, content: content, tags: tags)
-        return try await apiClient.post("/api/research/projects/\(projectId)/notes", body: req)
+        // Backend create-note route is POST /api/research/notes (project_id is
+        // carried in the body, not the path). See research_notes.py.
+        return try await apiClient.post("/api/research/notes", body: req)
     }
 
     // MARK: - Sources

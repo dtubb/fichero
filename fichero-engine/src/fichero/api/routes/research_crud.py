@@ -43,6 +43,7 @@ class ProjectCreateRequest(BaseModel):
     name: str
     description: str = ""
     created_by: str = "human"
+    library_destination_folder_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -50,6 +51,7 @@ class ProjectUpdateRequest(BaseModel):
     name: str | None = None
     description: str | None = None
     status: ProjectStatus | None = None
+    library_destination_folder_id: str | None = None
     metadata: dict[str, Any] | None = None
 
 
@@ -62,6 +64,7 @@ async def create_project(
         name=request.name,
         description=request.description,
         created_by=request.created_by,
+        library_destination_folder_id=request.library_destination_folder_id,
         metadata=request.metadata,
     )
     db.save(project)
@@ -106,6 +109,8 @@ async def update_project(
         project.description = request.description
     if request.status is not None:
         project.status = request.status
+    if request.library_destination_folder_id is not None:
+        project.library_destination_folder_id = request.library_destination_folder_id
     if request.metadata is not None:
         project.metadata = request.metadata
     project.updated_at = datetime.now()
@@ -379,6 +384,23 @@ async def list_tasks(
     db: Database = Depends(get_library_database),
 ) -> ResearchCrudListResponse:
     tasks = db.query(ResearchTask, plan_id=plan_id)
+    items = sorted(tasks, key=lambda t: (t.priority, t.created_at))
+    return ResearchCrudListResponse(items=items, count=len(items))
+
+
+@router.get("/projects/{project_id}/tasks", response_model=ResearchCrudListResponse)
+async def list_project_tasks(
+    project_id: str,
+    db: Database = Depends(get_library_database),
+) -> ResearchCrudListResponse:
+    """All tasks across every plan in a project.
+
+    The Researcher Tasks pane is project-scoped, but tasks hang off plans
+    (task.plan_id -> plan.project_id). Aggregate them here so the frontend
+    has a single project-level list endpoint.
+    """
+    plan_ids = {p.id for p in db.query(ResearchPlan, project_id=project_id)}
+    tasks = [t for t in db.query(ResearchTask) if t.plan_id in plan_ids]
     items = sorted(tasks, key=lambda t: (t.priority, t.created_at))
     return ResearchCrudListResponse(items=items, count=len(items))
 
