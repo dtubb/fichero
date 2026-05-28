@@ -219,18 +219,18 @@ def render_report(
 ) -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     lines: list[str] = [
-        f"# Batch Verification Report",
-        f"",
+        "# Batch Verification Report",
+        "",
         f"**Generated:** {now}  ",
         f"**Library:** `{library}`  ",
         f"**Workflow:** {workflow_name}  ",
         f"**Files:** {len(results)}  ",
         f"**Elapsed:** {elapsed:.1f}s",
-        f"",
-        f"## Summary",
-        f"",
-        f"| File | Import | Workflow | Transcription | Entities | Claims | Status |",
-        f"|------|--------|----------|---------------|----------|--------|--------|",
+        "",
+        "## Summary",
+        "",
+        "| File | Import | Workflow | Transcription | Entities | Claims | Status |",
+        "|------|--------|----------|---------------|----------|--------|--------|",
     ]
 
     for r in results:
@@ -249,7 +249,7 @@ def render_report(
     for r in results:
         icon = PASS if r.passed else FAIL
         lines.append(f"### {icon} `{r.filename}`")
-        lines.append(f"")
+        lines.append("")
         if r.doc_id:
             lines.append(f"- **Doc ID:** `{r.doc_id}`")
         if not r.import_ok:

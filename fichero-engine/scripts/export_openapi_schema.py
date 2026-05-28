@@ -20,7 +20,6 @@ The Swift app can validate its API calls against these files.
 """
 
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
