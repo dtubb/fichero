@@ -104,7 +104,7 @@ extension ContentView {
         switch viewMode {
         case .library, .search, .chat, .comparison, .workflow, .chain, .ontology:
             return true
-        case .batches, .batch, .automation, .schedule, .trigger, .activity:
+        case .batches, .batch, .automation, .schedule, .trigger, .activity, .mindPalace:
             return false
         }
     }

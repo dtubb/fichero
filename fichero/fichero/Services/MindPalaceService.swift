@@ -148,12 +148,12 @@ final class MindPalaceService: ObservableObject {
         // bookmark_name, camera_x/y/z, focus_node_id, metadata, zoom_level).
         // `metadata` is optional and omitted.
         let body = Components.Schemas.ViewportSaveRequest(
-            bookmarkName: bookmarkName,
             cameraX: cameraX,
             cameraY: cameraY,
             cameraZ: cameraZ,
             focusNodeId: focusNodeId,
-            zoomLevel: zoomLevel
+            zoomLevel: zoomLevel,
+            bookmarkName: bookmarkName
         )
         let response = try await client.api.saveViewportApiMindPalaceRoomsRoomIdViewportUserIdPost(
             path: .init(roomId: roomId, userId: userId),

@@ -296,7 +296,7 @@ extension ContentView {
         case .workflow, .chain:
             EmptyView()
 
-        case .batches, .batch, .automation, .schedule, .trigger, .activity, .ontology:
+        case .batches, .batch, .automation, .schedule, .trigger, .activity, .ontology, .mindPalace:
             EmptyView()
         }
     }
