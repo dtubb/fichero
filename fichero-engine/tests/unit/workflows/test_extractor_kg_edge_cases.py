@@ -162,6 +162,30 @@ class TestEachGenericExtractor:
         )
         _assert_section_writes_kg(db, container_doc.id, EntityType.concept)
 
+    async def test_keyword_claims_have_entity_ids_populated(
+        self, db, test_package, container_doc, llm_config
+    ):
+        """Keyword claims must have their entity_ids populated with the
+        keyword entity's ID. This enables the graph traversal path from
+        keyword entity → claims to work (see #1296).
+
+        Test includes short keywords (<4 chars) which previously had empty
+        entity_ids due to alias scan threshold — those must be fixed too."""
+        await _run_one_extractor(
+            db, test_package, container_doc, llm_config,
+            "keywords_extract",
+            '{"keywords": ["mining", "Antioquia", "AI", "art", "RNA"]}',
+        )
+        # Find all keyword claims
+        claims = db.all(KnowledgeClaim)
+        keyword_claims = [c for c in claims if c.source_document_id == container_doc.id]
+
+        # Each claim should have entity_ids populated, including short keywords
+        assert len(keyword_claims) == 5, f"should have 5 keyword claims, got {len(keyword_claims)}"
+        for claim in keyword_claims:
+            assert claim.entity_ids, f"keyword claim '{claim.text}' has empty entity_ids (BUG #1296)"
+            assert len(claim.entity_ids) > 0, f"keyword claim '{claim.text}' entity_ids is empty list"
+
 
 # ---------------------------------------------------------------------------
 # Cross-document entity reuse — the whole point of the KG layer
