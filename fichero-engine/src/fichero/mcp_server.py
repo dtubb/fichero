@@ -1,11 +1,23 @@
 """Fichero MCP server — exposes the CLI's HTTP operations as MCP tools.
 
 This is a thin wrapper over :class:`fichero.cli.FicheroClient`: every tool is
-one client call, one tool per ``fichero`` CLI command. There is no backend
-logic and no second HTTP layer here — the client owns auth, the library-path
-header, and error handling. A :class:`~fichero.cli.FicheroError` raised by the
-client propagates out of the tool; FastMCP turns it into an error tool result
-rather than letting it pass silently.
+one client call. There is no backend logic and no second HTTP layer here — the
+client owns auth, the library-path header, and error handling. A
+:class:`~fichero.cli.FicheroError` raised by the client propagates out of the
+tool; FastMCP turns it into an error tool result rather than letting it pass
+silently.
+
+Two tool families (#1269 — "MCP access to the app"):
+
+* **Read** — search documents, query the knowledge graph
+  (entities / claims / neighborhood), and pull a document's content, artifacts,
+  and canonical KG so an agent can reason over the catalogue.
+* **Mind Palace** (``fichero_mp_*``) — *arrange* the Layer-6 spatial workspace:
+  create rooms, place / move / remove nodes, draw connections, build stacks,
+  suggest layouts, and save the camera. This is how an agent "thinks visually."
+  The mind-palace router is **dev-tier**: the engine must run with
+  ``FICHERO_FEATURE_TIER=dev`` for these tools to resolve (the app-embedded
+  backend already sets this; a standalone ``release`` engine returns 404).
 
 Usage::
 
@@ -235,6 +247,306 @@ def fichero_activity(limit: int = 50) -> Any:
     """Show recent workflow activity."""
     with _client() as client:
         return client.recent_activity(limit=limit)
+
+
+# -- knowledge graph / content (read) --------------------------------------
+@mcp.tool()
+def fichero_kg_neighborhood(
+    entity_id: str,
+    hops: int = 1,
+    limit: int = 50,
+    rank: str = "edge_weight",
+) -> Any:
+    """Get the graph neighborhood around an entity (connected entities + edges).
+
+    Args:
+        entity_id: The entity to centre the neighborhood on.
+        hops: How many edges out to traverse (default 1).
+        limit: Max neighbors to return.
+        rank: Ranking strategy for which neighbors to keep (e.g. edge_weight).
+    """
+    with _client() as client:
+        return client.entity_neighborhood(
+            entity_id, hops=hops, limit=limit, rank=rank
+        )
+
+
+@mcp.tool()
+def fichero_document_kg(doc_id: str, include_children: bool = False) -> Any:
+    """Canonical knowledge graph for a document — deduped, merge-resolved.
+
+    Args:
+        doc_id: The document ID.
+        include_children: Include child docs (e.g. PDF pages) in the rollup.
+    """
+    with _client() as client:
+        return client.document_knowledge_graph(
+            doc_id, include_children=include_children
+        )
+
+
+@mcp.tool()
+def fichero_artifact_get(artifact_id: str) -> Any:
+    """Fetch a single artifact (transcription, catalogue, …) including its content."""
+    with _client() as client:
+        return client.get_artifact(artifact_id)
+
+
+# -- mind palace: rooms (#1269) --------------------------------------------
+@mcp.tool()
+def fichero_mp_list_rooms(
+    room_type: Optional[str] = None, owner_id: Optional[str] = None
+) -> Any:
+    """List Mind Palace rooms. room_type: research / synthesis / presentation."""
+    with _client() as client:
+        return client.mp_list_rooms(room_type=room_type, owner_id=owner_id)
+
+
+@mcp.tool()
+def fichero_mp_get_room(room_id: str) -> Any:
+    """Fetch a single Mind Palace room by ID."""
+    with _client() as client:
+        return client.mp_get_room(room_id)
+
+
+@mcp.tool()
+def fichero_mp_create_room(
+    name: str,
+    description: str = "",
+    room_type: str = "research",
+    owner_id: str = "user",
+) -> Any:
+    """Create a Mind Palace room. room_type: research / synthesis / presentation."""
+    with _client() as client:
+        return client.mp_create_room(
+            name, description=description, room_type=room_type, owner_id=owner_id
+        )
+
+
+@mcp.tool()
+def fichero_mp_scene_summary(room_id: str) -> Any:
+    """Get a room's scene summary: node/connection/stack/note counts + node-type breakdown."""
+    with _client() as client:
+        return client.mp_scene_summary(room_id)
+
+
+# -- mind palace: nodes ----------------------------------------------------
+@mcp.tool()
+def fichero_mp_list_nodes(room_id: str, node_type: Optional[str] = None) -> Any:
+    """List nodes in a room. node_type: source / claim / note / entity / transcription."""
+    with _client() as client:
+        return client.mp_list_nodes(room_id, node_type=node_type)
+
+
+@mcp.tool()
+def fichero_mp_get_node(node_id: str) -> Any:
+    """Fetch a single spatial node by ID."""
+    with _client() as client:
+        return client.mp_get_node(node_id)
+
+
+@mcp.tool()
+def fichero_mp_place_node(
+    room_id: str,
+    node_type: str,
+    source_id: Optional[str] = None,
+    label: str = "",
+    position_x: float = 0.0,
+    position_y: float = 0.0,
+    position_z: float = 0.0,
+    scale: float = 1.0,
+) -> Any:
+    """Place a node in a room at a 3D position.
+
+    Args:
+        room_id: The room to place the node in.
+        node_type: source / claim / note / entity / transcription.
+        source_id: Optional ID of the backing document / claim / entity.
+        label: Display label for the node.
+        position_x, position_y, position_z: 3D position (defaults to origin).
+        scale: Node scale (default 1.0).
+    """
+    with _client() as client:
+        return client.mp_place_node(
+            room_id,
+            node_type,
+            source_id=source_id,
+            label=label,
+            position_x=position_x,
+            position_y=position_y,
+            position_z=position_z,
+            scale=scale,
+        )
+
+
+@mcp.tool()
+def fichero_mp_move_node(
+    node_id: str,
+    position_x: float,
+    position_y: float,
+    position_z: float,
+    scale: Optional[float] = None,
+) -> Any:
+    """Move (and optionally rescale) a node to a new 3D position."""
+    with _client() as client:
+        return client.mp_move_node(
+            node_id, position_x, position_y, position_z, scale=scale
+        )
+
+
+@mcp.tool()
+def fichero_mp_remove_node(node_id: str) -> Any:
+    """Remove a node from its room."""
+    with _client() as client:
+        return client.mp_remove_node(node_id)
+
+
+# -- mind palace: connections ----------------------------------------------
+@mcp.tool()
+def fichero_mp_list_connections(
+    room_id: str, connection_type: Optional[str] = None
+) -> Any:
+    """List connections in a room. connection_type: evidentiary / semantic / ontological / hermeneutic / user_drawn."""
+    with _client() as client:
+        return client.mp_list_connections(
+            room_id, connection_type=connection_type
+        )
+
+
+@mcp.tool()
+def fichero_mp_create_connection(
+    room_id: str,
+    source_node_id: str,
+    target_node_id: str,
+    connection_type: str,
+    link_subtype: Optional[str] = None,
+) -> Any:
+    """Draw a typed connection between two nodes.
+
+    connection_type: evidentiary / semantic / ontological / hermeneutic / user_drawn.
+    """
+    with _client() as client:
+        return client.mp_create_connection(
+            room_id,
+            source_node_id,
+            target_node_id,
+            connection_type,
+            link_subtype=link_subtype,
+        )
+
+
+@mcp.tool()
+def fichero_mp_remove_connection(connection_id: str) -> Any:
+    """Remove a connection between nodes."""
+    with _client() as client:
+        return client.mp_remove_connection(connection_id)
+
+
+# -- mind palace: stacks ---------------------------------------------------
+@mcp.tool()
+def fichero_mp_list_stacks(room_id: str) -> Any:
+    """List stacks (grouped node piles) in a room."""
+    with _client() as client:
+        return client.mp_list_stacks(room_id)
+
+
+@mcp.tool()
+def fichero_mp_get_stack(stack_id: str) -> Any:
+    """Fetch a single stack by ID."""
+    with _client() as client:
+        return client.mp_get_stack(stack_id)
+
+
+@mcp.tool()
+def fichero_mp_create_stack(
+    room_id: str,
+    name: str = "",
+    node_ids: Optional[list[str]] = None,
+    position_x: float = 0.0,
+    position_y: float = 0.0,
+    position_z: float = 0.0,
+) -> Any:
+    """Create a stack that groups nodes together at a position."""
+    with _client() as client:
+        return client.mp_create_stack(
+            room_id,
+            name=name,
+            node_ids=node_ids,
+            position_x=position_x,
+            position_y=position_y,
+            position_z=position_z,
+        )
+
+
+@mcp.tool()
+def fichero_mp_add_to_stack(stack_id: str, node_id: str) -> Any:
+    """Add a node to an existing stack."""
+    with _client() as client:
+        return client.mp_add_to_stack(stack_id, node_id)
+
+
+@mcp.tool()
+def fichero_mp_remove_from_stack(stack_id: str, node_id: str) -> Any:
+    """Remove a node from a stack."""
+    with _client() as client:
+        return client.mp_remove_from_stack(stack_id, node_id)
+
+
+# -- mind palace: viewport / focus / arrange -------------------------------
+@mcp.tool()
+def fichero_mp_get_viewport(room_id: str, user_id: str = "user") -> Any:
+    """Get the saved camera viewport for a room."""
+    with _client() as client:
+        return client.mp_get_viewport(room_id, user_id=user_id)
+
+
+@mcp.tool()
+def fichero_mp_save_viewport(
+    room_id: str,
+    camera_x: float = 0.0,
+    camera_y: float = 0.0,
+    camera_z: float = 10.0,
+    focus_node_id: Optional[str] = None,
+    zoom_level: float = 1.0,
+    bookmark_name: Optional[str] = None,
+    user_id: str = "user",
+) -> Any:
+    """Save the camera viewport for a room, optionally as a named bookmark."""
+    with _client() as client:
+        return client.mp_save_viewport(
+            room_id,
+            user_id=user_id,
+            camera_x=camera_x,
+            camera_y=camera_y,
+            camera_z=camera_z,
+            focus_node_id=focus_node_id,
+            zoom_level=zoom_level,
+            bookmark_name=bookmark_name,
+        )
+
+
+@mcp.tool()
+def fichero_mp_focus(room_id: str, node_id: str, user_id: str = "user") -> Any:
+    """Focus the room's viewport on a specific node."""
+    with _client() as client:
+        return client.mp_focus(room_id, node_id, user_id=user_id)
+
+
+@mcp.tool()
+def fichero_mp_suggest_arrangement(
+    room_id: str,
+    node_ids: list[str],
+    arrangement_type: str = "semantic",
+) -> Any:
+    """Ask the backend to propose positions for nodes.
+
+    arrangement_type: semantic / chronological / thematic. Returns the updated
+    nodes with their suggested positions.
+    """
+    with _client() as client:
+        return client.mp_suggest_arrangement(
+            room_id, node_ids, arrangement_type=arrangement_type
+        )
 
 
 def main() -> None:
