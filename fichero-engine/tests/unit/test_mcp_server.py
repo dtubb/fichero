@@ -33,15 +33,6 @@ EXPECTED_TOOLS = {
     "fichero_document_inspector",
     "fichero_search",
     "fichero_activity",
-    # Mind Palace — the AI's spatial workspace (#1269). Backed by real
-    # FicheroClient.palace_* methods over /api/mind-palace.
-    "fichero_palace_rooms",
-    "fichero_palace_scene",
-    "fichero_palace_place_node",
-    "fichero_palace_move_node",
-    "fichero_palace_connect",
-    "fichero_palace_arrange",
-    "fichero_palace_focus",
 }
 
 
