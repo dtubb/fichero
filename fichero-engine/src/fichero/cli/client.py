@@ -70,6 +70,7 @@ from fichero.models import (
 )
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8765"
+SPLIT_CHAPTERS_WORKFLOW_NAME = "Split Chapters"
 
 # Matches fichero/api/auth.py::_token_file_path — the engine owns the writer,
 # this is the reader.
@@ -367,6 +368,21 @@ class FicheroClient:
                 },
             )
         )
+
+    def split_chapters(self, doc_id: str) -> ExecuteAcceptedResponse:
+        """Run the built-in Split Chapters workflow on ``doc_id``."""
+        workflows = self.list_workflows()
+        workflow_id: str | None = None
+        for workflow in workflows:
+            if (workflow.name or "").lower() == SPLIT_CHAPTERS_WORKFLOW_NAME.lower():
+                workflow_id = workflow.id
+                break
+        if workflow_id is None:
+            raise FicheroError(
+                "No workflow named 'Split Chapters'. Reinstall default workflows "
+                "or run `fichero workflow list` to inspect available workflows."
+            )
+        return self.run_workflow(workflow_id, {"selected_doc_ids": [doc_id]})
 
     def execution_status(self, thread_id: str) -> ExecutionStatusResponse:
         return ExecutionStatusResponse.model_validate(

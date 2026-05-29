@@ -1240,6 +1240,15 @@ def docs_kg(
     )
 
 
+@docs_app.command("split-chapters")
+def docs_split_chapters(
+    ctx: typer.Context,
+    doc_id: str = typer.Argument(..., help="Book PDF document ID."),
+) -> None:
+    """Run the Split Chapters workflow for a book PDF."""
+    _invoke(ctx, lambda c: c.split_chapters(doc_id))
+
+
 # -- artifacts (extended) --------------------------------------------------
 @artifacts_app.command("update")
 def artifacts_update(
