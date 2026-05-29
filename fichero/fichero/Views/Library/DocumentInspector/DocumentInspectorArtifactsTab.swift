@@ -1189,6 +1189,7 @@ private struct EntityKindBlock: View {
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
     @AppStorage("inspector.kg.expandedKinds") private var expandedKindsCSV: String = ""
+    @SceneStorage("inspector.kg.showAllKinds") private var showAllKindsCSV: String = ""
 
     private var isExpanded: Binding<Bool> {
         Binding(
@@ -1218,44 +1219,70 @@ private struct EntityKindBlock: View {
         expandedKindsCSV = set.sorted().joined(separator: ",")
     }
 
+    private var isShowingAll: Bool {
+        KnowledgeGraphInspectorSection.isKindStored(kind, in: showAllKindsCSV)
+    }
+
+    private func setShowingAll(_ show: Bool) {
+        var set = Set(
+            showAllKindsCSV.split(separator: ",").map(String.init)
+        )
+        if show { set.insert(kind.rawValue) } else { set.remove(kind.rawValue) }
+        showAllKindsCSV = set.sorted().joined(separator: ",")
+    }
+
+    private var visibleItems: [GroupedItem] {
+        KnowledgeGraphInspectorSection.visibleItems(items, showingAll: isShowingAll)
+    }
+
     var body: some View {
         DisclosureGroup(isExpanded: isExpanded) {
-            if kind == .concept {
-                // Keywords as wrapping lozenges. Use the same EntityLozenge
-                // component as the inspector + list-view so tap-to-search
-                // works consistently and styling is uniform across all
-                // entity rendering paths in the app. EntityKind.concept
-                // maps to the 'keywords' artifact type — pass that so
-                // taps fire `keywords:"<term>"` scoped queries.
-                FlowLayout(spacing: 4) {
-                    ForEach(items) { item in
-                        EntityLozenge(name: item.displayName, entityType: "keywords")
+            VStack(alignment: .leading, spacing: 0) {
+                if kind == .concept {
+                    // Keywords as wrapping lozenges. Use the same EntityLozenge
+                    // component as the inspector + list-view so tap-to-search
+                    // works consistently and styling is uniform across all
+                    // entity rendering paths in the app. EntityKind.concept
+                    // maps to the 'keywords' artifact type — pass that so
+                    // taps fire `keywords:"<term>"` scoped queries.
+                    FlowLayout(spacing: 4) {
+                        ForEach(visibleItems) { item in
+                            EntityLozenge(name: item.displayName, entityType: "keywords")
+                        }
+                    }
+                    .padding(.leading, 16)
+                    .padding(.top, 4)
+                    .contextMenu {
+                        Button("Copy all keywords") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(
+                                items.map(\.displayName).joined(separator: "; "),
+                                forType: .string
+                            )
+                        }
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(visibleItems) { item in
+                            EntityKindRow(
+                                item: item,
+                                kind: kind,
+                                onNavigateToSource: onNavigateToSource,
+                                onClaimSelect: onClaimSelect
+                            )
+                        }
+                    }
+                    .padding(.leading, 16)
+                    .padding(.top, 4)
+                }
+                if let title = KnowledgeGraphInspectorSection.showAllButtonTitle(
+                    itemCount: items.count,
+                    showingAll: isShowingAll
+                ) {
+                    bottomLoadMoreButton(title: title) {
+                        setShowingAll(!isShowingAll)
                     }
                 }
-                .padding(.leading, 16)
-                .padding(.top, 4)
-                .contextMenu {
-                    Button("Copy all keywords") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(
-                            items.map(\.displayName).joined(separator: "; "),
-                            forType: .string
-                        )
-                    }
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(items) { item in
-                        EntityKindRow(
-                            item: item,
-                            kind: kind,
-                            onNavigateToSource: onNavigateToSource,
-                            onClaimSelect: onClaimSelect
-                        )
-                    }
-                }
-                .padding(.leading, 16)
-                .padding(.top, 4)
             }
         } label: {
             HStack(spacing: 6) {
@@ -1271,6 +1298,43 @@ private struct EntityKindBlock: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    @ViewBuilder
+    private func bottomLoadMoreButton(title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(.caption)
+                Spacer()
+                Image(systemName: isShowingAll ? "chevron.up" : "chevron.down")
+                    .font(.caption2)
+            }
+            .foregroundStyle(.accentColor)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+    }
+}
+
+extension KnowledgeGraphInspectorSection {
+    static let groupVisibleCap = 10
+
+    static func visibleItems<T>(_ items: [T], showingAll: Bool, cap: Int = groupVisibleCap) -> [T] {
+        if showingAll || items.count <= cap { return items }
+        return Array(items.prefix(cap))
+    }
+
+    static func showAllButtonTitle(itemCount: Int, showingAll: Bool, cap: Int = groupVisibleCap) -> String? {
+        guard itemCount > cap else { return nil }
+        return showingAll ? "Show less" : "Show all (\(itemCount))"
+    }
+
+    static func isKindStored(_ kind: EntityKind, in csv: String) -> Bool {
+        csv.split(separator: ",").contains(Substring(kind.rawValue))
     }
 }
 
