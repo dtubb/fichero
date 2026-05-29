@@ -36,4 +36,49 @@ final class ClaimSummaryCardTests: XCTestCase {
 
         XCTAssertNil(info)
     }
+
+    func testSvoTriplePrefersTypedFields() throws {
+        let claim = try decodeClaim("""
+        {
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "subject_canonical": "Ada Lovelace",
+          "predicate_verb": "wrote",
+          "object_phrase": "the first algorithm"
+        }
+        """)
+
+        let svo = ClaimSummaryCard.svoTriple(for: claim)
+
+        XCTAssertEqual(svo?.subject, "Ada Lovelace")
+        XCTAssertEqual(svo?.verb, "wrote")
+        XCTAssertEqual(svo?.object, "the first algorithm")
+    }
+
+    func testSvoTripleFallsBackToLegacyMetadata() throws {
+        let claim = try decodeClaim("""
+        {
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "metadata": {
+            "subject": "Ada Lovelace",
+            "verb": "wrote",
+            "object": "the first algorithm"
+          }
+        }
+        """)
+
+        let svo = ClaimSummaryCard.svoTriple(for: claim)
+
+        XCTAssertEqual(svo?.subject, "Ada Lovelace")
+        XCTAssertEqual(svo?.verb, "wrote")
+        XCTAssertEqual(svo?.object, "the first algorithm")
+    }
+
+    private func decodeClaim(_ json: String) throws -> Components.Schemas.KnowledgeClaim {
+        let data = Data(json.utf8)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(Components.Schemas.KnowledgeClaim.self, from: data)
+    }
 }

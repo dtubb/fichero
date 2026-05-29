@@ -17,7 +17,7 @@ struct ClaimSummaryCard: View {
     @State var isLoadingDetails: Bool = false
     @State private var showEditSheet = false
 
-    private struct SVOTriple {
+    struct SVOTriple {
         let subject: String
         let verb: String
         let object: String
@@ -31,7 +31,9 @@ struct ClaimSummaryCard: View {
     /// When absent, render a "no claim text — regenerate KG" notice
     /// (Daniel's directive: "if KG is absent, we generate it"; don't
     /// fall back to `claim.text`).
-    private var svo: SVOTriple? {
+    static func svoTriple(
+        for claim: Components.Schemas.KnowledgeClaim
+    ) -> SVOTriple? {
         // Prefer the typed top-level fields (#984). Fall back to
         // claim.metadata for one release while existing claim rows
         // get backfilled.
@@ -48,6 +50,10 @@ struct ClaimSummaryCard: View {
         let metaObject = (dict["object"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !metaSubject.isEmpty, !metaVerb.isEmpty, !metaObject.isEmpty else { return nil }
         return SVOTriple(subject: metaSubject, verb: metaVerb, object: metaObject)
+    }
+
+    private var svo: SVOTriple? {
+        Self.svoTriple(for: claim)
     }
 
     /// A claim card has no useful content when it has NO SVO triple AND
