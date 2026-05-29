@@ -631,18 +631,16 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
     }
 
     /// Load KG counts for the opt-in Entities/Claims rows. Mirrors the KG
-    /// tab's claim query (include_descendants picks up page-doc claims on a
-    /// container); the entity count is the distinct set of every entity any
-    /// claim references. Counts only — no per-entity fetch (#1246).
+    /// tab's canonical document KG query so summary counts and KG rows
+    /// cannot drift across independent read paths (#1304).
     private func loadKnowledgeGraph() async {
         do {
-            let claims = try await entityService.listClaims(
-                sourceDocumentId: document.id,
-                includeDescendants: true,
-                limit: 500
+            let response = try await entityService.documentKnowledgeGraph(
+                documentId: document.id,
+                includeChildren: true
             )
-            claimCount = claims.count
-            entityCount = Set(claims.flatMap { $0.entityIds ?? [] }).count
+            claimCount = response.claimCount
+            entityCount = response.entityCount
         } catch is CancellationError {
             // Superseded by a newer selection — leave the last counts in place.
         } catch {

@@ -817,7 +817,7 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
-    @State private var entitiesById: [String: Components.Schemas.KnowledgeEntity] = [:]
+    @State private var canonicalGroups: [Components.Schemas.KGEntityGroup] = []
     @State private var isLoading = false
     @State private var loadError: String?
     @EnvironmentObject private var claimFocusState: ClaimFocusState
@@ -845,83 +845,46 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
     }
 
     private var grouped: [(EntityKind, [GroupedItem])] {
-        var byKind: [EntityKind: [GroupedItem]] = [:]
-        // Index into byKind so extra claims can be appended to existing rows.
-        var kindItemIndex: [EntityKind: [String: Int]] = [:]
-        // Dedupe within a kind by canonical key. Folder cleanup leaves
-        // multiple claims referencing the same canonical entity, plus
-        // absorbed entities still carry their old claims — we collapse
-        // both into one row per canonical name (or per claim text for
-        // date-only claims that have no entity).
-        // When the same entity has multiple DISTINCT substantive claims,
-        // accumulate them in extraClaims so all SVOs are visible (#1109).
+        var claimById: [String: Components.Schemas.KnowledgeClaim] = [:]
         for claim in claims {
-            let entityId = claim.entityIds?.first
-            let entity = entityId.flatMap { entitiesById[$0] }
-
-            // Skip absorbed entities — folder_cleanup merged them into a
-            // canonical, but the original claims still exist in the DB.
-            // The canonical entity's claims will represent them.
-            if let merged = entity?.mergedIntoId, !merged.isEmpty {
-                continue
-            }
-
-            // Skip tautological "is a [entity_type]" claims emitted by
-            // the NER step to assert entity kind — they carry no
-            // knowledge content and pollute the inspector (#1109).
-            let predVerb = (claim.predicateVerb ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            let objPhrase = (claim.objectPhrase ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if predVerb == "is" && (objPhrase.hasPrefix("a ") || objPhrase.hasPrefix("an ")) {
-                continue
-            }
-
-            let kind = entity.flatMap { EntityKind(apiType: $0.entityType) } ?? .date
-            let displayName = entity?.canonicalName ?? claim.text
-            let key = displayName
-
-            let excerpt = claim.sourceExcerpt?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let context = entity?.description?.trimmingCharacters(in: .whitespacesAndNewlines)
-                ?? excerpt
-                ?? claim.text
-
-            if let existingIdx = kindItemIndex[kind]?[key] {
-                // Entity already has a row — accumulate as extra SVO (#1109).
-                let extra = GroupedItem.ExtraClaim(
-                    claimId: claim.id ?? UUID().uuidString,
-                    context: context,
-                    sourceDocumentId: claim.sourceDocumentId,
-                    sourcePageLabel: claim.sourcePageLabel,
-                    sourceExcerpt: excerpt
-                )
-                byKind[kind]![existingIdx].extraClaims.append(extra)
-            } else {
-                // Prefer the entity's curated description (set by the
-                // extractor from `contexto`) over the raw claim source
-                // excerpt — it's a one-line role/role-in-document blurb
-                // and is what the user wants ("a little bit of information
-                // about them"). Falls back to claim.sourceExcerpt then
-                // claim.text so date claims (no entity) still render.
-                let item = GroupedItem(
-                    claimId: claim.id ?? UUID().uuidString,
-                    displayName: displayName,
-                    context: context,
-                    aliases: entity?.aliases ?? [],
-                    sourceDocumentId: claim.sourceDocumentId,
-                    sourcePageLabel: claim.sourcePageLabel,
-                    sourceExcerpt: excerpt
-                )
-                let idx = byKind[kind, default: []].count
-                byKind[kind, default: []].append(item)
-                kindItemIndex[kind, default: [:]][key] = idx
+            if let id = claim.id {
+                claimById[id] = claim
             }
         }
         let hidden = hiddenKinds
-        return EntityKind.displayOrder
-            .compactMap { kind in
-                guard !hidden.contains(kind) else { return nil }
-                guard let items = byKind[kind], !items.isEmpty else { return nil }
-                return (kind, items)
+        return canonicalGroups.compactMap { group in
+            guard let kind = EntityKind(groupKind: group.kind), !hidden.contains(kind) else { return nil }
+            var items: [GroupedItem] = []
+            for item in group.items {
+                guard let firstClaimId = item.claimIds.first else { continue }
+                let firstClaim = claimById[firstClaimId]
+                let primaryContext = (item.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let excerpt = (item.sourceExcerpt ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let context = !primaryContext.isEmpty ? primaryContext : (!excerpt.isEmpty ? excerpt : (firstClaim?.text ?? item.canonicalName))
+                let extraClaims: [GroupedItem.ExtraClaim] = item.claimIds.dropFirst().compactMap { claimId in
+                    let claim = claimById[claimId]
+                    return GroupedItem.ExtraClaim(
+                        claimId: claimId,
+                        context: claim?.text ?? context,
+                        sourceDocumentId: claim?.sourceDocumentId ?? item.sourceDocumentId,
+                        sourcePageLabel: claim?.sourcePageLabel ?? item.sourcePageLabel,
+                        sourceExcerpt: claim?.sourceExcerpt ?? item.sourceExcerpt
+                    )
+                }
+                items.append(GroupedItem(
+                    claimId: firstClaimId,
+                    displayName: item.canonicalName,
+                    context: context,
+                    aliases: item.aliases,
+                    sourceDocumentId: item.sourceDocumentId,
+                    sourcePageLabel: item.sourcePageLabel,
+                    sourceExcerpt: item.sourceExcerpt,
+                    extraClaims: extraClaims
+                ))
             }
+            guard !items.isEmpty else { return nil }
+            return (kind, items)
+        }
     }
 
     // MARK: - Text digest data
@@ -940,55 +903,12 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
     }
 
     private var textDigest: [(EntityKind, [TextDigestEntry])] {
-        var byEntity: [String: EntityAccumulator] = [:]
-        let hidden = hiddenKinds
-
-        for claim in claims {
-            let entityId = claim.entityIds?.first
-            let entity = entityId.flatMap { entitiesById[$0] }
-
-            if let merged = entity?.mergedIntoId, !merged.isEmpty { continue }
-
-            let predVerb = (claim.predicateVerb ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            let objPhrase = (claim.objectPhrase ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if predVerb == "is" && (objPhrase.hasPrefix("a ") || objPhrase.hasPrefix("an ")) { continue }
-
-            let kind = entity.flatMap { EntityKind(apiType: $0.entityType) } ?? .date
-            guard !hidden.contains(kind) else { continue }
-
-            let displayName = entity?.canonicalName ?? claim.text
-            let key = entityId ?? displayName
-
-            let svo: String
-            if !predVerb.isEmpty && !objPhrase.isEmpty {
-                svo = "\(predVerb) \(objPhrase)"
-            } else if !predVerb.isEmpty {
-                svo = predVerb
-            } else if !claim.text.isEmpty {
-                svo = claim.text
-            } else {
-                continue
+        grouped.map { kind, items in
+            let entries = items.map { item in
+                let lines = [item.context] + item.extraClaims.map(\.context)
+                return TextDigestEntry(displayName: item.displayName, kind: kind, svoLines: lines)
             }
-
-            if byEntity[key] == nil {
-                byEntity[key] = EntityAccumulator(kind: kind, displayName: displayName, svoLines: [svo])
-            } else {
-                byEntity[key]!.svoLines.append(svo)
-            }
-        }
-
-        var byKind: [EntityKind: [TextDigestEntry]] = [:]
-        for (_, accumulator) in byEntity {
-            let entry = TextDigestEntry(
-                displayName: accumulator.displayName, kind: accumulator.kind, svoLines: accumulator.svoLines
-            )
-            byKind[accumulator.kind, default: []].append(entry)
-        }
-
-        return EntityKind.displayOrder.compactMap { kind in
-            guard !hidden.contains(kind) else { return nil }
-            guard let entries = byKind[kind], !entries.isEmpty else { return nil }
-            return (kind, entries.sorted { $0.displayName < $1.displayName })
+            return (kind, entries)
         }
     }
 
@@ -1128,33 +1048,18 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
         defer { isLoading = false }
 
         do {
-            // include_descendants=true picks up the page-doc claims that
-            // extract_all writes when this doc is a folder/group container
-            // (#826). For leaf docs the BFS just returns the doc itself,
-            // so the result is identical to the non-descendant query —
-            // no extra cost to always pass it.
-            let docClaims = try await entityService.listClaims(
-                sourceDocumentId: documentId,
-                includeDescendants: true,
-                limit: 500
+            let response = try await entityService.documentKnowledgeGraph(
+                documentId: documentId,
+                includeChildren: true
             )
-            claims = docClaims
-
-            // Resolve referenced entities. Bounded: max one per claim.
-            let entityIds = Set(docClaims.compactMap { $0.entityIds?.first })
-            var fetched: [String: Components.Schemas.KnowledgeEntity] = [:]
-            for id in entityIds {
-                if let entity = try? await entityService.getEntity(id) {
-                    fetched[id] = entity
-                }
-            }
-            entitiesById = fetched
+            claims = response.claims
+            canonicalGroups = response.groups
         } catch is CancellationError {
             // Task superseded by a newer page selection — not a load failure.
         } catch {
             loadError = "Couldn't load: \(error.localizedDescription)"
             claims = []
-            entitiesById = [:]
+            canonicalGroups = []
         }
     }
 }
@@ -1216,6 +1121,10 @@ private enum EntityKind: String, Hashable, CaseIterable {
         case .concept:      self = .concept
         case .other:        self = .other
         }
+    }
+
+    init?(groupKind: String) {
+        self.init(rawValue: groupKind.lowercased())
     }
 
     var label: String {

@@ -474,6 +474,31 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    /// Canonical document knowledge-graph endpoint.
+    ///
+    /// Single source of truth for grouped/deduped per-document KG reads:
+    /// GET /api/documents/{id}/knowledge-graph
+    func documentKnowledgeGraph(
+        documentId: String,
+        includeChildren: Bool = true
+    ) async throws -> Components.Schemas.DocumentKnowledgeGraphResponse {
+        let response = try await client.api.knowledgeGraphApiDocumentsDocumentIdKnowledgeGraphGet(
+            path: .init(documentId: documentId),
+            query: .init(includeChildren: includeChildren),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     // MARK: - KG analytics (post 1587a1b6 namespace consolidation)
 
     /// Get contradiction evidence for a claim.
