@@ -1,7 +1,9 @@
 """Unit tests for the Clean Up Text workflow tool.
 
-The tool itself is LLM-driven (covered by process_text integration paths),
-so these tests focus on the deterministic, user-editable surface:
+The tool defaults to deterministic programmatic cleanup and supports an
+explicit LLM mode for opt-in behavior.
+
+These tests focus on:
 
   * the prompt builder honours each aspect toggle,
   * meaning-preservation guardrails are always present,
@@ -10,14 +12,20 @@ so these tests focus on the deterministic, user-editable surface:
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
 # Importing the package registers every tool via @register_tool.
 import fichero.workflows.tools  # noqa: F401
 from fichero.workflows.registry import TOOLS, TOOL_DEFS
 from fichero.workflows.tools.clean_text import (
     CLEAN_TEXT_CONFIG,
     build_clean_text_prompt,
+    clean_text,
     _build_prompt,
 )
+from fichero.llm import LLMConfig
 
 
 # Substrings that uniquely identify each aspect's instruction line.
@@ -117,6 +125,7 @@ class TestRegistration:
         assert "model_name" in schema
         # Full prompt override.
         assert "prompt" in schema
+        assert "cleaning_method" in schema
         # Aspect toggles.
         for key in CLEAN_TEXT_CONFIG:
             assert key in schema
@@ -130,3 +139,31 @@ class TestRegistration:
         # Output exposes a text port for downstream chaining.
         out_ids = {p.id for p in tool_def.output_ports}
         assert "text" in out_ids
+
+
+class TestRuntimeBehavior:
+    @pytest.mark.asyncio
+    async def test_programmatic_is_default_and_does_not_call_llm(self):
+        cfg = LLMConfig(provider="openai", model="gpt-5")
+        with patch("fichero.workflows.tools.clean_text.process_text", new=AsyncMock()) as mock_process:
+            result = await clean_text(
+                inputs={"text": "hello hello world", "save_to_db": False},
+                state={},
+                llm_config=cfg,
+            )
+        mock_process.assert_not_awaited()
+        assert "error" not in result
+        assert result["text"] == "hello world"
+
+    @pytest.mark.asyncio
+    async def test_explicit_llm_method_calls_process_text(self):
+        cfg = LLMConfig(provider="openai", model="gpt-5")
+        expected = {"text": "cleaned", "value": "cleaned", "texts": ["cleaned"], "values": ["cleaned"], "results": [], "artifacts": [], "output_files": []}
+        with patch("fichero.workflows.tools.clean_text.process_text", new=AsyncMock(return_value=expected)) as mock_process:
+            result = await clean_text(
+                inputs={"text": "raw", "cleaning_method": "llm", "save_to_db": False},
+                state={},
+                llm_config=cfg,
+            )
+        mock_process.assert_awaited_once()
+        assert result["text"] == "cleaned"
