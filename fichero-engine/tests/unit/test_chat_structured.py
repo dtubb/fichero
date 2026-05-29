@@ -351,6 +351,27 @@ class TestChatStructuredDispatch:
         )
 
     @pytest.mark.asyncio
+    async def test_omlx_uses_provider_default_structured_method(self):
+        """Local OpenAI-compatible providers (omlx/lmstudio/ollama) don't
+        reliably support json_schema/function_calling. We should not
+        force a method; LangChain's default path must be used."""
+        cfg = LLMConfig(provider="omlx", model="Qwen3-VL-4B-Instruct-MLX-8bit")
+
+        invoke_result = _Result(answer="ok")
+        structured_model = MagicMock()
+        structured_model.ainvoke = AsyncMock(return_value=invoke_result)
+        base_model = MagicMock()
+        base_model.profile = {"structured_output": True}
+        base_model.with_structured_output = MagicMock(return_value=structured_model)
+
+        with patch("fichero.llm.get_langchain_model", return_value=base_model):
+            await chat_structured(prompt="hi", schema=_Result, config=cfg)
+
+        base_model.with_structured_output.assert_called_once_with(
+            _Result, include_raw=True
+        )
+
+    @pytest.mark.asyncio
     async def test_include_raw_dict_unwraps_to_parsed(self, caplog):
         """include_raw=True returns {raw, parsed, parsing_error}.
         chat_structured must unwrap the parsed instance and log

@@ -1519,28 +1519,38 @@ async def chat_structured(
 
     model = get_langchain_model(config)
 
-    # Profile-driven method selection (#844 item 7). LangChain ≥1.1
-    # exposes `model.profile` — a dict of capability flags powered by
-    # models.dev. When the model reports native structured output
-    # (`structured_output: True`), use json_schema mode: faster,
-    # one round-trip, no tool-message overhead. Otherwise fall back
-    # to function_calling, the lowest-common-denominator that every
-    # tool-capable provider supports (OpenRouter-routed models that
-    # advertise structured_output but don't actually support strict
-    # mode silently degrade on json_schema; function_calling is safer).
-    profile = getattr(model, "profile", None)
-    if isinstance(profile, dict) and profile.get("structured_output"):
-        method = "json_schema"
+    # Some local OpenAI-compatible servers (omlx/lmstudio/ollama) do
+    # not implement tool-calling or response_format=json_schema. Let
+    # LangChain pick its provider-default strategy there (typically
+    # prompt-embedded schema + parse), which is the path that works.
+    # Other providers keep explicit profile-driven method selection.
+    method: str | None
+    if config.provider.lower() in {"omlx", "lmstudio", "ollama"}:
+        method = None
     else:
-        method = "function_calling"
+        # Profile-driven method selection (#844 item 7). LangChain ≥1.1
+        # exposes `model.profile` — a dict of capability flags powered by
+        # models.dev. When the model reports native structured output
+        # (`structured_output: True`), use json_schema mode: faster,
+        # one round-trip, no tool-message overhead. Otherwise fall back
+        # to function_calling, the lowest-common-denominator that every
+        # tool-capable provider supports (OpenRouter-routed models that
+        # advertise structured_output but don't actually support strict
+        # mode silently degrade on json_schema; function_calling is safer).
+        profile = getattr(model, "profile", None)
+        if isinstance(profile, dict) and profile.get("structured_output"):
+            method = "json_schema"
+        else:
+            method = "function_calling"
     # include_raw=True returns a dict with both the parsed Pydantic
     # instance and the raw AIMessage so we can surface usage_metadata
     # (token counts, finish reason) alongside the parsed result. Without
     # this the structured path was invisible to cost tracking — token
     # counts only flowed through plain chat() (#844 item 8).
-    structured_model = model.with_structured_output(
-        schema, method=method, include_raw=True,
-    )
+    structured_kwargs: dict[str, Any] = {"include_raw": True}
+    if method is not None:
+        structured_kwargs["method"] = method
+    structured_model = model.with_structured_output(schema, **structured_kwargs)
 
     messages: list[Any] = []
     if system:
