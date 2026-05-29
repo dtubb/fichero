@@ -253,6 +253,7 @@ struct SidebarItemRow: View {
         return String(trimmed.split(separator: "/").last ?? Substring(trimmed))
     }
 
+    // swiftlint:disable function_body_length
     /// Run a workflow on this sidebar document via the same SSE path that
     /// ContentView's toolbar/menubar/grid-context-menu use. Previously this
     /// went through BatchService.createBatch + executeBatch, which produced
@@ -260,7 +261,7 @@ struct SidebarItemRow: View {
     /// path doesn't notify executionObserver), so users reported "context
     /// menu Run Workflow doesn't work" while the toolbar one did. Converging
     /// on the SSE path is #694's fix.
-    private func runWorkflowOnDocument(workflowId: String, docId: String) { // swiftlint:disable:this function_body_length
+    private func runWorkflowOnDocument(workflowId: String, docId: String) {
         guard let library = library else {
             sidebarRowLogger.error("runWorkflowOnDocument: no library reference")
             return
@@ -313,6 +314,7 @@ struct SidebarItemRow: View {
             }
         }
     }
+    // swiftlint:enable function_body_length
 
     private func handleSidebarWorkflowEvent(
         _ event: WorkflowStreamEvent,

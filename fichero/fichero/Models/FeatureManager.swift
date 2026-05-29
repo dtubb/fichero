@@ -196,7 +196,7 @@ class FeatureManager: ObservableObject {
         integrationsEnabledInternal = false
         activityEnabledInternal = true
         // Mind Palace is ON during dev so Daniel can see the full feature and
-        // flip it off if it's not ready. TODO: revisit the release default
+        // flip it off if it's not ready. NOTE: revisit the release default
         // before shipping 0.0.2 — likely OFF until the spatial UX is signed off.
         mindPalaceEnabledInternal = true
 

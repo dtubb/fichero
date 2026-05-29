@@ -114,7 +114,8 @@ extension ClaimSummaryCard {
                     let linkCount = chain.relatedClaims.count
                     let sourceCount = chain.sources.count
                     Label(
-                        "\(sourceCount) source\(sourceCount == 1 ? "" : "s"), \(linkCount) related claim\(linkCount == 1 ? "" : "s")",
+                        "\(sourceCount) source\(sourceCount == 1 ? "" : "s"), "
+                        + "\(linkCount) related claim\(linkCount == 1 ? "" : "s")",
                         systemImage: "link"
                     )
                     .font(.caption2)

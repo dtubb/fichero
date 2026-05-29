@@ -28,7 +28,10 @@ struct EntityMergeSheet: View {
                 Section {
                     Text("Absorbing entity: **\(absorbingEntity.canonicalName)**")
                         .font(.body)
-                    Text("Selected entities will be merged into it. Their claims will be re-pointed and their aliases merged.")
+                    Text(
+                        "Selected entities will be merged into it. "
+                        + "Their claims will be re-pointed and their aliases merged."
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -218,7 +218,10 @@ private struct SidebarDeleteAlertsModifier: ViewModifier {
                    case .document(let doc) = item.itemType,
                    doc.isLinked,
                    let path = doc.path {
-                    Text("Remove the Fichero reference to \"\(item.name)\"? The original file at \(path) will stay on disk.")
+                    Text(
+                        "Remove the Fichero reference to \"\(item.name)\"? "
+                        + "The original file at \(path) will stay on disk."
+                    )
                 } else {
                     Text("This action cannot be undone.")
                 }

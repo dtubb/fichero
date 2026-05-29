@@ -103,7 +103,9 @@ extension ContentView {
                 do {
                     target = try await documentStore.api.get("/documents/\(sourceDocId)/parent")
                 } catch {
-                    workflowLogger.warning("navigateToSourcePage: couldn't fetch parent for \(sourceDocId): \(error.localizedDescription)")
+                    workflowLogger.warning(
+                        "navigateToSourcePage: couldn't fetch parent for \(sourceDocId): \(error.localizedDescription)"
+                    )
                     return
                 }
             }

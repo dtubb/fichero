@@ -172,7 +172,9 @@ class WorkflowExecutionObserver {
                     self.completedExecutions[workflowId] = finished
                     workflowExecutionLogger.info("Archived completed execution: \(workflowId)")
                 } else {
-                    workflowExecutionLogger.warning("endExecution archive: \(workflowId) already removed — possible double-completion")
+                    workflowExecutionLogger.warning(
+                        "endExecution archive: \(workflowId) already removed — possible double-completion"
+                    )
                 }
             }
         }

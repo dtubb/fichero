@@ -21,7 +21,9 @@ extension SidebarItemRow {
         _ providers: [NSItemProvider],
         targetFolder: SidebarItem?
     ) -> Bool {
-        sidebarRowLogger.debug("📦 handleProvidersDrop: \(providers.count) provider(s), target=\(targetFolder?.name ?? "root")")
+        sidebarRowLogger.debug(
+            "📦 handleProvidersDrop: \(providers.count) provider(s), target=\(targetFolder?.name ?? "root")"
+        )
         guard !providers.isEmpty else {
             sidebarRowLogger.warning("  ⚠️ no providers")
             return false
@@ -95,7 +97,9 @@ extension SidebarItemRow {
                 sidebarRowLogger.debug("  ✅ direct URL load succeeded: \(url.lastPathComponent) [\(url.pathExtension)]")
                 return url
             } catch {
-                sidebarRowLogger.warning("  ⚠️ direct URL load failed despite canLoadObject=true: \(error.localizedDescription)")
+                sidebarRowLogger.warning(
+                    "  ⚠️ direct URL load failed despite canLoadObject=true: \(error.localizedDescription)"
+                )
                 // Fall through to representation-based fallback rather than throwing,
                 // in case the provider lied about canLoadObject (seen with some .mov drags).
             }
@@ -130,7 +134,9 @@ extension SidebarItemRow {
                 sidebarRowLogger.debug("    ✗ representation failed for UTI \(identifier)")
             }
         }
-        sidebarRowLogger.warning("  ✗ all \(utis.count) UTI representation(s) failed; UTIs=[\(utis.joined(separator: ", "))]")
+        sidebarRowLogger.warning(
+            "  ✗ all \(utis.count) UTI representation(s) failed; UTIs=[\(utis.joined(separator: ", "))]"
+        )
         throw NSError(
             domain: "SidebarDrop",
             code: -1,
@@ -156,12 +162,15 @@ extension SidebarItemRow {
                 forTypeIdentifier: typeIdentifier
             ) { temporaryURL, error in
                 if let error {
+                    // swiftlint:disable:next line_length
                     sidebarRowLogger.debug("      loadFileRepresentation(\(typeIdentifier)) callback error: \(error.localizedDescription)")
                     continuation.resume(throwing: error)
                     return
                 }
                 guard let temporaryURL else {
-                    sidebarRowLogger.debug("      loadFileRepresentation(\(typeIdentifier)) callback: nil URL, no error")
+                    sidebarRowLogger.debug(
+                        "      loadFileRepresentation(\(typeIdentifier)) callback: nil URL, no error"
+                    )
                     continuation.resume(throwing: NSError(
                         domain: "SidebarDrop",
                         code: -2,
@@ -240,7 +249,9 @@ extension SidebarItemRow {
                 if let targetFolderId {
                     sidebarRowLogger.debug("✅ Imported \(fileURLs.count) external file(s) to folder \(targetFolderId)")
                 } else {
-                    sidebarRowLogger.debug("✅ Imported \(fileURLs.count) external file(s) to library root (no Inbox found)")
+                    sidebarRowLogger.debug(
+                        "✅ Imported \(fileURLs.count) external file(s) to library root (no Inbox found)"
+                    )
                 }
                 // Clean up fichero-drop-UUID temp dirs created by loadFileRepresentation.
                 for url in fileURLs where url.path.contains("/fichero-drop-") {
@@ -283,6 +294,7 @@ extension SidebarItemRow {
 
         for itemID in itemIDs {
             let sourceKind = SidebarItemKind(prefixedId: itemID)
+            // swiftlint:disable:next line_length
             sidebarRowLogger.debug(" Moving item \(itemID) (kind=\(String(describing: sourceKind))) to be sibling of \(targetItem.name)")
 
             // The sibling-reparent call path goes through

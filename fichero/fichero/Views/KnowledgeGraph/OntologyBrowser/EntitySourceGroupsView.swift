@@ -176,9 +176,9 @@ struct EntitySourceGroupsView: View {
         var order: [SourceGroupKey] = []
         var map: [SourceGroupKey: [Components.Schemas.KnowledgeClaim]] = [:]
 
-        for claim in data.claims ?? [] {
+        for claim in data.claims {
             let key = SourceGroupKey(
-                docId: claim.sourceDocumentId ?? "",
+                docId: claim.sourceDocumentId,
                 page: claim.sourcePageLabel ?? ""
             )
             if map[key] == nil {
@@ -193,9 +193,9 @@ struct EntitySourceGroupsView: View {
         _ data: Components.Schemas.EntityInspectorResponse
     ) -> [String: String] {
         var names: [String: String] = [:]
-        for doc in data.documents ?? [] {
+        for doc in data.documents {
             if let docId = doc.id {
-                names[docId] = doc.name ?? String(docId.prefix(8))
+                names[docId] = doc.name
             }
         }
         return names

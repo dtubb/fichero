@@ -91,8 +91,12 @@ class ResearchService: ObservableObject {
         isLoading = false
     }
 
-    func createProject(name: String, description: String = "", folderDestinationId: String? = nil) async throws -> ResearchProject {
-        let req = ProjectCreateRequest(name: name, description: description, libraryDestinationFolderId: folderDestinationId)
+    func createProject(
+        name: String, description: String = "", folderDestinationId: String? = nil
+    ) async throws -> ResearchProject {
+        let req = ProjectCreateRequest(
+            name: name, description: description, libraryDestinationFolderId: folderDestinationId
+        )
         let project: ResearchProject = try await apiClient.post("/api/research/projects", body: req)
         projects.append(project)
         return project
@@ -119,21 +123,27 @@ class ResearchService: ObservableObject {
     // MARK: - Plans
 
     func loadPlans(projectId: String) async throws -> [ResearchPlan] {
-        let response: ResearchListResponse<ResearchPlan> = try await apiClient.get("/api/research/projects/\(projectId)/plans")
+        let response: ResearchListResponse<ResearchPlan> = try await apiClient.get(
+            "/api/research/projects/\(projectId)/plans"
+        )
         return response.items
     }
 
     // MARK: - Tasks
 
     func loadTasks(projectId: String) async throws -> [ResearchTask] {
-        let response: ResearchListResponse<ResearchTask> = try await apiClient.get("/api/research/projects/\(projectId)/tasks")
+        let response: ResearchListResponse<ResearchTask> = try await apiClient.get(
+            "/api/research/projects/\(projectId)/tasks"
+        )
         return response.items
     }
 
     // MARK: - Notes
 
     func loadNotes(projectId: String) async throws -> [ResearchNote] {
-        let response: ResearchListResponse<ResearchNote> = try await apiClient.get("/api/research/projects/\(projectId)/notes")
+        let response: ResearchListResponse<ResearchNote> = try await apiClient.get(
+            "/api/research/projects/\(projectId)/notes"
+        )
         return response.items
     }
 
@@ -141,7 +151,9 @@ class ResearchService: ObservableObject {
         projectId: String, content: String, taskId: String? = nil,
         noteType: String = "observation", tags: [String] = []
     ) async throws -> ResearchNote {
-        let req = NoteCreateRequest(projectId: projectId, taskId: taskId, noteType: noteType, content: content, tags: tags)
+        let req = NoteCreateRequest(
+            projectId: projectId, taskId: taskId, noteType: noteType, content: content, tags: tags
+        )
         // Backend create-note route is POST /api/research/notes (project_id is
         // carried in the body, not the path). See research_notes.py.
         return try await apiClient.post("/api/research/notes", body: req)
@@ -150,7 +162,9 @@ class ResearchService: ObservableObject {
     // MARK: - Sources
 
     func loadSources(projectId: String) async throws -> [ResearchSource] {
-        let response: ResearchListResponse<ResearchSource> = try await apiClient.get("/api/research/projects/\(projectId)/sources")
+        let response: ResearchListResponse<ResearchSource> = try await apiClient.get(
+            "/api/research/projects/\(projectId)/sources"
+        )
         return response.items
     }
 
@@ -167,7 +181,9 @@ class ResearchService: ObservableObject {
     func browserSave(
         url: String, projectId: String, suggestedName: String? = nil, parentFolderId: String? = nil
     ) async throws -> BrowserSaveResponse {
-        let req = BrowserSaveRequest(url: url, projectId: projectId, suggestedName: suggestedName, parentFolderId: parentFolderId)
+        let req = BrowserSaveRequest(
+            url: url, projectId: projectId, suggestedName: suggestedName, parentFolderId: parentFolderId
+        )
         return try await apiClient.post("/api/research/tools/browser-save", body: req)
     }
 }

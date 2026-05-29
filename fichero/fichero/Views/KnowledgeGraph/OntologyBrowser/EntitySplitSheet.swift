@@ -26,7 +26,10 @@ struct EntitySplitSheet: View {
             Form {
                 Section {
                     Text("Primary entity: **\(primaryEntity.canonicalName)**")
-                    Text("Select entities to split off (un-merge). Their merged_into_id will be cleared, making them independent again.")
+                    Text(
+                        "Select entities to split off (un-merge). "
+                        + "Their merged_into_id will be cleared, making them independent again."
+                    )
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

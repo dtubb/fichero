@@ -54,7 +54,10 @@ struct SearchResultsEmptyState: View {
                     }
                     .buttonStyle(.borderedProminent)
                 } else {
-                    Text("Type a query in the toolbar (⌘F) to search across\nall transcribed documents in this library.")
+                    Text(
+                        "Type a query in the toolbar (⌘F) to search across\n"
+                        + "all transcribed documents in this library."
+                    )
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -74,7 +77,9 @@ struct SearchResultsEmptyState: View {
                                         onKeywordTap?(entry.name)
                                     } label: {
                                         Text(entry.name)
-                                            .font(.system(size: SearchResultsDisplay.fontSize(for: entry, cloud: keywordCloud)))
+                                            .font(.system(
+                                                size: SearchResultsDisplay.fontSize(for: entry, cloud: keywordCloud)
+                                            ))
                                             .padding(.horizontal, 10)
                                             .padding(.vertical, 4)
                                             .background(Capsule().fill(Color.accentColor.opacity(0.10)))

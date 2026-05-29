@@ -87,7 +87,9 @@ final class ImageEditorModel: ObservableObject {
     // MARK: - Operations
 
     func rotate(by degrees: Double) async {
-        await runOp { service in try await service.rotate(documentId: self.documentId, angle: degrees, page: self.page) }
+        await runOp { service in
+            try await service.rotate(documentId: self.documentId, angle: degrees, page: self.page)
+        }
     }
 
     func enhance(brightness: Double, contrast: Double, sharpen: Double, autoLevels: Bool) async {

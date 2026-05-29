@@ -51,7 +51,11 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
                     Text(hasHiddenTranscription ? "Transcription available" : "No artifacts yet")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text(hasHiddenTranscription ? "See the Content tab to view it" : "Run a workflow to generate artifacts")
+                    Text(
+                        hasHiddenTranscription
+                            ? "See the Content tab to view it"
+                            : "Run a workflow to generate artifacts"
+                    )
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .multilineTextAlignment(.center)
@@ -975,7 +979,9 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
 
         var byKind: [EntityKind: [TextDigestEntry]] = [:]
         for (_, accumulator) in byEntity {
-            let entry = TextDigestEntry(displayName: accumulator.displayName, kind: accumulator.kind, svoLines: accumulator.svoLines)
+            let entry = TextDigestEntry(
+                displayName: accumulator.displayName, kind: accumulator.kind, svoLines: accumulator.svoLines
+            )
             byKind[accumulator.kind, default: []].append(entry)
         }
 
@@ -1383,7 +1389,9 @@ private struct EntityKindRow: View {
                 Button(action: fireEntitySearch) {
                     Text(item.displayName)
                         .font(.body)
-                        .foregroundStyle(claimFocusState.isClaimSelected(item.claimId) ? Color.accentColor : Color.primary)
+                        .foregroundStyle(
+                            claimFocusState.isClaimSelected(item.claimId) ? Color.accentColor : Color.primary
+                        )
                 }
                 .buttonStyle(.plain)
                 .help("Search for \"\(item.displayName)\"")
@@ -1407,7 +1415,9 @@ private struct EntityKindRow: View {
                     }, label: {
                         Image(systemName: claimFocusState.isClaimSelected(item.claimId) ? "star.fill" : "star")
                             .font(.system(size: 12))
-                            .foregroundStyle(claimFocusState.isClaimSelected(item.claimId) ? Color.accentColor : Color.secondary)
+                            .foregroundStyle(
+                                claimFocusState.isClaimSelected(item.claimId) ? Color.accentColor : Color.secondary
+                            )
                     })
                     .buttonStyle(.plain)
                     .help(

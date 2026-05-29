@@ -1274,7 +1274,9 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
                 // Try to parse as JSON first for structured data
                 if let jsonData = content.data(using: .utf8),
                    let jsonObject = try? JSONSerialization.jsonObject(with: jsonData, options: []),
-                   let formattedJSON = try? JSONSerialization.data(withJSONObject: jsonObject, options: [.prettyPrinted]) {
+                   let formattedJSON = try? JSONSerialization.data(
+                       withJSONObject: jsonObject, options: [.prettyPrinted]
+                   ) {
                     if let formattedString = String(data: formattedJSON, encoding: .utf8) {
                         ScrollView {
                             Text(formattedString)

@@ -250,7 +250,8 @@ struct EntityDigestContent: View {
     }
 
     private func provenanceItem(docId: String, claims: [Components.Schemas.KnowledgeClaim]) -> some View {
-        let docName = LibraryManager.shared.globalLibrary?.documentStore.currentDocuments.first(where: { $0.id == docId })?.name ?? docId
+        let docName = LibraryManager.shared.globalLibrary?.documentStore
+            .currentDocuments.first(where: { $0.id == docId })?.name ?? docId
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack {

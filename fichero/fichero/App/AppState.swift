@@ -119,7 +119,9 @@ class AppState: ObservableObject {
         heartbeatFailureCount += 1
         guard heartbeatFailureCount >= offlineFlipThreshold else { return }
         if isBackendRunning {
-            logger.warning("Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures — flipping offline (\(reason))")
+            logger.warning(
+                "Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures — flipping offline (\(reason))"
+            )
             isBackendRunning = false
             backendError = """
                 Lost connection to the Fichero engine.

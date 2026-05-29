@@ -304,10 +304,10 @@ extension LibraryView {
         guard !selectedDocumentIdsForBatch.isEmpty else { return }
 
         let docIds = selectedDocumentIdsForBatch
-        let activeWorkflows = libraryManager.getLibrary(id: windowState.libraryId)?.workflowStore.workflows
-        let globalWorkflows = libraryManager.globalLibrary?.workflowStore.workflows
+        let library = libraryManager.getLibrary(id: windowState.libraryId)
+        let activeWorkflows = library?.workflowStore.workflows
         let workflowName = activeWorkflows?.first(where: { $0.id == workflowId })?.name
-            ?? globalWorkflows?.first(where: { $0.id == workflowId })?.name
+            ?? libraryManager.globalLibrary?.workflowStore.workflows.first(where: { $0.id == workflowId })?.name
             ?? workflowId
 
         logger.info("Starting SSE workflow \(workflowId) on \(docIds.count) documents via context menu")
@@ -317,7 +317,7 @@ extension LibraryView {
             let response = try await workflowStreamService.execute(
                 workflowId: workflowId,
                 inputs: ["selected_doc_ids": docIds],
-                onEvent: { [weak documentStore = libraryManager.getLibrary(id: windowState.libraryId)?.documentStore] event in
+                onEvent: { [weak documentStore = library?.documentStore] event in
                     if handleBatchWorkflowEvent(
                         event,
                         workflowId: workflowId,

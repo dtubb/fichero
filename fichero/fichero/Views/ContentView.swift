@@ -472,7 +472,10 @@ struct ContentView: View {
                                 Label("Run Workflow", systemImage: "play.square.stack")
                             }
                             .help("Run Workflow on Selection or Collection")
-                            .disabled(workflowStore.workflows.isEmpty || (capturedSelectionIds.isEmpty && !hasCollection))
+                            .disabled(
+                                workflowStore.workflows.isEmpty
+                                || (capturedSelectionIds.isEmpty && !hasCollection)
+                            )
                         }
                     }
                 }
