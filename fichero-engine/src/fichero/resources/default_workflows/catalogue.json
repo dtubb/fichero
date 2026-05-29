@@ -56,6 +56,17 @@
       "config": {}
     },
     {
+      "id": "citations_extract",
+      "tool": "citations_extract",
+      "label": "Extract Citations",
+      "position_x": 560,
+      "position_y": 680,
+      "inputs": {},
+      "config": {
+        "provider_name": "$medium"
+      }
+    },
+    {
       "id": "people_folder_clean",
       "tool": "people_folder_cleanup",
       "label": "Clean People (folder)",
@@ -183,6 +194,20 @@
       "target_port": "kg_payload"
     },
     {
+      "id": "e-files-citations-documents",
+      "source": "files-source",
+      "target": "citations_extract",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "e-transcribe-citations-text",
+      "source": "transcribe",
+      "target": "citations_extract",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
       "id": "e-extract_all-places_folder_clean",
       "source": "extract_all",
       "target": "places_folder_clean",
@@ -255,6 +280,13 @@
     {
       "id": "e-keywords_folder_clean-merge_extracts",
       "source": "keywords_folder_clean",
+      "target": "merge_extracts",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "e-citations_extract-merge_extracts",
+      "source": "citations_extract",
       "target": "merge_extracts",
       "source_port": "text",
       "target_port": "text"

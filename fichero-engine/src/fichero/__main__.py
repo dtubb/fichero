@@ -895,6 +895,17 @@ def kg_claims(
     )
 
 
+@kg_app.command("citations")
+def kg_citations(
+    ctx: typer.Context,
+    doc_id: str = typer.Argument(
+        ..., help="Document ID — citations are scoped to this document."
+    ),
+) -> None:
+    """List citation entities resolved for a document."""
+    _invoke(ctx, lambda c: c.citations_at_doc(doc_id))
+
+
 @kg_app.command("search")
 def kg_search(
     ctx: typer.Context,

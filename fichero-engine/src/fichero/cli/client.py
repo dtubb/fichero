@@ -515,6 +515,30 @@ class FicheroClient:
             for c in _expect_list(raw, "/api/claims")
         ]
 
+    def citations_at_doc(self, doc_id: str) -> list[KnowledgeEntity]:
+        """Citation entities mentioned by this doc or its page children."""
+        claims = self.claims_at_doc(doc_id)
+        seen: set[str] = set()
+        citations: list[KnowledgeEntity] = []
+        for claim in claims:
+            for entity_id in claim.entity_ids or []:
+                if entity_id in seen:
+                    continue
+                seen.add(entity_id)
+                try:
+                    entity = self.get_entity(entity_id)
+                except Exception:
+                    continue
+                entity_type = (
+                    entity.entity_type.value
+                    if hasattr(entity.entity_type, "value")
+                    else str(entity.entity_type)
+                )
+                if entity_type == "citation":
+                    citations.append(entity)
+        citations.sort(key=lambda entity: entity.canonical_name.lower())
+        return citations
+
     # -- scoped KG exploration (#1125) ---------------------------------
     # These compose existing endpoints (list_claims, list_documents,
     # entity_documents) to answer "all entities at this scope" and

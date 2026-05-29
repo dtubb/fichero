@@ -266,6 +266,7 @@ class EntityType(str, Enum):
     organization = "organization"
     event = "event"
     concept = "concept"
+    citation = "citation"
     other = "other"
 
 
