@@ -49,6 +49,7 @@ struct DocumentInspector: View {
 
     @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .content
     @EnvironmentObject private var entityService: EntityServiceGenerated
+    @EnvironmentObject private var artifactService: ArtifactServiceGenerated
     @ObservedObject private var featureManager = FeatureManager.shared
     @ObservedObject private var claimFocusState = ClaimFocusState.shared
 
@@ -152,6 +153,7 @@ struct DocumentInspector: View {
             KnowledgeGraphInspectorSection(
                 documentId: doc.id,
                 entityService: entityService,
+                artifactService: artifactService,
                 onNavigateToSource: onNavigateToSource,
                 onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
                     NotificationCenter.default.post(

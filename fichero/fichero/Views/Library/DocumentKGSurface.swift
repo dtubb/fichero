@@ -51,6 +51,7 @@ struct DocumentKGSurface: View {
     @State private var activeTab: KGSurfaceTab = .transcript
     @State private var selectedEntityId: String?
     @EnvironmentObject private var entityService: EntityServiceGenerated
+    @EnvironmentObject private var artifactService: ArtifactServiceGenerated
 
     var body: some View {
         VStack(spacing: 0) {
@@ -87,6 +88,7 @@ struct DocumentKGSurface: View {
                 KnowledgeGraphInspectorSection(
                     documentId: documentId,
                     entityService: entityService,
+                    artifactService: artifactService,
                     onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
                         postClaimSource(ClaimSourceSelection(
                             claimId: claimId,

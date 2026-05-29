@@ -805,9 +805,10 @@ import FicheroAPIClient
 /// This is the typed-view counterpart to the existing markdown-artifact
 /// previews in `DocumentInspectorArtifactsTab`. Both render side-by-side
 /// for now (dual-write era) — markdown for debug, typed view for query.
-struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_body_length
+struct KnowledgeGraphInspectorSection: View {
     let documentId: String
     let entityService: EntityServiceGenerated
+    let artifactService: ArtifactServiceGenerated
     /// Called when the user clicks the source-page arrow on an entity row.
     /// Receives the source page document id; ContentView decides how to
     /// navigate (typically: select the parent file in the grid). Optional
@@ -860,7 +861,9 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
                 let firstClaim = claimById[firstClaimId]
                 let primaryContext = (item.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 let excerpt = (item.sourceExcerpt ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                let context = !primaryContext.isEmpty ? primaryContext : (!excerpt.isEmpty ? excerpt : (firstClaim?.text ?? item.canonicalName))
+                let context = !primaryContext.isEmpty
+                    ? primaryContext
+                    : (!excerpt.isEmpty ? excerpt : (firstClaim?.text ?? item.canonicalName))
                 let extraClaims: [GroupedItem.ExtraClaim] = item.claimIds.dropFirst().compactMap { claimId in
                     let claim = claimById[claimId]
                     return GroupedItem.ExtraClaim(
@@ -975,7 +978,7 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
                 }
             }
         }
-        .task(id: documentId) { await load() }
+        .task(id: documentId) { await loadStatements() }
     }
 
     private var sectionHeader: some View {
@@ -1032,17 +1035,31 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
             .foregroundStyle(displayMode == .list ? Color.accentColor : Color.secondary)
             .help("List view")
             Button {
-                Task { await load() }
+                Task { await loadStatements() }
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.plain)
             .help("Reload knowledge-graph entities for this document")
+            Button {
+                Task { await loadStatements() }
+            } label: {
+                Image(systemName: Self.fetchButtonIcon(for: .statements))
+            }
+            .buttonStyle(.plain)
+            .help(Self.fetchButtonHelp(for: .statements))
+            Button {
+                Task { await loadArtifacts() }
+            } label: {
+                Image(systemName: Self.fetchButtonIcon(for: .artifacts))
+            }
+            .buttonStyle(.plain)
+            .help(Self.fetchButtonHelp(for: .artifacts))
         }
         .foregroundStyle(.primary)
     }
 
-    private func load() async {
+    private func loadStatements() async {
         isLoading = true
         loadError = nil
         defer { isLoading = false }
@@ -1060,6 +1077,22 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
             loadError = "Couldn't load: \(error.localizedDescription)"
             claims = []
             canonicalGroups = []
+        }
+    }
+
+    private func loadArtifacts() async {
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            _ = try await artifactService.getArtifacts(
+                forDocumentId: documentId,
+                forceRefresh: true,
+                includeDescendants: false
+            )
+        } catch {
+            // Explicit artifacts pulls are best-effort; keep the KG section
+            // usable even if the artifact refresh fails.
         }
     }
 }
@@ -1323,6 +1356,11 @@ private struct EntityKindBlock: View {
 extension KnowledgeGraphInspectorSection {
     static let groupVisibleCap = 10
 
+    enum FetchAction {
+        case statements
+        case artifacts
+    }
+
     static func visibleItems<T>(_ items: [T], showingAll: Bool, cap: Int = groupVisibleCap) -> [T] {
         if showingAll || items.count <= cap { return items }
         return Array(items.prefix(cap))
@@ -1335,6 +1373,20 @@ extension KnowledgeGraphInspectorSection {
 
     static func isKindStored(_ kind: EntityKind, in csv: String) -> Bool {
         csv.split(separator: ",").contains(Substring(kind.rawValue))
+    }
+
+    static func fetchButtonHelp(for action: FetchAction) -> String {
+        switch action {
+        case .statements: return "Get statements"
+        case .artifacts: return "Get artifacts"
+        }
+    }
+
+    static func fetchButtonIcon(for action: FetchAction) -> String {
+        switch action {
+        case .statements: return "quote.bubble"
+        case .artifacts: return "shippingbox"
+        }
     }
 }
 
