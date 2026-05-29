@@ -202,6 +202,22 @@ class Document(BaseModel):
         description="Bibliographic metadata (SourceMetadata shape). See #908.",
     )
 
+    # Workspace folders (#1313). A workspace is a normal folder document with
+    # curated items layered on top of its child documents; views consume the
+    # same folder hierarchy instead of a separate Mind Palace room tree.
+    is_workspace: bool = Field(
+        default=False,
+        description="True when a folder document is presented as a workspace.",
+    )
+    curated_items: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Workspace-curated sources, annotations, and quotes. Stored as "
+            "JSON so existing folder documents can opt in without a separate "
+            "workspace table."
+        ),
+    )
+
     # =========================================================================
     # #1123 attribution taxonomy — document-level provenance (Phase A)
     # =========================================================================

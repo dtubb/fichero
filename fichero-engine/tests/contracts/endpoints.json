@@ -2503,6 +2503,18 @@
         "query_params": [],
         "request_model": "MoveItemsRequest",
         "response_model": "FolderMoveResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/folders/{folder_id}/views",
+        "operation_id": "get_folder_views_api_folders__folder_id__views_get",
+        "summary": "Get Folder Views",
+        "path_params": [
+          "folder_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "FolderViewsResponse"
       }
     ],
     "health": [

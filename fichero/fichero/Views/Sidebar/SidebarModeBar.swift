@@ -110,18 +110,6 @@ struct SidebarModeBar: View {
                 }
             }
 
-            if featureManager.isMindPalaceEnabled {
-                modeSeparator
-
-                // Mind Palace mode — spatial 3D-2D space
-                SidebarModeIcon(
-                    mode: .mindPalace,
-                    isSelected: selectedMode == .mindPalace,
-                    badgeCount: badgeCount(for: .mindPalace)
-                ) {
-                    selectMode(.mindPalace)
-                }
-            }
         }
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, maxHeight: MiniToolbar<EmptyView>.standardHeight)  // Normalize to 44pt

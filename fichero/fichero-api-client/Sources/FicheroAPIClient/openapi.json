@@ -7945,6 +7945,58 @@
         }
       }
     },
+    "/api/folders/{folder_id}/views": {
+      "get": {
+        "tags": [
+          "folders"
+        ],
+        "summary": "Get Folder Views",
+        "description": "Return the list/map/WebKit/RealityKit lenses available for a folder.\n\nWorkspaces are ordinary folder documents with ``is_workspace=true`` and\noptional curated items. The views are still available for any folder; the\n``populated`` flag tells SwiftUI which lenses currently have content.",
+        "operationId": "get_folder_views_api_folders__folder_id__views_get",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderViewsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/folders/{entity_type}/folders": {
       "get": {
         "tags": [
@@ -36436,6 +36488,21 @@
             "title": "Source Metadata",
             "description": "Bibliographic metadata (SourceMetadata shape). See #908."
           },
+          "is_workspace": {
+            "type": "boolean",
+            "title": "Is Workspace",
+            "description": "True when a folder document is presented as a workspace.",
+            "default": false
+          },
+          "curated_items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Curated Items",
+            "description": "Workspace-curated sources, annotations, and quotes. Stored as JSON so existing folder documents can opt in without a separate workspace table."
+          },
           "provenance_chain": {
             "items": {
               "additionalProperties": true,
@@ -38619,6 +38686,72 @@
           "new_path"
         ],
         "title": "FolderRenameResponse"
+      },
+      "FolderViewInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "populated": {
+            "type": "boolean",
+            "title": "Populated"
+          },
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "populated"
+        ],
+        "title": "FolderViewInfo",
+        "description": "A lens available for a folder/workspace and whether it has content."
+      },
+      "FolderViewsResponse": {
+        "properties": {
+          "folder_id": {
+            "type": "string",
+            "title": "Folder Id"
+          },
+          "is_workspace": {
+            "type": "boolean",
+            "title": "Is Workspace"
+          },
+          "curated_item_count": {
+            "type": "integer",
+            "title": "Curated Item Count"
+          },
+          "child_count": {
+            "type": "integer",
+            "title": "Child Count"
+          },
+          "views": {
+            "items": {
+              "$ref": "#/components/schemas/FolderViewInfo"
+            },
+            "type": "array",
+            "title": "Views"
+          }
+        },
+        "type": "object",
+        "required": [
+          "folder_id",
+          "is_workspace",
+          "curated_item_count",
+          "child_count",
+          "views"
+        ],
+        "title": "FolderViewsResponse",
+        "description": "Available folder/workspace lenses for the selected document folder."
       },
       "FrameworkCreateRequest": {
         "properties": {
@@ -43350,108 +43483,7 @@
         ],
         "title": "NodeCreateRequest"
       },
-      "NodeDef-Input": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id",
-            "description": "Unique node identifier"
-          },
-          "tool": {
-            "type": "string",
-            "title": "Tool",
-            "description": "Tool function name from registry"
-          },
-          "input_ports": {
-            "items": {
-              "$ref": "#/components/schemas/PortDef"
-            },
-            "type": "array",
-            "title": "Input Ports",
-            "description": "Input connection ports (populated from registry, not stored)"
-          },
-          "output_ports": {
-            "items": {
-              "$ref": "#/components/schemas/PortDef"
-            },
-            "type": "array",
-            "title": "Output Ports",
-            "description": "Output connection ports (populated from registry, not stored)"
-          },
-          "input_mappings": {
-            "items": {
-              "$ref": "#/components/schemas/InputMapping"
-            },
-            "type": "array",
-            "title": "Input Mappings",
-            "description": "Maps input ports to data sources from previous nodes"
-          },
-          "inputs": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Inputs",
-            "description": "Input values for the tool (supports path resolution)"
-          },
-          "config": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Config",
-            "description": "Static tool configuration (not resolved)"
-          },
-          "output_schema": {
-            "$ref": "#/components/schemas/OutputSchema",
-            "nullable": true,
-            "description": "JSON Schema for structured LLM output"
-          },
-          "position_x": {
-            "type": "number",
-            "title": "Position X",
-            "default": 0.0
-          },
-          "position_y": {
-            "type": "number",
-            "title": "Position Y",
-            "default": 0.0
-          },
-          "label": {
-            "type": "string",
-            "title": "Label",
-            "default": ""
-          },
-          "description": {
-            "type": "string",
-            "title": "Description",
-            "default": ""
-          },
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled",
-            "default": true
-          },
-          "provider_name": {
-            "type": "string",
-            "title": "Provider Name",
-            "default": ""
-          },
-          "model_name": {
-            "type": "string",
-            "title": "Model Name",
-            "default": ""
-          },
-          "uses_llm": {
-            "type": "boolean",
-            "title": "Uses Llm",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "tool"
-        ],
-        "title": "NodeDef",
-        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
-      },
-      "NodeDef-Output": {
+      "NodeDef": {
         "properties": {
           "id": {
             "type": "string",
@@ -47914,7 +47946,8 @@
           "char_start",
           "char_end"
         ],
-        "title": "SearchAnchor"
+        "title": "SearchAnchor",
+        "description": "Stable character-position anchor within the indexed transcript text."
       },
       "SearchExcerpt": {
         "properties": {
@@ -47953,7 +47986,8 @@
           "match_end",
           "anchor"
         ],
-        "title": "SearchExcerpt"
+        "title": "SearchExcerpt",
+        "description": "Transcript excerpt generated from the search layer's indexed text."
       },
       "SearchExplainRequest": {
         "properties": {
@@ -48335,7 +48369,8 @@
           "content_preview",
           "metadata"
         ],
-        "title": "SearchResult"
+        "title": "SearchResult",
+        "description": "Search result with score and document reference."
       },
       "SearchSource": {
         "properties": {
@@ -51829,7 +51864,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef-Input"
+              "$ref": "#/components/schemas/NodeDef"
             },
             "type": "array",
             "title": "Nodes"
@@ -52063,7 +52098,7 @@
           },
           "nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeDef-Output"
+              "$ref": "#/components/schemas/NodeDef"
             },
             "type": "array",
             "title": "Nodes"
@@ -53119,108 +53154,6 @@
           "archived"
         ],
         "title": "ProjectStatus"
-      },
-      "NodeDef": {
-        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode).",
-        "properties": {
-          "id": {
-            "description": "Unique node identifier",
-            "title": "Id",
-            "type": "string"
-          },
-          "tool": {
-            "description": "Tool function name from registry",
-            "title": "Tool",
-            "type": "string"
-          },
-          "input_ports": {
-            "description": "Input connection ports (populated from registry, not stored)",
-            "items": {
-              "$ref": "#/components/schemas/PortDef"
-            },
-            "title": "Input Ports",
-            "type": "array"
-          },
-          "output_ports": {
-            "description": "Output connection ports (populated from registry, not stored)",
-            "items": {
-              "$ref": "#/components/schemas/PortDef"
-            },
-            "title": "Output Ports",
-            "type": "array"
-          },
-          "input_mappings": {
-            "description": "Maps input ports to data sources from previous nodes",
-            "items": {
-              "$ref": "#/components/schemas/InputMapping"
-            },
-            "title": "Input Mappings",
-            "type": "array"
-          },
-          "inputs": {
-            "additionalProperties": true,
-            "description": "Input values for the tool (supports path resolution)",
-            "title": "Inputs",
-            "type": "object"
-          },
-          "config": {
-            "additionalProperties": true,
-            "description": "Static tool configuration (not resolved)",
-            "title": "Config",
-            "type": "object"
-          },
-          "output_schema": {
-            "$ref": "#/components/schemas/OutputSchema",
-            "nullable": true,
-            "default": null,
-            "description": "JSON Schema for structured LLM output"
-          },
-          "position_x": {
-            "default": 0.0,
-            "title": "Position X",
-            "type": "number"
-          },
-          "position_y": {
-            "default": 0.0,
-            "title": "Position Y",
-            "type": "number"
-          },
-          "label": {
-            "default": "",
-            "title": "Label",
-            "type": "string"
-          },
-          "description": {
-            "default": "",
-            "title": "Description",
-            "type": "string"
-          },
-          "enabled": {
-            "default": true,
-            "title": "Enabled",
-            "type": "boolean"
-          },
-          "provider_name": {
-            "default": "",
-            "title": "Provider Name",
-            "type": "string"
-          },
-          "model_name": {
-            "default": "",
-            "title": "Model Name",
-            "type": "string"
-          },
-          "uses_llm": {
-            "default": false,
-            "title": "Uses Llm",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "tool"
-        ],
-        "title": "NodeDef",
-        "type": "object"
       }
     }
   }

@@ -127,6 +127,34 @@ struct MindPalaceNode: Codable, Identifiable, Hashable {
         case scale
     }
 
+    init(
+        id: String = UUID().uuidString,
+        roomId: String,
+        nodeType: MindPalaceNodeType,
+        sourceId: String? = nil,
+        label: String,
+        positionX: Double,
+        positionY: Double,
+        positionZ: Double = 0,
+        rotationX: Double = 0,
+        rotationY: Double = 0,
+        rotationZ: Double = 0,
+        scale: Double = 1
+    ) {
+        self.id = id
+        self.roomId = roomId
+        self.nodeType = nodeType
+        self.sourceId = sourceId
+        self.label = label
+        self.positionX = positionX
+        self.positionY = positionY
+        self.positionZ = positionZ
+        self.rotationX = rotationX
+        self.rotationY = rotationY
+        self.rotationZ = rotationZ
+        self.scale = scale
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         // `id` is server-assigned; tolerate its (theoretical) absence so a
