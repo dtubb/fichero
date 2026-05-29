@@ -69,9 +69,15 @@ async def inspector(
     if doc is None:
         raise HTTPException(404, f"Document not found: {document_id}")
 
-    # Claims for this document.
+    from fichero.api.routes.claims import _descendant_doc_ids
+
+    doc_ids = _descendant_doc_ids(db, document_id)
+
+    # Claims for this document and any descendant pages/chunks. Page
+    # selections still resolve to {page_id}; parent PDFs/folders roll up
+    # page-level extraction rows for display.
     all_claims = db.query(KnowledgeClaim)
-    doc_claims = [c for c in all_claims if c.source_document_id == document_id]
+    doc_claims = [c for c in all_claims if c.source_document_id in doc_ids]
 
     # Entities referenced by those claims.
     entity_ids: set[str] = set()
@@ -100,17 +106,17 @@ async def inspector(
     # Citations both directions.
     all_citations = db.query(DocumentCitation)
     citations_outbound = [
-        c for c in all_citations if c.source_document_id == document_id
+        c for c in all_citations if c.source_document_id in doc_ids
     ]
     citations_inbound = [
-        c for c in all_citations if c.target_document_id == document_id
+        c for c in all_citations if c.target_document_id in doc_ids
     ]
 
     # Interpretations attached to this document or to its claims.
     claim_id_set = {c.id for c in doc_claims}
     interpretations = [
         i for i in db.query(Interpretation)
-        if i.document_id == document_id
+        if i.document_id in doc_ids
         or (i.claim_id and i.claim_id in claim_id_set)
     ]
     interpretations.sort(key=lambda i: i.created_at, reverse=True)
@@ -400,12 +406,11 @@ async def knowledge_graph(
     if doc is None:
         raise HTTPException(404, f"Document not found: {document_id}")
 
-    if include_children:
-        from fichero.api.routes.claims import _descendant_doc_ids
+    from fichero.api.routes.claims import _descendant_doc_ids
 
-        doc_ids = _descendant_doc_ids(db, document_id)
-    else:
-        doc_ids = {document_id}
+    descendant_ids = _descendant_doc_ids(db, document_id)
+    should_include_children = include_children or len(descendant_ids) > 1
+    doc_ids = descendant_ids if should_include_children else {document_id}
 
     doc_claims = [
         c for c in db.query(KnowledgeClaim)
@@ -416,5 +421,5 @@ async def knowledge_graph(
     # document_id directly, independent of include_children.
     catalogue = _catalogue_artifacts(db, document_id)
     return _build_knowledge_graph(
-        db, document_id, doc_claims, include_children, catalogue
+        db, document_id, doc_claims, should_include_children, catalogue
     )
