@@ -249,6 +249,10 @@ extension SidebarView {
             workflowsNavigationRow()
         }
 
+        if FeatureManager.shared.isKnowledgeGraphEnabled {
+            knowledgeGraphNavigationRow()
+        }
+
         if FeatureManager.shared.isAutomationEnabled {
             unifiedDisclosureSection(
                 title: "Automation",
@@ -478,6 +482,16 @@ extension SidebarView {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .tag("workflows-browser")
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+    }
+
+    private func knowledgeGraphNavigationRow() -> some View {
+        Label("Knowledge Graph", systemImage: "point.3.connected.trianglepath.dotted")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .tag("knowledge-graph-browser")
             .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)

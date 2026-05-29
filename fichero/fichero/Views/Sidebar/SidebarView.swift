@@ -155,6 +155,11 @@ struct SidebarView: View {
                         viewMode = .workflow(nil)
                         return
                     }
+                    if id == "knowledge-graph-browser" {
+                        sidebarMode = .knowledgeGraph
+                        viewMode = .knowledgeGraph
+                        return
+                    }
                     if id.hasPrefix("run:"),
                        let selectedRun = unifiedSelectedRun(forSidebarId: id) {
                         viewMode = .activity(selectedRun.toSelectedRun())

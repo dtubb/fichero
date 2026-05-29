@@ -19,9 +19,10 @@ enum SidebarMode: String, CaseIterable {
     case chat         // 3: Conversations
     case workflows    // 4: Workflow definitions
     case automation   // 5: Schedules + triggers
-    case activity     // 6: All workflow runs (running + completed + failed) with logs/errors
-    case mindPalace   // 7: Spatial 3D-2D space — rooms of archival material
-    case research     // 8: Research projects + workspace
+    case activity       // 6: All workflow runs (running + completed + failed) with logs/errors
+    case knowledgeGraph // 7: Knowledge graph ontology browser
+    case mindPalace     // 8: Spatial 3D-2D space — rooms of archival material
+    case research       // 9: Research projects + workspace
 
     /// SF Symbol icon name for this mode
     var icon: String {
@@ -33,6 +34,7 @@ enum SidebarMode: String, CaseIterable {
         case .research: "flask"
         case .automation: "gearshape.2"
         case .activity: "clock"
+        case .knowledgeGraph: "point.3.connected.trianglepath.dotted"
         case .mindPalace: "cube.transparent"
         }
     }
@@ -47,6 +49,7 @@ enum SidebarMode: String, CaseIterable {
         case .research: "Research"
         case .automation: "Automation"
         case .activity: "Activity"
+        case .knowledgeGraph: "Knowledge Graph"
         case .mindPalace: "Mind Palace"
         }
     }
@@ -60,8 +63,9 @@ enum SidebarMode: String, CaseIterable {
         case .workflows: "4"
         case .automation: "5"
         case .activity: "6"
-        case .mindPalace: "7"
-        case .research: "8"
+        case .knowledgeGraph: "7"
+        case .mindPalace: "8"
+        case .research: "9"
         }
     }
 }

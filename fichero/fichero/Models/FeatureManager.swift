@@ -55,6 +55,7 @@ class FeatureManager: ObservableObject {
     @AppStorage("fichero.features.mcp") private var mcpEnabledInternal: Bool = false
     @AppStorage("fichero.features.integrations") private var integrationsEnabledInternal: Bool = false
     @AppStorage("fichero.features.activity") private var activityEnabledInternal: Bool = false
+    @AppStorage("fichero.features.knowledge_graph") private var knowledgeGraphEnabledInternal: Bool = true
     @AppStorage("fichero.features.mind_palace") private var mindPalaceEnabledInternal: Bool = false
     @AppStorage("fichero.features.settings_general_tab")
     private var settingsGeneralTabEnabledInternal: Bool = true
@@ -120,6 +121,8 @@ class FeatureManager: ObservableObject {
     /// Mind Palace / spatial 3D-2D space. Defaulted OFF; backend (`/api/mind-palace`)
     /// is complete but the SwiftUI surface is Phase 1 (read-only 2D projection).
     var isMindPalaceEnabled: Bool { allFeaturesEnabled || mindPalaceEnabledInternal }
+    /// Knowledge Graph ontology browser. Defaulted ON (like research).
+    var isKnowledgeGraphEnabled: Bool { allFeaturesEnabled || knowledgeGraphEnabledInternal }
     var isLibraryAdvancedViewsEnabled: Bool {
         allFeaturesEnabled || libraryAdvancedViewsEnabledInternal
     }
@@ -199,6 +202,7 @@ class FeatureManager: ObservableObject {
         // flip it off if it's not ready. NOTE: revisit the release default
         // before shipping 0.0.2 — likely OFF until the spatial UX is signed off.
         mindPalaceEnabledInternal = true
+        knowledgeGraphEnabledInternal = true
 
         settingsGeneralTabEnabledInternal = true
         settingsBackendTabEnabledInternal = true

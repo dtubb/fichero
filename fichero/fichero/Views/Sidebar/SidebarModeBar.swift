@@ -97,6 +97,19 @@ struct SidebarModeBar: View {
                 }
             }
 
+            if featureManager.isKnowledgeGraphEnabled {
+                modeSeparator
+
+                // Knowledge Graph mode — ontology browser
+                SidebarModeIcon(
+                    mode: .knowledgeGraph,
+                    isSelected: selectedMode == .knowledgeGraph,
+                    badgeCount: badgeCount(for: .knowledgeGraph)
+                ) {
+                    selectMode(.knowledgeGraph)
+                }
+            }
+
             if featureManager.isMindPalaceEnabled {
                 modeSeparator
 

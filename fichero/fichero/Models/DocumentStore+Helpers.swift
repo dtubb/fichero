@@ -143,7 +143,6 @@ extension DocumentStore {
         // fire" or "events fire but paths don't match".
         if matchCount == 0 {
             let logger = Logger(subsystem: "com.fichero.fichero", category: "DocumentStore")
-            // swiftlint:disable:next line_length
             logger.warning("updateProcessingStatus: no document matched path '\(filePath, privacy: .public)' — spinner won't update (#767)")
         }
     }

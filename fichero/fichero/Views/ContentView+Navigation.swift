@@ -186,6 +186,11 @@ extension ContentView {
                 }
             }
 
+        case .knowledgeGraph:
+            // Knowledge graph ontology browser. Reads everything from the
+            // environment / generated services.
+            OntologyBrowser()
+
         case .mindPalace:
             // Spatial 3D-2D space. Rooms live in the sidebar (RoomListView);
             // this is the canvas + node inspector. State is shared via

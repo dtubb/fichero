@@ -76,6 +76,8 @@ extension ContentView {
             return .automation
         case "activity", "batch", "batches":
             return .activity
+        case "knowledgeGraph":
+            return .knowledgeGraph
         case "mindPalace":
             return .mindPalace
         default:

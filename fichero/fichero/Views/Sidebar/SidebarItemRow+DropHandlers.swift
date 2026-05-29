@@ -162,7 +162,6 @@ extension SidebarItemRow {
                 forTypeIdentifier: typeIdentifier
             ) { temporaryURL, error in
                 if let error {
-                    // swiftlint:disable:next line_length
                     sidebarRowLogger.debug("      loadFileRepresentation(\(typeIdentifier)) callback error: \(error.localizedDescription)")
                     continuation.resume(throwing: error)
                     return
@@ -294,7 +293,6 @@ extension SidebarItemRow {
 
         for itemID in itemIDs {
             let sourceKind = SidebarItemKind(prefixedId: itemID)
-            // swiftlint:disable:next line_length
             sidebarRowLogger.debug(" Moving item \(itemID) (kind=\(String(describing: sourceKind))) to be sibling of \(targetItem.name)")
 
             // The sibling-reparent call path goes through
