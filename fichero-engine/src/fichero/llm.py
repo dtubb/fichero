@@ -719,13 +719,19 @@ async def chat_with_fallback(
             )
             raise apple_exc
 
-        # #1001: warning, not info — falling back to a cloud provider is a
-        # billing event + an offline-mode regression. Make it loud and
-        # greppable so it isn't a silent surprise on every run.
+        # #1001: warning, not info — falling back is an offline-mode
+        # regression, and to a cloud provider it's also a billing event.
+        # Local providers (omlx/ollama/lmstudio) are free, so don't cry cost.
+        _cost_note = (
+            "a local model — no API cost"
+            if large_config.provider in _KEYLESS_OPENAI_COMPATIBLE
+            else "a PAID remote model — this request now incurs cost"
+        )
         logger.warning(
-            "Apple Intelligence unavailable (%s); falling back to PAID "
-            "remote model $large = %s/%s — this request now incurs cost.",
-            type(apple_exc).__name__, large_config.provider, large_config.model,
+            "Apple Intelligence unavailable (%s); falling back to %s: "
+            "$large = %s/%s.",
+            type(apple_exc).__name__, _cost_note,
+            large_config.provider, large_config.model,
         )
         # Permissive guardrails is Apple-only and has no effect here.
         result = await chat(prompt, large_config, system=system)
@@ -1683,14 +1689,19 @@ async def chat_structured_with_fallback(
             # $large resolves to the same model we just tried — no point
             # retrying. Surface the original error.
             raise apple_exc
-        # #1001: flag the cost explicitly — the structured extractor path
-        # (Extract All Entities, catalogue) hits this on guardrail refusals,
-        # and a silent swap to a paid provider is a billing surprise.
+        # #1001: the structured extractor path (Extract All Entities,
+        # catalogue) hits this on guardrail refusals. Flag a cloud swap as a
+        # billing event, but local providers (omlx/ollama/lmstudio) are free.
+        _cost_note = (
+            "a local model — no API cost"
+            if large_config.provider in _KEYLESS_OPENAI_COMPATIBLE
+            else "a PAID remote model — this request now incurs cost"
+        )
         logger.warning(
             "Apple Intelligence unavailable for structured call (%s); "
-            "falling back to PAID remote model $large = %s/%s — this "
-            "request now incurs cost.",
-            type(apple_exc).__name__, large_config.provider, large_config.model,
+            "falling back to %s: $large = %s/%s.",
+            type(apple_exc).__name__, _cost_note,
+            large_config.provider, large_config.model,
         )
         # The fallback provider is LangChain-based, so the Apple-only
         # include_schema_in_prompt parameter is ignored on that path.
