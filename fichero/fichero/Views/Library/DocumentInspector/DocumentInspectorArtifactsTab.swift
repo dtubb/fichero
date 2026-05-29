@@ -805,7 +805,7 @@ import FicheroAPIClient
 /// This is the typed-view counterpart to the existing markdown-artifact
 /// previews in `DocumentInspectorArtifactsTab`. Both render side-by-side
 /// for now (dual-write era) — markdown for debug, typed view for query.
-struct KnowledgeGraphInspectorSection: View {
+struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_body_length
     let documentId: String
     let entityService: EntityServiceGenerated
     let artifactService: ArtifactServiceGenerated
@@ -817,10 +817,23 @@ struct KnowledgeGraphInspectorSection: View {
     /// Called when the user clicks on a claim to select it for highlighting
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
-    @State private var claims: [Components.Schemas.KnowledgeClaim] = []
-    @State private var canonicalGroups: [Components.Schemas.KGEntityGroup] = []
-    @State private var isLoading = false
-    @State private var loadError: String?
+    @StateObject private var loadState = KnowledgeGraphInspectorLoadState()
+    private var claims: [Components.Schemas.KnowledgeClaim] {
+        get { loadState.claims }
+        nonmutating set { loadState.claims = newValue }
+    }
+    private var canonicalGroups: [Components.Schemas.KGEntityGroup] {
+        get { loadState.canonicalGroups }
+        nonmutating set { loadState.canonicalGroups = newValue }
+    }
+    private var isLoading: Bool {
+        get { loadState.isLoading }
+        nonmutating set { loadState.isLoading = newValue }
+    }
+    private var loadError: String? {
+        get { loadState.loadError }
+        nonmutating set { loadState.loadError = newValue }
+    }
     @EnvironmentObject private var claimFocusState: ClaimFocusState
 
     /// Comma-joined raw values of EntityKinds the user has hidden from the
@@ -1099,6 +1112,14 @@ struct KnowledgeGraphInspectorSection: View {
 
 // MARK: - Models for the section's local rendering state
 
+@MainActor
+private final class KnowledgeGraphInspectorLoadState: ObservableObject {
+    @Published var claims: [Components.Schemas.KnowledgeClaim] = []
+    @Published var canonicalGroups: [Components.Schemas.KGEntityGroup] = []
+    @Published var isLoading = false
+    @Published var loadError: String?
+}
+
 private struct GroupedItem: Identifiable {
     let claimId: String
     let displayName: String
@@ -1221,7 +1242,7 @@ private struct EntityKindBlock: View {
     var onNavigateToSource: ((String) -> Void)?
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
-    @AppStorage("inspector.kg.expandedKinds") private var expandedKindsCSV: String = ""
+    @SceneStorage("inspector.kg.expandedKinds") private var expandedKindsCSV: String = ""
     @SceneStorage("inspector.kg.showAllKinds") private var showAllKindsCSV: String = ""
 
     private var isExpanded: Binding<Bool> {

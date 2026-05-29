@@ -14,7 +14,8 @@ import SwiftUI
 /// \`/api/claims\`).
 struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
-    @State private var selectedEntityId: String?
+    @StateObject private var loadState = OntologyBrowserLoadState()
+    @SceneStorage("ontology.selectedEntityId") private var selectedEntityId: String?
     @State private var navHistory = NavigationHistoryManager()
     @State private var isNavigatingHistory = false
     @State private var searchText = ""
@@ -491,10 +492,22 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
         .background(Color(.controlBackgroundColor))
     }
 
-    @State private var entities: [Components.Schemas.KnowledgeEntity] = []
-    @State private var claimCounts: [String: Int] = [:]
-    @State private var loadError: String?
-    @State private var isLoading = false
+    private var entities: [Components.Schemas.KnowledgeEntity] {
+        get { loadState.entities }
+        nonmutating set { loadState.entities = newValue }
+    }
+    private var claimCounts: [String: Int] {
+        get { loadState.claimCounts }
+        nonmutating set { loadState.claimCounts = newValue }
+    }
+    private var loadError: String? {
+        get { loadState.loadError }
+        nonmutating set { loadState.loadError = newValue }
+    }
+    private var isLoading: Bool {
+        get { loadState.isLoading }
+        nonmutating set { loadState.isLoading = newValue }
+    }
 
     private var entityList: some View {
         List(selection: $selectedEntityId) {
@@ -633,8 +646,14 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
 
     // MARK: - Entity Detail Panel
 
-    @State private var entityClaims: [Components.Schemas.KnowledgeClaim] = []
-    @State private var isLoadingClaims = false
+    private var entityClaims: [Components.Schemas.KnowledgeClaim] {
+        get { loadState.entityClaims }
+        nonmutating set { loadState.entityClaims = newValue }
+    }
+    private var isLoadingClaims: Bool {
+        get { loadState.isLoadingClaims }
+        nonmutating set { loadState.isLoadingClaims = newValue }
+    }
 
     private var entityDetailPanel: some View {
         Group {
@@ -1054,9 +1073,21 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
     // `scale`; drag updates `panOffset`. Gestures use the
     // `inProgress`-style accumulator pattern so updates remain smooth
     // and the final value persists when the gesture ends.
-    @State private var scale: CGFloat = 1.0
+    @SceneStorage("ontology.graph.scale") private var scaleRaw: Double = 1.0
+    @SceneStorage("ontology.graph.panX") private var panXRaw: Double = 0
+    @SceneStorage("ontology.graph.panY") private var panYRaw: Double = 0
+    private var scale: CGFloat {
+        get { CGFloat(scaleRaw) }
+        nonmutating set { scaleRaw = Double(newValue) }
+    }
     @State private var scaleAtGestureStart: CGFloat = 1.0
-    @State private var panOffset: CGSize = .zero
+    private var panOffset: CGSize {
+        get { CGSize(width: panXRaw, height: panYRaw) }
+        nonmutating set {
+            panXRaw = Double(newValue.width)
+            panYRaw = Double(newValue.height)
+        }
+    }
     @State private var panOffsetAtGestureStart: CGSize = .zero
 
     private let minScale: CGFloat = 0.4
@@ -1405,6 +1436,16 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
         case .other: return .gray
         }
     }
+}
+
+@MainActor
+private final class OntologyBrowserLoadState: ObservableObject {
+    @Published var entities: [Components.Schemas.KnowledgeEntity] = []
+    @Published var claimCounts: [String: Int] = [:]
+    @Published var loadError: String?
+    @Published var isLoading = false
+    @Published var entityClaims: [Components.Schemas.KnowledgeClaim] = []
+    @Published var isLoadingClaims = false
 }
 
 // MARK: - Model
