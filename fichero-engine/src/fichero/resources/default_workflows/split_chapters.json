@@ -1,0 +1,41 @@
+{
+  "name": "Split Chapters",
+  "description": "Split a book PDF into chapter child documents. Uses the embedded PDF outline when present, then page-heading heuristics, and falls back to one whole-book chapter.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Books",
+  "tags": ["preset", "books", "chapters", "pdf"],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Book PDF",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "split_chapters",
+      "tool": "split_chapters",
+      "label": "Split Chapters",
+      "position_x": 300,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-files-split-documents",
+      "source": "files-source",
+      "target": "split_chapters",
+      "source_port": "documents",
+      "target_port": "documents"
+    }
+  ]
+}
