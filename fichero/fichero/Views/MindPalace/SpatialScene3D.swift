@@ -6,16 +6,18 @@ import RealityKit
 /// RealityKit 3D rendering of a Mind Palace room — the `.threeD` render mode,
 /// and the forward path toward streaming the palace to Vision Pro.
 ///
-/// Renders each `MindPalaceNode` as a colored box at its **backend-provided**
+/// Renders each `MindPalaceNode` as a page-card at its **backend-provided**
 /// `positionX/Y/Z` (with `rotation_*` and `scale` applied) and draws
-/// connections as thin links. Positions are read from the backend and only
-/// normalized into a bounded cube for the camera — relative geometry is never
+/// connections as thin links. When a node has a source thumbnail, the card is
+/// textured with the actual page image; otherwise it falls back to the
+/// coloured block. Positions are read from the backend and only normalized
+/// into a bounded cube for the camera — relative geometry is never
 /// recomputed (`feedback_kg_logic_in_backend`).
 ///
 /// The scene is rebuilt when the room's data changes (the container keys this
-/// view by a scene signature). Tap-to-select in 3D and live camera-orbit
-/// persistence are deferred — see the Phase-2 follow-up. When RealityKit is
-/// unavailable the view falls back to the 2D canvas.
+/// view by a scene signature). Tap-to-select in 3D is wired through RealityKit
+/// gestures; live camera-orbit persistence remains deferred. When RealityKit
+/// is unavailable the view falls back to the 2D canvas.
 struct SpatialScene3D: View {
     let nodes: [MindPalaceNode]
     let connections: [MindPalaceConnection]
@@ -32,6 +34,15 @@ struct SpatialScene3D: View {
             let root = buildScene()
             content.add(root)
         }
+        .gesture(
+            TapGesture()
+                .targetedToAnyEntity()
+                .onEnded { value in
+                    let nodeId = value.entity.name
+                    guard !nodeId.isEmpty else { return }
+                    selectedNodeId = nodeId
+                }
+        )
         .background(Color(nsColor: .textBackgroundColor))
         #else
         Spatial2DCanvas(nodes: nodes, connections: connections, selectedNodeId: $selectedNodeId)
@@ -88,15 +99,55 @@ struct SpatialScene3D: View {
     }
 
     private func makeNodeEntity(_ node: MindPalaceNode, at position: SIMD3<Float>) -> ModelEntity {
-        let size: Float = 0.18 * Float(max(node.scale, 0.25))
-        let mesh = MeshResource.generateBox(size: size, cornerRadius: size * 0.15)
-        let material = SimpleMaterial(color: nsColor(for: node.nodeType), isMetallic: false)
-        let entity = ModelEntity(mesh: mesh, materials: [material])
+        let scale = Float(max(node.scale, 0.25))
+        let cardWidth: Float = 0.22 * scale
+        let cardHeight: Float = cardWidth / pageAspectRatio
+        let thumbnailUrl = node.thumbnailUrl
+        let mesh: MeshResource
+        let materials: [any Material]
+
+        if thumbnailUrl != nil {
+            mesh = MeshResource.generatePlane(
+                width: cardWidth,
+                height: cardHeight,
+                cornerRadius: min(cardWidth, cardHeight) * 0.07
+            )
+            materials = [UnlitMaterial(color: nsColor(for: node.nodeType))]
+        } else {
+            let depth: Float = cardWidth * 0.12
+            mesh = MeshResource.generateBox(
+                size: SIMD3<Float>(cardWidth, cardHeight, depth),
+                cornerRadius: min(cardWidth, cardHeight, depth) * 0.18
+            )
+            materials = [SimpleMaterial(color: nsColor(for: node.nodeType), isMetallic: false)]
+        }
+
+        let entity = ModelEntity(mesh: mesh, materials: materials)
         entity.position = position
         entity.orientation = simd_quatf(angle: Float(node.rotationY), axis: SIMD3<Float>(0, 1, 0))
         entity.name = node.id
+        entity.components.set(InputTargetComponent())
+        entity.components.set(
+            CollisionComponent(
+                shapes: [ShapeResource.generateBox(size: SIMD3<Float>(cardWidth, cardHeight, cardWidth * 0.12))]
+            )
+        )
+
+        if let thumbnailUrl {
+            Task { @MainActor in
+                do {
+                    let texture = try await MindPalaceTextureCache.shared.texture(for: thumbnailUrl)
+                    entity.model?.materials = [UnlitMaterial(texture: texture)]
+                } catch {
+                    // Keep the colored placeholder when the page image cannot be loaded.
+                }
+            }
+        }
+
         return entity
     }
+
+    private var pageAspectRatio: Float { 4.0 / 5.0 }
 
     /// A connection rendered as a thin box spanning the two node positions.
     private func makeEdgeEntity(
@@ -141,3 +192,50 @@ struct SpatialScene3D: View {
     }
     #endif
 }
+
+#if canImport(RealityKit)
+actor MindPalaceTextureCache {
+    static let shared = MindPalaceTextureCache()
+
+    private var cache: [URL: TextureResource] = [:]
+
+    func texture(for url: URL) async throws -> TextureResource {
+        if let cached = cache[url] { return cached }
+
+        let (data, contentType) = try await fetchImageData(from: url)
+        let fileExtension = Self.fileExtension(for: contentType)
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(fileExtension)
+        try data.write(to: tempURL, options: [.atomic])
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let texture = try await TextureResource.loadAsync(contentsOf: tempURL, withName: nil)
+        cache[url] = texture
+        return texture
+    }
+
+    private func fetchImageData(from url: URL) async throws -> (Data, String) {
+        var request = URLRequest(url: url)
+        request.addEngineAuth(libraryPath: LibraryManager.shared.globalLibrary?.apiClient.currentLibraryPath)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "application/octet-stream"
+        return (data, contentType)
+    }
+
+    private static func fileExtension(for contentType: String) -> String {
+        switch contentType.lowercased() {
+        case let value where value.contains("png"): return "png"
+        case let value where value.contains("jpeg"): return "jpg"
+        case let value where value.contains("jpg"): return "jpg"
+        case let value where value.contains("webp"): return "webp"
+        case let value where value.contains("heic"): return "heic"
+        default: return "png"
+        }
+    }
+}
+#endif

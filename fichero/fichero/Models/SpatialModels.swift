@@ -149,6 +149,27 @@ struct MindPalaceNode: Codable, Identifiable, Hashable {
     var displayLabel: String {
         label.isEmpty ? nodeType.label : label
     }
+
+    /// Page-image URL used by the Mind Palace 3D view when a node has a
+    /// source document. The backend schema doesn't currently declare a
+    /// dedicated field, so this is a client-side wrapper over the storage
+    /// thumbnail endpoint.
+    var thumbnailUrl: URL? {
+        guard let sourceId, !sourceId.isEmpty else { return nil }
+        return Self.thumbnailURL(
+            forSourceId: sourceId,
+            baseURL: LibraryManager.shared.globalLibrary?.apiClient.baseURL
+        )
+    }
+
+    static func thumbnailURL(
+        forSourceId sourceId: String,
+        baseURL: URL? = URL(string: "http://127.0.0.1:8765/api")
+    ) -> URL? {
+        guard !sourceId.isEmpty,
+              let baseURL else { return nil }
+        return baseURL.appendingPathComponent("storage/thumbnail/\(sourceId)")
+    }
 }
 
 /// A visual link between nodes. Mirrors `SpatialConnection`.
