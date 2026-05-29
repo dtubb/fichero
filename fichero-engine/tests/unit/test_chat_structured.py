@@ -7,7 +7,7 @@ Covers:
 - chat_structured provider dispatch: Apple → fm-bridge subprocess (mocked),
   LangChain → with_structured_output (mocked).
 - chat_structured_with_fallback: GuardrailViolationError on Apple
-  triggers retry against the $large provider returned by
+  triggers retry against the $medium provider returned by
   resolve_default_provider.
 """
 
@@ -605,10 +605,10 @@ class TestProviderQuotaHandling:
         assert tracker.log.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_structured_fallback_uses_large_env_override(self, monkeypatch):
-        monkeypatch.setenv("FICHERO_LARGE_PROVIDER", "openai")
-        monkeypatch.setenv("FICHERO_LARGE_MODEL", "mlx-local")
-        monkeypatch.setenv("FICHERO_LARGE_BASE_URL", "http://127.0.0.1:8765/v1")
+    async def test_structured_fallback_uses_medium_env_override(self, monkeypatch):
+        monkeypatch.setenv("FICHERO_MEDIUM_PROVIDER", "openai")
+        monkeypatch.setenv("FICHERO_MEDIUM_MODEL", "gpt-4o-mini")
+        monkeypatch.setenv("FICHERO_MEDIUM_BASE_URL", "http://127.0.0.1:8765/v1")
         cfg = LLMConfig(provider="apple", model="apple-intelligence")
 
         calls: list[LLMConfig] = []
@@ -636,7 +636,7 @@ class TestProviderQuotaHandling:
         assert len(calls) == 2
         fallback_config = calls[1]
         assert fallback_config.provider == "openai"
-        assert fallback_config.model == "mlx-local"
+        assert fallback_config.model == "gpt-4o-mini"
         assert fallback_config.api_base == "http://127.0.0.1:8765/v1"
 
 
@@ -661,8 +661,8 @@ class TestChatStructuredWithFallback:
         assert mock_call.await_count == 1
 
     @pytest.mark.asyncio
-    async def test_falls_back_to_large_on_guardrail(self):
-        """Apple raises GuardrailViolationError → resolve $large alias →
+    async def test_falls_back_to_medium_on_guardrail(self):
+        """Apple raises GuardrailViolationError → resolve $medium alias →
         rebuild LLMConfig from (provider, model) → call chat_structured
         again with the new config. Same pattern as chat_with_fallback (#838)."""
         apple_cfg = LLMConfig(provider="apple", model="apple-intelligence")
@@ -673,22 +673,68 @@ class TestChatStructuredWithFallback:
             call_count["n"] += 1
             if config.provider == "apple":
                 raise GuardrailViolationError("safety filter")
-            assert config.provider == "openai"
-            assert config.model == "gpt-5"
-            return _Result(answer="from-large")
+            assert config.provider == "openrouter"
+            assert config.model == "openai/gpt-4o-mini"
+            return _Result(answer="from-medium")
 
         with patch("fichero.llm.chat_structured", new=fake_chat_structured), \
-             patch("fichero.llm.resolve_model_alias", return_value=("openai", "gpt-5")):
+             patch(
+                 "fichero.llm.resolve_model_alias",
+                 return_value=("openrouter", "openai/gpt-4o-mini"),
+             ):
+            result = await chat_structured_with_fallback(
+                prompt="x", schema=_Result, config=apple_cfg
+            )
+
+        assert result == _Result(answer="from-medium")
+        assert call_count["n"] == 2  # apple call + medium fallback
+
+    @pytest.mark.asyncio
+    async def test_tries_large_when_medium_unusable(self):
+        apple_cfg = LLMConfig(provider="apple", model="apple-intelligence")
+        calls: list[LLMConfig] = []
+
+        async def fake_chat_structured(
+            prompt,
+            schema,
+            config,
+            system=None,
+            include_schema_in_prompt=None,
+            use_case=None,
+            permissive_guardrails=False,
+        ):
+            calls.append(config)
+            if config.provider == "apple":
+                raise GuardrailViolationError("safety filter")
+            if config.provider == "openrouter":
+                raise AppleUnavailableError("medium unavailable")
+            assert config.provider == "openai"
+            assert config.model == "mlx-local"
+            return _Result(answer="from-large")
+
+        def resolve_alias(provider, model):
+            if provider == "$medium":
+                return ("openrouter", "openai/gpt-4o-mini")
+            if provider == "$large":
+                return ("openai", "mlx-local")
+            raise AssertionError(provider)
+
+        with patch("fichero.llm.chat_structured", new=fake_chat_structured), \
+             patch("fichero.llm.resolve_model_alias", side_effect=resolve_alias):
             result = await chat_structured_with_fallback(
                 prompt="x", schema=_Result, config=apple_cfg
             )
 
         assert result == _Result(answer="from-large")
-        assert call_count["n"] == 2  # apple call + large fallback
+        assert [(c.provider, c.model) for c in calls] == [
+            ("apple", "apple-intelligence"),
+            ("openrouter", "openai/gpt-4o-mini"),
+            ("openai", "mlx-local"),
+        ]
 
     @pytest.mark.asyncio
-    async def test_reraises_when_no_large_configured(self):
-        """If resolve_model_alias raises ValueError (no $large set up),
+    async def test_reraises_when_no_fallback_configured(self):
+        """If resolve_model_alias raises ValueError for both fallbacks,
         the original GuardrailViolationError propagates unchanged."""
         apple_cfg = LLMConfig(provider="apple", model="apple-intelligence")
 
@@ -697,7 +743,7 @@ class TestChatStructuredWithFallback:
             new=AsyncMock(side_effect=GuardrailViolationError("blocked")),
         ), patch(
             "fichero.llm.resolve_model_alias",
-            side_effect=ValueError("no $large"),
+            side_effect=ValueError("no fallback"),
         ):
             with pytest.raises(GuardrailViolationError, match="blocked"):
                 await chat_structured_with_fallback(
@@ -705,8 +751,8 @@ class TestChatStructuredWithFallback:
                 )
 
     @pytest.mark.asyncio
-    async def test_reraises_when_large_equals_current(self):
-        """If $large resolves to the same provider+model we just tried,
+    async def test_reraises_when_fallbacks_equal_current(self):
+        """If fallbacks resolve to the same provider+model we just tried,
         no point retrying — re-raise to surface the guardrail."""
         apple_cfg = LLMConfig(provider="apple", model="apple-intelligence")
 
@@ -739,8 +785,8 @@ class TestChatStructuredWithFallback:
                 )
 
     @pytest.mark.asyncio
-    async def test_falls_back_to_large_on_unsupported_locale(self):
-        """Apple raises UnsupportedLocaleError → resolve $large → retry.
+    async def test_falls_back_to_medium_on_unsupported_locale(self):
+        """Apple raises UnsupportedLocaleError → resolve $medium → retry.
         Same fallback path as guardrail — both inherit AppleUnavailableError
         so chat_structured_with_fallback's single `except` catches both (#868)."""
         apple_cfg = LLMConfig(provider="apple", model="apple-intelligence")
@@ -750,17 +796,20 @@ class TestChatStructuredWithFallback:
                 raise UnsupportedLocaleError(
                     "Apple Intelligence (unsupported_language): es-CO not supported"
                 )
-            assert config.provider == "openai"
-            assert config.model == "gpt-5"
-            return _Result(answer="from-large")
+            assert config.provider == "openrouter"
+            assert config.model == "openai/gpt-4o-mini"
+            return _Result(answer="from-medium")
 
         with patch("fichero.llm.chat_structured", new=fake_chat_structured), \
-             patch("fichero.llm.resolve_model_alias", return_value=("openai", "gpt-5")):
+             patch(
+                 "fichero.llm.resolve_model_alias",
+                 return_value=("openrouter", "openai/gpt-4o-mini"),
+             ):
             result = await chat_structured_with_fallback(
                 prompt="x", schema=_Result, config=apple_cfg
             )
 
-        assert result == _Result(answer="from-large")
+        assert result == _Result(answer="from-medium")
 
     @pytest.mark.asyncio
     async def test_unsupported_locale_reraises_when_no_large(self):

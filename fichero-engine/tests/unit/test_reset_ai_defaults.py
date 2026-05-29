@@ -44,6 +44,8 @@ class TestResetAIDefaults:
         assert defaults["default_text_model"] == "apple-intelligence"
         assert defaults["default_small_provider"] == "apple"
         assert defaults["default_small_model"] == "apple-intelligence"
+        assert defaults["default_medium_provider"] == "openrouter"
+        assert defaults["default_medium_model"] == "openai/gpt-4o-mini"
         assert defaults["default_vision_provider"] == "apple"
         assert defaults["default_vision_model"] == "apple-vision"
         assert defaults["default_audio_provider"] == "apple"
@@ -51,10 +53,8 @@ class TestResetAIDefaults:
 
     def test_reset_populates_all_tiers_text_small_large(self, app_db):
         """The LLM tiers the resolver actually consumes today (text,
-        small, large) need Apple Intelligence so workflow placeholders
-        resolve. Pre-fix, reset left these blank and Catalogue blew up.
-        $medium isn't wired in the resolver yet so it's deliberately
-        not seeded — see app_db.reset_ai_defaults comment.
+        small, medium, large) need defaults so workflow placeholders
+        resolve. $medium is OpenRouter cloud; the rest stay Apple.
         """
         app_db.reset_ai_defaults()
         defaults = app_db.get_ai_defaults()
@@ -63,6 +63,8 @@ class TestResetAIDefaults:
                 f"Tier {tier} should be Apple Intelligence after reset"
             )
             assert defaults.get(f"default_{tier}_model") == "apple-intelligence"
+        assert defaults["default_medium_provider"] == "openrouter"
+        assert defaults["default_medium_model"] == "openai/gpt-4o-mini"
 
     def test_reset_does_not_touch_providers(self, app_db):
         """The #933 scope guarantee: Reset Defaults must leave the

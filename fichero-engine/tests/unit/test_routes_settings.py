@@ -4,10 +4,6 @@ Settings store app-wide AI model defaults (vision, text, audio, video, embedding
 SwiftUI reads these on launch to populate the model selection dropdowns.
 """
 
-import pytest
-from unittest.mock import MagicMock, patch
-
-
 class TestGetAIDefaults:
     def test_returns_all_fields(self, client):
         r = client.get("/api/settings/ai-defaults")
@@ -20,6 +16,7 @@ class TestGetAIDefaults:
             "video_provider", "video_model",
             "embeddings_provider", "embeddings_model",
             "small_provider", "small_model",
+            "medium_provider", "medium_model",
             "large_provider", "large_model",
             "temperature", "max_tokens",
             "prompt_prefix",
@@ -49,6 +46,8 @@ class TestSetAIDefaults:
             "embeddings_model": "",
             "small_provider": "apple",
             "small_model": "apple-intelligence",
+            "medium_provider": "openrouter",
+            "medium_model": "openai/gpt-4o-mini",
             "large_provider": "openrouter",
             "large_model": "openrouter/free",
             "temperature": "0.7",
@@ -73,6 +72,8 @@ class TestSetAIDefaults:
             "embeddings_model": "text-embedding-3-small",
             "small_provider": "apple",
             "small_model": "apple-intelligence",
+            "medium_provider": "openrouter",
+            "medium_model": "openai/gpt-4o-mini",
             "large_provider": "openrouter",
             "large_model": "openrouter/free",
             "temperature": "",
@@ -89,6 +90,8 @@ class TestSetAIDefaults:
         assert data["embeddings_model"] == "text-embedding-3-small"
         assert data["small_provider"] == "apple"
         assert data["small_model"] == "apple-intelligence"
+        assert data["medium_provider"] == "openrouter"
+        assert data["medium_model"] == "openai/gpt-4o-mini"
         assert data["large_provider"] == "openrouter"
         assert data["large_model"] == "openrouter/free"
 
@@ -101,6 +104,7 @@ class TestSetAIDefaults:
             "video_provider": "", "video_model": "",
             "embeddings_provider": "", "embeddings_model": "",
             "small_provider": "apple", "small_model": "apple-intelligence",
+            "medium_provider": "openrouter", "medium_model": "openai/gpt-4o-mini",
             "large_provider": "openrouter", "large_model": "openrouter/free",
             "temperature": "", "max_tokens": "",
             "prompt_prefix": "",
@@ -115,6 +119,8 @@ class TestSetAIDefaults:
         # Tier aliases are intentionally preserved when empty payloads are sent.
         assert data["small_provider"] == "apple"
         assert data["small_model"] == "apple-intelligence"
+        assert data["medium_provider"] == "openrouter"
+        assert data["medium_model"] == "openai/gpt-4o-mini"
         assert data["large_provider"] == "openrouter"
         assert data["large_model"] == "openrouter/free"
 
@@ -136,16 +142,18 @@ class TestResetAIDefaults:
         assert r.json()["status"] == "ok"
         r2 = client.get("/api/settings/ai-defaults")
         data = r2.json()
-        # After reset, factory defaults (Apple Intelligence) are re-seeded.
+        # After reset, factory defaults are re-seeded.
         # Only fields without factory defaults remain empty.
         non_empty_fields = {k: v for k, v in data.items() if v != ""}
         assert all(
             k.endswith(("_provider", "_model"))
             for k in non_empty_fields
         ), f"Unexpected non-empty fields after reset: {non_empty_fields}"
-        # Tier aliases + typed categories have Apple Intelligence defaults
+        # Most typed categories use Apple Intelligence defaults.
         for key in ("text_provider", "small_provider", "large_provider",
                     "vision_provider", "audio_provider"):
             assert data[key] == "apple", f"{key} should be 'apple' after reset"
         for key in ("text_model", "small_model", "large_model"):
             assert data[key] == "apple-intelligence", f"{key} should be 'apple-intelligence' after reset"
+        assert data["medium_provider"] == "openrouter"
+        assert data["medium_model"] == "openai/gpt-4o-mini"

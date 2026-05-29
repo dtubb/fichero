@@ -457,6 +457,8 @@ class AppDatabase:
             "default_embeddings_model",
             "default_small_provider",
             "default_small_model",
+            "default_medium_provider",
+            "default_medium_model",
             "default_large_provider",
             "default_large_model",
             "default_temperature",
@@ -498,7 +500,7 @@ class AppDatabase:
         return None
 
     def reset_ai_defaults(self):
-        """Reset AI defaults to factory: Apple Intelligence everywhere.
+        """Reset AI defaults to factory values.
 
         Pre-fix this just deleted every default_* key, leaving the user
         with blank AI Defaults until the next engine launch re-ran
@@ -520,24 +522,24 @@ class AppDatabase:
             "default_video_provider", "default_video_model",
             "default_embeddings_provider", "default_embeddings_model",
             "default_small_provider", "default_small_model",
+            "default_medium_provider", "default_medium_model",
             "default_large_provider", "default_large_model",
             "default_temperature", "default_max_tokens", "default_prompt_prefix",
         ]
         for key in keys_to_delete:
             self.delete_setting(key)
 
-        # Re-seed with the Apple Intelligence factory baseline matching
+        # Re-seed with the factory baseline matching
         # what _ensure_default_ai_defaults() writes on first launch
         # (see api/main.py). Kept in lockstep with that bootstrap; if
-        # bootstrap's pairs change, update both. Apple Intelligence is
-        # always available on macOS 26+ Apple Silicon — free, on-device,
-        # no user setup needed. Only the tiers the resolver actually
-        # consumes today (`$small` / `$large` / typed: text / vision /
-        # audio) — no point seeding `$medium` until something resolves it.
+        # bootstrap's pairs change, update both. $small stays free and
+        # on-device; $medium is a capable low-cost OpenRouter cloud model
+        # for structured fallback before any local $large retry (#1308).
         apple = "apple"
         factory_defaults = {
             "default_text_provider": apple, "default_text_model": "apple-intelligence",
             "default_small_provider": apple, "default_small_model": "apple-intelligence",
+            "default_medium_provider": "openrouter", "default_medium_model": "openai/gpt-4o-mini",
             "default_large_provider": apple, "default_large_model": "apple-intelligence",
             "default_vision_provider": apple, "default_vision_model": "apple-vision",
             "default_audio_provider": apple, "default_audio_model": "apple-speech",

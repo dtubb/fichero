@@ -232,11 +232,11 @@ class LLMConfig:
 
 
 # =============================================================================
-# Model aliases ($small / $large) — see #810
+# Model aliases ($small / $medium / $large) — see #810 / #1308
 # =============================================================================
 
 
-_MODEL_ALIASES = {"$small", "$large"}
+_MODEL_ALIASES = {"$small", "$medium", "$large"}
 
 
 class AppleUnavailableError(RuntimeError):
@@ -468,7 +468,7 @@ def _raise_provider_quota_error(
 
 
 def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
-    """Resolve $small / $large aliases against app-level settings.
+    """Resolve $small / $medium / $large aliases against app-level settings.
 
     Returns the input pair unchanged when not an alias. Raises ValueError
     with an actionable message when the alias is used but the matching
@@ -490,7 +490,7 @@ def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
 
     from fichero.app_db import get_app_db
     db = get_app_db()
-    tier = "small" if raw == "$small" else "large"
+    tier = raw[1:]
     resolved_provider = db.get_setting(f"default_{tier}_provider")
     resolved_model = db.get_setting(f"default_{tier}_model")
 
@@ -1627,7 +1627,7 @@ async def chat_structured_with_fallback(
     use_case: str | None = None,
     permissive_guardrails: bool = False,
 ) -> BaseModel:
-    """Like chat_structured(), but falls back to the user's $large model
+    """Like chat_structured(), but falls back through $medium then $large
     when Apple Intelligence can't service the request (guardrail refusal
     #838 or unsupported locale #868).
 
@@ -1675,42 +1675,77 @@ async def chat_structured_with_fallback(
                 # retry's error as the operative cause.
                 apple_exc = retry_exc
 
-        try:
-            large_config = _build_fallback_config(config, "large")
-        except ValueError:
+        last_config_error: ValueError | None = None
+        for tier in ("medium", "large"):
+            try:
+                fallback_config = _build_fallback_config(config, tier)
+            except ValueError as exc:
+                last_config_error = exc
+                logger.warning(
+                    "Structured-call %s but no $%s fallback configured; "
+                    "continuing fallback chain.",
+                    type(apple_exc).__name__,
+                    tier,
+                )
+                continue
+
+            if (
+                fallback_config.provider == config.provider
+                and fallback_config.model == config.model
+            ):
+                # Alias resolves to the same model we just tried — no point
+                # retrying that tier. Try the next tier before surfacing.
+                continue
+
+            # #1001/#1308: structured extractor fallback may become a billing
+            # event. $medium is intentionally a capable cloud model by
+            # default; local providers (omlx/ollama/lmstudio) remain free.
+            _cost_note = (
+                "a local model — no API cost"
+                if fallback_config.provider in _KEYLESS_OPENAI_COMPATIBLE
+                else "a PAID remote model — this request now incurs cost"
+            )
             logger.warning(
-                "Structured-call %s but no $large fallback configured; "
-                "set Settings → AI Defaults → Default large model.",
+                "Apple Intelligence unavailable for structured call (%s); "
+                "falling back to %s: $%s = %s/%s.",
+                type(apple_exc).__name__,
+                _cost_note,
+                tier,
+                fallback_config.provider,
+                fallback_config.model,
+            )
+            # The fallback provider is LangChain-based, so the Apple-only
+            # include_schema_in_prompt parameter is ignored on that path.
+            try:
+                result = await chat_structured(
+                    prompt, schema, fallback_config, system=system
+                )
+            except ProviderQuotaError:
+                if tier == "medium":
+                    logger.warning(
+                        "$medium structured fallback hit provider quota; "
+                        "trying $large."
+                    )
+                    continue
+                raise
+            except AppleUnavailableError:
+                # A misconfigured tier can point back to Apple; try the next tier.
+                continue
+            logger.info(
+                "Structured fallback to $%s %s/%s succeeded.",
+                tier,
+                fallback_config.provider,
+                fallback_config.model,
+            )
+            return result
+
+        if last_config_error is not None:
+            logger.warning(
+                "Structured-call %s but no usable $medium or $large fallback "
+                "configured; set Settings → AI Defaults.",
                 type(apple_exc).__name__,
             )
-            raise apple_exc
-
-        if large_config.provider == config.provider and large_config.model == config.model:
-            # $large resolves to the same model we just tried — no point
-            # retrying. Surface the original error.
-            raise apple_exc
-        # #1001: the structured extractor path (Extract All Entities,
-        # catalogue) hits this on guardrail refusals. Flag a cloud swap as a
-        # billing event, but local providers (omlx/ollama/lmstudio) are free.
-        _cost_note = (
-            "a local model — no API cost"
-            if large_config.provider in _KEYLESS_OPENAI_COMPATIBLE
-            else "a PAID remote model — this request now incurs cost"
-        )
-        logger.warning(
-            "Apple Intelligence unavailable for structured call (%s); "
-            "falling back to %s: $large = %s/%s.",
-            type(apple_exc).__name__, _cost_note,
-            large_config.provider, large_config.model,
-        )
-        # The fallback provider is LangChain-based, so the Apple-only
-        # include_schema_in_prompt parameter is ignored on that path.
-        result = await chat_structured(prompt, schema, large_config, system=system)
-        logger.info(
-            "Structured fallback to %s/%s succeeded.",
-            large_config.provider, large_config.model,
-        )
-        return result
+        raise apple_exc
 
 
 # Apple Intelligence on-device model context window size. Documented at
