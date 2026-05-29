@@ -28,10 +28,12 @@ class AIDefaults(BaseModel):
     embeddings_provider: str = ""
     embeddings_model: str = ""
     # Capability-tier defaults — referenced by workflow nodes via the
-    # $small / $large model aliases so presets stay portable across users
+    # $small / $medium / $large model aliases so presets stay portable across users
     # with different configured providers (#810).
     small_provider: str = ""
     small_model: str = ""
+    medium_provider: str = ""
+    medium_model: str = ""
     large_provider: str = ""
     large_model: str = ""
     # Advanced
@@ -60,6 +62,8 @@ def get_ai_defaults() -> AIDefaults:
         embeddings_model=defaults.get("default_embeddings_model", ""),
         small_provider=defaults.get("default_small_provider", ""),
         small_model=defaults.get("default_small_model", ""),
+        medium_provider=defaults.get("default_medium_provider", ""),
+        medium_model=defaults.get("default_medium_model", ""),
         large_provider=defaults.get("default_large_provider", ""),
         large_model=defaults.get("default_large_model", ""),
         temperature=defaults.get("default_temperature", ""),
@@ -87,17 +91,20 @@ def set_ai_defaults(body: AIDefaults) -> StatusOkResponse:
         "default_embeddings_model": body.embeddings_model,
         "default_small_provider": body.small_provider,
         "default_small_model": body.small_model,
+        "default_medium_provider": body.medium_provider,
+        "default_medium_model": body.medium_model,
         "default_large_provider": body.large_provider,
         "default_large_model": body.large_model,
         "default_temperature": body.temperature,
         "default_max_tokens": body.max_tokens,
         "default_prompt_prefix": body.prompt_prefix,
     }
-    # Tier-alias keys ($small/$large) must never be deleted mid-session —
+    # Tier-alias keys ($small/$medium/$large) must never be deleted mid-session —
     # workflows silently lose their fallback target (#1057). Skip empty
     # values for these; explicit reset goes through DELETE /ai-defaults.
     _tier_keys = {
         "default_small_provider", "default_small_model",
+        "default_medium_provider", "default_medium_model",
         "default_large_provider", "default_large_model",
     }
     for key, value in mapping.items():
@@ -110,7 +117,7 @@ def set_ai_defaults(body: AIDefaults) -> StatusOkResponse:
 
 @router.post("/ai-defaults/repair")
 def repair_ai_defaults() -> StatusOkResponse:
-    """Re-seed any missing tier-alias defaults to Apple on-device models.
+    """Re-seed any missing tier-alias defaults to factory models.
 
     Safe to call on an existing library — only fills gaps, never overwrites
     values the user has already set. Fixes libraries created before the
@@ -122,6 +129,7 @@ def repair_ai_defaults() -> StatusOkResponse:
     apple = "apple"
     seeds = {
         "default_small_provider": apple, "default_small_model": "apple-intelligence",
+        "default_medium_provider": "openrouter", "default_medium_model": "openai/gpt-4o-mini",
         "default_large_provider": apple, "default_large_model": "apple-intelligence",
         "default_text_provider": apple, "default_text_model": "apple-intelligence",
         "default_vision_provider": apple, "default_vision_model": "apple-vision",

@@ -1,4 +1,4 @@
-"""Tests for $small / $large model alias resolution (#810)."""
+"""Tests for $small / $medium / $large model alias resolution (#810/#1308)."""
 
 from __future__ import annotations
 
@@ -45,6 +45,17 @@ class TestResolveModelAlias:
                 "claude-sonnet-4-6",
             )
 
+    def test_resolves_medium_alias(self):
+        with patch("fichero.app_db.get_app_db") as mock_db:
+            mock_db.return_value.get_setting.side_effect = lambda k: {
+                "default_medium_provider": "openrouter",
+                "default_medium_model": "openai/gpt-4o-mini",
+            }.get(k)
+            assert resolve_model_alias("$medium", "") == (
+                "openrouter",
+                "openai/gpt-4o-mini",
+            )
+
     def test_unset_small_raises_actionable_error(self):
         with patch("fichero.app_db.get_app_db") as mock_db:
             mock_db.return_value.get_setting.return_value = None
@@ -56,6 +67,12 @@ class TestResolveModelAlias:
             mock_db.return_value.get_setting.return_value = None
             with pytest.raises(ValueError, match="Default large model"):
                 resolve_model_alias("$large", "")
+
+    def test_unset_medium_raises_actionable_error(self):
+        with patch("fichero.app_db.get_app_db") as mock_db:
+            mock_db.return_value.get_setting.return_value = None
+            with pytest.raises(ValueError, match="Default medium model"):
+                resolve_model_alias("$medium", "")
 
     def test_partial_setting_raises(self):
         # Provider set but model missing — still an error.
@@ -70,3 +87,11 @@ class TestResolveModelAlias:
         monkeypatch.setenv("FICHERO_LARGE_PROVIDER", "openai")
         monkeypatch.setenv("FICHERO_LARGE_MODEL", "mlx-local")
         assert resolve_model_alias("$large", "") == ("openai", "mlx-local")
+
+    def test_env_override_wins_for_medium(self, monkeypatch):
+        monkeypatch.setenv("FICHERO_MEDIUM_PROVIDER", "openrouter")
+        monkeypatch.setenv("FICHERO_MEDIUM_MODEL", "openai/gpt-4o-mini")
+        assert resolve_model_alias("$medium", "") == (
+            "openrouter",
+            "openai/gpt-4o-mini",
+        )

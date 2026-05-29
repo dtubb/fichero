@@ -242,7 +242,7 @@ def _seed_builtin_providers() -> None:
             #   - apple-vision       — image OCR
             #   - apple-speech       — speech-to-text transcription
             # is_default=True on apple-intelligence so the Defaults pane
-            # has a sensible starting pick for $small / $medium.
+            # has a sensible starting pick for $small and text.
             builtins = [
                 Model(
                     provider_id=apple_provider.id,
@@ -284,32 +284,31 @@ def _seed_builtin_providers() -> None:
 
 
 def _ensure_default_ai_defaults(app_db, apple_provider_id: str) -> None:
-    """Populate AI Defaults if missing — Apple Intelligence everywhere.
+    """Populate AI Defaults if missing.
 
     On a fresh install the `default_*_provider` / `default_*_model`
     settings are unset, so workflows using $small / $medium / $large
     placeholders fail immediately with "no default model configured"
     (#932 first-run blocker).
 
-    This sets sensible defaults using the just-seeded Apple models:
-      - text / small / medium / large → apple-intelligence
-      - vision                        → apple-vision
-      - audio                         → apple-speech
+    This sets sensible defaults:
+      - text / small / large → apple-intelligence
+      - medium               → openrouter/openai/gpt-4o-mini
+      - vision               → apple-vision
+      - audio                → apple-speech
 
     Only writes a key when it is currently unset; user configuration is
     never overwritten. (#933 — Reset Defaults must not erase user choices
     on its own; explicit per-pane Reset buttons handle that case.)
     """
     apple_type = "apple"
-    # Only the tiers the resolver actually consumes today
-    # ($small / $large + typed text / vision / audio). $medium isn't
-    # wired in the alias resolver yet — no point seeding a default
-    # for it until something resolves it. (#933)
     pairs = [
         ("default_text_provider", apple_type),
         ("default_text_model", "apple-intelligence"),
         ("default_small_provider", apple_type),
         ("default_small_model", "apple-intelligence"),
+        ("default_medium_provider", "openrouter"),
+        ("default_medium_model", "openai/gpt-4o-mini"),
         ("default_large_provider", apple_type),
         ("default_large_model", "apple-intelligence"),
         ("default_vision_provider", apple_type),
