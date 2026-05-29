@@ -327,9 +327,12 @@ async def list_entities(
     """
     # If document_id filter, get entity IDs from claims first
     if document_id:
-        # Get all claims for this document
+        from fichero.api.routes.claims import _descendant_doc_ids
+
+        doc_ids = _descendant_doc_ids(db, document_id)
+        # Get all claims for this document and any descendant page/chunk docs.
         all_claims = db.query(KnowledgeClaim)
-        doc_claims = [c for c in all_claims if c.source_document_id == document_id]
+        doc_claims = [c for c in all_claims if c.source_document_id in doc_ids]
 
         # Extract entity IDs from those claims
         entity_ids: set[str] = set()

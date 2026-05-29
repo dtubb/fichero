@@ -135,6 +135,50 @@ class TestDocumentInspector:
         assert len(result.interpretations) == 1
         assert len(result.projects) == 1
 
+    def test_page_returns_own_entities_and_parent_rolls_up_pages(self, db):
+        from fichero.api.routes import document_inspector
+
+        parent = Document(name="Preface.pdf", doc_type=DocType.file)
+        db.save(parent)
+        page1 = Document(name="page 1", doc_type=DocType.page, parent_id=parent.id)
+        page2 = Document(name="page 2", doc_type=DocType.page, parent_id=parent.id)
+        db.save(page1)
+        db.save(page2)
+
+        person = KnowledgeEntity(
+            canonical_name="Louise Livingstone", entity_type=EntityType.person
+        )
+        place = KnowledgeEntity(canonical_name="Deloro", entity_type=EntityType.location)
+        db.save(person)
+        db.save(place)
+        db.save(
+            KnowledgeClaim(
+                text="Livingstone signed.",
+                source_document_id=page1.id,
+                entity_ids=[person.id],
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                text="Deloro appears.",
+                source_document_id=page2.id,
+                entity_ids=[place.id],
+            )
+        )
+
+        page_result = asyncio.run(document_inspector.inspector(page1.id, db=db))
+        assert page_result.claim_count == 1
+        assert [entity.canonical_name for entity in page_result.entities] == [
+            "Louise Livingstone"
+        ]
+
+        parent_result = asyncio.run(document_inspector.inspector(parent.id, db=db))
+        assert parent_result.claim_count == 2
+        assert {entity.canonical_name for entity in parent_result.entities} == {
+            "Deloro",
+            "Louise Livingstone",
+        }
+
 
 # -----------------------------------------------------------------------------
 # Document knowledge-graph (canonical grouping endpoint, #1068)
@@ -253,22 +297,22 @@ class TestDocumentKnowledgeGraph:
         assert people.items[0].entity_id == canonical.id
         assert len(people.items[0].claim_ids) == 2
 
-    def test_parent_pdf_empty_without_include_children(self, db):
-        """extract_all writes claims to page docs — the parent looks empty (#1069)."""
+    def test_parent_pdf_rolls_up_page_claims_by_default(self, db):
+        """Page-level KG rows surface when the parent PDF is selected."""
         from fichero.api.routes import document_inspector
 
         parent = Document(name="Preface.pdf", doc_type=DocType.file)
         db.save(parent)
-        page = Document(name="Preface.pdf — page 1", doc_type=DocType.file, parent_id=parent.id)
+        page = Document(name="Preface.pdf — page 1", doc_type=DocType.page, parent_id=parent.id)
         db.save(page)
         entity = KnowledgeEntity(canonical_name="Louise Livingstone", entity_type=EntityType.person)
         db.save(entity)
         db.save(KnowledgeClaim(text="Livingstone signed.", source_document_id=page.id, entity_ids=[entity.id]))
 
         result = asyncio.run(document_inspector.knowledge_graph(parent.id, db=db))
-        assert result.include_children is False
-        assert result.groups == []
-        assert result.claim_count == 0
+        assert result.include_children is True
+        assert result.claim_count == 1
+        assert result.groups[0].items[0].canonical_name == "Louise Livingstone"
 
     def test_leaf_document_has_empty_catalogue(self, db):
         """A plain document carries no catalogue artifacts (#1047)."""
@@ -333,8 +377,8 @@ class TestDocumentKnowledgeGraph:
 
         parent = Document(name="Preface.pdf", doc_type=DocType.file)
         db.save(parent)
-        page1 = Document(name="page 1", doc_type=DocType.file, parent_id=parent.id)
-        page2 = Document(name="page 2", doc_type=DocType.file, parent_id=parent.id)
+        page1 = Document(name="page 1", doc_type=DocType.page, parent_id=parent.id)
+        page2 = Document(name="page 2", doc_type=DocType.page, parent_id=parent.id)
         db.save(page1)
         db.save(page2)
 

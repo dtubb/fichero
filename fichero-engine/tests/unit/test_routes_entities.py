@@ -106,6 +106,47 @@ class TestListEntities:
         names = {e["canonical_name"] for e in r.json()["items"]}
         assert names == {"Charlie"}
 
+    def test_filter_by_parent_document_id_rolls_up_page_claims(self, client, db):
+        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models import DocType, Document
+
+        parent = Document(name="Preface.pdf", doc_type=DocType.file)
+        page1 = Document(name="page 1", doc_type=DocType.page, parent_id=parent.id)
+        page2 = Document(name="page 2", doc_type=DocType.page, parent_id=parent.id)
+        db.save(parent)
+        db.save(page1)
+        db.save(page2)
+
+        person = _make_entity(db, "Louise Livingstone", EntityType.person)
+        place = _make_entity(db, "Deloro", EntityType.location)
+        db.save(
+            KnowledgeClaim(
+                text="Livingstone signed.",
+                source_document_id=page1.id,
+                entity_ids=[person.id],
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                text="Deloro appears.",
+                source_document_id=page2.id,
+                entity_ids=[place.id],
+            )
+        )
+
+        r = client.get(f"/api/entities?document_id={page1.id}")
+        assert r.status_code == 200
+        assert {e["canonical_name"] for e in r.json()["items"]} == {
+            "Louise Livingstone"
+        }
+
+        r = client.get(f"/api/entities?document_id={parent.id}")
+        assert r.status_code == 200
+        assert {e["canonical_name"] for e in r.json()["items"]} == {
+            "Deloro",
+            "Louise Livingstone",
+        }
+
     def test_default_list_hides_bare_dates_but_search_can_find_them(self, client, db):
         _make_entity(db, "Alice", EntityType.person)
         _make_entity(db, "1960", EntityType.other)
