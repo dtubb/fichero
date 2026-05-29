@@ -25,4 +25,23 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             KnowledgeGraphInspectorSection.showAllButtonTitle(itemCount: 10, showingAll: false)
         )
     }
+
+    func testFetchButtonHelpersExposeExpectedLabelsAndIcons() {
+        XCTAssertEqual(
+            KnowledgeGraphInspectorSection.fetchButtonHelp(for: .statements),
+            "Get statements"
+        )
+        XCTAssertEqual(
+            KnowledgeGraphInspectorSection.fetchButtonHelp(for: .artifacts),
+            "Get artifacts"
+        )
+        XCTAssertEqual(
+            KnowledgeGraphInspectorSection.fetchButtonIcon(for: .statements),
+            "quote.bubble"
+        )
+        XCTAssertEqual(
+            KnowledgeGraphInspectorSection.fetchButtonIcon(for: .artifacts),
+            "shippingbox"
+        )
+    }
 }
