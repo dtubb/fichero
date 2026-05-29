@@ -105,6 +105,26 @@ extension ContentView {
         claimFocusState.clearSelection()
     }
 
+    func handleKGFocusChanged() {
+        guard let sourceDocId = kgFocusState.sourceDocumentId,
+              !sourceDocId.isEmpty else { return }
+        Task { @MainActor in
+            await focusKGSourcePreview(sourceDocId)
+            var info: [String: Any] = ["documentId": sourceDocId]
+            if let claimId = kgFocusState.focusedClaimId, !claimId.isEmpty {
+                info["claimId"] = claimId
+            }
+            if let pageLabel = kgFocusState.sourcePageLabel, !pageLabel.isEmpty {
+                info["pageLabel"] = pageLabel
+            }
+            NotificationCenter.default.post(
+                name: .ficheroNavigateToPage,
+                object: nil,
+                userInfo: info
+            )
+        }
+    }
+
     var showsPreviewPane: Bool {
         guard currentLayoutMode != .none else { return false }
         switch viewMode {

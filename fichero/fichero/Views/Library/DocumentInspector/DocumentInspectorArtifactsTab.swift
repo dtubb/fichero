@@ -888,6 +888,7 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
                     )
                 }
                 items.append(GroupedItem(
+                    entityId: item.entityId,
                     claimId: firstClaimId,
                     displayName: item.canonicalName,
                     context: context,
@@ -1121,6 +1122,7 @@ private final class KnowledgeGraphInspectorLoadState: ObservableObject {
 }
 
 private struct GroupedItem: Identifiable {
+    var entityId: String?
     let claimId: String
     let displayName: String
     let context: String
@@ -1423,6 +1425,7 @@ private struct EntityKindRow: View {
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
     @EnvironmentObject private var claimFocusState: ClaimFocusState
+    @Environment(KGFocusState.self) private var kgFocusState
 
     var body: some View {
         // Layout:
@@ -1432,7 +1435,7 @@ private struct EntityKindRow: View {
         // textSelection on the rest of the row.
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Button(action: fireEntitySearch) {
+                Button(action: focusPrimaryClaim) {
                     Text(item.displayName)
                         .font(.body)
                         .foregroundStyle(
@@ -1440,8 +1443,8 @@ private struct EntityKindRow: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .help("Search for \"\(item.displayName)\"")
-                .accessibilityHint("Searches for this \(kind.label.lowercased())")
+                .help("Focus \"\(item.displayName)\"")
+                .accessibilityHint("Focuses this \(kind.label.lowercased())")
 
                 trailingText
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1450,6 +1453,7 @@ private struct EntityKindRow: View {
                 // Claim selection button for bidirectional sync
                 if let onClaimSelect = onClaimSelect {
                     Button(action: {
+                        focusPrimaryClaim()
                         onClaimSelect(
                             item.claimId,
                             item.sourceExcerpt,
@@ -1562,16 +1566,18 @@ private struct EntityKindRow: View {
             }
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            focusPrimaryClaim()
+        }
     }
 
-    private func fireEntitySearch() {
-        NotificationCenter.default.post(
-            name: .ficheroEntitySearchRequested,
-            object: nil,
-            userInfo: [
-                "name": item.displayName,
-                "entityType": kind.searchScope
-            ]
+    private func focusPrimaryClaim() {
+        kgFocusState.focusClaim(
+            claimId: item.claimId,
+            entityId: item.entityId,
+            sourceDocumentId: item.sourceDocumentId,
+            sourcePageLabel: item.sourcePageLabel
         )
     }
 
@@ -1744,6 +1750,8 @@ private struct KnowledgeGraphPreviewSurface: View {
         }
         .padding()
         .frame(width: 320)
+        .environmentObject(ClaimFocusState.shared)
+        .environment(KGFocusState.shared)
     }
 }
 

@@ -14,6 +14,7 @@ import SwiftUI
 /// \`/api/claims\`).
 struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
+    @Environment(KGFocusState.self) private var kgFocusState
     @StateObject private var loadState = OntologyBrowserLoadState()
     @SceneStorage("ontology.selectedEntityId") private var selectedEntityId: String?
     @State private var navHistory = NavigationHistoryManager()
@@ -219,6 +220,10 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
             Button("Cancel", role: .cancel) { entityPendingDeletion = nil }
         } message: { _ in
             Text("The entity will be removed along with any claims that reference it (#901).")
+        }
+        .onChange(of: kgFocusState.focusedEntityId) { _, entityId in
+            guard let entityId, selectedEntityId != entityId else { return }
+            selectedEntityId = entityId
         }
     }
 
@@ -583,6 +588,9 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
             guard !isNavigatingHistory else { return }
             if let id = newValue {
                 navHistory.push(.entityProfile(entityId: id))
+                if kgFocusState.focusedClaimId == nil {
+                    kgFocusState.focusEntity(entityId: id)
+                }
             } else {
                 navHistory.push(.entityList)
             }
@@ -1025,6 +1033,7 @@ struct NewEntitySheet: View {
     OntologyBrowser()
         .frame(width: 600, height: 500)
         .environment(WorkflowExecutionObserver())
+        .environment(KGFocusState.shared)
 }
 
 #Preview("Entity Row") {
@@ -1057,6 +1066,7 @@ struct NewEntitySheet: View {
 struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
     let entities: [Components.Schemas.KnowledgeEntity]
     @Binding var selectedEntityId: String?
+    @Environment(KGFocusState.self) private var kgFocusState
 
     // Simulation state lives in a plain (non-observed) reference type so
     // the per-frame physics writes inside the Canvas render closure don't
@@ -1386,6 +1396,7 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
         }
         if let hit = bestNode {
             selectedEntityId = hit.id
+            kgFocusState.focusEntity(entityId: hit.id)
             return
         }
         // No node hit — check whether the tap landed near an edge's
@@ -1406,17 +1417,10 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
             }
         }
         if let hit = bestEdge {
-            var info: [String: Any] = [
-                "documentId": hit.edge.sourceDocumentId,
-                "claimId": hit.edge.claimId
-            ]
-            if let pageLabel = hit.edge.pageLabel, !pageLabel.isEmpty {
-                info["pageLabel"] = pageLabel
-            }
-            NotificationCenter.default.post(
-                name: .ficheroOpenClaimSource,
-                object: nil,
-                userInfo: info
+            kgFocusState.focusClaim(
+                claimId: hit.edge.claimId,
+                sourceDocumentId: hit.edge.sourceDocumentId,
+                sourcePageLabel: hit.edge.pageLabel
             )
         }
     }
@@ -1464,10 +1468,9 @@ private struct GraphEdge {
     /// SVO predicate verb from the backend (e.g. "served as", "founded").
     /// Drawn mid-edge so the user sees the relationship type at a glance.
     let predicate: String
-    /// Claim ID — so click-edge can navigate to the source.
+    /// Claim ID — so click-edge can focus the source without navigating.
     let claimId: String
-    /// Source document ID + page label — forwarded into a
-    /// `ficheroOpenClaimSource` notification on click.
+    /// Source document ID + page label for cross-view KG focus.
     let sourceDocumentId: String
     let pageLabel: String?
     /// Aggregate weight (how many claims connect these two entities).

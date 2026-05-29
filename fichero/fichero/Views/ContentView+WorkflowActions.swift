@@ -129,6 +129,33 @@ extension ContentView {
         }
     }
 
+    /// Focus the preview pane on a KG source without changing sidebar or
+    /// library-tree selection. Used by KGFocusState for ordinary row/graph
+    /// focus; explicit open-source buttons still use navigateToSourcePage.
+    @MainActor
+    func focusKGSourcePreview(_ sourceDocId: String) async {
+        let source: Document
+        do {
+            source = try await documentStore.api.get("/documents/\(sourceDocId)")
+        } catch {
+            workflowLogger.warning("focusKGSourcePreview: couldn't fetch \(sourceDocId): \(error.localizedDescription)")
+            return
+        }
+
+        let sourceIsPageChild = source.path?.isEmpty ?? true
+        if sourceIsPageChild, let parentId = source.parentId, !parentId.isEmpty {
+            do {
+                detailDocument = try await documentStore.api.get("/documents/\(parentId)")
+            } catch {
+                workflowLogger.warning(
+                    "focusKGSourcePreview: couldn't fetch parent for \(sourceDocId): \(error.localizedDescription)"
+                )
+            }
+        } else {
+            detailDocument = source
+        }
+    }
+
     /// Walk up to the current folder's parent. If the current folder is at
     /// the library root (no parent_id), navigate to the library root view
     /// (no selection). Bound to Cmd+` so users can ascend the hierarchy when

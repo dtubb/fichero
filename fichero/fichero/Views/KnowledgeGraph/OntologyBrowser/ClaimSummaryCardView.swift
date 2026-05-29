@@ -16,6 +16,7 @@ struct ClaimSummaryCard: View {
     @State var evidenceChain: Components.Schemas.EvidenceChain?
     @State var isLoadingDetails: Bool = false
     @State private var showEditSheet = false
+    @Environment(KGFocusState.self) private var kgFocusState
 
     struct SVOTriple {
         let subject: String
@@ -110,7 +111,7 @@ struct ClaimSummaryCard: View {
             .padding(10)
             .background(Color(.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            .onTapGesture { navigateToSource() }
+            .onTapGesture { focusClaim() }
             .contextMenu {
                 // Status sub-menu — set epistemic_status via PATCH.
                 // Confirmed / Tentative / Rejected are the three states the
@@ -148,6 +149,14 @@ struct ClaimSummaryCard: View {
             }
         }
     }  // end else (isEmptyContent path)
+    }
+
+    private func focusClaim() {
+        kgFocusState.focusClaim(
+            claimId: claim.id,
+            sourceDocumentId: claim.sourceDocumentId,
+            sourcePageLabel: claim.sourcePageLabel
+        )
     }
 
     /// The headline of the card. When SVO metadata is present, render
