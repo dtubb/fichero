@@ -19,7 +19,7 @@ extension ClaimSummaryCard {
             .first(where: { $0.id == docId })?
             .name
         if let docName, !docName.isEmpty {
-            Button { openClaimSource() } label: {
+            Button { navigateToSource() } label: {
                 // Render as a link, not a label: accent color + underline
                 // + pointing-hand cursor + trailing chevron all advertise
                 // tappability. Daniel: "we only have one source, can't
@@ -152,32 +152,68 @@ extension ClaimSummaryCard {
     /// Post ficheroOpenClaimSource for this claim. Called on card tap and
     /// from the sourceLine button so both paths share the same logic.
     func openClaimSource() {
+        Self.postOpenClaimSource(for: claim)
+    }
+
+    static func openClaimSourceUserInfo(
+        documentId: String,
+        pageLabel: String? = nil,
+        charStart: Int? = nil,
+        charEnd: Int? = nil,
+        claimId: String? = nil,
+        excerpt: String? = nil
+    ) -> [String: Any]? {
+        guard !documentId.isEmpty else { return nil }
+        var info: [String: Any] = ["documentId": documentId]
+        if let pageLabel = pageLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !pageLabel.isEmpty {
+            info["pageLabel"] = pageLabel
+        }
+        if let charStart { info["charStart"] = charStart }
+        if let charEnd { info["charEnd"] = charEnd }
+        if let claimId { info["claimId"] = claimId }
+        if let excerpt = excerpt?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !excerpt.isEmpty {
+            info["excerpt"] = excerpt
+        }
+        return info
+    }
+
+    static func openClaimSourceUserInfo(
+        for claim: Components.Schemas.KnowledgeClaim
+    ) -> [String: Any]? {
+        openClaimSourceUserInfo(
+            documentId: claim.sourceDocumentId,
+            pageLabel: claim.sourcePageLabel,
+            charStart: claim.sourceCharStart,
+            charEnd: claim.sourceCharEnd,
+            claimId: claim.id,
+            excerpt: claim.sourceExcerpt
+        )
+    }
+
+    static func postOpenClaimSource(for claim: Components.Schemas.KnowledgeClaim) {
         let docId = claim.sourceDocumentId
         guard !docId.isEmpty,
               LibraryManager.shared.globalLibrary?
                 .documentStore
                 .currentDocuments
-                .contains(where: { $0.id == docId }) == true
+                .contains(where: { $0.id == docId }) == true,
+              let info = openClaimSourceUserInfo(for: claim)
         else { return }
-        var info: [String: Any] = ["documentId": docId]
-        if let pageLabel = claim.sourcePageLabel?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !pageLabel.isEmpty {
-            info["pageLabel"] = pageLabel
-        }
-        if let start = claim.sourceCharStart { info["charStart"] = start }
-        if let end = claim.sourceCharEnd { info["charEnd"] = end }
-        if let claimId = claim.id { info["claimId"] = claimId }
-        if let excerpt = claim.sourceExcerpt?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !excerpt.isEmpty {
-            info["excerpt"] = excerpt
-        }
         NotificationCenter.default.post(
             name: .ficheroOpenClaimSource,
             object: nil,
             userInfo: info
         )
+    }
+
+    private func navigateToSource() {
+        if let onNavigateToSource {
+            onNavigateToSource(claim)
+        } else {
+            openClaimSource()
+        }
     }
 
     func deleteClaim() {

@@ -7,6 +7,7 @@ struct EntityDetailView: View {
     let entity: Components.Schemas.KnowledgeEntity
     let claims: [Components.Schemas.KnowledgeClaim]
     let isLoadingClaims: Bool
+    let onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)? = nil
 
     /// Curation audit log for this entity — populated lazily from
     /// `/api/kg/entity-curation/audit?entity_id=…`. Each row is a
