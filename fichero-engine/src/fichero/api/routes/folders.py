@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
-from fichero.models import Conversation, SavedSearch, Workflow
+from fichero.models import Conversation, DocType, Document, SavedSearch, Workflow
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -87,6 +87,25 @@ class FolderDeleteResponse(BaseModel):
     parent_path: str | None = None
 
 
+class FolderViewInfo(BaseModel):
+    """A lens available for a folder/workspace and whether it has content."""
+
+    id: str
+    label: str
+    populated: bool
+    item_count: int = 0
+
+
+class FolderViewsResponse(BaseModel):
+    """Available folder/workspace lenses for the selected document folder."""
+
+    folder_id: str
+    is_workspace: bool
+    curated_item_count: int
+    child_count: int
+    views: list[FolderViewInfo]
+
+
 class RenameFolderRequest(BaseModel):
     """Request to rename a folder."""
 
@@ -97,6 +116,113 @@ class RenameFolderRequest(BaseModel):
 # =============================================================================
 # Folder Routes
 # =============================================================================
+
+
+def _metadata_has_geo(metadata: dict | None) -> bool:
+    """Return true when document or curated-item metadata carries map data."""
+    if not isinstance(metadata, dict):
+        return False
+    if metadata.get("latitude") is not None and metadata.get("longitude") is not None:
+        return True
+    if metadata.get("lat") is not None and metadata.get("lon") is not None:
+        return True
+    if metadata.get("geo") or metadata.get("geojson") or metadata.get("coordinates"):
+        return True
+    return False
+
+
+def _document_has_geo(doc: Document) -> bool:
+    return _metadata_has_geo(doc.metadata) or _metadata_has_geo(doc.source_metadata)
+
+
+def _curated_item_url(item: dict) -> str | None:
+    value = item.get("url") or item.get("source_url") or item.get("href")
+    return value if isinstance(value, str) and value else None
+
+
+def _curated_item_has_geo(item: dict) -> bool:
+    return _metadata_has_geo(item) or _metadata_has_geo(item.get("metadata"))
+
+
+def _folder_descendant_documents(db: Database, folder_id: str) -> list[Document]:
+    """Collect all descendant documents for a folder, breadth-first."""
+    descendants: list[Document] = []
+    frontier = [folder_id]
+    seen = {folder_id}
+    while frontier:
+        parent_id = frontier.pop(0)
+        for child in db.query(Document, parent_id=parent_id):
+            if child.id in seen:
+                continue
+            seen.add(child.id)
+            descendants.append(child)
+            frontier.append(child.id)
+    return descendants
+
+
+@router.get("/{folder_id}/views", response_model=FolderViewsResponse)
+async def get_folder_views(
+    folder_id: str,
+    db: Database = Depends(get_library_database),
+) -> FolderViewsResponse:
+    """Return the list/map/WebKit/RealityKit lenses available for a folder.
+
+    Workspaces are ordinary folder documents with ``is_workspace=true`` and
+    optional curated items. The views are still available for any folder; the
+    ``populated`` flag tells SwiftUI which lenses currently have content.
+    """
+    folder = db.get(Document, folder_id)
+    if folder is None:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    if folder.doc_type != DocType.folder:
+        raise HTTPException(status_code=400, detail="Document is not a folder")
+
+    descendants = _folder_descendant_documents(db, folder_id)
+    curated_items = folder.curated_items or []
+    content_count = len(descendants) + len(curated_items)
+
+    map_count = sum(1 for doc in descendants if _document_has_geo(doc))
+    map_count += sum(
+        1 for item in curated_items if isinstance(item, dict) and _curated_item_has_geo(item)
+    )
+
+    web_count = sum(1 for doc in descendants if doc.path or doc.source_url)
+    web_count += sum(
+        1 for item in curated_items if isinstance(item, dict) and _curated_item_url(item)
+    )
+
+    return FolderViewsResponse(
+        folder_id=folder.id,
+        is_workspace=folder.is_workspace,
+        curated_item_count=len(curated_items),
+        child_count=len(descendants),
+        views=[
+            FolderViewInfo(
+                id="list",
+                label="List",
+                populated=content_count > 0,
+                item_count=content_count,
+            ),
+            FolderViewInfo(
+                id="map",
+                label="Map",
+                populated=map_count > 0,
+                item_count=map_count,
+            ),
+            FolderViewInfo(
+                id="webkit",
+                label="WebKit",
+                populated=web_count > 0,
+                item_count=web_count,
+            ),
+            FolderViewInfo(
+                id="realitykit",
+                label="RealityKit",
+                populated=content_count > 0,
+                item_count=content_count,
+            ),
+        ],
+    )
 
 
 @router.get("/{entity_type}/folders", response_model=FolderListResponse)

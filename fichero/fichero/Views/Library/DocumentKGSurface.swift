@@ -10,6 +10,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
     case claims
     case timeline
     case map
+    case realitykit
 
     var id: String { rawValue }
 
@@ -22,6 +23,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .claims: return "Claims"
         case .timeline: return "Timeline"
         case .map: return "Map"
+        case .realitykit: return "RealityKit"
         }
     }
 
@@ -34,6 +36,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .claims: return "quote.bubble"
         case .timeline: return "calendar.badge.clock"
         case .map: return "map"
+        case .realitykit: return "cube.transparent"
         }
     }
 }
@@ -50,6 +53,7 @@ struct DocumentKGSurface: View {
 
     @State private var activeTab: KGSurfaceTab = .transcript
     @State private var selectedEntityId: String?
+    @State private var selectedSpatialNodeId: String?
     @EnvironmentObject private var entityService: EntityServiceGenerated
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
 
@@ -114,6 +118,11 @@ struct DocumentKGSurface: View {
                 selectedEntityId: $selectedEntityId,
                 sourceDocumentId: documentId
             )
+        case .realitykit:
+            FolderRealityKitSurface(
+                documentId: documentId,
+                selectedNodeId: $selectedSpatialNodeId
+            )
         }
     }
 
@@ -161,5 +170,34 @@ struct DocumentKGSurface: View {
         .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
         .help(tab.title)
         .accessibilityIdentifier("kgSurfaceTab-\(tab.rawValue)")
+    }
+}
+
+private struct FolderRealityKitSurface: View {
+    let documentId: String
+    @Binding var selectedNodeId: String?
+
+    private var nodes: [MindPalaceNode] {
+        [
+            MindPalaceNode(
+                id: "folder-\(documentId)",
+                roomId: documentId,
+                nodeType: .source,
+                sourceId: documentId,
+                label: "Folder",
+                positionX: 0,
+                positionY: 0,
+                positionZ: 0,
+                scale: 2
+            )
+        ]
+    }
+
+    var body: some View {
+        SpatialScene3D(
+            nodes: nodes,
+            connections: [],
+            selectedNodeId: $selectedNodeId
+        )
     }
 }

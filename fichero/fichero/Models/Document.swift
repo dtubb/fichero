@@ -88,6 +88,8 @@ struct Document: Identifiable, Codable, Hashable {
     var status: Status
     var metadata: [String: AnyCodable]
     var pageContent: String?
+    var isWorkspace: Bool
+    var curatedItems: [[String: AnyCodable]]
     /// User-defined order within the document's parent folder. Written by the
     /// backend `/documents/reorder` route (`documents.py:276`) and by the
     /// `move` route when it accepts a position. Defaults to 0 for documents
@@ -111,6 +113,8 @@ struct Document: Identifiable, Codable, Hashable {
         case status
         case metadata
         case pageContent = "page_content"
+        case isWorkspace = "is_workspace"
+        case curatedItems = "curated_items"
         case sortOrder = "sort_order"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -130,6 +134,8 @@ struct Document: Identifiable, Codable, Hashable {
         status: Status = .pending,
         metadata: [String: AnyCodable] = [:],
         pageContent: String? = nil,
+        isWorkspace: Bool = false,
+        curatedItems: [[String: AnyCodable]] = [],
         sortOrder: Int = 0,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
@@ -147,6 +153,8 @@ struct Document: Identifiable, Codable, Hashable {
         self.status = status
         self.metadata = metadata
         self.pageContent = pageContent
+        self.isWorkspace = isWorkspace
+        self.curatedItems = curatedItems
         self.sortOrder = sortOrder
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -170,6 +178,8 @@ struct Document: Identifiable, Codable, Hashable {
         self.status = try container.decode(Status.self, forKey: .status)
         self.metadata = try container.decode([String: AnyCodable].self, forKey: .metadata)
         self.pageContent = try container.decodeIfPresent(String.self, forKey: .pageContent)
+        self.isWorkspace = try container.decodeIfPresent(Bool.self, forKey: .isWorkspace) ?? false
+        self.curatedItems = try container.decodeIfPresent([[String: AnyCodable]].self, forKey: .curatedItems) ?? []
         self.sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
