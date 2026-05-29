@@ -5,6 +5,7 @@ import SwiftUI
 
 struct ClaimSummaryCard: View {
     let claim: Components.Schemas.KnowledgeClaim
+    let onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)? = nil
 
     /// Expanded → reveals the verbatim source excerpt + fetches
     /// contradictions + evidence-chain. Collapsed by default to keep
@@ -103,7 +104,7 @@ struct ClaimSummaryCard: View {
             .padding(10)
             .background(Color(.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            .onTapGesture { openClaimSource() }
+            .onTapGesture { navigateToSource() }
             .contextMenu {
                 // Status sub-menu — set epistemic_status via PATCH.
                 // Confirmed / Tentative / Rejected are the three states the
@@ -139,7 +140,8 @@ struct ClaimSummaryCard: View {
                     )
                 }
             }
-        }  // end else (isEmptyContent path)
+        }
+    }  // end else (isEmptyContent path)
     }
 
     /// The headline of the card. When SVO metadata is present, render

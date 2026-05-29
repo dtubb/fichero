@@ -643,7 +643,10 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
                 EntityDetailView(
                     entity: entity,
                     claims: entityClaims,
-                    isLoadingClaims: isLoadingClaims
+                    isLoadingClaims: isLoadingClaims,
+                    onNavigateToSource: { claim in
+                        ClaimSummaryCard.postOpenClaimSource(for: claim)
+                    }
                 )
                 // `.task(id: entityId)` re-keys on selection change so
                 // each entity's claims re-fetch — was previously a bare

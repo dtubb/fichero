@@ -95,7 +95,10 @@ extension EntityDetailView {
                     : Array(filteredClaims.prefix(cap))
                 LazyVStack(alignment: .leading, spacing: 8) {
                     ForEach(visibleClaims, id: \.id) { claim in
-                        ClaimSummaryCard(claim: claim)
+                        ClaimSummaryCard(
+                            claim: claim,
+                            onNavigateToSource: onNavigateToSource
+                        )
                     }
                 }
                 if filteredClaims.count > cap {
