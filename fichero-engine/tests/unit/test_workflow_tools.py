@@ -252,6 +252,40 @@ class TestTranscribeTool:
             assert len(result["texts"]) == 1
             mock_vision.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_transcribe_labels_pdf_text_layer_as_pdf_text(
+        self, mock_llm_config, mock_state, tmp_path
+    ):
+        """Born-digital PDFs should not be mislabeled as Apple Vision OCR."""
+        from fichero.workflows.tools.transcribe import transcribe
+
+        test_pdf = tmp_path / "digital.pdf"
+        test_pdf.write_bytes(b"%PDF-1.4\n%%EOF")
+
+        save_artifact_mock = AsyncMock(return_value="artifact-123")
+
+        with patch("fichero.workflows.tools.vision_base._try_pdf_text_layer", return_value=["Digital PDF text"]) as mock_pdf_layer:
+            with patch("fichero.workflows.tools.vision_base.save_artifact", save_artifact_mock):
+                with patch("fichero.llm.vision", new_callable=AsyncMock) as mock_vision:
+                    result = await transcribe(
+                        {
+                            "files": [str(test_pdf)],
+                            "documents": [{"id": "doc123", "path": str(test_pdf)}],
+                            "save_to_db": True,
+                            "vision_mode": "apple",
+                        },
+                        mock_state,
+                        mock_llm_config,
+                    )
+
+        assert result["text"] == "Digital PDF text"
+        mock_pdf_layer.assert_called_once_with(str(test_pdf))
+        mock_vision.assert_not_called()
+        assert save_artifact_mock.await_count == 1
+        saved_kwargs = save_artifact_mock.await_args.kwargs
+        assert saved_kwargs["llm_config"].provider == "pdf_text"
+        assert saved_kwargs["llm_config"].model == "pdf-text-layer"
+
 
 class TestDescribeTool:
     """Test the describe vision tool."""

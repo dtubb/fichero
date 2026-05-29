@@ -1353,8 +1353,10 @@ async def process_vision(
             # Process with Apple Vision or LLM (the PDF text-layer
             # short-circuit ran above, before the skip-if-artifact cache).
             if pdf_layer_used:
-                # text / parsed / per_page_texts already set above.
-                pass
+                # Born-digital PDF text layer: this is not OCR, so stamp the
+                # saved artifact with a provenance label that distinguishes it
+                # from Apple Vision OCR.
+                save_config = LLMConfig(provider="pdf_text", model="pdf-text-layer")
             elif vision_mode == "apple" and tool_config.supports_apple_vision:
                 logger.info(f"Apple Vision: {Path(file_path).name}")
                 if file_path.lower().endswith(".pdf"):
@@ -1488,7 +1490,9 @@ async def process_vision(
             if save_to_db and library_path:
                 # Set proper provider/model labels for local processing
                 save_config = effective_config
-                if vision_mode == "apple":
+                if pdf_layer_used:
+                    save_config = LLMConfig(provider="pdf_text", model="pdf-text-layer")
+                elif vision_mode == "apple":
                     from fichero.llm import LLMConfig
 
                     save_config = LLMConfig(provider="apple", model="apple-vision")
