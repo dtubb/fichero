@@ -654,13 +654,13 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
                 // claim list stuck on the first entity's claims even as
                 // the header updated. (#965)
                 .task(id: entityId) {
-                    await loadEntityClaims(id: entityId)
+                    await loadEntityClaims(entity: entity)
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .ficheroClaimDeleted)) { _ in
-                    Task { await loadEntityClaims(id: entityId) }
+                    Task { await loadEntityClaims(entity: entity) }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .ficheroClaimUpdated)) { _ in
-                    Task { await loadEntityClaims(id: entityId) }
+                    Task { await loadEntityClaims(entity: entity) }
                 }
             } else {
                 emptyDetailState
@@ -687,14 +687,39 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
         .padding()
     }
 
-    private func loadEntityClaims(id: String) async {
+    private func loadEntityClaims(entity: Components.Schemas.KnowledgeEntity) async {
         isLoadingClaims = true
 
         do {
             let library = LibraryManager.shared.globalLibrary!
             let service = library.entityService
-            // listClaims(entityId:) filters /api/claims by entity.
-            entityClaims = try await service.listClaims(entityId: id, limit: 50)
+            guard let entityId = entity.id else {
+                entityClaims = []
+                isLoadingClaims = false
+                return
+            }
+            let sourceDocIds = Set((entity.sourceSupports ?? []).compactMap { $0.sourceDocumentId })
+            if sourceDocIds.isEmpty {
+                entityClaims = []
+                isLoadingClaims = false
+                return
+            }
+
+            var merged: [String: Components.Schemas.KnowledgeClaim] = [:]
+            for docId in sourceDocIds {
+                let response = try await service.documentKnowledgeGraph(
+                    documentId: docId,
+                    includeChildren: true
+                )
+                for claim in response.claims where (claim.entityIds ?? []).contains(entityId) {
+                    if let claimId = claim.id {
+                        merged[claimId] = claim
+                    }
+                }
+            }
+            entityClaims = merged.values.sorted {
+                ($0.createdAt ?? Date.distantPast) > ($1.createdAt ?? Date.distantPast)
+            }
         } catch {
             entityClaims = []
         }
