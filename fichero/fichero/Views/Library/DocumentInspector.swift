@@ -15,14 +15,13 @@ extension Notification.Name {
 }
 
 /// Tab selection for document inspector. Order matters — left-to-right is
-/// content / knowledge graph / info, per Daniel's mental model:
-/// "the document itself" → "the structured world inside it" → "metadata
-/// about the document".
+/// content / knowledge graph / artifacts / info, per Daniel's mental model:
+/// "the document itself" → "the structured world inside it" → "the raw
+/// outputs" → "metadata about the document".
 enum InspectorTab: String, CaseIterable, Identifiable {
     case content = "Content"
     case annotations = "Annotations"
     case knowledgeGraph = "Knowledge Graph"
-    case map = "Map"
     case artifacts = "Artifacts"
     case info = "Info"
 
@@ -33,7 +32,6 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         case .content: return "doc.text"
         case .annotations: return "highlighter"
         case .knowledgeGraph: return "point.3.connected.trianglepath.dotted"
-        case .map: return "map"
         case .artifacts: return "shippingbox"
         case .info: return "info.circle"
         }
@@ -78,7 +76,7 @@ struct DocumentInspector: View {
         // Tab bar sits at the very top (matching every other pane header).
         // The attribute strip moved below the tabs and now lives *inside* the
         // Content tab only — it described the document, which is the Content
-        // tab's concern, and it shouldn't crowd the Knowledge Graph / Map /
+        // tab's concern, and it shouldn't crowd the Knowledge Graph /
         // Artifacts / Info tabs. (#1228)
         VStack(spacing: 0) {
             tabBar
@@ -131,8 +129,6 @@ struct DocumentInspector: View {
             DocumentInspectorAnnotationsTab(document: doc)
         case .knowledgeGraph:
             knowledgeGraphTab(for: doc)
-        case .map:
-            mapTab
         case .artifacts:
             artifactsTab(for: doc)
         case .info:
@@ -172,29 +168,6 @@ struct DocumentInspector: View {
                     )
                 }
             )
-            .padding()
-        }
-    }
-
-    private var mapTab: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Page-scoped Knowledge Graph (Map View)")
-                    .font(.headline)
-                Text("Showing entities and relationships specific to this document.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.gray.opacity(0.1))
-                    .frame(height: 300)
-                    .overlay(
-                        Text("Map tab placeholder - page-scoped graph would appear here")
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding()
-                    )
-            }
             .padding()
         }
     }

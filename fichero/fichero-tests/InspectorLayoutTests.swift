@@ -1,31 +1,31 @@
 import AppKit
+@testable import Fichero
 import Foundation
 import Testing
-@testable import Fichero
 
 // MARK: - InspectorTab Tests (#531)
 
 struct InspectorTabTests {
 
-    @Test("InspectorTab has five cases after Inspector V2: content, knowledgeGraph, map, artifacts, info")
+    @Test("InspectorTab has four cases after Map removal: content, knowledgeGraph, artifacts, info")
     func allCases() {
         // Inspector V2 (#155) added knowledgeGraph + artifacts tabs.
-        // The Map tab was added later for the page-scoped KG view.
+        // The Map tab was removed because the content area already
+        // exposes the WebKit/graph view.
         // Order in the enum drives left-to-right tab-bar rendering;
         // assertions below lock that ordering.
-        #expect(InspectorTab.allCases.count == 5)
+        #expect(InspectorTab.allCases.count == 4)
         #expect(InspectorTab.allCases.contains(.content))
         #expect(InspectorTab.allCases.contains(.knowledgeGraph))
-        #expect(InspectorTab.allCases.contains(.map))
         #expect(InspectorTab.allCases.contains(.artifacts))
         #expect(InspectorTab.allCases.contains(.info))
     }
 
-    @Test("InspectorTab order: content, knowledgeGraph, map, artifacts, info")
+    @Test("InspectorTab order: content, knowledgeGraph, artifacts, info")
     func ordering() {
         // Tab bar reads .allCases left-to-right. If someone reorders
         // the enum cases, every user's muscle memory breaks. Lock it.
-        let expected: [InspectorTab] = [.content, .knowledgeGraph, .map, .artifacts, .info]
+        let expected: [InspectorTab] = [.content, .knowledgeGraph, .artifacts, .info]
         #expect(InspectorTab.allCases == expected)
     }
 
@@ -40,7 +40,6 @@ struct InspectorTabTests {
     func icons() {
         #expect(InspectorTab.content.icon == "doc.text")
         #expect(InspectorTab.knowledgeGraph.icon == "point.3.connected.trianglepath.dotted")
-        #expect(InspectorTab.map.icon == "map")
         #expect(InspectorTab.artifacts.icon == "shippingbox")
         #expect(InspectorTab.info.icon == "info.circle")
     }
@@ -49,7 +48,6 @@ struct InspectorTabTests {
     func rawValues() {
         #expect(InspectorTab.content.rawValue == "Content")
         #expect(InspectorTab.knowledgeGraph.rawValue == "Knowledge Graph")
-        #expect(InspectorTab.map.rawValue == "Map")
         #expect(InspectorTab.artifacts.rawValue == "Artifacts")
         #expect(InspectorTab.info.rawValue == "Info")
     }
