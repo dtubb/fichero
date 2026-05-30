@@ -107,7 +107,10 @@ extension ContentView {
             PDFPageWithToolbar(
                 path: pdfPath,
                 pageIndex: selectedIdx,
-                onPageIndexChange: { idx in syncGridSelectionToPDFPage(index: idx) }
+                onPageIndexChange: { idx in
+                    guard documentScrollSync.beginDriving(.pdf) else { return }
+                    syncGridSelectionToPDFPage(index: idx)
+                }
             )
             .overlay { paneFocusIndicator(for: .preview) }
             .frame(maxWidth: .infinity)
