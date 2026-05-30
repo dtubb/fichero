@@ -14,6 +14,7 @@ struct MindPalaceContainer: View {
 
     @State private var nodes: [MindPalaceNode] = []
     @State private var connections: [MindPalaceConnection] = []
+    @State private var viewport: MindPalaceViewport?
     @State private var roomName: String = ""
     @State private var isLoading = false
     @State private var loadError: String?
@@ -106,6 +107,10 @@ struct MindPalaceContainer: View {
                 SpatialScene3D(
                     nodes: nodes,
                     connections: connections,
+                    initialViewport: viewport,
+                    onNodePositionChanged: updateNodePosition,
+                    onNodeMoveEnded: persistNodePosition,
+                    onViewportChanged: persistViewport,
                     selectedNodeId: $state.selectedNodeId
                 )
                 // Rebuild the RealityKit scene when the room's data changes.
@@ -230,13 +235,60 @@ struct MindPalaceContainer: View {
             async let nodesTask = service.listNodes(roomId: roomId)
             async let connectionsTask = service.listConnections(roomId: roomId)
             async let roomsTask = service.listRooms()
+            async let viewportTask = service.getViewport(roomId: roomId)
             nodes = try await nodesTask
             connections = try await connectionsTask
             roomName = (try await roomsTask).first { $0.id == roomId }?.name ?? ""
+            viewport = try await viewportTask
         } catch {
             loadError = error.localizedDescription
             nodes = []
             connections = []
+            viewport = nil
+        }
+    }
+
+    private func updateNodePosition(nodeId: String, position: SIMD3<Double>) {
+        guard let index = nodes.firstIndex(where: { $0.id == nodeId }) else { return }
+        nodes[index].positionX = position.x
+        nodes[index].positionY = position.y
+        nodes[index].positionZ = position.z
+    }
+
+    private func persistNodePosition(nodeId: String, position: SIMD3<Double>) {
+        updateNodePosition(nodeId: nodeId, position: position)
+        guard let service = activeMindPalaceService() else { return }
+        Task {
+            do {
+                if let updated = try await service.moveNode(
+                    nodeId: nodeId,
+                    positionX: position.x,
+                    positionY: position.y,
+                    positionZ: position.z
+                ), let index = nodes.firstIndex(where: { $0.id == nodeId }) {
+                    nodes[index] = updated
+                }
+            } catch {
+                loadError = error.localizedDescription
+            }
+        }
+    }
+
+    private func persistViewport(cameraPosition: SIMD3<Double>, zoomLevel: Double) {
+        guard let roomId = state.selectedRoomId, let service = activeMindPalaceService() else { return }
+        Task {
+            do {
+                viewport = try await service.saveViewport(
+                    roomId: roomId,
+                    cameraX: cameraPosition.x,
+                    cameraY: cameraPosition.y,
+                    cameraZ: cameraPosition.z,
+                    zoomLevel: zoomLevel,
+                    focusNodeId: state.selectedNodeId
+                )
+            } catch {
+                loadError = error.localizedDescription
+            }
         }
     }
 

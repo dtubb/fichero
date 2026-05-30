@@ -89,6 +89,39 @@ final class MindPalaceService: ObservableObject {
         }
     }
 
+    /// Persist a node's 3D position after drag-to-move.
+    @discardableResult
+    func moveNode(
+        nodeId: String,
+        positionX: Double,
+        positionY: Double,
+        positionZ: Double,
+        scale: Double? = nil
+    ) async throws -> MindPalaceNode? {
+        let body = Components.Schemas.NodeMoveRequest(
+            positionX: positionX,
+            positionY: positionY,
+            positionZ: positionZ,
+            scale: scale
+        )
+        let response = try await client.api.moveNodeApiMindPalaceNodesNodeIdPatch(
+            path: .init(nodeId: nodeId),
+            headers: .init(xFicheroLibraryPath: libraryHeader),
+            body: .json(body)
+        )
+        switch response {
+        case .ok(let okResponse):
+            let node = try okResponse.body.json
+            guard let data = try? Self.encoder.encode(node) else { return nil }
+            return try? Self.decoder.decode(MindPalaceNode.self, from: data)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     // MARK: - Connections
 
     /// List the connections (edges) between nodes in a room.

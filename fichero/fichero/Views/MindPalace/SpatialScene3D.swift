@@ -21,6 +21,10 @@ import RealityKit
 struct SpatialScene3D: View {
     let nodes: [MindPalaceNode]
     let connections: [MindPalaceConnection]
+    var initialViewport: MindPalaceViewport?
+    var onNodePositionChanged: (String, SIMD3<Double>) -> Void = { _, _ in }
+    var onNodeMoveEnded: (String, SIMD3<Double>) -> Void = { _, _ in }
+    var onViewportChanged: (SIMD3<Double>, Double) -> Void = { _, _ in }
     @Binding var selectedNodeId: String?
 
     #if canImport(RealityKit)
@@ -29,6 +33,7 @@ struct SpatialScene3D: View {
     @State private var orbitPitch = 0.0
     @State private var dragStart = CGSize.zero
     @State private var magnificationStart = 1.0
+    @State private var nodeDragOrigins: [String: SIMD3<Double>] = [:]
     #endif
 
     var body: some View {
@@ -73,6 +78,13 @@ struct SpatialScene3D: View {
         )
         .simultaneousGesture(cameraDragGesture)
         .simultaneousGesture(cameraZoomGesture)
+        .simultaneousGesture(nodeDragGesture)
+        .onAppear {
+            applyInitialViewportIfNeeded()
+        }
+        .onChange(of: initialViewport) { _, _ in
+            applyInitialViewportIfNeeded()
+        }
         .background(Color(nsColor: .textBackgroundColor))
         #else
         Spatial2DCanvas(nodes: nodes, connections: connections, selectedNodeId: $selectedNodeId)
@@ -84,6 +96,7 @@ struct SpatialScene3D: View {
     private var cameraDragGesture: some Gesture {
         DragGesture(minimumDistance: 2)
             .onChanged { value in
+                guard nodeDragOrigins.isEmpty else { return }
                 let deltaWidth = value.translation.width - dragStart.width
                 let deltaHeight = value.translation.height - dragStart.height
                 orbitYaw += Double(deltaWidth) * 0.008
@@ -92,6 +105,7 @@ struct SpatialScene3D: View {
             }
             .onEnded { _ in
                 dragStart = .zero
+                persistViewport()
             }
     }
 
@@ -105,6 +119,40 @@ struct SpatialScene3D: View {
             }
             .onEnded { _ in
                 magnificationStart = 1.0
+                persistViewport()
+            }
+    }
+
+    private var nodeDragGesture: some Gesture {
+        DragGesture(minimumDistance: 2)
+            .targetedToAnyEntity()
+            .onChanged { value in
+                let nodeId = value.entity.name
+                guard let node = nodes.first(where: { $0.id == nodeId }) else { return }
+                if nodeDragOrigins[nodeId] == nil {
+                    nodeDragOrigins[nodeId] = SIMD3<Double>(node.positionX, node.positionY, node.positionZ)
+                    selectedNodeId = nodeId
+                }
+                guard let origin = nodeDragOrigins[nodeId] else { return }
+                let normalized = normalize()
+                let rawDeltaX = Double(value.translation.width) * 0.01 / Double(normalized.scale)
+                let rawDeltaY = -Double(value.translation.height) * 0.01 / Double(normalized.scale)
+                let next = SIMD3<Double>(
+                    MindPalaceNode.snap(origin.x + rawDeltaX),
+                    MindPalaceNode.snap(origin.y + rawDeltaY),
+                    origin.z
+                )
+                onNodePositionChanged(nodeId, next)
+                let rawPosition = SIMD3<Float>(Float(next.x), Float(next.y), Float(next.z))
+                value.entity.position = (rawPosition - normalized.center) * normalized.scale
+            }
+            .onEnded { value in
+                let nodeId = value.entity.name
+                if let node = nodes.first(where: { $0.id == nodeId }) {
+                    let snapped = node.snappedPosition()
+                    onNodeMoveEnded(nodeId, snapped)
+                }
+                nodeDragOrigins[nodeId] = nil
             }
     }
 
@@ -117,6 +165,35 @@ struct SpatialScene3D: View {
         let zPosition = cos(yaw) * cos(pitch) * distance
         camera.position = SIMD3<Float>(xPosition, yPosition, zPosition)
         camera.look(at: .zero, from: camera.position, relativeTo: nil)
+    }
+
+    private var currentCameraPosition: SIMD3<Double> {
+        let yaw = orbitYaw
+        let pitch = orbitPitch
+        let distance = cameraDistance
+        return SIMD3<Double>(
+            sin(yaw) * cos(pitch) * distance,
+            sin(pitch) * distance,
+            cos(yaw) * cos(pitch) * distance
+        )
+    }
+
+    private func persistViewport() {
+        onViewportChanged(currentCameraPosition, cameraDistance)
+    }
+
+    private func applyInitialViewportIfNeeded() {
+        guard let initialViewport else { return }
+        let position = SIMD3<Double>(
+            initialViewport.cameraX,
+            initialViewport.cameraY,
+            initialViewport.cameraZ
+        )
+        let distance = max(2.2, min(12.0, simd_length(position)))
+        guard distance.isFinite, distance > 0 else { return }
+        cameraDistance = distance
+        orbitYaw = atan2(position.x, position.z)
+        orbitPitch = asin(max(-1.0, min(1.0, position.y / distance)))
     }
 
     /// Normalize backend positions into a bounded cube (~[-1.5, 1.5]) so the
