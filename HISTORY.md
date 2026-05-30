@@ -2425,3 +2425,11 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - f_bugtriage lane halted mid-flight during closed-issue re-filing. Will need re-dispatch with 5-issue-at-a-time discipline.
 - f_integrator never dispatched. Phase 0 trunk-red fixes + `opus-realitykit-design` merge + `codex53-mcp-full-vision` merge still pending.
 - f_docs lane spun up (session-start-docs skill added) but no work yet.
+
+## 2026-05-30 (continuation) — Session Summary
+
+- Identified 2 trunk-red Swift errors after worktree path move:
+  1. `DocumentKGSurface.swift:85` — `@State private var selectedEntityId` redeclared parameter at line 77. **FIXED**: renamed @State to `internalSelectedEntityId`, updated binding sites at lines 145 + 151.
+  2. `DocumentInspectorArtifactsTab.swift:1406:17` — "method must be declared fileprivate because its parameter uses a private type". **NOT FIXED** — left for next session.
+- Confirmed Xcode project structure with Daniel (Build Phases custom phases: SwiftLint + Embed Fichero Engine; Build Rules unused; Target General is where bundle id `app.fichero.fichero` lives).
+- Xcode MCP server disconnected (`ENOENT` on reconnect) — likely died during earlier worktree path rename; needs full Claude Code restart.

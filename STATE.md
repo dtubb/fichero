@@ -1,6 +1,33 @@
 # STATE.md — Fichero
 
-## 2026-05-30 (late) — NEXT SESSION: START HERE
+## 2026-05-30 (continuation) — NEXT SESSION: START HERE
+
+**Trunk-red on `main` — must fix BEFORE merging opus-realitykit-design or codex53-mcp-full-vision:**
+1. ✅ `DocumentKGSurface.swift` — @State `selectedEntityId` redeclaration FIXED (renamed to `internalSelectedEntityId`, both binding sites at lines 145+151 updated). Uncommitted on `main`.
+2. ❌ `DocumentInspectorArtifactsTab.swift:1406:17` — "method must be declared fileprivate because its parameter uses a private type". STILL RED. Open line 1406, find the private type leaking through the method signature.
+
+**Then:**
+- Run `bash scripts/verify_all.sh` (unified ⌘U gate).
+- Commit DocumentKGSurface + ArtifactsTab fixes together.
+- Continue integrator plan: merge `origin/opus-realitykit-design` → merge `origin/codex53-mcp-full-vision` → push → delete lane worktrees → back to per-milestone issue audit.
+
+**New backlog item filed this turn:**
+- **#1341** — Audit + standardize Mac storage paths. Decision LOCKED: app is NOT sandboxed (entitlements are `<dict/>`), engine is embedded child process → both write directly to `~/Library/Application Support/Fichero/` and `~/Library/Logs/Fichero/`. NO container nesting. Migration needed from stale `com.fichero.fichero/` and `ca.tubb.fichero/` paths. Mac App Shell milestone, P2, needs-design.
+
+**Cross-tool config sync done this turn:**
+- `~/.codex/config.toml`: `[projects."...fichero-0.0.2"]` → `.../fichero`; claude-mem MCP server `cd` arg also fixed.
+- `~/.claude.json` stale `fichero-0.0.2` + `fichero_main` project keys left as-is (no directory → no effect, self-prunes).
+
+**Gotchas:**
+- Xcode MCP died mid-session (`ENOENT`). Restart Claude Code from `~/code/fichero`. CLI fallback: `xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero -destination 'platform=macOS' -skipPackagePluginValidation build` (always pass `-skipPackagePluginValidation` — [[feedback_xcodebuild_plugin_validation]]).
+- SourceKit shows `No such module 'FicheroAPIClient'` on DocumentKGSurface.swift line 1 — IGNORE, known false positive ([[feedback_sourcekit_lsp_false_positives]]). Only `xcodebuild` is authoritative.
+- **RAM is NOT a standing constraint** (Daniel, 2026-05-30). The earlier "16GB can't run concurrent jobs" / "RAM contention" notes in the 2026-05-29 entries below were a *one-off runaway Python process* (a pytest at ~491GB VSZ that starved the machine), not a real ceiling. Run concurrent builds / pip installs / indexing freely; don't self-throttle.
+- **`.venv` was missing/broken in `~/code/fichero`** (only `lib/`+`share/`, no `bin/python`) — and in all sibling worktrees. Rebuilt 2026-05-30 via `scripts/venv-sync.sh` pattern (python3.12 + `pip install -e fichero-engine[dev]` + briefcase/pytest/ruff). If a lane's `.venv` is dead, re-run that.
+- **Trunk `main` (e601c141) was pushed RED with ~20 Swift errors, not 2.** Beyond the documented DocumentKGSurface + ArtifactsTab:1406: ClaimSummaryCard `let`→`var` onNavigateToSource (memberwise-init omission); WorkflowEditor + 5 other `ViewDisplayMode` switches missing `.realitykit`; EntityDetailView `let`→`var`; 11 `EntityTypeOutput` switches missing `.citation` (the enum gained that case). Use `xcodebuild build` (not `test`) to surface ALL errors at once — `test` stops at the first failing batch and hides the rest.
+
+---
+
+## 2026-05-30 (late) — Previous entry (work in HISTORY.md)
 
 **Worktree path: `~/code/fichero` (was `~/code/fichero-0.0.2`).** Branch: **`main`** (was `0.0.2`). All lane worktrees re-pointed; old `main` archived as `archive-main-2026-05-30` for history. Default branch on GH = `main`.
 
