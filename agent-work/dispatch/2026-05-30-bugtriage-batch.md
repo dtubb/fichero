@@ -2,6 +2,21 @@
 
 Your prior session's output (`agent-work/proposals/2026-05-30-issue-triage.md`) is the plan. Execute it + the additions below. No code edits — `gh` CLI + plan documents only. **Worktree:** `~/code/fichero-0.0.2`. **Branch:** `0.0.2`.
 
+## 0. Auto-add ALL open issues to Project #5 (NEW — discovered 2026-05-30)
+
+Project #5 currently has only 30 cards while the repo has 248 open issues. Before Epic-tagging, every open issue needs to be on the board. Manager already added Epic + Priority single-select fields, closed 5 dupes (#475, #423, #1303, #1326, #1217), and labeled ~44 roadmap stubs.
+
+```bash
+# Loop-add every open, non-roadmap-labeled issue
+gh issue list --state open --limit 500 --json number,labels \
+  | python3 -c "import json,sys; ns=[i['number'] for i in json.load(sys.stdin) if not any(l['name']=='roadmap' for l in i.get('labels',[]))]; [print(n) for n in ns]" \
+  | while read n; do
+      gh project item-add 5 --owner dtubb --url "https://github.com/dtubb/fichero/issues/$n" 2>&1 | tail -1
+    done
+```
+
+Then proceed with §1.
+
 ## 1. Apply Phase 1 (GH hygiene) from your own plan
 
 From `agent-work/proposals/2026-05-30-issue-triage.md` §7 ("GitHub Projects v2 Reorganization Proposal"):
