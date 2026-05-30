@@ -1,6 +1,6 @@
 {
   "name": "Translate",
-  "description": "Transcribe each file (reusing any existing text layer), then translate the extracted text into your preferred language with an LLM. Target language ('English' by default), source language ('auto' to detect), and model are all editable on the Translate node. The LLM node uses the $small model alias — set your default small model in Settings → AI Defaults.",
+  "description": "Transcribe each file (reusing any existing text layer), then translate the extracted text using DeepL. Source language (auto) and target language (en by default) are editable on the Translate node.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -33,17 +33,17 @@
       }
     },
     {
-      "id": "text_translate",
-      "tool": "text_translate",
+      "id": "translate",
+      "tool": "translate",
       "label": "Translate Text",
       "position_x": 480,
       "position_y": 200,
       "inputs": {},
       "config": {
-        "provider_name": "$small",
-        "target_language": "English",
-        "source_language": "auto",
-        "preserve_names": true
+        "provider_name": "deepl",
+        "model_name": "deepl-default",
+        "target_lang": "en",
+        "source_lang": "auto"
       }
     }
   ],
@@ -58,7 +58,7 @@
     {
       "id": "edge-transcribe-translate",
       "source": "transcribe",
-      "target": "text_translate",
+      "target": "translate",
       "source_port": "text",
       "target_port": "text"
     }

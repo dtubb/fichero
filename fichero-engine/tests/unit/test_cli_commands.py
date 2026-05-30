@@ -98,6 +98,7 @@ class FakeClient:
         return [
             Workflow.model_validate({"id": "wf-1", "name": "Catalogue"}),
             Workflow.model_validate({"id": "wf-2", "name": "Transcribe"}),
+            Workflow.model_validate({"id": "wf-3", "name": "Translate"}),
         ]
 
     def run_workflow(self, workflow_id, inputs=None, **kw):
@@ -108,6 +109,16 @@ class FakeClient:
             workflow_name="Catalogue",
             status="accepted",
             stream_url="/api/workflow-execution/stream/t-1",
+        )
+
+    def translate_document(self, doc_id, *, target_lang="en", source_lang="auto"):
+        self.calls.append(("translate_document", doc_id, target_lang, source_lang))
+        return ExecuteAcceptedResponse(
+            thread_id="t-3",
+            workflow_id="wf-3",
+            workflow_name="Translate",
+            status="accepted",
+            stream_url="/api/workflow-execution/stream/t-3",
         )
 
     def execution_status(self, thread_id):
@@ -594,6 +605,15 @@ def test_docs_get_passes_id():
     result = runner.invoke(cli.app, ["docs", "get", "abc"])
     assert result.exit_code == 0
     assert ("get_document", "abc") in _last_client().calls
+
+
+def test_docs_translate_passes_language_options():
+    result = runner.invoke(
+        cli.app,
+        ["docs", "translate", "doc-7", "--to", "en", "--source", "nl"],
+    )
+    assert result.exit_code == 0
+    assert ("translate_document", "doc-7", "en", "nl") in _last_client().calls
 
 
 def test_import_passes_path_and_parent():

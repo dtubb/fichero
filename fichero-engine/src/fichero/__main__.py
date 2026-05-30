@@ -1334,6 +1334,24 @@ def docs_split_chapters(
     _invoke(ctx, lambda c: c.split_chapters(doc_id))
 
 
+@docs_app.command("translate")
+def docs_translate(
+    ctx: typer.Context,
+    doc_id: str = typer.Argument(..., help="Document ID."),
+    to: str = typer.Option("en", "--to", help="Target language code (e.g. en, nl, es)."),
+    source: str = typer.Option("auto", "--source", help="Source language code or auto."),
+) -> None:
+    """Run the Translate workflow for one document."""
+    _invoke(
+        ctx,
+        lambda c: c.translate_document(
+            doc_id,
+            target_lang=to,
+            source_lang=source,
+        ),
+    )
+
+
 # -- artifacts (extended) --------------------------------------------------
 @artifacts_app.command("update")
 def artifacts_update(

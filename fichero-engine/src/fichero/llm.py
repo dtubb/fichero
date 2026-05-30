@@ -742,6 +742,79 @@ async def chat_with_fallback(
         return result
 
 
+async def _translate_with_deepl(
+    *,
+    text: str,
+    source_lang: str | None,
+    target_lang: str,
+    config: LLMConfig,
+) -> str:
+    """DeepL translation call via `/v2/translate`."""
+    import aiohttp
+
+    if not text.strip():
+        return ""
+    api_key = _resolve_api_key(config)
+    if not api_key:
+        raise ValueError("DeepL provider requires DEEPL_API_KEY (or config.api_key).")
+
+    base = (config.api_base or "https://api-free.deepl.com").rstrip("/")
+    url = f"{base}/v2/translate"
+    payload: dict[str, Any] = {
+        "text": [text],
+        "target_lang": target_lang.upper(),
+    }
+    src = (source_lang or "").strip()
+    if src and src.lower() != "auto":
+        payload["source_lang"] = src.upper()
+
+    timeout = aiohttp.ClientTimeout(total=max(config.timeout, 10))
+    headers = {"Authorization": f"DeepL-Auth-Key {api_key}"}
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.post(url, headers=headers, json=payload) as response:
+            if response.status >= 400:
+                detail = await response.text()
+                raise RuntimeError(
+                    f"DeepL translate failed ({response.status}): {detail[:400]}"
+                )
+            body = await response.json()
+
+    translations = body.get("translations", [])
+    if not translations:
+        raise RuntimeError("DeepL translate returned no translations")
+    translated = translations[0].get("text")
+    if not isinstance(translated, str):
+        raise RuntimeError("DeepL translate returned invalid payload")
+    return translated
+
+
+async def translate_text(
+    text: str,
+    *,
+    source_lang: str | None = "auto",
+    target_lang: str = "en",
+    config: LLMConfig,
+) -> str:
+    """Unified translation helper for workflow tools and CLI."""
+    if config.provider.lower() == "deepl":
+        return await _translate_with_deepl(
+            text=text,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            config=config,
+        )
+
+    src = (source_lang or "auto").strip()
+    tgt = (target_lang or "en").strip()
+    from_clause = f"from {src} " if src.lower() != "auto" else ""
+    prompt = (
+        f"Translate the following text {from_clause}into {tgt}. "
+        "Output only the translation with original structure preserved.\n\n"
+        f"{text}"
+    )
+    return await chat(prompt, config)
+
+
 async def _apple_intelligence_chat(
     prompt: str | list[dict[str, Any]],
     config: LLMConfig,
@@ -2430,7 +2503,7 @@ def get_langchain_model(config: LLMConfig) -> Any:
         f"Unknown LLM provider: '{provider}'. "
         f"Supported: openai, anthropic, google, mistral, cohere, bedrock, "
         f"openrouter, ollama, lmstudio, groq, together, deepseek, dashscope, "
-        f"xai, perplexity, fireworks, huggingface, azure, apple"
+        f"xai, perplexity, fireworks, huggingface, azure, deepl, apple"
     )
 
 
@@ -2452,6 +2525,8 @@ __all__ = [
     "chat_with_tools",
     # Structured
     "structured_output",
+    # Translation
+    "translate_text",
     # Model info
     "get_model_info",
     "get_model_cost",

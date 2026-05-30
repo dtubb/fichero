@@ -59,6 +59,7 @@ from fichero.workflows.tools import keywords
 from fichero.workflows.tools import questions
 from fichero.workflows.tools import classify_text
 from fichero.workflows.tools import clean_text  # LLM text cleanup
+from fichero.workflows.tools import translate  # noqa: F401  translation tool
 from fichero.workflows.tools import text_translate  # noqa: F401  LLM translation (#926)
 from fichero.workflows.tools import text_translate_review  # noqa: F401  translation double-check (#926)
 from fichero.workflows.tools import extractors  # per-section catalogue extractors
@@ -132,6 +133,7 @@ __all__ = [
     "questions",
     "classify_text",
     "clean_text",
+    "translate",
     "text_translate",
     "text_translate_review",
     "extractors",
