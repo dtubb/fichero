@@ -17,6 +17,22 @@
 
 ## What needs doing — synthesized from the four lane outputs
 
+### Phase 0 — TRUNK IS RED. Fix this BEFORE anything else.
+
+Verified by `mcp__xcode__BuildProject` on 2026-05-30:
+
+**Trunk-only errors (must fix on `0.0.2` directly):**
+1. `fichero/fichero/Views/Workflow/WorkflowEditor.swift:90` — "Switch must be exhaustive."
+2. `fichero/fichero/Views/KnowledgeGraph/OntologyBrowser/ClaimSummaryCardView.swift:8` — `let onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)? = nil` excludes the property from the synthesized memberwise initializer. Callers like `EntityDetailView+Claims.swift:100` pass it explicitly → "Extra argument 'onNavigateToSource' in call." **Fix:** change `let` → `var` (keeps the default; restores the init parameter). Also audit `SpeakerComparisonView.swift:77` which currently calls `ClaimSummaryCard(claim:)` without `onNavigateToSource` — if you keep the `var` fix, that call site is fine.
+
+**Then attempt the Opus Mind-Palace merge** (`origin/opus-realitykit-design`, 2 commits ahead of `0.0.2`: `6a39569a` design, `6f6fbdd5` impl). When I attempted the merge in this session, the pbxproj had 2 union-mergeable conflict regions in `project.pbxproj` (Models group + Sources phase) — both resolved by keeping BOTH sides (KGFocusState + MindPalaceTheme + MindPalaceLibraryProjector entries). After that, the build surfaces 8 errors that need fixing before commit:
+- `KGTemporalSpatial.swift:110` and `KGTimelineView.swift:259` — "Switch must be exhaustive." Likely from Opus's new `LinkType` enum cases. Add the missing cases or a `default:`.
+- `SpatialModels.swift:202` — "Main actor-isolated property 'globalLibrary'/'shared' cannot be referenced from a nonisolated context." Annotate the property or its access site with `@MainActor`.
+- `SpatialScene3D.swift:404-410` — `LoadRequest<TextureResource>` is being assigned where `TextureResource` is expected. Use `try await TextureResource(loadRequest:)` / `await load()` pattern; also `:410` flagged "Expression is 'async' but is not marked with 'await'."
+- `DocumentKGSurface.swift:85` — "Invalid redeclaration of 'selectedEntityId'." This is the reviewer's flagged shadow-of-param bug (`fichero/fichero/Views/Library/DocumentKGSurface.swift:55-56` and `:49`). Promote it to `@SceneStorage` and delete the dead `let` param at `:49`. **Bonus: this also satisfies Reviewer fix #3.**
+
+Dispatch sequence: **integrator** fixes Phase 0 trunk-red (errors 1+2) directly on `0.0.2`. Then **integrator** does the Opus merge with the union pbxproj resolution + the 8-error fix-up; recommend doing this in a fresh worktree branch off `0.0.2`, gate with `mcp__xcode__BuildProject`, then merge to `0.0.2`. **reviewer** verifies. Until Phase 0 is green, Phases 1+ are blocked.
+
 ### Phase 1 — GitHub hygiene (manager only, no code; can run while Opus continues)
 
 From `2026-05-30-issue-triage.md`. Apply these via `gh` CLI:
