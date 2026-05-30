@@ -843,6 +843,15 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
 
     /// Text = dense semicolon prose per entity; List = grouped disclosure rows.
     @AppStorage("inspector.kg.displayMode") private var displayMode: KGDisplayMode = .text
+    @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
+
+    private var bodyTextFont: Font {
+        .system(size: CGFloat(defaultFontSize))
+    }
+
+    private var typeLabelFont: Font {
+        .system(size: CGFloat(max(defaultFontSize - 2, 9)), weight: .semibold)
+    }
 
     private var hiddenKinds: Set<EntityKind> {
         Set(
@@ -942,7 +951,7 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
                 ForEach(textDigest, id: \.0) { kind, entries in
                     VStack(alignment: .leading, spacing: 4) {
                         Label(kind.label.uppercased(), systemImage: kind.systemImage)
-                            .font(.caption2.weight(.semibold))
+                            .font(typeLabelFont)
                             .foregroundStyle(.secondary)
 
                         ForEach(entries, id: \.displayName) { entry in
@@ -951,11 +960,11 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
                             let raw = "**\(entry.displayName)** \(prose)"
                             if let attributed = try? AttributedString(markdown: raw) {
                                 Text(attributed)
-                                    .font(.caption)
+                                    .font(bodyTextFont)
                                     .fixedSize(horizontal: false, vertical: true)
                             } else {
                                 Text(raw)
-                                    .font(.caption)
+                                    .font(bodyTextFont)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -1426,6 +1435,15 @@ private struct EntityKindRow: View {
 
     @EnvironmentObject private var claimFocusState: ClaimFocusState
     @Environment(KGFocusState.self) private var kgFocusState
+    @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
+
+    private var bodyTextFont: Font {
+        .system(size: CGFloat(defaultFontSize))
+    }
+
+    private var secondaryTextFont: Font {
+        .system(size: CGFloat(max(defaultFontSize - 1, 10)))
+    }
 
     var body: some View {
         // Layout:
@@ -1437,7 +1455,8 @@ private struct EntityKindRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Button(action: focusPrimaryClaim) {
                     Text(item.displayName)
-                        .font(.body)
+                        .font(bodyTextFont)
+                        .fontWeight(.medium)
                         .foregroundStyle(
                             claimFocusState.isClaimSelected(item.claimId) ? Color.accentColor : Color.primary
                         )
@@ -1495,7 +1514,7 @@ private struct EntityKindRow: View {
                item.context != item.displayName,
                !item.displayName.contains(item.context) {
                 Text(item.context)
-                    .font(.body)
+                    .font(bodyTextFont)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             }
@@ -1515,7 +1534,7 @@ private struct EntityKindRow: View {
                     )
                 } label: {
                     Text("\u{201C}\(excerpt)\u{201D}")
-                        .font(.caption)
+                        .font(secondaryTextFont)
                         .italic()
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
@@ -1535,7 +1554,7 @@ private struct EntityKindRow: View {
                            extra.context != item.displayName,
                            extra.context != item.context {
                             Text(extra.context)
-                                .font(.body)
+                                .font(bodyTextFont)
                                 .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
                         }
@@ -1551,7 +1570,7 @@ private struct EntityKindRow: View {
                                 )
                             } label: {
                                 Text("\u{201C}\(excerpt)\u{201D}")
-                                    .font(.caption)
+                                    .font(secondaryTextFont)
                                     .italic()
                                     .foregroundStyle(.secondary)
                                     .lineLimit(3)
@@ -1585,20 +1604,20 @@ private struct EntityKindRow: View {
     /// sitting beside the tappable name on line 1.
     private var trailingText: Text {
         var text = Text("")
-            .font(.caption)
+            .font(secondaryTextFont)
             .foregroundStyle(.secondary)
         if !item.aliases.isEmpty {
             // swiftlint:disable:next shorthand_operator
             text = text
                 + Text(" (aka " + item.aliases.joined(separator: ", ") + ")")
-                .font(.caption)
+                .font(secondaryTextFont)
                 .foregroundStyle(.secondary)
         }
         if let pageRef = pageReference {
             // swiftlint:disable:next shorthand_operator
             text = text
                 + Text("  (\(pageRef))")
-                .font(.caption)
+                .font(secondaryTextFont)
                 .foregroundStyle(.secondary)
         }
         return text

@@ -17,6 +17,7 @@ struct ClaimSummaryCard: View {
     @State var isLoadingDetails: Bool = false
     @State private var showEditSheet = false
     @Environment(KGFocusState.self) private var kgFocusState
+    @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
 
     struct SVOTriple {
         let subject: String
@@ -55,6 +56,18 @@ struct ClaimSummaryCard: View {
 
     private var svo: SVOTriple? {
         Self.svoTriple(for: claim)
+    }
+
+    var bodyTextFont: Font {
+        .system(size: CGFloat(defaultFontSize))
+    }
+
+    var secondaryTextFont: Font {
+        .system(size: CGFloat(max(defaultFontSize - 1, 10)))
+    }
+
+    var tertiaryTextFont: Font {
+        .system(size: CGFloat(max(defaultFontSize - 2, 9)))
     }
 
     /// A claim card has no useful content when it has NO SVO triple AND
@@ -177,7 +190,7 @@ struct ClaimSummaryCard: View {
                     )
                 }, label: {
                     Text(svo.subject)
-                        .font(.caption)
+                        .font(bodyTextFont)
                         .fontWeight(.medium)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -197,7 +210,7 @@ struct ClaimSummaryCard: View {
                     )
                 }, label: {
                     Text(svo.verb)
-                        .font(.caption)
+                        .font(bodyTextFont)
                         .fontWeight(.semibold)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -217,7 +230,7 @@ struct ClaimSummaryCard: View {
                     )
                 }, label: {
                     Text(svo.object)
-                        .font(.caption)
+                        .font(bodyTextFont)
                         .fontWeight(.medium)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -236,15 +249,15 @@ struct ClaimSummaryCard: View {
             // knows the SVO is absent. (#1006)
             VStack(alignment: .leading, spacing: 4) {
                 Text(excerpt)
-                    .font(.caption)
+                    .font(bodyTextFont)
                     .lineLimit(isExpanded ? nil : 3)
                     .foregroundStyle(.primary)
                 HStack(spacing: 4) {
                     Image(systemName: "questionmark.circle")
-                        .font(.caption2)
+                        .font(tertiaryTextFont)
                         .foregroundStyle(.tertiary)
                     Text("No subject-verb-object — regenerate KG?")
-                        .font(.caption2)
+                        .font(tertiaryTextFont)
                         .foregroundStyle(.tertiary)
                         .italic()
                 }
@@ -252,10 +265,10 @@ struct ClaimSummaryCard: View {
         } else {
             HStack(spacing: 4) {
                 Image(systemName: "questionmark.circle")
-                    .font(.caption2)
+                    .font(tertiaryTextFont)
                     .foregroundStyle(.tertiary)
                 Text("No subject-verb-object — regenerate KG?")
-                    .font(.caption)
+                    .font(secondaryTextFont)
                     .foregroundStyle(.tertiary)
                     .italic()
             }

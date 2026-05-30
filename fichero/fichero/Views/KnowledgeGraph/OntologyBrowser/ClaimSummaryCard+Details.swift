@@ -26,17 +26,17 @@ extension ClaimSummaryCard {
                 // see it and can't click on it." (#1013)
                 HStack(spacing: 4) {
                     Image(systemName: "doc.text")
-                        .font(.caption2)
+                        .font(tertiaryTextFont)
                         .foregroundStyle(Color.accentColor)
                     Text(docName)
-                        .font(.caption2)
+                        .font(tertiaryTextFont)
                         .underline()
                         .foregroundStyle(Color.accentColor)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if let pageLabel, !pageLabel.isEmpty {
                         Text("p. \(pageLabel)")
-                            .font(.caption2)
+                            .font(tertiaryTextFont)
                             .foregroundStyle(.secondary)
                     }
                     Image(systemName: "chevron.right")
@@ -76,7 +76,7 @@ extension ClaimSummaryCard {
                 )
             } label: {
                 Text("\"\(excerpt)\"")
-                    .font(.caption2)
+                    .font(secondaryTextFont)
                     .italic()
                     .foregroundStyle(.secondary)
                     .lineLimit(nil)
@@ -89,7 +89,7 @@ extension ClaimSummaryCard {
             HStack {
                 ProgressView().scaleEffect(0.6)
                 Text("Loading analysis…")
-                    .font(.caption2)
+                    .font(tertiaryTextFont)
                     .foregroundStyle(.secondary)
             }
         } else {
@@ -97,17 +97,17 @@ extension ClaimSummaryCard {
                 if let cons = contradictions, !cons.isEmpty {
                     Label("\(cons.count) contradiction\(cons.count == 1 ? "" : "s")",
                           systemImage: "exclamationmark.triangle")
-                        .font(.caption2)
+                        .font(tertiaryTextFont)
                         .foregroundStyle(.red)
                     ForEach(Array(cons.prefix(3).enumerated()), id: \.offset) { _, contradiction in
                         Text("• \(contradiction.contradictingText)")
-                            .font(.caption2)
+                            .font(tertiaryTextFont)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                     }
                 } else {
                     Label("No contradictions recorded", systemImage: "checkmark.seal")
-                        .font(.caption2)
+                        .font(tertiaryTextFont)
                         .foregroundStyle(.secondary)
                 }
                 if let chain = evidenceChain {
@@ -118,7 +118,7 @@ extension ClaimSummaryCard {
                         + "\(linkCount) related claim\(linkCount == 1 ? "" : "s")",
                         systemImage: "link"
                     )
-                    .font(.caption2)
+                    .font(tertiaryTextFont)
                     .foregroundStyle(.secondary)
                 }
             }
