@@ -194,6 +194,7 @@ extension ContentView {
                                 path: pdfPath,
                                 pageIndex: selectedPageIndex,
                                 onPageIndexChange: { index in
+                                    guard documentScrollSync.beginDriving(.pdf) else { return }
                                     syncGridSelectionToPDFPage(index: index)
                                 }
                             )
@@ -226,6 +227,7 @@ extension ContentView {
                             for: detailDocument,
                             activePageNumber: detailPDFPath == nil ? nil : selectedPageIndex + 1,
                             pageCount: pdfDocPages.isEmpty ? nil : pdfDocPages.count,
+                            scrollSync: documentScrollSync,
                             onPageSelected: { index in
                                 syncGridSelectionToPDFPage(index: index)
                             }

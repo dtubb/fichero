@@ -147,6 +147,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
     var activePageNumber: Int?
     var pageCount: Int?
     var onPageSelected: (Int) -> Void = { _ in }
+    @ObservedObject var scrollSync: DocumentScrollSyncState
     @Environment(KGFocusState.self) private var kgFocusState
 
     func makeCoordinator() -> Coordinator {
@@ -269,6 +270,9 @@ struct DocumentKGWebPane: NSViewRepresentable {
                 if Date() < suppressActivePageSyncUntil {
                     return
                 }
+                if parent.scrollSync.isDriving(.web) {
+                    return
+                }
                 if let pageNumber = parent.activePageNumber {
                     webView.evaluateJavaScript("window.fichero?.setActivePage(\(pageNumber));")
                     if let pageCount = parent.pageCount {
@@ -317,6 +321,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
                 if parent.activePageNumber != pageNumber {
                     suppressActivePageSyncUntil = Date().addingTimeInterval(0.25)
                 }
+                guard parent.scrollSync.beginDriving(.web) else { return }
                 parent.onPageSelected(max(0, pageNumber - 1))
             default:
                 break

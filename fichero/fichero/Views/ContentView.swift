@@ -106,6 +106,7 @@ struct ContentView: View {
 
     @StateObject var itemRegistry = ItemTypeRegistry()
     @StateObject var performanceService = PerformanceService()
+    @StateObject var documentScrollSync = DocumentScrollSyncState()
     @State var toolbarSearchText: String = ""
     @State var navigationHistory = AppNavigationHistory()
     @State var isRestoringNavigationHistory = false

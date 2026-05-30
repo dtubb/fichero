@@ -6,6 +6,7 @@ extension ContentView {
         for document: Document?,
         activePageNumber: Int?,
         pageCount: Int?,
+        scrollSync: DocumentScrollSyncState,
         onPageSelected: @escaping (Int) -> Void
     ) -> some View {
         if let document, let libraryPath = apiClient.currentLibraryPath, !libraryPath.isEmpty {
@@ -16,7 +17,8 @@ extension ContentView {
                 selectedClaimId: kgFocusState.focusedClaimId ?? claimFocusState.selectedClaimId,
                 activePageNumber: activePageNumber,
                 pageCount: pageCount,
-                onPageSelected: onPageSelected
+                onPageSelected: onPageSelected,
+                scrollSync: scrollSync
             )
         } else {
             VStack(spacing: 8) {

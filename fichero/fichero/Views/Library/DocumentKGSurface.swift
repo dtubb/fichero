@@ -1,6 +1,34 @@
 import FicheroAPIClient
 import SwiftUI
 
+@MainActor
+final class DocumentScrollSyncState: ObservableObject {
+    enum Pane {
+        case pdf
+        case web
+    }
+
+    private var drivingPane: Pane?
+    private var releaseTask: Task<Void, Never>?
+
+    func beginDriving(_ pane: Pane) -> Bool {
+        guard drivingPane == nil || drivingPane == pane else { return false }
+        drivingPane = pane
+        releaseTask?.cancel()
+        releaseTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(50))
+            if self?.drivingPane == pane {
+                self?.drivingPane = nil
+            }
+        }
+        return true
+    }
+
+    func isDriving(_ pane: Pane) -> Bool {
+        drivingPane == pane
+    }
+}
+
 /// The views the knowledge surface can show. The first three raw values match
 /// the tab ids the in-page JS (`document_view.html`) expects.
 enum KGSurfaceTab: String, CaseIterable, Identifiable {
@@ -51,6 +79,7 @@ struct DocumentKGSurface: View {
     var activePageNumber: Int?
     var pageCount: Int?
     var onPageSelected: (Int) -> Void = { _ in }
+    @ObservedObject var scrollSync: DocumentScrollSyncState
 
     @State private var activeTab: KGSurfaceTab = .transcript
     @State private var selectedEntityId: String?
@@ -88,7 +117,8 @@ struct DocumentKGSurface: View {
                 activeTab: activeTab.rawValue,
                 activePageNumber: activePageNumber,
                 pageCount: pageCount,
-                onPageSelected: onPageSelected
+                onPageSelected: onPageSelected,
+                scrollSync: scrollSync
             )
         case .claims:
             ScrollView {
