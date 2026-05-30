@@ -113,20 +113,82 @@ GitHub's close-as-duplicate, close-as-not-planned, and assignee fields cover wha
 - Local worktree paths (`~/code/fichero-0.0.2/`, `~/code/fichero-<lane>/`) are independent of branch names — directory naming stays stable across branch renames.
 - No `feature/issue-NNN`-style branches anymore.
 
+## Pull requests — optional, not required
+
+Routine lane work merges directly to `main` (manager does `git merge --no-ff origin/<branch>`). The `feat: X (#1229)` commit message convention auto-cross-links work to the issue on GitHub. PR review happens in-session via the manager + subagents, not on the PR UI.
+
+**Open a PR only when one of these applies:**
+- You want a **CI gate to run before merge** (and CI isn't already running on every push to that branch).
+- You want **GitHub Copilot Reviewer** to take a pass (paid; separate from session review).
+- You want a **conversation surface** for an external contributor (open-source case).
+
+Going-open-source future: when external contributors arrive, switch to PR-required for all non-Daniel work. The current convention is solo-optimised; future-Daniel can promote PRs to standard without breaking the existing commit-cross-ref pattern.
+
+## CI strategy — tier by cost
+
+Free-tier GitHub Actions gives you ~2000 Linux-min/month + ~200 Mac-min/month. Mac runners are 10x more expensive than Linux. Tier the gates accordingly:
+
+**Every push (Linux, cheap):**
+- `ruff check fichero-engine/src/`
+- `pytest fichero-engine/tests/unit/ -k "not slow"` (skip ML-heavy suites)
+- OpenAPI drift: regen `openapi.json`, diff vs committed → catches the [[feedback_backend_merge_needs_swift_build]] failure mode
+- `swiftlint` (runs on Linux with manual install)
+
+**Pre-merge to main (or PR, Mac runner, save):**
+- `xcodebuild build` — catches Swift build breaks the cheap gates can't see
+- `xcodebuild test` (only if minutes budget allows)
+
+**Can't run online:**
+- `RenderPreview` ([[feedback_renderpreview_app_launch_blocked]] — app-launch timeout)
+- XCUITest ([[feedback_xcuitest_tcc_automation_grant]] — needs TCC, headless can't)
+- Full-suite pytest ([[feedback_no_full_pytest_on_daniels_machine]] — also kills CI minutes; keep it `-k` filtered)
+
+When Mac-min budget is tight: register your own Mac as a self-hosted GH Actions runner — unlimited minutes, but think through the security model (your machine runs whatever the workflow says).
+
+## Where ideas + features live: GitHub Issues, NOT the filesystem
+
+Filesystem files get lost. Search is poor. They're invisible to outside readers when the project goes open source. **Use GitHub Issues as the durable home for:**
+
+- **Feature ideas** — file as `type:feature`. The issue body IS the spec.
+- **Architectural proposals** — file as `type:task` + `needs-design`. Comment thread = the discussion.
+- **Bug reports** — `type:bug`. Repro, expected/actual, screenshots.
+- **Decision logs** — close the relevant issue with a comment that captures the decision + the commit SHA that implemented it.
+
+**Filesystem is only for ephemeral operational artifacts:**
+- `agent-work/dispatch/<lane>-batch.md` — lane briefs (operational; the corresponding GH issue holds the durable scope).
+- `agent-work/proposals/<topic>.md` — drafts while a proposal is being shaped, then promoted to a GH issue and the file becomes vestigial.
+- `agent-work/handoff/<date>-manager-resume.md` — session-to-session continuity (manager-internal, not feature-durable).
+- `STATE.md` / `HISTORY.md` / `MEMORY.md` — agent + project session state (NOT product knowledge).
+
+**Rule of thumb:** if a future open-source contributor would benefit from knowing this, it goes in a GH issue. If only the next manager session needs it, filesystem is fine.
+
+## Self-documenting on GH for future open source
+
+Future-Daniel may open this repo to outside contributors. Bake self-documentation into the workflow now so the open-sourcing pivot is cheap:
+
+- Milestone descriptions explain what each feature area IS (already done).
+- Label descriptions tell newcomers what each label means (already done).
+- Issue titles use plain English, not internal jargon.
+- Closed issues link to the commit + any companion PR that shipped them.
+- The `docs/` tree is structured by audience (Documentation = end users, Developer Experience = contributors, Website = tubb.ca content).
+- Branch + tag history tells the version story (release tags `v0.0.2`, archive tags `archive/main-2026-05-30`).
+
+If the repo would confuse a stranger reading `https://github.com/dtubb/fichero/issues?q=label:type:feature`, that's a signal something needs better labels, milestones, or descriptions.
+
 ## Issue numbers vs task IDs
 
 Local `TASKS.md` task IDs are session-internal. GitHub issue numbers are canonical. Commit references: `feat: X (#1229)`.
 
 ## Release tracking
 
-Release-flow checklist lives in `dtubb/fichero-releases#1`. Do not refile in this repo.
+Release-flow checklist lives in `dtubb/fichero-releases#1`. Do not refile in this repo. Release tags follow `vX.Y.Z` (annotated).
 
 ## Manager / lane discipline
 
 See `.claude/CLAUDE.md` and `docs/CLAUDE.md`. Briefly:
-- Each lane uses its own worktree (`~/code/fichero-<lane>`); manager from `~/code/fichero-0.0.2`.
+- Each lane uses its own worktree (`~/code/fichero-<lane>`); manager from `~/code/fichero`.
 - Lane branches push to origin so the manager merges from `origin/<branch>`, not a worktree path.
 - Never `gh issue close` until `git log origin/main..HEAD | grep "(#N)"` confirms the merge.
-- Lane briefs → `agent-work/dispatch/<date>-<lane>-batch.md`
-- Lane outputs → `agent-work/proposals/<date>-<topic>.md`
-- Manager handoff → `agent-work/handoff/<date>-manager-resume.md`
+- Lane briefs → `agent-work/dispatch/<date>-<lane>-batch.md` (ephemeral; the GH issue carries the durable scope).
+- Lane outputs → `agent-work/proposals/<date>-<topic>.md` (drafts; promote to GH issues when ready for discussion).
+- Manager handoff → `agent-work/handoff/<date>-manager-resume.md` (session-to-session only).
