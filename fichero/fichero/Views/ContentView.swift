@@ -829,7 +829,10 @@ struct ContentView: View {
                     )
                 }
             }
-            .onChange(of: kgFocusState.focusKey) { _, _ in
+            .onChange(of: kgFocusState.sourceDocumentId) { _, _ in
+                handleKGFocusChanged()
+            }
+            .onChange(of: kgFocusState.sourcePageLabel) { _, _ in
                 handleKGFocusChanged()
             }
             .modifier(
