@@ -79,7 +79,8 @@ def create_gh_issue(issue):
         return False
 
 def main():
-    yaml_file = Path("/Users/danieltubb/code/fichero-0.0.2/scripts/create-issues.yaml")
+    # Path is resolved relative to this script — works from any worktree / project location.
+    yaml_file = Path(__file__).resolve().parent / "create-issues.yaml"
     yaml_content = yaml_file.read_text()
     
     print("Creating GitHub issues for Fichero 0.0.3 through 0.1.0...")
