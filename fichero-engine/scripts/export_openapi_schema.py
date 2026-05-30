@@ -95,24 +95,74 @@ def _replace_schema_refs(obj: Any, ref_map: dict[str, str]) -> Any:
     return result
 
 
-def _canonicalize_schema_aliases(openapi_schema: dict) -> None:
-    """Collapse split workflow schema variants back to their canonical names."""
-    ref_map = {
-        "NodeDefInput": "NodeDef",
-        "NodeDefOutput": "NodeDef",
-        "EdgeDefInput": "EdgeDef",
-        "EdgeDefOutput": "EdgeDef",
-    }
+def _ensure_split_variants(openapi_schema: dict, models: list) -> None:
+    """Guarantee FastAPI split variants (ModelName-Input / ModelName-Output) are present.
+
+    FastAPI / Pydantic v2 emits ``ModelName-Input`` and ``ModelName-Output``
+    components when a model is used in both request bodies and response bodies.
+    That emission is non-deterministic across feature tiers (#1275): some runs
+    produce the split, others collapse to a single ``ModelName`` component.
+
+    This function pins the split form deterministically:
+
+    * ``ModelName`` is written from Pydantic's full schema (includes ``default``
+      annotations) via ``ensure_named_schemas``, which is called just before this.
+    * ``ModelName-Input`` and ``ModelName-Output`` are written as the FastAPI
+      *input* variant — identical content but with ``default`` annotations stripped
+      from nullable fields, matching what FastAPI emits for request-body parameters.
+
+    Using ``setdefault`` means an already-present entry is never clobbered, so the
+    function is idempotent and safe to call on both fresh and cached schemas.
+    """
+    import copy
 
     schemas = openapi_schema.setdefault("components", {}).setdefault("schemas", {})
-    for alias, canonical in ref_map.items():
-        alias_schema = schemas.pop(alias, None)
-        if canonical not in schemas and alias_schema is not None:
-            schemas[canonical] = alias_schema
+    for model in models:
+        canonical_name = model.__name__
+        canonical_schema = schemas.get(canonical_name)
+        if canonical_schema is None:
+            continue
 
-    # Prefer the canonical model-json-schema injected by ensure_named_schemas
-    # and rewrite any lingering split refs in-place.
-    openapi_schema.update(_replace_schema_refs(openapi_schema, ref_map))
+        # Build the input variant: same as canonical but with ``default: null``
+        # removed from nullable properties (matches FastAPI's request-body emission).
+        # Non-null defaults (e.g. ``default: ""`` or ``default: false``) are kept
+        # so the Input variant matches the FastAPI-generated split form exactly.
+        _SENTINEL = object()
+        input_schema = copy.deepcopy(canonical_schema)
+        for _prop_schema in input_schema.get("properties", {}).values():
+            if _prop_schema.get("default", _SENTINEL) is None:
+                _prop_schema.pop("default")
+
+        schemas.setdefault(f"{canonical_name}-Input", input_schema)
+        schemas.setdefault(f"{canonical_name}-Output", input_schema)
+
+
+def _rewrite_nodedef_schema_refs(openapi_schema: dict) -> None:
+    """Rewrite NodeDef $ref pointers in aggregate schemas to the split variants.
+
+    After ``_ensure_split_variants`` adds ``NodeDef-Input`` / ``NodeDef-Output``,
+    the schemas that *contain* NodeDef as a field still reference the plain
+    ``#/components/schemas/NodeDef``.  FastAPI would normally emit split refs
+    directly, but since we inject the split variants post-hoc, we must also
+    rewrite the containing schemas.
+
+    Rules (match FastAPI's natural behaviour):
+    * ``WorkflowDef.nodes[].items.$ref`` → ``NodeDef-Input``   (request schema)
+    * ``WorkflowResponse.nodes[].items.$ref`` → ``NodeDef-Output`` (response schema)
+    """
+    schemas = openapi_schema.get("components", {}).get("schemas", {})
+    _NODEDEF_REF = "#/components/schemas/NodeDef"
+
+    def _rewrite_nodes_ref(schema_name: str, variant: str) -> None:
+        schema = schemas.get(schema_name)
+        if schema is None:
+            return
+        nodes_prop = schema.get("properties", {}).get("nodes", {})
+        if nodes_prop.get("items", {}).get("$ref") == _NODEDEF_REF:
+            nodes_prop["items"]["$ref"] = f"#/components/schemas/{variant}"
+
+    _rewrite_nodes_ref("WorkflowDef", "NodeDef-Input")
+    _rewrite_nodes_ref("WorkflowResponse", "NodeDef-Output")
 
 
 def extract_endpoints(openapi_schema: dict) -> dict:
@@ -195,20 +245,49 @@ def extract_endpoints(openapi_schema: dict) -> dict:
 
 
 def build_openapi_schema() -> dict:
-    """Build the canonical OpenAPI schema used for contracts and Swift sync."""
+    """Build the canonical OpenAPI schema used for contracts and Swift sync.
+
+    Emission is pinned to the SPLIT form (#1275): ``NodeDef`` / ``EdgeDef`` are
+    emitted as the canonical (Pydantic-derived, defaults-included) component AND
+    as ``NodeDef-Input`` / ``NodeDef-Output`` (default-stripped) variants.  The
+    Swift OpenAPI generator converts the hyphenated names to camel-case struct
+    names (``NodeDefInput`` / ``NodeDefOutput``) which ``WorkflowServiceGenerated``
+    references directly.
+
+    Step order (must not be changed without updating _ensure_split_variants):
+    1. Get raw FastAPI schema.
+    2. Overwrite NodeDef with the Pydantic-canonical schema (ensure_named_schemas).
+    3. Inject NodeDef-Input / NodeDef-Output split variants (strips null defaults).
+    3b. Rewrite $refs in WorkflowDef/WorkflowResponse to the split variants.
+    4. Convert 3.1 nullable patterns to 3.0 nullable:true (convert_nullable_schemas).
+    5. Pin openapi version to 3.0.3.
+    """
     # Get OpenAPI schema from FastAPI app
     openapi_schema = app.openapi()
 
-    # #1275: guarantee Swift-hand-wrapped nested models are always named components
-    # (FastAPI nested-model emission is non-deterministic across feature tiers).
-    from fichero.workflows.types import EdgeDef, NodeDef
-    ensure_named_schemas(openapi_schema, [NodeDef, EdgeDef])
-    _canonicalize_schema_aliases(openapi_schema)
+    # Step 2: #1275 — overwrite NodeDef with the Pydantic canonical schema.
+    # This guarantees NodeDef always has full default annotations regardless of
+    # whether FastAPI happened to emit it.  EdgeDef is left as-is from FastAPI
+    # (FastAPI always emits it and the Swift client only references EdgeDef, not a split).
+    from fichero.workflows.types import NodeDef
+    ensure_named_schemas(openapi_schema, [NodeDef])
 
-    # Convert nullable schemas for Swift compatibility
+    # Step 3: #1275 — inject deterministic NodeDef-Input / NodeDef-Output split variants.
+    # The Swift OpenAPI generator converts NodeDef-Input → NodeDefInput and
+    # NodeDef-Output → NodeDefOutput structs, which WorkflowServiceGenerated.swift
+    # references directly.  EdgeDef does NOT need the split.
+    # Must run BEFORE convert_nullable_schemas so the variant schemas go through
+    # the same 3.1→3.0 nullable conversion as the canonical schema.
+    _ensure_split_variants(openapi_schema, [NodeDef])
+
+    # Step 3b: Rewrite $refs in aggregate schemas (WorkflowDef/WorkflowResponse) that
+    # previously pointed to plain NodeDef — now point to the appropriate split variant.
+    _rewrite_nodedef_schema_refs(openapi_schema)
+
+    # Step 4: Convert nullable schemas for Swift compatibility
     openapi_schema = convert_nullable_schemas(openapi_schema)
 
-    # Use OpenAPI 3.0.3 for better Swift compatibility (nullable is a 3.0 feature)
+    # Step 5: Use OpenAPI 3.0.3 for better Swift compatibility (nullable is a 3.0 feature)
     openapi_schema["openapi"] = "3.0.3"
     return openapi_schema
 
@@ -230,13 +309,20 @@ def ensure_named_schemas(openapi_schema: dict, models: list) -> None:
     EdgeDef, so a dropped definition breaks the macOS build. Inject each model's
     JSON schema (and its nested $defs) when absent, without clobbering a correct
     emission.
+
+    The model's own entry is always *overwritten* with the Pydantic-derived schema
+    so that ``default`` annotations (e.g. ``default: null`` on nullable fields) are
+    always present in the canonical ``ModelName`` component. The ``-Input`` /
+    ``-Output`` split variants are added separately by ``_ensure_split_variants``
+    and use a default-stripped copy.
     """
     schemas = openapi_schema.setdefault("components", {}).setdefault("schemas", {})
     for model in models:
         js = model.model_json_schema(ref_template="#/components/schemas/{model}")
         for dname, dschema in js.pop("$defs", {}).items():
             schemas.setdefault(dname, dschema)
-        schemas.setdefault(model.__name__, js)
+        # Always overwrite so the canonical schema includes default annotations.
+        schemas[model.__name__] = js
 
 
 def main():
