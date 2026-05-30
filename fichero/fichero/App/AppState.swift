@@ -180,6 +180,7 @@ class AppState: ObservableObject {
             logger.info("Backend connected: v\(health.backendVersion), \(health.activeLibraries) active libraries")
 
             // Now load providers
+            _ = await AuthTokenMiddleware.waitForToken()
             await loadProviders()
 
         } catch let error as URLError where error.code == .cannotConnectToHost {

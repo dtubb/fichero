@@ -23,7 +23,7 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         "/api/health",
         "/openapi.json",
         "/docs",
-        "/redoc",
+        "/redoc"
     ]
 
     public init() {}
@@ -32,10 +32,11 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     // (we always read fresh from disk).
     public init(token: String?) {}
 
-    /// Reads the token file from disk. Returns nil if the file isn't there
-    /// yet (e.g., engine hasn't started). Callers should retry; the engine
-    /// writes this on startup before binding the port.
-    public static func readTokenFromDisk() -> String? {
+    public static func isUnauthenticatedPath(_ path: String) -> Bool {
+        unauthenticatedPaths.contains { path.contains($0) }
+    }
+
+    public static func tokenFileURL() -> URL? {
         guard
             let appSupport = try? FileManager.default.url(
                 for: .applicationSupportDirectory,
@@ -46,13 +47,41 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         else {
             return nil
         }
-        let path = appSupport
+        return appSupport
             .appendingPathComponent("Fichero")
             .appendingPathComponent(".api-key")
+    }
+
+    /// Reads the token file from disk. Returns nil if the file isn't there
+    /// yet (e.g., engine hasn't started). Callers should retry; the engine
+    /// writes this on startup before binding the port.
+    public static func readTokenFromDisk() -> String? {
+        guard let path = tokenFileURL() else { return nil }
         guard let data = try? Data(contentsOf: path) else { return nil }
-        let token = String(decoding: data, as: UTF8.self)
+        guard let rawToken = String(data: data, encoding: .utf8) else { return nil }
+        let token = rawToken
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return token.isEmpty ? nil : token
+    }
+
+    public static func waitForToken(timeout: TimeInterval = 3) async -> String? {
+        if let token = readTokenFromDisk() { return token }
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(50))
+            if let token = readTokenFromDisk() { return token }
+        }
+        return nil
+    }
+
+    public static func waitForTokenBlocking(timeout: TimeInterval = 3) -> String? {
+        if let token = readTokenFromDisk() { return token }
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+            if let token = readTokenFromDisk() { return token }
+        }
+        return nil
     }
 
     public func intercept(
@@ -64,10 +93,10 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
         let path = request.path ?? ""
-        let isUnauthenticated = Self.unauthenticatedPaths.contains { path.contains($0) }
+        let isUnauthenticated = Self.isUnauthenticatedPath(path)
 
         // Read the token fresh on every request — see class doc for why.
-        if !isUnauthenticated, let token = Self.readTokenFromDisk() {
+        if !isUnauthenticated, let token = await Self.waitForToken() {
             request.headerFields[.authorization] = "Bearer \(token)"
         }
 
