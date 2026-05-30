@@ -107,9 +107,10 @@ GitHub's close-as-duplicate, close-as-not-planned, and assignee fields cover wha
 
 ## Branches
 
-- `0.0.2` — current development trunk; all work merges here.
-- `main` — release branch; fast-forwarded from `0.0.2` at release time. Do NOT push directly.
+- `main` — the trunk. All work merges here. No separate "release branch" — releases are dated git tags published as DMGs in `dtubb/fichero-releases`.
 - Lane branches: `<lane>-<short-scope>`. Pushed to origin; manager merges from `origin/<branch>`; branch deleted after merge.
+- `archive-main-2026-05-30` — the previous `main` before the 2026-05-30 trunk consolidation. Kept for history; do not push to it.
+- Local worktree paths (`~/code/fichero-0.0.2/`, `~/code/fichero-<lane>/`) are independent of branch names — directory naming stays stable across branch renames.
 - No `feature/issue-NNN`-style branches anymore.
 
 ## Issue numbers vs task IDs
