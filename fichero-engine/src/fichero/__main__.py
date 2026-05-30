@@ -24,6 +24,7 @@ docs_app = typer.Typer(help="List and inspect documents.", no_args_is_help=True)
 workflow_app = typer.Typer(help="List and run workflows.", no_args_is_help=True)
 threads_app = typer.Typer(help="Manage workflow execution threads.", no_args_is_help=True)
 kg_app = typer.Typer(help="Query the knowledge graph.", no_args_is_help=True)
+notes_app = typer.Typer(help="Create and inspect Zettelkasten notes.", no_args_is_help=True)
 library_app = typer.Typer(
     help="Create and enumerate .fichero library packages.",
     no_args_is_help=True,
@@ -39,6 +40,7 @@ providers_app = typer.Typer(help="Manage LLM provider configurations.", no_args_
 app.add_typer(docs_app, name="docs")
 app.add_typer(workflow_app, name="workflow")
 app.add_typer(kg_app, name="kg")
+app.add_typer(notes_app, name="notes")
 app.add_typer(library_app, name="library")
 app.add_typer(artifacts_app, name="artifacts")
 app.add_typer(claim_app, name="claim")
@@ -555,6 +557,79 @@ def docs_get(
 ) -> None:
     """Show a single document."""
     _invoke(ctx, lambda c: c.get_document(doc_id))
+
+
+# -- notes -----------------------------------------------------------------
+@notes_app.command("create")
+def notes_create(
+    ctx: typer.Context,
+    body: str = typer.Argument(..., help="Markdown body for the note."),
+    title: Optional[str] = typer.Option(None, "--title", help="Optional note title."),
+    kind: str = typer.Option("zettel", "--kind", help="Note kind."),
+    tags: Optional[list[str]] = typer.Option(None, "--tag", help="Repeatable tag."),
+    linked_note_ids: Optional[list[str]] = typer.Option(
+        None, "--note", help="Repeatable linked note ID."
+    ),
+    linked_entity_ids: Optional[list[str]] = typer.Option(
+        None, "--entity", help="Repeatable linked entity ID."
+    ),
+    linked_claim_ids: Optional[list[str]] = typer.Option(
+        None, "--claim", help="Repeatable linked claim ID."
+    ),
+    linked_document_ids: Optional[list[str]] = typer.Option(
+        None, "--doc", help="Repeatable linked document ID."
+    ),
+    address: Optional[str] = typer.Option(None, "--address"),
+    parent_address: Optional[str] = typer.Option(None, "--parent-address"),
+) -> None:
+    """Create a Zettelkasten note."""
+    _invoke(
+        ctx,
+        lambda c: c.create_note(
+            title=title,
+            body=body,
+            kind=kind,
+            tags=tags,
+            linked_note_ids=linked_note_ids,
+            linked_entity_ids=linked_entity_ids,
+            linked_claim_ids=linked_claim_ids,
+            linked_document_ids=linked_document_ids,
+            address=address,
+            parent_address=parent_address,
+        ),
+    )
+
+
+@notes_app.command("list")
+def notes_list(
+    ctx: typer.Context,
+    kind: Optional[str] = typer.Option(None, "--kind", help="Filter by note kind."),
+    tag: Optional[str] = typer.Option(None, "--tag", help="Filter by tag."),
+    linked_entity_id: Optional[str] = typer.Option(None, "--entity"),
+    linked_claim_id: Optional[str] = typer.Option(None, "--claim"),
+    linked_document_id: Optional[str] = typer.Option(None, "--doc"),
+    query: Optional[str] = typer.Option(None, "--query", "-q", help="Text search."),
+) -> None:
+    """List Zettelkasten notes."""
+    _invoke(
+        ctx,
+        lambda c: c.list_notes(
+            kind=kind,
+            tag=tag,
+            linked_entity_id=linked_entity_id,
+            linked_claim_id=linked_claim_id,
+            linked_document_id=linked_document_id,
+            query=query,
+        ),
+    )
+
+
+@notes_app.command("get")
+def notes_get(
+    ctx: typer.Context, note_id: str = typer.Argument(..., help="Note ID.")
+) -> None:
+    """Show a single Zettelkasten note."""
+    _invoke(ctx, lambda c: c.get_note(note_id))
 
 
 # -- workflows -------------------------------------------------------------

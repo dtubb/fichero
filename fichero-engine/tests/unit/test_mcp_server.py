@@ -25,6 +25,9 @@ EXPECTED_TOOLS = {
     "fichero_import",
     "fichero_docs_list",
     "fichero_docs_get",
+    "fichero_create_note",
+    "fichero_list_notes",
+    "fichero_get_note",
     "fichero_workflow_list",
     "fichero_workflow_run",
     "fichero_workflow_status",
@@ -250,6 +253,68 @@ def test_auth_and_library_headers_are_set(monkeypatch):
         mcp_server.fichero_activity()
     assert seen[0].headers["authorization"] == "Bearer test-token"
     assert seen[0].headers["x-fichero-library-path"] == "/tmp/Lib.fichero"
+
+
+def test_create_note_hits_core_notes_endpoint(monkeypatch):
+    note_body = {
+        "id": "note-z1",
+        "title": "Field note",
+        "body": "Remember this",
+        "kind": "zettel",
+        "tags": ["field"],
+        "linked_note_ids": [],
+        "linked_entity_ids": ["entity-1"],
+        "linked_claim_ids": [],
+        "linked_document_ids": ["doc-1"],
+    }
+    with _mock_client(monkeypatch, body=note_body) as seen:
+        note = mcp_server.fichero_create_note(
+            "Remember this",
+            title="Field note",
+            tags=["field"],
+            linked_entity_ids=["entity-1"],
+            linked_document_ids=["doc-1"],
+        )
+    assert seen[0].method == "POST"
+    assert seen[0].url.path == "/api/notes"
+    assert json.loads(seen[0].content) == {
+        "title": "Field note",
+        "body": "Remember this",
+        "kind": "zettel",
+        "tags": ["field"],
+        "linked_note_ids": [],
+        "linked_entity_ids": ["entity-1"],
+        "linked_claim_ids": [],
+        "linked_document_ids": ["doc-1"],
+        "address": None,
+        "parent_address": None,
+    }
+    assert note.id == "note-z1"
+    assert note.body == "Remember this"
+
+
+def test_list_and_get_notes_are_typed(monkeypatch):
+    note_body = {
+        "id": "note-z2",
+        "title": "Reading note",
+        "body": "A linked note",
+        "kind": "reference",
+        "tags": ["reading"],
+        "linked_note_ids": [],
+        "linked_entity_ids": [],
+        "linked_claim_ids": ["claim-1"],
+        "linked_document_ids": [],
+    }
+    with _mock_client(monkeypatch, body={"items": [note_body], "count": 1}) as seen:
+        notes = mcp_server.fichero_list_notes(kind="reference", linked_claim_id="claim-1")
+    assert seen[0].url.path == "/api/notes"
+    assert dict(seen[0].url.params) == {"kind": "reference", "linked_claim_id": "claim-1"}
+    assert notes[0].title == "Reading note"
+
+    with _mock_client(monkeypatch, body=note_body) as seen:
+        note = mcp_server.fichero_get_note("note-z2")
+    assert seen[0].url.path == "/api/notes/note-z2"
+    assert note.id == "note-z2"
 
 
 def test_mp_create_note_hits_note_endpoint(monkeypatch):

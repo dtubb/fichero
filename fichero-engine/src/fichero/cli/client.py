@@ -57,7 +57,7 @@ from fichero.api.routes.workflow_execution.threads import (
     CancelResponse,
     ThreadDeletedResponse,
 )
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, Note, NoteKind
 from fichero.spatial_models import NativeNote
 from fichero.models import (
     Artifact,
@@ -267,6 +267,70 @@ class FicheroClient:
     # -- health ------------------------------------------------------------
     def health(self) -> Any:
         return self.request("GET", "/api/health")
+
+    # -- notes -------------------------------------------------------------
+    def create_note(
+        self,
+        *,
+        title: str | None = None,
+        body: str = "",
+        kind: str | NoteKind = NoteKind.zettel,
+        tags: list[str] | None = None,
+        linked_note_ids: list[str] | None = None,
+        linked_entity_ids: list[str] | None = None,
+        linked_claim_ids: list[str] | None = None,
+        linked_document_ids: list[str] | None = None,
+        address: str | None = None,
+        parent_address: str | None = None,
+    ) -> Note:
+        """Create a Zettelkasten note."""
+        raw = self.request(
+            "POST",
+            "/api/notes",
+            json={
+                "title": title,
+                "body": body,
+                "kind": kind.value if isinstance(kind, NoteKind) else kind,
+                "tags": tags or [],
+                "linked_note_ids": linked_note_ids or [],
+                "linked_entity_ids": linked_entity_ids or [],
+                "linked_claim_ids": linked_claim_ids or [],
+                "linked_document_ids": linked_document_ids or [],
+                "address": address,
+                "parent_address": parent_address,
+            },
+        )
+        return Note.model_validate(raw)
+
+    def list_notes(
+        self,
+        *,
+        kind: str | NoteKind | None = None,
+        tag: str | None = None,
+        linked_entity_id: str | None = None,
+        linked_claim_id: str | None = None,
+        linked_document_id: str | None = None,
+        query: str | None = None,
+    ) -> list[Note]:
+        """List Zettelkasten notes, optionally filtered."""
+        raw = self.request(
+            "GET",
+            "/api/notes",
+            params={
+                "kind": kind.value if isinstance(kind, NoteKind) else kind,
+                "tag": tag,
+                "linked_entity_id": linked_entity_id,
+                "linked_claim_id": linked_claim_id,
+                "linked_document_id": linked_document_id,
+                "q": query,
+            },
+        )
+        return [Note.model_validate(item) for item in _expect_list(raw, "/api/notes")]
+
+    def get_note(self, note_id: str) -> Note:
+        """Fetch a Zettelkasten note by ID."""
+        raw = self.request("GET", f"/api/notes/{note_id}")
+        return Note.model_validate(raw)
 
     # -- library bootstrap ------------------------------------------------
     def create_library(self, path: str) -> LibraryCreateResponse:
