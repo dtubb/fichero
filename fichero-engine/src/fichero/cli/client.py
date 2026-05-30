@@ -516,7 +516,12 @@ class FicheroClient:
         ]
 
     def citations_at_doc(self, doc_id: str) -> list[KnowledgeEntity]:
-        """Citation entities mentioned by this doc or its page children."""
+        """Citation entities mentioned by this doc or its page children.
+
+        There is no dedicated backend citation-inspector endpoint yet; this
+        mirrors the SwiftUI inspector path by reading document-scoped claims
+        and resolving citation-typed entity IDs through ``GET /api/entities``.
+        """
         claims = self.claims_at_doc(doc_id)
         seen: set[str] = set()
         citations: list[KnowledgeEntity] = []
