@@ -21,6 +21,11 @@ import RealityKit
 struct SpatialScene3D: View {
     let nodes: [MindPalaceNode]
     let connections: [MindPalaceConnection]
+    /// Phase 3 (#1297 follow-up): content-level typed links (whole-library
+    /// projection). Drawn with the same cylinder mesh as room `connections`,
+    /// colored by `LinkType`. Empty by default — existing room scenes
+    /// unaffected.
+    var links: [MindPalaceLink] = []
     var initialViewport: MindPalaceViewport?
     var onNodePositionChanged: (String, SIMD3<Double>) -> Void = { _, _ in }
     var onNodeMoveEnded: (String, SIMD3<Double>) -> Void = { _, _ in }
@@ -85,7 +90,10 @@ struct SpatialScene3D: View {
         .onChange(of: initialViewport) { _, _ in
             applyInitialViewportIfNeeded()
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .onChange(of: selectedNodeId) { _, newValue in
+            focusCamera(onNodeId: newValue)
+        }
+        .background(MindPalaceTheme.canvasBackground)
         #else
         Spatial2DCanvas(nodes: nodes, connections: connections, selectedNodeId: $selectedNodeId)
         #endif
@@ -182,6 +190,39 @@ struct SpatialScene3D: View {
         onViewportChanged(currentCameraPosition, cameraDistance)
     }
 
+    /// Phase 3 follow-link behavior: on selection (tap), orbit camera toward
+    /// the node and expose its first-degree neighbor set for future tinting.
+    private func focusCamera(onNodeId nodeId: String?) {
+        guard let nodeId, let node = nodes.first(where: { $0.id == nodeId }) else { return }
+        let (scale, center) = normalize()
+        let pos = position(for: node, scale: scale, center: center)
+        let length = max(simd_length(SIMD3<Float>(pos.x, 0, pos.z)), 0.0001)
+        let targetYaw = Double(atan2(pos.x, pos.z))
+        let targetPitch = Double(atan2(pos.y, length))
+        withAnimation(.easeInOut(duration: 0.45)) {
+            orbitYaw = targetYaw
+            orbitPitch = max(-1.15, min(1.15, targetPitch))
+        }
+        persistViewport()
+    }
+
+    /// First-degree neighbor IDs across both room connections and content
+    /// links. Exposed (internal) so the inspector / future filter overlay can
+    /// share the scan; renderer doesn't tint per-platform yet.
+    func neighborIds(of nodeId: String) -> Set<String> {
+        var result: Set<String> = []
+        for connection in connections {
+            if connection.sourceNodeId == nodeId { result.insert(connection.targetNodeId) }
+            if connection.targetNodeId == nodeId { result.insert(connection.sourceNodeId) }
+        }
+        for link in links {
+            if link.sourceId == nodeId { result.insert(link.targetId) }
+            if link.targetId == nodeId { result.insert(link.sourceId) }
+        }
+        result.remove(nodeId)
+        return result
+    }
+
     private func applyInitialViewportIfNeeded() {
         guard let initialViewport else { return }
         let position = SIMD3<Double>(
@@ -233,12 +274,24 @@ struct SpatialScene3D: View {
             root.addChild(makeNodeEntity(node, at: pos))
         }
 
+        // Room-level connections — typed by `linkType` (lenient mapping from
+        // the room `ConnectionType` + optional `linkSubtype`).
         for connection in connections {
             guard
                 let from = positions[connection.sourceNodeId],
                 let toEnd = positions[connection.targetNodeId]
             else { continue }
-            root.addChild(makeEdgeEntity(from: from, to: toEnd, type: connection.connectionType))
+            root.addChild(makeEdgeEntity(from: from, to: toEnd, linkType: connection.linkType, weight: 1.0))
+        }
+
+        // Phase 3: content-level typed links from the whole-library
+        // projection. Same cylinder geometry, palette comes from `LinkType`.
+        for link in links {
+            guard
+                let from = positions[link.sourceId],
+                let toEnd = positions[link.targetId]
+            else { continue }
+            root.addChild(makeEdgeEntity(from: from, to: toEnd, linkType: link.linkType, weight: link.weight))
         }
 
         return root
@@ -249,23 +302,35 @@ struct SpatialScene3D: View {
         let cardWidth: Float = 0.8 * scale
         let cardHeight: Float = cardWidth / pageAspectRatio
         let thumbnailUrl = node.thumbnailUrl
+        let nodeColor = MindPalaceTheme.materialColor(for: node.nodeType)
         let mesh: MeshResource
-        let materials: [any Material]
+        let materials: [any RealityFoundation.Material]
+        let collisionShape: ShapeResource
 
-        if thumbnailUrl != nil || node.nodeType == .source {
+        switch node.nodeType {
+        case .entity:
+            // Phase 3: entity orbs (sphere). HoverEffectComponent gives the
+            // per-platform highlight without #if.
+            let radius: Float = cardWidth * 0.32
+            mesh = MeshResource.generateSphere(radius: radius)
+            materials = [SimpleMaterial(color: nodeColor, isMetallic: false)]
+            collisionShape = ShapeResource.generateSphere(radius: radius)
+        case .source where thumbnailUrl != nil, .source:
             mesh = MeshResource.generatePlane(
                 width: cardWidth,
                 height: cardHeight,
                 cornerRadius: min(cardWidth, cardHeight) * 0.07
             )
-            materials = [UnlitMaterial(color: nsColor(for: node.nodeType))]
-        } else {
+            materials = [UnlitMaterial(color: nodeColor)]
+            collisionShape = ShapeResource.generateBox(size: SIMD3<Float>(cardWidth, cardHeight, cardWidth * 0.12))
+        default:
             let depth: Float = cardWidth * 0.12
             mesh = MeshResource.generateBox(
                 size: SIMD3<Float>(cardWidth, cardHeight, depth),
                 cornerRadius: min(cardWidth, cardHeight, depth) * 0.18
             )
-            materials = [SimpleMaterial(color: nsColor(for: node.nodeType), isMetallic: false)]
+            materials = [SimpleMaterial(color: nodeColor, isMetallic: false)]
+            collisionShape = ShapeResource.generateBox(size: SIMD3<Float>(cardWidth, cardHeight, depth))
         }
 
         let entity = ModelEntity(mesh: mesh, materials: materials)
@@ -273,13 +338,12 @@ struct SpatialScene3D: View {
         entity.orientation = simd_quatf(angle: Float(node.rotationY), axis: SIMD3<Float>(0, 1, 0))
         entity.name = node.id
         entity.components.set(InputTargetComponent())
-        entity.components.set(
-            CollisionComponent(
-                shapes: [ShapeResource.generateBox(size: SIMD3<Float>(cardWidth, cardHeight, cardWidth * 0.12))]
-            )
-        )
+        entity.components.set(CollisionComponent(shapes: [collisionShape]))
+        // Cross-platform highlight: cursor change on Mac, system tint on
+        // visionOS. One line, no per-platform branch.
+        entity.components.set(HoverEffectComponent())
 
-        if let thumbnailUrl {
+        if let thumbnailUrl, node.nodeType == .source {
             Task { @MainActor in
                 do {
                     let texture = try await MindPalaceTextureCache.shared.texture(for: thumbnailUrl)
@@ -295,46 +359,26 @@ struct SpatialScene3D: View {
 
     private var pageAspectRatio: Float { 3.0 / 4.0 }
 
-    /// A connection rendered as a thin box spanning the two node positions.
+    /// A typed link rendered as a cylinder spanning two node positions.
+    /// Cylinder (not box) reads as a 3D tube from any camera angle. Color +
+    /// thickness come from the link type and weight.
     private func makeEdgeEntity(
         from: SIMD3<Float>,
         to endPoint: SIMD3<Float>,
-        type: MindPalaceConnectionType
+        linkType: LinkType,
+        weight: Double
     ) -> ModelEntity {
         let delta = endPoint - from
-        let length = simd_length(delta)
-        let thickness: Float = 0.01
-        let mesh = MeshResource.generateBox(size: SIMD3<Float>(thickness, thickness, max(length, 0.0001)))
-        let material = SimpleMaterial(color: nsColor(for: type).withAlphaComponent(0.6), isMetallic: false)
+        let length = max(simd_length(delta), 0.0001)
+        let thickness: Float = 0.006 * Float(max(0.5, min(weight, 3.0)))
+        let mesh = MeshResource.generateCylinder(height: length, radius: thickness)
+        let color = MindPalaceTheme.materialColor(for: linkType, alpha: linkType.isSolid ? 0.85 : 0.45)
+        let material = SimpleMaterial(color: color, isMetallic: false)
         let entity = ModelEntity(mesh: mesh, materials: [material])
         entity.position = (from + endPoint) / 2
-        if length > 0 {
-            // Orient the box's local +Z axis along the connection direction.
-            entity.orientation = simd_quatf(from: SIMD3<Float>(0, 0, 1), to: delta / length)
-        }
+        // generateCylinder is +Y-aligned; rotate +Y onto the link direction.
+        entity.orientation = simd_quatf(from: SIMD3<Float>(0, 1, 0), to: delta / length)
         return entity
-    }
-
-    private func nsColor(for type: MindPalaceNodeType) -> NSColor {
-        switch type {
-        case .source: return .systemBlue
-        case .claim: return .systemPurple
-        case .note: return .systemOrange
-        case .entity: return .systemGreen
-        case .transcription: return .systemTeal
-        case .unknown: return .systemGray
-        }
-    }
-
-    private func nsColor(for type: MindPalaceConnectionType) -> NSColor {
-        switch type {
-        case .evidentiary: return .systemBlue
-        case .semantic: return .systemPurple
-        case .ontological: return .systemGreen
-        case .hermeneutic: return .systemOrange
-        case .userDrawn: return .systemGray
-        case .unknown: return .secondaryLabelColor
-        }
     }
     #endif
 }

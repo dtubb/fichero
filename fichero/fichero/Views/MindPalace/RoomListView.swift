@@ -27,6 +27,15 @@ struct RoomListView: View {
                 )
             } else {
                 List(selection: roomSelection) {
+                    // Phase 3 (#1297 follow-up): pinned pseudo-room that
+                    // loads the whole-library projection (documents +
+                    // entities + links) instead of a stored room's nodes.
+                    Section("Library") {
+                        Label("Whole Library", systemImage: "globe")
+                            .tag(wholeLibraryRoomId)
+                            .help("Spatial view of every document and entity in this library.")
+                    }
+
                     Section("Rooms") {
                         ForEach(rooms) { room in
                             Label(room.name, systemImage: "cube.transparent")

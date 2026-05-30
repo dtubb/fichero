@@ -325,3 +325,77 @@ final class MindPalaceService: ObservableObject {
         }
     }
 }
+
+// MARK: - Phase 3: whole-library projection (#1297 follow-up)
+
+extension MindPalaceService {
+
+    static let libraryProjectionDocumentCap = 500
+    static let libraryProjectionEntityCap = 500
+    static let libraryProjectionClaimCap = 2000
+
+    /// Build the whole-library projection by composing `/api/documents`,
+    /// `/api/entities`, and `/api/claims`. Pure-data assembly lives in
+    /// `MindPalaceLibraryProjector.project(_:)`.
+    func loadLibraryProjection() async throws -> MindPalaceLibraryProjection {
+        async let documents = listLibraryDocuments(limit: Self.libraryProjectionDocumentCap)
+        async let entities = listLibraryEntities(limit: Self.libraryProjectionEntityCap)
+        async let claims = listLibraryClaims(limit: Self.libraryProjectionClaimCap)
+
+        let (docs, ents, cls) = try await (documents, entities, claims)
+        let input = MindPalaceLibraryProjector.makeInput(
+            documents: docs,
+            entities: ents,
+            claims: cls
+        )
+        return MindPalaceLibraryProjector.project(input)
+    }
+
+    private func listLibraryDocuments(limit: Int) async throws -> [Components.Schemas.Document] {
+        let response = try await client.api.listDocumentsApiDocumentsGet(
+            query: .init(limit: limit),
+            headers: .init(xFicheroLibraryPath: libraryHeader)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    private func listLibraryEntities(limit: Int) async throws -> [Components.Schemas.KnowledgeEntity] {
+        let response = try await client.api.listEntitiesApiEntitiesGet(
+            query: .init(limit: limit),
+            headers: .init(xFicheroLibraryPath: libraryHeader)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    private func listLibraryClaims(limit: Int) async throws -> [Components.Schemas.KnowledgeClaim] {
+        let response = try await client.api.listClaimsApiClaimsGet(
+            query: .init(limit: limit),
+            headers: .init(xFicheroLibraryPath: libraryHeader)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+}

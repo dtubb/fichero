@@ -14,6 +14,9 @@ struct MindPalaceContainer: View {
 
     @State private var nodes: [MindPalaceNode] = []
     @State private var connections: [MindPalaceConnection] = []
+    /// Phase 3 (#1297 follow-up): content-level typed links populated only
+    /// when viewing the whole-library pseudo-room. Empty for normal rooms.
+    @State private var libraryLinks: [MindPalaceLink] = []
     @State private var viewport: MindPalaceViewport?
     @State private var roomName: String = ""
     @State private var isLoading = false
@@ -107,6 +110,7 @@ struct MindPalaceContainer: View {
                 SpatialScene3D(
                     nodes: nodes,
                     connections: connections,
+                    links: libraryLinks,
                     initialViewport: viewport,
                     onNodePositionChanged: updateNodePosition,
                     onNodeMoveEnded: persistNodePosition,
@@ -226,11 +230,33 @@ struct MindPalaceContainer: View {
         guard let roomId = state.selectedRoomId, let service = activeMindPalaceService() else {
             nodes = []
             connections = []
+            libraryLinks = []
             return
         }
         isLoading = true
         loadError = nil
         defer { isLoading = false }
+
+        // Phase 3: the whole-library pseudo-room is a projection
+        // (documents + entities + claims), not a stored room.
+        if roomId == wholeLibraryRoomId {
+            do {
+                let projection = try await service.loadLibraryProjection()
+                nodes = projection.nodes
+                connections = []
+                libraryLinks = projection.links
+                roomName = "Whole Library"
+                viewport = nil
+            } catch {
+                loadError = error.localizedDescription
+                nodes = []
+                connections = []
+                libraryLinks = []
+                viewport = nil
+            }
+            return
+        }
+
         do {
             async let nodesTask = service.listNodes(roomId: roomId)
             async let connectionsTask = service.listConnections(roomId: roomId)
@@ -238,12 +264,14 @@ struct MindPalaceContainer: View {
             async let viewportTask = service.getViewport(roomId: roomId)
             nodes = try await nodesTask
             connections = try await connectionsTask
+            libraryLinks = []
             roomName = (try await roomsTask).first { $0.id == roomId }?.name ?? ""
             viewport = try await viewportTask
         } catch {
             loadError = error.localizedDescription
             nodes = []
             connections = []
+            libraryLinks = []
             viewport = nil
         }
     }

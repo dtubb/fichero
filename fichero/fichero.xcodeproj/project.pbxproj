@@ -21,6 +21,7 @@
 		023 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122 /* ChatService.swift */; };
 		025 /* SavedSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124 /* SavedSearchService.swift */; };
 		028 /* ModelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 127 /* ModelService.swift */; };
+		02DC70ACB03D52EDE04B84C3 /* MindPalaceLibraryProjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC62467E297F09DF404643C1 /* MindPalaceLibraryProjector.swift */; };
 		035 /* WorkflowTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 134 /* WorkflowTypes.swift */; };
 		036 /* WorkflowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135 /* WorkflowStore.swift */; };
 		037 /* WorkflowExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136 /* WorkflowExporter.swift */; };
@@ -122,7 +123,6 @@
 		20D8EDCA2F48F49C006950A3 /* BatchTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDC92F48F49C006950A3 /* BatchTypes.swift */; };
 		20D8EDCC2F48F4A8006950A3 /* LibraryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDCB2F48F4A8006950A3 /* LibraryWindow.swift */; };
 		20D8EDCE2F48F4AE006950A3 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDCD2F48F4AE006950A3 /* WelcomeView.swift */; };
-		B30013000000000000000001 /* FirstRunWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30013000000000000000002 /* FirstRunWindow.swift */; };
 		20D8EDD02F48F4AE006950A3 /* CheckpointTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDCF2F48F4AE006950A3 /* CheckpointTypes.swift */; };
 		20D8EDD22F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDD12F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift */; };
 		20D8EDD42F48F4BE006950A3 /* WorkflowRunResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDD32F48F4BE006950A3 /* WorkflowRunResponse.swift */; };
@@ -145,6 +145,7 @@
 		20D8EE492F4BED4B006950A3 /* ActionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE482F4BED4B006950A3 /* ActionRowView.swift */; };
 		20D8EE4B2F4BED57006950A3 /* ActionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE4A2F4BED57006950A3 /* ActionDetailView.swift */; };
 		2133BF0B15424FFDBA37619B /* FolderContentsGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */; };
+		21B8070BD02B0087A8B83D04 /* MindPalaceTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55DF06231EA1679E067896E3 /* MindPalaceTheme.swift */; };
 		230EB3E3E820CFEC092A3C49 /* ResearchTasksPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5287875D44BA51CD93CA12F8 /* ResearchTasksPane.swift */; };
 		23CB922EB4868B4EF1C20215 /* PDFReadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74515FA0260E31DB7F74A1D3 /* PDFReadingView.swift */; };
 		23D9356AD3737D9E956E7192 /* MindPalaceWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF58A5BD463C321239653840 /* MindPalaceWindow.swift */; };
@@ -329,6 +330,7 @@
 		B2A0020B00000000BATCH2C4 /* ChainDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010B00000000BATCH2C4 /* ChainDetailContent.swift */; };
 		B2A0020C00000000BATCH2C5 /* ChainDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010C00000000BATCH2C5 /* ChainDetailSheet.swift */; };
 		B2A0020D00000000BATCH2C6 /* NewChainSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010D00000000BATCH2C6 /* NewChainSheet.swift */; };
+		B30013000000000000000001 /* FirstRunWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30013000000000000000002 /* FirstRunWindow.swift */; };
 		B3A002010000000000BATCH3 /* ProvidersView+ModelTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001010000000000BATCH3 /* ProvidersView+ModelTypes.swift */; };
 		B3A002020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift */; };
 		B3A002030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift */; };
@@ -419,7 +421,6 @@
 		A1624FF62F2EE5710019C019 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			dstPath = "";
-			dstSubfolder = None;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
@@ -552,7 +553,6 @@
 		20D8EDC92F48F49C006950A3 /* BatchTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchTypes.swift; sourceTree = "<group>"; };
 		20D8EDCB2F48F4A8006950A3 /* LibraryWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryWindow.swift; sourceTree = "<group>"; };
 		20D8EDCD2F48F4AE006950A3 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
-		B30013000000000000000002 /* FirstRunWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunWindow.swift; sourceTree = "<group>"; };
 		20D8EDCF2F48F4AE006950A3 /* CheckpointTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckpointTypes.swift; sourceTree = "<group>"; };
 		20D8EDD12F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsPlaceholderSheet.swift; sourceTree = "<group>"; };
 		20D8EDD32F48F4BE006950A3 /* WorkflowRunResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowRunResponse.swift; sourceTree = "<group>"; };
@@ -597,6 +597,7 @@
 		43EAB861267206E7A929830F /* KGTemporalSpatial.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGTemporalSpatial.swift; sourceTree = "<group>"; };
 		462 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
 		5287875D44BA51CD93CA12F8 /* ResearchTasksPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchTasksPane.swift; sourceTree = "<group>"; };
+		55DF06231EA1679E067896E3 /* MindPalaceTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindPalaceTheme.swift; sourceTree = "<group>"; };
 		5923B00FD0A382F8BBF21D58 /* PageContentPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PageContentPane.swift; sourceTree = "<group>"; };
 		599CF5FBD9D2B619B9353BC7 /* SpeakerComparisonView+Preview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SpeakerComparisonView+Preview.swift"; sourceTree = "<group>"; };
 		5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TriggerEditorPreviewPanel.swift; path = fichero/Views/Automation/TriggerEditorView/TriggerEditorPreviewPanel.swift; sourceTree = SOURCE_ROOT; };
@@ -763,6 +764,7 @@
 		B2A0010B00000000BATCH2C4 /* ChainDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainDetailContent.swift; sourceTree = "<group>"; };
 		B2A0010C00000000BATCH2C5 /* ChainDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainDetailSheet.swift; sourceTree = "<group>"; };
 		B2A0010D00000000BATCH2C6 /* NewChainSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewChainSheet.swift; sourceTree = "<group>"; };
+		B30013000000000000000002 /* FirstRunWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunWindow.swift; sourceTree = "<group>"; };
 		B3A001010000000000BATCH3 /* ProvidersView+ModelTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProvidersView+ModelTypes.swift"; sourceTree = "<group>"; };
 		B3A001020000000000BATCH3 /* ProvidersView+ProviderDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProvidersView+ProviderDetailView.swift"; sourceTree = "<group>"; };
 		B3A001030000000000BATCH3 /* ProvidersView+ProviderSettingsRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProvidersView+ProviderSettingsRow.swift"; sourceTree = "<group>"; };
@@ -796,6 +798,7 @@
 		B6A0010B00000000BATCH6A4 /* AddProviderSheet+Step3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddProviderSheet+Step3.swift"; sourceTree = "<group>"; };
 		B8F0249656F38A2DB7AE0C54 /* LibraryMapComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryMapComponents.swift; sourceTree = "<group>"; };
 		BA39991F769A1DD42BB17F01 /* ClaimSummaryCard+Details.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ClaimSummaryCard+Details.swift"; sourceTree = "<group>"; };
+		BC62467E297F09DF404643C1 /* MindPalaceLibraryProjector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindPalaceLibraryProjector.swift; sourceTree = "<group>"; };
 		BE29C018865C9A1538200D8E /* ResearchProjectListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchProjectListView.swift; sourceTree = "<group>"; };
 		BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Persistence.swift"; sourceTree = "<group>"; };
 		C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GeneralSettingsView.swift; path = fichero/Views/Settings/GeneralSettingsView.swift; sourceTree = SOURCE_ROOT; };
@@ -826,11 +829,15 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10521AA2EFDC92400B28C3E /* fichero-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = "fichero-tests";
 			sourceTree = "<group>";
 		};
 		A10521C22EFDC94100B28C3E /* fichero-ui-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = "fichero-ui-tests";
 			sourceTree = "<group>";
 		};
@@ -1049,14 +1056,6 @@
 			path = Sidebar;
 			sourceTree = "<group>";
 		};
-		B30013000000000000000003 /* Onboarding */ = {
-			isa = PBXGroup;
-			children = (
-				B30013000000000000000002 /* FirstRunWindow.swift */,
-			);
-			path = Onboarding;
-			sourceTree = "<group>";
-		};
 		4115 /* Search */ = {
 			isa = PBXGroup;
 			children = (
@@ -1193,6 +1192,7 @@
 				EE2ECCF57DC8B6308FCAE62F /* MindPalaceState.swift */,
 				1B98F1F8C255A9F7C3386A59 /* ResearchModels.swift */,
 				19C6A533EA3E96E1F5AE19ED /* AppNavigationHistory.swift */,
+				55DF06231EA1679E067896E3 /* MindPalaceTheme.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -1254,6 +1254,7 @@
 				61D7DC57117008EBCFE607A9 /* AnnotationService.swift */,
 				5DFDA42FD3B68F90E0E4D426 /* MindPalaceService.swift */,
 				11DB5E2213FF12794A689A7F /* ResearchService.swift */,
+				BC62467E297F09DF404643C1 /* MindPalaceLibraryProjector.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1550,6 +1551,14 @@
 			path = WorkflowChainListView;
 			sourceTree = "<group>";
 		};
+		B30013000000000000000003 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				B30013000000000000000002 /* FirstRunWindow.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
 		D11000012F99900100ABC001 /* DocumentInspector */ = {
 			isa = PBXGroup;
 			children = (
@@ -1587,6 +1596,8 @@
 				CC0011223344556677889903 /* Embed Fichero Engine */,
 			);
 			buildRules = (
+			);
+			dependencies = (
 			);
 			name = Fichero;
 			packageProductDependencies = (
@@ -1710,6 +1721,8 @@
 /* Begin PBXShellScriptBuildPhase section */
 		CC0011223344556677889902 /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
+			files = (
+			);
 			inputPaths = (
 				"$(SRCROOT)/../.swiftlint.yml",
 				"$(SRCROOT)/fichero",
@@ -1723,13 +1736,13 @@
 				"SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"",
 				"if [ ! -x \"$SWIFTLINT_BIN\" ]; then",
 				"  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"",
-				"fi",
+				fi,
 				"",
 				"if [ -x \"$SWIFTLINT_BIN\" ]; then",
 				"  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero\"",
-				"else",
+				else,
 				"  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"",
-				"fi",
+				fi,
 				"",
 				"mkdir -p \"$DERIVED_FILE_DIR\"",
 				"touch \"$DERIVED_FILE_DIR/swiftlint.done\"",
@@ -1739,6 +1752,8 @@
 		CC0011223344556677889903 /* Embed Fichero Engine */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
+			files = (
+			);
 			name = "Embed Fichero Engine";
 			shellPath = /bin/sh;
 			shellScript = (
@@ -1768,7 +1783,7 @@
 				"",
 				"  exit 0",
 				"",
-				"fi",
+				fi,
 				"",
 				"",
 				"",
@@ -1784,7 +1799,7 @@
 				"",
 				"  exit 1",
 				"",
-				"fi",
+				fi,
 				"",
 				"",
 				"",
@@ -2188,6 +2203,8 @@
 				4DD61218DD8818B2488E3AC1 /* DocumentKGSurface.swift in Sources */,
 				4C823323E8BC468934CFD1C4 /* AppNavigationHistory.swift in Sources */,
 				AF868ABDCF249BD2499197F3 /* ContentView+NavigationHistory.swift in Sources */,
+				21B8070BD02B0087A8B83D04 /* MindPalaceTheme.swift in Sources */,
+				02DC70ACB03D52EDE04B84C3 /* MindPalaceLibraryProjector.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -2216,7 +2233,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		800 /* Debug configuration for PBXProject "fichero" */ = {
+		800 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -2282,7 +2299,7 @@
 			};
 			name = Debug;
 		};
-		801 /* Release configuration for PBXProject "fichero" */ = {
+		801 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -2340,7 +2357,7 @@
 			};
 			name = Release;
 		};
-		810 /* Debug configuration for PBXNativeTarget "Fichero" */ = {
+		810 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2386,7 +2403,7 @@
 			};
 			name = Debug;
 		};
-		811 /* Release configuration for PBXNativeTarget "Fichero" */ = {
+		811 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2434,7 +2451,7 @@
 			};
 			name = Release;
 		};
-		A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */ = {
+		A10521AF2EFDC92400B28C3E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2457,7 +2474,7 @@
 			};
 			name = Debug;
 		};
-		A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */ = {
+		A10521B02EFDC92400B28C3E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2480,7 +2497,7 @@
 			};
 			name = Release;
 		};
-		A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */ = {
+		A10521C82EFDC94100B28C3E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -2496,7 +2513,7 @@
 			};
 			name = Debug;
 		};
-		A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */ = {
+		A10521C92EFDC94100B28C3E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -2518,32 +2535,32 @@
 		600 /* Build configuration list for PBXNativeTarget "Fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				810 /* Debug configuration for PBXNativeTarget "Fichero" */,
-				811 /* Release configuration for PBXNativeTarget "Fichero" */,
+				810 /* Debug */,
+				811 /* Release */,
 			);
 			defaultConfigurationName = Debug;
 		};
 		710 /* Build configuration list for PBXProject "fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				800 /* Debug configuration for PBXProject "fichero" */,
-				801 /* Release configuration for PBXProject "fichero" */,
+				800 /* Debug */,
+				801 /* Release */,
 			);
 			defaultConfigurationName = Debug;
 		};
 		A10521B12EFDC92400B28C3E /* Build configuration list for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */,
-				A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */,
+				A10521AF2EFDC92400B28C3E /* Debug */,
+				A10521B02EFDC92400B28C3E /* Release */,
 			);
 			defaultConfigurationName = Debug;
 		};
 		A10521C72EFDC94100B28C3E /* Build configuration list for PBXNativeTarget "FicheroUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */,
-				A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */,
+				A10521C82EFDC94100B28C3E /* Debug */,
+				A10521C92EFDC94100B28C3E /* Release */,
 			);
 			defaultConfigurationName = Debug;
 		};
