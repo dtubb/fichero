@@ -56,6 +56,36 @@ enum FileType: String, Codable, CaseIterable {
     }
 }
 
+/// Programmatic chapter/section/subsection tree persisted on a PDF document.
+struct DocumentStructureNode: Identifiable, Codable, Hashable {
+    let id: String
+    let title: String
+    let kind: String
+    let level: Int
+    let pageRange: PageRange
+    let basis: String?
+    let confidence: Double?
+    let sourcePageLabel: String?
+    let children: [DocumentStructureNode]
+
+    struct PageRange: Codable, Hashable {
+        let start: Int
+        let end: Int
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case kind
+        case level
+        case pageRange = "page_range"
+        case basis
+        case confidence
+        case sourcePageLabel = "source_page_label"
+        case children
+    }
+}
+
 /// Processing status enum matching Python Status
 enum Status: String, Codable, CaseIterable {
     case pending
@@ -90,6 +120,7 @@ struct Document: Identifiable, Codable, Hashable {
     var pageContent: String?
     var isWorkspace: Bool
     var curatedItems: [[String: AnyCodable]]
+    var structure: [DocumentStructureNode]
     /// User-defined order within the document's parent folder. Written by the
     /// backend `/documents/reorder` route (`documents.py:276`) and by the
     /// `move` route when it accepts a position. Defaults to 0 for documents
@@ -115,6 +146,7 @@ struct Document: Identifiable, Codable, Hashable {
         case pageContent = "page_content"
         case isWorkspace = "is_workspace"
         case curatedItems = "curated_items"
+        case structure
         case sortOrder = "sort_order"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -136,6 +168,7 @@ struct Document: Identifiable, Codable, Hashable {
         pageContent: String? = nil,
         isWorkspace: Bool = false,
         curatedItems: [[String: AnyCodable]] = [],
+        structure: [DocumentStructureNode] = [],
         sortOrder: Int = 0,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
@@ -155,6 +188,7 @@ struct Document: Identifiable, Codable, Hashable {
         self.pageContent = pageContent
         self.isWorkspace = isWorkspace
         self.curatedItems = curatedItems
+        self.structure = structure
         self.sortOrder = sortOrder
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -180,6 +214,7 @@ struct Document: Identifiable, Codable, Hashable {
         self.pageContent = try container.decodeIfPresent(String.self, forKey: .pageContent)
         self.isWorkspace = try container.decodeIfPresent(Bool.self, forKey: .isWorkspace) ?? false
         self.curatedItems = try container.decodeIfPresent([[String: AnyCodable]].self, forKey: .curatedItems) ?? []
+        self.structure = try container.decodeIfPresent([DocumentStructureNode].self, forKey: .structure) ?? []
         self.sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)

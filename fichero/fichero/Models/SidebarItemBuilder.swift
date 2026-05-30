@@ -102,7 +102,10 @@ enum SidebarItemBuilder {
         // render in page order; folders/PDFs fall back to name ordering.
         func buildItem(_ doc: Document) -> SidebarItem {
             let raw = childrenMap[doc.id] ?? []
-            let children = raw.isEmpty ? nil : raw.sorted(by: childOrder).map { buildItem($0) }
+            let documentChildren = raw.sorted(by: childOrder).map { buildItem($0) }
+            let structureChildren = buildStructureItems(for: doc, libraryId: libraryId)
+            let allChildren = documentChildren + structureChildren
+            let children = allChildren.isEmpty ? nil : allChildren
             return SidebarItem.fromDocument(doc, libraryId: libraryId, children: children)
         }
 
@@ -137,6 +140,50 @@ enum SidebarItemBuilder {
         result.append(contentsOf: rootDocuments.map { buildItem($0) })
 
         return result
+    }
+
+    private static func buildStructureItems(
+        for doc: Document,
+        libraryId: UUID
+    ) -> [SidebarItem] {
+        guard doc.fileType == .pdf, !doc.structure.isEmpty else {
+            return []
+        }
+        return doc.structure.map { structureItem($0, documentId: doc.id, libraryId: libraryId) }
+    }
+
+    private static func structureItem(
+        _ node: DocumentStructureNode,
+        documentId: String,
+        libraryId: UUID
+    ) -> SidebarItem {
+        let children = node.children.map {
+            structureItem($0, documentId: documentId, libraryId: libraryId)
+        }
+        let pageRange = "\(node.pageRange.start)-\(node.pageRange.end)"
+        return SidebarItem(
+            id: "structure:\(documentId):\(node.id)",
+            name: "\(node.title)  p. \(pageRange)",
+            icon: structureIcon(for: node.kind),
+            category: .folder,
+            itemType: .folder(folderPath: "structure/\(documentId)/\(node.id)"),
+            children: children.isEmpty ? nil : children,
+            progress: nil,
+            showProgress: false,
+            libraryId: libraryId,
+            folderPath: "structure/\(documentId)",
+            sortOrder: node.pageRange.start,
+            isFolder: !children.isEmpty
+        )
+    }
+
+    private static func structureIcon(for kind: String) -> String {
+        switch kind {
+        case "chapter": return "book.closed"
+        case "section": return "text.book.closed"
+        case "subsection": return "list.bullet.indent"
+        default: return "text.alignleft"
+        }
     }
 
     // Build hierarchical items from folderPath (for searches, chats, workflows)

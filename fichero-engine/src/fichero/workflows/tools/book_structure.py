@@ -8,6 +8,7 @@ source document plus page-range bounds.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -17,6 +18,14 @@ from fichero.models import DocType, Document
 from fichero.workflows.registry import register_tool
 from fichero.workflows.types import DataType, PortDef, State
 from fichero.llm import LLMConfig
+from fichero.workflows.tools.split_chapters import _heading_starts_from_pages, _page_texts_from_pdf
+
+_NUMBERED_HEADING_RE = re.compile(r"^(\d+(?:\.\d+){1,2})\.?\s+(.{3,120})$")
+_SECTION_HEADING_RE = re.compile(
+    r"^(section|subsection)\s+(\d+(?:\.\d+){0,2})\.?\s+(.{3,120})$",
+    re.IGNORECASE,
+)
+
 
 def _kind_for_level(level: int) -> str:
     return {1: "chapter", 2: "section", 3: "subsection"}.get(level, "section")
@@ -98,7 +107,7 @@ def extract_book_structure_from_pdf(
     *,
     source_document_id: str,
 ) -> list[BookStructureNode]:
-    """Read a PDF's embedded outline and convert it to structure rows."""
+    """Read a PDF's outline/headings and convert them to structure rows."""
     try:
         import fitz  # PyMuPDF
     except ImportError as exc:  # pragma: no cover - dependency guard
@@ -117,14 +126,115 @@ def extract_book_structure_from_pdf(
             (doc[i].get_label() or str(i + 1))
             for i in range(page_count)
         ]
-        return build_book_structure_from_toc(
+        nodes = build_book_structure_from_toc(
             toc,
             source_document_id=source_document_id,
             page_count=page_count,
             source_page_labels=page_labels,
         )
+        if nodes:
+            return nodes
     finally:
         doc.close()
+
+    pages = _page_texts_from_pdf(path)
+    if not pages:
+        return []
+    starts = _heading_starts_from_pages(pages) + _section_starts_from_pages(pages)
+    if not starts:
+        return [
+            BookStructureNode(
+                source_document_id=source_document_id,
+                title="Whole Book",
+                level=1,
+                kind="chapter",
+                start_sequence=1,
+                end_sequence=len(pages),
+                basis="fallback",
+                confidence=0.4,
+                source_page_label="1",
+                source_excerpt="Whole Book",
+            )
+        ]
+
+    rows: list[tuple[int, str, int, str]] = []
+    for title, page, basis in starts:
+        level = _level_from_heading(title)
+        rows.append((level, title, page, basis))
+    return _build_nodes_from_heading_rows(
+        rows,
+        source_document_id=source_document_id,
+        page_count=len(pages),
+    )
+
+
+def _section_starts_from_pages(pages: list[Any]) -> list[tuple[str, int, str]]:
+    starts: list[tuple[str, int, str]] = []
+    for page in pages:
+        for line in page.first_lines:
+            normalized = " ".join(line.strip().split())
+            if _NUMBERED_HEADING_RE.match(normalized) or _SECTION_HEADING_RE.match(normalized):
+                starts.append((normalized, page.sequence, "heading"))
+                break
+    return starts
+
+
+def _level_from_heading(title: str) -> int:
+    stripped = title.strip()
+    if stripped.lower().startswith(("chapter ", "chapitre ", "capítulo ", "capitulo ")):
+        return 1
+    section_match = _SECTION_HEADING_RE.match(stripped)
+    if section_match:
+        return 3 if section_match.group(1).lower() == "subsection" else 2
+    first = stripped.split(maxsplit=1)[0].strip(".")
+    if first.count(".") >= 2:
+        return 3
+    if first.count(".") == 1:
+        return 2
+    return 1
+
+
+def _build_nodes_from_heading_rows(
+    rows: list[tuple[int, str, int, str]],
+    *,
+    source_document_id: str,
+    page_count: int,
+) -> list[BookStructureNode]:
+    nodes: list[BookStructureNode] = []
+    stack: list[BookStructureNode] = []
+    seen: set[tuple[int, str]] = set()
+    for level, title, page, basis in sorted(rows, key=lambda row: (row[2], row[0])):
+        if page < 1 or page > page_count or (page, title) in seen:
+            continue
+        seen.add((page, title))
+        while stack and stack[-1].level >= level:
+            stack.pop()
+        parent = stack[-1] if stack else None
+        node = BookStructureNode(
+            source_document_id=source_document_id,
+            title=title,
+            level=level,
+            kind=_kind_for_level(level),
+            start_sequence=page,
+            end_sequence=None,
+            parent_structure_id=parent.id if parent else None,
+            basis=basis,
+            confidence=0.75 if basis == "heading" else 0.6,
+            source_page_label=str(page),
+            source_excerpt=title,
+            metadata={"heading": {"title": title, "page": page}},
+        )
+        nodes.append(node)
+        stack.append(node)
+
+    for index, node in enumerate(nodes):
+        end_sequence = page_count
+        for next_node in nodes[index + 1 :]:
+            if next_node.level <= node.level:
+                end_sequence = next_node.start_sequence - 1
+                break
+        node.end_sequence = max(node.start_sequence, end_sequence)
+    return nodes
 
 
 def persist_book_structure(
@@ -158,6 +268,33 @@ def render_book_structure_markdown(nodes: list[BookStructureNode]) -> str:
         end = node.end_sequence if node.end_sequence is not None else node.start_sequence
         lines.append(f"{indent}- {node.kind.title()}: {node.title} ({node.start_sequence}-{end})")
     return "\n".join(lines)
+
+
+def book_structure_tree(nodes: list[BookStructureNode]) -> list[dict[str, Any]]:
+    """Serialize flat structure rows as nested JSON for Document.structure."""
+    by_id: dict[str, dict[str, Any]] = {}
+    roots: list[dict[str, Any]] = []
+    for node in sorted(nodes, key=lambda item: (item.start_sequence, item.level, item.title.casefold())):
+        payload: dict[str, Any] = {
+            "id": node.id,
+            "title": node.title,
+            "kind": node.kind,
+            "level": node.level,
+            "page_range": {
+                "start": node.start_sequence,
+                "end": node.end_sequence or node.start_sequence,
+            },
+            "basis": node.basis,
+            "confidence": node.confidence,
+            "source_page_label": node.source_page_label,
+            "children": [],
+        }
+        by_id[node.id] = payload
+        if node.parent_structure_id and node.parent_structure_id in by_id:
+            by_id[node.parent_structure_id]["children"].append(payload)
+        else:
+            roots.append(payload)
+    return roots
 
 
 def _resolve_source_document(
@@ -265,6 +402,8 @@ async def book_structure(
     if library_path:
         db = db_manager.get_database(library_path)
         persist_book_structure(db, nodes)
+        source_doc.structure = book_structure_tree(nodes)
+        db.save(source_doc)
 
     return {
         "text": render_book_structure_markdown(nodes),
