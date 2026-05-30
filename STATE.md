@@ -1,5 +1,24 @@
 # STATE.md — Fichero
 
+## 2026-05-30 (autonomous manager session) — LATEST
+
+**Trunk-red fully recovered + both lane branches merged + app builds GREEN.** ~25 Swift errors fixed (ViewDisplayMode `.realitykit`, EntityTypeOutput `.citation`, memberwise-init let→var, Swift-6 actor isolation, TextureResource async, NodeDef split, ContentView body-complexity). Merged `opus-realitykit-design` (Mind Palace Phase 3) + `codex53-mcp-full-vision` (full MCP + mindpalace render). Build verified green via Xcode MCP (`BuildProject windowtab1`). Commits `1f9517c9`..`45888e1e` (13 unpushed at this checkpoint).
+
+**Build/infra facts learned:**
+- BUILD VIA `mcp__xcode__BuildProject {tabIdentifier:"windowtab1"}` — Daniel keeps Xcode open; CLI `xcodebuild` collides on the shared `fichero/build/xcode` build DB.
+- `.venv` was broken (no `bin/python`) → rebuilt (python3.12 + `fichero-engine[dev]`); **spaCy models (en/es) had to be `spacy download`ed** — they live in the venv, not Application Support (see #1342). RAM is NOT a constraint (old note was a runaway pytest).
+- **#1275 NodeDef determinism**: openapi flip-flops split↔unified across regens → breaks the Swift build. CANONICAL = SPLIT (NodeDef-Input/Output; WorkflowServiceGenerated uses NodeDefInput/NodeDefOutput). Durable pin-to-split fix in flight (subagent editing `export_openapi_schema.py` + `test_openapi_export.py`). DON'T let a regen revert to unified.
+
+**GitHub triage COMPLETE.** All 17 content milestones audited + executed (~180 GH edits): re-milestones, canonical-label hygiene, ~20 reopens of closed-but-unbuilt good ideas. Created milestone **Bibliography & Citations (#68)** + label `area:inspector`. Proposals committed under `agent-work/proposals/2026-05-30-milestone-audit-*.md` (`b9f8d070`).
+
+**New design issues filed:** #1341 (single configurable data-home, portable off-Mac + testable), #1342 (centralize model downloads + onboarding), #1343 (AI arranges a folder in 3D; room=folder=workspace — NO separate Spatial Library milestone), #1156 note (graph-RAG = one shared engine for human Chat + agent Researcher).
+
+**NEXT (autonomous loop):** when #1275 fix commits → MCP-build green + ruff + contract/openapi pytest → **push all 13+ commits to origin/main** (CI gates Python on Linux) → then dispatch workers on clean high-priority open issues (lane branches + code-review QA gate, not direct-to-trunk).
+
+**FLAGGED FOR DANIEL (not auto-decided):** #1156/#1261 duplicate calls · #343 Workflows-vs-Library borderline · #875/#876/#877 future-dupes · "Library Management" milestone fold-vs-create · #1265 reopen-here vs re-milestone to Image Editing.
+
+---
+
 ## 2026-05-30 (continuation) — NEXT SESSION: START HERE
 
 **Trunk-red on `main` — must fix BEFORE merging opus-realitykit-design or codex53-mcp-full-vision:**
