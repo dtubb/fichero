@@ -13,6 +13,20 @@
 - `2026-05-30-post-collapse-review.md` (f_reviewer)
 - `2026-05-30-mindpalace-phased-plan.md` (f_planner)
 
+**Per-lane dispatch briefs live in `agent-work/dispatch/`:**
+- `2026-05-30-bugtriage-batch.md` — Phase 1 GH hygiene + Daniel's running-notes additions
+- `2026-05-30-integrator-batch.md` — Phase 0 trunk-red fix + Opus merge with 8-error fix-up
+- `2026-05-30-reviewer-batch.md` — standby; activate when integrator produces a candidate merge
+- `2026-05-30-planner-batch.md` — standby; next pickup = Phase 2 Lane B / Lane C sequencing review
+
+**Daniel's running notes (incorporated into Phase 1+ dispatch):**
+- Already-flagged in-flight: **#874** (user-extensible entity types, was in_progress per TASKS #264). Bugtriage to verify/close-or-keep.
+- Next-up Daniel wants: **#1229** (reading-surface / toolbar polish), **#1230** (XCUITest click-through), then **#1054** (search relevance threshold).
+- Release-data import cluster: **#1231–#1239** (slipbox / Chota Valley maps / GHC/ACENET / Archivo Judicial / Mosquera notebooks / Marshall diary / XLSX / Istmina / remote ACENET SSH). Bugtriage to Epic=Importers (most) or Epic=Infrastructure (#1239).
+- Release flow tasks **#157–#165** (notarize/DMG/Sparkle/publish): Daniel: "belongs in a separate repo/issue" → bugtriage to recommend moving them to a `fichero-releases` tracking issue, then close in this repo's TASKS.md (await Daniel's go before mutating).
+- Pending-not-started: **#1054** (search relevance, task #218), **#1151** (xfail gated-router tests, task #259).
+
+
 ---
 
 ## What needs doing — synthesized from the four lane outputs
