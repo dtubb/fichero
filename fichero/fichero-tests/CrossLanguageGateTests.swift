@@ -14,6 +14,16 @@ import XCTest
 @MainActor
 final class CrossLanguageGateTests: XCTestCase {
     func test_python_gate_passes() throws {
+        // Skip on Xcode Cloud — the Python gate runs in GitHub Actions Linux
+        // (.github/workflows/ci.yml: ruff + pytest + OpenAPI drift) where pip
+        // deps and openapi.json regen are cheap. Running them inside the Swift
+        // suite on a fresh Mac runner would need a 5-10 min pre-action to set
+        // up the venv, and we already have the Python side covered elsewhere.
+        let env = ProcessInfo.processInfo.environment
+        if env["CI_XCODE_CLOUD"] != nil || env["XCODE_CLOUD_DEPLOYMENT_VARIANT"] != nil {
+            throw XCTSkip("Python gate runs in GitHub Actions Linux CI; skipped on Xcode Cloud.")
+        }
+
         guard let repo = EngineHarness.repoRoot() else {
             throw XCTSkip("Repo root not found — skipping Python gate.")
         }
