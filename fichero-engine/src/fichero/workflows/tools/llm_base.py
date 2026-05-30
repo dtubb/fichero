@@ -148,6 +148,7 @@ BASE_CONFIG_SCHEMA = {
             "xai",
             "perplexity",
             "fireworks",
+            "deepl",
         ],
         "description": "LLM provider",
         "x-group": "primary",

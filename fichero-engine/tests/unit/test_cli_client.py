@@ -110,6 +110,35 @@ def test_run_workflow_builds_execute_body():
     }
 
 
+def test_translate_document_runs_translate_workflow():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/api/workflows":
+            return httpx.Response(
+                200,
+                json=[{"id": "wf-t", "name": "Translate"}],
+            )
+        if request.method == "POST" and request.url.path == "/api/workflow-execution/execute":
+            payload = json.loads(request.content)
+            assert payload["workflow_id"] == "wf-t"
+            assert payload["inputs"]["selected_doc_ids"] == ["doc-7"]
+            assert payload["inputs"]["target_lang"] == "en"
+            assert payload["inputs"]["source_lang"] == "nl"
+            return httpx.Response(
+                202,
+                json={
+                    "thread_id": "t1",
+                    "workflow_id": "wf-t",
+                    "workflow_name": "Translate",
+                    "status": "accepted",
+                    "stream_url": "/api/workflow-execution/stream/t1",
+                },
+            )
+        return httpx.Response(404, text="not found")
+
+    response = _client(handler).translate_document("doc-7", target_lang="en", source_lang="nl")
+    assert response.workflow_name == "Translate"
+
+
 def test_kg_search_passes_query_param():
     handler, seen = _capture(
         response={"query": "migration", "hits": [], "counts": {}}

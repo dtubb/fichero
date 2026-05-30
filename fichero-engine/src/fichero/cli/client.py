@@ -71,6 +71,7 @@ from fichero.models import (
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8765"
 SPLIT_CHAPTERS_WORKFLOW_NAME = "Split Chapters"
+TRANSLATE_WORKFLOW_NAME = "Translate"
 
 # Matches fichero/api/auth.py::_token_file_path — the engine owns the writer,
 # this is the reader.
@@ -447,6 +448,37 @@ class FicheroClient:
                 "or run `fichero workflow list` to inspect available workflows."
             )
         return self.run_workflow(workflow_id, {"selected_doc_ids": [doc_id]})
+
+    def translate_document(
+        self,
+        doc_id: str,
+        *,
+        target_lang: str = "en",
+        source_lang: str = "auto",
+    ) -> ExecuteAcceptedResponse:
+        """Run the built-in Translate workflow on ``doc_id``."""
+        workflows = self.list_workflows()
+        workflow_id: str | None = None
+        for workflow in workflows:
+            if (workflow.name or "").lower() == TRANSLATE_WORKFLOW_NAME.lower():
+                workflow_id = workflow.id
+                break
+        if workflow_id is None:
+            raise FicheroError(
+                "No workflow named 'Translate'. Reinstall default workflows "
+                "or run `fichero workflow list` to inspect available workflows."
+            )
+        return self.run_workflow(
+            workflow_id,
+            {
+                "selected_doc_ids": [doc_id],
+                "source_lang": source_lang,
+                "target_lang": target_lang,
+                # Back-compat aliases for older translate nodes.
+                "source_language": source_lang,
+                "target_language": target_lang,
+            },
+        )
 
     def execution_status(self, thread_id: str) -> ExecutionStatusResponse:
         return ExecutionStatusResponse.model_validate(

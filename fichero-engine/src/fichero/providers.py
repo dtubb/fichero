@@ -55,6 +55,7 @@ class ProviderType(str, Enum):
     xai = "xai"  # Grok
     perplexity = "perplexity"  # Search-augmented
     fireworks = "fireworks"  # Fast inference
+    deepl = "deepl"  # DeepL translation API
     azure = "azure"  # Azure OpenAI
     bedrock = "bedrock"  # AWS Bedrock
 
@@ -356,6 +357,19 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         logo_asset="Providers/Fireworks",
         color="red",
         sort_order=17,
+    ),
+    ProviderType.deepl: ProviderInfo(
+        type=ProviderType.deepl,
+        name="DeepL",
+        description="High-quality translation API",
+        api_key_env="DEEPL_API_KEY",
+        api_key_url="https://www.deepl.com/pro-api",
+        supports_vision=False,
+        supports_embeddings=False,
+        default_model="deepl-default",
+        icon="character.bubble",
+        color="blue",
+        sort_order=18,
     ),
     ProviderType.azure: ProviderInfo(
         type=ProviderType.azure,
