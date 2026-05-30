@@ -17,7 +17,8 @@ Backend-driven feature areas; the UI follows the API.
 | KG & Hermeneutics | Typed entity layer, CRUD, claim/entity inspector data, ontology browser, epistemology graph, predictions, contradiction triage. **Plus interpretation**: controlled predicate vocab, source-tied annotations, hermeneutic circle. **Plus alternative extractors**: spaCy NER, AI-text/sentiment/plagiarism detection. |
 | Search | Hybrid BM25 + dense retrieval, filters, semantic map, saved searches |
 | Workflows | Visual canvas editor, tool nodes, LangGraph chains, batch processing. **Plus translation** workflow (DeepL + local) and language-ID nodes — translation is a workflow tool, not a separate epic. |
-| Importers | Cloud-linked importers, release-data flows, XLSX, drag-in polish, pre-catalogued ingest |
+| Importers | Import TOOLS only — Kreuzberg/Docling/PDF/image loaders, cloud-linked importers (Box, Dropbox), XLSX, drag-in polish, remote SSH backend. The mechanism, not the content. |
+| Source Archives | Specific source COLLECTIONS to bring into the library — distinct from Importers (the tools). One milestone entry per curated corpus: Chota Valley maps, Archivo Judicial de Medellin, Mosquera notebooks, Marshall diary, GHC/ACENET, slipbox (Tinderbox-derived), Istmina minería, etc. May depend on Importers tool work landing first. |
 | MCP | MCP server for outside agents, in-app catalog + run, vision-multimodal scene-render hook |
 | Exporter | Word/PDF/Excel/JSON/Markdown/static-HTML/Netlify export |
 | Mind Palace | RealityKit spatial library (Mac → iOS AR → Vision Pro), notes, drag/connect, viewport persistence |
