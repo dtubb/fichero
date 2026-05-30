@@ -21,6 +21,7 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     @State private var isNavigatingHistory = false
     @State private var searchText = ""
     @State private var isSearching = false
+    @State private var isDateBucketExpanded = false
 
     /// Swap the detail pane between entity-claims view (default) and a
     /// force-directed graph over the filtered entity set. (#902, partial #889)
@@ -109,6 +110,27 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
         }
     }
 
+    /// Date rows are still returned by older KG data as ordinary entities.
+    /// Keep them available without mixing them into the named-entity scan.
+    static func isDateEntity(_ entity: Components.Schemas.KnowledgeEntity) -> Bool {
+        if entity.entityType?.rawValue.lowercased() == "date" {
+            return true
+        }
+        let name = entity.canonicalName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.range(
+            of: #"^\d{3,4}([-/]\d{1,2}){0,2}(\b|$)"#,
+            options: .regularExpression
+        ) != nil
+        || name.range(
+            of: #"^(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|jun(e)?|jul(y)?|aug(ust)?)\b"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+        || name.range(
+            of: #"^(sep(t)?(ember)?|oct(ober)?|nov(ember)?|dec(ember)?)\b"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+    }
+
     private func setHidden(_ kind: String, hidden: Bool) {
         var set = hiddenKinds
         if hidden { set.insert(kind) } else { set.remove(kind) }
@@ -138,6 +160,12 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
             result = result.filter { !Self.isOcrGarbage($0.canonicalName) }
         }
         return result
+    }
+    private var nonDateEntities: [Components.Schemas.KnowledgeEntity] {
+        filteredEntities.filter { !Self.isDateEntity($0) }
+    }
+    private var dateEntities: [Components.Schemas.KnowledgeEntity] {
+        filteredEntities.filter(Self.isDateEntity)
     }
 
     var body: some View {
@@ -551,18 +579,34 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
                 .padding()
                 .listRowBackground(Color.clear)
             } else {
-                ForEach(filteredEntities, id: \.id) { entity in
-                    EntityRow(entity: entity, claimCount: claimCounts[entity.id ?? ""] ?? 0)
-                        .tag(entity.id)
-                        .contextMenu {
-                            Button("Edit entity…") { entityPendingEdit = entity }
-                            Button("Merge entities…") { entityPendingMerge = entity }
-                            Button("Split entity…") { entityPendingSplit = entity }
-                            Divider()
-                            Button("Delete entity…", role: .destructive) {
-                                entityPendingDeletion = entity
+                ForEach(nonDateEntities, id: \.id) { entity in
+                    entityRow(entity)
+                }
+                if !dateEntities.isEmpty {
+                    Section {
+                        if isDateBucketExpanded {
+                            ForEach(dateEntities, id: \.id) { entity in
+                                entityRow(entity)
                             }
                         }
+                    } header: {
+                        Button {
+                            isDateBucketExpanded.toggle()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: isDateBucketExpanded ? "chevron.down" : "chevron.right")
+                                    .font(.caption2.weight(.semibold))
+                                    .frame(width: 10)
+                                Label("Dates", systemImage: "calendar")
+                                Spacer()
+                                Text("\(dateEntities.count)")
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
@@ -595,6 +639,20 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
                 navHistory.push(.entityList)
             }
         }
+    }
+
+    private func entityRow(_ entity: Components.Schemas.KnowledgeEntity) -> some View {
+        EntityRow(entity: entity, claimCount: claimCounts[entity.id ?? ""] ?? 0)
+            .tag(entity.id)
+            .contextMenu {
+                Button("Edit entity…") { entityPendingEdit = entity }
+                Button("Merge entities…") { entityPendingMerge = entity }
+                Button("Split entity…") { entityPendingSplit = entity }
+                Divider()
+                Button("Delete entity…", role: .destructive) {
+                    entityPendingDeletion = entity
+                }
+            }
     }
 
     private func applyHistoryEntry(_ entry: NavigationHistoryManager.Entry?) {
