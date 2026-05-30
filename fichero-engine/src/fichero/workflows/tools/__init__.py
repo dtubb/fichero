@@ -65,6 +65,7 @@ from fichero.workflows.tools import extractors  # per-section catalogue extracto
 from fichero.workflows.tools import extract_all  # combined single-call extractor
 from fichero.workflows.tools import kg_writer
 from fichero.workflows.tools import book_structure
+from fichero.workflows.tools import detect_structure
 from fichero.workflows.tools import citations_extract
 from fichero.workflows.tools import cleanup  # per-section page/folder canonical cleanup
 
@@ -137,6 +138,7 @@ __all__ = [
     "extract_all",
     "kg_writer",
     "book_structure",
+    "detect_structure",
     "citations_extract",
     "cleanup",
     # Audio

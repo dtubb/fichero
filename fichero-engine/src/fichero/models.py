@@ -217,6 +217,13 @@ class Document(BaseModel):
             "workspace table."
         ),
     )
+    structure: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Programmatic book structure for PDF/file containers: chapters, "
+            "sections, and subsections with page_range metadata (#1279)."
+        ),
+    )
 
     # =========================================================================
     # #1123 attribution taxonomy — document-level provenance (Phase A)
