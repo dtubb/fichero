@@ -15,25 +15,53 @@ import RealityKit
 /// recomputed (`feedback_kg_logic_in_backend`).
 ///
 /// The scene is rebuilt when the room's data changes (the container keys this
-/// view by a scene signature). Tap-to-select in 3D is wired through RealityKit
-/// gestures; live camera-orbit persistence remains deferred. When RealityKit
-/// is unavailable the view falls back to the 2D canvas.
+/// view by a scene signature). Tap-to-select, orbit, and zoom are wired through
+/// RealityKit gestures. When RealityKit is unavailable the view falls back to
+/// the 2D canvas.
 struct SpatialScene3D: View {
     let nodes: [MindPalaceNode]
     let connections: [MindPalaceConnection]
     @Binding var selectedNodeId: String?
 
-    var body: some View {
-        #if canImport(RealityKit)
-        RealityView { content in
-            // Default virtual camera, pulled back to frame the normalized cube.
-            let camera = PerspectiveCamera()
-            camera.position = SIMD3<Float>(0, 0, 6)
-            content.add(camera)
+    #if canImport(RealityKit)
+    @State private var cameraDistance = 5.5
+    @State private var orbitYaw = 0.0
+    @State private var orbitPitch = 0.0
+    @State private var dragStart = CGSize.zero
+    @State private var magnificationStart = 1.0
+    #endif
 
-            let root = buildScene()
-            content.add(root)
-        }
+    var body: some View {
+        if nodes.isEmpty {
+            ContentUnavailableView(
+                "Empty Space",
+                systemImage: "cube.transparent",
+                description: Text("No source pages or spatial nodes are available in this scope yet.")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(nsColor: .textBackgroundColor))
+        } else {
+        #if canImport(RealityKit)
+        RealityView(
+            make: { content in
+                // Default virtual camera, pulled back to frame the normalized cube.
+                let camera = PerspectiveCamera()
+                camera.name = "spatial-camera"
+                updateCamera(camera)
+                content.add(camera)
+
+                let root = buildScene()
+                root.name = "spatial-root"
+                content.add(root)
+            },
+            update: { content in
+                if let camera = content.entities
+                    .compactMap({ $0 as? PerspectiveCamera })
+                    .first(where: { $0.name == "spatial-camera" }) {
+                    updateCamera(camera)
+                }
+            }
+        )
         .gesture(
             TapGesture()
                 .targetedToAnyEntity()
@@ -43,13 +71,54 @@ struct SpatialScene3D: View {
                     selectedNodeId = nodeId
                 }
         )
+        .simultaneousGesture(cameraDragGesture)
+        .simultaneousGesture(cameraZoomGesture)
         .background(Color(nsColor: .textBackgroundColor))
         #else
         Spatial2DCanvas(nodes: nodes, connections: connections, selectedNodeId: $selectedNodeId)
         #endif
+        }
     }
 
     #if canImport(RealityKit)
+    private var cameraDragGesture: some Gesture {
+        DragGesture(minimumDistance: 2)
+            .onChanged { value in
+                let deltaWidth = value.translation.width - dragStart.width
+                let deltaHeight = value.translation.height - dragStart.height
+                orbitYaw += Double(deltaWidth) * 0.008
+                orbitPitch = min(1.15, max(-1.15, orbitPitch + Double(deltaHeight) * 0.008))
+                dragStart = value.translation
+            }
+            .onEnded { _ in
+                dragStart = .zero
+            }
+    }
+
+    private var cameraZoomGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                let delta = value / magnificationStart
+                guard delta.isFinite, delta > 0 else { return }
+                cameraDistance = min(12.0, max(2.2, cameraDistance / delta))
+                magnificationStart = value
+            }
+            .onEnded { _ in
+                magnificationStart = 1.0
+            }
+    }
+
+    private func updateCamera(_ camera: PerspectiveCamera) {
+        let yaw = Float(orbitYaw)
+        let pitch = Float(orbitPitch)
+        let distance = Float(cameraDistance)
+        let xPosition = sin(yaw) * cos(pitch) * distance
+        let yPosition = sin(pitch) * distance
+        let zPosition = cos(yaw) * cos(pitch) * distance
+        camera.position = SIMD3<Float>(xPosition, yPosition, zPosition)
+        camera.look(at: .zero, from: camera.position, relativeTo: nil)
+    }
+
     /// Normalize backend positions into a bounded cube (~[-1.5, 1.5]) so the
     /// fixed camera frames any room. Uniform scale preserves relative layout.
     private func normalize() -> (scale: Float, center: SIMD3<Float>) {
@@ -100,13 +169,13 @@ struct SpatialScene3D: View {
 
     private func makeNodeEntity(_ node: MindPalaceNode, at position: SIMD3<Float>) -> ModelEntity {
         let scale = Float(max(node.scale, 0.25))
-        let cardWidth: Float = 0.22 * scale
+        let cardWidth: Float = 0.8 * scale
         let cardHeight: Float = cardWidth / pageAspectRatio
         let thumbnailUrl = node.thumbnailUrl
         let mesh: MeshResource
         let materials: [any Material]
 
-        if thumbnailUrl != nil {
+        if thumbnailUrl != nil || node.nodeType == .source {
             mesh = MeshResource.generatePlane(
                 width: cardWidth,
                 height: cardHeight,
@@ -147,7 +216,7 @@ struct SpatialScene3D: View {
         return entity
     }
 
-    private var pageAspectRatio: Float { 4.0 / 5.0 }
+    private var pageAspectRatio: Float { 3.0 / 4.0 }
 
     /// A connection rendered as a thin box spanning the two node positions.
     private func makeEdgeEntity(
