@@ -97,19 +97,6 @@ struct SidebarModeBar: View {
                 }
             }
 
-            if featureManager.isKnowledgeGraphEnabled {
-                modeSeparator
-
-                // Knowledge Graph mode — ontology browser
-                SidebarModeIcon(
-                    mode: .knowledgeGraph,
-                    isSelected: selectedMode == .knowledgeGraph,
-                    badgeCount: badgeCount(for: .knowledgeGraph)
-                ) {
-                    selectMode(.knowledgeGraph)
-                }
-            }
-
         }
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, maxHeight: MiniToolbar<EmptyView>.standardHeight)  // Normalize to 44pt

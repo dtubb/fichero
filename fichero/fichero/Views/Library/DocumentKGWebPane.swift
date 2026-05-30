@@ -331,6 +331,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
         ) {
             let sourceDocumentId = documentId ?? parent.documentId
             let pageLabel = pageLabel(from: body)
+            postOpenClaimSource(sourceDocumentId: sourceDocumentId, pageLabel: pageLabel, entityId: entityId, claimId: claimId, body: body)
             Task { @MainActor in
                 if let claimId, !claimId.isEmpty {
                     parent.kgFocusState.focusClaim(
@@ -347,6 +348,23 @@ struct DocumentKGWebPane: NSViewRepresentable {
                     )
                 }
             }
+        }
+
+        private func postOpenClaimSource(
+            sourceDocumentId: String, pageLabel: String?, entityId: String?, claimId: String?, body: [String: Any]
+        ) {
+            guard var info = ClaimSummaryCard.openClaimSourceUserInfo(
+                documentId: sourceDocumentId,
+                pageLabel: pageLabel,
+                charStart: body["charStart"] as? Int,
+                charEnd: body["charEnd"] as? Int,
+                claimId: claimId,
+                excerpt: body["excerpt"] as? String
+            ) else { return }
+            if let entityId, !entityId.isEmpty {
+                info["entityId"] = entityId
+            }
+            NotificationCenter.default.post(name: .ficheroOpenClaimSource, object: nil, userInfo: info)
         }
 
         private func pageLabel(from body: [String: Any]) -> String? {

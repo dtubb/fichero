@@ -46,8 +46,6 @@ extension ContentView {
             } else {
                 viewName = "Activity"
             }
-        case .knowledgeGraph:
-            viewName = "Knowledge Graph"
         case .mindPalace:
             viewName = "Mind Palace"
         }
@@ -104,7 +102,7 @@ extension ContentView {
         switch viewMode {
         case .library, .search, .chat, .comparison, .workflow, .chain:
             return true
-        case .batches, .batch, .automation, .schedule, .trigger, .activity, .knowledgeGraph, .mindPalace:
+        case .batches, .batch, .automation, .schedule, .trigger, .activity, .mindPalace:
             return false
         }
     }
@@ -122,7 +120,7 @@ extension ContentView {
         switch sidebarMode {
         case .library, .search, .workflows:
             return true
-        case .chat, .automation, .activity, .knowledgeGraph, .mindPalace, .research:
+        case .chat, .automation, .activity, .mindPalace, .research:
             return false
         }
     }
@@ -154,7 +152,7 @@ extension ContentView {
             // 0.0.1: keep workflow presentation simple and explicit.
             // Icon = visual graph/canvas, List = ordered execution steps.
             return [.icon, .list]
-        case .chat, .automation, .activity, .knowledgeGraph, .mindPalace, .research:
+        case .chat, .automation, .activity, .mindPalace, .research:
             return [.icon]
         }
     }
@@ -187,7 +185,7 @@ extension ContentView {
             return [.none, .standard, .widescreen]
         case .chat:
             return [.none, .standard, .widescreen]
-        case .workflows, .automation, .activity, .knowledgeGraph, .mindPalace, .research:
+        case .workflows, .automation, .activity, .mindPalace, .research:
             return []
         }
     }

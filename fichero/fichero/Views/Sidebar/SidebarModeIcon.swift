@@ -47,8 +47,6 @@ struct SidebarModeIcon: View {
             return "gearshape.2.fill"
         case .activity:
             return "clock.fill"
-        case .knowledgeGraph:
-            return "point.3.connected.trianglepath.dotted"
         case .mindPalace:
             return "cube.transparent.fill"
         case .research:
