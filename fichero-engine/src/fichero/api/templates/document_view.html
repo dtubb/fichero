@@ -186,7 +186,7 @@
 
         .edge {
             stroke: rgba(64, 53, 39, 0.24);
-            stroke-width: 1.5;
+            stroke-linecap: round;
         }
 
         .legend {
@@ -350,24 +350,92 @@ function renderDigest() {
 }
 
 function graphData() {
-    const nodeRadius = 115;
-    const centerX = 220;
-    const centerY = 170;
-    return entities.map((entity, index) => {
-        const angle = (Math.PI * 2 * index) / Math.max(entities.length, 1);
+    const nodes = entities.map((entity) => {
+        const entityClaims = claims.filter((claim) => (claim.entity_ids || []).includes(entity.id));
         return {
             ...entity,
-            x: centerX + Math.cos(angle) * nodeRadius,
-            y: centerY + Math.sin(angle) * nodeRadius,
-            claimCount: claims.filter((claim) => (claim.entity_ids || []).includes(entity.id)).length,
-            pages: new Set(
-                claims
-                    .filter((claim) => (claim.entity_ids || []).includes(entity.id))
-                    .map((claim) => claim.page_number)
-                    .filter((page) => page != null)
-            ),
+            claimCount: entityClaims.length,
+            radius: 16 + Math.min(14, Math.sqrt(Math.max(entityClaims.length, 1)) * 5),
+            x: 220,
+            y: 170,
+            vx: 0,
+            vy: 0,
+            pages: new Set(entityClaims.map((claim) => claim.page_number).filter((page) => page != null)),
         };
     });
+    const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
+    const edgeMap = new Map();
+    claims.forEach((claim) => {
+        const ids = [...new Set(claim.entity_ids || [])].filter((id) => nodeLookup.has(id));
+        for (let idx = 0; idx < ids.length; idx += 1) {
+            for (let other = idx + 1; other < ids.length; other += 1) {
+                const pair = [ids[idx], ids[other]].sort();
+                const key = pair.join("::");
+                const edge = edgeMap.get(key) || { from: pair[0], to: pair[1], weight: 0 };
+                edge.weight += 1;
+                edgeMap.set(key, edge);
+            }
+        }
+    });
+    return { nodes, edges: [...edgeMap.values()] };
+}
+
+function forceLayout(nodes, edges, width = 440, height = 340) {
+    if (nodes.length === 1) {
+        nodes[0].x = width / 2;
+        nodes[0].y = height / 2;
+        return nodes;
+    }
+    nodes.forEach((node, index) => {
+        const angle = (Math.PI * 2 * index) / Math.max(nodes.length, 1);
+        const radius = 80 + (index % 3) * 22;
+        node.x = width / 2 + Math.cos(angle) * radius;
+        node.y = height / 2 + Math.sin(angle) * radius;
+    });
+    const lookup = new Map(nodes.map((node) => [node.id, node]));
+    for (let tick = 0; tick < 180; tick += 1) {
+        for (let i = 0; i < nodes.length; i += 1) {
+            for (let j = i + 1; j < nodes.length; j += 1) {
+                const a = nodes[i];
+                const b = nodes[j];
+                const dx = b.x - a.x || 0.01;
+                const dy = b.y - a.y || 0.01;
+                const dist2 = Math.max(dx * dx + dy * dy, 64);
+                const force = 5200 / dist2;
+                const fx = (dx / Math.sqrt(dist2)) * force;
+                const fy = (dy / Math.sqrt(dist2)) * force;
+                a.vx -= fx;
+                a.vy -= fy;
+                b.vx += fx;
+                b.vy += fy;
+            }
+        }
+        edges.forEach((edge) => {
+            const source = lookup.get(edge.from);
+            const target = lookup.get(edge.to);
+            if (!source || !target) return;
+            const dx = target.x - source.x;
+            const dy = target.y - source.y;
+            const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+            const desired = Math.max(62, 130 - Math.min(edge.weight, 8) * 8);
+            const pull = (dist - desired) * (0.018 + Math.min(edge.weight, 8) * 0.004);
+            const fx = (dx / dist) * pull;
+            const fy = (dy / dist) * pull;
+            source.vx += fx;
+            source.vy += fy;
+            target.vx -= fx;
+            target.vy -= fy;
+        });
+        nodes.forEach((node) => {
+            node.vx += (width / 2 - node.x) * 0.004;
+            node.vy += (height / 2 - node.y) * 0.004;
+            node.vx *= 0.72;
+            node.vy *= 0.72;
+            node.x = Math.max(node.radius + 8, Math.min(width - node.radius - 8, node.x + node.vx));
+            node.y = Math.max(node.radius + 8, Math.min(height - node.radius - 8, node.y + node.vy));
+        });
+    }
+    return nodes;
 }
 
 function renderGraph() {
@@ -376,32 +444,26 @@ function renderGraph() {
         panel.innerHTML = `<div class="empty">No entities yet for this document.</div>`;
         return;
     }
-    const nodes = graphData();
-    const edges = [];
-    claims.forEach((claim) => {
-        const ids = claim.entity_ids || [];
-        for (let idx = 0; idx < ids.length - 1; idx += 1) {
-            edges.push([ids[idx], ids[idx + 1]]);
-        }
-    });
-
+    const { nodes, edges } = graphData();
+    forceLayout(nodes, edges);
     const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
     panel.innerHTML = `
         <div class="legend">Entity graph for the current document. Active page filtering dims off-page entities.</div>
         <div class="graph-wrap">
             <svg viewBox="0 0 440 340" role="img" aria-label="Knowledge graph">
-                ${edges.map(([from, to]) => {
-                    const source = nodeLookup.get(from);
-                    const target = nodeLookup.get(to);
+                ${edges.map((edge) => {
+                    const source = nodeLookup.get(edge.from);
+                    const target = nodeLookup.get(edge.to);
                     if (!source || !target) return "";
-                    return `<line class="edge" x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}"></line>`;
+                    const width = 1 + Math.min(6, edge.weight);
+                    return `<line class="edge" x1="${source.x.toFixed(1)}" y1="${source.y.toFixed(1)}" x2="${target.x.toFixed(1)}" y2="${target.y.toFixed(1)}" stroke-width="${width}"></line>`;
                 }).join("")}
                 ${nodes.map((node) => {
                     const active = state.activeEntityId === node.id;
                     const dimmed = state.activePage && !node.pages.has(state.activePage);
                     return `
-                        <g class="node ${active ? "active" : ""} ${dimmed ? "dimmed" : ""}" data-entity-id="${node.id}" transform="translate(${node.x}, ${node.y})">
-                            <circle r="26"></circle>
+                        <g class="node ${active ? "active" : ""} ${dimmed ? "dimmed" : ""}" data-entity-id="${node.id}" transform="translate(${node.x.toFixed(1)}, ${node.y.toFixed(1)})">
+                            <circle r="${node.radius.toFixed(1)}"></circle>
                             <text text-anchor="middle" y="4">${escapeHtml(node.canonical_name.slice(0, 14))}</text>
                             <text text-anchor="middle" y="20" font-size="10">${node.claimCount} claim${node.claimCount === 1 ? "" : "s"}</text>
                         </g>
