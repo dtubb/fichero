@@ -5,6 +5,8 @@ The HTTP layer is mocked with httpx.MockTransport — no live backend required.
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -276,6 +278,90 @@ def test_mp_create_note_returns_typed_note():
     assert note.id == "note-1"
     assert note.content == "A note"
     assert note.room_id == "room-1"
+
+
+def test_create_note_returns_typed_note_and_posts_payload():
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "id": "note-z1",
+                "title": "Field note",
+                "body": "Remember this",
+                "kind": "zettel",
+                "tags": ["field"],
+                "linked_note_ids": [],
+                "linked_entity_ids": [],
+                "linked_claim_ids": [],
+                "linked_document_ids": ["doc-1"],
+            },
+        )
+
+    note = _client(handler).create_note(
+        title="Field note",
+        body="Remember this",
+        tags=["field"],
+        linked_document_ids=["doc-1"],
+    )
+    assert seen[0].method == "POST"
+    assert seen[0].url.path == "/api/notes"
+    assert json.loads(seen[0].content)["linked_document_ids"] == ["doc-1"]
+    assert note.id == "note-z1"
+    assert note.body == "Remember this"
+
+
+def test_list_notes_unwraps_envelope_and_returns_typed_notes():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert dict(request.url.params) == {"kind": "reference", "q": "archive"}
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "id": "note-z2",
+                        "title": "Reading note",
+                        "body": "Archive note",
+                        "kind": "reference",
+                        "tags": [],
+                        "linked_note_ids": [],
+                        "linked_entity_ids": [],
+                        "linked_claim_ids": [],
+                        "linked_document_ids": [],
+                    }
+                ],
+                "count": 1,
+            },
+        )
+
+    notes = _client(handler).list_notes(kind="reference", query="archive")
+    assert len(notes) == 1
+    assert notes[0].title == "Reading note"
+
+
+def test_get_note_returns_typed_note():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/notes/note-z3"
+        return httpx.Response(
+            200,
+            json={
+                "id": "note-z3",
+                "title": None,
+                "body": "Plain note",
+                "kind": "zettel",
+                "tags": [],
+                "linked_note_ids": [],
+                "linked_entity_ids": [],
+                "linked_claim_ids": [],
+                "linked_document_ids": [],
+            },
+        )
+
+    note = _client(handler).get_note("note-z3")
+    assert note.id == "note-z3"
+    assert note.body == "Plain note"
 
 
 def test_mp_list_notes_unwraps_envelope_and_returns_typed_notes():

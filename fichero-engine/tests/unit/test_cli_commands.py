@@ -32,7 +32,7 @@ from fichero.api.routes.workflow_execution.schemas import (
     ThreadListResponse,
 )
 from fichero.api.routes.workflow_execution.threads import ThreadDeletedResponse
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, Note
 from fichero.models import LibraryCreateResponse, Workflow
 
 runner = CliRunner()
@@ -107,7 +107,7 @@ class FakeClient:
             workflow_id=workflow_id,
             workflow_name="Catalogue",
             status="accepted",
-            stream_url=f"/api/workflow-execution/stream/t-1",
+            stream_url="/api/workflow-execution/stream/t-1",
         )
 
     def execution_status(self, thread_id):
@@ -217,6 +217,33 @@ class FakeClient:
                 message="completed",
             )
         ]
+
+    def create_note(self, **kw):
+        self.calls.append(("create_note", kw))
+        return Note(
+            id="note-z1",
+            title=kw.get("title"),
+            body=kw.get("body", ""),
+            kind=kw.get("kind", "zettel"),
+            tags=kw.get("tags") or [],
+            linked_document_ids=kw.get("linked_document_ids") or [],
+        )
+
+    def list_notes(self, **kw):
+        self.calls.append(("list_notes", kw))
+        return [
+            Note(
+                id="note-z1",
+                title="Field note",
+                body="Remember this",
+                kind="zettel",
+                tags=["field"],
+            )
+        ]
+
+    def get_note(self, note_id):
+        self.calls.append(("get_note", note_id))
+        return Note(id=note_id, title="Field note", body="Remember this")
 
     def create_library(self, path):
         # Real client returns LibraryCreateResponse — keep the typed
@@ -896,6 +923,51 @@ def test_kg_search_passes_query():
     assert call[0] == "kg_search" and call[1] == "land reform"
 
 
+def test_notes_create_json_output_is_stable():
+    result = runner.invoke(
+        cli.app,
+        [
+            "--json",
+            "notes",
+            "create",
+            "Remember this",
+            "--title",
+            "Field note",
+            "--tag",
+            "field",
+            "--doc",
+            "doc-1",
+        ],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["id"] == "note-z1"
+    assert payload["body"] == "Remember this"
+    call = _last_client().calls[0]
+    assert call[0] == "create_note"
+    assert call[1]["linked_document_ids"] == ["doc-1"]
+
+
+def test_notes_list_and_get_call_client():
+    list_result = runner.invoke(cli.app, ["notes", "list", "--kind", "zettel", "--query", "field"])
+    assert list_result.exit_code == 0
+    assert _last_client().calls[0] == (
+        "list_notes",
+        {
+            "kind": "zettel",
+            "tag": None,
+            "linked_entity_id": None,
+            "linked_claim_id": None,
+            "linked_document_id": None,
+            "query": "field",
+        },
+    )
+
+    get_result = runner.invoke(cli.app, ["notes", "get", "note-z1"])
+    assert get_result.exit_code == 0
+    assert _last_client().calls[0] == ("get_note", "note-z1")
+
+
 def test_search_command():
     result = runner.invoke(cli.app, ["search", "archive", "--limit", "5"])
     assert result.exit_code == 0
@@ -1287,8 +1359,6 @@ def test_library_list_empty():
         fake.kwargs = {}
         fake.calls = []
         return fake
-
-    original = FakeClient
 
     class EmptyClient(FakeClient):
         def list_known_libraries(self):

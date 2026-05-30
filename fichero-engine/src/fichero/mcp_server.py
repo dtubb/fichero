@@ -39,6 +39,7 @@ from mcp.server.fastmcp import FastMCP
 
 from fichero.cli import FicheroClient
 from fichero.api.routes.mind_palace import MindPalaceDeletedResponse
+from fichero.knowledge_models import Note, NoteKind
 from fichero.spatial_models import NativeNote
 
 logger = logging.getLogger(__name__)
@@ -111,6 +112,64 @@ def fichero_docs_get(doc_id: str) -> Any:
     """Fetch a single document by ID."""
     with _client() as client:
         return client.get_document(doc_id)
+
+
+# -- notes -----------------------------------------------------------------
+@mcp.tool()
+def fichero_create_note(
+    body: str,
+    title: Optional[str] = None,
+    kind: NoteKind = NoteKind.zettel,
+    tags: Optional[list[str]] = None,
+    linked_note_ids: Optional[list[str]] = None,
+    linked_entity_ids: Optional[list[str]] = None,
+    linked_claim_ids: Optional[list[str]] = None,
+    linked_document_ids: Optional[list[str]] = None,
+    address: Optional[str] = None,
+    parent_address: Optional[str] = None,
+) -> Note:
+    """Create a Zettelkasten note linked to documents, entities, claims, or notes."""
+    with _client() as client:
+        return client.create_note(
+            title=title,
+            body=body,
+            kind=kind,
+            tags=tags,
+            linked_note_ids=linked_note_ids,
+            linked_entity_ids=linked_entity_ids,
+            linked_claim_ids=linked_claim_ids,
+            linked_document_ids=linked_document_ids,
+            address=address,
+            parent_address=parent_address,
+        )
+
+
+@mcp.tool()
+def fichero_list_notes(
+    kind: Optional[NoteKind] = None,
+    tag: Optional[str] = None,
+    linked_entity_id: Optional[str] = None,
+    linked_claim_id: Optional[str] = None,
+    linked_document_id: Optional[str] = None,
+    query: Optional[str] = None,
+) -> list[Note]:
+    """List Zettelkasten notes, optionally filtered by kind, tag, link, or text."""
+    with _client() as client:
+        return client.list_notes(
+            kind=kind,
+            tag=tag,
+            linked_entity_id=linked_entity_id,
+            linked_claim_id=linked_claim_id,
+            linked_document_id=linked_document_id,
+            query=query,
+        )
+
+
+@mcp.tool()
+def fichero_get_note(note_id: str) -> Note:
+    """Fetch a single Zettelkasten note by ID."""
+    with _client() as client:
+        return client.get_note(note_id)
 
 
 # -- workflows -------------------------------------------------------------
