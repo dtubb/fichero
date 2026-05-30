@@ -6,35 +6,35 @@ Source of truth for issues, milestones, branches, and labels in `dtubb/fichero`.
 
 We do **not** use version-numbered milestones. Versions are tags applied at release time, not buckets for work. Closed historical milestones (`0.0.1`–`0.0.4`) are preserved for release-record searchability; do not reopen.
 
-Active feature milestones — split between **endpoint-led product epics** (backend-driven; UI follows the API) and **client-UI-led surfaces** (have their own design + bug class, may touch many endpoints) + a few **distinct surfaces** (CLI, dev tooling, app chrome).
+17 active milestones, organized by what kind of work they hold.
 
-### Endpoint-led (13)
+### Endpoint-led product epics (11)
+
+Backend-driven feature areas; the UI follows the API.
 
 | Milestone | Scope |
 |---|---|
-| KG Single-Path | Typed entity layer, CRUD, claim/entity inspector data, ontology browser, epistemology graph, predictions, contradiction triage |
+| KG & Hermeneutics | Typed entity layer, CRUD, claim/entity inspector data, ontology browser, epistemology graph, predictions, contradiction triage. **Plus interpretation**: controlled predicate vocab, source-tied annotations, hermeneutic circle. **Plus alternative extractors**: spaCy NER, AI-text/sentiment/plagiarism detection. |
 | Search | Hybrid BM25 + dense retrieval, filters, semantic map, saved searches |
-| Workflows | Visual canvas editor, tool nodes, LangGraph chains, **batch processing** |
+| Workflows | Visual canvas editor, tool nodes, LangGraph chains, batch processing. **Plus translation** workflow (DeepL + local) and language-ID nodes — translation is a workflow tool, not a separate epic. |
 | Importers | Cloud-linked importers, release-data flows, XLSX, drag-in polish, pre-catalogued ingest |
-| Translation | Translation workflow (DeepL + local), language identification |
-| NER | spaCy on-device NER, AI-text/sentiment/plagiarism detection |
 | MCP | MCP server for outside agents, in-app catalog + run, vision-multimodal scene-render hook |
 | Exporter | Word/PDF/Excel/JSON/Markdown/static-HTML/Netlify export |
 | Mind Palace | RealityKit spatial library (Mac → iOS AR → Vision Pro), notes, drag/connect, viewport persistence |
-| Researcher | AI-controlled browser, project tracking, notes/sources, autonomous workflow agents, RAG chat |
-| Hermeneutics | Interpretation frameworks, hermeneutic circle, controlled predicate vocab, source-tied annotations |
+| Researcher | AI-controlled browser, project tracking, notes/sources, autonomous workflow agents, RAG/graph-RAG chat agent |
 | Image Editing | Crop/rotate/enhance/remove-background/segment, edit chains (non-destructive pipeline) |
-| Settings & Providers | Provider mgmt, **API/model selector**, API keys, local model discovery, AI Advanced |
+| Settings & Providers | Provider mgmt, API/model selector, API keys, local model discovery, AI Advanced |
 | Infrastructure | Auth, rate limiting, observability, migrations, IIIF, multilingual normalization, integrations (DEVONthink/Bookends/Tinderbox) |
 
-### Client-UI-led surfaces (5)
+### Client-UI surfaces (4)
+
+Each has a distinct user-facing surface, design language, and bug class.
 
 | Milestone | Scope |
 |---|---|
-| Library & Reading Surface | Sidebar/grid/list/table browser, inspector chrome (Info/Metadata/Content/Artifacts/KG tabs), toolbar + View menu pane controls, divider resize, drag/drop polish, image preview + magnifier (loupe), thumbnail prefetch. Use `area:inspector` label for cross-cutting inspector-surface bugs. |
-| PDF Viewer | PDFKit integration, zoom/pan, page nav, scroll-sync with WebKit transcript, loupe/magnifier, annotations |
-| Chat | RAG conversation surface |
-| Activity & Automation | Real-time execution view, log stream, triggers, schedules |
+| Library & Reading Surface | Sidebar/grid/list/table browser, **PDF viewer** (PDFKit, zoom/pan, scroll-sync, loupe/magnifier, annotations), image preview + magnifier, inspector chrome (Info/Metadata/Content/Artifacts/KG tabs), toolbar + View menu pane controls, divider resize, drag/drop polish, thumbnail prefetch. Use `area:inspector` label for cross-cutting inspector bugs. |
+| Chat | Document-scoped chat, multi-model comparison (LLM comparison view), conversation history. **Graph-RAG chat** in the chat window lives here; the agentic version lives in Researcher. |
+| Activity & Automation | Real-time execution view, log stream, code output, execution diagrams, event-driven triggers, time-based schedules |
 | App Shell | File/Edit/View/Window/Help menus, About panel, keyboard shortcuts cheat sheet, first-run flow, app launch, window state restoration, notifications/toast UI, progress indicators |
 
 ### Distinct surfaces (2)
@@ -44,14 +44,17 @@ Active feature milestones — split between **endpoint-led product epics** (back
 | CLI | `fichero` CLI tool: library lifecycle, engine lifecycle (start/stop/restart/status), workflow run, KG queries, ingest commands, output formatting |
 | Developer Experience | Agent workflow docs, lane briefs (manager/integrator/reviewer/planner/bugtriage), build scripts (`verify_all.sh`), OpenAPI round-trip (`sync_openapi_schema.sh`), jcodemunch-mcp config, test gates, conventions docs |
 
-Roadmap-tier items carry the `roadmap` label, not a milestone. The previous "Epistemic Platform Expansion" milestone was dissolved into the roadmap label since it had no concrete deliverable boundary.
+Roadmap-tier items carry the `roadmap` label, not a milestone.
 
-### Tagging rules (avoid double-assignment)
+### Tagging rules
 
 - An issue gets **one milestone** — the *primary user capability* being built or fixed.
-- Endpoint-and-UI work: assign to the milestone whose user story is the main outcome. "Show entity color-coding in inspector" → KG Single-Path (the user story is "see entities"); use `area:inspector` label for the UI surface signal.
-- A change to inspector chrome itself (tab bar, layout, scroll) → Library & Reading Surface, regardless of which tab it lives in.
-- Don't milestone Inspector separately — its data comes from KG/Search/Workflows/etc.; its chrome belongs to Library & Reading Surface.
+- Endpoint-and-UI work: assign to the milestone whose user story is the main outcome. "Show entity color-coding in inspector" → KG & Hermeneutics (user story is "see entities"); use `area:inspector` label for the surface signal.
+- A change to inspector chrome itself (tab bar, layout, scroll) → Library & Reading Surface, regardless of which tab.
+- A change to PDF rendering / zoom / scroll-sync → Library & Reading Surface (PDF viewer lives there).
+- A translation workflow tool → Workflows (translation is a tool node).
+- An NER pipeline change → KG & Hermeneutics (NER is an alternative entity extractor).
+- A graph-RAG feature in the chat window → Chat; agentic graph-RAG (autonomous browsing + RAG synthesis) → Researcher.
 
 ## Labels — canonical set (38 total)
 
