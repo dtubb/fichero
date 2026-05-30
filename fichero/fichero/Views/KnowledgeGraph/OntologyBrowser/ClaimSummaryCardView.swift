@@ -5,7 +5,7 @@ import SwiftUI
 
 struct ClaimSummaryCard: View {
     let claim: Components.Schemas.KnowledgeClaim
-    let onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)? = nil
+    var onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)? = nil
 
     /// Expanded → reveals the verbatim source excerpt + fetches
     /// contradictions + evidence-chain. Collapsed by default to keep

@@ -113,6 +113,7 @@ extension Components.Schemas.EntityTypeOutput {
         case .location: return .green
         case .event: return .orange
         case .concept: return .yellow
+        case .citation: return .brown
         case .other: return .gray
         }
     }

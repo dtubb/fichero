@@ -558,7 +558,7 @@ struct ContentView: View {
                     case .icon: .icons
                     case .list: .list
                     case .table: .table
-                    case .map: .map
+                    case .map, .realitykit: .map
                     }
                 }
 
@@ -686,7 +686,7 @@ struct ContentView: View {
                 case .icon: .icons
                 case .list: .list
                 case .table: .table
-                case .map: .map
+                case .map, .realitykit: .map
                 }
 
                 let effectivePreviewMode = normalizedPreviewMode(viewSettings.previewMode)

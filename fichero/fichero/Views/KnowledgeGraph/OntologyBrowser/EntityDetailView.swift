@@ -7,7 +7,7 @@ struct EntityDetailView: View {
     let entity: Components.Schemas.KnowledgeEntity
     let claims: [Components.Schemas.KnowledgeClaim]
     let isLoadingClaims: Bool
-    let onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)? = nil
+    var onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)? = nil
 
     /// Curation audit log for this entity — populated lazily from
     /// `/api/kg/entity-curation/audit?entity_id=…`. Each row is a
@@ -198,6 +198,7 @@ struct EntityDetailView: View {
         case .organization: return "organizations"
         case .event: return "events"
         case .concept: return "keywords"
+        case .citation: return "citations"
         case .other: return ""
         }
     }
@@ -210,6 +211,7 @@ struct EntityDetailView: View {
         case .location: return "mappin.circle.fill"
         case .event: return "calendar.circle.fill"
         case .concept: return "lightbulb.fill"
+        case .citation: return "text.quote"
         case .other: return "circle.fill"
         }
     }

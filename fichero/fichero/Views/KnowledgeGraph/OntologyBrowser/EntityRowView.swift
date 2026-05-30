@@ -57,6 +57,7 @@ struct EntityRow: View {
         case .location: return .green
         case .event: return .red
         case .concept: return .purple
+        case .citation: return .brown
         case .other: return .secondary
         }
     }
@@ -69,6 +70,7 @@ struct EntityRow: View {
         case .location: return "mappin.circle.fill"
         case .event: return "calendar.circle.fill"
         case .concept: return "lightbulb.fill"
+        case .citation: return "text.quote"
         case .other: return "circle.fill"
         }
     }
@@ -81,6 +83,7 @@ struct EntityRow: View {
         case .location: return "place"
         case .event: return "event"
         case .concept: return "concept"
+        case .citation: return "citation"
         case .other: return "other"
         }
     }

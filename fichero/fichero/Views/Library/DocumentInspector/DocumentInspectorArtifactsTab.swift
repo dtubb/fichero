@@ -1184,6 +1184,7 @@ private enum EntityKind: String, Hashable, CaseIterable {
         case .organization: self = .organization
         case .event:        self = .event
         case .concept:      self = .concept
+        case .citation:     self = .other
         case .other:        self = .other
         }
     }
@@ -1375,7 +1376,7 @@ private struct EntityKindBlock: View {
                 Image(systemName: isShowingAll ? "chevron.up" : "chevron.down")
                     .font(.caption2)
             }
-            .foregroundStyle(.accentColor)
+            .foregroundStyle(Color.accentColor)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 4)
         }
@@ -1403,7 +1404,7 @@ extension KnowledgeGraphInspectorSection {
         return showingAll ? "Show less" : "Show all (\(itemCount))"
     }
 
-    static func isKindStored(_ kind: EntityKind, in csv: String) -> Bool {
+    fileprivate static func isKindStored(_ kind: EntityKind, in csv: String) -> Bool {
         csv.split(separator: ",").contains(Substring(kind.rawValue))
     }
 

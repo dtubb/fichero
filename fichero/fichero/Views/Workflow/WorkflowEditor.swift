@@ -114,6 +114,14 @@ struct WorkflowEditor: View {
                             scale: $scale,
                             snapToGrid: $snapToGrid
                         )
+                    case .realitykit:
+                        // RealityKit is a Mind-Palace spatial mode, not a workflow-editor surface —
+                        // fall back to the canvas like .map/.table.
+                        WorkflowCanvasView(
+                            workflow: $editingWorkflow,
+                            scale: $scale,
+                            snapToGrid: $snapToGrid
+                        )
                     }
                 }
                 .frame(minHeight: 200)

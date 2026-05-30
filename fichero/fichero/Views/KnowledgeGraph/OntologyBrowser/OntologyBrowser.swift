@@ -1496,6 +1496,7 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
         case .location: return .green
         case .event: return .orange
         case .concept: return .yellow
+        case .citation: return .brown
         case .other: return .gray
         }
     }
@@ -1770,6 +1771,7 @@ struct EntityKindChartView: View {
         case .organization: return "Organizations"
         case .event: return "Events"
         case .concept: return "Concepts"
+        case .citation: return "Citations"
         case .other: return "Other"
         }
     }
@@ -1783,6 +1785,7 @@ struct EntityKindChartView: View {
         case .location: return .green
         case .event: return .orange
         case .concept: return .yellow
+        case .citation: return .brown
         case .other: return .gray
         }
     }

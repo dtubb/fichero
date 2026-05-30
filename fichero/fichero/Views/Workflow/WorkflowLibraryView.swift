@@ -173,8 +173,8 @@ struct WorkflowListView: View {
                     listView
                 case .table:
                     tableView
-                case .map:
-                    // Map mode shows the same as list for workflows
+                case .map, .realitykit:
+                    // Map/RealityKit fall back to the same list view for workflows
                     listView
                 }
             }

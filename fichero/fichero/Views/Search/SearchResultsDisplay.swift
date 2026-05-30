@@ -59,7 +59,7 @@ struct SearchResultsDisplay: View {
                     listView
                 case .table:
                     tableView
-                case .map:
+                case .map, .realitykit:
                     mapView
                 }
             }

@@ -82,7 +82,10 @@ struct DocumentKGSurface: View {
     @ObservedObject var scrollSync: DocumentScrollSyncState
 
     @State private var activeTab: KGSurfaceTab = .transcript
-    @State private var selectedEntityId: String?
+    // Local state for tabs that bind to it (Map/RealityKit). Initialised from
+    // the parameter on appear; thereafter the view owns it. Distinct from the
+    // `selectedEntityId` parameter above (which is read-only from the parent).
+    @State private var internalSelectedEntityId: String?
     @State private var selectedSpatialNodeId: String?
     @Environment(KGFocusState.self) private var kgFocusState
     @EnvironmentObject private var entityService: EntityServiceGenerated
@@ -139,13 +142,13 @@ struct DocumentKGSurface: View {
         case .timeline:
             KGTimelineView(
                 entities: [],
-                selectedEntityId: $selectedEntityId,
+                selectedEntityId: $internalSelectedEntityId,
                 sourceDocumentId: documentId
             )
         case .map:
             KGMapView(
                 entities: [],
-                selectedEntityId: $selectedEntityId,
+                selectedEntityId: $internalSelectedEntityId,
                 sourceDocumentId: documentId
             )
         case .realitykit:

@@ -262,6 +262,7 @@ struct KGTimelineView: View {
         case .organization: return "Organizations"
         case .event: return "Events"
         case .concept: return "Concepts"
+        case .citation: return "Citations"
         case .other, .none: return "Other"
         }
     }
