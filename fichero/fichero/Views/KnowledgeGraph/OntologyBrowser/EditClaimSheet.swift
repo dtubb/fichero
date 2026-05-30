@@ -9,12 +9,16 @@ struct EditClaimSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var text: String
+    @State private var subject: String
+    @State private var predicate: String
+    @State private var object: String
+    @State private var sourcePageLabel: String
     @State private var claimType: String
     @State private var epistemicStatus: String
     @State private var isSaving = false
     @State private var errorText: String?
 
-    private static let claimTypes: [(label: String, raw: String)] = [
+    static let claimTypeOptions: [(label: String, raw: String)] = [
         ("Fact", "fact"),
         ("Claim", "claim"),
         ("Quotation", "quotation"),
@@ -24,7 +28,7 @@ struct EditClaimSheet: View {
         ("Method", "method")
     ]
 
-    private static let epistemicStatuses: [(label: String, raw: String)] = [
+    static let epistemicStatusOptions: [(label: String, raw: String)] = [
         ("Confirmed", "confirmed"),
         ("Tentative", "tentative"),
         ("Rejected", "rejected")
@@ -37,6 +41,10 @@ struct EditClaimSheet: View {
         self.claim = claim
         self.onSave = onSave
         _text = State(initialValue: claim.text)
+        _subject = State(initialValue: claim.subjectCanonical ?? "")
+        _predicate = State(initialValue: claim.predicateVerb ?? "")
+        _object = State(initialValue: claim.objectPhrase ?? "")
+        _sourcePageLabel = State(initialValue: claim.sourcePageLabel ?? "")
         _claimType = State(initialValue: claim.claimType?.rawValue ?? "claim")
         _epistemicStatus = State(initialValue: claim.epistemicStatus?.rawValue ?? "tentative")
     }
@@ -50,14 +58,21 @@ struct EditClaimSheet: View {
                         .frame(minHeight: 80)
                 }
 
-                Section("Classification") {
-                    Picker("Type", selection: $claimType) {
-                        ForEach(Self.claimTypes, id: \.raw) { item in
+                Section("Subject-Verb-Object") {
+                    TextField("Subject", text: $subject)
+                    TextField("Predicate", text: $predicate)
+                    TextField("Object", text: $object)
+                    TextField("Source page", text: $sourcePageLabel)
+                }
+
+                Section("Review") {
+                    Picker("Kind", selection: $claimType) {
+                        ForEach(Self.claimTypeOptions, id: \.raw) { item in
                             Text(item.label).tag(item.raw)
                         }
                     }
                     Picker("Epistemic Status", selection: $epistemicStatus) {
-                        ForEach(Self.epistemicStatuses, id: \.raw) { item in
+                        ForEach(Self.epistemicStatusOptions, id: \.raw) { item in
                             Text(item.label).tag(item.raw)
                         }
                     }
@@ -85,7 +100,7 @@ struct EditClaimSheet: View {
             }
             .padding()
         }
-        .frame(width: 480, height: 340)
+        .frame(width: 520, height: 520)
     }
 
     private func save() {
@@ -100,6 +115,10 @@ struct EditClaimSheet: View {
                 let updated = try await library.entityService.patchClaim(
                     claimId,
                     text: text.trimmingCharacters(in: .whitespacesAndNewlines),
+                    subjectCanonical: trimmedOrNil(subject),
+                    predicateVerb: trimmedOrNil(predicate),
+                    objectPhrase: trimmedOrNil(object),
+                    sourcePageLabel: trimmedOrNil(sourcePageLabel),
                     claimType: typeEnum,
                     epistemicStatus: statusEnum
                 )
@@ -110,5 +129,109 @@ struct EditClaimSheet: View {
                 isSaving = false
             }
         }
+    }
+
+    private func trimmedOrNil(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+struct InlineClaimEditor: View {
+    let claim: Components.Schemas.KnowledgeClaim
+    let onCancel: () -> Void
+    let onSave: (Components.Schemas.KnowledgeClaim) -> Void
+
+    @State private var subject: String
+    @State private var predicate: String
+    @State private var object: String
+    @State private var sourcePageLabel: String
+    @State private var claimType: String
+    @State private var epistemicStatus: String
+    @State private var isSaving = false
+    @State private var errorText: String?
+
+    init(
+        claim: Components.Schemas.KnowledgeClaim,
+        onCancel: @escaping () -> Void,
+        onSave: @escaping (Components.Schemas.KnowledgeClaim) -> Void
+    ) {
+        self.claim = claim
+        self.onCancel = onCancel
+        self.onSave = onSave
+        _subject = State(initialValue: claim.subjectCanonical ?? "")
+        _predicate = State(initialValue: claim.predicateVerb ?? "")
+        _object = State(initialValue: claim.objectPhrase ?? "")
+        _sourcePageLabel = State(initialValue: claim.sourcePageLabel ?? "")
+        _claimType = State(initialValue: claim.claimType?.rawValue ?? "claim")
+        _epistemicStatus = State(initialValue: claim.epistemicStatus?.rawValue ?? "tentative")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                TextField("Subject", text: $subject)
+                TextField("Predicate", text: $predicate)
+                TextField("Object", text: $object)
+            }
+            HStack(spacing: 6) {
+                Picker("Kind", selection: $claimType) {
+                    ForEach(EditClaimSheet.claimTypeOptions, id: \.raw) { item in
+                        Text(item.label).tag(item.raw)
+                    }
+                }
+                Picker("Status", selection: $epistemicStatus) {
+                    ForEach(EditClaimSheet.epistemicStatusOptions, id: \.raw) { item in
+                        Text(item.label).tag(item.raw)
+                    }
+                }
+                TextField("Page", text: $sourcePageLabel)
+                    .frame(width: 80)
+            }
+            if let errorText {
+                Text(errorText)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                Button("Save", action: save)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isSaving)
+            }
+        }
+        .padding(10)
+        .background(Color(.windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+
+    private func save() {
+        guard let claimId = claim.id,
+              let library = LibraryManager.shared.globalLibrary else { return }
+        isSaving = true
+        errorText = nil
+        Task {
+            do {
+                let updated = try await library.entityService.patchClaim(
+                    claimId,
+                    subjectCanonical: trimmedOrNil(subject),
+                    predicateVerb: trimmedOrNil(predicate),
+                    objectPhrase: trimmedOrNil(object),
+                    sourcePageLabel: trimmedOrNil(sourcePageLabel),
+                    claimType: Components.Schemas.ClaimType(rawValue: claimType),
+                    epistemicStatus: Components.Schemas.EpistemicStatus(rawValue: epistemicStatus)
+                )
+                onSave(updated)
+            } catch {
+                errorText = error.localizedDescription
+                isSaving = false
+            }
+        }
+    }
+
+    private func trimmedOrNil(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

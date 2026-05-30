@@ -237,14 +237,14 @@ extension ClaimSummaryCard {
         guard let claimId = claim.id,
               let library = LibraryManager.shared.globalLibrary else { return }
         do {
-            _ = try await library.entityService.patchClaim(
+            let updated = try await library.entityService.patchClaim(
                 claimId,
                 epistemicStatus: status
             )
             NotificationCenter.default.post(
-                name: .ficheroClaimDeleted,
-                object: claimId,
-                userInfo: ["action": "patched"]
+                name: .ficheroClaimUpdated,
+                object: updated.id,
+                userInfo: ["claim": updated]
             )
         } catch {
             NotificationCenter.default.post(
@@ -260,14 +260,14 @@ extension ClaimSummaryCard {
         guard let claimId = claim.id,
               let library = LibraryManager.shared.globalLibrary else { return }
         do {
-            _ = try await library.entityService.patchClaim(
+            let updated = try await library.entityService.patchClaim(
                 claimId,
                 curationState: state
             )
             NotificationCenter.default.post(
-                name: .ficheroClaimDeleted,
-                object: claimId,
-                userInfo: ["action": "patched"]
+                name: .ficheroClaimUpdated,
+                object: updated.id,
+                userInfo: ["claim": updated]
             )
         } catch {
             NotificationCenter.default.post(

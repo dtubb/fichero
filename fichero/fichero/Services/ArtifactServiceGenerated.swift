@@ -705,6 +705,10 @@ final class EntityServiceGenerated: ObservableObject {
     func patchClaim(
         _ claimId: String,
         text: String? = nil,
+        subjectCanonical: String? = nil,
+        predicateVerb: String? = nil,
+        objectPhrase: String? = nil,
+        sourcePageLabel: String? = nil,
         curationState: Components.Schemas.ClaimCurationState? = nil,
         claimType: Components.Schemas.ClaimType? = nil,
         epistemicStatus: Components.Schemas.EpistemicStatus? = nil,
@@ -712,6 +716,10 @@ final class EntityServiceGenerated: ObservableObject {
     ) async throws -> Components.Schemas.KnowledgeClaim {
         var body = Components.Schemas.ClaimPatchRequest()
         body.text = text
+        body.subjectCanonical = subjectCanonical
+        body.predicateVerb = predicateVerb
+        body.objectPhrase = objectPhrase
+        body.sourcePageLabel = sourcePageLabel
         body.curationState = curationState
         body.claimType = claimType
         body.epistemicStatus = epistemicStatus
@@ -720,6 +728,22 @@ final class EntityServiceGenerated: ObservableObject {
             path: .init(claimId: claimId),
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(body)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func getClaim(_ claimId: String) async throws -> Components.Schemas.KnowledgeClaim {
+        let response = try await client.api.getClaimApiClaimsClaimIdGet(
+            path: .init(claimId: claimId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
         switch response {
         case .ok(let okResponse):

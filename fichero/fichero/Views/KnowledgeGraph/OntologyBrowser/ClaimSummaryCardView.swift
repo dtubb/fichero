@@ -16,6 +16,8 @@ struct ClaimSummaryCard: View {
     @State var evidenceChain: Components.Schemas.EvidenceChain?
     @State var isLoadingDetails: Bool = false
     @State private var showEditSheet = false
+    @State private var showDeleteConfirmation = false
+    @State private var isInlineEditing = false
     @Environment(KGFocusState.self) private var kgFocusState
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
 
@@ -89,6 +91,19 @@ struct ClaimSummaryCard: View {
         // no SVO and the claim.text is just the entity name. (#986)
         if isEmptyContent {
             EmptyView()
+        } else if isInlineEditing {
+            InlineClaimEditor(
+                claim: claim,
+                onCancel: { isInlineEditing = false },
+                onSave: { updated in
+                    isInlineEditing = false
+                    NotificationCenter.default.post(
+                        name: .ficheroClaimUpdated,
+                        object: updated.id,
+                        userInfo: ["claim": updated]
+                    )
+                }
+            )
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .top) {
@@ -125,6 +140,7 @@ struct ClaimSummaryCard: View {
             .background(Color(.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .onTapGesture { focusClaim() }
+            .onTapGesture(count: 2) { isInlineEditing = true }
             .contextMenu {
                 // Status sub-menu — set epistemic_status via PATCH.
                 // Confirmed / Tentative / Rejected are the three states the
@@ -148,8 +164,14 @@ struct ClaimSummaryCard: View {
                 Button("Edit claim…") { showEditSheet = true }
                 Divider()
                 Button("Delete claim…", role: .destructive) {
-                    deleteClaim()
+                    showDeleteConfirmation = true
                 }
+            }
+            .alert("Delete claim?", isPresented: $showDeleteConfirmation) {
+                Button("Delete", role: .destructive) { deleteClaim() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes the claim from the knowledge graph. Related entities stay in place.")
             }
             .sheet(isPresented: $showEditSheet) {
                 EditClaimSheet(claim: claim) { updated in
