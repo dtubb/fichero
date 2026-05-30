@@ -55,7 +55,6 @@ struct ContentView: View {
     @State var viewMode: AppViewMode = .library(nil)
     @State var detailDocument: Document?
     @State var columnVisibility: NavigationSplitViewVisibility = .all
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
     @State var browserSelection: Set<String> = []
 
     // Persisted state (@SceneStorage) - synced via .onAppear and .onChange
@@ -211,15 +210,10 @@ struct ContentView: View {
             return .ignored
         }
         .sheet(isPresented: Binding(
-            get: { appState.isBackendRunning && !hasCompletedOnboarding },
-            set: { if !$0 { hasCompletedOnboarding = true } }
+            get: { appState.isBackendRunning && !featureManager.firstRunCompleted },
+            set: { if !$0 { featureManager.firstRunCompleted = true } }
         )) {
-            // First-launch wizard. Lives in App/WelcomeView.swift to avoid a
-            // pbxproj edit. Gate is the @AppStorage flag the wizard sets when
-            // the user finishes (or skips with "Set up later"). Backend must
-            // be running because the wizard calls /api/providers to save the
-            // user's pick.
-            OnboardingWizardView()
+            FirstRunWindow()
                 .environmentObject(appState)
                 .environmentObject(apiClient)
         }

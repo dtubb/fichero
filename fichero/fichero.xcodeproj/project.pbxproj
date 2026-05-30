@@ -122,6 +122,7 @@
 		20D8EDCA2F48F49C006950A3 /* BatchTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDC92F48F49C006950A3 /* BatchTypes.swift */; };
 		20D8EDCC2F48F4A8006950A3 /* LibraryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDCB2F48F4A8006950A3 /* LibraryWindow.swift */; };
 		20D8EDCE2F48F4AE006950A3 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDCD2F48F4AE006950A3 /* WelcomeView.swift */; };
+		B30013000000000000000001 /* FirstRunWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30013000000000000000002 /* FirstRunWindow.swift */; };
 		20D8EDD02F48F4AE006950A3 /* CheckpointTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDCF2F48F4AE006950A3 /* CheckpointTypes.swift */; };
 		20D8EDD22F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDD12F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift */; };
 		20D8EDD42F48F4BE006950A3 /* WorkflowRunResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EDD32F48F4BE006950A3 /* WorkflowRunResponse.swift */; };
@@ -551,6 +552,7 @@
 		20D8EDC92F48F49C006950A3 /* BatchTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchTypes.swift; sourceTree = "<group>"; };
 		20D8EDCB2F48F4A8006950A3 /* LibraryWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryWindow.swift; sourceTree = "<group>"; };
 		20D8EDCD2F48F4AE006950A3 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
+		B30013000000000000000002 /* FirstRunWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunWindow.swift; sourceTree = "<group>"; };
 		20D8EDCF2F48F4AE006950A3 /* CheckpointTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckpointTypes.swift; sourceTree = "<group>"; };
 		20D8EDD12F48F4B4006950A3 /* IntegrationsPlaceholderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsPlaceholderSheet.swift; sourceTree = "<group>"; };
 		20D8EDD32F48F4BE006950A3 /* WorkflowRunResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowRunResponse.swift; sourceTree = "<group>"; };
@@ -1002,6 +1004,7 @@
 				A1A3A9BF2F1028480021909D /* MCPServers */,
 				A1BFB2D92F042CBB00EAA55A /* Menu */,
 				A13E80A42F2AD78100EC9EE1 /* ModelComparison */,
+				B30013000000000000000003 /* Onboarding */,
 				4115 /* Search */,
 				A1BFB2DB2F042E5100EAA55A /* Settings */,
 				A1D8BCE72F2CD054006D91D7 /* Sheets */,
@@ -1044,6 +1047,14 @@
 				B3A001080000000000BATCH3 /* ActivityDataProcessing.swift */,
 			);
 			path = Sidebar;
+			sourceTree = "<group>";
+		};
+		B30013000000000000000003 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				B30013000000000000000002 /* FirstRunWindow.swift */,
+			);
+			path = Onboarding;
 			sourceTree = "<group>";
 		};
 		4115 /* Search */ = {
@@ -1996,6 +2007,7 @@
 				202674992F475B33008EAB5D /* SearchNodeConfig.swift in Sources */,
 				200BCF2C2F3D501800D7851A /* ContentView+State.swift in Sources */,
 				20D8EDCE2F48F4AE006950A3 /* WelcomeView.swift in Sources */,
+				B30013000000000000000001 /* FirstRunWindow.swift in Sources */,
 				019 /* DocumentStore.swift in Sources */,
 				20D8EDF82F4BBC04006950A3 /* WorkflowStreamTypes.swift in Sources */,
 				020 /* APIClient.swift in Sources */,
