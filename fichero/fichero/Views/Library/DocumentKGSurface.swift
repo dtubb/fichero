@@ -149,7 +149,7 @@ struct DocumentKGSurface: View {
     }
 }
 
-private struct FolderRealityKitSurface: View {
+struct FolderRealityKitSurface: View {
     let documentId: String
     @Binding var selectedNodeId: String?
 

@@ -89,6 +89,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     case list = "List"
     case table = "Table"
     case map = "Map"
+    case realitykit = "RealityKit"
 
     var id: String { rawValue }
 
@@ -98,6 +99,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .list: "list.bullet"
         case .table: "tablecells"
         case .map: "map"
+        case .realitykit: "cube.transparent"
         }
     }
 
@@ -107,6 +109,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .list: "Linear list"
         case .table: "Table view"
         case .map: "Visual map"
+        case .realitykit: "Spatial 3D view"
         }
     }
 }

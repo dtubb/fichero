@@ -41,30 +41,34 @@ extension ContentView {
         } else {
         switch viewMode {
         case .library:
-            LibraryView(
-                documents: selectedDocuments,
-                isLoading: documentStore.isLoading,
-                isConnected: documentStore.isConnected,
-                errorMessage: documentStore.error?.localizedDescription,
-                onRetry: {
-                    Task { @MainActor in
-                        await documentStore.refresh()
+            if let doc = libraryViewDocument, viewDisplayMode == .realitykit {
+                FolderRealityKitSurface(documentId: doc.id, selectedNodeId: .constant(nil))
+            } else {
+                LibraryView(
+                    documents: selectedDocuments,
+                    isLoading: documentStore.isLoading,
+                    isConnected: documentStore.isConnected,
+                    errorMessage: documentStore.error?.localizedDescription,
+                    onRetry: {
+                        Task { @MainActor in
+                            await documentStore.refresh()
+                        }
+                    },
+                    selection: $browserSelection,
+                    detailDocument: $detailDocument,
+                    viewMode: $viewSettings.libraryLayout,
+                    displayMode: viewDisplayMode,
+                    folderId: selectedSidebarItemId,
+                    onRequestFocus: { focusedPane = .content },
+                    onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
+                    onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) },
+                    onNavigateInto: { doc in navigateToDocument(doc) },
+                    sidebarHidden: !showSidebar,
+                    onToolbarSearchSubmit: { query in
+                        runToolbarSearch(query)
                     }
-                },
-                selection: $browserSelection,
-                detailDocument: $detailDocument,
-                viewMode: $viewSettings.libraryLayout,
-                displayMode: viewDisplayMode,
-                folderId: selectedSidebarItemId,
-                onRequestFocus: { focusedPane = .content },
-                onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
-                onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) },
-                onNavigateInto: { doc in navigateToDocument(doc) },
-                sidebarHidden: !showSidebar,
-                onToolbarSearchSubmit: { query in
-                    runToolbarSearch(query)
-                }
-            )
+                )
+            }
 
         case .search(let savedSearch):
             SearchView(

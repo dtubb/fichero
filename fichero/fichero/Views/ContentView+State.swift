@@ -138,15 +138,18 @@ extension ContentView {
     var availableViewDisplayModes: [ViewDisplayMode] {
         switch sidebarMode {
         case .library:
+            if let doc = libraryViewDocument, doc.docType == .folder || doc.isWorkspace {
+                return [.icon, .list, .map, .realitykit]
+            }
             if !featureManager.isLibraryAdvancedViewsEnabled {
                 return [.icon]
             }
-            return ViewDisplayMode.allCases
+            return [.icon, .list, .table, .map]
         case .search:
             if !featureManager.isSearchAdvancedViewsEnabled {
                 return [.list]
             }
-            return ViewDisplayMode.allCases
+            return [.icon, .list, .table, .map]
         case .workflows:
             // 0.0.1: keep workflow presentation simple and explicit.
             // Icon = visual graph/canvas, List = ordered execution steps.
@@ -154,6 +157,11 @@ extension ContentView {
         case .chat, .automation, .activity, .knowledgeGraph, .mindPalace, .research:
             return [.icon]
         }
+    }
+
+    private var libraryViewDocument: Document? {
+        if case .library(let doc) = viewMode { return doc }
+        return nil
     }
 
     /// Normalize a requested display mode against current feature gates.
