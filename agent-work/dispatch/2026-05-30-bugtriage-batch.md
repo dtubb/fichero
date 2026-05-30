@@ -106,3 +106,33 @@ Rules for adding a milestone:
 4. Log the creation in `agent-work/proposals/2026-05-30-issue-triage.md` under your execution log.
 
 Otherwise — fold issues into the closest existing milestone. Don't overgrow the milestone set; the point is fewer, clearer buckets.
+
+## 8. Backfill labels on unlabeled issues (closed + open)
+
+While re-filing closed issues to feature milestones, also apply labels to **any issue (open or closed) that has zero labels**. Many closed issues from before the canonical label set existed have nothing — they should at least have `type:*` + a milestone tag.
+
+```bash
+# Find unlabeled
+gh issue list --state all --limit 500 --search "no:label" --json number,title,state \
+  -q '.[] | "\(.number)|\(.state)|\(.title)"'
+```
+
+Minimum backfill per issue:
+- `type:bug` / `type:feature` / `type:task` — infer from title verb (fix/add/update/refactor/clean)
+- Milestone — from the new canonical set
+- If you can't tell, mark `type:task` + closest-fit milestone; better to be roughly right than to skip.
+
+This is a one-shot pass; future issues should be labeled at file time (the new conventions doc tells filers what to apply).
+
+## 9. Milestone naming clarifications (2026-05-30 final)
+
+- **Importers** = the import TOOLS (Kreuzberg/Docling loaders, Box/Dropbox/XLSX/drag-in, remote SSH backend). Mechanism.
+- **Source Archives** = the specific source COLLECTIONS being ingested (Chota Valley maps, Archivo Judicial, Mosquera notebooks, etc.). Content. Each issue typically references a single named corpus.
+- Don't mix them. A bug in the XLSX import path = Importers. A request to ingest the Mosquera notebooks = Source Archives.
+
+## 10. Release-flow issues
+
+If you find any issue about Sparkle / DMG / notarization / appcast hosting:
+- If it's app-internal (in-app auto-update behavior) → **App Shell** milestone + `release-gate` label
+- If it's distribution-pipeline (hosting the appcast, GH release, signing infrastructure) → cross-reference `dtubb/fichero-releases#1` in a comment, then close as moved
+- Avoid creating a "Release" milestone in this repo — that lives in `dtubb/fichero-releases`.
