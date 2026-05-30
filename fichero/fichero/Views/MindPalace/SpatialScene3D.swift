@@ -400,14 +400,15 @@ actor MindPalaceTextureCache {
         try data.write(to: tempURL, options: [.atomic])
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let texture = try await TextureResource.loadAsync(contentsOf: tempURL, withName: nil)
+        let texture = try await TextureResource(contentsOf: tempURL)
         cache[url] = texture
         return texture
     }
 
     private func fetchImageData(from url: URL) async throws -> (Data, String) {
         var request = URLRequest(url: url)
-        request.addEngineAuth(libraryPath: LibraryManager.shared.globalLibrary?.apiClient.currentLibraryPath)
+        let libraryPath = await LibraryManager.shared.globalLibrary?.apiClient.currentLibraryPath
+        request.addEngineAuth(libraryPath: libraryPath)
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {

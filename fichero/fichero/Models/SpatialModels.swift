@@ -195,6 +195,7 @@ struct MindPalaceNode: Codable, Identifiable, Hashable {
     /// source document. The backend schema doesn't currently declare a
     /// dedicated field, so this is a client-side wrapper over the storage
     /// thumbnail endpoint.
+    @MainActor
     var thumbnailUrl: URL? {
         guard let sourceId, !sourceId.isEmpty else { return nil }
         return Self.thumbnailURL(
