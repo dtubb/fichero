@@ -2,20 +2,45 @@
 
 Your prior session's output (`agent-work/proposals/2026-05-30-issue-triage.md`) is the plan. Execute it + the additions below. No code edits — `gh` CLI + plan documents only. **Worktree:** `~/code/fichero-0.0.2`. **Branch:** `0.0.2`.
 
-## 0. Auto-add ALL open issues to Project #5 (NEW — discovered 2026-05-30)
+## 0. CORRECTION — Milestones IS the canonical organization
 
-Project #5 currently has only 30 cards while the repo has 248 open issues. Before Epic-tagging, every open issue needs to be on the board. Manager already added Epic + Priority single-select fields, closed 5 dupes (#475, #423, #1303, #1326, #1217), and labeled ~44 roadmap stubs.
+Original triage doc proposed bulk-migrating issues to Project #5 with Epic field. **Replace that approach.** The repo has 45 open milestones that already group issues by feature + version (Daniel reviewed the Milestones view 2026-05-30 and finds it useful). Project #5 stays as a curated 30-item focus board — do NOT auto-add 248 issues to it.
 
+**The real cleanup is on milestones:**
+
+Manager already done: Epic + Priority fields added to Project #5; closed 5 dupes (#475, #423, #1303, #1326, #1217); labeled ~44 roadmap stubs with `roadmap`.
+
+**Keep (active milestones):** `0.0.2`, `0.0.3 - KG Navigation + Polish`, `0.0.3 - Post-LLM-stack`, `0.0.4 - Local RAG`, `Search v1`, `Spatial Knowledge Layer`, `Image Editing: Crop + Rotate`, `Hermeneutics`, `Backend Ops + Migrations`, `Search: Hybrid Retrieval`, `0.0.3 - Image Editing v2`, `0.4.3 - Wire: Export Web + Netlify`, `0.3.2 - Wire: Image Segmentation`, `Integrations`, `API Security + Auth`, `Export: JSON + Markdown`, `Epistemic Platform Expansion`.
+
+**Retire (close + move open children to closest live milestone):**
+- `0.7.1 - Wire: Research Agents` → Researcher epic / `0.0.4`
+- `0.7.0 - Wire: Agents` → Researcher epic
+- `0.6.1 - Wire: Spatial Library` → `Spatial Knowledge Layer`
+- `0.5.0 - Wire: MCP Servers` → `0.0.3 - KG Navigation + Polish`
+- `0.4.2 - Wire: Export Spreadsheets` → `Export: JSON + Markdown`
+- `0.4.1 - Wire: Export Documents` → `Export: JSON + Markdown`
+- `KG Predictions` → `Epistemic Platform Expansion`
+- `Epistemology Graph`, `Ontology Browser`, `KG Claim Inspector`, `KG Claims List`, `KG Entities` → `0.0.3 - KG Navigation + Polish`
+- `Automation` → `0.0.4 - Local RAG`
+- `Activity Monitor` → `0.0.2` if children are active, else `0.0.3`
+- `Batch Processing` → `0.0.3 - Post-LLM-stack`
+- `Workflow Chains`, `Workflow Editor`, `Workflow Tools`, `Workflow Basics` → fold into new milestone `Workflows v1` or `0.0.3 - Post-LLM-stack`
+- `Chat v1`, `Chat v2: Model Comparison` → Researcher epic
+- `Local Models` → `0.0.4 - Local RAG`
+- `Search v2: Filters + Layouts`, `Search v3: Semantic Map` → `Search v1` or `Search: Hybrid Retrieval`
+- `Providers + API Keys` → KEEP only if there's active work; otherwise retire and move 12 open issues to `0.0.3` settings work.
+
+**Mechanics:**
 ```bash
-# Loop-add every open, non-roadmap-labeled issue
-gh issue list --state open --limit 500 --json number,labels \
-  | python3 -c "import json,sys; ns=[i['number'] for i in json.load(sys.stdin) if not any(l['name']=='roadmap' for l in i.get('labels',[]))]; [print(n) for n in ns]" \
-  | while read n; do
-      gh project item-add 5 --owner dtubb --url "https://github.com/dtubb/fichero/issues/$n" 2>&1 | tail -1
-    done
+# Move open issues from a milestone to a destination
+for n in $(gh issue list --milestone "<source-milestone>" --state open --json number -q '.[].number'); do
+  gh issue edit "$n" --milestone "<destination-milestone>"
+done
+# Then close the source milestone
+gh api repos/dtubb/fichero/milestones/<id> -X PATCH -F state=closed
 ```
 
-Then proceed with §1.
+**Then proceed with §1.** §1's "add three custom fields" step is already done; you only need the dupe-close + bulk-Epic-tag-on-Project-#5 steps. Add only the ~30 currently-on-project items to Epic field; do NOT bulk-import all 248 issues.
 
 ## 1. Apply Phase 1 (GH hygiene) from your own plan
 
@@ -53,3 +78,17 @@ Append your work to `agent-work/proposals/2026-05-30-issue-triage.md` under a ne
 **Gate rule:** never `gh issue close` until you've grep-confirmed the merge (`git log origin/main..HEAD | grep "(#N)"`) — see [[feedback_lane_orchestration_lessons]] §4.
 
 When done, write a one-line summary to `agent-work/dispatch/2026-05-30-bugtriage-DONE.md` so the manager can pick it up.
+
+## 6. Re-file closed issues from retired version milestones (2026-05-30 addition)
+
+The 4 version milestones are now closed (`0.0.1`, `0.0.2`, `0.0.3`, `0.0.4`) but their ~593 closed issues are still tagged to them. Going forward, NO version milestones — releases are dated git tags + `dtubb/fichero-releases` entries. So:
+
+1. **For each closed issue on a version milestone**, infer its feature area from the title + body and apply the right feature milestone. Use the milestone descriptions in `docs/agent-workflow/github-conventions.md` as the rubric.
+2. **Closed-without-milestone issues** (also several thousand): same heuristic; tag the ones whose feature area is obvious from title. Drop the others — they're closed and unlabeled forever.
+3. **Once all the closed issues are off the version milestones**, delete the 4 version milestones (`0.0.1`, `0.0.2`, `0.0.3`, `0.0.4`).
+4. **Delete the legacy labels** that have zero remaining issues (after manager's open-issue label migration completes — confirm with `gh label list` and check each has 0 issues before delete).
+5. **Remove the "Migration table" section** from `docs/agent-workflow/github-conventions.md` once 4+5 are done. Commit message: `docs(gh-conventions): remove migration scaffolding`.
+
+**Approach:** batch by feature-area; pull all closed issues with title regex match, bulk-apply. Don't try to be perfect — 80% accuracy beats 100% effort on 6000+ issues. Log decisions to `agent-work/proposals/2026-05-30-issue-triage.md` under a new `## Closed-Issue Re-filing Log` section.
+
+**Hard rule:** never modify the CONTENT of closed issues. Milestone + label only.
