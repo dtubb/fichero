@@ -178,6 +178,19 @@ struct MindPalaceNode: Codable, Identifiable, Hashable {
         label.isEmpty ? nodeType.label : label
     }
 
+    func snappedPosition(gridSize: Double = 0.25) -> SIMD3<Double> {
+        SIMD3<Double>(
+            Self.snap(positionX, to: gridSize),
+            Self.snap(positionY, to: gridSize),
+            Self.snap(positionZ, to: gridSize)
+        )
+    }
+
+    static func snap(_ value: Double, to gridSize: Double = 0.25) -> Double {
+        guard gridSize > 0 else { return value }
+        return (value / gridSize).rounded() * gridSize
+    }
+
     /// Page-image URL used by the Mind Palace 3D view when a node has a
     /// source document. The backend schema doesn't currently declare a
     /// dedicated field, so this is a client-side wrapper over the storage
