@@ -19,6 +19,7 @@ __all__ = [
     "mcp_tools",
     "migrations",
     "mind_palace",
+    "mindpalace_render",
     "model_comparison",
     "models",
     "multilingual",
