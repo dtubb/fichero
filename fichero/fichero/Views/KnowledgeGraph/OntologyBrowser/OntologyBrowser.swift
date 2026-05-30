@@ -632,7 +632,8 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
             guard !isNavigatingHistory else { return }
             if let id = newValue {
                 navHistory.push(.entityProfile(entityId: id))
-                if kgFocusState.focusedClaimId == nil {
+                if kgFocusState.focusedClaimId == nil,
+                   kgFocusState.focusedEntityId != id {
                     kgFocusState.focusEntity(entityId: id)
                 }
             } else {

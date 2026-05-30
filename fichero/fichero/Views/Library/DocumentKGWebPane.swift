@@ -1,4 +1,5 @@
 import FicheroAPIClient
+import Foundation
 import SwiftUI
 import WebKit
 
@@ -206,6 +207,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
         private var lastSelectedClaimId: String?
         private var lastActivePageNumber: Int?
         private var lastActiveTab: String?
+        private var suppressActivePageSyncUntil = Date.distantPast
 
         init(parent: DocumentKGWebPane) {
             self.parent = parent
@@ -264,6 +266,9 @@ struct DocumentKGWebPane: NSViewRepresentable {
 
             if lastActivePageNumber != parent.activePageNumber {
                 lastActivePageNumber = parent.activePageNumber
+                if Date() < suppressActivePageSyncUntil {
+                    return
+                }
                 if let pageNumber = parent.activePageNumber {
                     webView.evaluateJavaScript("window.fichero?.setActivePage(\(pageNumber));")
                     if let pageCount = parent.pageCount {
@@ -309,6 +314,9 @@ struct DocumentKGWebPane: NSViewRepresentable {
                 )
             case "pageSelected":
                 guard let pageNumber = pageNumber(from: body) else { return }
+                if parent.activePageNumber != pageNumber {
+                    suppressActivePageSyncUntil = Date().addingTimeInterval(0.25)
+                }
                 parent.onPageSelected(max(0, pageNumber - 1))
             default:
                 break

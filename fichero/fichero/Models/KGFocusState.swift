@@ -16,20 +16,16 @@ final class KGFocusState {
     var sourceDocumentId: String?
     var sourcePageLabel: String?
 
-    var focusKey: String {
-        [
-            focusedEntityId ?? "",
-            focusedClaimId ?? "",
-            sourceDocumentId ?? "",
-            sourcePageLabel ?? ""
-        ].joined(separator: "|")
-    }
-
     func focusEntity(
         entityId: String?,
         sourceDocumentId: String? = nil,
         sourcePageLabel: String? = nil
     ) {
+        guard focusedEntityId != entityId
+            || focusedClaimId != nil
+            || self.sourceDocumentId != sourceDocumentId
+            || self.sourcePageLabel != sourcePageLabel
+        else { return }
         focusedEntityId = entityId
         focusedClaimId = nil
         self.sourceDocumentId = sourceDocumentId
@@ -42,6 +38,11 @@ final class KGFocusState {
         sourceDocumentId: String? = nil,
         sourcePageLabel: String? = nil
     ) {
+        guard focusedClaimId != claimId
+            || focusedEntityId != entityId
+            || self.sourceDocumentId != sourceDocumentId
+            || self.sourcePageLabel != sourcePageLabel
+        else { return }
         focusedClaimId = claimId
         focusedEntityId = entityId
         self.sourceDocumentId = sourceDocumentId
@@ -49,6 +50,11 @@ final class KGFocusState {
     }
 
     func clear() {
+        guard focusedEntityId != nil
+            || focusedClaimId != nil
+            || sourceDocumentId != nil
+            || sourcePageLabel != nil
+        else { return }
         focusedEntityId = nil
         focusedClaimId = nil
         sourceDocumentId = nil
