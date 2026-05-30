@@ -1,8 +1,37 @@
 # STATE.md — Fichero
 
-## 2026-05-30 — NEXT SESSION: START HERE
+## 2026-05-30 (late) — NEXT SESSION: START HERE
 
-**Trunk `0.0.2` @ `e802ad7d`**, pushed. ~40 issues merged 2026-05-29/30 (see HISTORY.md). Manager session ended via /session-end.
+**Worktree path: `~/code/fichero` (was `~/code/fichero-0.0.2`).** Branch: **`main`** (was `0.0.2`). All lane worktrees re-pointed; old `main` archived as `archive-main-2026-05-30` for history. Default branch on GH = `main`.
+
+**Start the next manager session in `~/code/fichero`, not the old path.** Run `/session-start-manager` there.
+
+**What was done this session (full details in HISTORY.md):**
+- Massive GH hygiene: 45 → 20 active milestones, 73 → 23 canonical labels, Project #5 deleted, release tracking moved to `dtubb/fichero-releases#1`, stale branches/tags/releases cleaned.
+- Branch model collapsed to single-trunk: `main`. No separate release branch. Releases = dated git tags + DMGs in fichero-releases.
+- Worktree renamed worktree-aware (see `[[feedback_git_worktree_main_move]]`).
+- Conventions doc finalized at `docs/agent-workflow/github-conventions.md`. THE source of truth for labels + milestones + branches going forward.
+
+**In flight / paused — pick up these:**
+1. **f_bugtriage was halted mid-flight** during closed-issue re-filing. Brief at `agent-work/dispatch/2026-05-30-bugtriage-batch.md`. Re-dispatch with discipline: **5 issues at a time, always remind which milestone applies** (per Daniel 2026-05-30). Some closed issues were lumped into Search/KG that look like UI work — bugtriage's second pass should audit per-milestone and reclassify.
+2. **f_integrator never dispatched.** Brief at `agent-work/dispatch/2026-05-30-integrator-batch.md` — update path refs from `0.0.2` to `main` first. Then:
+   - Phase 0: fix 2 trunk-red errors (WorkflowEditor.swift exhaustive switch + ClaimSummaryCard let→var).
+   - Merge `origin/opus-realitykit-design` with ~8 cascading-error fix-up (RealityKit threading, DocumentKGSurface shadow-param, NSColor → cross-platform).
+   - Merge `origin/codex53-mcp-full-vision` (full-featured MCP + scene_render hook for #1338).
+3. **f_docs lane** spun up; `/session-start-docs` skill written; brief at `agent-work/dispatch/2026-05-30-docs-batch.md`. No screenshots taken yet — Daniel needs to confirm which library to use + the app needs to be running with `FICHERO_FEATURE_TIER=dev`.
+4. Daniel quit Xcode + backend before the worktree move; will need to relaunch them at `~/code/fichero/...`.
+
+**Gotchas next manager session:**
+- Lane briefs in `agent-work/dispatch/` still reference `~/code/fichero-0.0.2` in places — sed-fix or note in each dispatch message.
+- 4 stale `~/code/` directories to delete when convenient: `fichero-search`, `fichero-search-issue-1`, `fichero-search-issue-3`, `fichero_archive` (and arguably `fichero_toolbox` — different project though).
+- Bugtriage misclassified some issues to Search/KG that are really Library & Reading Surface UI; future bugtriage pass should audit per-milestone with 5-issue batches.
+- Conventions doc is at `docs/agent-workflow/github-conventions.md` — read first before any milestone/label decision.
+- The `tier:*` labels are vendor-agnostic — `tier:frontier`/`medium`/`mini`/`local`, not `owner:codex`/`agent:claude`.
+
+---
+
+## OLDER ENTRIES BELOW (historical)
+
 
 **Next session — start here:**
 1. Integrate f_gpt Batch 6 branches: `gpt-activity-window` `94a0a96e` (#1264), `gpt-bibtex-metadata` `51099f97` (#1101), `gpt-inspector-style` `54cb64cf` (#1241). Manager must run the appropriate merge gates; #1101 touched OpenAPI.

@@ -2392,3 +2392,36 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - `agent-work/proposals/2026-05-30-mindpalace-phased-plan.md` (f_planner) — P1 Mac → P3 iOS → P4 visionOS
 
 **Durable lessons captured** in `[[feedback_lane_orchestration_lessons]]`: serial>parallel on hot files, rebase-on-latest-trunk in briefs, literal merge commands (no heredoc loop vars), grep-confirm-before-close, pbxproj registration for new .swift files, run verify_all.sh after every batch.
+
+## 2026-05-30 — GH hygiene + branch + worktree consolidation
+
+**Repository org:**
+- Branch `0.0.2` promoted to `main` (trunk). Old `main` archived as `archive-main-2026-05-30`. Default branch set to `main`. Single-trunk model — release via dated git tags published as DMGs in `dtubb/fichero-releases`.
+- Worktree renamed `~/code/fichero-0.0.2` → `~/code/fichero`. Lane worktrees (`~/code/fichero-gpt`, etc.) had their `.git` pointers sed-fixed + `git worktree repair`'d. Procedure documented in `[[feedback_git_worktree_main_move]]`.
+- ~10 stale `~/code/fichero/.claude/worktrees/agent-*` worktrees pruned.
+- `~/code/fichero` (old April-11 pre-worktree directory) deleted.
+- 9 stale remote branches deleted earlier in session (haiku, pi, opus, sonnet, mlx-test-minimax, 0.0.3, feature/issue-591/603/616).
+- 6 stale git tags + 1 draft release deleted (0.1.0.dev1, cascade-review/*, kg-1291-catalogue, kg-1292-provenance, s0-core-promotion).
+
+**Milestones (45 → 20 active + 4 closed-historic):**
+- Closed all 4 version milestones (`0.0.1`–`0.0.4`) with closed-issue history preserved.
+- 20 active milestones organized as: 11 endpoint-led (KG & Hermeneutics, Search, Workflows, Importers, MCP, Exporter, Mind Palace, Researcher, Image Editing, Settings & Providers, Infrastructure) + 4 UI surface (Library & Reading Surface, Chat, Activity & Automation, Mac App Shell) + 4 distinct (CLI, Developer Experience, Documentation, Website) + 1 special (Source Archives).
+- Merged: Hermeneutics + NER → KG & Hermeneutics; Translation → Workflows; PDF Viewer → Library & Reading Surface. Split: Importers (tools) ↔ Source Archives (collections). Split: Documentation (end-user manual) ↔ Developer Experience (contributor/agent docs + tooling).
+- 593 closed issues bulk-classified from retired version milestones into feature milestones via title-keyword heuristic.
+- 50 misfiled or orphan issues retagged (EPE-flavor closed work, release-flow #520, etc.).
+
+**Labels (73 → 23):**
+- Final canonical set in `docs/agent-workflow/github-conventions.md`. Vendor-agnostic tier:* labels replace owner:codex/owner:claude/agent:*. Dropped: status:done/ready/in-progress/superseded/blocked-human, type:qa/question (collapsed to status), release-gate, legacy-reenable, duplicate, wontfix, good first issue, help wanted, invalid, all `area:swiftui-*` and `area:backend-*`, ingest/kg/search/workflow legacy labels, 0.0.1 version label, kg-ui-collapse temp marker, engine-quality.
+- 5 duplicate issues closed (#475, #423, #1303, #1326, #1217).
+- ~44 release-gate/future stubs labeled `roadmap`.
+
+**Release tracking:** moved release-flow checklist (TASKS #157–#165) to `dtubb/fichero-releases#1`. Closed #659 + #660 (DMG build + dry-run) with cross-ref.
+
+**Project #5 (GH Project board) DELETED.** Milestones view is the canonical organization.
+
+**Other:** `scripts/create-issues.py` now uses script-relative YAML path (no more `/Users/danieltubb/...` hardcode). `docs/agent-workflow/github-conventions.md` written as the canonical reference.
+
+**In flight / paused:**
+- f_bugtriage lane halted mid-flight during closed-issue re-filing. Will need re-dispatch with 5-issue-at-a-time discipline.
+- f_integrator never dispatched. Phase 0 trunk-red fixes + `opus-realitykit-design` merge + `codex53-mcp-full-vision` merge still pending.
+- f_docs lane spun up (session-start-docs skill added) but no work yet.
