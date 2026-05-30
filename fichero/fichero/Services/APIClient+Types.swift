@@ -48,7 +48,9 @@ extension URLRequest {
     /// Health endpoint never needs auth and is the only one we deliberately
     /// skip — see `AuthTokenMiddleware.unauthenticatedPaths`.
     mutating func addEngineAuth(libraryPath: String? = nil) {
-        if let token = AuthTokenMiddleware.readTokenFromDisk() {
+        let path = url?.path ?? ""
+        if !AuthTokenMiddleware.isUnauthenticatedPath(path),
+           let token = AuthTokenMiddleware.waitForTokenBlocking() {
             setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         if let libraryPath {

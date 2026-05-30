@@ -1,4 +1,5 @@
 import AppKit
+import FicheroAPIClient
 import Foundation
 import OSLog
 
@@ -105,6 +106,7 @@ final class EmbeddedBackendService: ObservableObject {
         // first-launch caches, and contended startup.
         try launchEmbeddedBackend()
         try await waitForBackend(timeout: 90)
+        _ = await AuthTokenMiddleware.waitForToken(timeout: 10)
         status = .running
         logger.info("Embedded backend started successfully")
     }
@@ -238,6 +240,10 @@ final class EmbeddedBackendService: ObservableObject {
         let logHandle = try FileHandle(forWritingTo: logURL)
         process.standardOutput = logHandle
         process.standardError = logHandle
+
+        if let tokenURL = AuthTokenMiddleware.tokenFileURL() {
+            try? FileManager.default.removeItem(at: tokenURL)
+        }
 
         // Launch the process
         try process.run()

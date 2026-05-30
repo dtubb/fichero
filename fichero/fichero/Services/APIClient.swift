@@ -121,7 +121,7 @@ class APIClient: ObservableObject {
         // Auth: every non-health request needs the engine's per-launch token
         // (#742). Health is the readiness probe and stays unauthenticated;
         // the rest must carry Bearer.
-        if !isHealthEndpoint, let token = AuthTokenMiddleware.readTokenFromDisk() {
+        if !isHealthEndpoint, let token = AuthTokenMiddleware.waitForTokenBlocking() {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
