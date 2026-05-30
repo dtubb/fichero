@@ -1,5 +1,13 @@
 # Durable Lessons Learned / Decisions
 
+## Public vs full MCP surface split — 2026-05-30
+
+For external agents, keep a small stable MCP contract in `fichero/mcp_public.py` (typed request/response models, narrow tool list). Put broader app-control and spatial tooling in a separate `fichero/mcp_full.py` surface. This avoids coupling third-party agents to internal tool churn while still enabling full-capability local agents.
+
+## Mind Palace scene_render contract is wire-stable before native renderer — 2026-05-30
+
+`POST /api/mindpalace/render` now provides a stable response shape (`png_base64`, optional `mp4_base64`, metadata) even while backend rendering is placeholder-grade. Keep the API contract stable so multimodal agent loops (render → act → re-render) can be tested now; swap in RealityKit/native rendering behind the same schema later.
+
 ## NSTrackingArea owner mouseMoved must be @objc, not override — 2026-05-25
 
 When `NSObject` (not `NSResponder`) owns a tracking area, AppKit delivers mouse events via Objective-C informal protocol — the owner just needs an `@objc func mouseMoved(with event: NSEvent)` method. Using `override` is a compile error since `NSObject` doesn't declare `mouseMoved`. Pattern used in `PDFPageView.Coordinator` for PDF loupe cursor tracking.
