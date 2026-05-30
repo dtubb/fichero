@@ -868,23 +868,22 @@ def _entities_from_inspector(payload: Any) -> Any:
 @kg_app.command("entities")
 def kg_entities(
     ctx: typer.Context,
-    doc_id: str = typer.Argument(
-        ..., help="Document ID — entities are scoped to this document."
+    entity_type: Optional[str] = typer.Option(
+        None, "--type", help="Filter by entity type."
+    ),
+    limit: int = typer.Option(
+        50, "--limit", help="Maximum number of entities to return."
     ),
 ) -> None:
-    """Show knowledge-graph entities for a document.
-
-    Backed by ``GET /api/documents/{doc_id}/inspector`` — the same aggregate
-    view the SwiftUI inspector pane uses.
-    """
-    _invoke(ctx, lambda c: _entities_from_inspector(c.document_inspector(doc_id)))
+    """List knowledge-graph entities across the library."""
+    _invoke(ctx, lambda c: c.list_entities(entity_type=entity_type, limit=limit))
 
 
 @kg_app.command("claims")
 def kg_claims(
     ctx: typer.Context,
-    doc_id: str = typer.Argument(
-        ..., help="Document ID — claims are filtered to this document."
+    doc_id: str = typer.Option(
+        ..., "--doc", help="Document ID — claims are filtered to this document."
     ),
     limit: int = typer.Option(50, "--limit"),
 ) -> None:
