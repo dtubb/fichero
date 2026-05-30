@@ -259,6 +259,13 @@ Pre-existing 2 test failures (`test_chat_structured` + `test_routes_settings`) c
 
 ## 2026-04-02 — Autonomous Loop Session
 
+## 2026-05-30 — Session Summary
+
+- Completed Issue A on `codex53-translation-workflow`: translation workflow + DeepL provider, CLI command, tests (`e99116b9`).
+- Completed Issue B on `codex53-static-exporter`: static site exporter with document/folder/library granularity via existing export service/routes (`c0f2b7c4`).
+- Completed Issue C on `codex53-mcp-public`: new simplified public MCP surface with typed I/O + unit tests (`a73df3e3`).
+- Completed Issue D on `codex53-mcp-full-vision`: full MCP surface + `scene_render` hook backed by new `POST /api/mindpalace/render` route and integration tests (`8a46cd1e`).
+
 - #381: Created `docs/agent-workflow/0.0.2-gate-map.md` — gate map for Layers 0-6
 - #365: SourceMetadata model + citation validation (DOI, ISBN-13/10, ISSN, arXiv) + ProvenanceInfo + 36 unit tests
 - #366: GET /entities/alias-map + GET /claims?entity=X filter + 2 unit tests
