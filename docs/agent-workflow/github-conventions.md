@@ -38,12 +38,14 @@ Each has a distinct user-facing surface, design language, and bug class.
 | Activity & Automation | Real-time execution view, log stream, code output, execution diagrams, event-driven triggers, time-based schedules |
 | App Shell | File/Edit/View/Window/Help menus, About panel, keyboard shortcuts cheat sheet, first-run flow, app launch, window state restoration, notifications/toast UI, progress indicators |
 
-### Distinct surfaces (2)
+### Distinct surfaces (4)
 
 | Milestone | Scope |
 |---|---|
 | CLI | `fichero` CLI tool: library lifecycle, engine lifecycle (start/stop/restart/status), workflow run, KG queries, ingest commands, output formatting |
-| Developer Experience | Agent workflow docs, lane briefs (manager/integrator/reviewer/planner/bugtriage), build scripts (`verify_all.sh`), OpenAPI round-trip (`sync_openapi_schema.sh`), jcodemunch-mcp config, test gates, conventions docs |
+| Developer Experience | Internal **tooling** for the agent team (not docs): build scripts (`verify_all.sh`, `sync_openapi_schema.sh`), OpenAPI round-trip machinery, jcodemunch-mcp config, test gates, lane briefs (dispatch templates), CI hooks. Things that make the codebase WORK. |
+| Documentation | **Writing for humans** explaining the code or app: `docs/architecture/`, `docs/CLAUDE.md`, README, in-app help text, FastAPI auto-generated API reference, ingest API docs, code-comment style guide. Reference material. |
+| Website | tubb.ca/fichero — public website, release notes, download page, dev blog, end-user user-guide site (where `docs/user-guide/` Markdown gets published). |
 
 Roadmap-tier items carry the `roadmap` label, not a milestone.
 
