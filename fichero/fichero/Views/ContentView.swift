@@ -45,6 +45,7 @@ struct ContentView: View {
     @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
+    @Environment(KGFocusState.self) var kgFocusState
     @EnvironmentObject var claimFocusState: ClaimFocusState
     @EnvironmentObject var researchService: ResearchService
 
@@ -827,6 +828,9 @@ struct ContentView: View {
                         userInfo: info
                     )
                 }
+            }
+            .onChange(of: kgFocusState.focusKey) { _, _ in
+                handleKGFocusChanged()
             }
             .modifier(
                 MainContentModifiers(

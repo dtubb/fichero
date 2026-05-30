@@ -137,6 +137,7 @@ enum DocumentKGPaneRoute {
 struct DocumentKGWebPane: NSViewRepresentable {
     let documentId: String
     let libraryPath: String
+    var selectedEntityId: String?
     var selectedClaimId: String?
     /// The tab the native toolbar (DocumentKGSurface) currently shows. Driving
     /// the tab from Swift — rather than the in-page HTML tab bar — keeps the
@@ -145,6 +146,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
     var activePageNumber: Int?
     var pageCount: Int?
     var onPageSelected: (Int) -> Void = { _ in }
+    @Environment(KGFocusState.self) private var kgFocusState
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -200,6 +202,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
 
         private var lastLoadedDocumentId: String?
         private var lastLoadedLibraryPath: String?
+        private var lastSelectedEntityId: String?
         private var lastSelectedClaimId: String?
         private var lastActivePageNumber: Int?
         private var lastActiveTab: String?
@@ -222,6 +225,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
             // A fresh document means a fresh DOM — clear the sync trackers so
             // didFinish re-applies the active tab + selection to the new page.
             lastActiveTab = nil
+            lastSelectedEntityId = nil
             lastSelectedClaimId = nil
             lastActivePageNumber = nil
             webView.load(request)
@@ -247,6 +251,14 @@ struct DocumentKGWebPane: NSViewRepresentable {
                 if let claimId = parent.selectedClaimId {
                     let literal = DocumentKGPaneRoute.jsStringLiteral(claimId)
                     webView.evaluateJavaScript("window.fichero?.highlightClaim('\(literal)');")
+                }
+            }
+
+            if lastSelectedEntityId != parent.selectedEntityId {
+                lastSelectedEntityId = parent.selectedEntityId
+                if let entityId = parent.selectedEntityId {
+                    let literal = DocumentKGPaneRoute.jsStringLiteral(entityId)
+                    webView.evaluateJavaScript("window.fichero?.highlightEntity?.('\(literal)');")
                 }
             }
 
@@ -281,20 +293,18 @@ struct DocumentKGWebPane: NSViewRepresentable {
             switch kind {
             case "entitySelected":
                 guard let entityId = body["entityId"] as? String else { return }
-                postOpenSourceNotification(
+                focusKGSource(
                     documentId: body["sourceDocumentId"] as? String,
                     entityId: entityId,
                     claimId: body["claimId"] as? String,
-                    passage: body["passage"] as? String,
                     body: body
                 )
             case "claimSelected":
                 guard let claimId = body["claimId"] as? String else { return }
-                postOpenSourceNotification(
+                focusKGSource(
                     documentId: body["sourceDocumentId"] as? String,
                     entityId: body["entityId"] as? String,
                     claimId: claimId,
-                    passage: body["passage"] as? String,
                     body: body
                 )
             case "pageSelected":
@@ -305,34 +315,30 @@ struct DocumentKGWebPane: NSViewRepresentable {
             }
         }
 
-        private func postOpenSourceNotification(
+        private func focusKGSource(
             documentId: String?,
             entityId: String?,
             claimId: String?,
-            passage: String?,
             body: [String: Any]
         ) {
-            var info: [String: Any] = [
-                "documentId": documentId ?? parent.documentId
-            ]
-            if let entityId, !entityId.isEmpty {
-                info["entityId"] = entityId
+            let sourceDocumentId = documentId ?? parent.documentId
+            let pageLabel = pageLabel(from: body)
+            Task { @MainActor in
+                if let claimId, !claimId.isEmpty {
+                    parent.kgFocusState.focusClaim(
+                        claimId: claimId,
+                        entityId: entityId,
+                        sourceDocumentId: sourceDocumentId,
+                        sourcePageLabel: pageLabel
+                    )
+                } else {
+                    parent.kgFocusState.focusEntity(
+                        entityId: entityId,
+                        sourceDocumentId: sourceDocumentId,
+                        sourcePageLabel: pageLabel
+                    )
+                }
             }
-            if let claimId, !claimId.isEmpty {
-                info["claimId"] = claimId
-            }
-            if let passage, !passage.isEmpty {
-                info["excerpt"] = passage
-                info["claimText"] = passage
-            }
-            if let pageLabel = pageLabel(from: body) {
-                info["pageLabel"] = pageLabel
-            }
-            NotificationCenter.default.post(
-                name: .ficheroOpenClaimSource,
-                object: nil,
-                userInfo: info
-            )
         }
 
         private func pageLabel(from body: [String: Any]) -> String? {

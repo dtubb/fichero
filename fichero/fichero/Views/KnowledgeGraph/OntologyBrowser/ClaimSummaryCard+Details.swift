@@ -149,8 +149,7 @@ extension ClaimSummaryCard {
         evidenceChain = chain
     }
 
-    /// Post ficheroOpenClaimSource for this claim. Called on card tap and
-    /// from the sourceLine button so both paths share the same logic.
+    /// Post ficheroOpenClaimSource for the explicit sourceLine button.
     func openClaimSource() {
         Self.postOpenClaimSource(for: claim)
     }

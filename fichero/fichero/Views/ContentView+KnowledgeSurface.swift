@@ -12,7 +12,8 @@ extension ContentView {
             DocumentKGSurface(
                 documentId: document.id,
                 libraryPath: libraryPath,
-                selectedClaimId: claimFocusState.selectedClaimId,
+                selectedEntityId: kgFocusState.focusedEntityId,
+                selectedClaimId: kgFocusState.focusedClaimId ?? claimFocusState.selectedClaimId,
                 activePageNumber: activePageNumber,
                 pageCount: pageCount,
                 onPageSelected: onPageSelected

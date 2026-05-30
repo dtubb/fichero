@@ -46,6 +46,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
 struct DocumentKGSurface: View {
     let documentId: String
     let libraryPath: String
+    var selectedEntityId: String?
     var selectedClaimId: String?
     var activePageNumber: Int?
     var pageCount: Int?
@@ -54,6 +55,7 @@ struct DocumentKGSurface: View {
     @State private var activeTab: KGSurfaceTab = .transcript
     @State private var selectedEntityId: String?
     @State private var selectedSpatialNodeId: String?
+    @Environment(KGFocusState.self) private var kgFocusState
     @EnvironmentObject private var entityService: EntityServiceGenerated
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
 
@@ -81,6 +83,7 @@ struct DocumentKGSurface: View {
             DocumentKGWebPane(
                 documentId: documentId,
                 libraryPath: libraryPath,
+                selectedEntityId: selectedEntityId,
                 selectedClaimId: selectedClaimId,
                 activeTab: activeTab.rawValue,
                 activePageNumber: activePageNumber,
@@ -93,15 +96,12 @@ struct DocumentKGSurface: View {
                     documentId: documentId,
                     entityService: entityService,
                     artifactService: artifactService,
-                    onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
-                        postClaimSource(ClaimSourceSelection(
+                    onClaimSelect: { claimId, _, sourceDocId, pageLabel, _, _ in
+                        kgFocusState.focusClaim(
                             claimId: claimId,
-                            claimText: claimText,
-                            sourceDocId: sourceDocId,
-                            pageLabel: pageLabel,
-                            charStart: charStart,
-                            charEnd: charEnd
-                        ))
+                            sourceDocumentId: sourceDocId,
+                            sourcePageLabel: pageLabel
+                        )
                     }
                 )
                 .padding()
@@ -124,30 +124,6 @@ struct DocumentKGSurface: View {
                 selectedNodeId: $selectedSpatialNodeId
             )
         }
-    }
-
-    private func postClaimSource(_ selection: ClaimSourceSelection) {
-        NotificationCenter.default.post(
-            name: .ficheroOpenClaimSource,
-            object: nil,
-            userInfo: [
-                "documentId": selection.sourceDocId ?? documentId,
-                "claimId": selection.claimId,
-                "claimText": selection.claimText as Any,
-                "pageLabel": selection.pageLabel as Any,
-                "charStart": selection.charStart as Any,
-                "charEnd": selection.charEnd as Any
-            ]
-        )
-    }
-
-    private struct ClaimSourceSelection {
-        let claimId: String
-        let claimText: String?
-        let sourceDocId: String?
-        let pageLabel: String?
-        let charStart: Int?
-        let charEnd: Int?
     }
 
     @ViewBuilder
