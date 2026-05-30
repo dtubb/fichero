@@ -43,9 +43,9 @@ Each has a distinct user-facing surface, design language, and bug class.
 | Milestone | Scope |
 |---|---|
 | CLI | `fichero` CLI tool: library lifecycle, engine lifecycle (start/stop/restart/status), workflow run, KG queries, ingest commands, output formatting |
-| Developer Experience | Internal **tooling** for the agent team (not docs): build scripts (`verify_all.sh`, `sync_openapi_schema.sh`), OpenAPI round-trip machinery, jcodemunch-mcp config, test gates, lane briefs (dispatch templates), CI hooks. Things that make the codebase WORK. |
-| Documentation | **Writing for humans** explaining the code or app: `docs/architecture/`, `docs/CLAUDE.md`, README, in-app help text, FastAPI auto-generated API reference, ingest API docs, code-comment style guide. Reference material. |
-| Website | tubb.ca/fichero — public website, release notes, download page, dev blog, end-user user-guide site (where `docs/user-guide/` Markdown gets published). |
+| Documentation | **End-user manual.** macOS Help menu, in-app help text, user-guide markdown (publishes to Website), FAQ. Audience: end users (and AI agents helping them). |
+| Developer Experience | **For contributors + lane agents.** Reference docs AND tooling (same audience). Docs: `docs/architecture/`, `docs/CLAUDE.md`, `CONSTITUTION.md`, `docs/agent-workflow/`, lane briefs, conventions. Tooling: `verify_all.sh`, `sync_openapi_schema.sh`, OpenAPI round-trip, jcodemunch-mcp config, test gates, CI hooks. |
+| Website | tubb.ca/fichero — public website, release notes, download page, dev blog. Republishes Documentation's user-guide as a static site. |
 
 Roadmap-tier items carry the `roadmap` label, not a milestone.
 
