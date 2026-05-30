@@ -92,3 +92,17 @@ The 4 version milestones are now closed (`0.0.1`, `0.0.2`, `0.0.3`, `0.0.4`) but
 **Approach:** batch by feature-area; pull all closed issues with title regex match, bulk-apply. Don't try to be perfect — 80% accuracy beats 100% effort on 6000+ issues. Log decisions to `agent-work/proposals/2026-05-30-issue-triage.md` under a new `## Closed-Issue Re-filing Log` section.
 
 **Hard rule:** never modify the CONTENT of closed issues. Milestone + label only.
+
+## 7. License to add new feature milestones (2026-05-30 addition)
+
+When re-filing closed issues you may find a coherent feature area that has no milestone yet. Examples Daniel flagged:
+- **API / OpenAPI Contract** — the typed round-trip between Python and Swift, contract tests, `sync_openapi_schema.sh` machinery, OpenAPI generator output. Currently lives in Infrastructure but might warrant its own milestone given how many issues touch it.
+- **Endpoint / Interface design** — Daniel mentioned this gesturally; if you see a coherent cluster of issues about API surface design (not implementation), create a milestone for it.
+
+Rules for adding a milestone:
+1. At least 5 closed issues or 2 open issues clearly belong to it.
+2. The scope is distinct from existing milestones (won't be folded back in).
+3. Write a one-line description on the milestone before tagging issues to it.
+4. Log the creation in `agent-work/proposals/2026-05-30-issue-triage.md` under your execution log.
+
+Otherwise — fold issues into the closest existing milestone. Don't overgrow the milestone set; the point is fewer, clearer buckets.
