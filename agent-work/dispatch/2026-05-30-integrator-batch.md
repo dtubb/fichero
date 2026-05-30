@@ -56,6 +56,34 @@ git checkout 0.0.2 && git pull && git merge --no-ff integrate-opus-realitykit-de
 
 Push `0.0.2`. Comment on **#1297** with the merge commit SHA + the 4 fixed errors. **Do NOT close #1297** until reviewer gates.
 
+## Step C2 — Drain the lane-branch backlog
+
+After the Opus merge lands, the following branches are still unmerged. Verified by `git log --oneline origin/0.0.2..<branch>` at 2026-05-30 ~09:30. Merge in this order — **non-OpenAPI first, OpenAPI-changing last so OpenAPI regen lands once**:
+
+### Non-OpenAPI (Swift-only or backend/non-contract) — fan freely
+1. `gpt-inspector-style` (`54cb64cf`) — #1241 unified inspector styling + window-corner toggle.
+2. `gpt-activity-window` (`94a0a96e`) — #1264 standalone live Activity window.
+3. `gpt-toolbar-nav-arrows` (`171632b2`) — #1261 back/forward arrows in main toolbar.
+4. `gptmini-folder-import` (`9a81cfe1`) — folder/file drag-in import + 'Import test folder' command. (Contains a merge-from-0.0.2 commit `5cebddf6` from #638 — verify and prune if duplicative.)
+5. `gptmini-settings-models-cleanup` (`87026e58`) — Settings Models window UX cleanup.
+
+### OpenAPI-changing — strictly serial
+6. `gpt-bibtex-metadata` (`51099f97`) — #1101 BibTeX + sidecar reader (regen `sync_openapi_schema.sh` + BuildProject).
+7. `gptmini-spacy-ner` (`01c3d1ce`) — spaCy NER backend (likely changes OpenAPI for new entity-extraction modes).
+8. `codex53-mcp-full-vision` (`1cad7fcc`/`8a46cd1e`) — #1338 full-featured MCP + scene_render hook for vision-multimodal agents.
+
+### Drop / verify-and-discard
+- `haiku` (`25869230`) — only a session-end checkpoint commit; nothing real. **Drop the branch** with `git push origin :haiku` after confirming.
+- `sonnet` — unmerged per `git branch -r --no-merged` but the worktree HEAD is at trunk; the remote `sonnet` branch is likely a stale checkpoint. Verify (`git log origin/0.0.2..origin/sonnet`) and **drop the remote branch** if empty.
+
+**Per-merge gate (every branch):**
+1. `git checkout -b integrate-<branch> origin/0.0.2 && git merge --no-ff --no-commit origin/<branch>`.
+2. Resolve pbxproj conflicts by union ([[feedback_lane_orchestration_lessons]] §1 — DocumentInspectorArtifactsTab.swift is the conflict magnet).
+3. `mcp__xcode__BuildProject(windowtab1)` → CLEAN.
+4. If OpenAPI-changing: `bash fichero-engine/scripts/sync_openapi_schema.sh` + commit, then `BuildProject` again.
+5. `git checkout 0.0.2 && git merge --no-ff integrate-<branch>`. Push. Verify with `git log --oneline -1`.
+6. Comment on referenced issue with merge SHA; **do NOT close until reviewer gates a batch**.
+
 ## Step D — Notify
 
 Write `agent-work/dispatch/2026-05-30-integrator-DONE.md` with: merge SHA, list of fixes applied, BuildProject result, test result. Manager will pick up and route to reviewer.
