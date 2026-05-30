@@ -114,30 +114,6 @@ Reserved for when first issue needs them: `client:ios`, `client:visionos`, `clie
 ### GitHub defaults — keep
 `good first issue`, `help wanted`, `documentation`, `duplicate`, `invalid`, `question`, `wontfix`.
 
-## Migration table (legacy → canonical)
-
-| Legacy | Migrate to |
-|---|---|
-| `bug` | `type:bug` |
-| `enhancement`, `feature` | `type:feature` |
-| `chore`, `refactor`, `polish`, `architecture` | `type:task` |
-| `High`, `Urgent`, `P0` | `priority:P0` |
-| `priority:high`, `P1` | `priority:P1` |
-| `priority:medium`, `Medium`, `P2` | `priority:P2` |
-| `priority:low`, `Low` | `priority:P3` |
-| `agent:claude`, `agent:codex` | drop — replaced by `tier:*` (capability-tier labels are vendor-agnostic) |
-| `swiftui`, `frontend`, `ui`, `client`, `area:swiftui-*` (8 of them) | `client:swiftui` |
-| `cli` (existing) | `client:cli` |
-| `backend`, `area:backend-api`, `area:backend-ingest` | `backend` |
-| `both` | `area:both` |
-| `ingest`, `kg`, `search`, `workflow` | drop (covered by milestone) |
-| `0.0.1` | drop (versions are tags) |
-| `agent:ollama`, `agent:pi` | drop (lane-internal noise) |
-| `kg-ui-collapse` | drop (temporary marker, all closed) |
-| `engine-quality` | drop (covered by `type:task` + Infrastructure) |
-
-Net: 73 → 38 labels. ~45 deleted, ~10 created.
-
 ## Branches
 
 - `0.0.2` — current development trunk; all work merges here.
