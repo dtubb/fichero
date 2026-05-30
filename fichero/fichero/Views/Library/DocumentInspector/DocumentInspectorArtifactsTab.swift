@@ -1436,6 +1436,9 @@ private struct EntityKindRow: View {
     @EnvironmentObject private var claimFocusState: ClaimFocusState
     @Environment(KGFocusState.self) private var kgFocusState
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
+    @State private var claimForEditing: Components.Schemas.KnowledgeClaim?
+    @State private var showDeleteConfirmation = false
+    @State private var rowError: String?
 
     private var bodyTextFont: Font {
         .system(size: CGFloat(defaultFontSize))
@@ -1583,11 +1586,46 @@ private struct EntityKindRow: View {
                 }
                 .padding(.leading, 8)
             }
+
+            if let rowError {
+                Text(rowError)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+            }
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
         .onTapGesture {
             focusPrimaryClaim()
+        }
+        .contextMenu {
+            Button("Edit claim…") {
+                loadClaimForEditing()
+            }
+            Button("Delete claim…", role: .destructive) {
+                showDeleteConfirmation = true
+            }
+        }
+        .alert("Delete claim?", isPresented: $showDeleteConfirmation) {
+            Button("Delete", role: .destructive) { deleteClaim() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the claim from the knowledge graph. Related entities stay in place.")
+        }
+        .sheet(isPresented: Binding(
+            get: { claimForEditing != nil },
+            set: { if !$0 { claimForEditing = nil } }
+        )) {
+            if let claimForEditing {
+                EditClaimSheet(claim: claimForEditing) { updated in
+                    self.claimForEditing = nil
+                    NotificationCenter.default.post(
+                        name: .ficheroClaimUpdated,
+                        object: updated.id,
+                        userInfo: ["claim": updated]
+                    )
+                }
+            }
         }
     }
 
@@ -1636,6 +1674,31 @@ private struct EntityKindRow: View {
             return "p. \(numericPart)"
         }
         return raw
+    }
+
+    private func loadClaimForEditing() {
+        guard let library = LibraryManager.shared.globalLibrary else { return }
+        rowError = nil
+        Task {
+            do {
+                claimForEditing = try await library.entityService.getClaim(item.claimId)
+            } catch {
+                rowError = error.localizedDescription
+            }
+        }
+    }
+
+    private func deleteClaim() {
+        guard let library = LibraryManager.shared.globalLibrary else { return }
+        rowError = nil
+        Task {
+            do {
+                try await library.entityService.deleteClaim(item.claimId)
+                NotificationCenter.default.post(name: .ficheroClaimDeleted, object: item.claimId)
+            } catch {
+                rowError = error.localizedDescription
+            }
+        }
     }
 }
 
