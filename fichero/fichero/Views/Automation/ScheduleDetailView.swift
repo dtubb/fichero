@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "ScheduleDetailView")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ScheduleDetailView")
 
 // Detail view for a schedule showing configuration and run history
 // swiftlint:disable:next type_body_length

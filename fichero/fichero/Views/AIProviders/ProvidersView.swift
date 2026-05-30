@@ -2,7 +2,7 @@ import FicheroAPIClient
 import OSLog
 import SwiftUI
 
-let providersViewLogger = Logger(subsystem: "com.fichero.fichero", category: "ProvidersView")
+let providersViewLogger = Logger(subsystem: "app.fichero.fichero", category: "ProvidersView")
 
 struct ProvidersView: View {
     @EnvironmentObject var appState: AppState

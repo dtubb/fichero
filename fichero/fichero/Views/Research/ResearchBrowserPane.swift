@@ -3,7 +3,7 @@ import OSLog
 import SwiftUI
 import WebKit
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "ResearchBrowserPane")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ResearchBrowserPane")
 
 // TRUST BOUNDARY — CAPABILITY ISOLATION
 // The WKWebView in this pane has free internet egress (user-controlled browser).

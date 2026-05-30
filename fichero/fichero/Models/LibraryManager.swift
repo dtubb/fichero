@@ -2,7 +2,7 @@ import FicheroAPIClient
 import OSLog
 import SwiftUI
 
-let libraryManagerLogger = Logger(subsystem: "com.fichero.fichero", category: "LibraryManager")
+let libraryManagerLogger = Logger(subsystem: "app.fichero.fichero", category: "LibraryManager")
 
 /// Manages multiple open .fichero libraries
 /// Allows multiple windows and tabs to reference the same library instance
@@ -155,7 +155,7 @@ class LibraryManager: ObservableObject {
     }
 
     /// Load or create the Global library
-    /// Global library is stored at ~/Library/Application Support/com.fichero.fichero/global.fichero
+    /// Global library is stored at ~/Library/Application Support/app.fichero.fichero/global.fichero
     private func loadGlobalLibrary() {
         // Under XCUITest the harness redirects Application Support to a
         // disposable temp dir (#1230) so smoke tests never touch the real
@@ -163,7 +163,7 @@ class LibraryManager: ObservableObject {
         let appSupport = uiTestSupportDirectory()
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let globalURL = appSupport
-            .appendingPathComponent("com.fichero.fichero")
+            .appendingPathComponent("app.fichero.fichero")
             .appendingPathComponent("global.fichero")
 
         // Check if Global library already exists

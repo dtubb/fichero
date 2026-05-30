@@ -2,7 +2,7 @@ import OSLog
 import SwiftUI
 // swiftlint:disable file_length
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "FilesNodeConfig")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "FilesNodeConfig")
 
 /// Configuration view for files node
 struct FilesNodeConfig: View {

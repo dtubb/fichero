@@ -2,7 +2,7 @@ import Cocoa
 import Foundation
 import OSLog
 
-let appleScriptCommandsLogger = Logger(subsystem: "com.fichero.fichero", category: "AppleScript")
+let appleScriptCommandsLogger = Logger(subsystem: "app.fichero.fichero", category: "AppleScript")
 
 // MARK: - Script Object Classes
 

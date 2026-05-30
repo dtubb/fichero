@@ -23,7 +23,7 @@ class WorkflowStore: ObservableObject {
     /// fall back to a hardcoded dictionary for unknown tools.
     @Published var toolRegistry: [String: ToolInfo] = [:]
 
-    private let logger = Logger(subsystem: "com.fichero.fichero", category: "WorkflowStore")
+    private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowStore")
     private let workflowService: WorkflowServiceGenerated
     private let ficheroClient: FicheroClient
     /// Per-process flag — true after the first reinstallDefaults() runs.

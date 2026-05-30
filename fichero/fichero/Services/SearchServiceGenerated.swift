@@ -3,7 +3,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "SearchServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "SearchServiceGenerated")
 
 /// Service for search operations using generated OpenAPI client
 /// Lightweight DTO matching `KeywordCloudEntry` on the backend.

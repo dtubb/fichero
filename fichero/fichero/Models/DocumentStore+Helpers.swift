@@ -142,7 +142,7 @@ extension DocumentStore {
         // future investigations can see whether the issue is "events don't
         // fire" or "events fire but paths don't match".
         if matchCount == 0 {
-            let logger = Logger(subsystem: "com.fichero.fichero", category: "DocumentStore")
+            let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentStore")
             logger.warning("updateProcessingStatus: no document matched path '\(filePath, privacy: .public)' — spinner won't update (#767)")
         }
     }

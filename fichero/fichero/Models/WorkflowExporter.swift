@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "WorkflowExporter")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowExporter")
 
 /// Utility for importing/exporting workflows to files via backend API
 enum WorkflowExporter {

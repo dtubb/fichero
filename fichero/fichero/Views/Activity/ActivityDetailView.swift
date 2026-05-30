@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "ActivityDetailView")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ActivityDetailView")
 
 /// Detail view for a selected activity run
 /// Shows content based on sidebar selection (Console, Progress, Errors, or Overview)

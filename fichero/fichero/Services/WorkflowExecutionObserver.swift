@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-let workflowExecutionLogger = Logger(subsystem: "com.fichero.fichero", category: "WorkflowExecutionObserver")
+let workflowExecutionLogger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowExecutionObserver")
 
 // MARK: - WorkflowExecutionObserver
 

@@ -3,7 +3,7 @@ import Foundation
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "ImageEditorModel")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageEditorModel")
 
 /// View-model for the non-destructive image editor (#469).
 ///

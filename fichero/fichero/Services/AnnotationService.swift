@@ -137,7 +137,7 @@ private struct AnnotationListResponse: Decodable {
 /// into the view layer.
 @MainActor
 final class AnnotationService: ObservableObject {
-    private let logger = Logger(subsystem: "com.fichero.fichero", category: "AnnotationService")
+    private let logger = Logger(subsystem: "app.fichero.fichero", category: "AnnotationService")
 
     @Published var annotations: [DocumentAnnotation] = []
     @Published var isLoading = false

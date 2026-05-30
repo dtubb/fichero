@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-let workflowStreamLogger = Logger(subsystem: "com.fichero.fichero", category: "WorkflowStreamService")
+let workflowStreamLogger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowStreamService")
 
 extension WorkflowStreamService {
     // swiftlint:disable:next todo

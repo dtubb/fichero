@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "SidebarModeBar")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "SidebarModeBar")
 
 /// Xcode-style mode icon bar at the top of the sidebar
 /// Shows mode icons: Library, Search, Chat, Workflows | Automation | Activity

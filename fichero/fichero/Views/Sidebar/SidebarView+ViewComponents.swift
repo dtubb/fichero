@@ -727,7 +727,7 @@ extension SidebarView {
                 try? await Task.sleep(for: .milliseconds(500))
                 await library.documentStore.refresh()
             } catch {
-                Logger(subsystem: "com.fichero.fichero", category: "LibraryHeaderDrop")
+                Logger(subsystem: "app.fichero.fichero", category: "LibraryHeaderDrop")
                     .error("Library root drop failed: \(error.localizedDescription)")
             }
         }

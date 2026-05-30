@@ -3,7 +3,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "AutomationServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "AutomationServiceGenerated")
 
 /// Service for automation operations (schedules and triggers).
 /// NOTE: The corresponding backend routes (schedules.py, triggers.py) exist but are not

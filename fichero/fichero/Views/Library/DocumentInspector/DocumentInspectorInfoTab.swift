@@ -3,7 +3,7 @@ import OSLog
 import SwiftUI
 
 private let relatedClaimsLogger = Logger(
-    subsystem: "com.fichero.fichero",
+    subsystem: "app.fichero.fichero",
     category: "RelatedClaimsPanel"
 )
 

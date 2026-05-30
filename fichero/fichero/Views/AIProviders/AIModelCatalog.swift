@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "AIModelCatalog")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "AIModelCatalog")
 
 /// AI model catalog for discovering Hugging Face models
 /// Features: search, filter by task, sort, pagination

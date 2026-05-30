@@ -8,7 +8,7 @@ struct ActionPickerView: View {
     @State private var searchText = ""
     @State private var selectedCategory: String = "all"
 
-    private let logger = Logger(subsystem: "com.fichero.fichero", category: "ActionPickerView")
+    private let logger = Logger(subsystem: "app.fichero.fichero", category: "ActionPickerView")
 
     var body: some View {
         VStack(spacing: 0) {

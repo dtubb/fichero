@@ -3,7 +3,7 @@ import OSLog
 import FicheroAPIClient
 import OpenAPIRuntime
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "BatchServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "BatchServiceGenerated")
 
 /// Service for batch operations using generated OpenAPI client
 /// Note: Batch endpoints are global (not library-scoped)

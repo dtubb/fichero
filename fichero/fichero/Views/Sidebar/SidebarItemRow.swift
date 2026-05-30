@@ -3,7 +3,7 @@ import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
-let sidebarRowLogger = Logger(subsystem: "com.fichero.fichero", category: "SidebarRow")
+let sidebarRowLogger = Logger(subsystem: "app.fichero.fichero", category: "SidebarRow")
 
 func sidebarSelectionFallback(current: String?, tapped: String) -> String? {
     current == tapped ? nil : tapped

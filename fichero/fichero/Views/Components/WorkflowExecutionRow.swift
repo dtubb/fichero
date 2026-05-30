@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-let workflowExecutionRowLogger = Logger(subsystem: "com.fichero.fichero", category: "WorkflowExecutionRow")
+let workflowExecutionRowLogger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowExecutionRow")
 
 /// Reusable row view for a running workflow execution
 /// Used by RunningSidebarContent and HistorySidebarContent

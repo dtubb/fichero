@@ -4,14 +4,4 @@
    <FileRef
       location = "self:">
    </FileRef>
-   <Group
-      location = "group:code_review_2026_02_12"
-      name = "code_review_2026_02_12">
-      <FileRef
-         location = "group:01_swift_architecture.md">
-      </FileRef>
-      <FileRef
-         location = "group:03_swift_lint.md">
-      </FileRef>
-   </Group>
 </Workspace>

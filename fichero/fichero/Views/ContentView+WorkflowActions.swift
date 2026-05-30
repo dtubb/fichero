@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let workflowLogger = Logger(subsystem: "com.fichero.fichero", category: "ContentView")
+private let workflowLogger = Logger(subsystem: "app.fichero.fichero", category: "ContentView")
 
 extension ContentView {
 

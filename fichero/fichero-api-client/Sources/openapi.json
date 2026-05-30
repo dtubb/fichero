@@ -12002,7 +12002,7 @@
           "snapshots"
         ],
         "summary": "Create Snapshot",
-        "description": "Create a point-in-time snapshot of a library.\n\nExports the DuckDB database to Parquet files and copies the LanceDB\nvector directory. Snapshot data is stored in:\n    ~/Library/Application Support/com.fichero.fichero/snapshots/{library_name}/{snapshot_id}/\n\nUse after bulk AI operations or before schema changes.",
+        "description": "Create a point-in-time snapshot of a library.\n\nExports the DuckDB database to Parquet files and copies the LanceDB\nvector directory. Snapshot data is stored in:\n    ~/Library/Application Support/app.fichero.fichero/snapshots/{library_name}/{snapshot_id}/\n\nUse after bulk AI operations or before schema changes.",
         "operationId": "create_snapshot_api_storage_snapshots_post",
         "parameters": [
           {
@@ -37982,7 +37982,7 @@
           "lance_path"
         ],
         "title": "LibrarySnapshot",
-        "description": "A point-in-time snapshot of a library database and its vectors.\n\nSnapshots are stored as Parquet exports of DuckDB tables plus a copy\nof the LanceDB vector directory. They are named with a timestamp and\nan optional reason, and can be restored to recover from bad AI runs\nor schema changes.\n\nStored in:\n    ~/Library/Application Support/com.fichero.fichero/snapshots/{library_name}/"
+        "description": "A point-in-time snapshot of a library database and its vectors.\n\nSnapshots are stored as Parquet exports of DuckDB tables plus a copy\nof the LanceDB vector directory. They are named with a timestamp and\nan optional reason, and can be restored to recover from bad AI runs\nor schema changes.\n\nStored in:\n    ~/Library/Application Support/app.fichero.fichero/snapshots/{library_name}/"
       },
       "LinkPredictionRow": {
         "properties": {

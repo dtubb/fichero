@@ -88,7 +88,7 @@ extension LibraryManager {
                 <plist version="1.0">
                 <dict>
                     <key>CFBundleIdentifier</key>
-                    <string>com.fichero.fichero.library</string>
+                    <string>app.fichero.fichero.library</string>
                     <key>CFBundleName</key>
                     <string>\(url.deletingPathExtension().lastPathComponent)</string>
                 </dict>

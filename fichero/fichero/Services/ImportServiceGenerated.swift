@@ -5,7 +5,7 @@ import FicheroAPIClient
 import OpenAPIRuntime
 import OpenAPIURLSession
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "ImportServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImportServiceGenerated")
 
 /// ImportService using the generated OpenAPI client.
 /// Handles file and folder import operations.

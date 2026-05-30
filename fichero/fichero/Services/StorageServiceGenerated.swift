@@ -6,7 +6,7 @@ import OpenAPIURLSession
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "StorageServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "StorageServiceGenerated")
 
 /// StorageService using the generated OpenAPI client.
 /// Handles storage operations (thumbnails, previews, source files).

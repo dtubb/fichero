@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "SimpleWorkflowView")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "SimpleWorkflowView")
 
 /// Simple workflow editor for testing
 struct SimpleWorkflowView: View {

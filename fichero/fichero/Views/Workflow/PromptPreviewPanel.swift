@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "PromptPreviewPanel")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "PromptPreviewPanel")
 
 /// Collapsible panel showing the fully assembled prompt for a workflow node.
 /// Fetches from the backend `/tools/{tool}/prompt` endpoint and updates

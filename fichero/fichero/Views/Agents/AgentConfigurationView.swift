@@ -2,7 +2,7 @@ import FicheroAPIClient
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "AgentConfigurationView")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "AgentConfigurationView")
 
 /// View for configuring an agent node in a workflow
 struct AgentConfigurationView: View {

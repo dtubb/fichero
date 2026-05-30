@@ -3,7 +3,7 @@ import OSLog
 import Quartz
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "QuickLookComponents")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "QuickLookComponents")
 
 // MARK: - Quick Look Components
 

@@ -3,7 +3,7 @@ import FicheroAPIClient
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "EmbeddedBackend")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "EmbeddedBackend")
 
 /// True when this process is hosting an XCTest bundle. Detected via the XCTest
 /// runtime class, which is loaded into the host the moment the test bundle is
@@ -182,7 +182,7 @@ final class EmbeddedBackendService: ObservableObject {
 
         // Path to nested Briefcase backend app's executable. Bundle is named
         // "Fichero Engine.app" (briefcase formal_name = "Fichero Engine"),
-        // bundle ID com.fichero.fichero.engine (#renamed today).
+        // bundle ID app.fichero.fichero.engine (#renamed today).
         let backendAppPath = "\(resourcePath)/Fichero Engine.app"
         let executablePath = "\(backendAppPath)/Contents/MacOS/Fichero Engine"
 

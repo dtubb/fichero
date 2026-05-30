@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "WorkflowExecutionView")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowExecutionView")
 
 /// View for monitoring workflow execution threads
 struct WorkflowExecutionView: View {

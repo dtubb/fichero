@@ -2,7 +2,7 @@ import FicheroAPIClient
 import OSLog
 import SwiftUI
 
-private let settingsLogger = Logger(subsystem: "com.fichero.fichero", category: "Settings")
+private let settingsLogger = Logger(subsystem: "app.fichero.fichero", category: "Settings")
 
 // MARK: - Model Pickers + Loading
 

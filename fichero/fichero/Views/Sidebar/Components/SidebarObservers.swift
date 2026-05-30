@@ -3,7 +3,7 @@ import OSLog
 import SwiftUI
 
 /// Structured logger for sidebar observer operations
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "SidebarObservers")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "SidebarObservers")
 
 // MARK: - Service Observers and Data Loading Extension
 

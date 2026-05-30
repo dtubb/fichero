@@ -2,7 +2,7 @@ import FicheroAPIClient
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "APIClient")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "APIClient")
 
 /// HTTP client for communicating with the Fichero Python backend.
 ///

@@ -18,7 +18,7 @@
 			<key>UTTypeDescription</key>
 			<string>Fichero Library</string>
 			<key>UTTypeIdentifier</key>
-			<string>com.fichero.fichero.library</string>
+			<string>app.fichero.fichero.library</string>
 			<key>UTTypeIcons</key>
 			<dict/>
 			<key>UTTypeTagSpecification</key>
@@ -41,7 +41,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.fichero.fichero.library</string>
+				<string>app.fichero.fichero.library</string>
 			</array>
 		</dict>
 	</array>

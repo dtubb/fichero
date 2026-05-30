@@ -5,7 +5,7 @@ import SwiftUI
 // Agent: ActionsAgent
 // Responsibility: All action handlers, event handlers, and business logic methods
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "ContentView")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ContentView")
 
 // MARK: - Notification Names
 

@@ -6,7 +6,7 @@ import OpenAPIRuntime
 import OpenAPIURLSession
 import OSLog
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "ImageEditingServiceGenerated")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageEditingServiceGenerated")
 
 // MARK: - Edit-chain model
 

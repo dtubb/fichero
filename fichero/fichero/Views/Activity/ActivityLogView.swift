@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "ActivityLogView")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ActivityLogView")
 
 // Shows the saved execution log for a workflow run
 // swiftlint:disable:next type_body_length

@@ -1,7 +1,7 @@
 import OSLog
 import SwiftUI
 
-let triggerDetailLogger = Logger(subsystem: "com.fichero.fichero", category: "TriggerDetailView")
+let triggerDetailLogger = Logger(subsystem: "app.fichero.fichero", category: "TriggerDetailView")
 
 /// Detail view for a file trigger showing configuration and execution history
 struct TriggerDetailView: View {

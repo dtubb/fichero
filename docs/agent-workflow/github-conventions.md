@@ -124,26 +124,27 @@ Routine lane work merges directly to `main` (manager does `git merge --no-ff ori
 
 Going-open-source future: when external contributors arrive, switch to PR-required for all non-Daniel work. The current convention is solo-optimised; future-Daniel can promote PRs to standard without breaking the existing commit-cross-ref pattern.
 
-## CI strategy — tier by cost
+## CI strategy — Linux-only on GH Actions, Mac stays local
 
-Free-tier GitHub Actions gives you ~2000 Linux-min/month + ~200 Mac-min/month. Mac runners are 10x more expensive than Linux. Tier the gates accordingly:
+GH Actions free tier = 2000 Linux-min/month. Mac runners cost 10× (= 200 effective Mac-min/month free, then **billed in real dollars**). **Don't run Mac builds on GH Actions.** Mac work stays local — Daniel's machine, lane worktrees, `mcp__xcode__BuildProject` via the Xcode MCP. That's already the working pattern.
 
-**Every push (Linux, cheap):**
+**GH Actions runs (Linux, free, every push to any branch):**
 - `ruff check fichero-engine/src/`
-- `pytest fichero-engine/tests/unit/ -k "not slow"` (skip ML-heavy suites)
-- OpenAPI drift: regen `openapi.json`, diff vs committed → catches the [[feedback_backend_merge_needs_swift_build]] failure mode
-- `swiftlint` (runs on Linux with manual install)
+- `pytest fichero-engine/tests/unit/ -k "not slow"` (skip ML-heavy suites — see [[feedback_no_full_pytest_on_daniels_machine]])
+- OpenAPI drift: regen `openapi.json` from the FastAPI app, diff vs the committed one → catches the [[feedback_backend_merge_needs_swift_build]] failure mode without needing a Swift build
 
-**Pre-merge to main (or PR, Mac runner, save):**
-- `xcodebuild build` — catches Swift build breaks the cheap gates can't see
-- `xcodebuild test` (only if minutes budget allows)
+Each push: ~1-2 min of Linux minutes. Well within free tier even with many pushes/day.
 
-**Can't run online:**
-- `RenderPreview` ([[feedback_renderpreview_app_launch_blocked]] — app-launch timeout)
-- XCUITest ([[feedback_xcuitest_tcc_automation_grant]] — needs TCC, headless can't)
-- Full-suite pytest ([[feedback_no_full_pytest_on_daniels_machine]] — also kills CI minutes; keep it `-k` filtered)
+**Stays local on Daniel's Mac (or lane worktrees):**
+- `swiftlint` — runs in the lane via `swiftlint lint fichero/fichero/`
+- `xcodebuild build` / `xcodebuild test` — via `mcp__xcode__BuildProject` (shares Xcode's cache, fast)
+- Full-suite backend pytest — NEVER on Daniel's machine ([[feedback_no_full_pytest_on_daniels_machine]]); tiny `-k` subsets only
 
-When Mac-min budget is tight: register your own Mac as a self-hosted GH Actions runner — unlimited minutes, but think through the security model (your machine runs whatever the workflow says).
+**Doesn't run anywhere automated:**
+- `RenderPreview` ([[feedback_renderpreview_app_launch_blocked]] — app-launch timeout, broken)
+- XCUITest ([[feedback_xcuitest_tcc_automation_grant]] — needs TCC grant, headless can't)
+
+The honest contract: GH Actions catches Python/contract bugs cheap; the human-driven Mac build + the manager's review pass catch the Swift side.
 
 ## Where ideas + features live: GitHub Issues, NOT the filesystem
 

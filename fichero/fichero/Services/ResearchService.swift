@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-private let logger = Logger(subsystem: "com.fichero.fichero", category: "ResearchService")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "ResearchService")
 
 // MARK: - Request types (mirrors backend research_models.py)
 
