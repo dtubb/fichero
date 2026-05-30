@@ -57,14 +57,12 @@ Roadmap-tier items carry the `roadmap` label, not a milestone.
 - An NER pipeline change → KG & Hermeneutics (NER is an alternative entity extractor).
 - A graph-RAG feature in the chat window → Chat; agentic graph-RAG (autonomous browsing + RAG synthesis) → Researcher.
 
-## Labels — canonical set (38 total)
+## Labels — canonical set (23 total)
 
 ### Type (one) — what kind of work
 - `type:bug` — observed broken behavior
 - `type:feature` — new capability
-- `type:task` — implementation work (refactor/test/chore)
-- `type:qa` — human QA verification request
-- `type:question` — decision needed from the human operator
+- `type:task` — implementation work (refactor / test / chore / docs)
 
 ### Priority (one) — urgency
 - `priority:P0` — critical, ship-blocking
@@ -73,29 +71,22 @@ Roadmap-tier items carry the `roadmap` label, not a milestone.
 - `priority:P3` — low
 
 ### Status (one) — workflow state
-- `status:ready`
-- `status:in-progress`
-- `status:blocked`
-- `status:blocked-human` (waiting on the human operator)
-- `status:ready-for-test`
-- `status:done`
-- `status:superseded`
+- `status:blocked` — blocked on external dependency
+- `status:ready-for-test` — merged, awaiting human QA
+
+(Open + unassigned = ready. Assignee = in-progress. Closed = done. `needs:human` covers "waiting on the human operator".)
 
 ### Assignment — who does it (one of `needs:human` or one `tier:*`)
 
-The flow is: **manager dispatches → agent lane works → human operator tests/decides.** Manager reads `tier:*` to pick which lane to dispatch to. The human queue is `needs:human`. No vendor-specific owner labels — they rot when models change.
+Manager reads `tier:*` to pick which lane to dispatch to. The human queue is `needs:human`. Vendor-agnostic — the model behind each tier changes; the triage question "what capability does this need?" stays the same.
 
 - `needs:human` — Human operator does it (decision, validation, QA, manual step)
 - `tier:frontier` — Opus / Sonnet 4.6 / GPT-5.5 / Codex 5.3. Architectural, ambiguous, large refactors.
-- `tier:medium` — Sonnet-mini / GPT-5 mini / Codex 5.4-mini. Typical implementation tasks.
+- `tier:medium` — Sonnet-mini / GPT-5 mini / Codex 5.4-mini. Typical implementation.
 - `tier:mini` — Haiku / GPT-5-nano. Mechanical, narrow scope, well-specified.
-- `tier:local` — oMLX / Apple Intelligence. Free, lower capability. KG extraction, triage, small classification.
+- `tier:local` — oMLX / Apple Intelligence. Free, lower capability. KG extraction, triage.
 
-Tier labels are vendor-agnostic. The model behind each tier swaps over time; the triage question "what capability does this need?" stays the same.
-
-When an agent task is blocked waiting on the human operator, use `status:blocked-human` — no separate "needs response" label.
-
-### Client / surface (one or more)
+### Surface (one or more)
 - `client:swiftui` — Mac app
 - `client:cli` — fichero CLI
 - `client:html` — exporter static site + `document_view.html` WebKit pages
@@ -103,16 +94,14 @@ When an agent task is blocked waiting on the human operator, use `status:blocked
 - `mcp` — MCP server protocol surface
 - `area:both` — coordinated multi-surface change (e.g. OpenAPI regen + Swift BuildProject)
 
-Reserved for when first issue needs them: `client:ios`, `client:visionos`, `client:web`.
+Reserved (create only when first issue needs them): `client:ios`, `client:visionos`, `client:web`.
 
 ### Cross-cutting
 - `roadmap` — far-future; hidden from active board with `-label:roadmap`
 - `needs-design` — needs brainstorm → spec → plan before dispatch
-- `release-gate` — must close before next release tag
-- `legacy-reenable` — parked legacy (revisit at 0.1.0+)
+- `documentation` — docs-related issue
 
-### GitHub defaults — keep
-`good first issue`, `help wanted`, `documentation`, `duplicate`, `invalid`, `question`, `wontfix`.
+GitHub's close-as-duplicate, close-as-not-planned, and assignee fields cover what the dropped legacy labels used to track.
 
 ## Branches
 
