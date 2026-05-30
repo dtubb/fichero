@@ -1250,9 +1250,9 @@ class FicheroClient:
     # ``list[Any]``, and the spatial surface is still evolving (typing is a
     # follow-up, per the module docstring's "custom shapes return Any" rule).
     #
-    # Note: the mind-palace router is dev-tier. The engine must run with
-    # ``FICHERO_FEATURE_TIER=dev`` for these to resolve (the app-embedded
-    # backend already does; a standalone ``release`` engine returns 404).
+    # Note: the mind-palace router now ships in release/core (#1298). These
+    # wrappers remain grouped here because they still drive the spatial
+    # workspace surface, not because they are tier-gated.
 
     def mp_list_rooms(
         self,

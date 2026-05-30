@@ -15,9 +15,8 @@ Two tool families (#1269 — "MCP access to the app"):
 * **Mind Palace** (``fichero_mp_*``) — *arrange* the Layer-6 spatial workspace:
   create rooms, place / move / remove nodes, draw connections, build stacks,
   suggest layouts, and save the camera. This is how an agent "thinks visually."
-  The mind-palace router is **dev-tier**: the engine must run with
-  ``FICHERO_FEATURE_TIER=dev`` for these tools to resolve (the app-embedded
-  backend already sets this; a standalone ``release`` engine returns 404).
+  Mind Palace ships in the release/core tier for 0.0.2 (#1298), so standalone
+  release engines expose the same MCP-backed spatial workspace as the app.
 
 Usage::
 

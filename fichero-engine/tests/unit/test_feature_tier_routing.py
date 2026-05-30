@@ -47,8 +47,7 @@ def test_release_tier_includes_consolidated_kg_surface():
     """Release tier exposes the full consolidated KG surface — the post-
     1587a1b6 \"all KG ships in release\" decision (#832) + the #997
     promotion that moved hermeneutics from dev to release too. Dev no
-    longer needs to add KG routers; the delta is research/mind-palace/
-    experimental.
+    longer needs to add KG routers.
     """
     assert _kg_router_count("release") >= 15
     # Dev tier should still have at least as much KG surface as release
@@ -56,6 +55,20 @@ def test_release_tier_includes_consolidated_kg_surface():
     # as \"dev never has fewer\" so a future dev-only KG router slots in
     # without test breakage).
     assert _kg_router_count("dev") >= _kg_router_count("release")
+
+
+def test_release_tier_promotes_mind_palace_and_research_agents():
+    """Mind Palace and research agents must not disappear in release builds."""
+    release_specs = get_route_specs_for_tier("release")
+
+    assert any(
+        prefix == "/api/mind-palace" and "mind-palace" in tags
+        for _, prefix, tags in release_specs
+    )
+    assert any(
+        prefix == "/api/research" and "research" in tags
+        for _, prefix, tags in release_specs
+    )
 
 
 def test_invalid_tier_defaults_to_release(monkeypatch):
