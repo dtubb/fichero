@@ -101,6 +101,7 @@ class FeatureManager: ObservableObject {
     @AppStorage("fichero.features.claim_highlight_sync")
     private var claimHighlightSyncEnabledInternal: Bool = false
     @AppStorage("fichero.features.research") private var researchEnabledInternal: Bool = true
+    @AppStorage("fichero.first_run.completed") var firstRunCompleted: Bool = false
     @AppStorage("fichero.features.release_profile_version")
     private var releaseProfileVersionApplied: Int = 0
 
@@ -173,6 +174,9 @@ class FeatureManager: ObservableObject {
     var isResearchEnabled: Bool { allFeaturesEnabled || researchEnabledInternal }
 
     private init() {
+        if UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
+            firstRunCompleted = true
+        }
         applyReleaseProfileDefaultsIfNeeded()
     }
 
