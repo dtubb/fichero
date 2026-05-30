@@ -5268,6 +5268,18 @@
         "response_model": "SpatialStack"
       }
     ],
+    "mindpalace": [
+      {
+        "method": "POST",
+        "path": "/mindpalace/render",
+        "operation_id": "render_scene_api_mindpalace_render_post",
+        "summary": "Render Scene",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SceneRenderRequest",
+        "response_model": "SceneRenderResponse"
+      }
+    ],
     "model-comparison": [
       {
         "method": "POST",
