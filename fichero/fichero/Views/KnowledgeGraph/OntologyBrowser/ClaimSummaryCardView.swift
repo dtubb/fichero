@@ -184,7 +184,6 @@ struct ClaimSummaryCard: View {
             }
         }
     }  // end else (isEmptyContent path)
-    }
 
     private func focusClaim() {
         kgFocusState.focusClaim(
@@ -296,5 +295,4 @@ struct ClaimSummaryCard: View {
             }
         }
     }
-
 }

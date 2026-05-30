@@ -2363,3 +2363,27 @@ Two sessions continuing #1178 (transcription profiles) and paleography pipeline 
 - Caught + reverted S0 core-tier promotion (#1298: regen splits NodeDef→Input/Output, breaks Swift wrapper; tag s0-core-promotion). Filed #1297 (mind-palace phase-2), #1299 (visual verification via RenderPreview / XCUITest pending TCC).
 - Lesson: a lane reported tests green that reproduced as failures on clean trunk → manager must independently re-run gates (memory feedback_independently_verify_lane_test_claims). Researcher security: capability isolation / data-diode (memory feedback_researcher_capability_isolation).
 - UNMERGED at session end (next session's first job): sonnet=Researcher (4 commits), haiku=#1296 (1 commit). opus MCP #1269 didn't land (usage ceiling). Codex hard-capped till May 31.
+
+## 2026-05-29/30 — Marathon consistency-pass session (~40 issues merged)
+
+Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner, f_reviewer, f_bugtriage. Trunk advanced ~40 commits on `0.0.2` ending at `e802ad7d`.
+
+**Major themes:**
+- KG read-path collapse: 3 drifting paths (sidebar / doc inspector / OntologyBrowser) → ONE canonical `/documents/{id}/knowledge-graph` endpoint (#1304)
+- $medium tier added (OpenRouter middle ground between Apple Intelligence + oMLX 3B) — #1308
+- KGFocusState (@Observable cross-view focus + drive-direction guard) — #1319 (+ pbxproj fix in `e802ad7d`)
+- Force-directed graph replaces chord-diagram circle — #1320
+- RealityKit Mind Palace: page-image textures + camera (#1322), drag-to-move + viewport persistence (#1297)
+- Page-level entity attribution in extractors.py:1399
+- DeepL provider + translation workflow (#1340)
+- Edit/delete KG claims CRUD + UI (#1258)
+- Bidirectional WebKit↔PDF scroll sync (#1253)
+- Folder timestamp refresh during ingest (#1217)
+- FICHERO_FEATURE_TIER=dev committed to Xcode Run scheme
+
+**Lane outputs awaiting review (DONE but unimplemented):**
+- `agent-work/proposals/2026-05-30-issue-triage.md` (f_bugtriage) — feature-epic reorg + GH Projects audit
+- `agent-work/proposals/2026-05-30-post-collapse-review.md` (f_reviewer) — code review of #1304-#1323
+- `agent-work/proposals/2026-05-30-mindpalace-phased-plan.md` (f_planner) — P1 Mac → P3 iOS → P4 visionOS
+
+**Durable lessons captured** in `[[feedback_lane_orchestration_lessons]]`: serial>parallel on hot files, rebase-on-latest-trunk in briefs, literal merge commands (no heredoc loop vars), grep-confirm-before-close, pbxproj registration for new .swift files, run verify_all.sh after every batch.

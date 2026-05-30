@@ -1,5 +1,33 @@
 # STATE.md — Fichero
 
+## 2026-05-30 — NEXT SESSION: START HERE
+
+**Trunk `0.0.2` @ `e802ad7d`**, pushed. ~40 issues merged 2026-05-29/30 (see HISTORY.md). Manager session ended via /session-end.
+
+**Read these three lane outputs FIRST — they are DONE and unimplemented:**
+1. `agent-work/proposals/2026-05-30-issue-triage.md` (f_bugtriage) — Daniel: *"on bugtriage's work. you can review it, and then implement. not me."* Implement: close stales, reorganize ~150 open issues into feature epics (not date milestones).
+2. `agent-work/proposals/2026-05-30-post-collapse-review.md` (f_reviewer) — code review of #1304-#1323 KG-collapse cluster; act on findings.
+3. `agent-work/proposals/2026-05-30-mindpalace-phased-plan.md` (f_planner) — P1 Mac → P3 iOS → P4 visionOS phased plan; dispatch P1 to f_opus.
+
+**Gotchas next session:**
+- Daniel's Xcode Run scheme now sets `FICHERO_FEATURE_TIER=dev` → all features visible. Engine must launch with same env var or Mind-Palace/Research endpoints 404.
+- Lane discipline now: **serial-on-one-lane** for hot files (`DocumentInspectorArtifactsTab.swift` is the conflict magnet). Only fan-out for disjoint files.
+- Every lane brief that creates a new `.swift` must include `ruby scripts/add-swift-file.rb <path>` — otherwise build breaks with "Cannot find type in scope" (KGFocusState had this in #1307).
+- Never `gh issue close` until `git log origin/main..HEAD | grep "(#N)"` confirms the merge landed on trunk.
+- See [[feedback_lane_orchestration_lessons]] for the full set.
+
+**Known-red:** `test_same_person_in_two_docs_dedupes_to_one_entity` (since #1266) — expect `1 failed, ~3200 passed` on backend gates.
+
+**In flight / paused:**
+- f_gpt batch 6 (Activity window #1264, BibTeX #1101, inspector style #1241) — was still running at session end.
+- f_codex53 batch (static exporter, simplified MCP, full-featured MCP with vision-render #1338).
+- f_gpt_mini batch (Settings cleanup, spaCy NER, folder import).
+- f_opus Mind Palace work (Phase 1 Mac with x-platform code paths).
+
+**Deferred:** Burson & Wright 2015 PDF E2E test (#1317) — deferred multiple times.
+
+---
+
 ## 2026-05-28 ~16:30 — OVERNIGHT RUNBOOK (Daniel away; full autonomy; prefer Codex; 30-min ticks)
 
 **Daniel's overnight goals:** (1) integrate all lane work into 0.0.2; (2) **enable ALL feature-gated features in the UI** (Research, Mind Palace, +) so he can see/test them → promote dev→release tier + fix the NodeDef→Input/Output Swift break (#1298); (3) audit backend features not surfaced in UI (#1288, gpt_mini running); (4) triage GitHub backlog (200 open) systematically newest→oldest: each issue ends done / completed / closed-wontfix; (5) prefer LOCAL models (oMLX) for fichero inference (won't run out); (6) gate everything: test + Xcode build + `sync_openapi_schema.sh` + design standards.
@@ -380,3 +408,35 @@ KG-gen on the book is **blocked by model capability, not code**. Ran Catalogue o
 **To get book KG (morning options):** (a) raise/refresh the OpenRouter weekly cap (or point $large at a direct Anthropic key) → re-run Catalogue on Preface (08d377ef…) + Chapter 1 (3d740ce2…); (b) prove oMLX local model does reliable JSON/structured output, then set $large→oMLX (free, uncapped, Daniel's "local models" goal) — needs the structured-output smoke test first; (c) accept partial KG from a more-tolerant extractor. NOT a bug in our merges — the catalogue→KG path itself is sound (#1285); it's the extraction model.
 
 #1257 (KG-viz DocumentKGSurface) merged + green. All lanes cleared. Trunk green.
+
+## 2026-05-29 ~10:xx — KG-on-oMLX: STAGED, blocked on RAM only
+
+Everything wired except memory. oMLX can't load ANY text model right now: machine has ~115MB unused RAM (15G used, 6G compressor); oMLX memory guard ceiling = 4.09GB < 4.99GB the 4B needs; 8B (`mlx-community/Qwen3-VL-8B-Instruct-8bit`) not downloaded yet. Can't fix from here (admin API needs admin login; can't quit Daniel's apps).
+
+**UNBLOCK (Daniel):** (1) free RAM — quit Chrome/Xcode/other; (2) optionally lower oMLX `memory_guard_tier` in admin; (3) finish the 8B download (or just use the 4B once it loads).
+
+**THEN one-shot resume (CLI), lib = "CLI Preface+Ch1 Clean 20260523-063533.fichero":**
+```
+export FICHERO_LIBRARY_PATH="/Users/danieltubb/Documents/5 Fichero/CLI Preface+Ch1 Clean 20260523-063533.fichero"
+# point $large at oMLX (provider type omlx exists; "oMLX (local)" provider configured, base http://127.0.0.1:8000/v1)
+PYTHONPATH=fichero-engine/src .venv/bin/fichero settings set large_provider omlx
+PYTHONPATH=fichero-engine/src .venv/bin/fichero settings set large_model mlx-community/Qwen3-VL-8B-Instruct-8bit   # or Qwen3-VL-4B-Instruct-MLX-8bit if 8B not downloaded
+# verify oMLX serves a structured completion FIRST (curl /v1/chat/completions), THEN:
+PYTHONPATH=fichero-engine/src .venv/bin/fichero workflow run 8dc83511b34340198c301a3236d944e9 4b05eed0adf847888e502d31eb6d2733 --wait   # Catalogue on Preface page 1
+PYTHONPATH=fichero-engine/src .venv/bin/fichero --json docs kg 4b05eed0adf847888e502d31eb6d2733   # expect entity_count/claim_count > 0
+```
+Catalogue wf id `8dc83511b34340198c301a3236d944e9`; Preface file `08d377ef…`; Ch1 file `3d740ce2…`. Apple Intelligence fails the extract_all schema; OpenRouter weekly-capped — oMLX is the only free path, gated on RAM.
+
+## 2026-05-29 ~12:15 — KG-on-oMLX: RAM fixed, blocked on ONE backend bug (#1303, dispatched to codex53)
+
+**RAM crisis RESOLVED:** a runaway pytest (mine, VSZ 491GB virtual) had starved the machine to 115MB free → oMLX couldn't load any model + test suite failed. Killed it → 6GB free. oMLX 4B (Qwen3-VL-4B-Instruct-MLX-8bit) now loads locally and works.
+
+**oMLX VERIFIED working in fichero (in-process):** llm.chat() ✅ and llm.structured_output() (default with_structured_output) ✅ both return clean output against local oMLX. Key resolves (coCuQ from keychain). $large is wired → omlx (provider type omlx, base http://127.0.0.1:8000/v1). Engine on :8765 restarted to pick it up.
+
+**BLOCKER = #1303 (filed + dispatched to codex53):** extract_all routes through with_structured_output forced to **json_schema/function_calling** (extractors.py:~1292, #846) which oMLX (mlx-omni-server) doesn't support → "Systemic error: 1/1 consecutive failures", 0 KG rows. Fix = make omlx/lmstudio/ollama use prompt-based JSON / json_mode instead. **When codex53's #1303 lands: gate → merge → restart engine → re-run `fichero workflow run 8dc83511… 4b05eed0… --wait` → verify `docs kg` >0 → then scale to full Preface + Ch1 (3d740ce2…).** $large stays omlx (openrouter is capped anyway).
+
+**Note:** Air (m1, 8GB) offload no longer needed for now — local works once #1303 lands. If quality of the 4B is poor, upgrade to Qwen2.5-7B-Instruct-4bit locally (fits in the freed 6GB).
+
+## 2026-05-29 ~12:38 — RAM contention lesson + #1303 still pending
+16GB machine can't run concurrent full pytest suites: manager's redundant verify run + codex53's #1303 gate + loaded oMLX model (~5GB) → re-starved to 102MB free, stalled codex53's gate 33min. Killed the redundant manager suite → 4.6GB free. RULE: run ONE heavy job at a time; let the lane's own gate be authoritative; manager re-verifies only when lanes are idle. Backend-suite "green" is already established (failures were memory artifacts, not code).
+codex53 still working #1303 (oMLX structured-output fix) — gate now has RAM. gpt_mini triage done (closed #902, native KG stack already in code). gpt still on a backend issue. When #1303 commits: gate(single) → merge → restart engine → live Catalogue→KG verify on Preface page 4b05eed0.
