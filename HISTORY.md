@@ -1,3 +1,8 @@
+## 2026-05-30 — Session Summary
+
+- f_gpt Batch 6 completed on fresh branches off `origin/0.0.2`: #1264 standalone live Activity window (`gpt-activity-window` `94a0a96e`), #1101 BibTeX canonical metadata + sidecar reader (`gpt-bibtex-metadata` `51099f97`), and #1241 unified inspector selector styling + window-corner toggle (`gpt-inspector-style` `54cb64cf`).
+- Gates run in-lane only: #1264 SwiftLint; #1101 ruff + `pytest -k bibtex` + OpenAPI sync; #1241 SwiftLint. No full pytest suite was run.
+
 # 2026-05-27 ~13:30 — bug-fix batch (post-testing) + endpoint audit
 
 From Daniel's live testing of the merged 0.0.2:

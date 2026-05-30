@@ -4,10 +4,11 @@
 
 **Trunk `0.0.2` @ `e802ad7d`**, pushed. ~40 issues merged 2026-05-29/30 (see HISTORY.md). Manager session ended via /session-end.
 
-**Read these three lane outputs FIRST — they are DONE and unimplemented:**
-1. `agent-work/proposals/2026-05-30-issue-triage.md` (f_bugtriage) — Daniel: *"on bugtriage's work. you can review it, and then implement. not me."* Implement: close stales, reorganize ~150 open issues into feature epics (not date milestones).
-2. `agent-work/proposals/2026-05-30-post-collapse-review.md` (f_reviewer) — code review of #1304-#1323 KG-collapse cluster; act on findings.
-3. `agent-work/proposals/2026-05-30-mindpalace-phased-plan.md` (f_planner) — P1 Mac → P3 iOS → P4 visionOS phased plan; dispatch P1 to f_opus.
+**Next session — start here:**
+1. Integrate f_gpt Batch 6 branches: `gpt-activity-window` `94a0a96e` (#1264), `gpt-bibtex-metadata` `51099f97` (#1101), `gpt-inspector-style` `54cb64cf` (#1241). Manager must run the appropriate merge gates; #1101 touched OpenAPI.
+2. Review `agent-work/proposals/2026-05-30-issue-triage.md` (f_bugtriage) and implement Daniel's requested issue reorg/cleanup.
+3. Review `agent-work/proposals/2026-05-30-post-collapse-review.md` (f_reviewer) and act on the #1304-#1323 KG-collapse findings.
+4. Review `agent-work/proposals/2026-05-30-mindpalace-phased-plan.md` (f_planner) and dispatch P1 Mac work to f_opus.
 
 **Gotchas next session:**
 - Daniel's Xcode Run scheme now sets `FICHERO_FEATURE_TIER=dev` → all features visible. Engine must launch with same env var or Mind-Palace/Research endpoints 404.
@@ -19,7 +20,7 @@
 **Known-red:** `test_same_person_in_two_docs_dedupes_to_one_entity` (since #1266) — expect `1 failed, ~3200 passed` on backend gates.
 
 **In flight / paused:**
-- f_gpt batch 6 (Activity window #1264, BibTeX #1101, inspector style #1241) — was still running at session end.
+- f_gpt batch 6 completed locally, not merged: `gpt-activity-window` `94a0a96e`, `gpt-bibtex-metadata` `51099f97`, `gpt-inspector-style` `54cb64cf`.
 - f_codex53 batch (static exporter, simplified MCP, full-featured MCP with vision-render #1338).
 - f_gpt_mini batch (Settings cleanup, spaCy NER, folder import).
 - f_opus Mind Palace work (Phase 1 Mac with x-platform code paths).

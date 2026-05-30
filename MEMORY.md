@@ -879,6 +879,12 @@ Provider types where `is_builtin: true` (today: only `apple`) don't require a ro
 ### OpenAPI sync is manual; release script does it
 `fichero-engine/scripts/sync_openapi_schema.sh` exports the engine's openapi.json and copies it into the Swift package. Running this before any release build is now step 0/4 of `scripts/build-release.sh`. The SwiftPM OpenAPIGenerator plugin regenerates Swift types from the *checked-in* openapi.json on every Xcode build — so a stale openapi.json silently ships old bindings. Daniel's wizard work hit this when adding the Apple-Intelligence probe route; sync ran cleanly. The "swift build" tail of the sync script can fail on stale `.build` cache after directory renames — `rm -rf fichero/fichero-api-client/.build` fixes it; SwiftPM regenerates.
 
+### OpenAPI sync must use the trunk venv when the repo root has no usable `.venv`
+In worker worktrees, `sync_openapi_schema.sh` can fall through to system `python3` and fail importing Pydantic if there is no local `.venv`. Set `FICHERO_PYTHON_BIN=/Users/danieltubb/code/fichero-0.0.2/.venv/bin/python` for schema syncs from those worktrees. The script still exports into the current repo and runs SwiftPM generation there.
+
+### Declared fields replace computed properties for persisted Pydantic data
+When turning a convenience property into real persisted/OpenAPI data, remove any `@property` with the same name. A Pydantic model field named `bibtex` plus an existing `Document.bibtex` property triggers a redefinition/lint failure and can hide serialization mistakes. Use a `@model_validator(mode="after")` to backfill the declared field from legacy nested metadata instead.
+
 ### SourceKit module-resolution false alarms
 SourceKit consistently fails to resolve `FicheroAPIClient` (the SwiftPM-generated module) and reports cascading "Cannot find type X" diagnostics across files that import it. The actual `xcodebuild` resolves the module fine and builds cleanly. Rule: trust `xcodebuild`'s exit code, not SourceKit's red squigglies, on Swift Package Manager modules. Don't waste time chasing SourceKit-only failures.
 
