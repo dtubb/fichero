@@ -444,26 +444,6 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("stream-activities")
-    def activity_stream_activities_get(
-        ctx: typer.Context,
-        batch_id: Optional[str] = typer.Option(None, "--batch-id", help="Query parameter: batch_id."),
-        levels: Optional[str] = typer.Option(None, "--levels", help="Query parameter: levels."),
-        types: Optional[str] = typer.Option(None, "--types", help="Query parameter: types."),
-        workflow_id: Optional[str] = typer.Option(None, "--workflow-id", help="Query parameter: workflow_id."),
-    ) -> None:
-        """Stream Activities (GET /api/activity/stream)."""
-        def op_call(client: FicheroClient) -> Any:
-            path = "/api/activity/stream"
-            params = {
-                "batch_id": batch_id,
-                "levels": levels,
-                "types": types,
-                "workflow_id": workflow_id,
-            }
-            return client.request("GET", path, params=params)
-        invoke(ctx, op_call)
-
     @target_app.command("get-top-entities")
     def activity_get_top_entities_get(
         ctx: typer.Context,
@@ -2496,22 +2476,6 @@ def register_generated_openapi_commands(
         """Get Folder Views (GET /api/folders/{folder_id}/views)."""
         def op_call(client: FicheroClient) -> Any:
             path = f"/api/folders/{folder_id}/views"
-            params = None
-            return client.request("GET", path, params=params)
-        invoke(ctx, op_call)
-
-    target_app = existing_apps.get('health')
-    if target_app is None:
-        target_app = typer.Typer(help='Generated OpenAPI commands for health endpoints.', no_args_is_help=True)
-        root_app.add_typer(target_app, name='health-api')
-
-    @target_app.command("check")
-    def health_check_get(
-        ctx: typer.Context,
-    ) -> None:
-        """Health Check (GET /api/health)."""
-        def op_call(client: FicheroClient) -> Any:
-            path = "/api/health"
             params = None
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
@@ -7380,18 +7344,6 @@ def register_generated_openapi_commands(
         target_app = typer.Typer(help='Generated OpenAPI commands for storage endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='storage')
 
-    @target_app.command("debug-document-paths")
-    def storage_debug_document_paths_get(
-        ctx: typer.Context,
-        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
-    ) -> None:
-        """Debug Document Paths (GET /api/storage/debug/{doc_id})."""
-        def op_call(client: FicheroClient) -> Any:
-            path = f"/api/storage/debug/{doc_id}"
-            params = None
-            return client.request("GET", path, params=params)
-        invoke(ctx, op_call)
-
     @target_app.command("get-display-image")
     def storage_get_display_image_get(
         ctx: typer.Context,
@@ -7552,17 +7504,6 @@ def register_generated_openapi_commands(
                 "status": status,
                 "task_type": task_type,
             }
-            return client.request("GET", path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("get-system-health")
-    def tasks_get_system_health_get(
-        ctx: typer.Context,
-    ) -> None:
-        """Get task system health (GET /api/tasks/tasks/health)."""
-        def op_call(client: FicheroClient) -> Any:
-            path = "/api/tasks/tasks/health"
-            params = None
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
@@ -7902,18 +7843,6 @@ def register_generated_openapi_commands(
             params = None
             payload = _load_json_payload(body, body_file, required=True)
             return client.request("POST", path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("stream-events")
-    def workflow_execution_stream_events_get(
-        ctx: typer.Context,
-        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
-    ) -> None:
-        """Stream Workflow Events (GET /api/workflow-execution/stream/{thread_id})."""
-        def op_call(client: FicheroClient) -> Any:
-            path = f"/api/workflow-execution/stream/{thread_id}"
-            params = None
-            return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-threads")

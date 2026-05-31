@@ -30,6 +30,13 @@ RESOURCE_HELP_OVERRIDES = {
 }
 EXISTING_APP_RESOURCES = {"artifacts", "kg", "library", "notes", "providers", "settings"}
 HTTP_METHODS = ("get", "post", "put", "patch", "delete")
+INTENTIONALLY_UNWIRED_PATHS = {
+    "/api/activity/stream",
+    "/api/health",
+    "/api/storage/debug/{doc_id}",
+    "/api/tasks/tasks/health",
+    "/api/workflow-execution/stream/{thread_id}",
+}
 
 
 @dataclass(frozen=True)
@@ -182,6 +189,8 @@ def _build_operations() -> list[Operation]:
     schema = json.loads(OPENAPI.read_text())
     operations: list[Operation] = []
     for path, methods in sorted(schema.get("paths", {}).items()):
+        if path in INTENTIONALLY_UNWIRED_PATHS:
+            continue
         clean_path = path.replace("/api", "", 1) if path.startswith("/api") else path
         segments = [segment for segment in clean_path.strip("/").split("/") if segment]
         resource = segments[0] if segments else "root"

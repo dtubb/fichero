@@ -30,6 +30,13 @@ _spec = importlib.util.spec_from_file_location("check_ui_wiring", _CHECKER)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
+_CLI_INTENTIONAL_ALLOWLIST = {
+    "/api/activity/stream",
+    "/api/storage/debug/{doc_id}",
+    "/api/tasks/tasks/health",
+    "/api/workflow-execution/stream/{thread_id}",
+}
+
 
 @pytest.mark.parametrize("surface_name", list(_mod.SURFACES.keys()))
 def test_no_unwired_unallowlisted_endpoints(surface_name: str) -> None:
@@ -43,3 +50,10 @@ def test_no_unwired_unallowlisted_endpoints(surface_name: str) -> None:
         f"and not allowlisted — wire them in, or add to the {surface_name} allowlist "
         f"with a reason:\n  " + "\n  ".join(drift)
     )
+
+
+def test_cli_allowlist_stays_small_and_intentional() -> None:
+    allow = _mod.load_allowlist(_mod.SURFACES["cli"], "cli")
+    allowed = set(allow.get("paths", {}).keys())
+    assert allowed <= _CLI_INTENTIONAL_ALLOWLIST
+    assert len(allowed) <= len(_CLI_INTENTIONAL_ALLOWLIST)
