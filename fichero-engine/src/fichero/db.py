@@ -38,6 +38,7 @@ from types import UnionType
 from typing import TypeVar, Type, get_origin, get_args, Union, Any
 from dataclasses import dataclass, field
 from datetime import datetime
+import math
 import json
 import logging
 import re
@@ -46,7 +47,11 @@ import unicodedata
 import duckdb
 from pydantic import BaseModel
 from pydantic_core import PydanticUndefinedType
-from fichero.db_embeddings import DatabaseEmbeddingMixin
+from fichero.db_embeddings import (
+    DatabaseEmbeddingMixin,
+    _dequantize_int8,
+    _quantize_int8,
+)
 from fichero.db_manager import DatabaseManager, db_manager  # noqa: F401
 from fichero.errors import ErrorCategory, handle_error
 
@@ -57,9 +62,9 @@ T = TypeVar("T", bound=BaseModel)
 # Minimum content length to create embedding
 MIN_CONTENT_LENGTH = 10
 
-# Default embedding model (FastEmbed - no scikit-learn dependency)
-# Using multilingual model for Spanish + English support
-DEFAULT_MODEL = "intfloat/multilingual-e5-large"
+# Default embedding model (FastEmbed).
+# BGE-M3 gives stronger multilingual retrieval for hybrid search.
+DEFAULT_MODEL = "BAAI/bge-m3"
 
 # Valid identifier pattern for SQL column/table names
 _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
@@ -214,6 +219,56 @@ def _search_match_terms(query: str) -> list[str]:
     terms.extend(t for t in re.findall(r"\w+", folded) if len(t) > 1)
     seen: set[str] = set()
     return [t for t in terms if not (t in seen or seen.add(t))]
+
+
+def _contains_any_term(text_series, terms: list[str]):
+    """Return a boolean mask matching any folded term as a substring."""
+    if not terms:
+        return text_series.str.contains("", regex=False, na=False) & False
+    mask = text_series.str.contains(terms[0], case=False, regex=False, na=False)
+    for term in terms[1:]:
+        mask |= text_series.str.contains(term, case=False, regex=False, na=False)
+    return mask
+
+
+def _bm25_scores(corpus: list[str], query_terms: list[str]) -> list[float]:
+    """Compute BM25 scores for a folded corpus against folded query terms."""
+    if not corpus or not query_terms:
+        return [0.0 for _ in corpus]
+
+    tokenized = [re.findall(r"\w+", doc) for doc in corpus]
+    lengths = [len(tokens) for tokens in tokenized]
+    avgdl = sum(lengths) / max(len(lengths), 1)
+    if avgdl <= 0:
+        return [0.0 for _ in corpus]
+
+    query_tokens = [t for t in query_terms if len(t) > 1]
+    if not query_tokens:
+        return [0.0 for _ in corpus]
+
+    doc_freq: dict[str, int] = {}
+    for term in query_tokens:
+        doc_freq[term] = sum(1 for tokens in tokenized if term in tokens)
+
+    k1 = 1.5
+    b = 0.75
+    n_docs = len(tokenized)
+    scores: list[float] = []
+    for tokens, dl in zip(tokenized, lengths):
+        tf: dict[str, int] = {}
+        for tok in tokens:
+            tf[tok] = tf.get(tok, 0) + 1
+        score = 0.0
+        for term in query_tokens:
+            f = tf.get(term, 0)
+            if f == 0:
+                continue
+            df = doc_freq.get(term, 0)
+            idf = math.log(1 + (n_docs - df + 0.5) / (df + 0.5))
+            denom = f + k1 * (1 - b + b * (dl / avgdl))
+            score += idf * ((f * (k1 + 1)) / max(denom, 1e-9))
+        scores.append(score)
+    return scores
 
 
 def _build_transcript_excerpts(
@@ -607,11 +662,18 @@ class Database(DatabaseEmbeddingMixin):
         elif hasattr(doc, "name"):
             content = content or doc.name
 
+        stored_vector = vector
+        quantized_vector: list[int] | None = None
+        quantized_scale: float | None = None
+        if self._use_int8_embeddings():
+            quantized_vector, quantized_scale = _quantize_int8(vector)
+            stored_vector = _dequantize_int8(quantized_vector, quantized_scale)
+
         record = {
             "id": doc.id,
             "document_id": doc.id,
             "text": content,
-            "vector": vector,
+            "vector": stored_vector,
             # Store document metadata for search results display
             "name": getattr(doc, "name", None),
             "doc_type": getattr(doc, "doc_type", None).value
@@ -620,6 +682,8 @@ class Database(DatabaseEmbeddingMixin):
             "file_type": getattr(doc, "file_type", None).value
             if hasattr(doc, "file_type") and doc.file_type
             else None,
+            "vector_int8": quantized_vector,
+            "vector_scale": quantized_scale,
         }
 
         self.save_vectors("embeddings", [record])
@@ -848,6 +912,74 @@ class Database(DatabaseEmbeddingMixin):
             result.kg_entity_ids = sorted(matched_entities_by_doc[result.document_id])
         return results
 
+    def _expand_query_with_entity_aliases(self, query: str) -> tuple[list[str], set[str]]:
+        """Expand a query with canonical + alias forms from matching entities."""
+        terms = _search_match_terms(query)
+        if not terms:
+            return [], set()
+
+        try:
+            from fichero.knowledge_models import KnowledgeEntity
+
+            entities = self.all(KnowledgeEntity)
+        except Exception:  # noqa: BLE001
+            return terms, set()
+
+        expanded = list(terms)
+        matched_entity_ids: set[str] = set()
+        seen_folded = set(terms)
+        for entity in entities:
+            surfaces = [entity.canonical_name, *entity.aliases]
+            folded_surfaces = [_fold_for_search(s or "") for s in surfaces]
+            if not any(
+                term in folded_surface or folded_surface in term
+                for term in terms
+                for folded_surface in folded_surfaces
+                if folded_surface
+            ):
+                continue
+            matched_entity_ids.add(entity.id)
+            for folded_surface in folded_surfaces:
+                if (
+                    folded_surface
+                    and len(folded_surface) > 1
+                    and folded_surface not in seen_folded
+                ):
+                    expanded.append(folded_surface)
+                    seen_folded.add(folded_surface)
+        return expanded[:12], matched_entity_ids
+
+    def _entity_bonus_doc_ids(self, matched_entity_ids: set[str]) -> set[str]:
+        """Documents linked to claims mentioning matched entities."""
+        if not matched_entity_ids:
+            return set()
+        try:
+            from fichero.knowledge_models import KnowledgeClaim
+
+            claims = self.all(KnowledgeClaim)
+        except Exception:  # noqa: BLE001
+            return set()
+
+        boosted: set[str] = set()
+        for claim in claims:
+            claim_entity_ids = set(claim.entity_ids or [])
+            if claim.subject_entity_id:
+                claim_entity_ids.add(claim.subject_entity_id)
+            if claim.speaker_entity_id:
+                claim_entity_ids.add(claim.speaker_entity_id)
+            if claim.subject_of_inquiry_entity_id:
+                claim_entity_ids.add(claim.subject_of_inquiry_entity_id)
+            if claim.scribe_entity_id:
+                claim_entity_ids.add(claim.scribe_entity_id)
+            if claim.editor_entity_id:
+                claim_entity_ids.add(claim.editor_entity_id)
+            if not (claim_entity_ids & matched_entity_ids):
+                continue
+            if claim.source_document_id:
+                boosted.add(claim.source_document_id)
+            boosted.update(claim.source_ids or [])
+        return boosted
+
     def search(
         self,
         query: str,
@@ -885,6 +1017,8 @@ class Database(DatabaseEmbeddingMixin):
         start_time = time.time()
         results = []
         total_count = 0
+        expanded_terms, matched_entity_ids = self._expand_query_with_entity_aliases(query)
+        semantic_query = " ".join(expanded_terms) if expanded_terms else query
         search_stats = {
             "search_type": search_type,
             "execution_time_ms": 0,
@@ -903,7 +1037,7 @@ class Database(DatabaseEmbeddingMixin):
             if search_type in ["semantic", "hybrid"] and has_embeddings:
                 try:
                     # Embed query
-                    query_vector = self._embed_text(query)
+                    query_vector = self._embed_text(semantic_query)
 
                     # Search vectors
                     table = self.lance.open_table("embeddings")
@@ -959,24 +1093,32 @@ class Database(DatabaseEmbeddingMixin):
                         # for Spanish/Latin manuscript corpora where the
                         # user types ASCII but the text is fully diacritic.
                         # See _fold_for_search.
-                        normalised_query = _fold_for_search(query)
+                        folded_terms = expanded_terms or [_fold_for_search(query)]
                         normalised_text = all_docs["text"].astype(str).map(_fold_for_search)
-                        # Phrase mode: a quoted query like '"el escribano"' is
-                        # already-stripped at the caller; we just match its
-                        # full collapsed form. Substring fallback otherwise.
-                        mask = normalised_text.str.contains(
-                            normalised_query, case=False, regex=False, na=False
-                        )
+                        mask = _contains_any_term(normalised_text, folded_terms)
 
-                        fulltext_docs = all_docs[mask]
+                        fulltext_docs = all_docs[mask].copy()
+                        fulltext_docs["folded_text"] = (
+                            fulltext_docs["text"].astype(str).map(_fold_for_search)
+                        )
+                        bm25_scores = _bm25_scores(
+                            fulltext_docs["folded_text"].tolist(),
+                            [t for t in folded_terms if t],
+                        )
+                        fulltext_docs["bm25"] = bm25_scores
+                        max_bm25 = max(bm25_scores) if bm25_scores else 0.0
 
                         # Convert to results format
-                        for _, row in fulltext_docs.iterrows():
+                        for _, row in fulltext_docs.sort_values("bm25", ascending=False).iterrows():
+                            lexical_score = float(row.get("bm25", 0.0))
+                            normalised = (
+                                lexical_score / max_bm25 if max_bm25 > 0 else 1.0
+                            )
                             fulltext_results.append(
                                 {
                                     "document_id": row.get("document_id")
                                     or row.get("id"),
-                                    "score": 1.0,  # Full-text match gets high score
+                                    "score": max(0.0, min(1.0, normalised)),
                                     "content": row.get("text", ""),
                                     "metadata": {
                                         "name": row.get("name"),
@@ -984,6 +1126,7 @@ class Database(DatabaseEmbeddingMixin):
                                         "file_type": row.get("file_type"),
                                         "created_at": row.get("created_at"),
                                         "updated_at": row.get("updated_at"),
+                                        "bm25_score": lexical_score,
                                     },
                                 }
                             )
@@ -1060,6 +1203,14 @@ class Database(DatabaseEmbeddingMixin):
                 combined_results = semantic_results
             elif search_type == "fulltext":
                 combined_results = fulltext_results
+
+            # Entity-aware rank bonus: when query aliases resolve to a
+            # canonical entity, nudge docs linked to that entity upward.
+            boosted_doc_ids = self._entity_bonus_doc_ids(matched_entity_ids)
+            if boosted_doc_ids:
+                for item in combined_results:
+                    if item["document_id"] in boosted_doc_ids:
+                        item["score"] = min(1.0, item["score"] + 0.1)
 
             # Apply filters
             if filters:

@@ -9,14 +9,12 @@ Tests the connections between:
 - bookmarks.py
 """
 
-import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-import pytest
-
 from fichero.db import Database, SearchResult
-from fichero.models import Document, DocType, FileType, Status
+from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.models import Document
 from fichero.ingest import ingest_file, ingest_folder, IngestMode
 
 
@@ -100,6 +98,64 @@ class TestDatabaseSearch:
 
         stats = db.embedding_stats()
         assert stats["indexed_count"] == 1
+        db.close()
+
+    def test_entity_alias_expansion_resolves_related_surface_forms(self, tmp_path):
+        """Entity query expands to canonical + known aliases."""
+        db = Database(tmp_path / "test.duckdb")
+
+        doc = Document(
+            id="doc-libertador",
+            name="chronicle.txt",
+            page_content="El Libertador entered the city at dawn.",
+        )
+        entity = KnowledgeEntity(
+            id="entity-bolivar",
+            canonical_name="Simón Bolívar",
+            aliases=["Bolívar", "El Libertador"],
+        )
+        claim = KnowledgeClaim(
+            id="claim-bolivar",
+            text="El Libertador entered the city at dawn.",
+            source_document_id=doc.id,
+            entity_ids=[entity.id],
+        )
+        db.save(doc)
+        db.save(entity)
+        db.save(claim)
+
+        expanded_terms, matched_entity_ids = db._expand_query_with_entity_aliases("Bolívar")
+
+        assert entity.id in matched_entity_ids
+        assert "el libertador" in expanded_terms
+        assert "simon bolivar" in expanded_terms
+        db.close()
+
+    def test_entity_bonus_doc_ids_empty_for_non_entity_query(self, tmp_path):
+        """Regular terms should not resolve unrelated entities."""
+        db = Database(tmp_path / "test.duckdb")
+
+        doc = Document(
+            id="doc-libertador-2",
+            name="chronicle.txt",
+            page_content="El Libertador entered the city at dawn.",
+        )
+        entity = KnowledgeEntity(
+            id="entity-bolivar-2",
+            canonical_name="Simón Bolívar",
+            aliases=["Bolívar", "El Libertador"],
+        )
+        db.save(doc)
+        db.save(entity)
+
+        expanded_terms, matched_entity_ids = db._expand_query_with_entity_aliases(
+            "unrelated term"
+        )
+        boosted_doc_ids = db._entity_bonus_doc_ids(matched_entity_ids)
+
+        assert matched_entity_ids == set()
+        assert boosted_doc_ids == set()
+        assert "unrelated term" in expanded_terms
         db.close()
 
     def test_delete_embedding(self, tmp_path):
@@ -205,7 +261,7 @@ class TestIngestWithTextExtraction:
                 return content
 
             with patch('fichero.loaders.load_media', mock_load_media):
-                doc = ingest_file(
+                ingest_file(
                     test_file,
                     extract_text=True,
                     auto_embed=True,
@@ -224,7 +280,7 @@ class TestIngestWithTextExtraction:
 
             # load_media should NOT be called for images
             with patch('fichero.loaders.load_media') as mock_loader:
-                doc = ingest_file(
+                ingest_file(
                     test_file,
                     extract_text=True,  # Enabled but should skip
                     save=True,

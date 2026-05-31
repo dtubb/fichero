@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 from typing import Callable
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,27 @@ def _l2_normalize(vec: list[float]) -> list[float]:
     if norm == 0.0:
         return vec
     return [x / norm for x in vec]
+
+
+def _quantize_int8(vec: list[float]) -> tuple[list[int], float]:
+    """Symmetric int8 quantisation with per-vector scale."""
+    if not vec:
+        return [], 1.0
+    max_abs = max(abs(x) for x in vec)
+    if max_abs == 0.0:
+        return [0 for _ in vec], 1.0
+    scale = max_abs / 127.0
+    quantized = [max(-127, min(127, int(round(x / scale)))) for x in vec]
+    return quantized, scale
+
+
+def _dequantize_int8(qvec: list[int], scale: float) -> list[float]:
+    """Dequantise int8 values back to float vector."""
+    if not qvec:
+        return []
+    if scale <= 0:
+        scale = 1.0
+    return [float(x) * scale for x in qvec]
 
 
 class DatabaseEmbeddingMixin:
@@ -100,6 +122,11 @@ class DatabaseEmbeddingMixin:
         except Exception as e:
             logger.debug("Could not read default_embeddings_model setting: %s", e)
         return DEFAULT_MODEL
+
+    def _use_int8_embeddings(self) -> bool:
+        """Feature flag for int8 embedding storage."""
+        raw = os.getenv("FICHERO_EMBEDDINGS_INT8", "").strip().lower()
+        return raw in {"1", "true", "yes", "on"}
 
     def _ensure_embedder(self) -> None:
         """Lazy-load the embedding model.

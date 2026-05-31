@@ -5,10 +5,6 @@ were ranked, source attribution, and available RAG modes. Routes live at
 /api/search/... (router prefix="/search" mounted at "/api").
 """
 
-import pytest
-from unittest.mock import patch
-
-
 # ---------------------------------------------------------------------------
 # GET /api/search/modes
 # ---------------------------------------------------------------------------
