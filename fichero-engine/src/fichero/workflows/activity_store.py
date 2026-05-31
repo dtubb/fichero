@@ -592,3 +592,51 @@ class ActivityStore:
                 conn.close()
 
         return await asyncio.to_thread(_list)
+
+    async def recover_stale_runs(self, max_age_hours: int = 2) -> int:
+        """Transition stale 'running' workflow_run rows to 'failed'.
+
+        Called at app startup to clean up runs whose worker thread died
+        without reaching a terminal state (crash, OOM, app restart).
+        Only rows older than ``max_age_hours`` are touched — very recent
+        'running' rows may still be live (#1347).
+
+        Returns the number of rows updated.
+        """
+        from datetime import datetime, timezone, timedelta
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+        error_msg = (
+            "Run aborted: worker thread did not reach a terminal state "
+            "(app restart or crash). Marked failed on recovery."
+        )
+
+        def _recover():
+            conn = duckdb.connect(self.db_path)
+            try:
+                result = conn.execute(
+                    """
+                    UPDATE workflow_runs
+                    SET status = 'failed',
+                        error = ?,
+                        completed_at = ?
+                    WHERE status = 'running'
+                      AND started_at < ?
+                    RETURNING thread_id
+                    """,
+                    [error_msg, datetime.now(timezone.utc), cutoff],
+                )
+                rows = result.fetchall() if result else []
+                recovered = len(rows)
+                if recovered:
+                    logger.warning(
+                        "recover_stale_runs: marked %d zombie run(s) as failed "
+                        "(started before %s)",
+                        recovered,
+                        cutoff.isoformat(),
+                    )
+                return recovered
+            finally:
+                conn.close()
+
+        return await asyncio.to_thread(_recover)
