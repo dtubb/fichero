@@ -1,10 +1,17 @@
 ## 2026-05-31 (manager integration session — NEXT SESSION START HERE)
 
-**main is at `ecf25282` — 3474 tests pass, ruff clean, pushed.**
+**main advanced past `ecf25282` — 3474+ tests pass, ruff clean, pushed.**
 
 ### What Was Merged This Session
 - `worker/1156` (graph-RAG): 14 commits, `fichero-engine/src/fichero/retrieval/graph_rag.py` new module, chat + researcher KG-augmented retrieval (#1156, #1364)
 - `backend/1382` unique commits (8): workflow provenance (#1382), read/star/flag state (#1381), bg folder ingest fix (#1216), diacritics transcribe (#1397), uncertainty markers (#1398), typed db delete wrappers (#1359)
+- `feature/1361-entity-bio-llm` (1): POST /api/kg/entities/{id}/bio LLM biography (#1361)
+- `issue-903-source-authority-weighting` (1): persist weighted corroboration counts (#903)
+- `issue-1359` SKIPPED — duplicate of #1359 already in via backend/1382
+
+### NOT Merged — Needs Dedicated Integrator Session (HIGHEST VALUE NEXT)
+- **`codex/1386-transcription-prompt-quality`** (23 commits, only 24 behind main — FRESH): full image-tools suite (#1387 rotate, #1388 enhance, #1389 fuzzy-clean, #1390 prepare-images, #1391 segment, #1392 recombine, #1393 remove-bg+opencv, #1394 split) PLUS transcription quality (#289, #1386, #1398). **Why deferred:** transcription-prompt commits CONFLICT with #1397/#1398 already merged, and the image-tool cherry-picks have internal commit-order dependencies (preset JSON references a tool module from a separate commit). Needs sequential cherry-pick in a worktree resolving the `tools/__init__.py` registry conflict + deduping transcription work. **Do this first next session — it makes the opus/sonnet image-tool re-implementation list below mostly unnecessary.**
+- **`issue-1366-document-inspector-entities`** (1, Swift): restore parent PDF page artifacts (#1366) — defer until Xcode available.
 
 ### Old Branches — NOT Mergeable (174 commits behind main)
 haiku, sonnet, opus, gpt-inspector-style, gptmini-folder-import — all branched before 174 commits of main work. Cherry-pick causes heavy conflicts. Work needs to be **re-implemented by fresh workers** on current main.
