@@ -115,22 +115,13 @@ struct EditorView: View {
     private func previewContent(_ doc: Document) -> some View {
         if doc.docType == .folder {
             FolderContentsGrid(folder: doc)
-        } else if doc.docType == .page,
-                  let pdfPath = resolvedParentPDFPath(for: doc),
-                  !pdfPath.isEmpty {
-            // PDF page child — single-page view at the specific page (#595).
-            // Swipe left/right at fit-scale to turn pages; onPageIndexChange
-            // wires back so the grid's selected thumbnail follows (#586).
-            //
-            // Resolver checks metadata["pdf_path"] first, then falls back
-            // to the parent doc via documentStore.selectedCollection /
-            // currentDocuments — the metadata key isn't always set on
-            // page children created by the ingest split (#890).
-            let pageIndex = max(0, (doc.sequence ?? 1) - 1)
-            PDFPageWithToolbar(
-                path: pdfPath,
-                pageIndex: pageIndex,
-                onPageIndexChange: onPDFPageIndexChange
+        } else if doc.docType == .page {
+            // Page children now use the same canonical image-editing surface as
+            // images (navigation + marquee + per-page edit toolbar). (#1265)
+            ImageEditorView(
+                document: doc,
+                onNavigate: onNavigateToDocument,
+                selectedDocumentIDs: selectedDocumentIDs
             )
         } else if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
             // Top-level PDF file — single-page view, starts at page 0 (#595).

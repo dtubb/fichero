@@ -48,25 +48,26 @@ struct ImageEditorView: View {
     /// Creates region (bbox) annotations from the marquee selection (#1276).
     @StateObject private var annotationService = AnnotationService()
 
-    /// Image documents in the current multi-selection (for batch-apply).
-    private var selectedImages: [Document] {
-        siblingImages.filter { selectedDocumentIDs.contains($0.id) }
+    /// Editable docs in the current multi-selection (for batch-apply).
+    private var selectedEditableDocs: [Document] {
+        siblingEditableDocs.filter { selectedDocumentIDs.contains($0.id) }
     }
 
-    /// Sibling images in the current folder, in display order — the prev/next set.
-    private var siblingImages: [Document] {
-        documentStore.currentDocuments.filter { $0.fileType == .image }
+    /// Sibling editable docs in the current folder, in display order —
+    /// the prev/next set for image files and PDF pages.
+    private var siblingEditableDocs: [Document] {
+        documentStore.currentDocuments.filter { $0.fileType == .image || $0.docType == .page }
     }
 
     /// The document the editor is actually showing (resolved from the active id).
     private var activeDocument: Document {
-        siblingImages.first(where: { $0.id == activeDocumentID })
+        siblingEditableDocs.first(where: { $0.id == activeDocumentID })
             ?? documentStore.currentDocuments.first(where: { $0.id == activeDocumentID })
             ?? document
     }
 
     private var currentIndex: Int? {
-        siblingImages.firstIndex(where: { $0.id == activeDocument.id })
+        siblingEditableDocs.firstIndex(where: { $0.id == activeDocument.id })
     }
 
     var body: some View {
@@ -79,7 +80,11 @@ struct ImageEditorView: View {
             // External selection changed (host drove a new document).
             activeDocumentID = document.id
             marqueeSelection = nil
-            await model.configure(apiClient: apiClient, documentId: document.id)
+            await model.configure(
+                apiClient: apiClient,
+                documentId: document.id,
+                page: currentPage(for: document)
+            )
         }
         .onChange(of: model.chain.operations.count) { _ in
             // An op changed the rendered image — a stale region would mismap.
@@ -168,7 +173,7 @@ private extension ImageEditorView {
                 .accessibilityIdentifier("imageEditAnnotateSelection")
             }
 
-            if selectedImages.count > 1 {
+            if selectedEditableDocs.count > 1 {
                 Divider().frame(height: 20)
                 batchMenu
             }
@@ -198,7 +203,7 @@ private extension ImageEditorView {
     @ViewBuilder
     private var navigationCluster: some View {
         let index = currentIndex
-        let total = siblingImages.count
+        let total = siblingEditableDocs.count
         HStack(spacing: 6) {
             Button {
                 Task { await step(by: -1) }
@@ -229,17 +234,21 @@ private extension ImageEditorView {
         }
     }
 
-    /// Move `delta` positions through `siblingImages`, loading the neighbour and
+    /// Move `delta` positions through editable siblings, loading the neighbour and
     /// (if wired) syncing app selection so the window inspector follows.
     private func step(by delta: Int) async {
         guard let index = currentIndex else { return }
         let target = index + delta
-        guard siblingImages.indices.contains(target) else { return }
-        let neighbour = siblingImages[target]
+        guard siblingEditableDocs.indices.contains(target) else { return }
+        let neighbour = siblingEditableDocs[target]
         activeDocumentID = neighbour.id
         marqueeSelection = nil
         onNavigate?(neighbour.id)
-        await model.configure(apiClient: apiClient, documentId: neighbour.id)
+        await model.configure(
+            apiClient: apiClient,
+            documentId: neighbour.id,
+            page: currentPage(for: neighbour)
+        )
     }
 
     /// Batch-apply menu (#1265) — fans a uniform op out across the multi-file
@@ -249,33 +258,40 @@ private extension ImageEditorView {
         Menu {
             Button("Rotate Right 90°") {
                 Task {
-                    await model.batchApply(documentIds: selectedImages.map(\.id)) { service, id in
+                    await model.batchApply(documentIds: selectedEditableDocs.map(\.id)) { service, id in
                         try await service.rotate(documentId: id, angle: -90)
                     }
                 }
             }
             Button("Auto-Enhance") {
                 Task {
-                    await model.batchApply(documentIds: selectedImages.map(\.id)) { service, id in
+                    await model.batchApply(documentIds: selectedEditableDocs.map(\.id)) { service, id in
                         try await service.enhance(documentId: id, autoLevels: true)
                     }
                 }
             }
             Button("Remove Background") {
                 Task {
-                    await model.batchApply(documentIds: selectedImages.map(\.id)) { service, id in
+                    await model.batchApply(documentIds: selectedEditableDocs.map(\.id)) { service, id in
                         try await service.removeBackground(documentId: id)
                     }
                 }
             }
         } label: {
-            Label("Apply to \(selectedImages.count)", systemImage: "square.stack.3d.up")
+            Label("Apply to \(selectedEditableDocs.count)", systemImage: "square.stack.3d.up")
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
         .disabled(model.isBusy)
-        .help("Apply an edit to all \(selectedImages.count) selected images")
+        .help("Apply an edit to all \(selectedEditableDocs.count) selected files/pages")
         .accessibilityIdentifier("imageEditBatchMenu")
+    }
+
+    private func currentPage(for doc: Document) -> Int {
+        if doc.docType == .page {
+            return max(1, doc.sequence ?? 1)
+        }
+        return 1
     }
 
     /// Map the marquee (normalized image space) to source pixels and crop.
