@@ -6,6 +6,7 @@ import SwiftUI
 /// prioritizes readability and a "published" feel over curation tools.
 struct EntityDigestView: View {
     @EnvironmentObject private var entityService: EntityServiceGenerated
+    var sourceDocumentId: String?
     @State private var selectedEntityId: String?
     @State private var searchText = ""
     @State private var entities: [Components.Schemas.KnowledgeEntity] = []
@@ -26,7 +27,8 @@ struct EntityDigestView: View {
                let entity = entities.first(where: { $0.id == entityId }) {
                 EntityDigestContent(
                     entity: entity,
-                    entityService: entityService
+                    entityService: entityService,
+                    sourceDocumentId: sourceDocumentId
                 )
                 .frame(maxWidth: .infinity)
             } else {
@@ -154,6 +156,7 @@ struct EntityDigestView: View {
 struct EntityDigestContent: View {
     let entity: Components.Schemas.KnowledgeEntity
     let entityService: EntityServiceGenerated
+    var sourceDocumentId: String?
 
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
     @State private var isLoading = false
@@ -279,6 +282,8 @@ struct EntityDigestContent: View {
                             .font(.caption)
                             .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        openSourceButton(for: claim)
                     }
                     .padding(.vertical, 2)
                 }
@@ -318,11 +323,37 @@ struct EntityDigestContent: View {
         return composed.isEmpty ? Text("No biography data available.") : composed
     }
 
+    @ViewBuilder
+    private func openSourceButton(for claim: Components.Schemas.KnowledgeClaim) -> some View {
+        Button {
+            NotificationCenter.default.post(
+                name: .ficheroOpenClaimSource,
+                object: nil,
+                userInfo: [
+                    "documentId": claim.sourceDocumentId as Any,
+                    "claimId": claim.id as Any,
+                    "claimText": claim.text,
+                    "pageLabel": claim.sourcePageLabel as Any
+                ]
+            )
+        } label: {
+            Image(systemName: "arrow.up.forward.square")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .help("Open source in document view")
+    }
+
     private func loadClaims() async {
         isLoading = true
         defer { isLoading = false }
         do {
-            claims = try await entityService.listClaims(entityId: entity.id, limit: 500)
+            claims = try await entityService.listClaims(
+                sourceDocumentId: sourceDocumentId,
+                entityId: entity.id,
+                limit: 500
+            )
         } catch {
             claims = []
         }
