@@ -87,6 +87,7 @@ from fichero.workflows.tools import video_describe
 
 # Agent tools
 from fichero.workflows.tools import agent
+from fichero.workflows.tools import cli_agent
 from fichero.workflows.tools import multi_agent
 from fichero.workflows.tools import mcp
 
@@ -167,6 +168,7 @@ __all__ = [
     "video_describe",
     # Agent
     "agent",
+    "cli_agent",
     "multi_agent",
     "mcp",
     # Research
