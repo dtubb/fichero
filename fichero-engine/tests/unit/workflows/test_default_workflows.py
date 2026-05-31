@@ -652,6 +652,36 @@ class TestLoadPresetFiles:
         assert recombine_node["config"].get("layout") == "vertical"
         assert recombine_node["config"].get("output_format") == "png"
 
+    def test_split_images_preset_wiring(self):
+        """Split Images should ship as a default image-editing workflow (#1394)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Split Images" in presets, "split preset must ship"
+        preset = presets["Split Images"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Image Editing"
+        assert preset.get("format") == "nodes"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "split_images"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        files_id = _node_id(preset, "files")
+        split_id = _node_id(preset, "split_images")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == split_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into split_images"
+
+        split_node = next(n for n in preset["nodes"] if n["tool"] == "split_images")
+        assert split_node["config"].get("rows") == 1
+        assert split_node["config"].get("columns") == 2
+        assert split_node["config"].get("output_format") == "png"
+
     def test_prepare_images_for_ocr_preset_wiring(self):
         """Prepare Images for OCR should expose the non-destructive image prep
         tool as a stageable default workflow (#1390)."""
