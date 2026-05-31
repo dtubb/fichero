@@ -213,7 +213,7 @@ class TestSearchTool:
 
         class _Payload:
             context_docs = [
-                {"id": "doc-1", "kind": "document"},
+                {"id": "doc-1", "kind": "document", "search_score": 0.88},
                 {
                     "id": "kg-claim:claim-1",
                     "name": "KG claim claim-1",
@@ -235,6 +235,7 @@ class TestSearchTool:
         assert result["files"] == ["/tmp/memo.txt"]
         assert result["count"] == 1
         assert len(result["documents"]) == 2
+        assert result["documents"][0]["search_score"] == 0.88
         assert result["documents"][1]["id"] == "kg-claim:claim-1"
         assert result["documents"][1]["doc_type"] == "kg_claim"
 

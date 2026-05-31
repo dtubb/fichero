@@ -703,7 +703,7 @@ async def search_tool(
                 if doc.path:
                     files.append(doc.path)
                 doc_dict = doc.model_dump()
-                doc_dict["search_score"] = None
+                doc_dict["search_score"] = item.get("search_score")
                 doc_dict["highlights"] = None
                 doc_data.append(doc_dict)
                 continue

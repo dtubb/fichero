@@ -55,6 +55,7 @@ class GraphAwareRetriever:
                         "name": doc.name,
                         "content": content,
                         "kind": "document",
+                        "search_score": 1.0,
                     }
                 )
                 if include_sources:
@@ -89,6 +90,7 @@ class GraphAwareRetriever:
                         "name": doc.name,
                         "content": content,
                         "kind": "document",
+                        "search_score": result.score,
                     }
                 )
                 if include_sources:
