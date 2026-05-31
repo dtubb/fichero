@@ -622,6 +622,25 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    /// Undo a merge/split audit operation.
+    /// Backed by `/api/kg/entity-curation/audit/{audit_id}/undo`.
+    @discardableResult
+    func undoEntityAudit(_ auditId: String) async throws -> Components.Schemas.EntityAuditResponse {
+        let response = try await client.api.undoEntityOperationApiKgEntityCurationAuditAuditIdUndoPost(
+            path: .init(auditId: auditId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     /// Index all claims in LanceDB for semantic search + heuristic
     /// predictions. Returns the number of vectors written.
     /// Backed by `/api/kg/claim-search/embed`.

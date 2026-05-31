@@ -15,6 +15,8 @@ struct EntityDetailView: View {
     /// happened yet (the common case until a reviewer touches the entity).
     @State var audits: [Components.Schemas.EntityAuditResponse] = []
     @State var isLoadingAudits: Bool = false
+    @State var undoingAuditId: String?
+    @State var auditStatusMessage: String?
 
     /// CSV of hidden EpistemicStatus raw values. Shared with the rest
     /// of the KG views so a setting in one place persists everywhere
