@@ -1,0 +1,46 @@
+{
+  "name": "Rotate / Auto-Orient Images",
+  "description": "Create rotated or EXIF-oriented image derivatives without modifying the originals. Defaults to auto-orienting camera scans and writing JPGs for downstream image editing or OCR workflows.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Image Editing",
+  "tags": ["preset", "image-editing", "rotate", "orientation", "ocr"],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "rotate_images",
+      "tool": "rotate_images",
+      "label": "Rotate / Auto-Orient Images",
+      "position_x": 300,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "auto_orient": true,
+        "rotation_degrees": 0,
+        "output_format": "jpg",
+        "compression_quality": 90
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-files-rotate-images",
+      "source": "files-source",
+      "target": "rotate_images",
+      "source_port": "files",
+      "target_port": "files"
+    }
+  ]
+}

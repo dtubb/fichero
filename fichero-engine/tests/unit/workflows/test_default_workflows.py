@@ -432,6 +432,37 @@ class TestLoadPresetFiles:
             )
             assert inputs["files"] == "$.nodes.files-source.files"
 
+    def test_rotate_auto_orient_images_preset_wiring(self):
+        """Rotate / Auto-Orient Images should expose the non-destructive
+        rotate_images tool as a stageable default workflow (#1387)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Rotate / Auto-Orient Images" in presets, "rotate preset must ship"
+        preset = presets["Rotate / Auto-Orient Images"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Image Editing"
+        assert preset.get("format") == "nodes"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "rotate_images"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        files_id = _node_id(preset, "files")
+        rotate_id = _node_id(preset, "rotate_images")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == rotate_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into rotate_images"
+
+        rotate_node = next(n for n in preset["nodes"] if n["tool"] == "rotate_images")
+        assert rotate_node["config"].get("auto_orient") is True
+        assert rotate_node["config"].get("rotation_degrees") == 0
+        assert rotate_node["config"].get("output_format") == "jpg"
+
     def test_prepare_images_for_ocr_preset_wiring(self):
         """Prepare Images for OCR should expose the non-destructive image prep
         tool as a stageable default workflow (#1390)."""
