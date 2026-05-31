@@ -85,6 +85,7 @@ struct EntityDetailView: View {
     @State private var metadataSaveMessage: String?
     @State private var isSavingMetadata = false
     @State private var showDigestSheet = false
+    @State var showContradictionTriageSheet = false
 
     var body: some View {
         if sourceGroupsMode {
