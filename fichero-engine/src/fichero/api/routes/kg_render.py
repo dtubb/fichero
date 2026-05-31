@@ -2,18 +2,28 @@
 
 from __future__ import annotations
 
+import logging
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
-from fichero.knowledge_models import KnowledgeClaim
+from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.llm import LLMConfig, chat
 from fichero.kg.paragraph import (
     ParagraphRenderRequest,
     ParagraphRenderResponse,
     render_paragraph_claims,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/kg/render", tags=["knowledge-graph"])
+
+# Second router: LLM-driven entity operations under /kg/entities
+bio_router = APIRouter(prefix="/kg/entities", tags=["knowledge-graph"])
 
 
 @router.post(
@@ -42,3 +52,86 @@ async def render_paragraph(
         claims.append(claim)
 
     return render_paragraph_claims(claims, style=request.style)
+
+
+# =============================================================================
+# POST /api/kg/entities/{entity_id}/bio — LLM biography generation (#1361)
+# =============================================================================
+
+
+class EntityBioResponse(BaseModel):
+    entity_id: str
+    biography: str
+
+
+def _build_bio_prompt(entity: KnowledgeEntity, claims: list[KnowledgeClaim]) -> str:
+    """Build the LLM prompt for biography generation."""
+    lines: list[str] = [
+        f"Write a concise biography paragraph (3–5 sentences) for the entity "
+        f'"{entity.canonical_name}"',
+    ]
+    if entity.entity_type:
+        lines.append(f"Entity type: {entity.entity_type.value}")
+    if entity.aliases:
+        lines.append(f"Also known as: {', '.join(entity.aliases)}")
+
+    if claims:
+        lines.append("\nKnown facts (SVO claims from source documents):")
+        for c in claims[:40]:
+            lines.append(f"  - {c.text}")
+    else:
+        lines.append("\nNo specific claims are available in the knowledge graph yet.")
+
+    lines.append(
+        "\nWrite in third-person prose. Be factual and concise. "
+        "Do not invent facts not supported by the claims above."
+    )
+    return "\n".join(lines)
+
+
+@bio_router.post(
+    "/{entity_id}/bio",
+    response_model=EntityBioResponse,
+    summary="Generate LLM biography for a knowledge entity",
+    description=(
+        "Runs an LLM over the entity's SVO claims and writes the resulting "
+        "prose back as entity.description. Re-generation is always allowed."
+    ),
+)
+async def generate_entity_bio(
+    entity_id: str,
+    db: Database = Depends(get_library_database),
+) -> EntityBioResponse:
+    """Generate a prose biography from SVO claims and persist as entity.description."""
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+
+    all_claims: list[KnowledgeClaim] = db.all(KnowledgeClaim)
+    entity_claims = [c for c in all_claims if entity_id in c.entity_ids]
+    entity_claims.sort(key=lambda c: c.created_at)
+
+    prompt = _build_bio_prompt(entity, entity_claims)
+
+    from fichero.app_db import get_app_db  # noqa: PLC0415
+
+    defaults = get_app_db().get_ai_defaults()
+    llm_config = LLMConfig(
+        provider=defaults.get("default_text_provider") or "apple",
+        model=defaults.get("default_text_model") or "apple-intelligence",
+    )
+
+    try:
+        biography = await chat(prompt, llm_config, permissive_guardrails=True)
+    except Exception as exc:
+        logger.error("Biography LLM call failed for entity %s: %s", entity_id, exc)
+        raise HTTPException(status_code=500, detail=f"LLM generation failed: {exc}") from exc
+
+    if not isinstance(biography, str):
+        biography = str(biography)
+
+    entity.description = biography
+    entity.updated_at = datetime.now()
+    db.save(entity)
+
+    return EntityBioResponse(entity_id=entity_id, biography=biography)

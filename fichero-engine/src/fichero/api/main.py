@@ -829,6 +829,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (kg_triangulation.router, "/api", ["knowledge-graph"]),
     (kg_graph.router, "/api", ["knowledge-graph"]),
     (kg_render.router, "/api", ["knowledge-graph"]),
+    (kg_render.bio_router, "/api", ["knowledge-graph"]),
     (kg_pykeen.router, "/api", ["knowledge-graph"]),
     (kg_predictions.router, "/api", ["knowledge-graph"]),
     (kg_review.router, "/api", ["knowledge-graph"]),
