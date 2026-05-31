@@ -239,7 +239,7 @@ struct EntityDigestContent: View {
                     .foregroundStyle(.secondary)
             } else {
                 // Group claims by document
-                let grouped = Dictionary(grouping: claims) { $0.sourceDocumentId ?? "Unknown Document" }
+                let grouped = Dictionary(grouping: claims, by: \.sourceDocumentId)
 
                 ForEach(Array(grouped.keys).sorted(), id: \.self) { docId in
                     provenanceItem(docId: docId, claims: grouped[docId] ?? [])
@@ -288,9 +288,9 @@ struct EntityDigestContent: View {
         .padding(.vertical, 8)
     }
 
-    private var composedBiography: Text {
+    private var composedBiography: String {
         var first = true
-        var composed = Text("")
+        var sentences: [String] = []
 
         for claim in claims {
             // Basic SVO extraction
@@ -305,24 +305,23 @@ struct EntityDigestContent: View {
             let docName = LibraryManager.shared.globalLibrary?.documentStore.currentDocuments.first(
                 where: { $0.id == claim.sourceDocumentId }
             )?.name
-            let citation = docName != nil ? " [\(docName!)]" : ""
-
-            composed = composed
-                + Text(subject)
-                + Text(" \(verb) ").italic().foregroundStyle(Color.accentColor)
-                + Text(object)
-                + Text(citation).font(.caption2).italic().foregroundStyle(.secondary)
-                + Text(". ")
+            let citation = docName.map { " [\($0)]" } ?? ""
+            let sentence = "\(subject) \(verb) \(object)\(citation)."
+            sentences.append(sentence)
         }
 
-        return composed.isEmpty ? Text("No biography data available.") : composed
+        return sentences.isEmpty ? "No biography data available." : sentences.joined(separator: " ")
     }
 
     private func loadClaims() async {
         isLoading = true
         defer { isLoading = false }
+        guard let entityId = entity.id else {
+            claims = []
+            return
+        }
         do {
-            claims = try await entityService.listClaims(entityId: entity.id, limit: 500)
+            claims = try await entityService.listClaims(entityId: entityId, limit: 500)
         } catch {
             claims = []
         }

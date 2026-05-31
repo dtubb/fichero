@@ -172,7 +172,7 @@ struct ContradictionTriageSheet: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            if let claimId = claim.id {
+            if let claim, let claimId = claim.id {
                 HStack(spacing: 8) {
                     triageButton("Shortlist", .shortlisted, claimId: claimId)
                     triageButton("Curate", .curated, claimId: claimId)
@@ -241,10 +241,10 @@ struct ContradictionTriageSheet: View {
         await withTaskGroup(of: [Pair].self) { group in
             for claim in claims {
                 guard let claimId = claim.id else { continue }
+                let key = groupKey(for: claim)
                 group.addTask {
                     do {
                         let contradictions = try await library.entityService.contradictions(claimId: claimId)
-                        let key = groupKey(for: claim)
                         return contradictions.map { contradiction in
                             Pair(
                                 id: "\(claimId):\(contradiction.contradictingClaimId)",

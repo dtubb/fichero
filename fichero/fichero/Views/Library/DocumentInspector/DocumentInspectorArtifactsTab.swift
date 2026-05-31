@@ -875,7 +875,7 @@ struct KnowledgeGraphInspectorSection: View {
             }
         }
         let hidden = hiddenKinds
-        return canonicalGroups.compactMap { group in
+        return canonicalGroups.compactMap { group -> (EntityKind, [GroupedItem])? in
             guard let kind = EntityKind(groupKind: group.kind), !hidden.contains(kind) else { return nil }
             var items: [GroupedItem] = []
             for item in group.items {
@@ -1115,7 +1115,7 @@ private struct GroupedItem: Identifiable {
     let displayName: String
     let context: String
     let aliases: [String]
-    let confidence: Double? = nil
+    let confidence: Double?
     /// First source page document id for this entity. Multiple sources are
     /// not surfaced yet — folder-cleanup merges retain the first claim's
     /// source, which is good enough for click-through provenance. (#833)
@@ -1143,6 +1143,30 @@ private struct GroupedItem: Identifiable {
     }
     var extraClaims: [ExtraClaim] = []
     var id: String { claimId }
+
+    init(
+        entityId: String? = nil,
+        claimId: String,
+        displayName: String,
+        context: String,
+        aliases: [String],
+        confidence: Double? = nil,
+        sourceDocumentId: String? = nil,
+        sourcePageLabel: String? = nil,
+        sourceExcerpt: String? = nil,
+        extraClaims: [ExtraClaim] = []
+    ) {
+        self.entityId = entityId
+        self.claimId = claimId
+        self.displayName = displayName
+        self.context = context
+        self.aliases = aliases
+        self.confidence = confidence
+        self.sourceDocumentId = sourceDocumentId
+        self.sourcePageLabel = sourcePageLabel
+        self.sourceExcerpt = sourceExcerpt
+        self.extraClaims = extraClaims
+    }
 }
 
 /// Toggle between dense prose digest and grouped disclosure list.

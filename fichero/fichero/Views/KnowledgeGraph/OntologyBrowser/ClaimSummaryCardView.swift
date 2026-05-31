@@ -18,7 +18,7 @@ struct ClaimSummaryCard: View {
     @State private var showEditSheet = false
     @State private var showDeleteConfirmation = false
     @State private var isInlineEditing = false
-    @Environment(KGFocusState.self) private var kgFocusState
+    @Environment(KGFocusState.self) var kgFocusState
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
 
     struct SVOTriple {
