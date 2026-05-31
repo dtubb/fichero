@@ -129,6 +129,8 @@ struct ClaimSummaryCard: View {
                 // back to source (#982). (#978/#979)
                 sourceLine
 
+                provenanceBadges
+
                 // Per-card status / kind tags removed — they duplicated the
                 // section-header chip strip in EntityDetailView. (#1006)
 

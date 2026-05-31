@@ -75,6 +75,46 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertEqual(svo?.object, "the first algorithm")
     }
 
+    func testProvenanceBadgesMapsMetadataFields() throws {
+        let claim = try decodeClaim("""
+        {
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "confidence_source": "heuristic",
+          "metadata": {
+            "quotation_kind": "verbatim",
+            "corroboration_count": 3
+          }
+        }
+        """)
+
+        let labels = ClaimSummaryCard
+            .provenanceBadges(for: claim)
+            .map(\.label)
+
+        XCTAssertTrue(labels.contains("Verbatim"))
+        XCTAssertTrue(labels.contains("Heuristic"))
+        XCTAssertTrue(labels.contains("3x corroborated"))
+    }
+
+    func testProvenanceBadgesOmitsZeroCorroboration() throws {
+        let claim = try decodeClaim("""
+        {
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "metadata": {
+            "corroboration_count": 0
+          }
+        }
+        """)
+
+        let labels = ClaimSummaryCard
+            .provenanceBadges(for: claim)
+            .map(\.label)
+
+        XCTAssertFalse(labels.contains(where: { $0.contains("corroborated") }))
+    }
+
     private func decodeClaim(_ json: String) throws -> Components.Schemas.KnowledgeClaim {
         let data = Data(json.utf8)
         let decoder = JSONDecoder()
