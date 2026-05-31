@@ -1,5 +1,6 @@
 """Unit tests for hermeneutics API routes."""
 
+from fichero.models import KnowledgeClaim
 from fichero.hermeneutics_models import (
     CircleNavigationDirection,
     FrameworkType,
@@ -91,6 +92,9 @@ def test_interpretation_crud(client, db):
     )
     assert fw_resp.status_code == 200
     fw = fw_resp.json()
+
+    # Interpretations now validate claim_id references an existing claim — seed it.
+    db.save(KnowledgeClaim(id="test-claim-123", text="c", source_document_id="d", entity_ids=[]))
 
     # Create interpretation
     int_resp = client.post(
