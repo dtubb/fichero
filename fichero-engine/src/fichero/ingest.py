@@ -899,10 +899,35 @@ def ingest_folder(
     return documents
 
 
+_ANCESTOR_MAX_DEPTH = 64
+
+
 def _touch_ancestor_documents(db: "Database", parent_id: str | None) -> None:
-    """Refresh updated_at on the ancestor chain for a newly ingested child."""
+    """Refresh updated_at on the ancestor chain for a newly ingested child.
+
+    Guards against infinite loops caused by cyclic parent_id references or
+    unexpectedly deep trees: stops when a doc id is seen a second time (cycle)
+    or after _ANCESTOR_MAX_DEPTH hops.
+    """
     current_parent_id = parent_id
+    visited: set[str] = set()
+    depth = 0
     while current_parent_id:
+        if current_parent_id in visited:
+            logger.warning(
+                "Cycle detected in ancestor chain at doc id %s — stopping walk",
+                current_parent_id,
+            )
+            break
+        if depth >= _ANCESTOR_MAX_DEPTH:
+            logger.warning(
+                "Ancestor chain exceeded max depth (%d) at doc id %s — stopping walk",
+                _ANCESTOR_MAX_DEPTH,
+                current_parent_id,
+            )
+            break
+        visited.add(current_parent_id)
+        depth += 1
         parent = db.get(Document, current_parent_id)
         if not parent:
             break
