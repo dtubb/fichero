@@ -30,7 +30,7 @@
         "vision_mode": "auto",
         "language": "en",
         "update_page_content": true,
-        "prompt": "Transcribe the text visible on this image. The document is typewritten or printed.\n\nRules:\n- Output ONLY the transcription. No headings, preamble, commentary, or summary.\n- Preserve original layout, line breaks, and paragraph structure.\n- Preserve original spelling, capitalisation, and punctuation exactly as printed.\n- Include every visible text element — headers, body, footers, page numbers, marginalia, stamps, annotations.\n- For text you cannot confidently read, write [illegible] inline at that position.\n- If the image contains no text, output [no text]."
+        "prompt": "Transcribe the text visible on this image. The document is typewritten or printed.\n\nRules:\n- Output ONLY the transcription. No headings, preamble, commentary, or summary.\n- Preserve original layout, line breaks, and paragraph structure.\n- Preserve original spelling, capitalisation, and punctuation exactly as printed.\n- Include every visible text element — headers, body, footers, page numbers, marginalia, stamps, annotations.\n- For text you cannot confidently read, write [ILLEGIBLE] inline at that position.\n- If the image contains no text, output [no text]."
       }
     }
   ],
