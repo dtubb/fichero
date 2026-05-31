@@ -85,3 +85,61 @@ class TestGraphAwareRetriever:
         }
         assert "kg-claim:claim-1" in claim_ids
         assert "kg-claim:claim-2" in claim_ids
+
+    def test_retrieve_skips_kg_when_graph_hops_zero(self, db):
+        doc = Document(
+            id="doc-z",
+            name="Single doc",
+            page_content="Ada served as mayor in Popayan.",
+        )
+        db.save(doc)
+        db.embed(doc)
+        db.save(KnowledgeEntity(id="ent-ada", canonical_name="Ada Lovelace"))
+        db.save(
+            KnowledgeClaim(
+                id="claim-z",
+                text="Ada served as mayor in Popayan.",
+                source_document_id="doc-z",
+                entity_ids=["ent-ada"],
+            )
+        )
+
+        payload = GraphAwareRetriever(db).retrieve(
+            query="Who served?",
+            max_sources=3,
+            graph_hops=0,
+            max_kg_claims=12,
+        )
+
+        kinds = [item["kind"] for item in payload.context_docs]
+        assert "document" in kinds
+        assert "kg_claim" in kinds  # seed-claim context still allowed
+
+    def test_retrieve_respects_max_kg_claims_zero(self, db):
+        doc = Document(
+            id="doc-k0",
+            name="No kg limit",
+            page_content="Ada served as mayor in Popayan.",
+        )
+        db.save(doc)
+        db.embed(doc)
+        db.save(KnowledgeEntity(id="ent-k0", canonical_name="Ada Lovelace"))
+        db.save(
+            KnowledgeClaim(
+                id="claim-k0",
+                text="Ada served as mayor in Popayan.",
+                source_document_id="doc-k0",
+                entity_ids=["ent-k0"],
+            )
+        )
+
+        payload = GraphAwareRetriever(db).retrieve(
+            query="Who served?",
+            max_sources=3,
+            graph_hops=1,
+            max_kg_claims=0,
+        )
+
+        kinds = [item["kind"] for item in payload.context_docs]
+        assert kinds == ["document"]
+        assert payload.kg_claims_used == 0
