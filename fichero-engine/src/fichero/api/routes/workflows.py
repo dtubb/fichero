@@ -12,8 +12,10 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, ConfigDict
 
+from fichero.app_db import get_app_db
 from fichero.db import Database
 from fichero.api.main import get_library_database
+from fichero.llm import get_model_cost
 from fichero.workflows.types import (
     ToolDef,
     PortDef,
@@ -131,6 +133,32 @@ class WorkflowToolListResponse(BaseModel):
 
     items: list[ToolResponse]
     count: int
+
+
+class WorkflowCostEstimateRequest(BaseModel):
+    """Inputs for pre-run workflow cost estimation."""
+
+    file_count: int = 1
+    estimated_input_tokens_per_file: int = 1200
+    estimated_output_tokens_per_file: int = 300
+    provider: str | None = None
+    model: str | None = None
+
+
+class WorkflowCostEstimateResponse(BaseModel):
+    """Estimated run cost for the workflow execute button."""
+
+    workflow_id: str
+    provider: str
+    model: str
+    file_count: int
+    estimated_input_tokens: int
+    estimated_output_tokens: int
+    estimated_total_tokens: int
+    estimated_cost_usd: float
+    input_cost_per_million: float
+    output_cost_per_million: float
+    pricing_available: bool
 
 
 # =============================================================================
@@ -251,6 +279,33 @@ def _category_display_name(category: str) -> str:
         "utility": "Utility",
     }
     return names.get(category, category.title())
+
+
+def _model_pricing_per_million(provider: str, model: str) -> tuple[float, float]:
+    """Resolve (input_cost, output_cost) per million tokens."""
+    if not provider or not model:
+        return 0.0, 0.0
+
+    app_db = get_app_db()
+    provider_id = None
+    for item in app_db.list_providers():
+        if item.provider_type.value == provider:
+            provider_id = item.id
+            break
+
+    if provider_id:
+        for item in app_db.list_models(provider_id=provider_id):
+            if item.model_id == model:
+                return float(item.input_cost or 0.0), float(item.output_cost or 0.0)
+
+    # Fallback: LiteLLM pricing map (per-token), converted to per-million.
+    cost_info = get_model_cost(f"{provider}/{model}") or get_model_cost(model)
+    if cost_info:
+        return (
+            float(cost_info.get("input_cost_per_token") or 0.0) * 1_000_000,
+            float(cost_info.get("output_cost_per_token") or 0.0) * 1_000_000,
+        )
+    return 0.0, 0.0
 
 
 # =============================================================================
@@ -592,6 +647,51 @@ async def get_workflow(
     except Exception as e:
         logger.exception(f"Failed to get workflow {workflow_id}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{workflow_id}/estimate-cost", response_model=WorkflowCostEstimateResponse)
+async def estimate_workflow_cost(
+    workflow_id: str,
+    request: WorkflowCostEstimateRequest,
+    db: Database = Depends(get_library_database),
+) -> WorkflowCostEstimateResponse:
+    """Estimate run cost from file count and per-file token assumptions."""
+    from fichero.models import Workflow
+
+    workflow = db.get(Workflow, workflow_id)
+    if not workflow:
+        raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+
+    file_count = max(1, int(request.file_count))
+    input_tokens_per_file = max(1, int(request.estimated_input_tokens_per_file))
+    output_tokens_per_file = max(1, int(request.estimated_output_tokens_per_file))
+
+    provider = (request.provider or workflow.provider or "").strip()
+    model = (request.model or workflow.model or "").strip()
+    input_cost_per_million, output_cost_per_million = _model_pricing_per_million(
+        provider, model
+    )
+
+    estimated_input_tokens = file_count * input_tokens_per_file
+    estimated_output_tokens = file_count * output_tokens_per_file
+    estimated_cost_usd = (
+        estimated_input_tokens * (input_cost_per_million / 1_000_000)
+        + estimated_output_tokens * (output_cost_per_million / 1_000_000)
+    )
+
+    return WorkflowCostEstimateResponse(
+        workflow_id=workflow_id,
+        provider=provider,
+        model=model,
+        file_count=file_count,
+        estimated_input_tokens=estimated_input_tokens,
+        estimated_output_tokens=estimated_output_tokens,
+        estimated_total_tokens=estimated_input_tokens + estimated_output_tokens,
+        estimated_cost_usd=estimated_cost_usd,
+        input_cost_per_million=input_cost_per_million,
+        output_cost_per_million=output_cost_per_million,
+        pricing_available=(input_cost_per_million > 0 or output_cost_per_million > 0),
+    )
 
 
 @router.put("/{workflow_id}")

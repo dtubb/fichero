@@ -197,6 +197,53 @@ class TestExportWorkflow:
         assert r.status_code == 404
 
 
+class TestEstimateWorkflowCost:
+    def test_estimate_cost_uses_workflow_model_pricing(self, client, db, monkeypatch):
+        wf = Workflow(
+            name="Costed Workflow",
+            description="",
+            format="nodes",
+            steps=[],
+            provider="openai",
+            model="gpt-4o-mini",
+        )
+        db.save(wf)
+
+        def _fake_cost(model_name: str):
+            if "gpt-4o-mini" in model_name:
+                return {
+                    "input_cost_per_token": 1e-6,
+                    "output_cost_per_token": 2e-6,
+                }
+            return None
+
+        monkeypatch.setattr("fichero.api.routes.workflows.get_model_cost", _fake_cost)
+
+        r = client.post(
+            f"/api/workflows/{wf.id}/estimate-cost",
+            json={
+                "file_count": 3,
+                "estimated_input_tokens_per_file": 1000,
+                "estimated_output_tokens_per_file": 200,
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["provider"] == "openai"
+        assert data["model"] == "gpt-4o-mini"
+        assert data["estimated_input_tokens"] == 3000
+        assert data["estimated_output_tokens"] == 600
+        assert data["pricing_available"] is True
+        assert data["estimated_cost_usd"] == pytest.approx(0.0042, rel=1e-9)
+
+    def test_estimate_cost_missing_workflow_returns_404(self, client):
+        r = client.post(
+            "/api/workflows/no-such-id/estimate-cost",
+            json={"file_count": 2},
+        )
+        assert r.status_code == 404
+
+
 # ---------------------------------------------------------------------------
 # GET /api/workflows/tools
 # ---------------------------------------------------------------------------
