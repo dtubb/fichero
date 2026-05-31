@@ -67,6 +67,19 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .realitykit: return "cube.transparent"
         }
     }
+
+    /// Tooltip copy: what the view shows and how to use it. (#1371)
+    var helpText: String {
+        switch self {
+        case .transcript: return "Transcript — read the document's full text"
+        case .digest: return "Digest — a condensed summary of the document"
+        case .graph: return "Graph — entities and their connections as a network"
+        case .claims: return "Claims — statements extracted from the document, grouped by source"
+        case .timeline: return "Timeline — dated entities and events in chronological order"
+        case .map: return "Map — entities laid out on a visual canvas"
+        case .realitykit: return "Spatial view — documents arranged in a 3D scene"
+        }
+    }
 }
 
 /// Hosts the WebKit document KG plus native document-scoped claims, timeline,
@@ -177,7 +190,7 @@ struct DocumentKGSurface: View {
                 .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
         )
         .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-        .help(tab.title)
+        .help(tab.helpText)
         .accessibilityIdentifier("kgSurfaceTab-\(tab.rawValue)")
     }
 }

@@ -29,7 +29,7 @@ struct SidebarModeIcon: View {
         }
         .buttonStyle(.plain)
         .focusEffectDisabled()
-        .help(mode.label)
+        .help(mode.helpText)
     }
 
     /// Selected state uses filled variant where available
