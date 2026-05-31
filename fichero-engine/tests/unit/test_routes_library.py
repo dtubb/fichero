@@ -59,9 +59,10 @@ def test_create_library_is_idempotent(tmp_path: Path) -> None:
 
 def test_create_library_rejects_non_allowlist_path(tmp_path: Path) -> None:
     """A .fichero path outside the allowlist roots → 403, no filesystem work."""
-    # /tmp is NOT in the allowlist (only /var/folders, /private/var/folders,
-    # ~/Documents, ~/Dropbox, ~/Library/Application Support).
-    bad = Path("/tmp/nope.fichero")
+    # /usr/local is never in the allowlist on any OS or CI environment
+    # (not ~/Documents, ~/Dropbox, ~/Library/Application Support,
+    # /var/folders, /private/var/folders, or /tmp).
+    bad = Path("/usr/local/nope.fichero")
     response = _client().post("/api/library", json={"path": str(bad)})
     assert response.status_code == 403
     assert "allowed location" in response.json()["detail"]

@@ -567,8 +567,8 @@ def _is_allowed_library_path(library_path: str) -> bool:
     - ~/Documents
     - ~/Dropbox
     - ~/Library/Application Support
-    - test temp dirs under /var/folders and /private/var/folders
-    - test temp dirs under /tmp and /private/tmp (macOS pytest tmp_path)
+    - test temp dirs under /var/folders and /private/var/folders (macOS)
+    - /tmp and /private/tmp — Linux CI and macOS sandbox pytest tmp_path
     """
     try:
         resolved = Path(library_path).expanduser().resolve()
@@ -585,8 +585,6 @@ def _is_allowed_library_path(library_path: str) -> bool:
         home / "Library" / "Application Support",
         Path("/var/folders"),
         Path("/private/var/folders"),
-        # macOS pytest tmp_path resolves under /private/tmp; plain /tmp is a
-        # symlink to /private/tmp on macOS and the actual temp dir on Linux.
         Path("/tmp"),
         Path("/private/tmp"),
     ]
