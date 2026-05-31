@@ -19,6 +19,12 @@ import pytest
 from fichero.llm import LLMConfig
 from fichero.workflows.tools.vision_base import VisionToolConfig, process_vision
 
+# process_vision renders PDF pages to images via Quartz (macOS-only); on Linux
+# CI the render fails ("No module named 'Quartz'") before the mocked vision call
+# is reached. Gate the whole module on Quartz availability via the shared marker
+# (auto-skipped off-macOS by conftest's pytest_collection_modifyitems).
+pytestmark = pytest.mark.requires_apple_vision
+
 
 def _make_pdf_with_text(path: Path, pages: list[str]) -> None:
     fitz = pytest.importorskip("fitz")

@@ -23373,6 +23373,92 @@
         }
       }
     },
+    "/api/chains/presets/paleography": {
+      "get": {
+        "tags": [
+          "chains",
+          "chains"
+        ],
+        "summary": "Paleography Preset Preview",
+        "description": "Draft a stageable A/B/C paleography chain from current workflows.",
+        "operationId": "paleography_preset_preview_api_chains_presets_paleography_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaleographyPresetResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "chains",
+          "chains"
+        ],
+        "summary": "Paleography Preset Create",
+        "description": "Create and save the A/B/C paleography chain preset.",
+        "operationId": "paleography_preset_create_api_chains_presets_paleography_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaleographyPresetResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/chains/{chain_id}/execute": {
       "post": {
         "tags": [
@@ -44799,6 +44885,27 @@
         ],
         "title": "OutputSchema",
         "description": "JSON Schema for structured output from LLM nodes.\n\nWhen specified, the LLM will be instructed to return\ndata matching this schema exactly (using structured output mode).\n\nExample for named entity extraction:\n{\n    \"type\": \"object\",\n    \"properties\": {\n        \"people\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"organizations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"dates\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n    },\n    \"required\": [\"people\", \"organizations\", \"dates\"]\n}"
+      },
+      "PaleographyPresetResponse": {
+        "properties": {
+          "chain": {
+            "$ref": "#/components/schemas/ChainResponse"
+          },
+          "matched_workflows": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Matched Workflows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "chain",
+          "matched_workflows"
+        ],
+        "title": "PaleographyPresetResponse",
+        "description": "Draft or saved paleography stage chain."
       },
       "ParagraphCitation": {
         "properties": {

@@ -33,7 +33,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e '.[dev]' || pip install -e .
-          pip install ruff pytest pytest-asyncio
+          pip install ruff pytest pytest-asyncio pytest-timeout
 
       - name: Download spaCy models
         run: |
