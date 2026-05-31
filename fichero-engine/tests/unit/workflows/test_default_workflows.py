@@ -432,6 +432,39 @@ class TestLoadPresetFiles:
             )
             assert inputs["files"] == "$.nodes.files-source.files"
 
+    def test_prepare_images_for_ocr_preset_wiring(self):
+        """Prepare Images for OCR should expose the non-destructive image prep
+        tool as a stageable default workflow (#1390)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Prepare Images for OCR" in presets, "Prepare Images preset must ship"
+        preset = presets["Prepare Images for OCR"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Transcribe"
+        assert preset.get("format") == "nodes"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "prepare_images"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        files_id = _node_id(preset, "files")
+        prepare_id = _node_id(preset, "prepare_images")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == prepare_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into prepare_images"
+
+        prepare_node = next(n for n in preset["nodes"] if n["tool"] == "prepare_images")
+        assert prepare_node["config"].get("output_format") == "jpg"
+        assert prepare_node["config"].get("compression_quality") == 85
+        assert prepare_node["config"].get("grayscale") is True
+        assert prepare_node["config"].get("autocontrast") is True
+        assert prepare_node["config"].get("pdf_dpi") == 300
+
     def test_clean_up_text_preset_wiring(self):
         """Clean Up Text preset: files → transcribe → clean_text.
 
