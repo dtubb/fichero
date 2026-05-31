@@ -1,4 +1,31 @@
-## 2026-05-31 (manager integration session — NEXT SESSION START HERE)
+## 2026-05-31 (integration sweep COMPLETE — NEXT SESSION START HERE)
+
+**main is GREEN and pushed: 3517 Python tests pass, ruff clean, Xcode `BUILD SUCCEEDED`. CI OpenAPI-drift fixed (regen committed).**
+
+### Worker branches harvested this sweep
+Brought over + verified + issues closed: graph-RAG (#1156/#1364), backend/1382 suite (#1382/#1381/#1216/#1397/#1398/#1359), #1361 entity-bio, #903 corroboration, image-tools #1387–#1394, #1366 inspector PDF artifacts, #1386 crop-EXIF, #1175 paleography presets, and haiku UI fixes #1187/#1188/#1383/#1375/#1374/#1224/#1369.
+
+### Deliberately deferred → RE-IMPLEMENT clean on current main (issues left OPEN with comments)
+Stale-branch commits that were build-incompatible (depend on enum/type/orphan shapes main implemented differently):
+- **#1174** — StageVariantInspector needs `PaleographyStage.a/.b/.c` enum that doesn't exist on main
+- **#1191** — wires DocumentKGSurface to `EntityDigestView`, a never-compiled orphan with latent Text/String errors
+- **#1186** — Cmd+' nav conflicts with current ContentView toolbar structure
+- **#1194** — typeset reading highlights (main implemented typeset differently)
+- **#1176** — image-edit recipe-hash provenance (differs from main's image_editing design)
+- **#289** — transcription prompt alignment (codex/1386 version conflicts with #1397/#1398 already in main)
+
+### Worktrees
+Removed (harvested, no live tmux): fichero-1366, fichero-opus, fichero-haiku, fichero-codex-1386, + the 7 earlier codex ones.
+**Left for Daniel to erase** (live tmux sessions, work already harvested/superseded): fichero-codex53, fichero-gpt, fichero-gpt-mini, fichero-sonnet. fichero-opus-realitykit is a separate RealityKit branch (not part of sweep).
+
+### New tooling shipped
+- `scripts/spawn-worker.sh <model> "<milestone>" [session]` — one command: worktree + tmux + venv + agent + claim-scoped milestone prompt. Prints `tmux attach -t <session>`.
+- fichero-skills: new `session-start-milestone-worker` skill + `status:in-progress` claim-lock in claim/release/complete-task + worker/manager skills updated. (Committed in fichero-skills repo, UNPUSHED — bundled with pre-existing WIP, Daniel to split/push.)
+
+### Key lesson
+212-commits-behind Swift branches don't cherry-pick — each has hidden type/enum/orphan-file dependencies that only surface at Xcode build (not swiftlint). Backend cherry-picks were reliable; Swift ones needed build-verify-then-revert. The milestone-worker process (short branches, integrate every 2-3 issues) prevents this staleness going forward.
+
+---
 
 **main advanced past `ecf25282` — 3474+ tests pass, ruff clean, pushed.**
 
