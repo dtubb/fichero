@@ -40788,6 +40788,11 @@
           "act": {
             "$ref": "#/components/schemas/InterpretiveActType"
           },
+          "predicate": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate"
+          },
           "confidence": {
             "type": "number",
             "maximum": 1.0,
@@ -40845,6 +40850,11 @@
           "act": {
             "$ref": "#/components/schemas/InterpretiveActType",
             "nullable": true
+          },
+          "predicate": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate"
           },
           "confidence": {
             "type": "number",
