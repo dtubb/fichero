@@ -5309,6 +5309,60 @@
         }
       }
     },
+    "/api/claims/resolve-source": {
+      "post": {
+        "tags": [
+          "claims",
+          "claims"
+        ],
+        "summary": "Resolve Claim Source",
+        "description": "Resolve claim/SVO selectors to exact source provenance anchor.",
+        "operationId": "resolve_claim_source_api_claims_resolve_source_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimSourceResolveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimSourceResolveResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents": {
       "get": {
         "tags": [
@@ -5704,6 +5758,58 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{doc_id}/workflow-runs": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Get workflow provenance for a document",
+        "description": "Return the recorded workflow runs for a single document.",
+        "operationId": "get_document_workflow_runs_api_documents__doc_id__workflow_runs_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunProvenanceListResponse"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -17683,7 +17789,7 @@
           "knowledge-graph"
         ],
         "summary": "Triangulated facts across the library",
-        "description": "Return triples whose support_count meets the threshold (default 3 = triangulated). Use this to surface the most strongly-attested facts in the corpus.",
+        "description": "Return triples whose weighted support meets the threshold (default 3.0 = triangulated). Use this to surface the most strongly-attested facts in the corpus.",
         "operationId": "library_triangulation_api_kg_triangulation_get",
         "parameters": [
           {
@@ -17691,13 +17797,13 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
+              "type": "number",
               "minimum": 1,
-              "description": "Minimum distinct sources required.",
-              "default": 3,
+              "description": "Minimum weighted support required.",
+              "default": 3.0,
               "title": "Threshold"
             },
-            "description": "Minimum distinct sources required."
+            "description": "Minimum weighted support required."
           },
           {
             "name": "X-Fichero-Library-Path",
@@ -18547,6 +18653,59 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ParagraphRenderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entities/{entity_id}/bio": {
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Generate LLM biography for a knowledge entity",
+        "description": "Runs an LLM over the entity's SVO claims and writes the resulting prose back as entity.description. Re-generation is always allowed.",
+        "operationId": "generate_entity_bio_api_kg_entities__entity_id__bio_post",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityBioResponse"
                 }
               }
             }
@@ -33760,8 +33919,24 @@
           },
           "max_sources": {
             "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
             "title": "Max Sources",
             "default": 5
+          },
+          "graph_hops": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Graph Hops",
+            "default": 1
+          },
+          "max_kg_claims": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Kg Claims",
+            "default": 12
           },
           "provider": {
             "type": "string",
@@ -33803,6 +33978,26 @@
             "type": "string",
             "title": "Model Used",
             "default": ""
+          },
+          "kg_claims_used": {
+            "type": "integer",
+            "title": "Kg Claims Used",
+            "default": 0
+          },
+          "kg_entities_used": {
+            "type": "integer",
+            "title": "Kg Entities Used",
+            "default": 0
+          },
+          "document_count": {
+            "type": "integer",
+            "title": "Document Count",
+            "default": 0
+          },
+          "context_count": {
+            "type": "integer",
+            "title": "Context Count",
+            "default": 0
           }
         },
         "type": "object",
@@ -34904,6 +35099,91 @@
         ],
         "title": "ClaimRelationType",
         "description": "Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B).\n\nOriginally four kinds (supports / contradicts / refines / duplicate_of).\n#1123 extends with five new dimensions plus ``related_to`` (the generic\nfallback used by ``kg_predictions._record_predictions`` when a model\nsurfaces a relation outside the curated set):\n\n- ``corroborates`` \u2014 independent evidence agreeing with the source\n  claim. Distinct from ``supports`` (which just reinforces with\n  additional evidence drawn from the same line of reasoning).\n- ``derives_from`` \u2014 claim B is inferred from / built on claim A;\n  removing A invalidates B. Stronger than ``cites``.\n- ``cites`` \u2014 B references A as a source. Bibliographic / citation\n  graph use.\n- ``follows`` \u2014 temporal sequence (A then B). Doesn't imply\n  causation; ``caused_by`` is the explicit causal claim.\n- ``caused_by`` \u2014 A is the cause of B. Strong claim; reviewers\n  should treat with corroboration.\n- ``related_to`` \u2014 generic fallback when the typed kinds don't\n  fit. Closes the latent crash in\n  ``kg_predictions.py:269`` where the relation_map fallback\n  referenced this value before it existed.\n\nNote: ``contests`` was considered as a synonym for ``contradicts``\nbut excluded \u2014 same semantic, different word, doesn't earn a\nseparate enum slot. Writers should keep using ``contradicts``."
+      },
+      "ClaimSourceResolveRequest": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Id"
+          },
+          "subject_canonical": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Canonical"
+          },
+          "predicate_verb": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate Verb"
+          },
+          "object_phrase": {
+            "type": "string",
+            "nullable": true,
+            "title": "Object Phrase"
+          },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id"
+          }
+        },
+        "type": "object",
+        "title": "ClaimSourceResolveRequest",
+        "description": "Resolve a claim or SVO triple to source page + char span."
+      },
+      "ClaimSourceResolveResponse": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "source_page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Page Label"
+          },
+          "source_char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char Start"
+          },
+          "source_char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char End"
+          },
+          "source_excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Excerpt"
+          },
+          "subject_canonical": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Canonical"
+          },
+          "predicate_verb": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate Verb"
+          },
+          "object_phrase": {
+            "type": "string",
+            "nullable": true,
+            "title": "Object Phrase"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_id",
+          "source_document_id"
+        ],
+        "title": "ClaimSourceResolveResponse"
       },
       "ClaimSummary": {
         "properties": {
@@ -36302,6 +36582,11 @@
             "type": "integer",
             "title": "Height"
           },
+          "auto_orient": {
+            "type": "boolean",
+            "title": "Auto Orient",
+            "default": true
+          },
           "page": {
             "type": "integer",
             "title": "Page",
@@ -36714,9 +36999,33 @@
             "title": "Image Provenance",
             "description": "For digitised images: photographer / capture_date / equipment / condition_notes. Separate from the broader provenance_chain because the same physical document can have multiple captures (initial scan + reshoot)."
           },
+          "workflow_runs": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Workflow Runs",
+            "description": "Workflow run provenance entries for this document. Each item records the workflow/model/result plus start and completion timestamps."
+          },
           "status": {
             "$ref": "#/components/schemas/Status",
             "default": "pending"
+          },
+          "is_read": {
+            "type": "boolean",
+            "title": "Is Read",
+            "default": false
+          },
+          "is_starred": {
+            "type": "boolean",
+            "title": "Is Starred",
+            "default": false
+          },
+          "is_flagged": {
+            "type": "boolean",
+            "title": "Is Flagged",
+            "default": false
           },
           "created_at": {
             "type": "string",
@@ -37304,6 +37613,21 @@
             "$ref": "#/components/schemas/Status",
             "nullable": true
           },
+          "is_read": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Is Read"
+          },
+          "is_starred": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Is Starred"
+          },
+          "is_flagged": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Is Flagged"
+          },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
@@ -37667,6 +37991,24 @@
           "created_at"
         ],
         "title": "EntityAuditResponse"
+      },
+      "EntityBioResponse": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "biography": {
+            "type": "string",
+            "title": "Biography"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "biography"
+        ],
+        "title": "EntityBioResponse"
       },
       "EntityBiographyResponse": {
         "properties": {
@@ -41213,6 +41555,12 @@
             "description": "Number of distinct source documents supporting this claim.",
             "default": 1
           },
+          "weighted_corroboration_count": {
+            "type": "number",
+            "title": "Weighted Corroboration Count",
+            "description": "Authority-weighted support count for this claim. Primary sources contribute 1.0, secondary 0.6, tertiary 0.3.",
+            "default": 1.0
+          },
           "corroborating_source_ids": {
             "items": {
               "type": "string"
@@ -43715,107 +44063,207 @@
         ],
         "title": "NodeCreateRequest"
       },
-      "NodeDef": {
-        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode).",
+      "NodeDef-Input": {
         "properties": {
           "id": {
-            "description": "Unique node identifier",
+            "type": "string",
             "title": "Id",
-            "type": "string"
+            "description": "Unique node identifier"
           },
           "tool": {
-            "description": "Tool function name from registry",
+            "type": "string",
             "title": "Tool",
-            "type": "string"
+            "description": "Tool function name from registry"
           },
           "input_ports": {
-            "description": "Input connection ports (populated from registry, not stored)",
             "items": {
               "$ref": "#/components/schemas/PortDef"
             },
+            "type": "array",
             "title": "Input Ports",
-            "type": "array"
+            "description": "Input connection ports (populated from registry, not stored)"
           },
           "output_ports": {
-            "description": "Output connection ports (populated from registry, not stored)",
             "items": {
               "$ref": "#/components/schemas/PortDef"
             },
+            "type": "array",
             "title": "Output Ports",
-            "type": "array"
+            "description": "Output connection ports (populated from registry, not stored)"
           },
           "input_mappings": {
-            "description": "Maps input ports to data sources from previous nodes",
             "items": {
               "$ref": "#/components/schemas/InputMapping"
             },
+            "type": "array",
             "title": "Input Mappings",
-            "type": "array"
+            "description": "Maps input ports to data sources from previous nodes"
           },
           "inputs": {
             "additionalProperties": true,
-            "description": "Input values for the tool (supports path resolution)",
+            "type": "object",
             "title": "Inputs",
-            "type": "object"
+            "description": "Input values for the tool (supports path resolution)"
           },
           "config": {
             "additionalProperties": true,
-            "description": "Static tool configuration (not resolved)",
+            "type": "object",
             "title": "Config",
-            "type": "object"
+            "description": "Static tool configuration (not resolved)"
           },
           "output_schema": {
             "$ref": "#/components/schemas/OutputSchema",
             "nullable": true,
-            "default": null,
             "description": "JSON Schema for structured LLM output"
           },
           "position_x": {
-            "default": 0.0,
+            "type": "number",
             "title": "Position X",
-            "type": "number"
+            "default": 0.0
           },
           "position_y": {
-            "default": 0.0,
+            "type": "number",
             "title": "Position Y",
-            "type": "number"
+            "default": 0.0
           },
           "label": {
-            "default": "",
+            "type": "string",
             "title": "Label",
-            "type": "string"
+            "default": ""
           },
           "description": {
-            "default": "",
+            "type": "string",
             "title": "Description",
-            "type": "string"
+            "default": ""
           },
           "enabled": {
-            "default": true,
+            "type": "boolean",
             "title": "Enabled",
-            "type": "boolean"
+            "default": true
           },
           "provider_name": {
-            "default": "",
+            "type": "string",
             "title": "Provider Name",
-            "type": "string"
+            "default": ""
           },
           "model_name": {
-            "default": "",
+            "type": "string",
             "title": "Model Name",
-            "type": "string"
+            "default": ""
           },
           "uses_llm": {
-            "default": false,
+            "type": "boolean",
             "title": "Uses Llm",
-            "type": "boolean"
+            "default": false
           }
         },
+        "type": "object",
         "required": [
           "tool"
         ],
         "title": "NodeDef",
-        "type": "object"
+        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
+      },
+      "NodeDef-Output": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique node identifier"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool",
+            "description": "Tool function name from registry"
+          },
+          "input_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Input Ports",
+            "description": "Input connection ports (populated from registry, not stored)"
+          },
+          "output_ports": {
+            "items": {
+              "$ref": "#/components/schemas/PortDef"
+            },
+            "type": "array",
+            "title": "Output Ports",
+            "description": "Output connection ports (populated from registry, not stored)"
+          },
+          "input_mappings": {
+            "items": {
+              "$ref": "#/components/schemas/InputMapping"
+            },
+            "type": "array",
+            "title": "Input Mappings",
+            "description": "Maps input ports to data sources from previous nodes"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs",
+            "description": "Input values for the tool (supports path resolution)"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config",
+            "description": "Static tool configuration (not resolved)"
+          },
+          "output_schema": {
+            "$ref": "#/components/schemas/OutputSchema",
+            "nullable": true,
+            "description": "JSON Schema for structured LLM output"
+          },
+          "position_x": {
+            "type": "number",
+            "title": "Position X",
+            "default": 0.0
+          },
+          "position_y": {
+            "type": "number",
+            "title": "Position Y",
+            "default": 0.0
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name",
+            "default": ""
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name",
+            "default": ""
+          },
+          "uses_llm": {
+            "type": "boolean",
+            "title": "Uses Llm",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool"
+        ],
+        "title": "NodeDef",
+        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode)."
       },
       "NodeModelApplyPatch": {
         "properties": {
@@ -48270,8 +48718,7 @@
           "char_start",
           "char_end"
         ],
-        "title": "SearchAnchor",
-        "description": "Stable character-position anchor within the indexed transcript text."
+        "title": "SearchAnchor"
       },
       "SearchExcerpt": {
         "properties": {
@@ -48310,8 +48757,7 @@
           "match_end",
           "anchor"
         ],
-        "title": "SearchExcerpt",
-        "description": "Transcript excerpt generated from the search layer's indexed text."
+        "title": "SearchExcerpt"
       },
       "SearchExplainRequest": {
         "properties": {
@@ -48693,8 +49139,7 @@
           "content_preview",
           "metadata"
         ],
-        "title": "SearchResult",
-        "description": "Search result with score and document reference."
+        "title": "SearchResult"
       },
       "SearchSource": {
         "properties": {
@@ -52458,6 +52903,100 @@
         "title": "WorkflowResponse",
         "description": "Workflow definition response."
       },
+      "WorkflowRunProvenanceListResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRunProvenanceResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "items",
+          "count"
+        ],
+        "title": "WorkflowRunProvenanceListResponse",
+        "description": "Response for a document's workflow provenance history."
+      },
+      "WorkflowRunProvenanceResponse": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Thread Id"
+          },
+          "batch_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Batch Id"
+          },
+          "item_index": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Item Index"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "workflow_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow Name"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "nullable": true,
+            "title": "Result"
+          },
+          "started_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Started At"
+          },
+          "completed_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id"
+        ],
+        "title": "WorkflowRunProvenanceResponse",
+        "description": "One recorded workflow run against a document."
+      },
       "WorkflowRunResponse": {
         "properties": {
           "thread_id": {
@@ -53479,7 +54018,7 @@
         ],
         "title": "ProjectStatus"
       },
-      "NodeDef-Input": {
+      "NodeDef": {
         "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode).",
         "properties": {
           "id": {
@@ -53531,107 +54070,7 @@
           "output_schema": {
             "$ref": "#/components/schemas/OutputSchema",
             "nullable": true,
-            "description": "JSON Schema for structured LLM output"
-          },
-          "position_x": {
-            "default": 0.0,
-            "title": "Position X",
-            "type": "number"
-          },
-          "position_y": {
-            "default": 0.0,
-            "title": "Position Y",
-            "type": "number"
-          },
-          "label": {
-            "default": "",
-            "title": "Label",
-            "type": "string"
-          },
-          "description": {
-            "default": "",
-            "title": "Description",
-            "type": "string"
-          },
-          "enabled": {
-            "default": true,
-            "title": "Enabled",
-            "type": "boolean"
-          },
-          "provider_name": {
-            "default": "",
-            "title": "Provider Name",
-            "type": "string"
-          },
-          "model_name": {
-            "default": "",
-            "title": "Model Name",
-            "type": "string"
-          },
-          "uses_llm": {
-            "default": false,
-            "title": "Uses Llm",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "tool"
-        ],
-        "title": "NodeDef",
-        "type": "object"
-      },
-      "NodeDef-Output": {
-        "description": "Definition of a single node in the workflow graph.\n\nNodes represent tools/operations that process data.\n\nIMPORTANT: Ports should NOT be stored with nodes. They are defined in the\ntool registry and should be fetched using `enrich_node_with_ports()`.\nThe port fields here are kept for backward compatibility and API responses\nbut should be empty when persisting to database.\n\nInput Mapping:\n    The `input_mappings` list allows referencing ANY previous node's output,\n    not just the immediately preceding one.\n\n    Path syntax:\n    - $.nodes.{node_id}.{key}  - Output from another node\n    - $.inputs.{key}           - Initial workflow input\n    - $.files                  - All input files\n    - $.files[n]               - Specific file by index\n    - $.config.{key}           - Workflow-level config\n\n    Transform pipes:\n    - $.nodes.x.text | upper\n    - $.nodes.x.items | join:\", \"\n    - $.nodes.x.data | json_extract:\"$.name\"\n\nStructured Output:\n    For LLM nodes, `output_schema` defines the exact JSON structure\n    the LLM must return (enforced via structured output mode).",
-        "properties": {
-          "id": {
-            "description": "Unique node identifier",
-            "title": "Id",
-            "type": "string"
-          },
-          "tool": {
-            "description": "Tool function name from registry",
-            "title": "Tool",
-            "type": "string"
-          },
-          "input_ports": {
-            "description": "Input connection ports (populated from registry, not stored)",
-            "items": {
-              "$ref": "#/components/schemas/PortDef"
-            },
-            "title": "Input Ports",
-            "type": "array"
-          },
-          "output_ports": {
-            "description": "Output connection ports (populated from registry, not stored)",
-            "items": {
-              "$ref": "#/components/schemas/PortDef"
-            },
-            "title": "Output Ports",
-            "type": "array"
-          },
-          "input_mappings": {
-            "description": "Maps input ports to data sources from previous nodes",
-            "items": {
-              "$ref": "#/components/schemas/InputMapping"
-            },
-            "title": "Input Mappings",
-            "type": "array"
-          },
-          "inputs": {
-            "additionalProperties": true,
-            "description": "Input values for the tool (supports path resolution)",
-            "title": "Inputs",
-            "type": "object"
-          },
-          "config": {
-            "additionalProperties": true,
-            "description": "Static tool configuration (not resolved)",
-            "title": "Config",
-            "type": "object"
-          },
-          "output_schema": {
-            "$ref": "#/components/schemas/OutputSchema",
-            "nullable": true,
+            "default": null,
             "description": "JSON Schema for structured LLM output"
           },
           "position_x": {
