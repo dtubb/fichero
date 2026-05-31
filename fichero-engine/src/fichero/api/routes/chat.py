@@ -101,6 +101,8 @@ class ChatRequest(BaseModel):
     document_ids: Optional[list[str]] = None  # Scope to specific documents
     include_sources: bool = True
     max_sources: int = 5
+    graph_hops: int = 1
+    max_kg_claims: int = 12
     provider: Optional[str] = None  # e.g., "openai", "anthropic", "ollama"
     model: Optional[str] = None  # e.g., "gpt-4o-mini", "claude-3-haiku"
 
@@ -308,8 +310,8 @@ async def chat(
             max_sources=request.max_sources,
             include_sources=request.include_sources,
             document_ids=request.document_ids,
-            graph_hops=1,
-            max_kg_claims=12,
+            graph_hops=request.graph_hops,
+            max_kg_claims=request.max_kg_claims,
         )
         context_docs = retrieval.context_docs
         sources = [DocumentSource(**row) for row in retrieval.sources]

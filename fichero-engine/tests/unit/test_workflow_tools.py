@@ -239,6 +239,40 @@ class TestSearchTool:
         assert result["documents"][1]["id"] == "kg-claim:claim-1"
         assert result["documents"][1]["doc_type"] == "kg_claim"
 
+    @pytest.mark.asyncio
+    async def test_search_passes_graph_knobs_to_retriever(self, mock_llm_config, mock_state):
+        """search_tool forwards graph-RAG controls to shared retriever."""
+        from fichero.workflows.tools.sources import search_tool
+
+        captured: dict = {}
+        mock_db = MagicMock()
+
+        class _Payload:
+            context_docs = []
+
+        mock_retriever = MagicMock()
+
+        def _retrieve(**kwargs):
+            captured.update(kwargs)
+            return _Payload()
+
+        mock_retriever.retrieve.side_effect = _retrieve
+
+        with (
+            patch("fichero.workflows.tools.sources.db_manager") as mock_manager,
+            patch("fichero.workflows.tools.sources.GraphAwareRetriever", return_value=mock_retriever),
+        ):
+            mock_manager.get_database.return_value = mock_db
+            r = await search_tool(
+                {"query": "Ada", "graph_hops": 2, "max_kg_claims": 7},
+                mock_state,
+                mock_llm_config,
+            )
+
+        assert r["count"] == 0
+        assert captured["graph_hops"] == 2
+        assert captured["max_kg_claims"] == 7
+
 
 # =============================================================================
 # Vision Tools Tests

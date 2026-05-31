@@ -630,6 +630,16 @@ async def folder_tool(
         },
         "min_score": {"type": "number", "default": 0.0, "description": "Min score"},
         "limit": {"type": "integer", "default": 100, "description": "Max results"},
+        "graph_hops": {
+            "type": "integer",
+            "default": 1,
+            "description": "KG traversal depth for graph-aware retrieval",
+        },
+        "max_kg_claims": {
+            "type": "integer",
+            "default": 12,
+            "description": "Max KG claim context rows to add",
+        },
     },
     sort_order=4,
 )
@@ -658,6 +668,8 @@ async def search_tool(
     status_filter = inputs.get("status_filter", "all")
     min_score = inputs.get("min_score", 0.0)
     limit = inputs.get("limit", 100)
+    graph_hops = max(0, int(inputs.get("graph_hops", 1)))
+    max_kg_claims = max(0, int(inputs.get("max_kg_claims", 12)))
 
     library_path = state.get("library_path") or inputs.get("library_path")
     if not library_path:
@@ -685,8 +697,8 @@ async def search_tool(
             search_type=search_type,
             filters=filters,
             min_score=min_score,
-            graph_hops=1,
-            max_kg_claims=12,
+            graph_hops=graph_hops,
+            max_kg_claims=max_kg_claims,
         )
 
         files = []

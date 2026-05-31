@@ -30,6 +30,14 @@ class _FakeLLM:
         return _Response()
 
 
+class _FakeRetrievalPayload:
+    def __init__(self):
+        self.context_docs = []
+        self.sources = []
+        self.kg_claims_used = 0
+        self.kg_entities_used = 0
+
+
 # ---------------------------------------------------------------------------
 # GET /api/chat/conversations
 # ---------------------------------------------------------------------------
@@ -97,6 +105,37 @@ class TestChatWithSources:
         assert data["model_used"] == "openai/gpt-4o-mini"
         assert "[Document 1: Lovelace notes]" in fake_llm.prompt
         assert db.get(Conversation, data["conversation_id"]) is not None
+
+    def test_chat_passes_graph_knobs_to_retriever(self, client, monkeypatch):
+        captured: dict = {}
+
+        class _FakeRetriever:
+            def retrieve(self, **kwargs):
+                captured.update(kwargs)
+                return _FakeRetrievalPayload()
+
+        fake_llm = _FakeLLM()
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: fake_llm,
+        )
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.GraphAwareRetriever",
+            lambda *_args, **_kwargs: _FakeRetriever(),
+        )
+
+        r = client.post(
+            "/api/chat",
+            json={
+                "message": "Test graph knobs",
+                "include_sources": False,
+                "graph_hops": 2,
+                "max_kg_claims": 9,
+            },
+        )
+        assert r.status_code == 200
+        assert captured["graph_hops"] == 2
+        assert captured["max_kg_claims"] == 9
 
 
 # ---------------------------------------------------------------------------
