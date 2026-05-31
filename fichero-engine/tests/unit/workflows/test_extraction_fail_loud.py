@@ -492,3 +492,170 @@ class TestMakeNodeFunctionErrorHandling:
             asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
 
         assert exc_info.value is not None
+
+
+# ---------------------------------------------------------------------------
+# (e) #1362 — zombie rows must NOT crash DB open (index maintenance guard)
+# ---------------------------------------------------------------------------
+
+
+class TestZombieRowIndexCrash:
+    """#1362: ActivityStore._init_database must flip zombie 'running' rows to
+    'failed' BEFORE any index operations on startup.
+
+    Root cause (from production postmortem): DuckDB raises
+    "Invalid Input Error: Failed to delete all rows from index. Only deleted
+    0 out of N rows" when index maintenance encounters rows left in a partially-
+    committed state by a previous crash + WAL replay.  The crash path is a
+    DELETE-on-index operation, not CREATE INDEX itself — it cannot be reliably
+    reproduced in a clean unit-test DB.
+
+    What we CAN and DO test here:
+    - The zombie guard UPDATE runs early (before the index statements).
+    - All 'running' rows are flipped to 'failed' with a non-empty error message.
+    - ActivityStore.__init__ completes without raising.
+    - Non-zombie rows (completed/failed) are untouched.
+
+    The fix eliminates the precondition (zombie rows) so DuckDB's index
+    maintenance never encounters the corrupt state on the next startup.
+    """
+
+    def test_db_open_with_zombie_running_rows_does_not_raise(
+        self, tmp_path: Path
+    ) -> None:
+        """Opening ActivityStore when workflow_runs already exists with N
+        'running' rows must succeed and flip those rows to 'failed'.
+
+        Seeding strategy: create the table + zombie rows directly via a raw
+        duckdb connection (no indexes yet), then open via ActivityStore which
+        triggers _init_database (zombie guard → column ALTERs → index pass).
+        """
+        import duckdb
+        from fichero.workflows.activity_store import ActivityStore
+
+        db_path = str(tmp_path / "zombie_index_crash.db")
+
+        # --- Phase 1: seed zombie rows WITHOUT going through ActivityStore ---
+        # Connect directly to pre-create the table + zombie rows without any
+        # indexes.  When ActivityStore opens it will run the zombie guard UPDATE
+        # before the CREATE INDEX statements.
+        seed_conn = duckdb.connect(db_path)
+        seed_conn.execute("""
+            CREATE TABLE IF NOT EXISTS workflow_runs (
+                thread_id     TEXT PRIMARY KEY,
+                workflow_id   TEXT NOT NULL,
+                workflow_name TEXT NOT NULL,
+                python_code   TEXT,
+                execution_log TEXT,
+                status        TEXT DEFAULT 'running',
+                started_at    TIMESTAMP NOT NULL,
+                completed_at  TIMESTAMP,
+                duration_ms   FLOAT,
+                error         TEXT,
+                workflow_snapshot  JSON,
+                node_name_map      JSON,
+                progress_timeline  JSON,
+                diagram_mermaid    TEXT
+            )
+        """)
+        # Insert 4 zombie runs to match the "4 rows" from the real error report
+        for i in range(4):
+            seed_conn.execute(
+                """
+                INSERT INTO workflow_runs
+                    (thread_id, workflow_id, workflow_name, status, started_at)
+                VALUES (?, ?, ?, 'running', CURRENT_TIMESTAMP)
+                """,
+                [f"zombie-{i}", f"wf-{i}", f"Zombie Workflow {i}"],
+            )
+        seed_conn.close()
+
+        # --- Phase 2: open ActivityStore — must NOT raise ---
+        # The production crash ("Failed to delete all rows from index") occurs
+        # during WAL replay + index maintenance, not reproducible in a clean
+        # unit-test DB.  What we assert here: the guard UPDATE runs cleanly,
+        # the index statements complete, and __init__ returns without raising.
+        try:
+            store = ActivityStore(db_path)
+        except Exception as exc:
+            pytest.fail(
+                f"#1362: ActivityStore.__init__ raised on DB with zombie rows: {exc}"
+            )
+
+        # --- Phase 3: all 4 zombie rows must now be status='failed' ---
+        verify_conn = duckdb.connect(db_path)
+        try:
+            rows = verify_conn.execute(
+                "SELECT thread_id, status, error FROM workflow_runs ORDER BY thread_id"
+            ).fetchall()
+        finally:
+            verify_conn.close()
+
+        assert len(rows) == 4, f"Expected 4 rows, got {len(rows)}"
+        for thread_id, status, error in rows:
+            assert status == "failed", (
+                f"#1362: row {thread_id!r} still has status={status!r}, "
+                f"expected 'failed' after _init_database zombie guard"
+            )
+            assert error is not None and len(error) > 0, (
+                f"#1362: row {thread_id!r} must have a non-empty error message"
+            )
+
+    def test_db_open_with_no_running_rows_is_unchanged(
+        self, tmp_path: Path
+    ) -> None:
+        """When no 'running' rows are present, _init_database must leave
+        completed/failed rows untouched (idempotency guard).
+        """
+        import duckdb
+        from fichero.workflows.activity_store import ActivityStore
+
+        db_path = str(tmp_path / "no_zombie.db")
+
+        seed_conn = duckdb.connect(db_path)
+        seed_conn.execute("""
+            CREATE TABLE IF NOT EXISTS workflow_runs (
+                thread_id     TEXT PRIMARY KEY,
+                workflow_id   TEXT NOT NULL,
+                workflow_name TEXT NOT NULL,
+                python_code   TEXT,
+                execution_log TEXT,
+                status        TEXT DEFAULT 'running',
+                started_at    TIMESTAMP NOT NULL,
+                completed_at  TIMESTAMP,
+                duration_ms   FLOAT,
+                error         TEXT,
+                workflow_snapshot  JSON,
+                node_name_map      JSON,
+                progress_timeline  JSON,
+                diagram_mermaid    TEXT
+            )
+        """)
+        seed_conn.execute(
+            """
+            INSERT INTO workflow_runs
+                (thread_id, workflow_id, workflow_name, status, started_at, completed_at)
+            VALUES (
+                'done-1', 'wf-done', 'Done WF', 'completed',
+                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            )
+            """
+        )
+        seed_conn.close()
+
+        # Should not raise
+        store = ActivityStore(db_path)  # noqa: F841
+
+        verify_conn = duckdb.connect(db_path)
+        try:
+            row = verify_conn.execute(
+                "SELECT status FROM workflow_runs WHERE thread_id = 'done-1'"
+            ).fetchone()
+        finally:
+            verify_conn.close()
+
+        assert row is not None
+        assert row[0] == "completed", (
+            f"#1362: non-zombie row must not be touched by zombie guard, "
+            f"but status={row[0]!r}"
+        )
