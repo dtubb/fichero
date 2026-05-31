@@ -206,11 +206,7 @@ struct ClaimSummaryCard: View {
             HStack(spacing: 6) {
                 // Subject chip — tappable to search for subject entity
                 Button(action: {
-                    NotificationCenter.default.post(
-                        name: .ficheroEntitySearchRequested,
-                        object: nil,
-                        userInfo: ["name": svo.subject]
-                    )
+                    Task { await focusEntityLozenge(named: svo.subject) }
                 }, label: {
                     Text(svo.subject)
                         .font(bodyTextFont)
@@ -246,11 +242,7 @@ struct ClaimSummaryCard: View {
 
                 // Object chip — tappable to search for object entity
                 Button(action: {
-                    NotificationCenter.default.post(
-                        name: .ficheroEntitySearchRequested,
-                        object: nil,
-                        userInfo: ["name": svo.object]
-                    )
+                    Task { await focusEntityLozenge(named: svo.object) }
                 }, label: {
                     Text(svo.object)
                         .font(bodyTextFont)

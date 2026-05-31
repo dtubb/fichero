@@ -222,6 +222,42 @@ extension ClaimSummaryCard {
         evidenceChain = chain
     }
 
+    /// Resolve a lozenge label to an entity and focus its KG neighborhood.
+    /// Falls back to the existing text-search event when no exact entity
+    /// match exists in the library.
+    func focusEntityLozenge(named rawName: String) async {
+        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        guard let library = LibraryManager.shared.globalLibrary else {
+            NotificationCenter.default.post(
+                name: .ficheroEntitySearchRequested,
+                object: nil,
+                userInfo: ["name": name]
+            )
+            return
+        }
+        do {
+            let results = try await library.entityService.listEntities(
+                query: name,
+                limit: 25
+            )
+            let exact = results.first { entity in
+                entity.canonicalName.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+            }
+            if let exact {
+                kgFocusState.focusEntity(entityId: exact.id)
+                return
+            }
+        } catch {
+            // Fallback to text search below.
+        }
+        NotificationCenter.default.post(
+            name: .ficheroEntitySearchRequested,
+            object: nil,
+            userInfo: ["name": name]
+        )
+    }
+
     /// Post ficheroOpenClaimSource for the explicit sourceLine button.
     func openClaimSource() {
         Self.postOpenClaimSource(for: claim)
