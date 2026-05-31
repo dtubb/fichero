@@ -650,6 +650,27 @@ async def _run_workflow_in_background(
             config=config,
             version="v2",
         ):
+            if state.get("pause_requested"):
+                state["status"] = "paused"
+                await log_execution(
+                    f"Workflow '{workflow.name}' paused by user "
+                    f"(thread_id={thread_id})"
+                )
+                event_queue.put(
+                    SSEEvent(
+                        event="pause",
+                        thread_id=thread_id,
+                        workflow_id=workflow_id,
+                        data={"reason": "user_requested"},
+                    )
+                )
+                activity_tracker.workflow_paused(
+                    workflow_id=workflow_id,
+                    thread_id=thread_id,
+                    workflow_name=workflow.name,
+                )
+                return
+
             # #1127 — cancellation check. If the user POSTed
             # /threads/{id}/cancel, the cancel endpoint sets
             # state["cancel_requested"]=True. Break out of the stream;

@@ -16350,6 +16350,49 @@
         }
       }
     },
+    "/api/workflow-execution/threads/{thread_id}/pause": {
+      "post": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Pause Workflow",
+        "description": "Signal a running workflow to pause at the next execution tick.",
+        "operationId": "pause_workflow_api_workflow_execution_threads__thread_id__pause_post",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PauseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflow-execution/threads/{thread_id}/run": {
       "get": {
         "tags": [
@@ -45497,6 +45540,30 @@
         },
         "type": "object",
         "title": "PatternUpdateRequest"
+      },
+      "PauseResponse": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "status"
+        ],
+        "title": "PauseResponse",
+        "description": "Response from POST /threads/{thread_id}/pause."
       },
       "PdfBackfillResponse": {
         "properties": {

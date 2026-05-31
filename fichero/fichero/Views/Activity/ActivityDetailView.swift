@@ -14,6 +14,7 @@ struct ActivityDetailView: View {
     @State private var isLoading = false
     @State private var error: String?
     @State private var selectedSectionId: String = "overview"
+    @State private var isActingOnRun = false
 
     /// Live/completed execution looked up by workflowId (the actual key in activeExecutions).
     /// Falls back to completedExecutions so post-run tabs keep their data.
@@ -102,10 +103,38 @@ struct ActivityDetailView: View {
                         .font(.caption.monospacedDigit())
                 }
             }
+
+            runControls
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(.bar)
+    }
+
+    @ViewBuilder
+    private var runControls: some View {
+        if let threadId = selectedRun.threadId {
+            HStack(spacing: 8) {
+                switch selectedRun.status {
+                case .running:
+                    Button("Pause") {
+                        Task { await pauseRun(threadId: threadId) }
+                    }
+                    .disabled(isActingOnRun)
+
+                    Button("Stop") {
+                        Task { await stopRun(threadId: threadId) }
+                    }
+                    .disabled(isActingOnRun)
+                case .cancelled, .completed, .failed:
+                    Button("Delete") {
+                        Task { await deleteRun(threadId: threadId) }
+                    }
+                    .disabled(isActingOnRun)
+                }
+            }
+            .font(.caption)
+        }
     }
 
     @ViewBuilder
@@ -260,6 +289,43 @@ struct ActivityDetailView: View {
         }
 
         isLoading = false
+    }
+
+    private func workflowExecutionService() -> WorkflowExecutionService {
+        WorkflowExecutionService(
+            baseURL: apiClient.baseURL,
+            libraryPath: apiClient.currentLibraryPath
+        )
+    }
+
+    private func pauseRun(threadId: String) async {
+        isActingOnRun = true
+        defer { isActingOnRun = false }
+        do {
+            try await workflowExecutionService().pauseWorkflow(threadId: threadId)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func stopRun(threadId: String) async {
+        isActingOnRun = true
+        defer { isActingOnRun = false }
+        do {
+            try await workflowExecutionService().cancelWorkflow(threadId: threadId)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func deleteRun(threadId: String) async {
+        isActingOnRun = true
+        defer { isActingOnRun = false }
+        do {
+            try await workflowExecutionService().deleteThread(threadId: threadId)
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }
 

@@ -193,6 +193,36 @@ class WorkflowExecutionService: ObservableObject {
         }
         logger.info("Deleted thread: \(threadId)")
     }
+
+    // MARK: - Pause / Cancel
+
+    func pauseWorkflow(threadId: String) async throws {
+        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/pause")
+        let request = createRequest(url: url, method: "POST")
+        let (_, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw WorkflowExecutionError.invalidResponse
+        }
+        if httpResponse.statusCode >= 400 {
+            throw WorkflowExecutionError.serverError(httpResponse.statusCode, "Pause workflow failed")
+        }
+        logger.info("Pause requested for workflow thread: \(threadId)")
+    }
+
+    func cancelWorkflow(threadId: String) async throws {
+        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/cancel")
+        let request = createRequest(url: url, method: "POST")
+        let (_, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw WorkflowExecutionError.invalidResponse
+        }
+        if httpResponse.statusCode >= 400 {
+            throw WorkflowExecutionError.serverError(httpResponse.statusCode, "Cancel workflow failed")
+        }
+        logger.info("Cancel requested for workflow thread: \(threadId)")
+    }
 }
 
 // MARK: - Models
