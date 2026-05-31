@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Programmatic UI-wiring coverage gate.
+
+Asserts that every backend endpoint in openapi.json is actually referenced
+(by its URL path) somewhere in the SwiftUI app — i.e. it has a call site and
+isn't orphaned backend. Endpoints that are intentionally not-yet-wired live in
+an allowlist (with a reason), which doubles as the frontend wiring backlog.
+
+This is deterministic and token-free — the same philosophy as the OpenAPI
+drift check. It catches two failure modes:
+  1. A backend endpoint exists but nothing in the app calls it (orphaned).
+  2. A NEW endpoint is added without either wiring it OR allowlisting it.
+
+The app calls endpoints by raw URL path (Services/*.swift build URLRequests),
+so we match each openapi path — with {params} turned into wildcards — against
+the app Swift source.
+
+Usage:
+    python scripts/check_ui_wiring.py              # report + exit 1 if drift
+    python scripts/check_ui_wiring.py --write-allowlist   # seed/refresh allowlist baseline
+"""
+from __future__ import annotations
+
+import json
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+OPENAPI = ROOT / "fichero-engine" / "tests" / "contracts" / "openapi.json"
+CONTRACTS = ROOT / "fichero-engine" / "tests" / "contracts"
+
+# Each consuming surface: the HAND-WRITTEN layer that should call endpoints, the
+# file glob, dirs to exclude (the GENERATED clients — their method names are
+# always present by codegen, so they are NOT the signal), and its allowlist.
+SURFACES = {
+    "swiftui": {
+        "dir": ROOT / "fichero" / "fichero",          # the SwiftUI app
+        "glob": "*.swift",
+        "exclude": ("fichero-api-client",),            # generated Swift client
+        "allowlist": CONTRACTS / "ui_wiring_allowlist_swiftui.json",
+    },
+    "cli": {
+        "dir": ROOT / "fichero-engine" / "src" / "fichero" / "cli",
+        "glob": "*.py",
+        "exclude": ("generated", "__pycache__"),       # generated CLI client
+        "allowlist": CONTRACTS / "ui_wiring_allowlist_cli.json",
+    },
+}
+
+
+def surface_source(surface: dict) -> str:
+    """Hand-written source for a surface, excluding generated client dirs."""
+    blob = []
+    for f in surface["dir"].rglob(surface["glob"]):
+        if any(ex in f.parts for ex in surface["exclude"]):
+            continue
+        try:
+            blob.append(f.read_text(errors="ignore"))
+        except OSError:
+            pass
+    return "\n".join(blob)
+
+
+def path_regex(path: str) -> re.Pattern:
+    """openapi path -> regex that matches the raw URL in Swift source.
+
+    `/api/kg/entities/{entity_id}/bio` -> /api/kg/entities/<...>/bio
+    where <...> is a Swift interpolation or a literal id segment.
+    """
+    parts = re.split(r"\{[^}]+\}", path)
+    escaped = r"[^/\"\s]+".join(re.escape(p) for p in parts)
+    return re.compile(escaped)
+
+
+def endpoint_paths() -> list[str]:
+    data = json.loads(OPENAPI.read_text())
+    # One entry per path (method-agnostic — wiring is about the URL).
+    return sorted(data.get("paths", {}).keys())
+
+
+def unwired(surface: dict) -> list[str]:
+    src = surface_source(surface)
+    return [p for p in endpoint_paths() if not path_regex(p).search(src)]
+
+
+def load_allowlist(surface: dict, name: str) -> dict:
+    al = surface["allowlist"]
+    if al.exists():
+        return json.loads(al.read_text())
+    return {"_doc": f"Backend endpoints intentionally not (yet) wired into the {name} surface. "
+                    "Each key is an openapi path; value is the reason. This file IS the "
+                    f"{name} wiring backlog — drop an entry once it's called. CI-enforced.",
+            "paths": {}}
+
+
+def check_surface(name: str, surface: dict, write: bool) -> int:
+    miss = unwired(surface)
+    allow = load_allowlist(surface, name)
+    allowed = set(allow.get("paths", {}).keys())
+
+    if write:
+        allow["paths"] = {p: allow.get("paths", {}).get(p, "baseline: not yet wired") for p in miss}
+        surface["allowlist"].write_text(json.dumps(allow, indent=2) + "\n")
+        print(f"[{name}] wrote allowlist baseline: {len(miss)} unwired endpoints")
+        return 0
+
+    drift = [p for p in miss if p not in allowed]
+    stale = [p for p in allowed if p not in set(miss)]
+    total = len(endpoint_paths())
+    wired = total - len(miss)
+    print(f"[{name}] {wired}/{total} endpoints wired, {len(miss)} unwired ({len(allowed)} allowlisted).")
+    if stale:
+        print(f"  ✓ {len(stale)} allowlisted endpoints now CALLED — drop from allowlist: {stale[:8]}")
+    if drift:
+        print(f"  ✗ {len(drift)} endpoint(s) NOT called and NOT allowlisted:")
+        for p in drift:
+            print(f"      {p}")
+        return 1
+    return 0
+
+
+def main() -> int:
+    write = "--write-allowlist" in sys.argv
+    rc = 0
+    for name, surface in SURFACES.items():
+        rc |= check_surface(name, surface, write)
+    if not write and rc == 0:
+        print("✓ Every backend endpoint is called from each surface, or explicitly allowlisted.")
+    elif not write and rc:
+        print("\nFix: call the endpoint from that surface, or add it to the surface's "
+              "allowlist with a reason (the allowlist IS the wiring backlog).")
+    return rc
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
