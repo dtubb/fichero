@@ -60,6 +60,7 @@ struct LibraryView: View {
     @EnvironmentObject var documentStore: DocumentStore
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @ObservedObject var featureManager = FeatureManager.shared
+    @ObservedObject var workflowRunProviderCache = WorkflowRunProviderCache.shared
 
     // Column visibility for Table view (persisted per-window/scene)
     @SceneStorage("column_name") var showName = true

@@ -53,6 +53,8 @@ class WorkflowStreamService: ObservableObject {
     func execute(
         workflowId: String,
         inputs: [String: Any] = [:],
+        providerOverride: String? = nil,
+        modelOverride: String? = nil,
         onEvent: ((WorkflowStreamEvent) -> Void)? = nil
     ) async throws -> ExecuteAcceptedResponse {
         // Cancel any existing stream
@@ -62,13 +64,19 @@ class WorkflowStreamService: ObservableObject {
         isStreaming = true
 
         // Step 1: POST to /execute to start the workflow
-        let requestBody: [String: Any] = [
+        var requestBody: [String: Any] = [
             "workflow_id": workflowId,
             "inputs": inputs,
             "checkpoint_ns": "",
             "interrupt_before": [] as [String],
             "interrupt_after": [] as [String]
         ]
+        if let providerOverride, !providerOverride.isEmpty {
+            requestBody["provider_override"] = providerOverride
+        }
+        if let modelOverride, !modelOverride.isEmpty {
+            requestBody["model_override"] = modelOverride
+        }
 
         guard let executeUrl = URL(string: "\(api.baseURL)/workflow-execution/execute") else {
             throw WorkflowStreamError.invalidURL

@@ -17463,6 +17463,68 @@
         }
       }
     },
+    "/api/workflows/{workflow_id}/estimate-cost": {
+      "post": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "Estimate Workflow Cost",
+        "description": "Estimate run cost from file count and per-file token assumptions.",
+        "operationId": "estimate_workflow_cost_api_workflows__workflow_id__estimate_cost_post",
+        "parameters": [
+          {
+            "name": "workflow_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workflow Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCostEstimateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCostEstimateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflows/{workflow_id}/duplicate": {
       "post": {
         "tags": [
@@ -23356,6 +23418,92 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChainDeletedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chains/presets/paleography": {
+      "get": {
+        "tags": [
+          "chains",
+          "chains"
+        ],
+        "summary": "Paleography Preset Preview",
+        "description": "Draft a stageable A/B/C paleography chain from current workflows.",
+        "operationId": "paleography_preset_preview_api_chains_presets_paleography_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaleographyPresetResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "chains",
+          "chains"
+        ],
+        "summary": "Paleography Preset Create",
+        "description": "Create and save the A/B/C paleography chain preset.",
+        "operationId": "paleography_preset_create_api_chains_presets_paleography_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaleographyPresetResponse"
                 }
               }
             }
@@ -38979,6 +39127,16 @@
             "type": "boolean",
             "title": "Skip Cache",
             "default": false
+          },
+          "provider_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider Override"
+          },
+          "model_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Override"
           }
         },
         "type": "object",
@@ -44799,6 +44957,27 @@
         ],
         "title": "OutputSchema",
         "description": "JSON Schema for structured output from LLM nodes.\n\nWhen specified, the LLM will be instructed to return\ndata matching this schema exactly (using structured output mode).\n\nExample for named entity extraction:\n{\n    \"type\": \"object\",\n    \"properties\": {\n        \"people\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"organizations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"dates\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n    },\n    \"required\": [\"people\", \"organizations\", \"dates\"]\n}"
+      },
+      "PaleographyPresetResponse": {
+        "properties": {
+          "chain": {
+            "$ref": "#/components/schemas/ChainResponse"
+          },
+          "matched_workflows": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Matched Workflows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "chain",
+          "matched_workflows"
+        ],
+        "title": "PaleographyPresetResponse",
+        "description": "Draft or saved paleography stage chain."
       },
       "ParagraphCitation": {
         "properties": {
@@ -52613,6 +52792,102 @@
         ],
         "title": "WorkflowCodeExportResponse",
         "description": "Response with exported Python code for the workflow."
+      },
+      "WorkflowCostEstimateRequest": {
+        "properties": {
+          "file_count": {
+            "type": "integer",
+            "title": "File Count",
+            "default": 1
+          },
+          "estimated_input_tokens_per_file": {
+            "type": "integer",
+            "title": "Estimated Input Tokens Per File",
+            "default": 1200
+          },
+          "estimated_output_tokens_per_file": {
+            "type": "integer",
+            "title": "Estimated Output Tokens Per File",
+            "default": 300
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "title": "WorkflowCostEstimateRequest",
+        "description": "Inputs for pre-run workflow cost estimation."
+      },
+      "WorkflowCostEstimateResponse": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "file_count": {
+            "type": "integer",
+            "title": "File Count"
+          },
+          "estimated_input_tokens": {
+            "type": "integer",
+            "title": "Estimated Input Tokens"
+          },
+          "estimated_output_tokens": {
+            "type": "integer",
+            "title": "Estimated Output Tokens"
+          },
+          "estimated_total_tokens": {
+            "type": "integer",
+            "title": "Estimated Total Tokens"
+          },
+          "estimated_cost_usd": {
+            "type": "number",
+            "title": "Estimated Cost Usd"
+          },
+          "input_cost_per_million": {
+            "type": "number",
+            "title": "Input Cost Per Million"
+          },
+          "output_cost_per_million": {
+            "type": "number",
+            "title": "Output Cost Per Million"
+          },
+          "pricing_available": {
+            "type": "boolean",
+            "title": "Pricing Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "provider",
+          "model",
+          "file_count",
+          "estimated_input_tokens",
+          "estimated_output_tokens",
+          "estimated_total_tokens",
+          "estimated_cost_usd",
+          "input_cost_per_million",
+          "output_cost_per_million",
+          "pricing_available"
+        ],
+        "title": "WorkflowCostEstimateResponse",
+        "description": "Estimated run cost for the workflow execute button."
       },
       "WorkflowDef": {
         "properties": {

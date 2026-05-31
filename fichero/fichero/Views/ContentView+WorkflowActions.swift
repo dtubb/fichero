@@ -182,7 +182,12 @@ extension ContentView {
     // MARK: - Workflow Execution
 
     @MainActor
-    func runWorkflowOnSelection(workflowId: String, preselectedIds: [String] = []) {
+    func runWorkflowOnSelection(
+        workflowId: String,
+        preselectedIds: [String] = [],
+        providerOverride: String? = nil,
+        modelOverride: String? = nil
+    ) {
         let selectedIds = !preselectedIds.isEmpty
             ? preselectedIds
             : (!browserSelection.isEmpty
@@ -201,12 +206,18 @@ extension ContentView {
         executeWorkflowViaSSE(
             workflowId: workflowId,
             workflowName: workflowName,
-            docIds: selectedIds
+            docIds: selectedIds,
+            providerOverride: providerOverride,
+            modelOverride: modelOverride
         )
     }
 
     @MainActor
-    func runWorkflowOnCollection(workflowId: String) {
+    func runWorkflowOnCollection(
+        workflowId: String,
+        providerOverride: String? = nil,
+        modelOverride: String? = nil
+    ) {
         let collectionIds = documentStore.currentDocuments
             .filter { $0.docType == .file }
             .map { $0.id }
@@ -218,7 +229,9 @@ extension ContentView {
         executeWorkflowViaSSE(
             workflowId: workflowId,
             workflowName: workflowName,
-            docIds: collectionIds
+            docIds: collectionIds,
+            providerOverride: providerOverride,
+            modelOverride: modelOverride
         )
     }
 
@@ -228,7 +241,9 @@ extension ContentView {
     private func executeWorkflowViaSSE(
         workflowId: String,
         workflowName: String,
-        docIds: [String]
+        docIds: [String],
+        providerOverride: String? = nil,
+        modelOverride: String? = nil
     ) {
         // Optimistic insert (#944): show the Activity row immediately, then replace
         // the placeholder thread ID once the POST returns.
@@ -245,6 +260,8 @@ extension ContentView {
                 let response = try await workflowStreamService.execute(
                     workflowId: workflowId,
                     inputs: ["selected_doc_ids": docIds],
+                    providerOverride: providerOverride,
+                    modelOverride: modelOverride,
                     onEvent: { [weak documentStore] event in
                         if handleWorkflowStreamEvent(
                             event,

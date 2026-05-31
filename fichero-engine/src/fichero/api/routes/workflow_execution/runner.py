@@ -21,6 +21,7 @@ from fichero.workflows.runtime import (
     create_compiled_app,
     to_workflow_def,
 )
+from fichero.workflows.registry import get_tool_def
 
 from .schemas import ExecuteWorkflowRequest, SSEEvent
 
@@ -350,6 +351,22 @@ async def _run_workflow_in_background(
                 data={"workflow_name": workflow.name, "inputs": request.inputs},
             )
         )
+
+        # Optional run-level provider/model override from UI context menus (#797).
+        # Applied only to LLM-using nodes so source/logic nodes remain unchanged.
+        if request.provider_override or request.model_override:
+            provider_override = (request.provider_override or "").strip()
+            model_override = (request.model_override or "").strip()
+            for node in workflow.nodes:
+                tool_name = node.get("tool", "")
+                tool_def = get_tool_def(tool_name) if tool_name else None
+                uses_llm = bool(tool_def and tool_def.uses_llm)
+                if not uses_llm:
+                    continue
+                if provider_override:
+                    node["provider_name"] = provider_override
+                if model_override:
+                    node["model_name"] = model_override
 
         # Build workflow using the shared runtime conversion path.
         workflow_def = to_workflow_def(workflow)

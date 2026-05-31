@@ -250,12 +250,27 @@ extension LibraryView {
             && !availableWorkflows.isEmpty {
             let docIds = Array(selection)
             Menu {
-                workflowSubmenuItems(workflows: availableWorkflows) { workflowId in
+                workflowSubmenuItems(workflows: availableWorkflows) { workflowId, providerOverride, modelOverride in
                     selectedDocumentIdsForBatch = docIds
-                    Task { await runBatchWorkflow(workflowId: workflowId) }
+                    Task {
+                        await runBatchWorkflow(
+                            workflowId: workflowId,
+                            providerOverride: providerOverride,
+                            modelOverride: modelOverride
+                        )
+                    }
                 }
             } label: {
                 Label("Run Workflow", systemImage: "flowchart")
+            }
+            .onAppear {
+                Task { @MainActor in
+                    let chatService = libraryManager
+                        .getLibrary(id: windowState.libraryId)?
+                        .chatServiceGenerated
+                        ?? libraryManager.globalLibrary?.chatServiceGenerated
+                    await workflowRunProviderCache.ensureLoaded(chatService: chatService)
+                }
             }
         }
     }
@@ -269,7 +284,7 @@ extension LibraryView {
     @ViewBuilder
     private func workflowSubmenuItems(
         workflows: [WorkflowSidebarItem],
-        action: @escaping (String) -> Void
+        action: @escaping (String, String?, String?) -> Void
     ) -> some View {
         let grouped = Dictionary(grouping: workflows) { workflow in
             workflow.folderPath.isEmpty ? "/" : workflow.folderPath
@@ -278,13 +293,38 @@ extension LibraryView {
         let folderKeys = grouped.keys.filter { $0 != "/" }.sorted()
 
         ForEach(topLevel) { workflow in
-            Button(workflow.name) { action(workflow.id) }
+            runWorkflowMenuEntry(workflow: workflow, action: action)
         }
         ForEach(folderKeys, id: \.self) { folderPath in
             Menu(folderPathLabel(folderPath)) {
                 let inFolder = (grouped[folderPath] ?? []).sorted { $0.name < $1.name }
                 ForEach(inFolder) { workflow in
-                    Button(workflow.name) { action(workflow.id) }
+                    runWorkflowMenuEntry(workflow: workflow, action: action)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func runWorkflowMenuEntry(
+        workflow: WorkflowSidebarItem,
+        action: @escaping (String, String?, String?) -> Void
+    ) -> some View {
+        Menu(workflow.name) {
+            Button("Default") { action(workflow.id, nil, nil) }
+            ForEach(workflowRunProviderCache.providers.filter { $0.available }) { provider in
+                if provider.models.isEmpty {
+                    Button(provider.name) {
+                        action(workflow.id, provider.id, nil)
+                    }
+                } else {
+                    Menu(provider.name) {
+                        ForEach(provider.models, id: \.self) { model in
+                            Button(model) {
+                                action(workflow.id, provider.id, model)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -300,7 +340,11 @@ extension LibraryView {
     /// Passes ALL selected document IDs at once so aggregation workflows (Catalogue)
     /// receive the complete set, and SSE events drive UI refresh.
     @MainActor
-    func runBatchWorkflow(workflowId: String) async {
+    func runBatchWorkflow(
+        workflowId: String,
+        providerOverride: String? = nil,
+        modelOverride: String? = nil
+    ) async {
         guard !selectedDocumentIdsForBatch.isEmpty else { return }
 
         let docIds = selectedDocumentIdsForBatch
@@ -314,10 +358,12 @@ extension LibraryView {
 
         var streamCompleted = false
         do {
-            let response = try await workflowStreamService.execute(
-                workflowId: workflowId,
-                inputs: ["selected_doc_ids": docIds],
-                onEvent: { [weak documentStore = library?.documentStore] event in
+                let response = try await workflowStreamService.execute(
+                    workflowId: workflowId,
+                    inputs: ["selected_doc_ids": docIds],
+                    providerOverride: providerOverride,
+                    modelOverride: modelOverride,
+                    onEvent: { [weak documentStore = library?.documentStore] event in
                     if handleBatchWorkflowEvent(
                         event,
                         workflowId: workflowId,
