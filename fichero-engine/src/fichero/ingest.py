@@ -307,27 +307,44 @@ def ingest_file(
     if sidecar_metadata:
         doc.source_metadata = sidecar_metadata
 
-    # Extract text content using loaders
+    # Extract text content using loaders.  On failure _extract_text_content
+    # sets doc.status=Status.failed and re-raises so we can still persist
+    # the document with its error metadata (#881: fail loud, not silent None).
+    text_extraction_failed = False
     if extract_text and file_type in _TEXT_EXTRACTABLE:
-        _extract_text_content(doc, path)
+        try:
+            _extract_text_content(doc, path)
+        except Exception as _text_exc:
+            # Ensure the document always reflects the failure even if the
+            # exception was raised before _extract_text_content could set
+            # these fields (e.g., during testing with a mock).
+            text_extraction_failed = True
+            doc.status = Status.failed
+            doc.metadata.setdefault("text_extracted", False)
+            doc.metadata.setdefault("text_extraction_error", str(_text_exc))
 
     if save:
         db.save(doc)
-        logger.info("Ingested: %s (%s)", path.name, mode.value)
+        if text_extraction_failed:
+            logger.warning(
+                "Saved document with failed text extraction: %s", path.name
+            )
+        else:
+            logger.info("Ingested: %s (%s)", path.name, mode.value)
 
         # Persist any structured outputs Kreuzberg surfaced alongside the
         # primary text (tables, slide text, image descriptions, transcripts).
         # (#885)
         _save_pending_artifacts(doc, db)
 
-        # Create embedding for search
+        # Create embedding for search (only when text extraction succeeded)
         if auto_embed and doc.page_content:
             db.embed(doc)
 
         # PDFs are containers of pages. Create a child Document for each page
         # so workflows (transcribe, extract, etc.) can fan out per-page and
         # each page is searchable on its own.
-        if file_type == FileType.pdf:
+        if file_type == FileType.pdf and not text_extraction_failed:
             _create_pdf_page_children(doc, path, db, auto_embed=auto_embed)
 
         _touch_ancestor_documents(db, doc.parent_id)
@@ -605,8 +622,13 @@ def _extract_text_content(doc: Document, path: Path) -> None:
     except ImportError as e:
         logger.debug("Loader not available: %s", e)
     except Exception as e:
+        # Fail loud (#881): record the error on the document so callers and the
+        # DB can surface it rather than silently leaving page_content=None.
         logger.warning("Text extraction failed for %s: %s", path, e)
         doc.metadata["text_extracted"] = False
+        doc.metadata["text_extraction_error"] = str(e)
+        doc.status = Status.failed
+        raise  # propagate so ingest_file / ingest_folder can react
 
 
 def _save_pending_artifacts(doc: Document, db: Database) -> int:
@@ -849,7 +871,26 @@ def ingest_folder(
             documents.append(doc)
 
         except Exception as e:
+            # Fail loud (#881/#1216): persist a failed-status stub so the
+            # failure is visible in the DB / UI rather than silently dropped.
             logger.warning(f"Failed to ingest {file_path}: {e}")
+            try:
+                stub = Document(
+                    name=file_path.name,
+                    path=str(file_path),
+                    doc_type=DocType.file,
+                    file_type=detect_file_type(file_path),
+                    parent_id=subfolder_id,
+                    status=Status.failed,
+                    metadata={"ingest_error": str(e)},
+                )
+                db.save(stub)
+            except Exception as save_err:
+                logger.error(
+                    "Could not persist failed-ingest stub for %s: %s",
+                    file_path,
+                    save_err,
+                )
 
         if on_progress:
             on_progress(i + 1, total)
