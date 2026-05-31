@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
 from fichero.kg import triangulation
+from fichero.models import DocType, Document, SourceAuthority
 from fichero.knowledge_models import (
     EntityType,
     KnowledgeClaim,
@@ -14,6 +17,22 @@ def _seed_entity(db, name: str, etype=EntityType.person) -> str:
     ent = KnowledgeEntity(canonical_name=name, entity_type=etype)
     db.save(ent)
     return ent.id
+
+
+def _seed_document(
+    db,
+    doc_id: str,
+    *,
+    authority: SourceAuthority = SourceAuthority.unknown,
+) -> str:
+    doc = Document(
+        id=doc_id,
+        name=doc_id,
+        doc_type=DocType.file,
+        source_authority=authority,
+    )
+    db.save(doc)
+    return doc.id
 
 
 def _seed_claim(
@@ -150,6 +169,23 @@ class TestTriangulatedFacts:
         assert len(triangulation.triangulated_facts(db, threshold=3)) == 0
         assert len(triangulation.triangulated_facts(db, threshold=2)) == 1
 
+    def test_weighted_support_required_for_triangulation(self, db):
+        """Three low-authority sources should not triangulate just by count."""
+        eid = _seed_entity(db, "Davidson")
+        for i in range(3):
+            doc_id = f"doc-{i}"
+            _seed_document(db, doc_id, authority=SourceAuthority.tertiary)
+            _seed_claim(db, entity_id=eid, source_doc=doc_id,
+                        verb="is", obj="an alias")
+
+        triangulated = triangulation.triangulated_facts(db)
+        assert triangulated == []
+
+        supports = triangulation.compute_support_counts(db)
+        support = next(iter(supports.values()))
+        assert support.support_count == 3
+        assert support.weighted_support == pytest.approx(0.9)
+
 
 class TestPersistSupportCounts:
     """Tests for persist_support_counts — the global aggregation → write-back path."""
@@ -172,6 +208,7 @@ class TestPersistSupportCounts:
         from fichero.knowledge_models import KnowledgeClaim
         claim = db.query(KnowledgeClaim, id=cid)[0]
         assert claim.corroboration_count == 1
+        assert claim.weighted_corroboration_count == 1.0
         assert claim.corroborating_source_ids == ["doc-1"]
 
         # Second run: nothing changed — fully idempotent.
@@ -194,6 +231,35 @@ class TestPersistSupportCounts:
             claim = db.query(KnowledgeClaim, id=cid)[0]
             assert claim.corroboration_count == 3
             assert sorted(claim.corroborating_source_ids) == ["doc-0", "doc-1", "doc-2"]
+            assert claim.weighted_corroboration_count == 3.0
+
+    def test_weighted_corroboration_count_uses_source_authority(self, db):
+        """persist_support_counts should persist the weighted source mix."""
+        eid = _seed_entity(db, "Davidson")
+        doc_specs = [
+            ("doc-primary", SourceAuthority.primary),
+            ("doc-secondary", SourceAuthority.secondary),
+            ("doc-tertiary", SourceAuthority.tertiary),
+        ]
+        for doc_id, authority in doc_specs:
+            _seed_document(db, doc_id, authority=authority)
+            _seed_claim(db, entity_id=eid, source_doc=doc_id,
+                        verb="is", obj="an alias of Deibinson")
+
+        updated = triangulation.persist_support_counts(db)
+        assert updated == 3
+
+        from fichero.knowledge_models import KnowledgeClaim
+        claims = db.query(KnowledgeClaim)
+        assert len(claims) == 3
+        for claim in claims:
+            assert claim.corroboration_count == 3
+            assert claim.weighted_corroboration_count == pytest.approx(1.9)
+            assert sorted(claim.corroborating_source_ids) == [
+                "doc-primary",
+                "doc-secondary",
+                "doc-tertiary",
+            ]
 
     def test_distinct_claims_unaffected_by_each_other(self, db):
         """Two different facts from different entities don't bleed into each other."""
@@ -214,6 +280,7 @@ class TestPersistSupportCounts:
         e_claim = db.query(KnowledgeClaim, id=e_cid)[0]
         # Eugenio's claim should be untouched (still 1).
         assert e_claim.corroboration_count == 1
+        assert e_claim.weighted_corroboration_count == 1.0
 
     def test_idempotent_second_call_updates_nothing(self, db):
         """Running persist_support_counts twice writes nothing on the second call."""
@@ -230,7 +297,7 @@ class TestPersistSupportCounts:
 
     def test_date_only_claims_skipped(self, db):
         """Claims with no entity_ids (date-style) are not touched."""
-        from fichero.knowledge_models import KnowledgeClaim, EntityType
+        from fichero.knowledge_models import KnowledgeClaim
 
         date_claim = KnowledgeClaim(
             text="1933-07-23 records the deed",
@@ -245,3 +312,4 @@ class TestPersistSupportCounts:
 
         reloaded = db.query(KnowledgeClaim, id=date_claim.id)[0]
         assert reloaded.corroboration_count == 1  # unchanged default
+        assert reloaded.weighted_corroboration_count == 1.0

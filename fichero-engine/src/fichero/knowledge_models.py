@@ -1765,6 +1765,13 @@ class KnowledgeClaim(BaseModel):
         default=1,
         description="Number of distinct source documents supporting this claim.",
     )
+    weighted_corroboration_count: float = Field(
+        default=1.0,
+        description=(
+            "Authority-weighted support count for this claim. "
+            "Primary sources contribute 1.0, secondary 0.6, tertiary 0.3."
+        ),
+    )
     corroborating_source_ids: list[str] = Field(default_factory=list)
     evidential_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     evidential_confidence_source: str | None = Field(

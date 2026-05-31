@@ -468,6 +468,7 @@ class TestEvidentialModel:
         assert claim.attribution_chain == []
         assert claim.source_supports == []
         assert claim.corroboration_count == 1
+        assert claim.weighted_corroboration_count == 1.0
         assert claim.corroborating_source_ids == []
         assert claim.evidential_confidence is None
 
@@ -537,6 +538,7 @@ class TestEvidentialModel:
                 attribution_chain=chain,
                 source_supports=[support],
                 corroboration_count=2,
+                weighted_corroboration_count=1.6,
                 corroborating_source_ids=["doc-1", "doc-7"],
                 evidential_confidence=0.87,
                 evidential_confidence_source="corroboration",
@@ -550,6 +552,7 @@ class TestEvidentialModel:
             assert loaded.attribution_chain[0].role == AttributionRole.asserter
             assert loaded.source_supports[0].date_values[0].start == "1820-01-01"
             assert loaded.corroboration_count == 2
+            assert loaded.weighted_corroboration_count == 1.6
             assert loaded.corroborating_source_ids == ["doc-1", "doc-7"]
             assert loaded.evidential_confidence == 0.87
 

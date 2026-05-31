@@ -73,16 +73,16 @@ async def entity_triangulation(
     response_model=MutationListResponse,
     summary="Triangulated facts across the library",
     description=(
-        "Return triples whose support_count meets the threshold "
-        "(default 3 = triangulated). Use this to surface the most "
+        "Return triples whose weighted support meets the threshold "
+        "(default 3.0 = triangulated). Use this to surface the most "
         "strongly-attested facts in the corpus."
     ),
 )
 async def library_triangulation(
-    threshold: int = Query(
-        default=3,
+    threshold: float = Query(
+        default=3.0,
         ge=1,
-        description="Minimum distinct sources required.",
+        description="Minimum weighted support required.",
     ),
     db: Database = Depends(get_library_database),
 ) -> MutationListResponse:

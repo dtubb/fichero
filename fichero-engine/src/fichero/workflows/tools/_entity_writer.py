@@ -108,6 +108,24 @@ def _admin_qualifier_match(a: str, b: str) -> bool:
     return bool(core_a) and core_a == core_b
 
 
+def _source_authority_weight(db: Database, doc_id: str) -> float:
+    """Return the source-authority weight for one source document."""
+    from fichero.models import AUTHORITY_WEIGHTS, Document
+
+    doc = db.get(Document, doc_id)
+    if doc is None:
+        return 1.0
+    authority = getattr(doc.source_authority, "value", doc.source_authority)
+    if not isinstance(authority, str):
+        authority = "unknown"
+    return AUTHORITY_WEIGHTS.get(authority, 1.0)
+
+
+def _weighted_corroboration_count(db: Database, source_ids: set[str]) -> float:
+    """Sum authority weights for a claim's distinct source documents."""
+    return sum(_source_authority_weight(db, doc_id) for doc_id in source_ids)
+
+
 def _fuzzy_match_existing(
     existing: list[KnowledgeEntity],
     canonical_name: str,
@@ -665,6 +683,10 @@ def _merge_corroborating_claim(
     canonical.source_ids = sorted(source_ids - {canonical.source_document_id})
     canonical.corroborating_source_ids = sorted(source_ids)
     canonical.corroboration_count = len(source_ids)
+    canonical.weighted_corroboration_count = _weighted_corroboration_count(
+        db,
+        source_ids,
+    )
 
     page_labels = {
         label
@@ -1369,6 +1391,10 @@ def save_claim(
         attribution_chain=derived_attribution_chain,
         source_supports=support_values,
         corroboration_count=len({support.source_document_id for support in support_values}),
+        weighted_corroboration_count=_weighted_corroboration_count(
+            db,
+            {support.source_document_id for support in support_values},
+        ),
         corroborating_source_ids=sorted({support.source_document_id for support in support_values}),
         evidential_confidence=confidence,
         evidential_confidence_source=evidential_confidence_source,

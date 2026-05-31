@@ -199,6 +199,8 @@ def persist_support_counts(
       the same (subject, predicate, object) triple.  Replaces the write-time
       value (which is always 1 for a brand-new claim) with the corpus-global
       count.
+    - ``weighted_corroboration_count`` — same aggregation, but weighted by
+      each source document's ``SourceAuthority``.
     - ``corroborating_source_ids`` — sorted list of those document IDs, so the
       inspector can surface provenance without re-running the aggregation.
 
@@ -237,13 +239,16 @@ def persist_support_counts(
             # Date-only claim or claim with no entity_ids — skip.
             continue
         new_count = support.support_count
+        new_weighted_count = support.weighted_support
         new_sources = sorted(support.source_document_ids)
         # Only write back when the value changed to minimise DuckDB writes.
         if (
             claim.corroboration_count != new_count
+            or claim.weighted_corroboration_count != new_weighted_count
             or list(claim.corroborating_source_ids) != new_sources
         ):
             claim.corroboration_count = new_count
+            claim.weighted_corroboration_count = new_weighted_count
             claim.corroborating_source_ids = new_sources
             db.save(claim)
             updated += 1
@@ -261,7 +266,7 @@ def triples_for_entity(
     entity_id: str,
 ) -> list[TripleSupport]:
     """Return all triples involving ``entity_id`` as subject, sorted
-    by descending support_count.
+    by descending weighted support.
 
     Use case: the entity detail view in the KG inspector shows
     "Davidson is described as an alternative spelling of Deibinson
@@ -272,21 +277,23 @@ def triples_for_entity(
         s for s in all_supports.values()
         if s.key.subject_id == entity_id
     ]
-    matches.sort(key=lambda s: -s.support_count)
+    matches.sort(key=lambda s: (-s.weighted_support, -s.support_count))
     return matches
 
 
 def triangulated_facts(
     db: "Database",
-    threshold: int = TRIANGULATED_THRESHOLD,
+    threshold: float = TRIANGULATED_THRESHOLD,
 ) -> list[TripleSupport]:
-    """Return only the corpus-wide triangulated triples (support >= threshold).
+    """Return only the corpus-wide triangulated triples.
+
+    A triple qualifies when its weighted support meets ``threshold``.
 
     Use case: a "most-supported facts in this library" view that
     surfaces what the corpus most strongly attests.
     """
     all_supports = compute_support_counts(db)
     return sorted(
-        (s for s in all_supports.values() if s.support_count >= threshold),
-        key=lambda s: -s.support_count,
+        (s for s in all_supports.values() if s.weighted_support >= threshold),
+        key=lambda s: (-s.weighted_support, -s.support_count),
     )
