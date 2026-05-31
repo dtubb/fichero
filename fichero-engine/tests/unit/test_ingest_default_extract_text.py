@@ -12,10 +12,11 @@ _TEXT_EXTRACTABLE gates the call.
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fichero.ingest import ingest_file, IngestMode
+from fichero.ingest import ingest_file, ingest_folder, IngestMode
 from fichero.models import FileType
 
 
@@ -82,3 +83,42 @@ class TestIngestDefaultExtractText:
         doc = ingest_file(img, mode=IngestMode.LINK, save=False)
         assert doc.file_type == FileType.image
         assert not doc.page_content
+
+    @patch("fichero.bookmarks.create_bookmark", return_value=None)
+    def test_folder_ingest_extracts_text_by_default(self, _mock_bookmark, tmp_path):
+        md = tmp_path / "notes.md"
+        md.write_text("Folder import should extract this sentence.", encoding="utf-8")
+        fake_db = MagicMock()
+        saved_docs = []
+
+        def _save(doc, auto_embed=False):
+            if not getattr(doc, "id", None):
+                doc.id = f"doc-{len(saved_docs)+1}"
+            saved_docs.append(doc)
+
+        fake_db.save.side_effect = _save
+        docs = ingest_folder(tmp_path, db=fake_db, create_collection=False)
+        assert len(docs) == 1
+        assert docs[0].page_content is not None
+        assert "extract this sentence" in docs[0].page_content
+
+    @patch("fichero.bookmarks.create_bookmark", return_value=None)
+    def test_folder_ingest_skips_unchanged_files_by_hash(self, _mock_bookmark, tmp_path):
+        md = tmp_path / "stable.md"
+        md.write_text("Stable payload for resumable ingest.", encoding="utf-8")
+        fake_db = MagicMock()
+        saved_docs = {}
+
+        def _save(doc, auto_embed=False):
+            if not getattr(doc, "id", None):
+                doc.id = f"doc-{len(saved_docs)+1}"
+            saved_docs[doc.id] = doc
+
+        fake_db.save.side_effect = _save
+        fake_db.all.side_effect = lambda model: list(saved_docs.values())
+
+        first = ingest_folder(tmp_path, db=fake_db, create_collection=False)
+        second = ingest_folder(tmp_path, db=fake_db, create_collection=False)
+
+        assert len(first) == 1
+        assert len(second) == 0
