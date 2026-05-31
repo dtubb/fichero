@@ -291,6 +291,29 @@ class ActivityTracker:
             metadata={"workflow_name": workflow_name, **metadata},
         )
 
+    def workflow_paused(
+        self,
+        workflow_id: str,
+        thread_id: str,
+        workflow_name: Optional[str] = None,
+        duration_ms: Optional[float] = None,
+        **metadata,
+    ) -> Activity:
+        """Log workflow paused event."""
+        return self.log(
+            type=ActivityType.WORKFLOW_PAUSED,
+            level=ActivityLevel.WARNING,
+            message=(
+                f"Workflow '{workflow_name}' paused by user"
+                if workflow_name
+                else "Workflow paused by user"
+            ),
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            duration_ms=duration_ms,
+            metadata={"workflow_name": workflow_name, **metadata},
+        )
+
     def node_started(
         self,
         workflow_id: str,

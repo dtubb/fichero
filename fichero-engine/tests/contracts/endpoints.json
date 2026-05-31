@@ -7994,6 +7994,18 @@
       },
       {
         "method": "POST",
+        "path": "/workflow-execution/threads/{thread_id}/pause",
+        "operation_id": "pause_workflow_api_workflow_execution_threads__thread_id__pause_post",
+        "summary": "Pause Workflow",
+        "path_params": [
+          "thread_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PauseResponse"
+      },
+      {
+        "method": "POST",
         "path": "/workflow-execution/threads/{thread_id}/resume",
         "operation_id": "resume_workflow_api_workflow_execution_threads__thread_id__resume_post",
         "summary": "Resume Workflow",

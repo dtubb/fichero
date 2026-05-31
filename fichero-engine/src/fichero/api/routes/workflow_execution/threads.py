@@ -432,6 +432,14 @@ class CancelResponse(BaseModel):
     message: str = ""
 
 
+class PauseResponse(BaseModel):
+    """Response from POST /threads/{thread_id}/pause."""
+
+    thread_id: str
+    status: str  # "pause_requested" | "not_running" | "already_terminal"
+    message: str = ""
+
+
 @router.post("/threads/{thread_id}/cancel", response_model=CancelResponse)
 async def cancel_workflow(
     thread_id: str,
@@ -495,6 +503,47 @@ async def cancel_workflow(
         message=(
             "Cancellation requested. Workflow will stop at the next "
             "execution tick; partial results stay in place."
+        ),
+    )
+
+
+@router.post("/threads/{thread_id}/pause", response_model=PauseResponse)
+async def pause_workflow(
+    thread_id: str,
+) -> PauseResponse:
+    """Signal a running workflow to pause at the next execution tick."""
+    from .runner import _get_workflow_state
+
+    state = _get_workflow_state(thread_id)
+    if state is None:
+        return PauseResponse(
+            thread_id=thread_id,
+            status="not_running",
+            message=(
+                f"No running workflow with thread_id={thread_id}. "
+                "It may have already finished or never started."
+            ),
+        )
+
+    current = state.get("status")
+    if current in ("completed", "failed", "cancelled"):
+        return PauseResponse(
+            thread_id=thread_id,
+            status="already_terminal",
+            message=(
+                f"Workflow is already in terminal state '{current}'; "
+                "nothing to pause."
+            ),
+        )
+
+    state["pause_requested"] = True
+    logger.info("pause_workflow: marked thread %s for pause", thread_id)
+    return PauseResponse(
+        thread_id=thread_id,
+        status="pause_requested",
+        message=(
+            "Pause requested. Workflow will pause at the next "
+            "execution tick and can be resumed later."
         ),
     )
 
