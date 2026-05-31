@@ -1,6 +1,30 @@
 # STATE.md — Fichero
 
-## 2026-05-31 (overnight reality-check + cleanup) — LATEST
+## 2026-05-31 (overnight sweep COMPLETE) — MORNING REPORT FOR DANIEL
+
+**ALL 18 content milestones reality-checked against actual code** (read-only; reports in `agent-work/proposals/2026-05-31-reality-check-*.md`, 19 files). Zero code changes overnight — app+backend stayed up; catalogue run finished clean (~21 min, 15 docs).
+
+**23 issues closed as verified-done** (each grep-verified before closing, evidence in close comment):
+- Library/Search: #711 #928 #285 #287 #432
+- KG/Workflows: #721 #922 #340 #707 #714 #716 #751 #799
+- Settings: #937 #242 #283 · Activity: #1225 · Importers: #1340 · MCP: #277 · Chat: #245 · Infra: #477 · DevEx: #1151 · Website: #662
+
+**Held for you (NOT auto-closed):** all release-gates (#510 auth, #484/#485, #493/#494, #495/#496/#497, #505–508) — wiring verified present, need your QA sign-off. Product-decision flips (#255/#253 promote-to-beta). #473 Word-export (backend DONE but NO SwiftUI call site — held open, commented). #920 (reviewer said close, I'd reopened it — your call). #1186/#616/#747 (reality-check says done; advisory-commented for you to confirm in-app + close).
+
+**KEY morning actions (highest impact first):**
+1. **#1345 — P1 retry storm** (live): app hammers `/documents/doc:<uuid>/children` ~25×/sec → 404. Root cause + fix plan in issue (SidebarItem `doc:` prefix not stripped before /children).
+2. **#1344** — first-launch AI model defaults not auto-selected; fix pinned to missing `$small/$large` guard in `AISettingsView+Helpers.swift`.
+3. **Backend bugs ready to dispatch:** #881 (silent ingest WARNING → page_content=None), #1216 (large-folder ingest not durable — in-memory `_tasks`), #670 (PDF vision still PIL path).
+4. **Cross-cutting:** graph-RAG KG traversal is NOT in `chat.py` (only vector search) — Chat + Researcher share that path, so one fix (`/api/routes/chat.py`) improves both (#1156 confirmed shared-engine).
+5. **Ready-to-import:** #1232 (Chota Valley maps) — source on disk at `~/code/maps_southern_colombia`, no blocker. Other corpora blocked on Box not synced locally.
+
+**STILL FLAGGED (your decision):** #1156/#1261 dup, #343 borderline, #875/#876/#877 future-dupes, "Library Management" milestone fold-vs-create, #1265 reopen-vs-Image-Editing, Dependabot moderate vuln (advisory #17).
+
+**main pushed clean throughout** (last: this tally). Build was green at session start.
+
+---
+
+## 2026-05-31 (overnight reality-check + cleanup)
 
 **Catalogue run finished clean** (~21 min, 15 docs, "Workflow completed successfully"). Backend idle, app live. NO code changes overnight (app+backend running → held all implementation workers for Daniel).
 
