@@ -1,6 +1,29 @@
 # STATE.md — Fichero
 
-## 2026-05-31 (active build night) — IN PROGRESS
+## 2026-05-31 (active build night) — MORNING REPORT (7 fixes shipped)
+
+**7 fixes merged to main + pushed tonight, all build/test-verified, marked `status:ready-for-test` for Daniel's QA:**
+| # | Fix | commit |
+|---|---|---|
+| #1346 | WebKit reading view: scroll preserved on nav + click-attribute→jump+highlight | 9be05686 |
+| #881 | ingest fails loud (status=failed + error meta) not silent page_content=None | f16999f0 |
+| #1347 | catalogue/KG pipeline fails loud on extraction error (was silently writing empty KG) | 5448e3cb |
+| #1344 | first-launch auto-selects Apple models for $small/$large + race guard | 826e39a7 |
+| #1349 | bound _touch_ancestor_documents (cycle+depth guard) — unhangs ingest suite | d2219ee5 |
+| #670 | LLM vision renders the SELECTED PDF page (was sending whole PDF via PIL, broken) | b42f7807 |
+| #1350 | auto-recover zombie 'running' runs on library open (completes #1347) | 8701ff1f |
+
+**THE empty-Preface-KG story is fixed end-to-end:** root cause was missing `$small` model (#1344) + a "Connection error" in Extract-All-Entities that the pipeline *silently swallowed* and wrote an empty KG (#1347), plus broken PDF vision (#670). Now: a re-run either succeeds OR fails visibly. **ACTION FOR DANIEL: re-run the tubb2020shift Preface catalogue to confirm the KG populates** — and the "Connection error" itself is likely your provider/model config (not a code bug; #1347 just makes it visible).
+
+**Filed tonight:** #1346 (WebKit), #1347, #1348 (CLI flag), #1349, #1350. Full Preface KG-vs-chapter comparison: `agent-work/proposals/2026-05-31-preface-kg-comparison.md`.
+
+**Pre-existing test failures noted (NOT introduced tonight):** 8 unit-test failures exist on main independent of this work (e.g. test_translate_preset_wiring) — flagged for a future cleanup pass.
+
+**In flight / next:** #1348 CLI flag (worker running); graph-RAG-in-chat plan (#1156, read-only planner — chat.py does vector-only, no KG traversal; biggest remaining KG-quality lever, left as a reviewed plan not an unsupervised 1am implementation).
+
+---
+
+## 2026-05-31 (active build night) — earlier
 
 **Daniel's directive:** work all night, get things working, build+verify+commit+integrate as you go, 30-min loops, don't crash the machine. Backend + Xcode app running.
 
