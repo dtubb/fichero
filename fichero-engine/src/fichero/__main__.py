@@ -313,13 +313,27 @@ def import_slipbox_command(
 @artifacts_app.command("list")
 def artifacts_list(
     ctx: typer.Context,
-    doc_id: str = typer.Argument(..., help="Document ID."),
+    doc_id_positional: Optional[str] = typer.Argument(
+        None, help="Document ID (positional form)."
+    ),
+    doc: Optional[str] = typer.Option(
+        None, "--doc", "-d", help="Document ID (flag form; overrides positional)."
+    ),
     artifact_type: Optional[str] = typer.Option(
         None, "--type", help="Filter by artifact type."
     ),
     limit: int = typer.Option(50, "--limit"),
 ) -> None:
-    """List a document's artifacts."""
+    """List a document's artifacts.
+
+    Accepts the document ID as either a positional argument or via ``--doc/-d``.
+    Both forms are equivalent; ``--doc`` overrides the positional when both are
+    supplied.
+    """
+    doc_id = doc if doc is not None else doc_id_positional
+    if doc_id is None:
+        typer.secho("Error: a document ID is required (positional or --doc/-d).", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=2)
     if ctx.obj["json"]:
         _invoke(
             ctx, lambda c: c.list_artifacts(doc_id, artifact_type=artifact_type, limit=limit)
@@ -957,12 +971,24 @@ def kg_entities(
 @kg_app.command("claims")
 def kg_claims(
     ctx: typer.Context,
-    doc_id: str = typer.Option(
-        ..., "--doc", help="Document ID — claims are filtered to this document."
+    doc_id_positional: Optional[str] = typer.Argument(
+        None, help="Document ID (positional form)."
+    ),
+    doc: Optional[str] = typer.Option(
+        None, "--doc", "-d", help="Document ID (flag form; overrides positional)."
     ),
     limit: int = typer.Option(50, "--limit"),
 ) -> None:
-    """List knowledge-graph claims sourced from a document."""
+    """List knowledge-graph claims sourced from a document.
+
+    Accepts the document ID as either a positional argument or via ``--doc/-d``.
+    Both forms are equivalent; ``--doc`` overrides the positional when both are
+    supplied.
+    """
+    doc_id = doc if doc is not None else doc_id_positional
+    if doc_id is None:
+        typer.secho("Error: a document ID is required (positional or --doc/-d).", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=2)
     _invoke(
         ctx,
         lambda c: c.list_claims(source_document_id=doc_id, limit=limit),
@@ -972,11 +998,23 @@ def kg_claims(
 @kg_app.command("citations")
 def kg_citations(
     ctx: typer.Context,
-    doc_id: str = typer.Argument(
-        ..., help="Document ID — citations are scoped to this document."
+    doc_id_positional: Optional[str] = typer.Argument(
+        None, help="Document ID (positional form)."
+    ),
+    doc: Optional[str] = typer.Option(
+        None, "--doc", "-d", help="Document ID (flag form; overrides positional)."
     ),
 ) -> None:
-    """List citation entities resolved for a document."""
+    """List citation entities resolved for a document.
+
+    Accepts the document ID as either a positional argument or via ``--doc/-d``.
+    Both forms are equivalent; ``--doc`` overrides the positional when both are
+    supplied.
+    """
+    doc_id = doc if doc is not None else doc_id_positional
+    if doc_id is None:
+        typer.secho("Error: a document ID is required (positional or --doc/-d).", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=2)
     _invoke(ctx, lambda c: c.citations_at_doc(doc_id))
 
 
