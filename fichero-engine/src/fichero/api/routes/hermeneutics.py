@@ -21,6 +21,7 @@ from fichero.hermeneutics_models import (
     PatternStatus,
 )
 from fichero.kg._common import canonical_hermeneutic_predicate
+from fichero.knowledge_models import KnowledgeClaim
 from fichero.models import HermeneuticsListResponse, HermesSuggestionListResponse
 
 
@@ -261,6 +262,12 @@ async def create_interpretation(
         raise HTTPException(
             status_code=400,
             detail="claim_id is required",
+        )
+    claim = db.get(KnowledgeClaim, request.claim_id)
+    if claim is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Claim not found: {request.claim_id}",
         )
 
     now = datetime.now()
