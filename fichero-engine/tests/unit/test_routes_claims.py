@@ -245,3 +245,95 @@ class TestDeleteClaim:
     def test_delete_missing_returns_404(self, client):
         r = client.delete("/api/claims/no-such-id")
         assert r.status_code == 404
+
+
+class TestResolveClaimSource:
+    def test_resolve_by_claim_id_returns_page_and_char_span(self, client, db):
+        doc = _make_document(db, "Primary source")
+        claim = _make_claim(db, doc, "Ada signed the decree.")
+        claim.source_page_label = "12"
+        claim.source_char_start = 101
+        claim.source_char_end = 127
+        claim.source_excerpt = "Ada signed the decree"
+        db.save(claim)
+
+        r = client.post("/api/claims/resolve-source", json={"claim_id": claim.id})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["claim_id"] == claim.id
+        assert data["source_document_id"] == doc.id
+        assert data["source_page_label"] == "12"
+        assert data["source_char_start"] == 101
+        assert data["source_char_end"] == 127
+
+    def test_resolve_by_svo_returns_exact_anchor(self, client, db):
+        doc = _make_document(db, "Minutes")
+        claim = _make_claim(db, doc, "Ada served as mayor in Popayan.")
+        claim.subject_canonical = "Ada Lovelace"
+        claim.predicate_verb = "served as"
+        claim.object_phrase = "mayor in Popayan"
+        claim.source_page_label = "7"
+        claim.source_char_start = 20
+        claim.source_char_end = 58
+        claim.source_excerpt = "Ada served as mayor in Popayan."
+        db.save(claim)
+
+        r = client.post(
+            "/api/claims/resolve-source",
+            json={
+                "subject_canonical": "Ada Lovelace",
+                "predicate_verb": "served as",
+                "object_phrase": "mayor in Popayan",
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["claim_id"] == claim.id
+        assert data["source_document_id"] == doc.id
+        assert data["source_page_label"] == "7"
+        assert data["source_char_start"] == 20
+        assert data["source_char_end"] == 58
+
+    def test_resolve_by_svo_prefers_matching_source_document(self, client, db):
+        doc_a = _make_document(db, "Doc A")
+        doc_b = _make_document(db, "Doc B")
+
+        claim_a = _make_claim(db, doc_a, "Ada served as mayor in Popayan.")
+        claim_a.subject_canonical = "Ada Lovelace"
+        claim_a.predicate_verb = "served as"
+        claim_a.object_phrase = "mayor in Popayan"
+        claim_a.source_page_label = "4"
+        claim_a.source_char_start = 10
+        claim_a.source_char_end = 48
+        db.save(claim_a)
+
+        claim_b = _make_claim(db, doc_b, "Ada served as mayor in Popayan.")
+        claim_b.subject_canonical = "Ada Lovelace"
+        claim_b.predicate_verb = "served as"
+        claim_b.object_phrase = "mayor in Popayan"
+        claim_b.source_page_label = "9"
+        claim_b.source_char_start = 30
+        claim_b.source_char_end = 68
+        db.save(claim_b)
+
+        r = client.post(
+            "/api/claims/resolve-source",
+            json={
+                "subject_canonical": "Ada Lovelace",
+                "predicate_verb": "served as",
+                "object_phrase": "mayor in Popayan",
+                "source_document_id": doc_b.id,
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["claim_id"] == claim_b.id
+        assert data["source_document_id"] == doc_b.id
+        assert data["source_page_label"] == "9"
+
+    def test_resolve_requires_claim_id_or_full_svo(self, client):
+        r = client.post(
+            "/api/claims/resolve-source",
+            json={"subject_canonical": "Ada Lovelace"},
+        )
+        assert r.status_code == 400

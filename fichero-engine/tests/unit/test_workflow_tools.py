@@ -196,6 +196,183 @@ class TestSearchTool:
         assert result["error"] == "No search query provided"
         assert result["files"] == []
 
+    @pytest.mark.asyncio
+    async def test_search_includes_kg_context_in_documents(self, mock_llm_config, mock_state):
+        """Graph-aware retrieval returns docs + KG context for researcher flows."""
+        from fichero.workflows.tools.sources import search_tool
+
+        doc = Document(
+            id="doc-1",
+            name="Memo",
+            path="/tmp/memo.txt",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        mock_db = MagicMock()
+        mock_db.get.return_value = doc
+
+        class _Payload:
+            context_docs = [
+                {"id": "doc-1", "kind": "document", "search_score": 0.88},
+                {
+                    "id": "kg-claim:claim-1",
+                    "name": "KG claim claim-1",
+                    "kind": "kg_claim",
+                    "content": "Claim: Ada served as mayor in Popayan.",
+                },
+            ]
+
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve.return_value = _Payload()
+
+        with (
+            patch("fichero.workflows.tools.sources.db_manager") as mock_manager,
+            patch("fichero.workflows.tools.sources.GraphAwareRetriever", return_value=mock_retriever),
+        ):
+            mock_manager.get_database.return_value = mock_db
+            result = await search_tool({"query": "Popayan"}, mock_state, mock_llm_config)
+
+        assert result["files"] == ["/tmp/memo.txt"]
+        assert result["count"] == 1
+        assert result["document_count"] == 1
+        assert result["context_count"] == 2
+        assert len(result["documents"]) == 2
+        assert result["documents"][0]["search_score"] == 0.88
+        assert result["documents"][1]["id"] == "kg-claim:claim-1"
+        assert result["documents"][1]["doc_type"] == "kg_claim"
+        assert result["kg_claims_used"] == 0
+        assert result["kg_entities_used"] == 0
+
+    @pytest.mark.asyncio
+    async def test_search_passes_graph_knobs_to_retriever(self, mock_llm_config, mock_state):
+        """search_tool forwards graph-RAG controls to shared retriever."""
+        from fichero.workflows.tools.sources import search_tool
+
+        captured: dict = {}
+        mock_db = MagicMock()
+
+        class _Payload:
+            context_docs = []
+
+        mock_retriever = MagicMock()
+
+        def _retrieve(**kwargs):
+            captured.update(kwargs)
+            return _Payload()
+
+        mock_retriever.retrieve.side_effect = _retrieve
+
+        with (
+            patch("fichero.workflows.tools.sources.db_manager") as mock_manager,
+            patch("fichero.workflows.tools.sources.GraphAwareRetriever", return_value=mock_retriever),
+        ):
+            mock_manager.get_database.return_value = mock_db
+            r = await search_tool(
+                {"query": "Ada", "graph_hops": 2, "max_kg_claims": 7},
+                mock_state,
+                mock_llm_config,
+            )
+
+        assert r["count"] == 0
+        assert r["document_count"] == 0
+        assert r["context_count"] == 0
+        assert captured["graph_hops"] == 2
+        assert captured["max_kg_claims"] == 7
+
+    @pytest.mark.asyncio
+    async def test_search_clamps_graph_knobs(self, mock_llm_config, mock_state):
+        """search_tool clamps oversized graph knobs before retrieval."""
+        from fichero.workflows.tools.sources import search_tool
+
+        captured: dict = {}
+        mock_db = MagicMock()
+
+        class _Payload:
+            context_docs = []
+
+        mock_retriever = MagicMock()
+
+        def _retrieve(**kwargs):
+            captured.update(kwargs)
+            return _Payload()
+
+        mock_retriever.retrieve.side_effect = _retrieve
+
+        with (
+            patch("fichero.workflows.tools.sources.db_manager") as mock_manager,
+            patch("fichero.workflows.tools.sources.GraphAwareRetriever", return_value=mock_retriever),
+        ):
+            mock_manager.get_database.return_value = mock_db
+            r = await search_tool(
+                {"query": "Ada", "graph_hops": 999, "max_kg_claims": 9999},
+                mock_state,
+                mock_llm_config,
+            )
+
+        assert r["count"] == 0
+        assert r["document_count"] == 0
+        assert r["context_count"] == 0
+        assert captured["graph_hops"] == 3
+        assert captured["max_kg_claims"] == 100
+
+    @pytest.mark.asyncio
+    async def test_search_returns_kg_usage_telemetry(self, mock_llm_config, mock_state):
+        """search_tool returns KG usage counts from shared retriever payload."""
+        from fichero.workflows.tools.sources import search_tool
+
+        mock_db = MagicMock()
+
+        class _Payload:
+            context_docs = []
+            kg_claims_used = 5
+            kg_entities_used = 4
+
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve.return_value = _Payload()
+
+        with (
+            patch("fichero.workflows.tools.sources.db_manager") as mock_manager,
+            patch("fichero.workflows.tools.sources.GraphAwareRetriever", return_value=mock_retriever),
+        ):
+            mock_manager.get_database.return_value = mock_db
+            r = await search_tool({"query": "Ada"}, mock_state, mock_llm_config)
+
+        assert r["kg_claims_used"] == 5
+        assert r["kg_entities_used"] == 4
+        assert r["document_count"] == 0
+        assert r["context_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_search_logs_retrieval_diagnostics(
+        self, mock_llm_config, mock_state, caplog
+    ):
+        """search_tool emits a structured retrieval diagnostics log line."""
+        from fichero.workflows.tools.sources import search_tool
+
+        mock_db = MagicMock()
+
+        class _Payload:
+            context_docs = []
+            kg_claims_used = 1
+            kg_entities_used = 1
+
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve.return_value = _Payload()
+
+        with (
+            patch("fichero.workflows.tools.sources.db_manager") as mock_manager,
+            patch(
+                "fichero.workflows.tools.sources.GraphAwareRetriever",
+                return_value=mock_retriever,
+            ),
+            caplog.at_level("INFO"),
+        ):
+            mock_manager.get_database.return_value = mock_db
+            r = await search_tool({"query": "Ada"}, mock_state, mock_llm_config)
+
+        assert r["count"] == 0
+        assert "research_search" in caplog.text
+
 
 # =============================================================================
 # Vision Tools Tests

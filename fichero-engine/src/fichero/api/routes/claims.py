@@ -149,6 +149,28 @@ class ClaimPatchRequest(BaseModel):
     confidence_source: str | None = None
 
 
+class ClaimSourceResolveRequest(BaseModel):
+    """Resolve a claim or SVO triple to source page + char span."""
+
+    claim_id: str | None = None
+    subject_canonical: str | None = None
+    predicate_verb: str | None = None
+    object_phrase: str | None = None
+    source_document_id: str | None = None
+
+
+class ClaimSourceResolveResponse(BaseModel):
+    claim_id: str
+    source_document_id: str
+    source_page_label: str | None = None
+    source_char_start: int | None = None
+    source_char_end: int | None = None
+    source_excerpt: str | None = None
+    subject_canonical: str | None = None
+    predicate_verb: str | None = None
+    object_phrase: str | None = None
+
+
 def _validate_claim_references(db: Database, data: dict[str, Any]) -> None:
     """Validate editable foreign-key-ish claim references."""
     if data.get("source_document_id") is not None:
@@ -345,6 +367,59 @@ async def patch_claim(
     _apply_claim_patch(claim, data)
     db.save(claim)
     return claim
+
+
+@router.post("/resolve-source", response_model=ClaimSourceResolveResponse)
+async def resolve_claim_source(
+    request: ClaimSourceResolveRequest,
+    db: Database = Depends(get_library_database),
+) -> ClaimSourceResolveResponse:
+    """Resolve claim/SVO selectors to exact source provenance anchor."""
+    selected: KnowledgeClaim | None = None
+
+    if request.claim_id:
+        selected = db.get(KnowledgeClaim, request.claim_id)
+        if selected is None:
+            raise HTTPException(status_code=404, detail=f"Claim not found: {request.claim_id}")
+    else:
+        if not (request.subject_canonical and request.predicate_verb and request.object_phrase):
+            raise HTTPException(
+                status_code=400,
+                detail="Provide claim_id, or full SVO fields (subject_canonical, predicate_verb, object_phrase).",
+            )
+        candidates = [
+            claim
+            for claim in db.all(KnowledgeClaim)
+            if (claim.subject_canonical or "").strip().lower() == request.subject_canonical.strip().lower()
+            and (claim.predicate_verb or "").strip().lower() == request.predicate_verb.strip().lower()
+            and (claim.object_phrase or "").strip().lower() == request.object_phrase.strip().lower()
+            and (
+                request.source_document_id is None
+                or claim.source_document_id == request.source_document_id
+            )
+        ]
+        if not candidates:
+            raise HTTPException(status_code=404, detail="No matching claim for supplied SVO.")
+        # Prefer exact-span anchors for click-through, then newest update.
+        candidates.sort(
+            key=lambda claim: (
+                claim.source_char_start is None or claim.source_char_end is None,
+                -(claim.updated_at.timestamp() if claim.updated_at else 0.0),
+            )
+        )
+        selected = candidates[0]
+
+    return ClaimSourceResolveResponse(
+        claim_id=selected.id,
+        source_document_id=selected.source_document_id,
+        source_page_label=selected.source_page_label,
+        source_char_start=selected.source_char_start,
+        source_char_end=selected.source_char_end,
+        source_excerpt=selected.source_excerpt,
+        subject_canonical=selected.subject_canonical,
+        predicate_verb=selected.predicate_verb,
+        object_phrase=selected.object_phrase,
+    )
 
 
 @router.get("/{claim_id}", response_model=KnowledgeClaim)

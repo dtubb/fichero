@@ -30,6 +30,14 @@ class _FakeLLM:
         return _Response()
 
 
+class _FakeRetrievalPayload:
+    def __init__(self):
+        self.context_docs = []
+        self.sources = []
+        self.kg_claims_used = 0
+        self.kg_entities_used = 0
+
+
 # ---------------------------------------------------------------------------
 # GET /api/chat/conversations
 # ---------------------------------------------------------------------------
@@ -95,8 +103,102 @@ class TestChatWithSources:
             }
         ]
         assert data["model_used"] == "openai/gpt-4o-mini"
+        assert data["kg_claims_used"] == 0
+        assert data["kg_entities_used"] == 0
+        assert data["document_count"] == 1
+        assert data["context_count"] == 1
         assert "[Document 1: Lovelace notes]" in fake_llm.prompt
         assert db.get(Conversation, data["conversation_id"]) is not None
+
+    def test_chat_passes_graph_knobs_to_retriever(self, client, monkeypatch):
+        captured: dict = {}
+
+        class _FakeRetriever:
+            def retrieve(self, **kwargs):
+                captured.update(kwargs)
+                return _FakeRetrievalPayload()
+
+        fake_llm = _FakeLLM()
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: fake_llm,
+        )
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.GraphAwareRetriever",
+            lambda *_args, **_kwargs: _FakeRetriever(),
+        )
+
+        r = client.post(
+            "/api/chat",
+            json={
+                "message": "Test graph knobs",
+                "include_sources": False,
+                "graph_hops": 2,
+                "max_kg_claims": 9,
+            },
+        )
+        assert r.status_code == 200
+        assert captured["graph_hops"] == 2
+        assert captured["max_kg_claims"] == 9
+
+    def test_chat_returns_kg_usage_from_retriever(self, client, monkeypatch):
+        class _FakeRetriever:
+            def retrieve(self, **_kwargs):
+                p = _FakeRetrievalPayload()
+                p.kg_claims_used = 4
+                p.kg_entities_used = 3
+                return p
+
+        fake_llm = _FakeLLM()
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: fake_llm,
+        )
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.GraphAwareRetriever",
+            lambda *_args, **_kwargs: _FakeRetriever(),
+        )
+
+        r = client.post("/api/chat", json={"message": "Use KG"})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["kg_claims_used"] == 4
+        assert data["kg_entities_used"] == 3
+        assert data["document_count"] == 0
+        assert data["context_count"] == 0
+
+    def test_chat_logs_retrieval_diagnostics(self, client, monkeypatch, caplog):
+        class _FakeRetriever:
+            def retrieve(self, **_kwargs):
+                p = _FakeRetrievalPayload()
+                p.kg_claims_used = 2
+                p.kg_entities_used = 1
+                return p
+
+        fake_llm = _FakeLLM()
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: fake_llm,
+        )
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.GraphAwareRetriever",
+            lambda *_args, **_kwargs: _FakeRetriever(),
+        )
+
+        with caplog.at_level("INFO"):
+            r = client.post("/api/chat", json={"message": "Use KG"})
+        assert r.status_code == 200
+        assert "chat_retrieval" in caplog.text
+
+    def test_chat_rejects_out_of_range_graph_hops(self, client):
+        r = client.post(
+            "/api/chat",
+            json={
+                "message": "Test invalid graph hops",
+                "graph_hops": 99,
+            },
+        )
+        assert r.status_code == 422
 
 
 # ---------------------------------------------------------------------------

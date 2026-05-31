@@ -20,6 +20,7 @@ from fichero.workflows.registry import register_tool
 from fichero.db import db_manager
 from fichero.models import Document, DocType, FileType
 from fichero.llm import LLMConfig
+from fichero.retrieval.graph_rag import GraphAwareRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -629,6 +630,16 @@ async def folder_tool(
         },
         "min_score": {"type": "number", "default": 0.0, "description": "Min score"},
         "limit": {"type": "integer", "default": 100, "description": "Max results"},
+        "graph_hops": {
+            "type": "integer",
+            "default": 1,
+            "description": "KG traversal depth for graph-aware retrieval",
+        },
+        "max_kg_claims": {
+            "type": "integer",
+            "default": 12,
+            "description": "Max KG claim context rows to add",
+        },
     },
     sort_order=4,
 )
@@ -657,6 +668,8 @@ async def search_tool(
     status_filter = inputs.get("status_filter", "all")
     min_score = inputs.get("min_score", 0.0)
     limit = inputs.get("limit", 100)
+    graph_hops = max(0, min(3, int(inputs.get("graph_hops", 1))))
+    max_kg_claims = max(0, min(100, int(inputs.get("max_kg_claims", 12))))
 
     library_path = state.get("library_path") or inputs.get("library_path")
     if not library_path:
@@ -677,46 +690,89 @@ async def search_tool(
         if status_filter != "all":
             filters["status"] = status_filter
 
-        # Run search
-        results, total, stats = db.search(
+        retrieval = GraphAwareRetriever(db).retrieve(
             query=query,
-            limit=limit,
-            min_score=min_score,
+            max_sources=limit,
+            include_sources=False,
             search_type=search_type,
             filters=filters,
+            min_score=min_score,
+            graph_hops=graph_hops,
+            max_kg_claims=max_kg_claims,
         )
 
-        # Get full documents for each result
         files = []
         doc_data = []
 
-        for result in results:
-            doc = db.get(Document, result.document_id)
-            if doc:
+        for item in retrieval.context_docs:
+            if item.get("kind") == "document":
+                doc = db.get(Document, item.get("id"))
+                if doc is None:
+                    continue
                 # If collection_id filter, check ancestry
-                if collection_id:
-                    if not _is_descendant_of(db, doc, collection_id):
-                        continue
-
+                if collection_id and not _is_descendant_of(db, doc, collection_id):
+                    continue
                 if doc.path:
                     files.append(doc.path)
-
                 doc_dict = doc.model_dump()
-                doc_dict["search_score"] = result.score
-                doc_dict["highlights"] = result.highlights
+                doc_dict["search_score"] = item.get("search_score")
+                doc_dict["highlights"] = None
                 doc_data.append(doc_dict)
+                continue
 
-        logger.info(f"Search '{query}': found {len(files)} files")
+            # KG-augmented context rows are useful to researcher flows,
+            # but are not filesystem inputs for downstream file tools.
+            doc_data.append(
+                {
+                    "id": item.get("id"),
+                    "name": item.get("name"),
+                    "page_content": item.get("content"),
+                    "doc_type": "kg_claim",
+                    "file_type": None,
+                    "path": None,
+                    "search_score": None,
+                    "highlights": None,
+                    "kind": item.get("kind"),
+                }
+            )
+
+        logger.info(
+            "research_search query_len=%d search_type=%s limit=%d "
+            "graph_hops=%d max_kg_claims=%d document_count=%d context_count=%d "
+            "kg_claims_used=%d kg_entities_used=%d",
+            len(query or ""),
+            search_type,
+            limit,
+            graph_hops,
+            max_kg_claims,
+            len(files),
+            len(doc_data),
+            getattr(retrieval, "kg_claims_used", 0),
+            getattr(retrieval, "kg_entities_used", 0),
+        )
 
         return {
             "files": files,
             "documents": doc_data,
             "count": len(files),
+            "document_count": len(files),
+            "context_count": len(doc_data),
+            "kg_claims_used": getattr(retrieval, "kg_claims_used", 0),
+            "kg_entities_used": getattr(retrieval, "kg_entities_used", 0),
         }
 
     except Exception as e:
         logger.error(f"Search tool failed: {e}")
-        return {"files": [], "documents": [], "count": 0, "error": str(e)}
+        return {
+            "files": [],
+            "documents": [],
+            "count": 0,
+            "document_count": 0,
+            "context_count": 0,
+            "kg_claims_used": 0,
+            "kg_entities_used": 0,
+            "error": str(e),
+        }
 
 
 # =============================================================================

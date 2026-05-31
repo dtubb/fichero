@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.db import Database
 from fichero.api.main import get_library_database
@@ -24,6 +24,7 @@ from fichero.models import (
 )
 from fichero.keychain import has_api_key
 from fichero.providers import get_provider_info
+from fichero.retrieval.graph_rag import GraphAwareRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,9 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     document_ids: Optional[list[str]] = None  # Scope to specific documents
     include_sources: bool = True
-    max_sources: int = 5
+    max_sources: int = Field(default=5, ge=1, le=50)
+    graph_hops: int = Field(default=1, ge=0, le=3)
+    max_kg_claims: int = Field(default=12, ge=0, le=100)
     provider: Optional[str] = None  # e.g., "openai", "anthropic", "ollama"
     model: Optional[str] = None  # e.g., "gpt-4o-mini", "claude-3-haiku"
 
@@ -115,6 +118,10 @@ class ChatResponse(BaseModel):
     model_used: str = (
         ""  # Which model actually handled the request (empty if not known)
     )
+    kg_claims_used: int = 0
+    kg_entities_used: int = 0
+    document_count: int = 0
+    context_count: int = 0
 
 
 class ProviderInfo(BaseModel):
@@ -297,67 +304,44 @@ async def chat(
     conv.messages.append({"role": "user", "content": request.message})
     conv.updated_at = datetime.now()
 
-    # Search for relevant documents
+    # Search for relevant docs + KG neighborhood context
     sources = []
     context_docs = []
+    document_count = 0
+    context_count = 0
+    kg_claims_used = 0
+    kg_entities_used = 0
 
     try:
-        # If specific documents are requested, use those
-        if request.document_ids:
-            for doc_id in request.document_ids[: request.max_sources]:
-                doc = db.get(Document, doc_id)
-                if doc and doc.page_content:
-                    context_docs.append(
-                        {
-                            "id": doc.id,
-                            "name": doc.name,
-                            "content": doc.page_content,
-                        }
-                    )
-                    if request.include_sources:
-                        sources.append(
-                            DocumentSource(
-                                document_id=doc.id,
-                                document_name=doc.name,
-                                excerpt=doc.page_content[:200] + "..."
-                                if len(doc.page_content) > 200
-                                else doc.page_content,
-                                relevance_score=1.0,
-                            )
-                        )
-        else:
-            # Enhanced search for relevant documents
-            search_results, _, _ = db.search(
-                query=request.message,
-                limit=request.max_sources,
-                min_score=0.0,
-                search_type="hybrid",  # Use hybrid search for better results
-            )
-
-            for result in search_results:
-                doc = db.get(Document, result.document_id)
-                if doc:
-                    # Use page_content if available, otherwise read from file
-                    content = doc.page_content or _read_file_content(doc.path)
-                    if content:
-                        context_docs.append(
-                            {
-                                "id": doc.id,
-                                "name": doc.name,
-                                "content": content,
-                            }
-                        )
-                        if request.include_sources:
-                            sources.append(
-                                DocumentSource(
-                                    document_id=result.document_id,
-                                    document_name=doc.name,
-                                    excerpt=content[:200] + "..."
-                                    if len(content) > 200
-                                    else content,
-                                    relevance_score=result.score,
-                                )
-                            )
+        retrieval = GraphAwareRetriever(db, file_reader=_read_file_content).retrieve(
+            query=request.message,
+            max_sources=request.max_sources,
+            include_sources=request.include_sources,
+            document_ids=request.document_ids,
+            graph_hops=request.graph_hops,
+            max_kg_claims=request.max_kg_claims,
+        )
+        context_docs = retrieval.context_docs
+        sources = [DocumentSource(**row) for row in retrieval.sources]
+        kg_claims_used = retrieval.kg_claims_used
+        kg_entities_used = retrieval.kg_entities_used
+        context_count = len(context_docs)
+        document_count = sum(
+            1 for item in context_docs if item.get("kind") == "document"
+        )
+        logger.info(
+            "chat_retrieval query_len=%d max_sources=%d graph_hops=%d "
+            "max_kg_claims=%d document_count=%d context_count=%d "
+            "kg_claims_used=%d kg_entities_used=%d",
+            len(request.message or ""),
+            request.max_sources,
+            request.graph_hops,
+            request.max_kg_claims,
+            document_count,
+            context_count,
+            kg_claims_used,
+            kg_entities_used,
+        )
     except Exception as e:
         logger.warning(f"Search failed, proceeding without context: {e}")
 
@@ -396,6 +380,10 @@ async def chat(
         sources=sources,
         conversation_id=conv.id,
         model_used=model_used,
+        kg_claims_used=kg_claims_used,
+        kg_entities_used=kg_entities_used,
+        document_count=document_count,
+        context_count=context_count,
     )
 
 
