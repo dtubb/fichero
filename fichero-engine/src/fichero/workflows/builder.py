@@ -659,19 +659,32 @@ def _make_node_function(
             print(f"[STEP]   Error: {error_msg}")
             logger.error(f"Node {node_id} failed: {e}")
 
-            # Detect quota/rate-limit errors and pause workflow (#1222)
+            # All unhandled node exceptions abort the workflow (#1347).
+            # Prior behaviour: return {"error": ...} which set state.error
+            # but let LangGraph advance to the next node — downstream nodes
+            # (catalogue, kg_writer) then ran on empty data and silently
+            # persisted nothing, reporting 'completed' with an empty KG.
+            #
+            # Fix: raise SystemicErrorDetected so LangGraph propagates the
+            # exception and the runner marks the run as failed immediately.
+            # Quota/rate-limit errors are detected and logged with more
+            # specific context before raising; all others use a generic message.
             if _is_quota_error(e):
-                logger.warning(f"Quota/rate-limit error detected in {node_label}: {error_msg}")
+                logger.warning(
+                    f"Quota/rate-limit error detected in {node_label}: {error_msg}"
+                )
                 raise SystemicErrorDetected(
                     message=f"Quota/rate-limit error in step '{node_label}': {error_msg}",
                     error_count=1,
                     total_count=1,
                 )
 
-            return {
-                "error": f"Step '{node_label}' failed: {error_msg}",
-                "current_node": node_id,
-            }
+            raise SystemicErrorDetected(
+                message=f"Step '{node_label}' failed: {error_msg}",
+                error_count=1,
+                total_count=1,
+                errors=[{"node": node_id, "error": error_msg}],
+            )
 
     return node_function
 
