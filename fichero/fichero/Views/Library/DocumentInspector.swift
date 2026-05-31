@@ -925,7 +925,7 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
         // grow naturally and the outer ScrollView handles overflow (#960).
         // Collapsed panels have no frame and shrink to header height (~30 px).
         // Page Content is never collapsed, so it always gets the min.
-        .frame(minHeight: (isPageContent || isExpanded) ? 60 : nil)
+        .frame(minHeight: (isPageContent || isExpanded) ? (isPageContent ? 60 : 120) : nil)
         // Clip so the editor's AppKit text view can't paint outside the panel's
         // SwiftUI frame onto the attribute strip above it (#1245).
         .clipped()
@@ -1448,9 +1448,10 @@ struct DocumentInspectorContentV2: View {
                 ForEach(sortedArtifacts) { artifact in
                     ArtifactPanel(
                         kind: .artifact(artifact),
-                        // Start collapsed so the inspector reads as a list
-                        // of headers; users expand the one they want.
-                        defaultExpanded: false,
+                        // #1374: artifact content should be visible by default
+                        // in the Artifacts tab; collapsed headers were hiding
+                        // the bodies and making the panel look empty.
+                        defaultExpanded: true,
                         onDelete: { Task { await deleteArtifact(artifact) } },
                         onSave: { newContent in
                             await saveArtifact(artifact, content: newContent)
