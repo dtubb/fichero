@@ -102,13 +102,20 @@ extension AISettingsView {
     }
 
     /// Provider-change companion — clears the model selection immediately,
-    /// loads the new list, then auto-picks its first model. Fixes #936:
-    /// stale picker after provider change + requires-tab-cycle to load.
+    /// loads the new list, then auto-picks a model. Fixes #936: stale picker
+    /// after provider change + requires-tab-cycle to load.
+    ///
+    /// Race guard (#1344): if the current selection is already valid in the
+    /// new list (e.g. restored from a saved default after loadDefaults runs),
+    /// we preserve it rather than blindly picking the first item. Only falls
+    /// back to first-item auto-pick when the saved model is absent from the
+    /// new list or when no model was previously selected.
     func loadModelsResettingSelection(
         for providerType: String,
         into models: Binding<[ModelInfo]>,
         selecting selection: Binding<String>,
         ) {
+        let priorSelection = selection.wrappedValue
         selection.wrappedValue = ""
 
         guard !providerType.isEmpty else {
@@ -129,7 +136,11 @@ extension AISettingsView {
                     .listProviderModels(providerId: provider.id)
                 let list = configuredModelInfos(from: configured, providerType: providerType)
                 models.wrappedValue = list
-                if let first = list.first {
+                // Prefer the already-saved selection if it still exists in
+                // the new list; fall back to first model otherwise.
+                if !priorSelection.isEmpty, list.contains(where: { $0.modelId == priorSelection }) {
+                    selection.wrappedValue = priorSelection
+                } else if let first = list.first {
                     selection.wrappedValue = first.modelId
                 }
             } catch {
@@ -229,6 +240,18 @@ extension AISettingsView {
                 defaults.textProvider = "apple"
                 defaults.visionProvider = "apple"
                 defaults.audioProvider = "apple"
+                try? await appState.saveAIDefaults(defaults)
+            }
+
+            // First-run convenience: seed $small / $large to Apple if not yet
+            // set. Apple Intelligence is on-device / free and is the natural
+            // default for both slots. Mirrors the text/vision/audio guard above.
+            // (#1344)
+            if defaults.smallProvider.isEmpty
+                && defaults.largeProvider.isEmpty,
+               appState.providers.contains(where: { $0.providerType == "apple" }) {
+                defaults.smallProvider = "apple"
+                defaults.largeProvider = "apple"
                 try? await appState.saveAIDefaults(defaults)
             }
 
