@@ -116,6 +116,13 @@ BASE_OUTPUT_PORTS = [
         description="Full results",
     ),
     PortDef(
+        id="records",
+        name="Records",
+        port_type="output",
+        data_type=DataType.ARRAY,
+        description="Per-document text records [{doc_id, text}, ...].",
+    ),
+    PortDef(
         id="artifacts",
         name="Artifacts",
         port_type="output",

@@ -514,6 +514,37 @@ def _install_twostage_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_keywords(*args, **kwargs):
         return "regression fixture; workflow harness"
 
+    async def fake_process_vision(**kwargs):
+        """Deterministic transcribe output carrying records with doc_id."""
+        docs = kwargs.get("documents") or []
+        records = []
+        texts = []
+        for index, doc in enumerate(docs):
+            if not isinstance(doc, dict):
+                continue
+            doc_id = str(doc.get("id") or "")
+            if not doc_id:
+                continue
+            text = (
+                f"Regression Person signed fixture page {index + 1} "
+                f"in Regression Place in 1842."
+            )
+            records.append({"doc_id": doc_id, "text": text})
+            texts.append(text)
+        joined = "\n\n".join(texts)
+        return {
+            "text": joined,
+            "value": joined,
+            "texts": texts,
+            "values": texts,
+            "results": [{"text": t, "error": None} for t in texts],
+            "records": records,
+            "page_records": records,
+            "artifacts": [],
+            "output_files": [],
+            "error": None,
+        }
+
     def resolve_alias(provider: str, model: str) -> tuple[str, str]:
         if (provider or "").startswith("$"):
             return ("fake", "fake-model")
@@ -537,6 +568,10 @@ def _install_twostage_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "fichero.workflows.tools.catalogue._generate_keywords",
         fake_keywords,
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.tools.transcribe.process_vision",
+        fake_process_vision,
     )
     monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
     monkeypatch.setattr(
@@ -618,4 +653,86 @@ def _assert_twostage_kg_rows_landed(
     )
     assert any(claim.entity_ids for claim in all_claims), (
         "claims exist but none have entity_ids linked"
+    )
+
+
+def _seed_folder_with_page_images_fixture(
+    tmp_path: Path,
+) -> tuple[Path, str, str, list[str]]:
+    """Seed folder + image leaf docs to emulate folder catalogue on page images."""
+    library_path = tmp_path / "folder-page-images.fichero"
+    seed(library_path)
+    db = db_manager.get_database(library_path)
+
+    folder = Document(
+        id="workflow-folder-pages",
+        name="Folder page fixture",
+        doc_type=DocType.folder,
+    )
+    db.save(folder)
+
+    child_ids: list[str] = []
+    for index in range(2):
+        image_path = tmp_path / f"page-{index + 1}.jpg"
+        image_path.write_bytes(b"fixture")
+        child = Document(
+            id=f"workflow-folder-page-{index + 1}",
+            parent_id=folder.id,
+            name=image_path.name,
+            path=str(image_path),
+            doc_type=DocType.file,
+            file_type=FileType.image,
+        )
+        db.save(child)
+        child_ids.append(child.id)
+
+    return library_path, folder.id, folder.id, child_ids
+
+
+def test_catalogue_twostage_folder_writes_kg_rows_to_child_docs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Folder catalogue contract: summary on folder, KG rows on child page/image docs."""
+    _install_twostage_stubs(monkeypatch)
+    library_path, selected_doc_id, catalogue_target_id, child_doc_ids = _seed_folder_with_page_images_fixture(
+        tmp_path
+    )
+    db = db_manager.get_database(library_path)
+
+    before_claims = len(db.all(KnowledgeClaim))
+    before_entities = len(db.all(KnowledgeEntity))
+
+    workflow = _load_catalogue_workflow_twostage()
+    state = build_initial_state(
+        {"selected_doc_ids": [selected_doc_id]},
+        library_path=str(library_path),
+    )
+    state["workflow_id"] = workflow.id
+    state["task_id"] = "test-folder-pages-catalogue-twostage"
+
+    final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
+
+    _assert_workflow_completed(final_state)
+    _assert_twostage_kg_rows_landed(
+        db,
+        catalogue_target_id=catalogue_target_id,
+        before_entities=before_entities,
+        before_claims=before_claims,
+    )
+
+    folder_claims = [
+        claim
+        for claim in db.query(KnowledgeClaim, source_document_id=catalogue_target_id)
+        if claim.entity_ids
+    ]
+    child_claims = [
+        claim
+        for claim in db.all(KnowledgeClaim)
+        if claim.source_document_id in set(child_doc_ids) and claim.entity_ids
+    ]
+    assert child_claims, "expected entity-linked claims on child page/image docs"
+    assert not folder_claims, (
+        "expected no entity-linked claims on folder container when child "
+        "doc_ids are available"
     )
