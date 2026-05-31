@@ -124,7 +124,7 @@ struct DocumentKGSurface: View {
     @ViewBuilder
     private var content: some View {
         switch activeTab {
-        case .transcript, .graph:
+        case .transcript, .digest, .graph:
             DocumentKGWebPane(
                 documentId: documentId,
                 libraryPath: libraryPath,
@@ -136,8 +136,6 @@ struct DocumentKGSurface: View {
                 onPageSelected: onPageSelected,
                 scrollSync: scrollSync
             )
-        case .digest:
-            EntityDigestView(sourceDocumentId: documentId)
         case .claims:
             ScrollView {
                 KnowledgeGraphInspectorSection(
