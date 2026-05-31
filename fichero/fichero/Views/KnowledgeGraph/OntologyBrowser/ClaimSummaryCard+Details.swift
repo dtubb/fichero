@@ -13,6 +13,21 @@ extension ClaimSummaryCard {
         let metadata = claim.metadata?.additionalProperties.value ?? [:]
         var badges: [ProvenanceBadge] = []
 
+        let createdByRaw = claim.createdBy?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if let createdByRaw, !createdByRaw.isEmpty {
+            if ["human", "user", "manual", "researcher", "editor", "curator", "cli"]
+                .contains(createdByRaw) {
+                badges.append(ProvenanceBadge(label: "✏️ Human", tint: .orange))
+            } else if createdByRaw.contains("extract")
+                        || createdByRaw.contains("agent")
+                        || createdByRaw.contains("llm")
+                        || createdByRaw.contains("ai") {
+                badges.append(ProvenanceBadge(label: "AI", tint: .purple))
+            }
+        }
+
         let quotationKindRaw = (
             metadata["quotation_kind"] as? String
             ?? metadata["quotationKind"] as? String

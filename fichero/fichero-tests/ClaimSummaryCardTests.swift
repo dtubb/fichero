@@ -115,6 +115,38 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertFalse(labels.contains(where: { $0.contains("corroborated") }))
     }
 
+    func testProvenanceBadgesIncludesHumanCreatedByBadge() throws {
+        let claim = try decodeClaim("""
+        {
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "created_by": "human"
+        }
+        """)
+
+        let labels = ClaimSummaryCard
+            .provenanceBadges(for: claim)
+            .map(\.label)
+
+        XCTAssertTrue(labels.contains("✏️ Human"))
+    }
+
+    func testProvenanceBadgesIncludesAIBadgeForExtractor() throws {
+        let claim = try decodeClaim("""
+        {
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "created_by": "extractor"
+        }
+        """)
+
+        let labels = ClaimSummaryCard
+            .provenanceBadges(for: claim)
+            .map(\.label)
+
+        XCTAssertTrue(labels.contains("AI"))
+    }
+
     private func decodeClaim(_ json: String) throws -> Components.Schemas.KnowledgeClaim {
         let data = Data(json.utf8)
         let decoder = JSONDecoder()
