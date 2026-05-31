@@ -12,7 +12,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Header
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, db_manager
 from fichero.db import Database
 from fichero.models import Document
 
@@ -154,6 +154,10 @@ async def ingest_folder(
     # Background ingest (capture db and package_path for use in background task)
     def do_background_ingest():
         mode = IngestMode.COPY if request.copy_mode else IngestMode.LINK
+        # Use a fresh database handle for the background thread instead of
+        # reusing the request-scoped object. This avoids stale/contended
+        # connection state on long-running folder ingests (#1216).
+        bg_db = db_manager.get_database(x_fichero_library_path)
 
         def on_progress(current: int, total: int):
             _tasks[task_id]["processed"] = current
@@ -169,7 +173,7 @@ async def ingest_folder(
                 extract_text=request.extract_text,
                 auto_embed=request.auto_embed,
                 on_progress=on_progress,
-                db=db,
+                db=bg_db,
                 package_path=package_path,
             )
             _tasks[task_id]["status"] = "completed"

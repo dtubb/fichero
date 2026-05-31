@@ -6,10 +6,6 @@ ingestion. Tests mock the underlying ingest functions to avoid touching
 the real filesystem or storage layer.
 """
 
-import os
-import tempfile
-import pytest
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from fichero.models import Document
@@ -96,6 +92,25 @@ class TestIngestFolder:
         r = client.post("/api/ingest/folder", json={"path": str(f)})
         assert r.status_code == 400
         assert "not a directory" in r.json()["detail"].lower()
+
+    def test_background_ingest_uses_fresh_db_handle(self, client, tmp_path):
+        """#1216: background folder ingest should reopen DB by library path."""
+        (tmp_path / "a.txt").write_text("a")
+        fresh_db = MagicMock(name="fresh_db")
+        seen: dict[str, object] = {}
+
+        def _fake_ingest_folder(*_args, **kwargs):
+            seen["db"] = kwargs.get("db")
+            return []
+
+        with patch("fichero.ingest.ingest_folder", side_effect=_fake_ingest_folder), \
+             patch("fichero.ingest.count_files", return_value=1), \
+             patch("fichero.ingest.IngestMode"), \
+             patch("fichero.api.routes.ingest.db_manager.get_database", return_value=fresh_db):
+            r = client.post("/api/ingest/folder", json={"path": str(tmp_path)})
+
+        assert r.status_code == 200
+        assert seen.get("db") is fresh_db
 
 
 # ---------------------------------------------------------------------------
