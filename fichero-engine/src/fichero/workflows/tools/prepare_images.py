@@ -227,6 +227,14 @@ def prepare_image_file(
             required=True,
             description="Image or PDF files to prepare.",
         ),
+        PortDef(
+            id="documents",
+            name="Documents",
+            port_type="input",
+            data_type=DataType.JSON,
+            required=False,
+            description="Document metadata for future preview-editor integration.",
+        ),
     ],
     output_ports=[
         PortDef(

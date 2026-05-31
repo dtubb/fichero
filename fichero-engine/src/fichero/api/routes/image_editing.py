@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
-from PIL import Image, ImageChops, ImageEnhance, ImageOps
+from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -291,6 +291,8 @@ def _apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
 
     if name == "enhance":
         enhanced = image
+        if bool(params.get("denoise", False)):
+            enhanced = enhanced.filter(ImageFilter.MedianFilter(size=3))
         if bool(params.get("auto_levels", False)):
             enhanced = ImageOps.autocontrast(enhanced)
         enhanced = ImageEnhance.Brightness(enhanced).enhance(

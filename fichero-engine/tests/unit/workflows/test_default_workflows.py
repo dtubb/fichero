@@ -457,11 +457,57 @@ class TestLoadPresetFiles:
             and e["target_port"] == "files"
             for e in preset["edges"]
         ), "files must flow into rotate_images"
+        assert any(
+            e["source"] == files_id
+            and e["target"] == rotate_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in preset["edges"]
+        ), "documents must flow into rotate_images for preview editor updates"
 
         rotate_node = next(n for n in preset["nodes"] if n["tool"] == "rotate_images")
         assert rotate_node["config"].get("auto_orient") is True
         assert rotate_node["config"].get("rotation_degrees") == 0
         assert rotate_node["config"].get("output_format") == "jpg"
+
+    def test_enhance_images_preset_wiring(self):
+        """Enhance Images should expose contrast/sharpness/denoise controls
+        as a default image-editing workflow (#1388)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Enhance Images" in presets, "enhance preset must ship"
+        preset = presets["Enhance Images"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Image Editing"
+        assert preset.get("format") == "nodes"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "enhance_images"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        files_id = _node_id(preset, "files")
+        enhance_id = _node_id(preset, "enhance_images")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == enhance_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into enhance_images"
+        assert any(
+            e["source"] == files_id
+            and e["target"] == enhance_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in preset["edges"]
+        ), "documents must flow into enhance_images for preview editor updates"
+
+        enhance_node = next(n for n in preset["nodes"] if n["tool"] == "enhance_images")
+        assert enhance_node["config"].get("contrast") == 1.25
+        assert enhance_node["config"].get("sharpness") == 1.1
+        assert enhance_node["config"].get("denoise") is True
+        assert enhance_node["config"].get("output_format") == "jpg"
 
     def test_prepare_images_for_ocr_preset_wiring(self):
         """Prepare Images for OCR should expose the non-destructive image prep
@@ -488,6 +534,13 @@ class TestLoadPresetFiles:
             and e["target_port"] == "files"
             for e in preset["edges"]
         ), "files must flow into prepare_images"
+        assert any(
+            e["source"] == files_id
+            and e["target"] == prepare_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in preset["edges"]
+        ), "documents should flow into prepare_images for future editor integration"
 
         prepare_node = next(n for n in preset["nodes"] if n["tool"] == "prepare_images")
         assert prepare_node["config"].get("output_format") == "jpg"

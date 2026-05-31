@@ -1,11 +1,11 @@
 {
-  "name": "Rotate / Auto-Orient Images",
-  "description": "Create rotated or EXIF-oriented image derivatives without modifying the originals. Defaults to auto-orienting camera scans and writing JPGs for downstream image editing or OCR workflows.",
+  "name": "Enhance Images",
+  "description": "Create contrast, sharpness, and light denoise image derivatives without modifying the originals. Useful for low-contrast scanned documents before OCR or transcription.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
   "folder_path": "/Image Editing",
-  "tags": ["preset", "image-editing", "rotate", "orientation", "ocr"],
+  "tags": ["preset", "image-editing", "enhance", "contrast", "denoise", "ocr"],
   "config": {
     "preset_version": 1
   },
@@ -20,15 +20,16 @@
       "config": {}
     },
     {
-      "id": "rotate_images",
-      "tool": "rotate_images",
-      "label": "Rotate / Auto-Orient Images",
+      "id": "enhance_images",
+      "tool": "enhance_images",
+      "label": "Enhance Images",
       "position_x": 300,
       "position_y": 200,
       "inputs": {},
       "config": {
-        "auto_orient": true,
-        "rotation_degrees": 0,
+        "contrast": 1.25,
+        "sharpness": 1.1,
+        "denoise": true,
         "output_format": "jpg",
         "compression_quality": 90
       }
@@ -36,16 +37,16 @@
   ],
   "edges": [
     {
-      "id": "edge-documents-rotate-images",
+      "id": "edge-documents-enhance-images",
       "source": "files-source",
-      "target": "rotate_images",
+      "target": "enhance_images",
       "source_port": "documents",
       "target_port": "documents"
     },
     {
-      "id": "edge-files-rotate-images",
+      "id": "edge-files-enhance-images",
       "source": "files-source",
-      "target": "rotate_images",
+      "target": "enhance_images",
       "source_port": "files",
       "target_port": "files"
     }

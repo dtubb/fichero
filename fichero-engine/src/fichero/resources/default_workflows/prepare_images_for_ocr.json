@@ -37,6 +37,13 @@
   ],
   "edges": [
     {
+      "id": "edge-documents-prepare-images",
+      "source": "files-source",
+      "target": "prepare_images",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
       "id": "edge-files-prepare-images",
       "source": "files-source",
       "target": "prepare_images",

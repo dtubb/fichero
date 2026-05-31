@@ -1,4 +1,4 @@
-"""Rotate/auto-orient images without modifying source files (#1387)."""
+"""Enhance scanned document images without modifying source files (#1388)."""
 
 from __future__ import annotations
 
@@ -16,19 +16,26 @@ logger = logging.getLogger(__name__)
 
 _IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
 _ALLOWED_FORMATS = {"jpg", "jpeg", "png", "tiff", "webp"}
-_ALLOWED_ROTATIONS = {0, 90, 180, 270}
 
-ROTATE_IMAGES_CONFIG = {
-    "rotation_degrees": {
-        "type": "integer",
-        "enum": [0, 90, 180, 270],
-        "default": 0,
-        "description": "Clockwise rotation to apply after EXIF auto-orientation.",
+ENHANCE_IMAGES_CONFIG = {
+    "contrast": {
+        "type": "number",
+        "default": 1.25,
+        "minimum": 0.1,
+        "maximum": 3.0,
+        "description": "Contrast multiplier. 1.0 leaves contrast unchanged.",
     },
-    "auto_orient": {
+    "sharpness": {
+        "type": "number",
+        "default": 1.1,
+        "minimum": 0.0,
+        "maximum": 3.0,
+        "description": "Sharpness multiplier. 1.0 leaves sharpness unchanged.",
+    },
+    "denoise": {
         "type": "boolean",
-        "default": True,
-        "description": "Apply EXIF orientation before any explicit rotation.",
+        "default": False,
+        "description": "Apply a light median filter for speckle/noise reduction.",
     },
     "output_format": {
         "type": "string",
@@ -63,11 +70,8 @@ def _extension_for_format(output_format: str) -> str:
     return "jpg" if fmt == "jpeg" else fmt
 
 
-def _normalise_rotation(rotation_degrees: int) -> int:
-    rotation = int(rotation_degrees) % 360
-    if rotation not in _ALLOWED_ROTATIONS:
-        raise ValueError(f"Unsupported rotation: {rotation_degrees}")
-    return rotation
+def _clamp_factor(value: float, *, minimum: float, maximum: float) -> float:
+    return max(minimum, min(maximum, float(value)))
 
 
 def _save_image(
@@ -87,16 +91,17 @@ def _save_image(
     image.save(output_path, **save_kwargs)
 
 
-def rotate_image_file(
+def enhance_image_file(
     file_path: str | Path,
     output_dir: str | Path,
     *,
-    rotation_degrees: int = 0,
-    auto_orient: bool = True,
+    contrast: float = 1.25,
+    sharpness: float = 1.1,
+    denoise: bool = False,
     output_format: str = "jpg",
     compression_quality: int = 90,
 ) -> dict[str, Any]:
-    """Rotate one image into a derived output file."""
+    """Enhance one image into a derived output file."""
     source = Path(file_path)
     output_root = Path(output_dir)
     ext = _extension_for_format(output_format)
@@ -105,16 +110,19 @@ def rotate_image_file(
         if source.suffix.lower() not in _IMAGE_SUFFIXES:
             raise ValueError(f"Unsupported input file type: {source.suffix}")
 
-        from PIL import Image, ImageOps
+        from PIL import Image, ImageEnhance, ImageFilter
 
-        rotation = _normalise_rotation(rotation_degrees)
+        contrast = _clamp_factor(contrast, minimum=0.1, maximum=3.0)
+        sharpness = _clamp_factor(sharpness, minimum=0.0, maximum=3.0)
         with Image.open(source) as image:
-            original_size = list(image.size)
-            prepared = ImageOps.exif_transpose(image) if auto_orient else image.copy()
-            oriented_size = list(prepared.size)
-            if rotation:
-                # PIL rotates counter-clockwise for positive angles; negate for clockwise UI semantics.
-                prepared = prepared.rotate(-rotation, expand=True)
+            prepared = image.copy()
+            original_size = list(prepared.size)
+            if denoise:
+                prepared = prepared.filter(ImageFilter.MedianFilter(size=3))
+            if contrast != 1.0:
+                prepared = ImageEnhance.Contrast(prepared).enhance(contrast)
+            if sharpness != 1.0:
+                prepared = ImageEnhance.Sharpness(prepared).enhance(sharpness)
 
             output_path = output_root / f"{source.stem}.{ext}"
             _save_image(
@@ -132,15 +140,15 @@ def rotate_image_file(
                 "original_format": source.suffix.lower(),
                 "output_format": ext,
                 "original_size": original_size,
-                "oriented_size": oriented_size,
                 "prepared_size": list(prepared.size),
-                "auto_orient": auto_orient,
-                "rotation_degrees": rotation,
+                "contrast": contrast,
+                "sharpness": sharpness,
+                "denoise": denoise,
             },
             "error": None,
         }
     except Exception as exc:
-        logger.warning("rotate_images failed for %s: %s", source, exc)
+        logger.warning("enhance_images failed for %s: %s", source, exc)
         return {
             "source": str(source),
             "outputs": [],
@@ -151,11 +159,11 @@ def rotate_image_file(
 
 
 @register_tool(
-    name="rotate_images",
-    display_name="Rotate / Auto-Orient Images",
-    description="Create rotated or EXIF-oriented image derivatives without modifying source files.",
+    name="enhance_images",
+    display_name="Enhance Images",
+    description="Create contrast/sharpness/denoise image derivatives without modifying source files.",
     category="transform",
-    icon="rotate.right",
+    icon="wand.and.rays",
     color="orange",
     uses_llm=False,
     supports_batch=True,
@@ -166,7 +174,7 @@ def rotate_image_file(
             port_type="input",
             data_type=DataType.FILES,
             required=True,
-            description="Image files to rotate or auto-orient.",
+            description="Image files to enhance.",
         ),
         PortDef(
             id="documents",
@@ -180,34 +188,35 @@ def rotate_image_file(
     output_ports=[
         PortDef(
             id="output_files",
-            name="Rotated Files",
+            name="Enhanced Files",
             port_type="output",
             data_type=DataType.FILES,
-            description="Rotated derived image files.",
+            description="Enhanced derived image files.",
         ),
     ],
-    config_schema=ROTATE_IMAGES_CONFIG,
-    sort_order=24,
+    config_schema=ENHANCE_IMAGES_CONFIG,
+    sort_order=26,
 )
-async def rotate_images(
+async def enhance_images(
     inputs: dict[str, Any],
     state: State,
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
-    """Rotate/auto-orient input images for downstream workflows."""
+    """Enhance input images for downstream OCR or image workflows."""
     files = inputs.get("files") or state.get("input_files", [])
     if isinstance(files, str):
         files = [files]
 
     output_dir = inputs.get("output_dir") or str(
-        Path(tempfile.gettempdir()) / "fichero-rotated-images"
+        Path(tempfile.gettempdir()) / "fichero-enhanced-images"
     )
     results = [
-        rotate_image_file(
+        enhance_image_file(
             file_path,
             output_dir,
-            rotation_degrees=inputs.get("rotation_degrees", 0),
-            auto_orient=bool(inputs.get("auto_orient", True)),
+            contrast=inputs.get("contrast", 1.25),
+            sharpness=inputs.get("sharpness", 1.1),
+            denoise=bool(inputs.get("denoise", False)),
             output_format=inputs.get("output_format", "jpg"),
             compression_quality=inputs.get("compression_quality", 90),
         )
@@ -218,11 +227,14 @@ async def rotate_images(
         inputs,
         state,
         lambda _doc: {
-            "op": "rotate",
+            "op": "enhance",
             "page": int(inputs.get("page", 1)),
             "params": {
-                "angle": -_normalise_rotation(inputs.get("rotation_degrees", 0)),
-                "expand": True,
+                "brightness": 1.0,
+                "contrast": _clamp_factor(inputs.get("contrast", 1.25), minimum=0.1, maximum=3.0),
+                "sharpen": _clamp_factor(inputs.get("sharpness", 1.1), minimum=0.0, maximum=3.0),
+                "auto_levels": bool(inputs.get("auto_levels", False)),
+                "denoise": bool(inputs.get("denoise", False)),
             },
         },
     )

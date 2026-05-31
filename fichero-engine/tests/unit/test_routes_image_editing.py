@@ -243,6 +243,40 @@ class TestImagePreviewRoute:
         img = Image.open(io.BytesIO(r.content))
         assert img.size == (50, 80)
 
+    def test_preview_enhance_operation_supports_saved_denoise_param(
+        self, client, db, tmp_path
+    ):
+        image_path = tmp_path / "speckle.png"
+        image = Image.new("RGB", (9, 9), (128, 128, 128))
+        image.putpixel((4, 4), (0, 0, 0))
+        image.save(image_path, format="PNG")
+        doc = Document(name="speckle.png", path=str(image_path), file_type=FileType.image)
+        db.save(doc)
+
+        put = client.put(
+            f"/api/images/{doc.id}/edits",
+            json={
+                "operations": [
+                    {
+                        "op": "enhance",
+                        "page": 1,
+                        "params": {
+                            "brightness": 1.0,
+                            "contrast": 1.0,
+                            "sharpen": 1.0,
+                            "denoise": True,
+                        },
+                    }
+                ]
+            },
+        )
+        assert put.status_code == 200
+
+        edited = client.get(f"/api/images/{doc.id}/preview")
+        assert edited.status_code == 200
+        edited_img = Image.open(io.BytesIO(edited.content))
+        assert edited_img.getpixel((4, 4))[0] > 0
+
     def test_preview_regenerates_from_enhance_operation_chain(self, client, db, tmp_path):
         doc = _make_gray_image_doc(db, tmp_path, size=(60, 40))
         enhance = client.post(
