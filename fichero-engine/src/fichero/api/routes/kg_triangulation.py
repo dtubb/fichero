@@ -105,3 +105,35 @@ async def library_triangulation(
 
 
     return MutationListResponse(items=items, count=len(items))
+
+
+class RecomputeResponse(BaseModel):
+    """Result of a triangulation recompute run."""
+    claims_updated: int
+    message: str
+
+
+@router.post(
+    "/recompute",
+    response_model=RecomputeResponse,
+    summary="Persist global support counts onto claims",
+    description=(
+        "Re-run cross-source triangulation across all KG claims and "
+        "write the computed support_count back onto each KnowledgeClaim "
+        "row (corroboration_count + corroborating_source_ids). "
+        "Idempotent — safe to call repeatedly. (#900)"
+    ),
+)
+async def recompute_triangulation(
+    db: Database = Depends(get_library_database),
+) -> RecomputeResponse:
+    """Persist corpus-wide support counts back onto claim rows."""
+    from fichero.kg.triangulation import persist_support_counts
+
+    updated = persist_support_counts(db)
+    return RecomputeResponse(
+        claims_updated=updated,
+        message=(
+            f"Triangulation recomputed: {updated} claim(s) updated."
+        ),
+    )
