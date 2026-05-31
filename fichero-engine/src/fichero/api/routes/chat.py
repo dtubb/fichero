@@ -329,6 +329,19 @@ async def chat(
         document_count = sum(
             1 for item in context_docs if item.get("kind") == "document"
         )
+        logger.info(
+            "chat_retrieval query_len=%d max_sources=%d graph_hops=%d "
+            "max_kg_claims=%d document_count=%d context_count=%d "
+            "kg_claims_used=%d kg_entities_used=%d",
+            len(request.message or ""),
+            request.max_sources,
+            request.graph_hops,
+            request.max_kg_claims,
+            document_count,
+            context_count,
+            kg_claims_used,
+            kg_entities_used,
+        )
     except Exception as e:
         logger.warning(f"Search failed, proceeding without context: {e}")
 

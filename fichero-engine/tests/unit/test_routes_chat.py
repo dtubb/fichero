@@ -167,6 +167,29 @@ class TestChatWithSources:
         assert data["document_count"] == 0
         assert data["context_count"] == 0
 
+    def test_chat_logs_retrieval_diagnostics(self, client, monkeypatch, caplog):
+        class _FakeRetriever:
+            def retrieve(self, **_kwargs):
+                p = _FakeRetrievalPayload()
+                p.kg_claims_used = 2
+                p.kg_entities_used = 1
+                return p
+
+        fake_llm = _FakeLLM()
+        monkeypatch.setattr(
+            "fichero.api.routes.chat._get_langchain_llm",
+            lambda *_args, **_kwargs: fake_llm,
+        )
+        monkeypatch.setattr(
+            "fichero.api.routes.chat.GraphAwareRetriever",
+            lambda *_args, **_kwargs: _FakeRetriever(),
+        )
+
+        with caplog.at_level("INFO"):
+            r = client.post("/api/chat", json={"message": "Use KG"})
+        assert r.status_code == 200
+        assert "chat_retrieval" in caplog.text
+
     def test_chat_rejects_out_of_range_graph_hops(self, client):
         r = client.post(
             "/api/chat",

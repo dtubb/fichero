@@ -342,6 +342,37 @@ class TestSearchTool:
         assert r["document_count"] == 0
         assert r["context_count"] == 0
 
+    @pytest.mark.asyncio
+    async def test_search_logs_retrieval_diagnostics(
+        self, mock_llm_config, mock_state, caplog
+    ):
+        """search_tool emits a structured retrieval diagnostics log line."""
+        from fichero.workflows.tools.sources import search_tool
+
+        mock_db = MagicMock()
+
+        class _Payload:
+            context_docs = []
+            kg_claims_used = 1
+            kg_entities_used = 1
+
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve.return_value = _Payload()
+
+        with (
+            patch("fichero.workflows.tools.sources.db_manager") as mock_manager,
+            patch(
+                "fichero.workflows.tools.sources.GraphAwareRetriever",
+                return_value=mock_retriever,
+            ),
+            caplog.at_level("INFO"),
+        ):
+            mock_manager.get_database.return_value = mock_db
+            r = await search_tool({"query": "Ada"}, mock_state, mock_llm_config)
+
+        assert r["count"] == 0
+        assert "research_search" in caplog.text
+
 
 # =============================================================================
 # Vision Tools Tests

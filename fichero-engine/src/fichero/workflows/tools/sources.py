@@ -736,7 +736,20 @@ async def search_tool(
                 }
             )
 
-        logger.info(f"Search '{query}': found {len(files)} files")
+        logger.info(
+            "research_search query_len=%d search_type=%s limit=%d "
+            "graph_hops=%d max_kg_claims=%d document_count=%d context_count=%d "
+            "kg_claims_used=%d kg_entities_used=%d",
+            len(query or ""),
+            search_type,
+            limit,
+            graph_hops,
+            max_kg_claims,
+            len(files),
+            len(doc_data),
+            getattr(retrieval, "kg_claims_used", 0),
+            getattr(retrieval, "kg_entities_used", 0),
+        )
 
         return {
             "files": files,
