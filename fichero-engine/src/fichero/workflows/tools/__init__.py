@@ -50,6 +50,7 @@ from fichero.workflows.tools import prepare_images  # noqa: F401  (#1390)
 from fichero.workflows.tools import enhance_images  # noqa: F401  (#1388)
 from fichero.workflows.tools import fuzzy_clean_images  # noqa: F401  (#1389)
 from fichero.workflows.tools import remove_background_images  # noqa: F401  (#1393)
+from fichero.workflows.tools import segment_images  # noqa: F401  (#1391)
 
 # LLM tools
 from fichero.workflows.tools import summarize
@@ -130,6 +131,7 @@ __all__ = [
     "enhance_images",
     "fuzzy_clean_images",
     "remove_background_images",
+    "segment_images",
     # LLM
     "summarize",
     "entities",

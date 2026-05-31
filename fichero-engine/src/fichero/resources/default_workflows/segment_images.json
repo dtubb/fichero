@@ -1,0 +1,55 @@
+{
+  "name": "Segment Images",
+  "description": "Detect foreground document regions and write cropped segment derivatives without modifying originals. Useful for separating multi-region scans before editing, OCR, or recombination.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Image Editing",
+  "tags": ["preset", "image-editing", "segment", "split", "ocr"],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "segment_images",
+      "tool": "segment_images",
+      "label": "Segment Images",
+      "position_x": 300,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "method": "foreground",
+        "threshold": 28,
+        "min_area": 100,
+        "max_segments": 20,
+        "output_format": "png",
+        "compression_quality": 90
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-documents-segment-images",
+      "source": "files-source",
+      "target": "segment_images",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "edge-files-segment-images",
+      "source": "files-source",
+      "target": "segment_images",
+      "source_port": "files",
+      "target_port": "files"
+    }
+  ]
+}

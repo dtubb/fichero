@@ -585,6 +585,44 @@ class TestLoadPresetFiles:
         assert remove_node["config"].get("threshold") == 28
         assert remove_node["config"].get("output_format") == "png"
 
+    def test_segment_images_preset_wiring(self):
+        """Segment Images should expose foreground-region segmentation
+        as a default image-editing workflow (#1391)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Segment Images" in presets, "segment preset must ship"
+        preset = presets["Segment Images"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Image Editing"
+        assert preset.get("format") == "nodes"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "segment_images"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        files_id = _node_id(preset, "files")
+        segment_id = _node_id(preset, "segment_images")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == segment_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into segment_images"
+        assert any(
+            e["source"] == files_id
+            and e["target"] == segment_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in preset["edges"]
+        ), "documents must flow into segment_images for preview editor updates"
+
+        segment_node = next(n for n in preset["nodes"] if n["tool"] == "segment_images")
+        assert segment_node["config"].get("method") == "foreground"
+        assert segment_node["config"].get("threshold") == 28
+        assert segment_node["config"].get("output_format") == "png"
+
     def test_prepare_images_for_ocr_preset_wiring(self):
         """Prepare Images for OCR should expose the non-destructive image prep
         tool as a stageable default workflow (#1390)."""
