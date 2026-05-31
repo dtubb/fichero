@@ -264,7 +264,16 @@ class FicheroClient:
             )
         if response.status_code == 204 or not response.content:
             return None
-        return response.json()
+        try:
+            return response.json()
+        except ValueError:
+            content_type = response.headers.get("content-type", "")
+            if content_type.startswith("text/"):
+                return response.text
+            return {
+                "content_type": content_type or "application/octet-stream",
+                "bytes": len(response.content),
+            }
 
     # -- health ------------------------------------------------------------
     def health(self) -> Any:
