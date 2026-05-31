@@ -34,6 +34,7 @@ artifacts_app = typer.Typer(
 )
 claim_app = typer.Typer(help="Inspect and curate knowledge claims.", no_args_is_help=True)
 entity_app = typer.Typer(help="Inspect and curate knowledge entities.", no_args_is_help=True)
+interpretation_app = typer.Typer(help="Inspect and curate hermeneutic interpretations.", no_args_is_help=True)
 audit_app = typer.Typer(help="Review entity merge/split audit trail.", no_args_is_help=True)
 settings_app = typer.Typer(help="Read and write AI-defaults settings.", no_args_is_help=True)
 providers_app = typer.Typer(help="Manage LLM provider configurations.", no_args_is_help=True)
@@ -45,6 +46,7 @@ app.add_typer(library_app, name="library")
 app.add_typer(artifacts_app, name="artifacts")
 app.add_typer(claim_app, name="claim")
 app.add_typer(entity_app, name="entity")
+app.add_typer(interpretation_app, name="interpretation")
 app.add_typer(audit_app, name="audit")
 app.add_typer(settings_app, name="settings")
 app.add_typer(providers_app, name="providers")
@@ -1534,6 +1536,89 @@ def claim_list(
             typer.echo(render_claim(claim))
     else:
         typer.echo(render_claim(claims))
+
+
+# -- interpretation --------------------------------------------------------
+@interpretation_app.command("create")
+def interpretation_create(
+    ctx: typer.Context,
+    framework_id: str = typer.Option(..., "--framework-id", help="Interpretive framework ID."),
+    text: str = typer.Option(..., "--text", help="Interpretation text."),
+    act: str = typer.Option(..., "--act", help="Interpretive act (applying, contextualizing, comparing, critiquing, synthesizing)."),
+    predicate: Optional[str] = typer.Option(None, "--predicate", help="Hermeneutic predicate (raw or canonical)."),
+    claim_id: Optional[str] = typer.Option(None, "--claim-id", help="Optional claim ID target."),
+    doc_id: Optional[str] = typer.Option(None, "--doc-id", help="Optional document ID target."),
+    passage_text: Optional[str] = typer.Option(None, "--passage-text", help="Optional raw passage target."),
+    confidence: float = typer.Option(0.5, "--confidence", help="Confidence [0..1]."),
+) -> None:
+    """Create a hermeneutic interpretation."""
+    _invoke(
+        ctx,
+        lambda c: c.create_interpretation(
+            framework_id=framework_id,
+            interpretation_text=text,
+            act=act,
+            predicate=predicate,
+            claim_id=claim_id,
+            document_id=doc_id,
+            passage_text=passage_text,
+            confidence=confidence,
+        ),
+    )
+
+
+@interpretation_app.command("list")
+def interpretation_list(
+    ctx: typer.Context,
+    framework_id: Optional[str] = typer.Option(None, "--framework-id", help="Filter by framework ID."),
+    claim_id: Optional[str] = typer.Option(None, "--claim-id", help="Filter by claim ID."),
+    act: Optional[str] = typer.Option(None, "--act", help="Filter by interpretive act."),
+    limit: int = typer.Option(50, "--limit"),
+) -> None:
+    """List hermeneutic interpretations."""
+    _invoke(
+        ctx,
+        lambda c: c.list_interpretations(
+            framework_id=framework_id,
+            claim_id=claim_id,
+            act=act,
+            limit=limit,
+        ),
+    )
+
+
+@interpretation_app.command("get")
+def interpretation_get(
+    ctx: typer.Context,
+    interpretation_id: str = typer.Argument(..., help="Interpretation ID."),
+) -> None:
+    """Show one hermeneutic interpretation."""
+    _invoke(ctx, lambda c: c.get_interpretation(interpretation_id))
+
+
+@interpretation_app.command("update")
+def interpretation_update(
+    ctx: typer.Context,
+    interpretation_id: str = typer.Argument(..., help="Interpretation ID."),
+    text: Optional[str] = typer.Option(None, "--text", help="New interpretation text."),
+    act: Optional[str] = typer.Option(None, "--act", help="New interpretive act."),
+    predicate: Optional[str] = typer.Option(None, "--predicate", help="Hermeneutic predicate (raw or canonical)."),
+    confidence: Optional[float] = typer.Option(None, "--confidence", help="Confidence [0..1]."),
+) -> None:
+    """Update an existing hermeneutic interpretation."""
+    fields: dict[str, Any] = {}
+    if text is not None:
+        fields["interpretation_text"] = text
+    if act is not None:
+        fields["act"] = act
+    if predicate is not None:
+        fields["predicate"] = predicate
+    if confidence is not None:
+        fields["confidence"] = confidence
+    if not fields:
+        typer.secho("Pass at least one updatable field.", err=True)
+        raise typer.Exit(code=1)
+    _invoke(ctx, lambda c: c.update_interpretation(interpretation_id, **fields))
 
 
 # -- entity ----------------------------------------------------------------

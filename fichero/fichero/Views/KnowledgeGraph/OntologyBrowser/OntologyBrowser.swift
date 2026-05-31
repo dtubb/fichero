@@ -1161,6 +1161,7 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
 
     private let minScale: CGFloat = 0.4
     private let maxScale: CGFloat = 4.0
+    private let neighborLimit = 24
 
     var body: some View {
         ZStack {
@@ -1354,7 +1355,7 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
             let response = try await library.entityService.fetchNeighborhood(
                 entityId: focusId,
                 hops: 1,
-                limit: 50,
+                limit: neighborLimit,
                 rank: "edge_weight"
             )
             sim.rebuild(from: response)
@@ -1376,15 +1377,16 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
             var path = Path()
             path.move(to: from)
             path.addLine(to: dest)
-            let alpha = min(0.25 + Double(edge.weight) * 0.15, 0.7)
-            ctx.stroke(path, with: .color(.secondary.opacity(alpha)), lineWidth: 1)
+            let alpha = min(0.2 + Double(edge.weight) * 0.08, 0.65)
+            let width = min(1.0 + CGFloat(edge.weight - 1) * 0.35, 2.6)
+            ctx.stroke(path, with: .color(.secondary.opacity(alpha)), lineWidth: width)
             // Predicate label at the midpoint. Skip when the edge is so
             // short that the label would overlap a node. Background-
             // ribbon the label so it's readable across the line.
             let dx = dest.x - from.x
             let dy = dest.y - from.y
             let lineLen = sqrt(dx * dx + dy * dy)
-            if lineLen > 60, !edge.predicate.isEmpty {
+            if lineLen > 72, edge.weight >= 2, !edge.predicate.isEmpty {
                 let midX = (from.x + dest.x) / 2
                 let midY = (from.y + dest.y) / 2
                 let label = Text(edge.predicate)
@@ -1550,6 +1552,8 @@ private struct EdgeKey: Hashable {
 /// are driven by `TimelineView`, and the empty-state branch is flipped by
 /// a separate observed `graphRevision` counter after each load.
 private final class GraphSimulation {
+    private let maxNeighbors = 24
+    private let maxEdges = 80
     var nodes: [GraphNode] = []
     var edges: [GraphEdge] = []
     private var startTime: Date = .now
@@ -1567,7 +1571,7 @@ private final class GraphSimulation {
             position: .zero,
             velocity: .zero
         ))
-        let neighbors = response.neighbors
+        let neighbors = Array(response.neighbors.prefix(maxNeighbors))
         let count = max(neighbors.count, 1)
         let radius: CGFloat = 220
         for (idx, neighbor) in neighbors.enumerated() {
@@ -1582,17 +1586,50 @@ private final class GraphSimulation {
                 velocity: .zero
             ))
         }
-        edges = response.edges.map { edge in
-            GraphEdge(
-                source: edge.sourceId,
-                target: edge.targetId,
-                predicate: edge.predicate,
-                claimId: edge.claimId,
-                sourceDocumentId: edge.sourceDocumentId,
-                pageLabel: edge.sourcePageLabel,
-                weight: 1
-            )
+        let nodeIds = Set(newNodes.map(\.id))
+        var byPair: [EdgeKey: GraphEdge] = [:]
+        var weights: [EdgeKey: Int] = [:]
+        for edge in response.edges {
+            guard nodeIds.contains(edge.sourceId), nodeIds.contains(edge.targetId) else {
+                continue
+            }
+            let source = min(edge.sourceId, edge.targetId)
+            let target = max(edge.sourceId, edge.targetId)
+            let key = EdgeKey(source: source, target: target)
+            weights[key, default: 0] += 1
+            if byPair[key] == nil {
+                byPair[key] = GraphEdge(
+                    source: edge.sourceId,
+                    target: edge.targetId,
+                    predicate: edge.predicate,
+                    claimId: edge.claimId,
+                    sourceDocumentId: edge.sourceDocumentId,
+                    pageLabel: edge.sourcePageLabel,
+                    weight: 1
+                )
+            }
         }
+        edges = byPair.compactMap { pair, edge in
+            var e = edge
+            e = GraphEdge(
+                source: e.source,
+                target: e.target,
+                predicate: e.predicate,
+                claimId: e.claimId,
+                sourceDocumentId: e.sourceDocumentId,
+                pageLabel: e.pageLabel,
+                weight: weights[pair] ?? 1
+            )
+            return e
+        }
+        .sorted { lhs, rhs in
+            if lhs.weight == rhs.weight {
+                return lhs.predicate.count > rhs.predicate.count
+            }
+            return lhs.weight > rhs.weight
+        }
+        .prefix(maxEdges)
+        .map { $0 }
         nodes = newNodes
         startTime = .now
         lastTick = .now

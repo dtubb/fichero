@@ -491,8 +491,8 @@ def _assert_twostage_kg_rows_landed(
 ) -> None:
     """Assert KG rows were written via the kg_writer node in twostage mode.
 
-    Twostage writes to the folder container (catalogue_target_id), not to
-    per-source-doc IDs, so we query by the folder target.
+    Twostage writes claims to page docs when per-page records are present;
+    otherwise it falls back to the resolved container document.
     """
     entities = db.all(KnowledgeEntity)
     claims = db.all(KnowledgeClaim)
@@ -510,7 +510,15 @@ def _assert_twostage_kg_rows_landed(
     assert "Regression Place" in names, f"expected 'Regression Place' in {names}"
 
     target_claims = db.query(KnowledgeClaim, source_document_id=catalogue_target_id)
-    assert target_claims, "no claims attached to the catalogue folder target"
-    assert any(claim.entity_ids for claim in target_claims), (
+    all_claims = db.all(KnowledgeClaim)
+    page_level_claims = [
+        claim
+        for claim in all_claims
+        if claim.source_document_id != catalogue_target_id and claim.entity_ids
+    ]
+    assert target_claims or page_level_claims, (
+        "no twostage claims persisted on container or page docs"
+    )
+    assert any(claim.entity_ids for claim in all_claims), (
         "claims exist but none have entity_ids linked"
     )

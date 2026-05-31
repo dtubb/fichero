@@ -4,6 +4,7 @@ import SwiftUI
 // MARK: - Entity Detail View
 
 struct EntityDetailView: View {
+    @EnvironmentObject private var entityService: EntityServiceGenerated
     let entity: Components.Schemas.KnowledgeEntity
     let claims: [Components.Schemas.KnowledgeClaim]
     let isLoadingClaims: Bool
@@ -15,6 +16,8 @@ struct EntityDetailView: View {
     /// happened yet (the common case until a reviewer touches the entity).
     @State var audits: [Components.Schemas.EntityAuditResponse] = []
     @State var isLoadingAudits: Bool = false
+    @State var undoingAuditId: String?
+    @State var auditStatusMessage: String?
 
     /// CSV of hidden EpistemicStatus raw values. Shared with the rest
     /// of the KG views so a setting in one place persists everywhere
@@ -78,6 +81,12 @@ struct EntityDetailView: View {
     /// state via @SceneStorage so resets on each entity navigation
     /// don't surprise the user. (#994)
     @State var showAllClaims: Bool = false
+    @State private var metadataJSON: String = "{}"
+    @State private var metadataSaveMessage: String?
+    @State private var isSavingMetadata = false
+    @State private var showDigestSheet = false
+    @State var showContradictionTriageSheet = false
+    @State var showClaimReviewQueueSheet = false
 
     var body: some View {
         if sourceGroupsMode {
@@ -116,15 +125,28 @@ struct EntityDetailView: View {
                     if biographyMode {
                         biographySection
                     }
+                    metadataSection
                     claimsSection
                     auditSection
                 }
                 .padding()
             }
             .task(id: entity.id) {
+                metadataJSON = Self.prettyMetadataJSON(entity)
                 await loadAudits()
             }
         }
+    }
+
+    static func prettyMetadataJSON(_ entity: Components.Schemas.KnowledgeEntity) -> String {
+        let raw = entity.metadata?.additionalProperties.value ?? [:]
+        guard JSONSerialization.isValidJSONObject(raw),
+              let data = try? JSONSerialization.data(withJSONObject: raw, options: [.prettyPrinted, .sortedKeys]),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return "{}"
+        }
+        return text
     }
 
     // MARK: - Header
@@ -158,6 +180,17 @@ struct EntityDetailView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Search the library for \"\(entity.canonicalName)\"")
+
+                Spacer()
+
+                Button {
+                    showDigestSheet = true
+                } label: {
+                    Label("Digest", systemImage: "book.closed")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .help("Open researcher digest view for this entity")
             }
 
             if let description = cleanedDisplayText(entity.description) {
@@ -184,6 +217,11 @@ struct EntityDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .sheet(isPresented: $showDigestSheet) {
+            EntityDigestContent(entity: entity, entityService: entityService)
+                .frame(minWidth: 780, minHeight: 560)
+                .padding(20)
+        }
     }
 
     /// Map EntityType → the search-scope token consumed by
@@ -245,5 +283,112 @@ struct EntityDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var metadataSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Raw Entity JSON")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Spacer()
+                if let metadataSaveMessage {
+                    Text(metadataSaveMessage)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Button {
+                    Task { await saveMetadataJSON() }
+                } label: {
+                    if isSavingMetadata {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Save")
+                    }
+                }
+                .disabled(isSavingMetadata)
+            }
+
+            TextEditor(text: $metadataJSON)
+                .font(.system(.caption, design: .monospaced))
+                .frame(minHeight: 120)
+                .padding(6)
+                .background(Color(.textBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func saveMetadataJSON() async {
+        isSavingMetadata = true
+        defer { isSavingMetadata = false }
+        guard let library = LibraryManager.shared.globalLibrary else {
+            metadataSaveMessage = "No library"
+            return
+        }
+        guard let entityId = entity.id else {
+            metadataSaveMessage = "Entity ID missing"
+            return
+        }
+        let trimmed = metadataJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = trimmed.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data),
+              let dictAny = json as? [String: Any]
+        else {
+            metadataSaveMessage = "Invalid JSON object"
+            return
+        }
+        guard let sendableMetadata = Self.makeSendableMetadata(dictAny) else {
+            metadataSaveMessage = "Invalid JSON values"
+            return
+        }
+        do {
+            _ = try await library.entityService.patchEntity(entityId, metadata: sendableMetadata)
+            metadataSaveMessage = "Saved"
+        } catch {
+            metadataSaveMessage = "Save failed"
+        }
+    }
+
+    private static func makeSendableMetadata(_ dict: [String: Any]) -> [String: any Sendable]? {
+        var output: [String: any Sendable] = [:]
+        for (key, value) in dict {
+            guard let converted = makeSendableJSON(value) else { return nil }
+            output[key] = converted
+        }
+        return output
+    }
+
+    private static func makeSendableJSON(_ value: Any) -> (any Sendable)? {
+        switch value {
+        case let string as String:
+            return string
+        case let int as Int:
+            return int
+        case let double as Double:
+            return double
+        case let bool as Bool:
+            return bool
+        case let number as NSNumber:
+            return number.doubleValue
+        case let array as [Any]:
+            var converted: [any Sendable] = []
+            converted.reserveCapacity(array.count)
+            for item in array {
+                guard let sendable = makeSendableJSON(item) else { return nil }
+                converted.append(sendable)
+            }
+            return converted
+        case let object as [String: Any]:
+            return makeSendableMetadata(object)
+        case _ as NSNull:
+            return nil as String?
+        default:
+            return nil
+        }
     }
 }

@@ -18,7 +18,7 @@ struct ClaimSummaryCard: View {
     @State private var showEditSheet = false
     @State private var showDeleteConfirmation = false
     @State private var isInlineEditing = false
-    @Environment(KGFocusState.self) private var kgFocusState
+    @Environment(KGFocusState.self) var kgFocusState
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
 
     struct SVOTriple {
@@ -129,6 +129,8 @@ struct ClaimSummaryCard: View {
                 // back to source (#982). (#978/#979)
                 sourceLine
 
+                provenanceBadges
+
                 // Per-card status / kind tags removed — they duplicated the
                 // section-header chip strip in EntityDetailView. (#1006)
 
@@ -204,11 +206,7 @@ struct ClaimSummaryCard: View {
             HStack(spacing: 6) {
                 // Subject chip — tappable to search for subject entity
                 Button(action: {
-                    NotificationCenter.default.post(
-                        name: .ficheroEntitySearchRequested,
-                        object: nil,
-                        userInfo: ["name": svo.subject]
-                    )
+                    Task { await focusEntityLozenge(named: svo.subject) }
                 }, label: {
                     Text(svo.subject)
                         .font(bodyTextFont)
@@ -244,11 +242,7 @@ struct ClaimSummaryCard: View {
 
                 // Object chip — tappable to search for object entity
                 Button(action: {
-                    NotificationCenter.default.post(
-                        name: .ficheroEntitySearchRequested,
-                        object: nil,
-                        userInfo: ["name": svo.object]
-                    )
+                    Task { await focusEntityLozenge(named: svo.object) }
                 }, label: {
                     Text(svo.object)
                         .font(bodyTextFont)

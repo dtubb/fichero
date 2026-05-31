@@ -4,6 +4,94 @@ import SwiftUI
 // MARK: - ClaimSummaryCard Detail Views + Actions
 
 extension ClaimSummaryCard {
+    struct ProvenanceBadge: Equatable {
+        let label: String
+        let tint: Color
+    }
+
+    static func provenanceBadges(for claim: Components.Schemas.KnowledgeClaim) -> [ProvenanceBadge] {
+        let metadata = claim.metadata?.additionalProperties.value ?? [:]
+        var badges: [ProvenanceBadge] = []
+
+        let createdByRaw = claim.createdBy?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if let createdByRaw, !createdByRaw.isEmpty {
+            if ["human", "user", "manual", "researcher", "editor", "curator", "cli"]
+                .contains(createdByRaw) {
+                badges.append(ProvenanceBadge(label: "✏️ Human", tint: .orange))
+            } else if createdByRaw.contains("extract")
+                        || createdByRaw.contains("agent")
+                        || createdByRaw.contains("llm")
+                        || createdByRaw.contains("ai") {
+                badges.append(ProvenanceBadge(label: "AI", tint: .purple))
+            }
+        }
+
+        let quotationKindRaw = (
+            metadata["quotation_kind"] as? String
+            ?? metadata["quotationKind"] as? String
+        )?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let quotationKindRaw, !quotationKindRaw.isEmpty {
+            let label: String
+            switch quotationKindRaw {
+            case "verbatim": label = "Verbatim"
+            case "paraphrase": label = "Paraphrase"
+            case "summary": label = "Summary"
+            default: label = quotationKindRaw.replacingOccurrences(of: "_", with: " ").capitalized
+            }
+            badges.append(ProvenanceBadge(label: label, tint: .indigo))
+        }
+
+        let confidenceSourceRaw = (
+            claim.confidenceSource
+            ?? metadata["confidence_source"] as? String
+            ?? metadata["confidenceSource"] as? String
+        )?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let confidenceSourceRaw, !confidenceSourceRaw.isEmpty {
+            let label: String
+            switch confidenceSourceRaw {
+            case "llm_logprob": label = "LLM"
+            case "heuristic": label = "Heuristic"
+            case "human_review": label = "Human-reviewed"
+            case "corroboration": label = "Corroborated"
+            case "default": label = "Default"
+            default: label = confidenceSourceRaw.replacingOccurrences(of: "_", with: " ").capitalized
+            }
+            badges.append(ProvenanceBadge(label: label, tint: .teal))
+        }
+
+        let corroborationCount = (
+            metadata["corroboration_count"] as? Int
+            ?? Int(metadata["corroboration_count"] as? String ?? "")
+            ?? metadata["corroborationCount"] as? Int
+            ?? Int(metadata["corroborationCount"] as? String ?? "")
+        )
+        if let corroborationCount, corroborationCount > 0 {
+            let label = "\(corroborationCount)x corroborated"
+            badges.append(ProvenanceBadge(label: label, tint: .green))
+        }
+
+        return badges
+    }
+
+    @ViewBuilder
+    var provenanceBadges: some View {
+        let badges = Self.provenanceBadges(for: claim)
+        if !badges.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
+                    Text(badge.label)
+                        .font(tertiaryTextFont)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(badge.tint.opacity(0.14), in: Capsule())
+                        .foregroundStyle(badge.tint)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
 
     /// Italic source-doc name + optional page label, tappable to open
     /// the source. Always renders when the doc exists in the in-memory
@@ -147,6 +235,42 @@ extension ClaimSummaryCard {
         let chain = await evidenceChainAsync
         contradictions = cons
         evidenceChain = chain
+    }
+
+    /// Resolve a lozenge label to an entity and focus its KG neighborhood.
+    /// Falls back to the existing text-search event when no exact entity
+    /// match exists in the library.
+    func focusEntityLozenge(named rawName: String) async {
+        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        guard let library = LibraryManager.shared.globalLibrary else {
+            NotificationCenter.default.post(
+                name: .ficheroEntitySearchRequested,
+                object: nil,
+                userInfo: ["name": name]
+            )
+            return
+        }
+        do {
+            let results = try await library.entityService.listEntities(
+                query: name,
+                limit: 25
+            )
+            let exact = results.first { entity in
+                entity.canonicalName.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+            }
+            if let exact {
+                kgFocusState.focusEntity(entityId: exact.id)
+                return
+            }
+        } catch {
+            // Fallback to text search below.
+        }
+        NotificationCenter.default.post(
+            name: .ficheroEntitySearchRequested,
+            object: nil,
+            userInfo: ["name": name]
+        )
     }
 
     /// Post ficheroOpenClaimSource for the explicit sourceLine button.

@@ -622,6 +622,25 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    /// Undo a merge/split audit operation.
+    /// Backed by `/api/kg/entity-curation/audit/{audit_id}/undo`.
+    @discardableResult
+    func undoEntityAudit(_ auditId: String) async throws -> Components.Schemas.EntityAuditResponse {
+        let response = try await client.api.undoEntityOperationApiKgEntityCurationAuditAuditIdUndoPost(
+            path: .init(auditId: auditId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     /// Index all claims in LanceDB for semantic search + heuristic
     /// predictions. Returns the number of vectors written.
     /// Backed by `/api/kg/claim-search/embed`.
@@ -669,7 +688,8 @@ final class EntityServiceGenerated: ObservableObject {
         canonicalName: String? = nil,
         entityType: String? = nil,
         aliases: [String]? = nil,
-        description: String? = nil
+        description: String? = nil,
+        metadata: [String: any Sendable]? = nil
     ) async throws -> Components.Schemas.KnowledgeEntity {
         var body = Components.Schemas.EntityPatchRequest()
         body.canonicalName = canonicalName
@@ -678,6 +698,10 @@ final class EntityServiceGenerated: ObservableObject {
         }
         body.aliases = aliases
         body.description = description
+        if let metadata = metadata {
+            let container = try OpenAPIObjectContainer(unvalidatedValue: metadata)
+            body.metadata = .init(additionalProperties: container)
+        }
         let response = try await client.api.patchEntityApiEntitiesEntityIdPatch(
             path: .init(entityId: entityId),
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),

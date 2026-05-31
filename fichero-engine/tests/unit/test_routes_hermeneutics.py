@@ -6,15 +6,11 @@ Patterns. Routes live at /api/hermeneutics/... (router has no prefix,
 mounted at "/api/hermeneutics").
 """
 
-import pytest
-
 from fichero.hermeneutics_models import (
     FrameworkType,
     InterpretiveActType,
     InterpretiveFramework,
     Interpretation,
-    PatternStatus,
-    PatternInstance,
 )
 
 
@@ -151,6 +147,7 @@ class TestCreateInterpretation:
 
         r = client.post(f"{BASE}/interpretations", json={
             "framework_id": "fwk-int",
+            "claim_id": "claim-int-1",
             "passage_text": "Workers organized in the factories.",
             "interpretation_text": "This evidence shows class conflict.",
             "act": "contextualizing",
@@ -158,6 +155,22 @@ class TestCreateInterpretation:
         assert r.status_code == 200
         data = r.json()
         assert data["framework_id"] == "fwk-int"
+
+    def test_create_interpretation_populates_predicate_canonical(self, client, db):
+        db.save(_make_framework("fwk-int-pred"))
+
+        r = client.post(f"{BASE}/interpretations", json={
+            "framework_id": "fwk-int-pred",
+            "claim_id": "claim-int-pred-1",
+            "passage_text": "The reading foregrounds labor.",
+            "interpretation_text": "This reading foregrounds labor history.",
+            "act": "contextualizing",
+            "predicate": "foregrounds",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["predicate"] == "foregrounds"
+        assert data["predicate_canonical"] == "foregrounds"
 
     def test_missing_framework_returns_404(self, client):
         r = client.post(f"{BASE}/interpretations", json={
@@ -187,6 +200,19 @@ class TestListInterpretations:
         r = client.get(f"{BASE}/interpretations")
         assert r.status_code == 200
         assert len(r.json()["items"]) == 2
+
+    def test_update_interpretation_updates_predicate_canonical(self, client, db):
+        db.save(_make_framework("fwk-upd"))
+        interp = _make_interpretation("i-upd", "fwk-upd")
+        db.save(interp)
+
+        r = client.patch(f"{BASE}/interpretations/{interp.id}", json={
+            "predicate": "contests reading",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["predicate"] == "contests reading"
+        assert data["predicate_canonical"] == "contests_reading"
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +277,7 @@ class TestKgInterpretationsCanonicalUrls:
         db.save(_make_framework("fwk-kg2"))
         r = client.post(f"{KG_BASE}/interpretations", json={
             "framework_id": "fwk-kg2",
+            "claim_id": "claim-kg2-1",
             "passage_text": "Evidence passage.",
             "interpretation_text": "Structural reading.",
             "act": "contextualizing",

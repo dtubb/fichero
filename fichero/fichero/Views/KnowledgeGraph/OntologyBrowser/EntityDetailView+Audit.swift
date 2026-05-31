@@ -19,9 +19,17 @@ extension EntityDetailView {
             .padding(.horizontal)
         } else if !audits.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Curation History")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                HStack {
+                    Text("Curation History")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    if let auditStatusMessage {
+                        Text(auditStatusMessage)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 ForEach(audits, id: \.id) { audit in
                     auditRow(audit)
                 }
@@ -49,8 +57,31 @@ extension EntityDetailView {
             Text(audit.createdBy)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+            if canUndo(audit) {
+                Button {
+                    Task { await undoAudit(audit.id) }
+                } label: {
+                    if undoingAuditId == audit.id {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("Undo")
+                            .font(.caption2)
+                    }
+                }
+                .buttonStyle(.borderless)
+                .disabled(undoingAuditId != nil)
+            }
         }
         .padding(.vertical, 2)
+    }
+
+    private func canUndo(_ audit: Components.Schemas.EntityAuditResponse) -> Bool {
+        switch audit.operationType {
+        case .merge, .split:
+            return audit.reversalId == audit.id
+        case .undoMerge, .undoSplit:
+            return false
+        }
     }
 
     func auditIcon(_ mergeOp: Components.Schemas.EntityMergeOperationType) -> String {
@@ -90,6 +121,19 @@ extension EntityDetailView {
             audits = try await library.entityService.listEntityAudits(entityId: entity.id, limit: 25)
         } catch {
             audits = []
+        }
+    }
+
+    func undoAudit(_ auditId: String) async {
+        guard let library = LibraryManager.shared.globalLibrary else { return }
+        undoingAuditId = auditId
+        defer { undoingAuditId = nil }
+        do {
+            _ = try await library.entityService.undoEntityAudit(auditId)
+            auditStatusMessage = "Undo complete"
+            await loadAudits()
+        } catch {
+            auditStatusMessage = "Undo failed"
         }
     }
 }

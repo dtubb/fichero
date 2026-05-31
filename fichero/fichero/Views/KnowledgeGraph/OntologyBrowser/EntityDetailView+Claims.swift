@@ -46,6 +46,26 @@ extension EntityDetailView {
                     ProgressView()
                         .scaleEffect(0.7)
                 } else {
+                    Button {
+                        showClaimReviewQueueSheet = true
+                    } label: {
+                        Label("Queue", systemImage: "checklist")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(filteredClaims.isEmpty)
+                    .help("Review queue with batch curation transitions")
+
+                    Button {
+                        showContradictionTriageSheet = true
+                    } label: {
+                        Label("Triage", systemImage: "arrow.left.and.right.square")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(filteredClaims.isEmpty)
+                    .help("Review contradictions side-by-side")
+
                     Text(claimsCountLabel)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -120,6 +140,16 @@ extension EntityDetailView {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .sheet(isPresented: $showContradictionTriageSheet) {
+            ContradictionTriageSheet(entity: entity, claims: filteredClaims)
+                .frame(minWidth: 980, minHeight: 640)
+                .padding(16)
+        }
+        .sheet(isPresented: $showClaimReviewQueueSheet) {
+            ClaimReviewQueueSheet(entity: entity, claims: filteredClaims)
+                .frame(minWidth: 920, minHeight: 620)
+                .padding(16)
+        }
     }
 
     var claimsCountLabel: String {
