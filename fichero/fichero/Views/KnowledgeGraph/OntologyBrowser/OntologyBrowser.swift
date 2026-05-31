@@ -22,6 +22,7 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     @State private var searchText = ""
     @State private var isSearching = false
     @State private var isDateBucketExpanded = false
+    @StateObject private var graphScrollSync = DocumentScrollSyncState()
 
     /// Swap the detail pane between entity-claims view (default) and a
     /// force-directed graph over the filtered entity set. (#902, partial #889)
@@ -338,11 +339,26 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
         case .list:
             entityDetailPanel
         case .graph:
-            ForceDirectedGraphView(
-                entities: filteredEntities,
-                selectedEntityId: $selectedEntityId
-            )
-            .frame(minWidth: 300)
+            if let libraryPath = LibraryManager.shared.globalLibrary?.apiClient.currentLibraryPath,
+               !libraryPath.isEmpty {
+                DocumentKGWebPane(
+                    documentId: DocumentKGPaneRoute.globalKGDocumentID,
+                    libraryPath: libraryPath,
+                    selectedEntityId: selectedEntityId,
+                    selectedClaimId: nil,
+                    activeTab: KGSurfaceTab.graph.rawValue,
+                    activePageNumber: nil,
+                    pageCount: nil,
+                    onPageSelected: { _ in },
+                    scrollSync: graphScrollSync
+                )
+                .frame(minWidth: 300)
+            } else {
+                Text("No library selected")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         case .chart:
             EntityKindChartView(entities: filteredEntities)
                 .frame(minWidth: 300)

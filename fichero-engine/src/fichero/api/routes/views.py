@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -49,6 +50,34 @@ def _transcript_for_document(db: Database, document: Document) -> str:
             label = page.sequence or "?"
             chunks.append(f"Page {label}\n{page.page_content}")
     return "\n\n".join(chunks)
+
+
+def _claim_payload(
+    claims: list[KnowledgeClaim],
+    entities_by_id: dict[str, KnowledgeEntity],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "id": claim.id,
+            "text": claim.text,
+            "source_document_id": claim.source_document_id,
+            "source_page_label": claim.source_page_label,
+            "page_number": _page_number(claim.source_page_label),
+            "source_excerpt": claim.source_excerpt,
+            "source_char_start": claim.source_char_start,
+            "source_char_end": claim.source_char_end,
+            "entity_ids": list(claim.entity_ids or []),
+            "subject_canonical": claim.subject_canonical,
+            "predicate_verb": claim.predicate_verb,
+            "object_phrase": claim.object_phrase,
+            "entity_names": [
+                entities_by_id[entity_id].canonical_name
+                for entity_id in (claim.entity_ids or [])
+                if entity_id in entities_by_id
+            ],
+        }
+        for claim in claims
+    ]
 
 
 @router.get("/document/{doc_id}", response_class=HTMLResponse)
@@ -97,28 +126,7 @@ async def document_view(
         }
         for entity in entities
     ]
-    claim_payload = [
-        {
-            "id": claim.id,
-            "text": claim.text,
-            "source_document_id": claim.source_document_id,
-            "source_page_label": claim.source_page_label,
-            "page_number": _page_number(claim.source_page_label),
-            "source_excerpt": claim.source_excerpt,
-            "source_char_start": claim.source_char_start,
-            "source_char_end": claim.source_char_end,
-            "entity_ids": list(claim.entity_ids or []),
-            "subject_canonical": claim.subject_canonical,
-            "predicate_verb": claim.predicate_verb,
-            "object_phrase": claim.object_phrase,
-            "entity_names": [
-                entities_by_id[entity_id].canonical_name
-                for entity_id in (claim.entity_ids or [])
-                if entity_id in entities_by_id
-            ],
-        }
-        for claim in claims
-    ]
+    claim_payload = _claim_payload(claims, entities_by_id)
 
     return _TEMPLATES.TemplateResponse(
         request=request,
@@ -126,6 +134,51 @@ async def document_view(
         context={
             "document": document,
             "transcript": transcript,
+            "document_json": _json_for_script(document_payload),
+            "entities_json": _json_for_script(entity_payload),
+            "claims_json": _json_for_script(claim_payload),
+        },
+    )
+
+
+@router.get("/kg/global", response_class=HTMLResponse)
+async def global_kg_view(
+    request: Request,
+    db: Database = Depends(get_library_database),
+) -> HTMLResponse:
+    """Render the shared KG web pane without document scoping.
+
+    Used by OntologyBrowser graph mode so sidebar + inspector run through the
+    same WebKit renderer path.
+    """
+    entities = db.query(KnowledgeEntity)
+    entities_by_id = {entity.id: entity for entity in entities}
+    claims = db.query(KnowledgeClaim)
+
+    document_payload = {
+        "id": "__kg_global__",
+        "name": "Knowledge Graph",
+        "doc_type": "kg",
+        "file_type": None,
+        "page_content": "",
+    }
+    entity_payload = [
+        {
+            "id": entity.id,
+            "canonical_name": entity.canonical_name,
+            "entity_type": entity.entity_type.value,
+            "aliases": list(entity.aliases or []),
+        }
+        for entity in entities
+    ]
+    claim_payload = _claim_payload(claims, entities_by_id)
+
+    return _TEMPLATES.TemplateResponse(
+        request=request,
+        name="document_view.html",
+        context={
+            "document": SimpleNamespace(name="Knowledge Graph"),
+            "transcript": "",
             "document_json": _json_for_script(document_payload),
             "entities_json": _json_for_script(entity_payload),
             "claims_json": _json_for_script(claim_payload),

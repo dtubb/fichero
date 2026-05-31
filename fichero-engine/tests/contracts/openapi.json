@@ -17688,6 +17688,50 @@
         }
       }
     },
+    "/view/kg/global": {
+      "get": {
+        "tags": [
+          "views",
+          "views"
+        ],
+        "summary": "Global Kg View",
+        "description": "Render the shared KG web pane without document scoping.\n\nUsed by OntologyBrowser graph mode so sidebar + inspector run through the\nsame WebKit renderer path.",
+        "operationId": "global_kg_view_view_kg_global_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/reset": {
       "post": {
         "tags": [
