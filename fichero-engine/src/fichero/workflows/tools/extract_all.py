@@ -1230,32 +1230,50 @@ async def _run_two_stage(
             if section and section["name"] not in _skip_sections and claims and container:
                 items = _build_entity_items_for_section(entity, section_key, claims)
                 if items:
-                    kg_payload.append({
-                        "section_name": section["name"],
-                        "section_key": section_key,
-                        "items": items,
-                        "target_doc_id": container.id,
-                        "page_label": None,
-                        "source_excerpt": entity_context[:500] if entity_context else None,
-                        "provider": getattr(llm_config, "provider", None),
-                        "model": getattr(llm_config, "model", None),
-                        "grounding_text": entity_context,
-                    })
-                    if persist_kg and db:
-                        try:
-                            _write_kg_rows(
-                                db, section, items, container.id,
-                                page_label=None,
-                                source_excerpt=entity_context[:500] if entity_context else None,
-                                provider=getattr(llm_config, "provider", None),
-                                model=getattr(llm_config, "model", None),
-                                grounding_text=entity_context,
-                            )
-                        except Exception as exc:
-                            logger.error(
-                                "extract_all (two-stage): KG write failed for %s '%s': %s",
-                                section_key, entity.name, exc,
-                            )
+                    target_indices = relevant_indices or [0]
+                    for page_idx in target_indices:
+                        page_doc_id = (
+                            page_doc_ids[page_idx]
+                            if page_idx < len(page_doc_ids)
+                            else None
+                        )
+                        target_doc_id = page_doc_id or container.id
+                        page_label = (
+                            f"Page {page_idx + 1}"
+                            if len(chunks) > 1
+                            else None
+                        )
+                        page_text = chunks[page_idx] if page_idx < len(chunks) else entity_context
+
+                        kg_payload.append({
+                            "section_name": section["name"],
+                            "section_key": section_key,
+                            "items": items,
+                            "target_doc_id": target_doc_id,
+                            "page_label": page_label,
+                            "source_excerpt": page_text[:500] if page_text else None,
+                            "provider": getattr(llm_config, "provider", None),
+                            "model": getattr(llm_config, "model", None),
+                            "grounding_text": page_text,
+                        })
+                        if persist_kg and db:
+                            try:
+                                _write_kg_rows(
+                                    db, section, items, target_doc_id,
+                                    page_label=page_label,
+                                    source_excerpt=page_text[:500] if page_text else None,
+                                    provider=getattr(llm_config, "provider", None),
+                                    model=getattr(llm_config, "model", None),
+                                    grounding_text=page_text,
+                                )
+                            except Exception as exc:
+                                logger.error(
+                                    "extract_all (two-stage): KG write failed for %s '%s' on %s: %s",
+                                    section_key,
+                                    entity.name,
+                                    target_doc_id,
+                                    exc,
+                                )
 
     # Convert to extraction format for the return value.
     combined_entities = _EntitiesOnly(
