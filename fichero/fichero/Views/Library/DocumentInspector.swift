@@ -366,19 +366,19 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
     }
 
     private var hiddenAttributes: Set<String> {
-        Set(hiddenRaw.split(separator: ",").map(String.init))
+        csvSet(hiddenRaw)
     }
 
     private var shownArtifactTypes: Set<String> {
-        Set(shownArtifactsRaw.split(separator: ",").map(String.init))
+        csvSet(shownArtifactsRaw)
     }
 
     private var shownKGItems: Set<String> {
-        Set(shownKGRaw.split(separator: ",").map(String.init))
+        csvSet(shownKGRaw)
     }
 
     private var shownMetadataKeys: Set<String> {
-        Set(shownMetadataRaw.split(separator: ",").map(String.init))
+        csvSet(shownMetadataRaw)
     }
 
     /// Distinct artifact types available for this document, sorted for a stable
@@ -445,6 +445,13 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
             async let artifactLoad: Void = loadArtifacts()
             async let knowledgeLoad: Void = loadKnowledgeGraph()
             _ = await (artifactLoad, knowledgeLoad)
+
+            // Normalize persisted CSV payloads so malformed/empty tokens from older
+            // builds don't keep toggles in an inconsistent state across launches.
+            hiddenRaw = csvString(hiddenAttributes)
+            shownArtifactsRaw = csvString(shownArtifactTypes)
+            shownKGRaw = csvString(shownKGItems)
+            shownMetadataRaw = csvString(shownMetadataKeys)
         }
     }
 
@@ -516,7 +523,7 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
             set: { show in
                 var set = hiddenAttributes
                 if show { set.remove(attr.rawValue) } else { set.insert(attr.rawValue) }
-                hiddenRaw = set.sorted().joined(separator: ",")
+                hiddenRaw = csvString(set)
             }
         )
     }
@@ -527,7 +534,7 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
             set: { show in
                 var set = shownArtifactTypes
                 if show { set.insert(type) } else { set.remove(type) }
-                shownArtifactsRaw = set.sorted().joined(separator: ",")
+                shownArtifactsRaw = csvString(set)
             }
         )
     }
@@ -538,7 +545,7 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
             set: { show in
                 var set = shownKGItems
                 if show { set.insert(item.rawValue) } else { set.remove(item.rawValue) }
-                shownKGRaw = set.sorted().joined(separator: ",")
+                shownKGRaw = csvString(set)
             }
         )
     }
@@ -549,9 +556,25 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
             set: { show in
                 var set = shownMetadataKeys
                 if show { set.insert(key) } else { set.remove(key) }
-                shownMetadataRaw = set.sorted().joined(separator: ",")
+                shownMetadataRaw = csvString(set)
             }
         )
+    }
+
+    // MARK: - Persistence helpers
+
+    private func csvSet(_ raw: String) -> Set<String> {
+        Set(raw.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty })
+    }
+
+    private func csvString(_ values: Set<String>) -> String {
+        values
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .sorted()
+            .joined(separator: ",")
     }
 
     // MARK: - Row rendering
