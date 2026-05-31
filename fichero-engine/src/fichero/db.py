@@ -38,6 +38,7 @@ from types import UnionType
 from typing import TypeVar, Type, get_origin, get_args, Union, Any
 from dataclasses import dataclass, field
 from datetime import datetime
+import math
 import json
 import logging
 import re
@@ -57,9 +58,9 @@ T = TypeVar("T", bound=BaseModel)
 # Minimum content length to create embedding
 MIN_CONTENT_LENGTH = 10
 
-# Default embedding model (FastEmbed - no scikit-learn dependency)
-# Using multilingual model for Spanish + English support
-DEFAULT_MODEL = "intfloat/multilingual-e5-large"
+# Default embedding model (FastEmbed).
+# BGE-M3 gives stronger multilingual retrieval for hybrid search.
+DEFAULT_MODEL = "BAAI/bge-m3"
 
 # Valid identifier pattern for SQL column/table names
 _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
@@ -224,6 +225,46 @@ def _contains_any_term(text_series, terms: list[str]):
     for term in terms[1:]:
         mask |= text_series.str.contains(term, case=False, regex=False, na=False)
     return mask
+
+
+def _bm25_scores(corpus: list[str], query_terms: list[str]) -> list[float]:
+    """Compute BM25 scores for a folded corpus against folded query terms."""
+    if not corpus or not query_terms:
+        return [0.0 for _ in corpus]
+
+    tokenized = [re.findall(r"\w+", doc) for doc in corpus]
+    lengths = [len(tokens) for tokens in tokenized]
+    avgdl = sum(lengths) / max(len(lengths), 1)
+    if avgdl <= 0:
+        return [0.0 for _ in corpus]
+
+    query_tokens = [t for t in query_terms if len(t) > 1]
+    if not query_tokens:
+        return [0.0 for _ in corpus]
+
+    doc_freq: dict[str, int] = {}
+    for term in query_tokens:
+        doc_freq[term] = sum(1 for tokens in tokenized if term in tokens)
+
+    k1 = 1.5
+    b = 0.75
+    n_docs = len(tokenized)
+    scores: list[float] = []
+    for tokens, dl in zip(tokenized, lengths):
+        tf: dict[str, int] = {}
+        for tok in tokens:
+            tf[tok] = tf.get(tok, 0) + 1
+        score = 0.0
+        for term in query_tokens:
+            f = tf.get(term, 0)
+            if f == 0:
+                continue
+            df = doc_freq.get(term, 0)
+            idf = math.log(1 + (n_docs - df + 0.5) / (df + 0.5))
+            denom = f + k1 * (1 - b + b * (dl / avgdl))
+            score += idf * ((f * (k1 + 1)) / max(denom, 1e-9))
+        scores.append(score)
+    return scores
 
 
 def _build_transcript_excerpts(
@@ -1043,15 +1084,28 @@ class Database(DatabaseEmbeddingMixin):
                         normalised_text = all_docs["text"].astype(str).map(_fold_for_search)
                         mask = _contains_any_term(normalised_text, folded_terms)
 
-                        fulltext_docs = all_docs[mask]
+                        fulltext_docs = all_docs[mask].copy()
+                        fulltext_docs["folded_text"] = (
+                            fulltext_docs["text"].astype(str).map(_fold_for_search)
+                        )
+                        bm25_scores = _bm25_scores(
+                            fulltext_docs["folded_text"].tolist(),
+                            [t for t in folded_terms if t],
+                        )
+                        fulltext_docs["bm25"] = bm25_scores
+                        max_bm25 = max(bm25_scores) if bm25_scores else 0.0
 
                         # Convert to results format
-                        for _, row in fulltext_docs.iterrows():
+                        for _, row in fulltext_docs.sort_values("bm25", ascending=False).iterrows():
+                            lexical_score = float(row.get("bm25", 0.0))
+                            normalised = (
+                                lexical_score / max_bm25 if max_bm25 > 0 else 1.0
+                            )
                             fulltext_results.append(
                                 {
                                     "document_id": row.get("document_id")
                                     or row.get("id"),
-                                    "score": 1.0,  # Full-text match gets high score
+                                    "score": max(0.0, min(1.0, normalised)),
                                     "content": row.get("text", ""),
                                     "metadata": {
                                         "name": row.get("name"),
@@ -1059,6 +1113,7 @@ class Database(DatabaseEmbeddingMixin):
                                         "file_type": row.get("file_type"),
                                         "created_at": row.get("created_at"),
                                         "updated_at": row.get("updated_at"),
+                                        "bm25_score": lexical_score,
                                     },
                                 }
                             )

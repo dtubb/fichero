@@ -17,6 +17,7 @@ from __future__ import annotations
 import math
 
 from fichero.db import (
+    _bm25_scores,
     _build_transcript_excerpts,
     _fold_for_search,
     _is_content_marker_only,
@@ -140,6 +141,19 @@ class TestRRFHybridCombiner:
         score_rank5_both = (2 * contribution_rank_5) / max_rrf
         # 2 * (1/65) / (2/61) = 61/65 ≈ 0.938
         assert score_rank5_both > score_one_list  # both-lists still beats one-list
+
+
+class TestBM25LexicalScoring:
+    def test_exact_term_doc_ranks_above_partial(self) -> None:
+        corpus = [
+            _fold_for_search("Bolivar entered the city"),
+            _fold_for_search("The city at dawn"),
+        ]
+        scores = _bm25_scores(corpus, ["bolivar", "city"])
+        assert scores[0] > scores[1]
+
+    def test_empty_query_terms_returns_zeroes(self) -> None:
+        assert _bm25_scores(["a b c"], []) == [0.0]
 
 
 class TestMarkerOnlyDetection:
