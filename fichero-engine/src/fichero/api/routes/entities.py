@@ -1038,3 +1038,168 @@ async def add_entity_aliases(
     entity.updated_at = datetime.now()
     db.save(entity)
     return entity
+
+
+# =============================================================================
+# Entity Biography — structured assembly endpoint (#1352)
+# =============================================================================
+
+
+class EntityBiographyResponse(BaseModel):
+    """Structured biography bundle for a single entity.
+
+    Assembles entity facts + all SVO claims that mention the entity +
+    source-document links + co-occurring entities into one response so
+    callers get a complete cross-doc picture in a single round-trip.
+
+    LLM-narrated prose is out of scope here (tracked in #1361) — this
+    returns structured data only.
+    """
+
+    entity: KnowledgeEntity
+    claims: list[KnowledgeClaim]
+    documents: list[EntityDocumentLink]
+    co_occurring: list[EntityCoOccurrence]
+
+
+def assemble_entity_biography(
+    entity_id: str,
+    db: Database,
+    *,
+    claims_limit: int = 500,
+    documents_limit: int = 100,
+    co_occurrence_limit: int = 50,
+) -> EntityBiographyResponse:
+    """Assemble the biography bundle for *entity_id*.
+
+    Shared between the REST endpoint and any future internal callers
+    (e.g. the LLM narration pipeline in #1361).
+
+    Raises ``LookupError`` when the entity does not exist — callers
+    translate this to HTTP 404 as appropriate.
+    """
+    import json as _json
+    from collections import Counter
+
+    entity = db.get(KnowledgeEntity, entity_id)
+    if entity is None:
+        raise LookupError(entity_id)
+
+    # --- SVO claims for this entity (ordered by creation time) ---
+    all_claims: list[KnowledgeClaim] = db.all(KnowledgeClaim)
+    claims = [c for c in all_claims if entity_id in c.entity_ids]
+    claims.sort(key=lambda c: c.created_at)
+    claims = claims[:claims_limit]
+
+    # --- source documents: aggregate claim counts per document ---
+    needle = f'%"{entity_id}"%'
+    doc_rows: list[tuple] = []
+    try:
+        doc_rows = db.conn.execute(
+            """
+            SELECT source_document_id, COUNT(*) AS claim_count
+            FROM knowledgeclaims
+            WHERE entity_ids LIKE $needle
+            GROUP BY source_document_id
+            ORDER BY claim_count DESC
+            LIMIT $limit
+            """,
+            {"needle": needle, "limit": documents_limit},
+        ).fetchall()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("biography document lookup failed: %s", exc)
+
+    from fichero.models import Document as _Document
+
+    doc_links: list[EntityDocumentLink] = []
+    for (doc_id, claim_count) in doc_rows:
+        doc = db.get(_Document, doc_id)
+        if doc is None:
+            continue
+        doc_links.append(
+            EntityDocumentLink(
+                document_id=doc_id,
+                document_name=doc.name,
+                claim_count=claim_count,
+            )
+        )
+
+    # --- co-occurring entities ---
+    claim_rows: list[tuple] = []
+    try:
+        claim_rows = db.conn.execute(
+            "SELECT entity_ids FROM knowledgeclaims WHERE entity_ids LIKE $needle",
+            {"needle": needle},
+        ).fetchall()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("biography co-occurrence lookup failed: %s", exc)
+
+    counter: Counter[str] = Counter()
+    for (raw,) in claim_rows:
+        if not raw:
+            continue
+        try:
+            ids = _json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(ids, list):
+            continue
+        for other in ids:
+            if isinstance(other, str) and other and other != entity_id:
+                counter[other] += 1
+
+    top_ids = [eid for eid, _count in counter.most_common(co_occurrence_limit)]
+    co_occurring: list[EntityCoOccurrence] = []
+    for other_id in top_ids:
+        other = db.get(KnowledgeEntity, other_id)
+        if other is None:
+            continue
+        kind_val = getattr(other, "entity_type", None)
+        kind_str = (
+            kind_val.value
+            if hasattr(kind_val, "value")
+            else (str(kind_val) if kind_val else None)
+        )
+        co_occurring.append(
+            EntityCoOccurrence(
+                entity_id=other.id,
+                name=other.canonical_name,
+                kind=kind_str,
+                aliases=list(getattr(other, "aliases", []) or []),
+                shared_claims=counter[other_id],
+            )
+        )
+
+    return EntityBiographyResponse(
+        entity=entity,
+        claims=claims,
+        documents=doc_links,
+        co_occurring=co_occurring,
+    )
+
+
+@router.get("/{entity_id}/biography", response_model=EntityBiographyResponse)
+async def get_entity_biography(
+    entity_id: str,
+    claims_limit: int = Query(default=500, ge=1, le=2000),
+    documents_limit: int = Query(default=100, ge=1, le=500),
+    co_occurrence_limit: int = Query(default=50, ge=1, le=200),
+    db: Database = Depends(get_library_database),
+) -> EntityBiographyResponse:
+    """Structured biography for an entity — entity facts, SVO claims,
+    source-document links, and co-occurring entities in one fetch.
+
+    Returns the full cross-document picture of what the knowledge graph
+    knows about this entity. LLM-narrated prose is a separate concern
+    (tracked in #1361); this endpoint returns structured data only.
+    """
+    try:
+        return assemble_entity_biography(
+            entity_id,
+            db,
+            claims_limit=claims_limit,
+            documents_limit=documents_limit,
+            co_occurrence_limit=co_occurrence_limit,
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")

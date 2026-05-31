@@ -2323,6 +2323,34 @@
       },
       {
         "method": "GET",
+        "path": "/entities/{entity_id}/biography",
+        "operation_id": "get_entity_biography_api_entities__entity_id__biography_get",
+        "summary": "Get Entity Biography",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [
+          {
+            "name": "claims_limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "co_occurrence_limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "documents_limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "EntityBiographyResponse"
+      },
+      {
+        "method": "GET",
         "path": "/entities/{entity_id}/co-occurrence",
         "operation_id": "get_entity_co_occurrence_api_entities__entity_id__co_occurrence_get",
         "summary": "Get Entity Co Occurrence",

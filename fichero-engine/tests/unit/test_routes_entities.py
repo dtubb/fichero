@@ -351,3 +351,115 @@ class TestResolveEntity:
         r = client.get("/api/entities/resolve/nobody-here")
         assert r.status_code == 200
         assert r.json()["resolved"] is False
+
+
+# ---------------------------------------------------------------------------
+# GET /api/entities/{entity_id}/biography  (#1352)
+# ---------------------------------------------------------------------------
+
+
+class TestEntityBiography:
+    """Tests for the structured entity biography endpoint."""
+
+    def test_biography_returns_entity_with_claims(self, client, db):
+        """Entity with claims — biography contains entity facts, claims,
+        documents, and co-occurring entities."""
+        from fichero.knowledge_models import KnowledgeClaim
+        from fichero.models import DocType, Document
+
+        # Entity under test
+        alice = _make_entity(db, "Alice", EntityType.person)
+        bob = _make_entity(db, "Bob", EntityType.person)
+
+        # Create real Document rows so the biography doc-links can resolve them
+        doc1 = Document(name="Doc A", doc_type=DocType.file)
+        doc2 = Document(name="Doc B", doc_type=DocType.file)
+        db.save(doc1)
+        db.save(doc2)
+
+        # Two claims that mention Alice; one also mentions Bob (co-occurrence)
+        claim1 = KnowledgeClaim(
+            text="Alice served as mayor",
+            source_document_id=doc1.id,
+            entity_ids=[alice.id],
+            subject_canonical="Alice",
+            predicate_verb="served as",
+            object_phrase="mayor",
+        )
+        claim2 = KnowledgeClaim(
+            text="Alice and Bob collaborated",
+            source_document_id=doc2.id,
+            entity_ids=[alice.id, bob.id],
+            subject_canonical="Alice",
+            predicate_verb="collaborated with",
+            object_phrase="Bob",
+        )
+        db.save(claim1)
+        db.save(claim2)
+
+        r = client.get(f"/api/entities/{alice.id}/biography")
+        assert r.status_code == 200
+        data = r.json()
+
+        # Entity facts
+        assert data["entity"]["canonical_name"] == "Alice"
+        assert data["entity"]["entity_type"] == "person"
+
+        # Both claims present
+        claim_texts = {c["text"] for c in data["claims"]}
+        assert "Alice served as mayor" in claim_texts
+        assert "Alice and Bob collaborated" in claim_texts
+
+        # Documents aggregated (resolved to their names via real Document rows)
+        doc_ids = {d["document_id"] for d in data["documents"]}
+        assert doc1.id in doc_ids
+        assert doc2.id in doc_ids
+
+        # Bob appears as co-occurring entity
+        co_names = {e["name"] for e in data["co_occurring"]}
+        assert "Bob" in co_names
+
+    def test_biography_404_for_unknown_entity(self, client):
+        """Non-existent entity_id returns HTTP 404."""
+        r = client.get("/api/entities/does-not-exist-xyz/biography")
+        assert r.status_code == 404
+        assert "not found" in r.json()["detail"].lower()
+
+    def test_biography_empty_but_valid_for_entity_with_no_claims(self, client, db):
+        """Entity that exists but has no claims — biography returns empty
+        claims / documents / co_occurring lists but valid entity block."""
+        entity = _make_entity(db, "Lonely Entity", EntityType.other)
+
+        r = client.get(f"/api/entities/{entity.id}/biography")
+        assert r.status_code == 200
+        data = r.json()
+
+        assert data["entity"]["canonical_name"] == "Lonely Entity"
+        assert data["claims"] == []
+        assert data["documents"] == []
+        assert data["co_occurring"] == []
+
+    def test_biography_respects_claims_limit(self, client, db):
+        """claims_limit query param caps the returned claims list."""
+        from fichero.knowledge_models import KnowledgeClaim
+
+        entity = _make_entity(db, "Busy Person", EntityType.person)
+        for i in range(10):
+            db.save(KnowledgeClaim(
+                text=f"Claim {i}",
+                source_document_id=f"doc-{i}",
+                entity_ids=[entity.id],
+            ))
+
+        r = client.get(f"/api/entities/{entity.id}/biography?claims_limit=3")
+        assert r.status_code == 200
+        assert len(r.json()["claims"]) == 3
+
+    def test_biography_response_shape(self, client, db):
+        """Response always contains the four top-level keys."""
+        entity = _make_entity(db, "Shape Test", EntityType.concept)
+
+        r = client.get(f"/api/entities/{entity.id}/biography")
+        assert r.status_code == 200
+        data = r.json()
+        assert set(data.keys()) >= {"entity", "claims", "documents", "co_occurring"}
