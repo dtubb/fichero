@@ -9,9 +9,13 @@
 - `issue-903-source-authority-weighting` (1): persist weighted corroboration counts (#903)
 - `issue-1359` SKIPPED — duplicate of #1359 already in via backend/1382
 
-### NOT Merged — Needs Dedicated Integrator Session (HIGHEST VALUE NEXT)
-- **`codex/1386-transcription-prompt-quality`** (23 commits, only 24 behind main — FRESH): full image-tools suite (#1387 rotate, #1388 enhance, #1389 fuzzy-clean, #1390 prepare-images, #1391 segment, #1392 recombine, #1393 remove-bg+opencv, #1394 split) PLUS transcription quality (#289, #1386, #1398). **Why deferred:** transcription-prompt commits CONFLICT with #1397/#1398 already merged, and the image-tool cherry-picks have internal commit-order dependencies (preset JSON references a tool module from a separate commit). Needs sequential cherry-pick in a worktree resolving the `tools/__init__.py` registry conflict + deduping transcription work. **Do this first next session — it makes the opus/sonnet image-tool re-implementation list below mostly unnecessary.**
-- **`issue-1366-document-inspector-entities`** (1, Swift): restore parent PDF page artifacts (#1366) — defer until Xcode available.
+### Image-Tools Suite — MERGED ✅ (from codex/1386)
+Cherry-picked in chronological order (resolved the registry ordering by doing them oldest-first): #1390 prepare-images tool+preset, #1387 rotate, #1388 enhance, #1389 fuzzy-clean, #1393 remove-bg+opencv dep, #1391 segment, #1392 recombine, #1394 split, #1389 preview-editor display. 3517 tests pass. The opus/sonnet image-tool re-implementation list below is now UNNECESSARY — drop #1388/#1389/#1390 from it.
+
+### STILL NOT Merged — Needs Reviewer/Xcode (not a clean merge)
+- **`codex/1386` transcription remainder** (#289, #1386, #1387-uncertainty, #1388-contamination, #1398): these CONFLICT with the #1397/#1398 diacritics+uncertainty already in main. Two different implementations of the same feature. **Reviewer task:** diff the two approaches, pick the better, reconcile. Do NOT blind-merge.
+- **`issue-1366-document-inspector-entities`** (1, Swift): restore parent PDF page artifacts (#1366) — Swift, needs Xcode build to verify. Defer until Xcode MCP up.
+- **`gpt-inspector-style`** (#1241, Swift, 128 behind): unified inspector styling — re-implement on current main, needs Xcode.
 
 ### Old Branches — NOT Mergeable (174 commits behind main)
 haiku, sonnet, opus, gpt-inspector-style, gptmini-folder-import — all branched before 174 commits of main work. Cherry-pick causes heavy conflicts. Work needs to be **re-implemented by fresh workers** on current main.
