@@ -65,6 +65,16 @@ struct SidebarModeBar: View {
                         selectMode(.research)
                     }
                 }
+
+                if featureManager.isKnowledgeGraphEnabled {
+                    SidebarModeIcon(
+                        mode: .knowledgeGraph,
+                        isSelected: selectedMode == .knowledgeGraph,
+                        badgeCount: 0
+                    ) {
+                        selectMode(.knowledgeGraph)
+                    }
+                }
             }
 
             if featureManager.isAutomationEnabled {

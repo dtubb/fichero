@@ -101,6 +101,7 @@ class FeatureManager: ObservableObject {
     @AppStorage("fichero.features.claim_highlight_sync")
     private var claimHighlightSyncEnabledInternal: Bool = false
     @AppStorage("fichero.features.research") private var researchEnabledInternal: Bool = true
+    @AppStorage("fichero.features.knowledge_graph") private var knowledgeGraphEnabledInternal: Bool = true
     @AppStorage("fichero.first_run.completed") var firstRunCompleted: Bool = false
     @AppStorage("fichero.features.release_profile_version")
     private var releaseProfileVersionApplied: Int = 0
@@ -172,6 +173,8 @@ class FeatureManager: ObservableObject {
     /// Bidirectional claim highlight sync across PDF, Content, and Inspector panes. Defaulted OFF.
     var isClaimHighlightSyncEnabled: Bool { allFeaturesEnabled || claimHighlightSyncEnabledInternal }
     var isResearchEnabled: Bool { allFeaturesEnabled || researchEnabledInternal }
+    /// Knowledge Graph / Ontology browser (#498). Defaulted ON — the view is complete.
+    var isKnowledgeGraphEnabled: Bool { allFeaturesEnabled || knowledgeGraphEnabledInternal }
 
     private init() {
         if UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
@@ -225,6 +228,7 @@ class FeatureManager: ObservableObject {
         workflowFilesToolbarEnabledInternal = true
         workflowRunOnSelectionEnabledInternal = true
         researchEnabledInternal = true
+        knowledgeGraphEnabledInternal = true
         releaseProfileVersionApplied = Self.releaseProfileVersion
     }
 

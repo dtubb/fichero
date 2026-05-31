@@ -298,6 +298,10 @@ struct MainContentModifiers: ViewModifier {
             // Research has no ViewMode case; contentView intercepts on
             // sidebarMode == .research, so leave viewMode untouched.
             break
+        case .knowledgeGraph:
+            // Knowledge Graph has no ViewMode case; contentView intercepts on
+            // sidebarMode == .knowledgeGraph, so leave viewMode untouched.
+            break
         }
     }
 

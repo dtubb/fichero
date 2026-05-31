@@ -51,6 +51,8 @@ struct SidebarModeIcon: View {
             return "cube.transparent.fill"
         case .research:
             return "flask.fill"
+        case .knowledgeGraph:
+            return "point.3.connected.trianglepath.dotted"
         }
     }
 
