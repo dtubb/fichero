@@ -23,6 +23,7 @@ from fichero.db import (
     _is_content_marker_only,
 )
 from fichero.db_embeddings import _l2_normalize
+from fichero.db_embeddings import _quantize_int8, _dequantize_int8
 
 
 class TestL2Normalize:
@@ -48,6 +49,21 @@ class TestL2Normalize:
         out = _l2_normalize(v)
         norm_sq = sum(x * x for x in out)
         assert math.isclose(norm_sq, 1.0, abs_tol=1e-9)
+
+
+class TestInt8Quantization:
+    def test_round_trip_preserves_shape_and_nearby_values(self) -> None:
+        vec = [0.0, 0.125, -0.5, 1.0, -1.0]
+        qvec, scale = _quantize_int8(vec)
+        restored = _dequantize_int8(qvec, scale)
+        assert len(restored) == len(vec)
+        for got, want in zip(restored, vec):
+            assert math.isclose(got, want, abs_tol=0.02)
+
+    def test_zero_vector_quantizes_cleanly(self) -> None:
+        qvec, scale = _quantize_int8([0.0, 0.0, 0.0])
+        assert qvec == [0, 0, 0]
+        assert scale == 1.0
 
 
 class TestFoldForSearch:

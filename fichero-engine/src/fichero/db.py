@@ -47,7 +47,11 @@ import unicodedata
 import duckdb
 from pydantic import BaseModel
 from pydantic_core import PydanticUndefinedType
-from fichero.db_embeddings import DatabaseEmbeddingMixin
+from fichero.db_embeddings import (
+    DatabaseEmbeddingMixin,
+    _dequantize_int8,
+    _quantize_int8,
+)
 from fichero.db_manager import DatabaseManager, db_manager  # noqa: F401
 from fichero.errors import ErrorCategory, handle_error
 
@@ -658,11 +662,18 @@ class Database(DatabaseEmbeddingMixin):
         elif hasattr(doc, "name"):
             content = content or doc.name
 
+        stored_vector = vector
+        quantized_vector: list[int] | None = None
+        quantized_scale: float | None = None
+        if self._use_int8_embeddings():
+            quantized_vector, quantized_scale = _quantize_int8(vector)
+            stored_vector = _dequantize_int8(quantized_vector, quantized_scale)
+
         record = {
             "id": doc.id,
             "document_id": doc.id,
             "text": content,
-            "vector": vector,
+            "vector": stored_vector,
             # Store document metadata for search results display
             "name": getattr(doc, "name", None),
             "doc_type": getattr(doc, "doc_type", None).value
@@ -671,6 +682,8 @@ class Database(DatabaseEmbeddingMixin):
             "file_type": getattr(doc, "file_type", None).value
             if hasattr(doc, "file_type") and doc.file_type
             else None,
+            "vector_int8": quantized_vector,
+            "vector_scale": quantized_scale,
         }
 
         self.save_vectors("embeddings", [record])
