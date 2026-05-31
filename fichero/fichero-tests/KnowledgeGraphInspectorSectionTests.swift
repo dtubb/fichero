@@ -171,6 +171,24 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertEqual(reduced[0].predicate, "directly contradicts")
     }
 
+    func testHeuristicReviewMetricsReviewedCountIsCappedByTotal() {
+        XCTAssertEqual(
+            HeuristicReviewSheet.reviewedCount(
+                total: 2,
+                processed: ["a→b", "b→c", "c→d"]
+            ),
+            2
+        )
+    }
+
+    func testHeuristicReviewMetricsAcceptanceRateUsesReviewedOnly() {
+        let rate = HeuristicReviewSheet.acceptanceRate(
+            processed: ["a→b", "b→c"],
+            accepted: ["a→b", "x→y"]
+        )
+        XCTAssertEqual(rate, 0.5, accuracy: 0.0001)
+    }
+
     private func makeDocument(
         docType: DocType,
         fileType: FileType?,

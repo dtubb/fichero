@@ -854,6 +854,7 @@ struct HeuristicReviewSheet: View {
     let dismiss: () -> Void
 
     @State private var processed: Set<String> = []
+    @State private var accepted: Set<String> = []
     @State private var status: String = ""
 
     var body: some View {
@@ -923,7 +924,11 @@ struct HeuristicReviewSheet: View {
                 Button("Accept") { Task { await accept(pred, key: key) } }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                Button("Reject") { processed.insert(key) }
+                Button("Reject") {
+                    accepted.remove(key)
+                    processed.insert(key)
+                    status = "Rejected \(pred.sourceClaimId) ↔ \(pred.targetClaimId)"
+                }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
             }
@@ -940,6 +945,12 @@ struct HeuristicReviewSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
+            Text(
+                "\(Self.reviewedCount(total: response.predictions.count, processed: processed))/\(response.predictions.count) reviewed · "
+                + "\(Int(Self.acceptanceRate(processed: processed, accepted: accepted) * 100))% accepted"
+            )
+            .font(.caption2)
+            .foregroundStyle(.secondary)
         }
         .padding(.horizontal)
         .padding(.vertical, 6)
@@ -955,11 +966,22 @@ struct HeuristicReviewSheet: View {
                 linkQuality: pred.similarityScore,
                 evidence: "Heuristic similarity \(String(format: "%.3f", pred.similarityScore))"
             )
+            accepted.insert(key)
             processed.insert(key)
             status = "Linked \(pred.sourceClaimId) ↔ \(pred.targetClaimId)"
         } catch {
             status = "Failed: \(error.localizedDescription)"
         }
+    }
+
+    static func reviewedCount(total: Int, processed: Set<String>) -> Int {
+        min(total, processed.count)
+    }
+
+    static func acceptanceRate(processed: Set<String>, accepted: Set<String>) -> Double {
+        guard !processed.isEmpty else { return 0 }
+        let acceptedCount = accepted.intersection(processed).count
+        return Double(acceptedCount) / Double(processed.count)
     }
 }
 
