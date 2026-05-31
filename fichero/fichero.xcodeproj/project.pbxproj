@@ -155,7 +155,6 @@
 		2ED84CCBA91252EA2D0C5D34 /* TriggerEditorPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */; };
 		36C67BBF07CCFEAF928943C9 /* ImageEditorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF014F0FAEFCA5233DCB114F /* ImageEditorModel.swift */; };
 		3948516BF091406F1A855001 /* MindPalaceState.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE2ECCF57DC8B6308FCAE62F /* MindPalaceState.swift */; };
-		3B2ECB3D89A6143BBE86EBBD /* EntityDigestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDD1E83AC65238C40785679D /* EntityDigestView.swift */; };
 		3D3445F0B90D093149C9A7D6 /* DocumentInspectorContentTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36234E44A7E494963A441CDC /* DocumentInspectorContentTab.swift */; };
 		4458475E8C2BF728591E504F /* AIDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */; };
 		46A484C19A075EC0120FAF69 /* AddToRoomPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92B0E47A1378F8B2AE6EFB3 /* AddToRoomPicker.swift */; };
@@ -810,7 +809,6 @@
 		C340001100000000PROMPT01 /* PromptPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptPreviewPanel.swift; sourceTree = "<group>"; };
 		C69898938F25CFEA64385A16 /* TriggerDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TriggerDetailView.swift; sourceTree = "<group>"; };
 		CAAFE05184A40A50ADFC54A9 /* QuickLookPreviewViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickLookPreviewViews.swift; sourceTree = "<group>"; };
-		CDD1E83AC65238C40785679D /* EntityDigestView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EntityDigestView.swift; sourceTree = "<group>"; };
 		CE9 /* SidebarItemBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarItemBuilder.swift; sourceTree = "<group>"; };
 		D18BA434B3CB3A8C31139293 /* EntityDetailView+FilterChips.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+FilterChips.swift"; sourceTree = "<group>"; };
 		D661A54EFC8800F710E16A23 /* ActivityOverviewView+Cards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ActivityOverviewView+Cards.swift"; sourceTree = "<group>"; };
@@ -876,7 +874,6 @@
 				F131D425C0276D277D805678 /* KGMapView.swift */,
 				43EAB861267206E7A929830F /* KGTemporalSpatial.swift */,
 				DF77122ADD78F941D7F1968D /* KGTimelineView.swift */,
-				CDD1E83AC65238C40785679D /* EntityDigestView.swift */,
 			);
 			path = KnowledgeGraph;
 			sourceTree = "<group>";
@@ -2212,7 +2209,6 @@
 				D584DA0264AC18C07D78233A /* KGFocusState.swift in Sources */,
 				21B8070BD02B0087A8B83D04 /* MindPalaceTheme.swift in Sources */,
 				02DC70ACB03D52EDE04B84C3 /* MindPalaceLibraryProjector.swift in Sources */,
-				3B2ECB3D89A6143BBE86EBBD /* EntityDigestView.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
