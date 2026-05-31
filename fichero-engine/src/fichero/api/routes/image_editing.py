@@ -5,6 +5,7 @@ Stores per-document non-destructive edit chains and renders previews on demand.
 
 from __future__ import annotations
 
+import asyncio
 import io
 import tempfile
 from datetime import datetime
@@ -447,7 +448,6 @@ async def crop_image(
     if not source_path:
         raise HTTPException(status_code=404, detail="Source file not available")
 
-    base = _load_source_image(source_path, page=request.page)
     op = {
         "op": "crop",
         "page": request.page,
@@ -459,8 +459,13 @@ async def crop_image(
             "auto_orient": request.auto_orient,
         },
     }
-    derived = _apply_operation(base, op)
-    op["derived_path"] = _write_derived_image(document_id, request.page, derived)
+
+    def _run_crop_sync() -> str:
+        base = _load_source_image(source_path, page=request.page)
+        derived = _apply_operation(base, op)
+        return _write_derived_image(document_id, request.page, derived)
+
+    op["derived_path"] = await asyncio.to_thread(_run_crop_sync)
     op["created_at"] = datetime.now().isoformat()
 
     chain = _append_operation(db, document_id, op)
