@@ -247,6 +247,85 @@ class TestDeleteClaim:
         assert r.status_code == 404
 
 
+class TestAssignTimePeriod:
+    def test_assigns_period_for_page_range(self, client, db):
+        doc = _make_document(db, "Book")
+        claim_p1 = _make_claim(db, doc, "Page 1 claim")
+        claim_p1.source_page_label = "1"
+        db.save(claim_p1)
+
+        claim_p5 = _make_claim(db, doc, "Page 5 claim")
+        claim_p5.source_page_label = "5"
+        db.save(claim_p5)
+
+        r = client.post(
+            "/api/claims/assign-time-period",
+            json={
+                "source_document_id": doc.id,
+                "page_start": 1,
+                "page_end": 2,
+                "time_start": "1933-01-01",
+                "time_end": "1933-12-31",
+                "time_precision": "year",
+            },
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["matched_count"] == 1
+        assert payload["updated_count"] == 1
+        assert payload["skipped_existing_count"] == 0
+        assert db.get(KnowledgeClaim, claim_p1.id).time_start == "1933-01-01"
+        assert db.get(KnowledgeClaim, claim_p5.id).time_start is None
+
+    def test_assigns_period_including_descendant_pages(self, client, db):
+        folder = Document(name="Folder", doc_type=DocType.folder)
+        db.save(folder)
+        page = Document(name="Page 3", doc_type=DocType.page, parent_id=folder.id)
+        db.save(page)
+        claim = _make_claim(db, page, "Descendant page claim")
+        claim.source_page_label = "3"
+        db.save(claim)
+
+        r = client.post(
+            "/api/claims/assign-time-period",
+            json={
+                "source_document_id": folder.id,
+                "include_descendants": True,
+                "time_start": "1945-01-01",
+            },
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["matched_count"] == 1
+        assert payload["updated_count"] == 1
+        updated = db.get(KnowledgeClaim, claim.id)
+        assert updated.time_start == "1945-01-01"
+        assert updated.time_end == "1945-01-01"
+
+    def test_respects_overwrite_existing_false(self, client, db):
+        doc = _make_document(db, "Source")
+        claim = _make_claim(db, doc, "already dated")
+        claim.time_start = "1900-01-01"
+        claim.time_end = "1900-12-31"
+        db.save(claim)
+
+        r = client.post(
+            "/api/claims/assign-time-period",
+            json={
+                "source_document_id": doc.id,
+                "time_start": "2000-01-01",
+                "overwrite_existing": False,
+            },
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["matched_count"] == 1
+        assert payload["updated_count"] == 0
+        assert payload["skipped_existing_count"] == 1
+        unchanged = db.get(KnowledgeClaim, claim.id)
+        assert unchanged.time_start == "1900-01-01"
+
+
 class TestResolveClaimSource:
     def test_resolve_by_claim_id_returns_page_and_char_span(self, client, db):
         doc = _make_document(db, "Primary source")

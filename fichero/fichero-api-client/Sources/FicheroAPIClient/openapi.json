@@ -5363,6 +5363,60 @@
         }
       }
     },
+    "/api/claims/assign-time-period": {
+      "post": {
+        "tags": [
+          "claims",
+          "claims"
+        ],
+        "summary": "Assign Time Period",
+        "description": "Assign a user-curated period to many claims at once.\n\nThis powers timeline seeding from user decisions (page range / folder scope)\nby writing directly into `KnowledgeClaim.time_start/time_end`.",
+        "operationId": "assign_time_period_api_claims_assign_time_period_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimAssignTimePeriodRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimAssignTimePeriodResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents": {
       "get": {
         "tags": [
@@ -34601,6 +34655,80 @@
           "count"
         ],
         "title": "CitationUsageListResponse"
+      },
+      "ClaimAssignTimePeriodRequest": {
+        "properties": {
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "include_descendants": {
+            "type": "boolean",
+            "title": "Include Descendants",
+            "default": false
+          },
+          "page_start": {
+            "type": "integer",
+            "minimum": 1.0,
+            "nullable": true,
+            "title": "Page Start"
+          },
+          "page_end": {
+            "type": "integer",
+            "minimum": 1.0,
+            "nullable": true,
+            "title": "Page End"
+          },
+          "time_start": {
+            "type": "string",
+            "title": "Time Start"
+          },
+          "time_end": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time End"
+          },
+          "time_precision": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time Precision"
+          },
+          "overwrite_existing": {
+            "type": "boolean",
+            "title": "Overwrite Existing",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_document_id",
+          "time_start"
+        ],
+        "title": "ClaimAssignTimePeriodRequest",
+        "description": "Bulk-assign a temporal scope to claims for timeline population."
+      },
+      "ClaimAssignTimePeriodResponse": {
+        "properties": {
+          "matched_count": {
+            "type": "integer",
+            "title": "Matched Count"
+          },
+          "updated_count": {
+            "type": "integer",
+            "title": "Updated Count"
+          },
+          "skipped_existing_count": {
+            "type": "integer",
+            "title": "Skipped Existing Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "matched_count",
+          "updated_count",
+          "skipped_existing_count"
+        ],
+        "title": "ClaimAssignTimePeriodResponse"
       },
       "ClaimCountsResponse": {
         "properties": {

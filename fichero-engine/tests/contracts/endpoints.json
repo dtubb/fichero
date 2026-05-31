@@ -1559,6 +1559,16 @@
       },
       {
         "method": "POST",
+        "path": "/claims/assign-time-period",
+        "operation_id": "assign_time_period_api_claims_assign_time_period_post",
+        "summary": "Assign Time Period",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ClaimAssignTimePeriodRequest",
+        "response_model": "ClaimAssignTimePeriodResponse"
+      },
+      {
+        "method": "POST",
         "path": "/claims/batch/transition",
         "operation_id": "batch_transition_claims_api_claims_batch_transition_post",
         "summary": "Batch transition claims",

@@ -515,6 +515,36 @@ _BUILTIN_EXTRACTION_KEYS = frozenset({
 })
 
 
+def _normalize_custom_targets(raw: Any) -> list[str]:
+    """Normalize workflow-provided custom extraction targets.
+
+    Accepts a list[str] or comma-separated string. Returns lowercase keys,
+    deduped, with built-in extractor keys removed.
+    """
+    if raw is None:
+        return []
+
+    values: list[str]
+    if isinstance(raw, str):
+        values = [part.strip() for part in raw.split(",")]
+    elif isinstance(raw, list):
+        values = [item.strip() for item in raw if isinstance(item, str)]
+    else:
+        return []
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        key = value.lower()
+        if not key or key in _BUILTIN_EXTRACTION_KEYS:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(key)
+    return deduped
+
+
 def _load_registry_types(db, library_path: str) -> list[str]:
     """Return enabled custom entity type keys from the per-library registry."""
     if not library_path:
@@ -1423,6 +1453,13 @@ async def extract_all(
             custom_entity_types = _load_registry_types(_registry_db, library_path)
         except Exception as exc:
             logger.warning("extract_all: registry db open failed for %s: %s", library_path, exc)
+    workflow_custom_types = _normalize_custom_targets(
+        inputs.get("custom_extraction_targets") or inputs.get("extraction_targets")
+    )
+    if workflow_custom_types:
+        merged = set(custom_entity_types)
+        merged.update(workflow_custom_types)
+        custom_entity_types = sorted(merged)
 
     instructions = _build_instructions(output_language, custom_entity_types)
 
