@@ -216,6 +216,16 @@ def _search_match_terms(query: str) -> list[str]:
     return [t for t in terms if not (t in seen or seen.add(t))]
 
 
+def _contains_any_term(text_series, terms: list[str]):
+    """Return a boolean mask matching any folded term as a substring."""
+    if not terms:
+        return text_series.str.contains("", regex=False, na=False) & False
+    mask = text_series.str.contains(terms[0], case=False, regex=False, na=False)
+    for term in terms[1:]:
+        mask |= text_series.str.contains(term, case=False, regex=False, na=False)
+    return mask
+
+
 def _build_transcript_excerpts(
     document_id: str,
     content: str,
@@ -848,6 +858,74 @@ class Database(DatabaseEmbeddingMixin):
             result.kg_entity_ids = sorted(matched_entities_by_doc[result.document_id])
         return results
 
+    def _expand_query_with_entity_aliases(self, query: str) -> tuple[list[str], set[str]]:
+        """Expand a query with canonical + alias forms from matching entities."""
+        terms = _search_match_terms(query)
+        if not terms:
+            return [], set()
+
+        try:
+            from fichero.knowledge_models import KnowledgeEntity
+
+            entities = self.all(KnowledgeEntity)
+        except Exception:  # noqa: BLE001
+            return terms, set()
+
+        expanded = list(terms)
+        matched_entity_ids: set[str] = set()
+        seen_folded = set(terms)
+        for entity in entities:
+            surfaces = [entity.canonical_name, *entity.aliases]
+            folded_surfaces = [_fold_for_search(s or "") for s in surfaces]
+            if not any(
+                term in folded_surface or folded_surface in term
+                for term in terms
+                for folded_surface in folded_surfaces
+                if folded_surface
+            ):
+                continue
+            matched_entity_ids.add(entity.id)
+            for folded_surface in folded_surfaces:
+                if (
+                    folded_surface
+                    and len(folded_surface) > 1
+                    and folded_surface not in seen_folded
+                ):
+                    expanded.append(folded_surface)
+                    seen_folded.add(folded_surface)
+        return expanded[:12], matched_entity_ids
+
+    def _entity_bonus_doc_ids(self, matched_entity_ids: set[str]) -> set[str]:
+        """Documents linked to claims mentioning matched entities."""
+        if not matched_entity_ids:
+            return set()
+        try:
+            from fichero.knowledge_models import KnowledgeClaim
+
+            claims = self.all(KnowledgeClaim)
+        except Exception:  # noqa: BLE001
+            return set()
+
+        boosted: set[str] = set()
+        for claim in claims:
+            claim_entity_ids = set(claim.entity_ids or [])
+            if claim.subject_entity_id:
+                claim_entity_ids.add(claim.subject_entity_id)
+            if claim.speaker_entity_id:
+                claim_entity_ids.add(claim.speaker_entity_id)
+            if claim.subject_of_inquiry_entity_id:
+                claim_entity_ids.add(claim.subject_of_inquiry_entity_id)
+            if claim.scribe_entity_id:
+                claim_entity_ids.add(claim.scribe_entity_id)
+            if claim.editor_entity_id:
+                claim_entity_ids.add(claim.editor_entity_id)
+            if not (claim_entity_ids & matched_entity_ids):
+                continue
+            if claim.source_document_id:
+                boosted.add(claim.source_document_id)
+            boosted.update(claim.source_ids or [])
+        return boosted
+
     def search(
         self,
         query: str,
@@ -885,6 +963,8 @@ class Database(DatabaseEmbeddingMixin):
         start_time = time.time()
         results = []
         total_count = 0
+        expanded_terms, matched_entity_ids = self._expand_query_with_entity_aliases(query)
+        semantic_query = " ".join(expanded_terms) if expanded_terms else query
         search_stats = {
             "search_type": search_type,
             "execution_time_ms": 0,
@@ -903,7 +983,7 @@ class Database(DatabaseEmbeddingMixin):
             if search_type in ["semantic", "hybrid"] and has_embeddings:
                 try:
                     # Embed query
-                    query_vector = self._embed_text(query)
+                    query_vector = self._embed_text(semantic_query)
 
                     # Search vectors
                     table = self.lance.open_table("embeddings")
@@ -959,14 +1039,9 @@ class Database(DatabaseEmbeddingMixin):
                         # for Spanish/Latin manuscript corpora where the
                         # user types ASCII but the text is fully diacritic.
                         # See _fold_for_search.
-                        normalised_query = _fold_for_search(query)
+                        folded_terms = expanded_terms or [_fold_for_search(query)]
                         normalised_text = all_docs["text"].astype(str).map(_fold_for_search)
-                        # Phrase mode: a quoted query like '"el escribano"' is
-                        # already-stripped at the caller; we just match its
-                        # full collapsed form. Substring fallback otherwise.
-                        mask = normalised_text.str.contains(
-                            normalised_query, case=False, regex=False, na=False
-                        )
+                        mask = _contains_any_term(normalised_text, folded_terms)
 
                         fulltext_docs = all_docs[mask]
 
@@ -1060,6 +1135,14 @@ class Database(DatabaseEmbeddingMixin):
                 combined_results = semantic_results
             elif search_type == "fulltext":
                 combined_results = fulltext_results
+
+            # Entity-aware rank bonus: when query aliases resolve to a
+            # canonical entity, nudge docs linked to that entity upward.
+            boosted_doc_ids = self._entity_bonus_doc_ids(matched_entity_ids)
+            if boosted_doc_ids:
+                for item in combined_results:
+                    if item["document_id"] in boosted_doc_ids:
+                        item["score"] = min(1.0, item["score"] + 0.1)
 
             # Apply filters
             if filters:
