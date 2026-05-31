@@ -279,7 +279,7 @@ function highlightedTranscript() {
     }
     return escapeHtml(transcript).replace(
         escapeRegExpHtml(excerpt),
-        `<mark>${escapeHtml(excerpt)}</mark>`
+        `<mark data-highlight="claim">${escapeHtml(excerpt)}</mark>`
     );
 }
 
@@ -303,6 +303,45 @@ function renderTranscript() {
     panel.innerHTML = `
         <div class="transcript">${highlightedTranscript()}</div>
     `;
+}
+
+// Update the transcript highlight in-place without replacing the whole DOM
+// (preserves scrollTop). Only falls back to a full re-render when the panel
+// hasn't been rendered yet.
+function updateTranscriptHighlight() {
+    const panel = document.getElementById("transcript-panel");
+    const transcriptEl = panel.querySelector(".transcript");
+    if (!transcriptEl) {
+        renderTranscript();
+        return;
+    }
+    // Remove the existing mark, then re-apply for the active claim.
+    // Replace each <mark> with its text content first.
+    transcriptEl.querySelectorAll("mark[data-highlight]").forEach((mark) => {
+        mark.replaceWith(document.createTextNode(mark.textContent));
+        transcriptEl.normalize();
+    });
+    const activeClaim = claims.find((claim) => claim.id === state.activeClaimId);
+    const excerpt = activeClaim?.source_excerpt;
+    if (!excerpt) return;
+    // Walk text nodes to find and wrap the excerpt without serialising the whole DOM.
+    const walker = document.createTreeWalker(transcriptEl, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+        const idx = node.nodeValue.indexOf(excerpt);
+        if (idx === -1) continue;
+        const before = node.nodeValue.slice(0, idx);
+        const after = node.nodeValue.slice(idx + excerpt.length);
+        const mark = document.createElement("mark");
+        mark.setAttribute("data-highlight", "claim");
+        mark.textContent = excerpt;
+        const parent = node.parentNode;
+        if (before) parent.insertBefore(document.createTextNode(before), node);
+        parent.insertBefore(mark, node);
+        if (after) parent.insertBefore(document.createTextNode(after), node);
+        parent.removeChild(node);
+        break; // highlight first occurrence only
+    }
 }
 
 function claimMeta(claim) {
@@ -338,7 +377,12 @@ function renderDigest() {
             if (!claim) return;
             state.activeClaimId = claim.id;
             state.activeEntityId = claim.entity_ids?.[0] || null;
-            renderAll();
+            // Update active class in-place so scroll position is preserved.
+            panel.querySelectorAll(".claim-row").forEach((r) => {
+                r.classList.toggle("active", r.dataset.claimId === claim.id);
+            });
+            updateTranscriptHighlight();
+            updateGraphActiveNode();
             notify("claimSelected", {
                 claimId: claim.id,
                 sourceDocumentId: claim.source_document_id,
@@ -480,7 +524,9 @@ function renderGraph() {
             const sourceDocumentId = entityClaims[0]?.source_document_id || null;
             state.activeEntityId = entityId;
             state.activeClaimId = entityClaims[0]?.id || null;
-            renderAll();
+            // Update graph active/dimmed classes in-place; preserve scrollTop.
+            updateGraphActiveNode();
+            updateTranscriptHighlight();
             notify("entitySelected", {
                 entityId,
                 sourceDocumentId,
@@ -511,34 +557,157 @@ function renderAll() {
     });
 }
 
+// Update graph node active/dimmed state in-place (no innerHTML swap, no scrollTop loss).
+function updateGraphActiveNode() {
+    const panel = document.getElementById("graph-panel");
+    panel.querySelectorAll(".node").forEach((nodeEl) => {
+        const id = nodeEl.dataset.entityId;
+        const active = state.activeEntityId === id;
+        const dimmed = state.activePage != null &&
+            !claims.some((c) => (c.entity_ids || []).includes(id) && c.page_number === state.activePage);
+        nodeEl.classList.toggle("active", active);
+        nodeEl.classList.toggle("dimmed", dimmed);
+    });
+}
+
+// Show/hide tab panels without a full re-render.
+function applyTabVisibility() {
+    document.querySelectorAll(".tabs button").forEach((button) => {
+        button.classList.toggle("active", button.dataset.tab === state.tab);
+    });
+    ["transcript", "digest", "graph"].forEach((tab) => {
+        document.getElementById(`${tab}-panel`).classList.toggle("hidden", tab !== state.tab);
+    });
+}
+
+// Scroll the transcript to a character range and highlight it.
+// page is informational (reserved for multi-page support); charStart/charEnd
+// are byte offsets into documentData.page_content.
+function scrollToCharRange(charStart, charEnd) {
+    const panel = document.getElementById("transcript-panel");
+    const transcriptEl = panel.querySelector(".transcript");
+    if (!transcriptEl) return;
+
+    // Remove existing range highlights.
+    transcriptEl.querySelectorAll("mark[data-highlight='span']").forEach((mark) => {
+        mark.replaceWith(document.createTextNode(mark.textContent));
+        transcriptEl.normalize();
+    });
+
+    if (charStart == null || charEnd == null || charEnd <= charStart) return;
+
+    const transcript = documentData.page_content || "";
+    const excerpt = transcript.slice(charStart, charEnd);
+    if (!excerpt) return;
+
+    // Walk text nodes to find and wrap the range.
+    let charOffset = 0;
+    const walker = document.createTreeWalker(transcriptEl, NodeFilter.SHOW_TEXT);
+    let targetMark = null;
+    let node;
+    while ((node = walker.nextNode())) {
+        const nodeLen = node.nodeValue.length;
+        const nodeStart = charOffset;
+        const nodeEnd = charOffset + nodeLen;
+        charOffset = nodeEnd;
+
+        if (nodeEnd <= charStart || nodeStart >= charEnd) continue;
+
+        // This node overlaps the range — for simplicity, match the first node
+        // that contains the start of the range.
+        const localStart = charStart - nodeStart;
+        const localEnd = Math.min(charEnd - nodeStart, nodeLen);
+        if (localStart < 0 || localStart >= nodeLen) continue;
+
+        const before = node.nodeValue.slice(0, localStart);
+        const highlighted = node.nodeValue.slice(localStart, localEnd);
+        const after = node.nodeValue.slice(localEnd);
+        const mark = document.createElement("mark");
+        mark.setAttribute("data-highlight", "span");
+        mark.textContent = highlighted;
+        const parent = node.parentNode;
+        if (before) parent.insertBefore(document.createTextNode(before), node);
+        parent.insertBefore(mark, node);
+        if (after) parent.insertBefore(document.createTextNode(after), node);
+        parent.removeChild(node);
+        targetMark = mark;
+        break;
+    }
+
+    if (targetMark) {
+        targetMark.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+}
+
 document.querySelectorAll(".tabs button").forEach((button) => {
     button.addEventListener("click", () => {
         state.tab = button.dataset.tab;
-        renderAll();
+        applyTabVisibility();
     });
 });
 
 window.fichero = {
+    // Switch visible tab without re-rendering content panels.
     showTab(tab) {
         if (!["transcript", "digest", "graph"].includes(tab)) return;
         state.tab = tab;
-        renderAll();
+        applyTabVisibility();
     },
+
+    // Highlight a graph node in-place; no innerHTML swap, no scrollTop loss.
     pulseNode(entityId) {
         state.activeEntityId = entityId;
-        renderAll();
+        updateGraphActiveNode();
     },
+
+    // Highlight a claim in the digest and transcript in-place.
+    // Preserves .content scrollTop.
     highlightClaim(claimId) {
         state.activeClaimId = claimId;
         const claim = claims.find((item) => item.id === claimId);
         if (claim?.entity_ids?.length) {
             state.activeEntityId = claim.entity_ids[0];
         }
-        renderAll();
+        // Update digest active class in-place.
+        document.getElementById("digest-panel").querySelectorAll(".claim-row").forEach((row) => {
+            row.classList.toggle("active", row.dataset.claimId === claimId);
+        });
+        updateTranscriptHighlight();
+        updateGraphActiveNode();
     },
+
+    // Update page-based graph dimming in-place; no scroll disruption.
     setActivePage(pageNumber) {
         state.activePage = pageNumber;
-        renderAll();
+        updateGraphActiveNode();
+    },
+
+    // Scroll the transcript to a character span and highlight it.
+    // Called from Swift (Coordinator.syncSelection) when a claim is focused.
+    // page is reserved for future multi-page documents.
+    scrollToSpan(page, charStart, charEnd) {
+        // Ensure transcript tab is visible.
+        if (state.tab !== "transcript") {
+            state.tab = "transcript";
+            applyTabVisibility();
+        }
+        scrollToCharRange(charStart, charEnd);
+    },
+
+    // Highlight an entity node in the graph in-place.
+    // Previously a no-op (called via optional chaining from Swift).
+    highlightEntity(entityId) {
+        state.activeEntityId = entityId;
+        // Find and set the first associated claim as active for digest sync.
+        const firstClaim = claims.find((c) => (c.entity_ids || []).includes(entityId));
+        if (firstClaim) {
+            state.activeClaimId = firstClaim.id;
+            document.getElementById("digest-panel").querySelectorAll(".claim-row").forEach((row) => {
+                row.classList.toggle("active", row.dataset.claimId === firstClaim.id);
+            });
+            updateTranscriptHighlight();
+        }
+        updateGraphActiveNode();
     },
 };
 

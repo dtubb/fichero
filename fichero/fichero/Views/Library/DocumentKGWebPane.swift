@@ -206,6 +206,8 @@ struct DocumentKGWebPane: NSViewRepresentable {
         private var lastLoadedLibraryPath: String?
         private var lastSelectedEntityId: String?
         private var lastSelectedClaimId: String?
+        private var lastSelectedClaimCharStart: Int?
+        private var lastSelectedClaimCharEnd: Int?
         private var lastActivePageNumber: Int?
         private var lastActiveTab: String?
         private var suppressActivePageSyncUntil = Date.distantPast
@@ -230,6 +232,8 @@ struct DocumentKGWebPane: NSViewRepresentable {
             lastActiveTab = nil
             lastSelectedEntityId = nil
             lastSelectedClaimId = nil
+            lastSelectedClaimCharStart = nil
+            lastSelectedClaimCharEnd = nil
             lastActivePageNumber = nil
             webView.load(request)
         }
@@ -254,6 +258,10 @@ struct DocumentKGWebPane: NSViewRepresentable {
                 if let claimId = parent.selectedClaimId {
                     let literal = DocumentKGPaneRoute.jsStringLiteral(claimId)
                     webView.evaluateJavaScript("window.fichero?.highlightClaim('\(literal)');")
+                    syncClaimSpan(claimId: claimId, into: webView)
+                } else {
+                    lastSelectedClaimCharStart = nil
+                    lastSelectedClaimCharEnd = nil
                 }
             }
 
@@ -261,7 +269,8 @@ struct DocumentKGWebPane: NSViewRepresentable {
                 lastSelectedEntityId = parent.selectedEntityId
                 if let entityId = parent.selectedEntityId {
                     let literal = DocumentKGPaneRoute.jsStringLiteral(entityId)
-                    webView.evaluateJavaScript("window.fichero?.highlightEntity?.('\(literal)');")
+                    // highlightEntity is now always defined (not a no-op); drop optional chaining.
+                    webView.evaluateJavaScript("window.fichero?.highlightEntity('\(literal)');")
                 }
             }
 
@@ -280,6 +289,20 @@ struct DocumentKGWebPane: NSViewRepresentable {
                     }
                 }
             }
+        }
+
+        /// Scroll the transcript to the char range carried by ClaimFocusState for
+        /// the given claim ID when it differs from the last-synced range.
+        private func syncClaimSpan(claimId: String, into webView: WKWebView) {
+            let focusState = ClaimFocusState.shared
+            guard focusState.selectedClaimId == claimId,
+                  let charStart = focusState.selectedClaimCharStart,
+                  let charEnd = focusState.selectedClaimCharEnd,
+                  charStart != lastSelectedClaimCharStart || charEnd != lastSelectedClaimCharEnd
+            else { return }
+            lastSelectedClaimCharStart = charStart
+            lastSelectedClaimCharEnd = charEnd
+            webView.evaluateJavaScript("window.fichero?.scrollToSpan(null, \(charStart), \(charEnd));")
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
