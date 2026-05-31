@@ -14,6 +14,7 @@ from typing import Any, Callable, Optional
 import typer
 
 from fichero.cli import FicheroClient, FicheroError
+from fichero.cli.openapi_surface_generated import register_generated_openapi_commands
 from fichero.cli.formatters import render
 app = typer.Typer(
     add_completion=False,
@@ -129,6 +130,20 @@ def _invoke(ctx: typer.Context, operation: Callable[[FicheroClient], Any]) -> No
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(render(data, as_json=ctx.obj["json"]))
+
+
+register_generated_openapi_commands(
+    app,
+    _invoke,
+    existing_apps={
+        "artifacts": artifacts_app,
+        "kg": kg_app,
+        "library": library_app,
+        "notes": notes_app,
+        "providers": providers_app,
+        "settings": settings_app,
+    },
+)
 
 
 # -- top-level commands ----------------------------------------------------
