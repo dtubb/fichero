@@ -7837,6 +7837,95 @@
         }
       }
     },
+    "/api/entities/{entity_id}/biography": {
+      "get": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Get Entity Biography",
+        "description": "Structured biography for an entity \u2014 entity facts, SVO claims,\nsource-document links, and co-occurring entities in one fetch.\n\nReturns the full cross-document picture of what the knowledge graph\nknows about this entity. LLM-narrated prose is a separate concern\n(tracked in #1361); this endpoint returns structured data only.",
+        "operationId": "get_entity_biography_api_entities__entity_id__biography_get",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "claims_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2000,
+              "minimum": 1,
+              "default": 500,
+              "title": "Claims Limit"
+            }
+          },
+          {
+            "name": "documents_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Documents Limit"
+            }
+          },
+          {
+            "name": "co_occurrence_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Co Occurrence Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityBiographyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/export/markdown-folder": {
       "post": {
         "tags": [
@@ -37578,6 +37667,43 @@
           "created_at"
         ],
         "title": "EntityAuditResponse"
+      },
+      "EntityBiographyResponse": {
+        "properties": {
+          "entity": {
+            "$ref": "#/components/schemas/KnowledgeEntity"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeClaim"
+            },
+            "type": "array",
+            "title": "Claims"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/EntityDocumentLink"
+            },
+            "type": "array",
+            "title": "Documents"
+          },
+          "co_occurring": {
+            "items": {
+              "$ref": "#/components/schemas/EntityCoOccurrence"
+            },
+            "type": "array",
+            "title": "Co Occurring"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity",
+          "claims",
+          "documents",
+          "co_occurring"
+        ],
+        "title": "EntityBiographyResponse",
+        "description": "Structured biography bundle for a single entity.\n\nAssembles entity facts + all SVO claims that mention the entity +\nsource-document links + co-occurring entities into one response so\ncallers get a complete cross-doc picture in a single round-trip.\n\nLLM-narrated prose is out of scope here (tracked in #1361) \u2014 this\nreturns structured data only."
       },
       "EntityCoOccurrence": {
         "properties": {
