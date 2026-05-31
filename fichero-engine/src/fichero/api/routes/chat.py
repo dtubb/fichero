@@ -24,6 +24,7 @@ from fichero.models import (
 )
 from fichero.keychain import has_api_key
 from fichero.providers import get_provider_info
+from fichero.retrieval.graph_rag import GraphAwareRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -297,67 +298,21 @@ async def chat(
     conv.messages.append({"role": "user", "content": request.message})
     conv.updated_at = datetime.now()
 
-    # Search for relevant documents
+    # Search for relevant docs + KG neighborhood context
     sources = []
     context_docs = []
 
     try:
-        # If specific documents are requested, use those
-        if request.document_ids:
-            for doc_id in request.document_ids[: request.max_sources]:
-                doc = db.get(Document, doc_id)
-                if doc and doc.page_content:
-                    context_docs.append(
-                        {
-                            "id": doc.id,
-                            "name": doc.name,
-                            "content": doc.page_content,
-                        }
-                    )
-                    if request.include_sources:
-                        sources.append(
-                            DocumentSource(
-                                document_id=doc.id,
-                                document_name=doc.name,
-                                excerpt=doc.page_content[:200] + "..."
-                                if len(doc.page_content) > 200
-                                else doc.page_content,
-                                relevance_score=1.0,
-                            )
-                        )
-        else:
-            # Enhanced search for relevant documents
-            search_results, _, _ = db.search(
-                query=request.message,
-                limit=request.max_sources,
-                min_score=0.0,
-                search_type="hybrid",  # Use hybrid search for better results
-            )
-
-            for result in search_results:
-                doc = db.get(Document, result.document_id)
-                if doc:
-                    # Use page_content if available, otherwise read from file
-                    content = doc.page_content or _read_file_content(doc.path)
-                    if content:
-                        context_docs.append(
-                            {
-                                "id": doc.id,
-                                "name": doc.name,
-                                "content": content,
-                            }
-                        )
-                        if request.include_sources:
-                            sources.append(
-                                DocumentSource(
-                                    document_id=result.document_id,
-                                    document_name=doc.name,
-                                    excerpt=content[:200] + "..."
-                                    if len(content) > 200
-                                    else content,
-                                    relevance_score=result.score,
-                                )
-                            )
+        retrieval = GraphAwareRetriever(db, file_reader=_read_file_content).retrieve(
+            query=request.message,
+            max_sources=request.max_sources,
+            include_sources=request.include_sources,
+            document_ids=request.document_ids,
+            graph_hops=1,
+            max_kg_claims=12,
+        )
+        context_docs = retrieval.context_docs
+        sources = [DocumentSource(**row) for row in retrieval.sources]
     except Exception as e:
         logger.warning(f"Search failed, proceeding without context: {e}")
 
