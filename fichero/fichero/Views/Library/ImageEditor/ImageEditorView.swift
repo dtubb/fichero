@@ -1,6 +1,12 @@
 import AppKit
 import SwiftUI
 
+private enum CompareMode: String, CaseIterable {
+    case single = "Single"
+    case wipe = "Slider"
+    case sideBySide = "Side-by-Side"
+}
+
 /// Non-destructive image-editing surface (#469).
 ///
 /// Renders the backend-rendered preview (so the original↔edited toggle is just
@@ -36,6 +42,8 @@ struct ImageEditorView: View {
 
     /// Marquee selection in normalized image space (0…1); nil when none (#1265).
     @State private var marqueeSelection: CGRect?
+    @State private var compareMode: CompareMode = .single
+    @State private var compareSplit: CGFloat = 0.5
 
     /// Creates region (bbox) annotations from the marquee selection (#1276).
     @StateObject private var annotationService = AnnotationService()
@@ -139,7 +147,7 @@ private extension ImageEditorView {
             }
             .disabled(model.isBusy)
 
-            if marqueeSelection != nil {
+            if marqueeSelection != nil && compareMode == .single {
                 Divider().frame(height: 20)
                 Button {
                     Task { await cropToSelection() }
@@ -166,6 +174,16 @@ private extension ImageEditorView {
             }
 
             Spacer()
+
+            Picker("", selection: $compareMode) {
+                ForEach(CompareMode.allCases, id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 240)
+            .labelsHidden()
+            .help("Compare original and edited images")
 
             if model.isBusy {
                 ProgressView().controlSize(.small)
@@ -364,7 +382,52 @@ private extension ImageEditorView {
     private var canvas: some View {
         ZStack {
             CheckerboardPattern().opacity(0.12)
-            if let preview = model.preview {
+            if compareMode == .sideBySide {
+                if let original = model.originalPreview, let edited = model.editedPreview {
+                    HStack(spacing: 8) {
+                        comparePane(image: original.image, pixelSize: original.pixelSize, title: "Original")
+                        comparePane(image: edited.image, pixelSize: edited.pixelSize, title: "Edited")
+                    }
+                    .padding(8)
+                } else {
+                    ProgressView("Loading compare preview…")
+                        .controlSize(.small)
+                }
+            } else if compareMode == .wipe {
+                if let original = model.originalPreview, let edited = model.editedPreview {
+                    GeometryReader { geo in
+                        let fitted = ImageFit.fittedRect(
+                            imagePixelSize: edited.pixelSize,
+                            in: CGSize(width: geo.size.width - 24, height: geo.size.height - 24)
+                        )
+                        let frame = fitted.offsetBy(dx: 12, dy: 12)
+                        Image(nsImage: original.image)
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: frame.width, height: frame.height)
+                            .position(x: frame.midX, y: frame.midY)
+                        Image(nsImage: edited.image)
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: frame.width, height: frame.height)
+                            .position(x: frame.midX, y: frame.midY)
+                            .mask(
+                                Rectangle()
+                                    .frame(width: max(0, min(1, compareSplit)) * frame.width, height: frame.height)
+                                    .offset(x: frame.minX, y: frame.minY)
+                            )
+                    }
+                    VStack {
+                        Spacer()
+                        Slider(value: $compareSplit, in: 0...1)
+                            .padding(.horizontal, 24)
+                            .padding(.bottom, 12)
+                    }
+                } else {
+                    ProgressView("Loading compare preview…")
+                        .controlSize(.small)
+                }
+            } else if let preview = model.preview {
                 GeometryReader { geo in
                     let fitted = ImageFit.fittedRect(
                         imagePixelSize: preview.pixelSize,
@@ -386,5 +449,26 @@ private extension ImageEditorView {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: NSColor(red: 253 / 255, green: 253 / 255, blue: 253 / 255, alpha: 1)))
+    }
+
+    private func comparePane(image: NSImage, pixelSize: CGSize, title: String) -> some View {
+        VStack(spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            GeometryReader { geo in
+                let fitted = ImageFit.fittedRect(
+                    imagePixelSize: pixelSize,
+                    in: CGSize(width: geo.size.width - 12, height: geo.size.height - 12)
+                )
+                let frame = fitted.offsetBy(dx: 6, dy: 6)
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: frame.width, height: frame.height)
+                    .position(x: frame.midX, y: frame.midY)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

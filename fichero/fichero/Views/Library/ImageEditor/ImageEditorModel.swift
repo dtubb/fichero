@@ -15,6 +15,10 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageEd
 final class ImageEditorModel: ObservableObject {
     /// Currently displayed preview (original or edited, per `showEdited`).
     @Published var preview: PreviewImage?
+    /// Cached original preview (apply_edits=false) for A/B compare UI.
+    @Published var originalPreview: PreviewImage?
+    /// Cached edited preview (apply_edits=true) for A/B compare UI.
+    @Published var editedPreview: PreviewImage?
     /// The document's saved edit chain.
     @Published var chain: ImageEditChain
     /// #469 toggle — false shows the untouched source, true shows the chain applied.
@@ -43,13 +47,15 @@ final class ImageEditorModel: ObservableObject {
         self.page = page
         self.chain = ImageEditChain(documentId: documentId, operations: [], updatedAt: nil)
         self.preview = nil
+        self.originalPreview = nil
+        self.editedPreview = nil
         await reload()
     }
 
     /// Reload both the chain and the current preview.
     func reload() async {
         await loadChain()
-        await reloadPreview()
+        await reloadPreviews()
     }
 
     private func loadChain() async {
@@ -64,14 +70,22 @@ final class ImageEditorModel: ObservableObject {
     }
 
     /// Re-fetch the preview honouring the current `showEdited` toggle + page.
-    func reloadPreview() async {
+    func reloadPreviews() async {
         guard let service, !documentId.isEmpty else { return }
         do {
-            preview = try await service.loadPreview(
+            async let original = service.loadPreview(
                 documentId: documentId,
-                applyEdits: showEdited,
+                applyEdits: false,
                 page: page
             )
+            async let edited = service.loadPreview(
+                documentId: documentId,
+                applyEdits: true,
+                page: page
+            )
+            originalPreview = try await original
+            editedPreview = try await edited
+            preview = showEdited ? editedPreview : originalPreview
         } catch {
             logger.error("loadPreview failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
@@ -81,7 +95,10 @@ final class ImageEditorModel: ObservableObject {
     /// Flip the original↔edited toggle and re-render (#469).
     func toggleEdited() {
         showEdited.toggle()
-        Task { await reloadPreview() }
+        preview = showEdited ? editedPreview : originalPreview
+        if preview == nil {
+            Task { await reloadPreviews() }
+        }
     }
 
     // MARK: - Operations
@@ -166,7 +183,7 @@ final class ImageEditorModel: ObservableObject {
         do {
             try await service.resetChain(documentId: documentId)
             chain = ImageEditChain(documentId: documentId, operations: [], updatedAt: nil)
-            await reloadPreview()
+            await reloadPreviews()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -182,7 +199,7 @@ final class ImageEditorModel: ObservableObject {
         do {
             chain = try await body(service)
             showEdited = true
-            await reloadPreview()
+            await reloadPreviews()
         } catch {
             logger.error("operation failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
