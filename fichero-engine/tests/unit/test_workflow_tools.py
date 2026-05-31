@@ -1436,6 +1436,43 @@ class TestProcessTextSave:
 
 
 # =============================================================================
+# Language identification tool
+# =============================================================================
+
+
+class TestLanguageIdentificationTool:
+    @pytest.mark.asyncio
+    async def test_language_identification_no_text(self, mock_llm_config, mock_state):
+        from fichero.workflows.tools.language_identification import language_identification
+
+        result = await language_identification({}, mock_state, mock_llm_config)
+        assert result["error"] == "No text provided"
+
+    @pytest.mark.asyncio
+    async def test_language_identification_detects_primary_language(
+        self, mock_llm_config, mock_state
+    ):
+        from fichero.workflows.tools.language_identification import language_identification
+
+        text = (
+            "the document was written in the archive and the council records "
+            "show the names and dates for the meeting.\n\n"
+            "el acta del cabildo fue escrita en español y describe los hechos."
+        )
+        result = await language_identification(
+            {"text": text, "save_to_db": False, "chunk_size_chars": 120},
+            mock_state,
+            mock_llm_config,
+        )
+
+        assert "value" in result and result["value"] is not None
+        payload = result["value"]
+        assert payload["primary_language"] in {"en", "es"}
+        assert len(payload["languages"]) >= 1
+        assert result["text"].startswith("# Language Identification")
+
+
+# =============================================================================
 # Tests: files_tool with selected_doc_ids
 # =============================================================================
 
