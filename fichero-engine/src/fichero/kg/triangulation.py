@@ -187,6 +187,75 @@ def compute_support_counts(db: "Database") -> dict[TripleKey, TripleSupport]:
     }
 
 
+def persist_support_counts(
+    db: "Database",
+    threshold: int = CORROBORATED_THRESHOLD,
+) -> int:
+    """Write cross-source support counts back onto ``KnowledgeClaim`` rows.
+
+    For each claim, sets:
+
+    - ``corroboration_count`` — number of distinct source documents asserting
+      the same (subject, predicate, object) triple.  Replaces the write-time
+      value (which is always 1 for a brand-new claim) with the corpus-global
+      count.
+    - ``corroborating_source_ids`` — sorted list of those document IDs, so the
+      inspector can surface provenance without re-running the aggregation.
+
+    Claims that share a TripleKey get the same ``corroboration_count``; claims
+    with no ``entity_ids`` (date-only) keep their existing values because they
+    don't participate in SVO grouping.
+
+    Returns the number of claims updated.
+
+    Design note: we re-use the *existing* ``corroboration_count`` /
+    ``corroborating_source_ids`` fields rather than adding new columns.  Those
+    fields were always intended as "multi-source support count" — they were just
+    computed at write time (per-claim).  This function replaces the write-time
+    value with the corpus-global value. (#900)
+    """
+    from fichero.knowledge_models import KnowledgeClaim
+
+    supports = compute_support_counts(db)
+
+    # Build a lookup: claim_id → TripleSupport for fast per-claim update.
+    claim_to_support: dict[str, TripleSupport] = {}
+    for support in supports.values():
+        for cid in support.claim_ids:
+            # A claim can map to multiple triples (when entity_ids has > 1
+            # entry).  Keep the one with the highest support_count so the
+            # stored value is conservative (max evidence).
+            if cid not in claim_to_support or (
+                support.support_count > claim_to_support[cid].support_count
+            ):
+                claim_to_support[cid] = support
+
+    updated = 0
+    for claim in db.query(KnowledgeClaim):
+        support = claim_to_support.get(claim.id)
+        if support is None:
+            # Date-only claim or claim with no entity_ids — skip.
+            continue
+        new_count = support.support_count
+        new_sources = sorted(support.source_document_ids)
+        # Only write back when the value changed to minimise DuckDB writes.
+        if (
+            claim.corroboration_count != new_count
+            or list(claim.corroborating_source_ids) != new_sources
+        ):
+            claim.corroboration_count = new_count
+            claim.corroborating_source_ids = new_sources
+            db.save(claim)
+            updated += 1
+
+    logger.info(
+        "triangulation: persist_support_counts updated %d claims (threshold=%d)",
+        updated,
+        threshold,
+    )
+    return updated
+
+
 def triples_for_entity(
     db: "Database",
     entity_id: str,

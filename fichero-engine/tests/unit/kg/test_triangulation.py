@@ -149,3 +149,99 @@ class TestTriangulatedFacts:
         # 2 sources — under default threshold (3), over custom (2).
         assert len(triangulation.triangulated_facts(db, threshold=3)) == 0
         assert len(triangulation.triangulated_facts(db, threshold=2)) == 1
+
+
+class TestPersistSupportCounts:
+    """Tests for persist_support_counts — the global aggregation → write-back path."""
+
+    def test_single_source_claim_keeps_count_one(self, db):
+        """A claim from one source: corroboration_count stays 1 after recompute.
+
+        The first persist run also populates corroborating_source_ids (was []
+        by default), so one write does happen — but the count remains 1 and a
+        second run is fully idempotent.
+        """
+        eid = _seed_entity(db, "Davidson")
+        cid = _seed_claim(db, entity_id=eid, source_doc="doc-1",
+                          verb="is", obj="an alias of Deibinson")
+
+        updated = triangulation.persist_support_counts(db)
+        # corroborating_source_ids went [] → ["doc-1"], so one write.
+        assert updated == 1
+
+        from fichero.knowledge_models import KnowledgeClaim
+        claim = db.query(KnowledgeClaim, id=cid)[0]
+        assert claim.corroboration_count == 1
+        assert claim.corroborating_source_ids == ["doc-1"]
+
+        # Second run: nothing changed — fully idempotent.
+        assert triangulation.persist_support_counts(db) == 0
+
+    def test_three_sources_raises_count_and_writes_back(self, db):
+        """Three distinct sources for the same SVO triple → corroboration_count=3."""
+        eid = _seed_entity(db, "Juan Pérez")
+        c_ids = [
+            _seed_claim(db, entity_id=eid, source_doc=f"doc-{i}",
+                        verb="signed", obj="the deed")
+            for i in range(3)
+        ]
+
+        updated = triangulation.persist_support_counts(db)
+        assert updated == 3  # all three claims updated (were 1, now 3)
+
+        from fichero.knowledge_models import KnowledgeClaim
+        for cid in c_ids:
+            claim = db.query(KnowledgeClaim, id=cid)[0]
+            assert claim.corroboration_count == 3
+            assert sorted(claim.corroborating_source_ids) == ["doc-0", "doc-1", "doc-2"]
+
+    def test_distinct_claims_unaffected_by_each_other(self, db):
+        """Two different facts from different entities don't bleed into each other."""
+        d_id = _seed_entity(db, "Davidson")
+        e_id = _seed_entity(db, "Eugenio")
+
+        # Davidson's alias: 2 sources
+        for i in range(2):
+            _seed_claim(db, entity_id=d_id, source_doc=f"alias-{i}",
+                        verb="is", obj="an alias of Deibinson")
+        # Eugenio's role: 1 source
+        e_cid = _seed_claim(db, entity_id=e_id, source_doc="role-doc",
+                            verb="served as", obj="alcalde")
+
+        triangulation.persist_support_counts(db)
+
+        from fichero.knowledge_models import KnowledgeClaim
+        e_claim = db.query(KnowledgeClaim, id=e_cid)[0]
+        # Eugenio's claim should be untouched (still 1).
+        assert e_claim.corroboration_count == 1
+
+    def test_idempotent_second_call_updates_nothing(self, db):
+        """Running persist_support_counts twice writes nothing on the second call."""
+        eid = _seed_entity(db, "Davidson")
+        for i in range(3):
+            _seed_claim(db, entity_id=eid, source_doc=f"doc-{i}",
+                        verb="is", obj="an alias of Deibinson")
+
+        first = triangulation.persist_support_counts(db)
+        second = triangulation.persist_support_counts(db)
+
+        assert first == 3   # all three claims updated
+        assert second == 0  # nothing changed on the second run
+
+    def test_date_only_claims_skipped(self, db):
+        """Claims with no entity_ids (date-style) are not touched."""
+        from fichero.knowledge_models import KnowledgeClaim, EntityType
+
+        date_claim = KnowledgeClaim(
+            text="1933-07-23 records the deed",
+            source_document_id="doc-date",
+            entity_ids=[],  # no entity → skipped by SVO grouping
+            metadata={"verb": "records", "object": "the deed"},
+        )
+        db.save(date_claim)
+
+        updated = triangulation.persist_support_counts(db)
+        assert updated == 0
+
+        reloaded = db.query(KnowledgeClaim, id=date_claim.id)[0]
+        assert reloaded.corroboration_count == 1  # unchanged default
