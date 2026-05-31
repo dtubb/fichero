@@ -45,6 +45,7 @@ from fichero.workflows.tools import table_extract
 from fichero.workflows.tools import handwriting
 from fichero.workflows.tools import style
 from fichero.workflows.tools import similarity
+from fichero.workflows.tools import prepare_images  # noqa: F401  (#1390)
 
 # LLM tools
 from fichero.workflows.tools import summarize
@@ -120,6 +121,7 @@ __all__ = [
     "handwriting",
     "style",
     "similarity",
+    "prepare_images",
     # LLM
     "summarize",
     "entities",
