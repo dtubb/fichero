@@ -4,6 +4,9 @@ import SwiftUI
 
 /// Combines a PDF page viewer and its corresponding content pane with a resizable divider.
 struct PDFReadingView: View {
+    private static let minContentWidth: Double = 160
+    private static let maxContentWidth: Double = 600
+
     let document: Document?
     let pdfPath: String
     let pageIndex: Int
@@ -21,13 +24,17 @@ struct PDFReadingView: View {
 
             ResizableDivider(
                 width: $contentWidth,
-                minWidth: 160,
-                maxWidth: 600,
+                minWidth: Self.minContentWidth,
+                maxWidth: Self.maxContentWidth,
                 edge: .trailing
             )
 
             PageContentPane(document: document)
                 .frame(width: CGFloat(contentWidth))
+                .frame(minWidth: Self.minContentWidth)
+        }
+        .onAppear {
+            contentWidth = max(Self.minContentWidth, min(Self.maxContentWidth, contentWidth))
         }
     }
 }
