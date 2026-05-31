@@ -534,6 +534,28 @@ _activity_trackers: dict[str, ActivityTracker] = {}
 _tracker_lock = __import__("threading").Lock()
 
 
+async def _recover_stale_runs_bg(tracker: "ActivityTracker", db_path: str) -> None:
+    """Fire-and-forget coroutine: recover zombie runs for a newly-opened library.
+
+    Called once per library when its ActivityTracker is first created (#1350).
+    Any exception is caught and logged so it can never break startup or
+    library-open.
+    """
+    try:
+        recovered = await tracker.store.recover_stale_runs()
+        if recovered:
+            logger.info(
+                "recover_stale_runs: recovered %d stale run(s) for library %s",
+                recovered,
+                db_path,
+            )
+    except Exception:
+        logger.exception(
+            "recover_stale_runs failed for %s (ignored — library open continues)",
+            db_path,
+        )
+
+
 def get_activity_tracker(db_path: Optional[str] = None) -> ActivityTracker:
     """Get or create activity tracker for a library.
 
@@ -565,7 +587,29 @@ def get_activity_tracker(db_path: Optional[str] = None) -> ActivityTracker:
     with _tracker_lock:
         if db_path not in _activity_trackers:
             logger.info(f"Creating NEW ActivityTracker for: {db_path}")
-            _activity_trackers[db_path] = ActivityTracker(db_path)
+            tracker = ActivityTracker(db_path)
+            _activity_trackers[db_path] = tracker
+            # Recover stale 'running' rows left by a previous crash/restart (#1350).
+            # Fire-and-forget: wrap in try/except so a DB error never blocks
+            # library-open or startup.
+            try:
+                import asyncio
+
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.ensure_future(
+                        _recover_stale_runs_bg(tracker, db_path),
+                        loop=loop,
+                    )
+                else:
+                    logger.debug(
+                        "recover_stale_runs skipped for %s: no running event loop",
+                        db_path,
+                    )
+            except Exception:
+                logger.exception(
+                    "recover_stale_runs scheduling failed for %s (ignored)", db_path
+                )
         else:
             logger.debug(f"Reusing existing ActivityTracker for: {db_path}")
         return _activity_trackers[db_path]
