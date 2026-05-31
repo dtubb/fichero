@@ -32,12 +32,12 @@ struct ImageEditOperation: Identifiable, Hashable {
 
     var params: [String: Any] { dict["params"] as? [String: Any] ?? [:] }
 
-    /// SF Symbol matching the op kind, for the chain list.
     var icon: String {
         switch opKind {
         case "crop": return "crop"
         case "rotate": return "rotate.right"
         case "enhance": return "wand.and.stars"
+        case "fuzzy_clean": return "sparkles"
         case "remove_background": return "person.crop.rectangle.badge.xmark"
         case "segment": return "square.split.bottomrightquarter"
         case "flip_horizontal", "flip_vertical": return "arrow.left.and.right.righttriangle.left.righttriangle.right"
@@ -46,14 +46,16 @@ struct ImageEditOperation: Identifiable, Hashable {
         }
     }
 
-    /// Title-cased op name for the chain list ("remove_background" -> "Remove Background").
     var title: String {
-        opKind.split(separator: "_")
-            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-            .joined(separator: " ")
+        switch opKind {
+        case "fuzzy_clean": return "Fuzzy Clean"
+        default:
+            return opKind.split(separator: "_")
+                .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+                .joined(separator: " ")
+        }
     }
 
-    /// Compact human-readable parameter summary shown beneath the title.
     var summary: String {
         switch opKind {
         case "crop":
@@ -69,7 +71,13 @@ struct ImageEditOperation: Identifiable, Hashable {
             if let value = params["contrast"] as? Double, value != 1.0 { parts.append(String(format: "contrast %.1f", value)) }
             if let value = params["sharpen"] as? Double, value != 1.0 { parts.append(String(format: "sharpen %.1f", value)) }
             if (params["auto_levels"] as? Bool) == true { parts.append("auto-levels") }
+            if (params["denoise"] as? Bool) == true { parts.append("denoise") }
             return parts.isEmpty ? "no change" : parts.joined(separator: ", ")
+        case "fuzzy_clean":
+            var parts: [String] = []
+            if let radius = params["despeckle_radius"] as? Int { parts.append("despeckle \(radius)") }
+            if (params["background_clean"] as? Bool) == true { parts.append("background clean") }
+            return parts.isEmpty ? "despeckle" : parts.joined(separator: ", ")
         case "remove_background":
             return (params["method"] as? String) ?? "opencv"
         case "segment":
