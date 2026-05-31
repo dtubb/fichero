@@ -1535,3 +1535,32 @@ class TestIngestModeMetadata:
 
         doc = ingest_file(file, mode=IngestMode.COPY)
         assert doc.metadata.get("ingest_mode") == "copy"
+
+
+class TestTouchAncestorDocumentsCycleGuard:
+    """Issue #1349 — _touch_ancestor_documents must not loop forever on cycles."""
+
+    def test_cyclic_parent_chain_terminates(self):
+        """A->B->A cycle must stop (visited guard) without hanging."""
+        from fichero.ingest import _touch_ancestor_documents
+        from fichero.models import Document, DocType
+        from datetime import datetime
+
+        # Build two docs with a cyclic parent relationship: A.parent=B, B.parent=A
+        doc_a = Document(id="doc-a", name="A", doc_type=DocType.folder, parent_id="doc-b")
+        doc_b = Document(id="doc-b", name="B", doc_type=DocType.folder, parent_id="doc-a")
+        store = {"doc-a": doc_a, "doc-b": doc_b}
+
+        mock_db = MagicMock()
+        mock_db.get.side_effect = lambda model, doc_id: store.get(doc_id)
+        mock_db.save.side_effect = lambda obj, **_kw: None
+
+        # Must return without hanging; if cycle guard is absent this loops forever.
+        _touch_ancestor_documents(mock_db, "doc-a")
+
+        # Both docs were visited and saved exactly once each (guard stops at the repeat).
+        saved_ids = [call.args[0].id for call in mock_db.save.call_args_list]
+        assert saved_ids.count("doc-a") == 1
+        assert saved_ids.count("doc-b") == 1
+        # Total saves == 2 (A then B — the third step would re-visit A and halt)
+        assert len(saved_ids) == 2
