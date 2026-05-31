@@ -30,6 +30,9 @@ Backend observables:
 2. Edit node configuration in popover and save.
 3. Execute workflow and observe live status.
 4. Duplicate/rename/export/import workflow.
+5. Display modes:
+   - With `workflow_editor_advanced_views` OFF: only Icon + List are available.
+   - With `workflow_editor_advanced_views` ON: Table mode appears in addition to Icon + List.
 
 Backend observables:
 - `/api/workflows/*`
