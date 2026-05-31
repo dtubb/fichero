@@ -62,6 +62,18 @@ class FakeClient:
         self.calls.append(("health",))
         return {"status": "ok"}
 
+    def request(self, method, path, *, params=None, json=None, files=None):
+        self.calls.append(
+            ("request", method, path, {"params": params, "json": json, "files": files})
+        )
+        return {
+            "method": method,
+            "path": path,
+            "params": params,
+            "json": json,
+            "has_files": files is not None,
+        }
+
     def list_documents(self, **kw):
         self.calls.append(("list_documents", kw))
         from fichero.models import DocumentListResponse
@@ -594,6 +606,46 @@ def test_global_options_passed_to_client():
         "library_path": "/tmp/L.fichero",
         "token": "tk",
     }
+
+
+def test_generated_actions_group_is_exposed():
+    result = runner.invoke(cli.app, ["actions", "--help"])
+    assert result.exit_code == 0
+    assert "list-by-category" in result.output
+    assert "record-use" in result.output
+
+
+def test_generated_command_forwards_path_params_via_raw_request():
+    result = runner.invoke(cli.app, ["actions", "list-by-category", "history"])
+    assert result.exit_code == 0
+    assert _last_client().calls == [
+        (
+            "request",
+            "GET",
+            "/api/actions/category/history",
+            {"params": None, "json": None, "files": None},
+        )
+    ]
+
+
+def test_generated_json_body_command_parses_inline_payload():
+    result = runner.invoke(
+        cli.app,
+        ["actions", "create", "--body", '{"name":"Example","kind":"builtin"}'],
+    )
+    assert result.exit_code == 0
+    assert _last_client().calls == [
+        (
+            "request",
+            "POST",
+            "/api/actions",
+            {
+                "params": None,
+                "json": {"name": "Example", "kind": "builtin"},
+                "files": None,
+            },
+        )
+    ]
 
 
 def test_docs_list_forwards_filters():
