@@ -12,7 +12,7 @@ class ViewSettings: ObservableObject {
 // MARK: - View Mode Enums
 
 /// Sidebar mode selection - Xcode-style mode switching
-/// Order: Content (1-4), Research (5), Automation (6), Monitoring (7)
+/// Order: Content (1-4), Research (5), Automation (6), Monitoring (7), KG (9)
 enum SidebarMode: String, CaseIterable {
     case library      // 1: Documents, folders
     case search       // 2: Saved searches + search bar
@@ -22,6 +22,7 @@ enum SidebarMode: String, CaseIterable {
     case activity       // 6: All workflow runs (running + completed + failed) with logs/errors
     case mindPalace     // 7: Spatial 3D-2D space — rooms of archival material
     case research       // 8: Research projects + workspace
+    case knowledgeGraph // 9: Entity / ontology browser (#498)
 
     /// SF Symbol icon name for this mode
     var icon: String {
@@ -34,6 +35,7 @@ enum SidebarMode: String, CaseIterable {
         case .automation: "gearshape.2"
         case .activity: "clock"
         case .mindPalace: "cube.transparent"
+        case .knowledgeGraph: "point.3.connected.trianglepath.dotted"
         }
     }
 
@@ -48,10 +50,11 @@ enum SidebarMode: String, CaseIterable {
         case .automation: "Automation"
         case .activity: "Activity"
         case .mindPalace: "Mind Palace"
+        case .knowledgeGraph: "Knowledge Graph"
         }
     }
 
-    /// Keyboard shortcut number (1-7)
+    /// Keyboard shortcut number (1-9)
     var shortcutNumber: String {
         switch self {
         case .library: "1"
@@ -62,6 +65,7 @@ enum SidebarMode: String, CaseIterable {
         case .activity: "6"
         case .mindPalace: "7"
         case .research: "8"
+        case .knowledgeGraph: "9"
         }
     }
 }

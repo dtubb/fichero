@@ -25,6 +25,10 @@ extension ContentView {
 
     @ViewBuilder
     var contentView: some View {
+        // Knowledge Graph mode intercepts before normal viewMode routing. (#498)
+        if sidebarMode == .knowledgeGraph {
+            OntologyBrowser()
+        } else
         // Research mode intercepts before normal viewMode routing.
         if sidebarMode == .research {
             if let project = researchService.projects.first(where: { $0.id == researchService.selectedProjectId })
