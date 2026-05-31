@@ -156,6 +156,26 @@ struct WorkflowInspector: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 100)
             } else {
+                if hiddenBuiltinToolCount > 0 {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "eye.slash")
+                            .foregroundColor(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(hiddenBuiltinToolCount) tool\(hiddenBuiltinToolCount == 1 ? "" : "s") hidden by feature flags")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("Hidden tools are intentionally gated in this release profile.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.secondary.opacity(0.08))
+                    )
+                }
                 // Show tools from API grouped by category
                 ForEach(visibleBuiltinCategories) { category in
                     toolCategoryView(category)
