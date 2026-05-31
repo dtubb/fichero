@@ -201,6 +201,12 @@ extension FocusedValues {
 - All `.task {}` blocks check `Task.isCancelled`
 - Proper cleanup in defer blocks
 
+## KG Graph Renderer Decision
+
+- Canonical decision: `Cytoscape.js` via WebKit.
+- Decision record: [kg_renderer_decision.md](./kg_renderer_decision.md)
+- Swift source of truth: `KGGraphRendererFramework.selected` in `DocumentKGSurface.swift`.
+
 ## Development Workflow
 
 ### Prerequisites
