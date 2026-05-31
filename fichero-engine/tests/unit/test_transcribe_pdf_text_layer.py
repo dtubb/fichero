@@ -11,6 +11,7 @@ overrides it.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -21,9 +22,12 @@ from fichero.workflows.tools.vision_base import VisionToolConfig, process_vision
 
 # process_vision renders PDF pages to images via Quartz (macOS-only); on Linux
 # CI the render fails ("No module named 'Quartz'") before the mocked vision call
-# is reached. Gate the whole module on Quartz availability via the shared marker
-# (auto-skipped off-macOS by conftest's pytest_collection_modifyitems).
-pytestmark = pytest.mark.requires_apple_vision
+# is reached. Use a built-in skipif (always honored at collection) rather than a
+# custom marker, so the whole module is skipped off-macOS regardless of hooks.
+pytestmark = pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="process_vision renders PDFs via Quartz (macOS-only); skipped on Linux CI",
+)
 
 
 def _make_pdf_with_text(path: Path, pages: list[str]) -> None:
