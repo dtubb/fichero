@@ -902,6 +902,7 @@ struct KnowledgeGraphInspectorSection: View {
                     displayName: item.canonicalName,
                     context: context,
                     aliases: item.aliases,
+                    confidence: firstClaim?.confidence,
                     sourceDocumentId: item.sourceDocumentId,
                     sourcePageLabel: item.sourcePageLabel,
                     sourceExcerpt: item.sourceExcerpt,
@@ -1106,6 +1107,7 @@ private struct GroupedItem: Identifiable {
     let displayName: String
     let context: String
     let aliases: [String]
+    let confidence: Double? = nil
     /// First source page document id for this entity. Multiple sources are
     /// not surfaced yet — folder-cleanup merges retain the first claim's
     /// source, which is good enough for click-through provenance. (#833)
@@ -1423,6 +1425,17 @@ private struct EntityKindRow: View {
                 trailingText
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
+
+                if let confidence = item.confidence {
+                    Text(String(format: "%.2f", confidence))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.12))
+                        .clipShape(Capsule())
+                        .help("Claim confidence")
+                }
 
                 // Claim selection button for bidirectional sync
                 if let onClaimSelect = onClaimSelect {
