@@ -163,6 +163,13 @@ class ChainCancelResponse(BaseModel):
     message: str | None = None
 
 
+class PaleographyPresetResponse(BaseModel):
+    """Draft or saved paleography stage chain."""
+
+    chain: ChainResponse
+    matched_workflows: dict[str, str]
+
+
 # =============================================================================
 # In-progress Execution Tracking
 # =============================================================================
@@ -222,6 +229,105 @@ def _create_workflow_loader(library_path: str) -> Callable[[str], WorkflowDef | 
             return None
 
     return loader
+
+
+def _best_workflow_match(
+    workflows: list[Any], preferred_terms: list[str]
+) -> Any | None:
+    lowered_terms = [term.lower() for term in preferred_terms]
+    scored: list[tuple[int, Any]] = []
+    for workflow in workflows:
+        name = getattr(workflow, "name", "")
+        name_lower = str(name).lower()
+        score = 0
+        for idx, term in enumerate(lowered_terms):
+            if term in name_lower:
+                score += max(1, 10 - idx)
+        if score > 0:
+            scored.append((score, workflow))
+    if not scored:
+        return None
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return scored[0][1]
+
+
+def _build_paleography_chain(
+    workflows: list[Any], *, chain_name: str = "Paleography A/B/C"
+) -> tuple[WorkflowChain, dict[str, str]]:
+    """Build a stageable A/B/C paleography chain from available workflows."""
+    transcribe = _best_workflow_match(
+        workflows, ["transcribe", "ocr", "handwriting", "paleography", "prepare"]
+    )
+    extract = _best_workflow_match(
+        workflows, ["extract", "entities", "ner", "kg", "claims"]
+    )
+    catalogue = _best_workflow_match(
+        workflows, ["catalogue", "catalog", "summary", "synthesis", "digest"]
+    )
+
+    if not transcribe or not extract or not catalogue:
+        missing = []
+        if not transcribe:
+            missing.append("A/transcribe")
+        if not extract:
+            missing.append("B/extract-ner")
+        if not catalogue:
+            missing.append("C/catalogue")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot build paleography preset, missing workflows: {', '.join(missing)}",
+        )
+
+    matched = {
+        "A": transcribe.id,
+        "B": extract.id,
+        "C": catalogue.id,
+    }
+
+    steps = [
+        ChainStep(
+            id="stage_a_transcription",
+            workflow_id=transcribe.id,
+            name="A: Transcription",
+            static_inputs={"stage": "A"},
+        ),
+        ChainStep(
+            id="stage_b_extract_ner",
+            workflow_id=extract.id,
+            name="B: Extraction/NER",
+            input_mappings=[
+                OutputMapping(
+                    source_path="$.outputs",
+                    target_key="upstream_outputs",
+                )
+            ],
+            static_inputs={"stage": "B"},
+        ),
+        ChainStep(
+            id="stage_c_catalogue",
+            workflow_id=catalogue.id,
+            name="C: Catalogue",
+            input_mappings=[
+                OutputMapping(
+                    source_path="$.outputs",
+                    target_key="upstream_outputs",
+                )
+            ],
+            static_inputs={"stage": "C"},
+        ),
+    ]
+
+    chain = WorkflowChain(
+        name=chain_name,
+        description=(
+            "Stageable paleography chain: A transcription, "
+            "B extraction/NER/claims, C catalogue."
+        ),
+        steps=steps,
+        entry_step="stage_a_transcription",
+        initial_inputs={},
+    )
+    return chain, matched
 
 
 # =============================================================================
@@ -352,6 +458,35 @@ async def delete_chain(chain_id: str) -> ChainDeletedResponse:
     if not chain_store.delete(chain_id):
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
     return ChainDeletedResponse(deleted=True, id=chain_id)
+
+
+@router.get("/presets/paleography", response_model=PaleographyPresetResponse)
+async def paleography_preset_preview(
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+) -> PaleographyPresetResponse:
+    """Draft a stageable A/B/C paleography chain from current workflows."""
+    db = db_manager.get_database(x_fichero_library_path)
+    store = WorkflowStore(db)
+    chain, matched = _build_paleography_chain(store.list_all())
+    return PaleographyPresetResponse(
+        chain=_chain_to_response(chain),
+        matched_workflows=matched,
+    )
+
+
+@router.post("/presets/paleography", response_model=PaleographyPresetResponse)
+async def paleography_preset_create(
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+) -> PaleographyPresetResponse:
+    """Create and save the A/B/C paleography chain preset."""
+    db = db_manager.get_database(x_fichero_library_path)
+    store = WorkflowStore(db)
+    chain, matched = _build_paleography_chain(store.list_all())
+    saved = chain_store.save(chain)
+    return PaleographyPresetResponse(
+        chain=_chain_to_response(saved),
+        matched_workflows=matched,
+    )
 
 
 # =============================================================================
