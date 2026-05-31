@@ -4396,6 +4396,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "MutationListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/triangulation/recompute",
+        "operation_id": "recompute_triangulation_api_kg_triangulation_recompute_post",
+        "summary": "Persist global support counts onto claims",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RecomputeResponse"
       }
     ],
     "libraries": [
