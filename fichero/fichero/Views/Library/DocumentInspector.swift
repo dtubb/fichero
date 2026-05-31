@@ -1389,6 +1389,11 @@ struct DocumentInspectorContentV2: View {
                 errorBox(actionError)
             }
 
+            if mode != .artifactsOnly {
+                StageVariantInspector(document: document)
+                    .padding(.horizontal, 8)
+            }
+
             // Page Content panel — only when the mode wants it. The Content
             // tab shows just this so the user can edit / type notes against
             // the source text without artifact noise; the Artifacts tab
