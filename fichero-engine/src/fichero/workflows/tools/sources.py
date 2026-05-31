@@ -742,6 +742,8 @@ async def search_tool(
             "files": files,
             "documents": doc_data,
             "count": len(files),
+            "document_count": len(files),
+            "context_count": len(doc_data),
             "kg_claims_used": getattr(retrieval, "kg_claims_used", 0),
             "kg_entities_used": getattr(retrieval, "kg_entities_used", 0),
         }
@@ -752,6 +754,8 @@ async def search_tool(
             "files": [],
             "documents": [],
             "count": 0,
+            "document_count": 0,
+            "context_count": 0,
             "kg_claims_used": 0,
             "kg_entities_used": 0,
             "error": str(e),

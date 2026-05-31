@@ -234,6 +234,8 @@ class TestSearchTool:
 
         assert result["files"] == ["/tmp/memo.txt"]
         assert result["count"] == 1
+        assert result["document_count"] == 1
+        assert result["context_count"] == 2
         assert len(result["documents"]) == 2
         assert result["documents"][0]["search_score"] == 0.88
         assert result["documents"][1]["id"] == "kg-claim:claim-1"
@@ -272,6 +274,8 @@ class TestSearchTool:
             )
 
         assert r["count"] == 0
+        assert r["document_count"] == 0
+        assert r["context_count"] == 0
         assert captured["graph_hops"] == 2
         assert captured["max_kg_claims"] == 7
 
@@ -306,6 +310,8 @@ class TestSearchTool:
             )
 
         assert r["count"] == 0
+        assert r["document_count"] == 0
+        assert r["context_count"] == 0
         assert captured["graph_hops"] == 3
         assert captured["max_kg_claims"] == 100
 
@@ -333,6 +339,8 @@ class TestSearchTool:
 
         assert r["kg_claims_used"] == 5
         assert r["kg_entities_used"] == 4
+        assert r["document_count"] == 0
+        assert r["context_count"] == 0
 
 
 # =============================================================================
