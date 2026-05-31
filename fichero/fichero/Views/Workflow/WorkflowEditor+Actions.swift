@@ -55,18 +55,33 @@ extension WorkflowEditor {
                 // Single source of truth: all events go through executionObserver
                 let workflowId = editingWorkflow.id  // Capture ID before closure
 
-                // Capture current selection — the Files node reads this from state["selected_doc_ids"]
-                // Priority: multi-selection from library (passed in) > single detail doc > empty
+                // Resolve source IDs based on workflow-level input source.
+                // - collection: run on selected collection/folder
+                // - current_selection: run on current multi-selection
+                // The Files node reads this from state["selected_doc_ids"].
                 let selectedIds: [String]
-                if !selectedDocumentIds.isEmpty {
-                    selectedIds = selectedDocumentIds
-                } else if let docId = documentStore.selectedDocument?.id {
-                    selectedIds = [docId]
-                } else {
-                    selectedIds = []
+                switch editingWorkflow.inputSource {
+                case .collection:
+                    if let collectionId = documentStore.selectedCollection?.id {
+                        selectedIds = [collectionId]
+                    } else if let docId = documentStore.selectedDocument?.id {
+                        selectedIds = [docId]
+                    } else {
+                        selectedIds = []
+                    }
+                case .currentSelection:
+                    if !selectedDocumentIds.isEmpty {
+                        selectedIds = selectedDocumentIds
+                    } else if let docId = documentStore.selectedDocument?.id {
+                        selectedIds = [docId]
+                    } else {
+                        selectedIds = []
+                    }
                 }
                 if selectedIds.isEmpty {
-                    actionsLogger.warning("runWorkflow: no documents selected — Files node will return empty")
+                    actionsLogger.warning(
+                        "runWorkflow: no input resolved for source=\(editingWorkflow.inputSource.rawValue)"
+                    )
                 }
 
                 // Track completion with a continuation

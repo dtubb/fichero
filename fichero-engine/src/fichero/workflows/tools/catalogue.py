@@ -38,6 +38,7 @@ from fichero.workflows.tools.llm_base import (
 from fichero.llm import LLMConfig, chat_with_fallback
 from fichero.db import db_manager
 from fichero.models import Document, DocType, Artifact
+from langgraph.types import interrupt
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,18 @@ CATALOGUE_CONFIG = {
             "Useful on dense folders (100+ contributors) or sparse "
             "letters where you want to dial cap up/down. (#865)"
         ),
+        "x-group": "advanced",
+    },
+    "hitl_on_ambiguous_grouping": {
+        "type": "boolean",
+        "default": False,
+        "description": "Pause for confirmation when case grouping appears ambiguous",
+        "x-group": "advanced",
+    },
+    "ambiguous_min_items": {
+        "type": "integer",
+        "default": 25,
+        "description": "Minimum child documents before ambiguity HITL can trigger",
         "x-group": "advanced",
     },
 }
@@ -363,6 +376,39 @@ def _group_documents_by_case(
         return {None: [container]}
 
 
+def _grouping_is_ambiguous(
+    groups: dict[str | None, list[Document]],
+    min_items: int = 25,
+) -> bool:
+    """Heuristic used by #1097: many mixed docs with unassigned case_id."""
+    docs = [doc for members in groups.values() for doc in members]
+    if len(docs) < min_items:
+        return False
+    has_unassigned = None in groups
+    file_types = {
+        str(getattr(doc, "file_type", ""))
+        for doc in docs
+        if getattr(doc, "file_type", None)
+    }
+    mixed_types = len(file_types) > 1
+    return has_unassigned and mixed_types
+
+
+def _proposed_groupings(groups: dict[str | None, list[Document]]) -> list[dict[str, Any]]:
+    proposals: list[dict[str, Any]] = []
+    for case_id, members in groups.items():
+        proposals.append(
+            {
+                "case_id": case_id,
+                "count": len(members),
+                "document_ids": [doc.id for doc in members],
+                "document_names": [doc.name for doc in members[:10]],
+            }
+        )
+    proposals.sort(key=lambda row: row["count"], reverse=True)
+    return proposals
+
+
 def _resolve_write_target(
     selected_doc_ids: list[str], library_path: str
 ) -> Document | None:
@@ -483,6 +529,24 @@ async def catalogue(
                 "no artifact saved."
             ),
         }
+
+    # Optional human-in-the-loop pause for ambiguous grouping proposals (#1097).
+    if inputs.get("hitl_on_ambiguous_grouping", False):
+        groups = _group_documents_by_case(container, library_path)
+        min_items = int(inputs.get("ambiguous_min_items", 25) or 25)
+        if _grouping_is_ambiguous(groups, min_items=min_items):
+            interrupt(
+                {
+                    "type": "catalogue_grouping_confirmation",
+                    "container_id": container.id,
+                    "container_name": container.name,
+                    "proposed_groupings": _proposed_groupings(groups),
+                    "message": (
+                        "Catalogue grouping appears ambiguous. Confirm, split, "
+                        "or merge groups, then resume."
+                    ),
+                }
+            )
 
     # Bubbleable LLM-error messages from any of the catalogue's nested
     # chat() calls. Surfaced in the result["error"] when nothing got

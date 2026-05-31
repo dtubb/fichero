@@ -252,6 +252,67 @@ async def files_tool(
 
 
 # =============================================================================
+# Selection Tool
+# =============================================================================
+
+
+@register_tool(
+    name="selection",
+    display_name="Selection",
+    description="Use the currently selected documents from the library UI",
+    category="source",
+    icon="cursorarrow.rays",
+    color="green",
+    uses_llm=False,
+    supports_batch=False,
+    input_ports=[],  # Source - no inputs
+    output_ports=[
+        PortDef(
+            id="files",
+            name="Files",
+            port_type="output",
+            data_type=DataType.FILES,
+            description="File paths from current selection",
+        ),
+        PortDef(
+            id="documents",
+            name="Documents",
+            port_type="output",
+            data_type=DataType.JSON,
+            description="Selected document metadata",
+        ),
+        PortDef(
+            id="count",
+            name="Count",
+            port_type="output",
+            data_type=DataType.NUMBER,
+            description="Number of selected files",
+        ),
+    ],
+    sort_order=2,
+)
+async def selection_tool(
+    inputs: dict[str, Any],
+    state: State,
+    llm_config: LLMConfig,
+) -> dict[str, Any]:
+    """Resolve selected_doc_ids from workflow state into workflow files.
+
+    Unlike ``files_tool``, this node fails fast when no selection is present.
+    """
+    selected_doc_ids = list(state.get("selected_doc_ids") or [])
+    if not selected_doc_ids:
+        return {
+            "files": [],
+            "documents": [],
+            "count": 0,
+            "error": "No documents selected. Select one or more documents before running this workflow.",
+        }
+
+    return await files_tool(inputs={}, state=state, llm_config=llm_config)
+
+
+# =============================================================================
 # Collection Tool
 # =============================================================================
 

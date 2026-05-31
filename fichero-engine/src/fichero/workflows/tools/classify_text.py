@@ -182,4 +182,5 @@ async def classify_text(
         save_to_db=inputs.get("save_to_db", True),
         save_to_file_flag=inputs.get("save_to_file", False),
         metadata_field=inputs.get("metadata_field") or "classification",
+        chunk_size_chars=inputs.get("chunk_size_chars"),
     )

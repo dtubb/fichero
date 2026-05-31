@@ -15,12 +15,21 @@ let largeAliasProviderId = "$large"
 
 /// Provider and model selection component for workflow nodes
 struct NodeProviderModelSelector: View {
+    struct ProviderOption: Identifiable, Hashable {
+        let id: String
+        let name: String
+        let providerType: String
+        let available: Bool
+        let supportsVision: Bool
+        let models: [String]
+    }
+
     @Binding var node: WorkflowNode
     @Binding var selectedProviderId: String
     @Binding var selectedModelId: String
     @Binding var isLoadingProviders: Bool
 
-    let providers: [LLMProvider]
+    let providers: [ProviderOption]
     let toolRequiresVision: Bool
     /// Whether this tool supports Apple Vision as a provider option
     let toolSupportsAppleVision: Bool
@@ -80,20 +89,11 @@ struct NodeProviderModelSelector: View {
     private var providerPicker: some View {
         let availableProviders = providers.filter { provider in
             guard provider.available else { return false }
-            // When the tool exposes "Apple Vision (On-Device)" as a hardcoded
-            // option below, hide the catalog Apple Intelligence entry from
-            // this list — they look like duplicates to the user even though
-            // they route to different on-device APIs (Vision OCR vs
-            // Foundation Models LLM). The hardcoded option covers OCR;
-            // Apple Intelligence text-LLM isn't appropriate for tools that
-            // need vision input anyway. (#761)
-            // LLMProvider doesn't carry providerType, but the catalog Apple
-            // provider is renamed to "Apple Intelligence" (#761) — match by
-            // name. The legacy "Apple" name is migrated on engine startup
-            // but we accept either to be defensive against stale UI state.
+            // Hide the catalog Apple Intelligence row when the tool offers
+            // explicit Apple Vision, to avoid duplicate Apple choices. Uses
+            // typed providerType instead of brittle name matching (#768).
             if toolSupportsAppleVision {
-                let lower = provider.name.lowercased()
-                if lower == "apple" || lower == "apple intelligence" {
+                if provider.providerType == "apple" {
                     return false
                 }
             }

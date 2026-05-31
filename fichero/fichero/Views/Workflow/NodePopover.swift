@@ -13,14 +13,14 @@ struct NodePopover: View {
     @State private var showAdvanced: Bool = false
 
     // Provider/model loading
-    @State private var providers: [LLMProvider] = []
+    @State private var providers: [NodeProviderModelSelector.ProviderOption] = []
     @State private var isLoadingProviders: Bool = false
     @State private var selectedProviderId: String = ""
     @State private var selectedModelId: String = ""
 
     // Vision mode is now managed by the provider selector (Apple Vision = a provider)
 
-    @EnvironmentObject var chatService: ChatServiceGenerated
+    @EnvironmentObject var providerService: ProviderServiceGenerated
     @EnvironmentObject var documentStore: DocumentStore
     @EnvironmentObject var savedSearchServiceGenerated: SavedSearchServiceGenerated
     @EnvironmentObject var workflowService: WorkflowServiceGenerated
@@ -310,7 +310,26 @@ struct NodePopover: View {
         defer { isLoadingProviders = false }
 
         do {
-            providers = try await chatService.listProviders()
+            let configured = try await providerService.listProviders()
+            var loaded: [NodeProviderModelSelector.ProviderOption] = []
+            for provider in configured where provider.enabled {
+                let modelInfos = try await providerService.listAvailableModels(
+                    providerType: provider.providerType
+                )
+                let modelIds = modelInfos.map(\.modelId)
+                let supportsVision = modelInfos.contains { $0.supportsVision }
+                loaded.append(
+                    NodeProviderModelSelector.ProviderOption(
+                        id: provider.id,
+                        name: provider.name,
+                        providerType: provider.providerType,
+                        available: true,
+                        supportsVision: supportsVision,
+                        models: modelIds
+                    )
+                )
+            }
+            providers = loaded
             logger.info("Loaded \(providers.count) providers, \(providers.filter { $0.available }.count) available")
 
             // Restore selection from node if set
@@ -356,7 +375,7 @@ struct NodePopover: View {
         onDelete: {},
         onDuplicate: {}
     )
-    .environmentObject(library.chatServiceGenerated)
+    .environmentObject(library.providerService)
     .environmentObject(library.documentStore)
     .environmentObject(library.savedSearchServiceGenerated)
     .environmentObject(library.workflowServiceGenerated)

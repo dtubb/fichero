@@ -149,9 +149,12 @@ extension ContentView {
             }
             return [.icon, .list, .table, .map]
         case .workflows:
-            // 0.0.1: keep workflow presentation simple and explicit.
-            // Icon = visual graph/canvas, List = ordered execution steps.
-            return [.icon, .list]
+            // Keep workflow editor simple by default; only expose table mode
+            // when advanced views are explicitly enabled.
+            if !featureManager.isWorkflowEditorAdvancedViewsEnabled {
+                return [.icon, .list]
+            }
+            return [.icon, .list, .table]
         case .chat, .automation, .activity, .mindPalace, .research, .knowledgeGraph:
             return [.icon]
         }

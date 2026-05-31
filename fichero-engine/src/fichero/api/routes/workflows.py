@@ -12,8 +12,10 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, ConfigDict
 
+from fichero.app_db import get_app_db
 from fichero.db import Database
 from fichero.api.main import get_library_database
+from fichero.llm import get_model_cost
 from fichero.workflows.types import (
     ToolDef,
     PortDef,
@@ -113,6 +115,7 @@ class WorkflowResponse(BaseModel):
     description: str
     provider: str
     model: str
+    format: str
     nodes: list[NodeDef]
     edges: list[EdgeDef]
     folder_path: str
@@ -131,6 +134,43 @@ class WorkflowToolListResponse(BaseModel):
 
     items: list[ToolResponse]
     count: int
+
+
+class WorkflowModeResponse(BaseModel):
+    id: str
+    label: str
+    description: str
+
+
+class WorkflowModeListResponse(BaseModel):
+    items: list[WorkflowModeResponse]
+    count: int
+
+
+class WorkflowCostEstimateRequest(BaseModel):
+    """Inputs for pre-run workflow cost estimation."""
+
+    file_count: int = 1
+    estimated_input_tokens_per_file: int = 1200
+    estimated_output_tokens_per_file: int = 300
+    provider: str | None = None
+    model: str | None = None
+
+
+class WorkflowCostEstimateResponse(BaseModel):
+    """Estimated run cost for the workflow execute button."""
+
+    workflow_id: str
+    provider: str
+    model: str
+    file_count: int
+    estimated_input_tokens: int
+    estimated_output_tokens: int
+    estimated_total_tokens: int
+    estimated_cost_usd: float
+    input_cost_per_million: float
+    output_cost_per_million: float
+    pricing_available: bool
 
 
 # =============================================================================
@@ -253,6 +293,33 @@ def _category_display_name(category: str) -> str:
     return names.get(category, category.title())
 
 
+def _model_pricing_per_million(provider: str, model: str) -> tuple[float, float]:
+    """Resolve (input_cost, output_cost) per million tokens."""
+    if not provider or not model:
+        return 0.0, 0.0
+
+    app_db = get_app_db()
+    provider_id = None
+    for item in app_db.list_providers():
+        if item.provider_type.value == provider:
+            provider_id = item.id
+            break
+
+    if provider_id:
+        for item in app_db.list_models(provider_id=provider_id):
+            if item.model_id == model:
+                return float(item.input_cost or 0.0), float(item.output_cost or 0.0)
+
+    # Fallback: LiteLLM pricing map (per-token), converted to per-million.
+    cost_info = get_model_cost(f"{provider}/{model}") or get_model_cost(model)
+    if cost_info:
+        return (
+            float(cost_info.get("input_cost_per_token") or 0.0) * 1_000_000,
+            float(cost_info.get("output_cost_per_token") or 0.0) * 1_000_000,
+        )
+    return 0.0, 0.0
+
+
 # =============================================================================
 # Tool Routes
 # =============================================================================
@@ -294,6 +361,29 @@ async def get_tool(tool_name: str) -> ToolResponse:
         raise HTTPException(status_code=404, detail=f"Tool not found: {tool_name}")
 
     return _tool_to_response(tool_def)
+
+
+@router.get("/modes", response_model=WorkflowModeListResponse)
+async def list_workflow_modes() -> WorkflowModeListResponse:
+    """List supported workflow editor display modes."""
+    items = [
+        WorkflowModeResponse(
+            id="icon",
+            label="Icon",
+            description="Visual canvas editor for workflow nodes and edges.",
+        ),
+        WorkflowModeResponse(
+            id="list",
+            label="List",
+            description="Linear list of workflow nodes and their wiring.",
+        ),
+        WorkflowModeResponse(
+            id="table",
+            label="Table",
+            description="Structured table view of node configuration values.",
+        ),
+    ]
+    return WorkflowModeListResponse(items=items, count=len(items))
 
 
 class PromptRequest(BaseModel):
@@ -406,6 +496,7 @@ async def create_workflow(
             description=db_workflow.description,
             provider=db_workflow.provider,
             model=db_workflow.model,
+            format=db_workflow.format,
             nodes=[_dict_to_node_def(n) for n in db_workflow.nodes],
             edges=[_dict_to_edge_def(e) for e in db_workflow.edges],
             folder_path=db_workflow.folder_path,
@@ -458,6 +549,7 @@ async def import_workflow(
             description=db_workflow.description,
             provider=db_workflow.provider,
             model=db_workflow.model,
+            format=db_workflow.format,
             nodes=[_dict_to_node_def(n) for n in db_workflow.nodes],
             edges=[_dict_to_edge_def(e) for e in db_workflow.edges],
             folder_path=db_workflow.folder_path,
@@ -548,6 +640,7 @@ async def list_workflows(
                 description=workflow.description,
                 provider=workflow.provider,
                 model=workflow.model,
+                format=workflow.format,
                 nodes=[_dict_to_node_def(n) for n in workflow.nodes],
                 edges=[_dict_to_edge_def(e) for e in workflow.edges],
                 folder_path=workflow.folder_path,
@@ -582,6 +675,7 @@ async def get_workflow(
             description=workflow.description,
             provider=workflow.provider,
             model=workflow.model,
+            format=workflow.format,
             nodes=[_dict_to_node_def(n) for n in workflow.nodes],
             edges=[_dict_to_edge_def(e) for e in workflow.edges],
             folder_path=workflow.folder_path,
@@ -592,6 +686,51 @@ async def get_workflow(
     except Exception as e:
         logger.exception(f"Failed to get workflow {workflow_id}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{workflow_id}/estimate-cost", response_model=WorkflowCostEstimateResponse)
+async def estimate_workflow_cost(
+    workflow_id: str,
+    request: WorkflowCostEstimateRequest,
+    db: Database = Depends(get_library_database),
+) -> WorkflowCostEstimateResponse:
+    """Estimate run cost from file count and per-file token assumptions."""
+    from fichero.models import Workflow
+
+    workflow = db.get(Workflow, workflow_id)
+    if not workflow:
+        raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+
+    file_count = max(1, int(request.file_count))
+    input_tokens_per_file = max(1, int(request.estimated_input_tokens_per_file))
+    output_tokens_per_file = max(1, int(request.estimated_output_tokens_per_file))
+
+    provider = (request.provider or workflow.provider or "").strip()
+    model = (request.model or workflow.model or "").strip()
+    input_cost_per_million, output_cost_per_million = _model_pricing_per_million(
+        provider, model
+    )
+
+    estimated_input_tokens = file_count * input_tokens_per_file
+    estimated_output_tokens = file_count * output_tokens_per_file
+    estimated_cost_usd = (
+        estimated_input_tokens * (input_cost_per_million / 1_000_000)
+        + estimated_output_tokens * (output_cost_per_million / 1_000_000)
+    )
+
+    return WorkflowCostEstimateResponse(
+        workflow_id=workflow_id,
+        provider=provider,
+        model=model,
+        file_count=file_count,
+        estimated_input_tokens=estimated_input_tokens,
+        estimated_output_tokens=estimated_output_tokens,
+        estimated_total_tokens=estimated_input_tokens + estimated_output_tokens,
+        estimated_cost_usd=estimated_cost_usd,
+        input_cost_per_million=input_cost_per_million,
+        output_cost_per_million=output_cost_per_million,
+        pricing_available=(input_cost_per_million > 0 or output_cost_per_million > 0),
+    )
 
 
 @router.put("/{workflow_id}")
@@ -651,6 +790,7 @@ async def update_workflow(
             description=existing.description,
             provider=existing.provider,
             model=existing.model,
+            format=existing.format,
             nodes=[_dict_to_node_def(n) for n in existing.nodes],
             edges=[_dict_to_edge_def(e) for e in existing.edges],
             folder_path=existing.folder_path,
@@ -671,6 +811,7 @@ class WorkflowPatchRequest(BaseModel):
 
     name: Optional[str] = None
     description: Optional[str] = None
+    format: Optional[str] = None
     folder_path: Optional[str] = None
     sort_order: Optional[int] = None
 
@@ -698,6 +839,8 @@ async def patch_workflow(
             workflow.name = patch.name
         if patch.description is not None:
             workflow.description = patch.description
+        if patch.format is not None:
+            workflow.format = patch.format
         if patch.folder_path is not None:
             workflow.folder_path = patch.folder_path
         if patch.sort_order is not None:
@@ -712,6 +855,7 @@ async def patch_workflow(
             description=workflow.description,
             provider=workflow.provider,
             model=workflow.model,
+            format=workflow.format,
             nodes=[_dict_to_node_def(n) for n in workflow.nodes],
             edges=[_dict_to_edge_def(e) for e in workflow.edges],
             folder_path=workflow.folder_path,
@@ -788,6 +932,7 @@ async def duplicate_workflow(
             description=new_workflow.description,
             provider=new_workflow.provider,
             model=new_workflow.model,
+            format=new_workflow.format,
             nodes=[_dict_to_node_def(n) for n in new_workflow.nodes],
             edges=[_dict_to_edge_def(e) for e in new_workflow.edges],
             folder_path=new_workflow.folder_path,

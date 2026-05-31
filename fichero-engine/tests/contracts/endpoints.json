@@ -8130,6 +8130,16 @@
         "response_model": "WorkflowResponse"
       },
       {
+        "method": "GET",
+        "path": "/workflows/modes",
+        "operation_id": "list_workflow_modes_api_workflows_modes_get",
+        "summary": "List Workflow Modes",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "WorkflowModeListResponse"
+      },
+      {
         "method": "POST",
         "path": "/workflows/reinstall-defaults",
         "operation_id": "reinstall_default_workflows_api_workflows_reinstall_defaults_post",
@@ -8281,6 +8291,18 @@
         "query_params": [],
         "request_model": null,
         "response_model": "WorkflowResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/workflows/{workflow_id}/estimate-cost",
+        "operation_id": "estimate_workflow_cost_api_workflows__workflow_id__estimate_cost_post",
+        "summary": "Estimate Workflow Cost",
+        "path_params": [
+          "workflow_id"
+        ],
+        "query_params": [],
+        "request_model": "WorkflowCostEstimateRequest",
+        "response_model": "WorkflowCostEstimateResponse"
       },
       {
         "method": "GET",

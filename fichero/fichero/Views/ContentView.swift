@@ -114,6 +114,7 @@ struct ContentView: View {
     // Error service (using singleton pattern)
     @ObservedObject var errorService = ErrorService.shared
     @ObservedObject var featureManager = FeatureManager.shared
+    @ObservedObject var workflowRunProviderCache = WorkflowRunProviderCache.shared
 
     // Pane focus state for Tab cycling
     @FocusState var focusedPane: PaneFocus?
@@ -491,11 +492,37 @@ extension ContentView {
                             if !capturedSelectionIds.isEmpty {
                                 Section("On Selection") {
                                     ForEach(sortedWorkflows, id: \.id) { workflow in
-                                        Button(workflow.name) {
-                                            runWorkflowOnSelection(
-                                                workflowId: workflow.id,
-                                                preselectedIds: capturedSelectionIds
-                                            )
+                                        Menu(workflow.name) {
+                                            Button("Default") {
+                                                runWorkflowOnSelection(
+                                                    workflowId: workflow.id,
+                                                    preselectedIds: capturedSelectionIds
+                                                )
+                                            }
+                                            ForEach(workflowRunProviderCache.providers.filter { $0.available }) { provider in
+                                                if provider.models.isEmpty {
+                                                    Button(provider.name) {
+                                                        runWorkflowOnSelection(
+                                                            workflowId: workflow.id,
+                                                            preselectedIds: capturedSelectionIds,
+                                                            providerOverride: provider.id
+                                                        )
+                                                    }
+                                                } else {
+                                                    Menu(provider.name) {
+                                                        ForEach(provider.models, id: \.self) { model in
+                                                            Button(model) {
+                                                                runWorkflowOnSelection(
+                                                                    workflowId: workflow.id,
+                                                                    preselectedIds: capturedSelectionIds,
+                                                                    providerOverride: provider.id,
+                                                                    modelOverride: model
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -503,8 +530,32 @@ extension ContentView {
                             if hasCollection {
                                 Section("On Collection (\(collectionFiles.count))") {
                                     ForEach(sortedWorkflows, id: \.id) { workflow in
-                                        Button(workflow.name) {
-                                            runWorkflowOnCollection(workflowId: workflow.id)
+                                        Menu(workflow.name) {
+                                            Button("Default") {
+                                                runWorkflowOnCollection(workflowId: workflow.id)
+                                            }
+                                            ForEach(workflowRunProviderCache.providers.filter { $0.available }) { provider in
+                                                if provider.models.isEmpty {
+                                                    Button(provider.name) {
+                                                        runWorkflowOnCollection(
+                                                            workflowId: workflow.id,
+                                                            providerOverride: provider.id
+                                                        )
+                                                    }
+                                                } else {
+                                                    Menu(provider.name) {
+                                                        ForEach(provider.models, id: \.self) { model in
+                                                            Button(model) {
+                                                                runWorkflowOnCollection(
+                                                                    workflowId: workflow.id,
+                                                                    providerOverride: provider.id,
+                                                                    modelOverride: model
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -516,6 +567,13 @@ extension ContentView {
                         }
                     } label: {
                         Label("Run Workflow", systemImage: "play.square.stack")
+                    }
+                    .onAppear {
+                        Task { @MainActor in
+                            await workflowRunProviderCache.ensureLoaded(
+                                chatService: LibraryManager.shared.globalLibrary?.chatServiceGenerated
+                            )
+                        }
                     }
                     .help("Run Workflow on Selection or Collection")
                     .disabled(

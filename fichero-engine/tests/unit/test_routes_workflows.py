@@ -52,6 +52,7 @@ class TestListWorkflows:
         r = client.get("/api/workflows")
         assert r.status_code == 200
         assert len(r.json()["items"]) == 2
+        assert all("format" in item for item in r.json()["items"])
 
     def test_unfiltered_list_includes_non_root_folder_paths(self, client, db):
         # Regression for #723: list endpoint must return workflows in any
@@ -92,6 +93,7 @@ class TestCreateWorkflow:
         data = r.json()
         assert data["name"] == "My Workflow"
         assert "id" in data
+        assert data["format"] == "nodes"
 
     def test_create_with_empty_nodes(self, client):
         r = client.post("/api/workflows", json=_workflow_payload())
@@ -134,6 +136,12 @@ class TestPatchWorkflow:
         r = client.patch(f"/api/workflows/{wf.id}", json={"folder_path": "/my-folder"})
         assert r.status_code == 200
         assert r.json()["folder_path"] == "/my-folder"
+
+    def test_updates_format(self, client, db):
+        wf = _make_workflow(db)
+        r = client.patch(f"/api/workflows/{wf.id}", json={"format": "table"})
+        assert r.status_code == 200
+        assert r.json()["format"] == "table"
 
     def test_patch_missing_returns_404(self, client):
         r = client.patch("/api/workflows/no-such-id", json={"name": "X"})
@@ -197,6 +205,53 @@ class TestExportWorkflow:
         assert r.status_code == 404
 
 
+class TestEstimateWorkflowCost:
+    def test_estimate_cost_uses_workflow_model_pricing(self, client, db, monkeypatch):
+        wf = Workflow(
+            name="Costed Workflow",
+            description="",
+            format="nodes",
+            steps=[],
+            provider="openai",
+            model="gpt-4o-mini",
+        )
+        db.save(wf)
+
+        def _fake_cost(model_name: str):
+            if "gpt-4o-mini" in model_name:
+                return {
+                    "input_cost_per_token": 1e-6,
+                    "output_cost_per_token": 2e-6,
+                }
+            return None
+
+        monkeypatch.setattr("fichero.api.routes.workflows.get_model_cost", _fake_cost)
+
+        r = client.post(
+            f"/api/workflows/{wf.id}/estimate-cost",
+            json={
+                "file_count": 3,
+                "estimated_input_tokens_per_file": 1000,
+                "estimated_output_tokens_per_file": 200,
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["provider"] == "openai"
+        assert data["model"] == "gpt-4o-mini"
+        assert data["estimated_input_tokens"] == 3000
+        assert data["estimated_output_tokens"] == 600
+        assert data["pricing_available"] is True
+        assert data["estimated_cost_usd"] == pytest.approx(0.0042, rel=1e-9)
+
+    def test_estimate_cost_missing_workflow_returns_404(self, client):
+        r = client.post(
+            "/api/workflows/no-such-id/estimate-cost",
+            json={"file_count": 2},
+        )
+        assert r.status_code == 404
+
+
 # ---------------------------------------------------------------------------
 # GET /api/workflows/tools
 # ---------------------------------------------------------------------------
@@ -214,3 +269,13 @@ class TestListWorkflowTools:
         data = r.json()
         assert "items" in data
         assert isinstance(data["items"], list)
+
+
+class TestWorkflowModes:
+    def test_returns_workflow_modes(self, client):
+        r = client.get("/api/workflows/modes")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["count"] == 3
+        mode_ids = {m["id"] for m in data["items"]}
+        assert mode_ids == {"icon", "list", "table"}

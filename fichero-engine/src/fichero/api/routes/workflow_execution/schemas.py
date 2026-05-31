@@ -23,6 +23,8 @@ class ExecuteWorkflowRequest(BaseModel):
     skip_cache: bool = (
         False  # If True, bypass node result cache (still writes new results)
     )
+    provider_override: str | None = None  # Optional run-level provider override
+    model_override: str | None = None  # Optional run-level model override
 
 
 class ExecutionStatusResponse(BaseModel):

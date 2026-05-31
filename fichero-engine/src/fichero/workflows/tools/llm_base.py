@@ -255,6 +255,14 @@ BASE_CONFIG_SCHEMA = {
         "description": "Custom prompt",
         "x-group": "primary",
     },
+    # Long-input handling (#801): split large merged text into chunks,
+    # summarize each chunk, then synthesize once.
+    "chunk_size_chars": {
+        "type": "integer",
+        "default": 0,
+        "description": "Chunk large input text above this character budget (0=auto)",
+        "x-group": "advanced",
+    },
 }
 
 
@@ -308,6 +316,7 @@ def extract_base_config(inputs: dict[str, Any]) -> dict[str, Any]:
         "input_metadata": inputs.get("metadata"),
         "save_to_db": inputs.get("save_to_db", True),
         "metadata_field": inputs.get("metadata_field"),
+        "chunk_size_chars": inputs.get("chunk_size_chars"),
     }
 
 
@@ -683,6 +692,64 @@ def validate_inputs(
 # =============================================================================
 
 
+_ON_DEVICE_CHUNK_SIZE = 12000
+_ON_DEVICE_PROVIDERS = {"apple", "ollama", "lmstudio"}
+
+
+def _split_text_into_chunks(text: str, max_chars: int) -> list[str]:
+    """Split text into chunks, preferring semantic boundaries."""
+    if not text:
+        return [""]
+    if max_chars <= 0 or len(text) <= max_chars:
+        return [text]
+
+    chunks: list[str] = []
+    current = ""
+    paragraphs = text.split("\n\n")
+
+    for para in paragraphs:
+        para = para.strip()
+        if not para:
+            continue
+        candidate = f"{current}\n\n{para}".strip() if current else para
+        if len(candidate) <= max_chars:
+            current = candidate
+            continue
+
+        if current:
+            chunks.append(current)
+            current = ""
+
+        if len(para) <= max_chars:
+            current = para
+            continue
+
+        # Oversized paragraph: hard-split by character budget.
+        for i in range(0, len(para), max_chars):
+            chunks.append(para[i:i + max_chars])
+
+    if current:
+        chunks.append(current)
+    return chunks or [text]
+
+
+def _effective_chunk_size(
+    text: str,
+    llm_config: "LLMConfig",
+    chunk_size_chars: int | None,
+) -> int:
+    """Resolve chunk threshold. Explicit value wins; otherwise auto for on-device."""
+    if isinstance(chunk_size_chars, int):
+        if chunk_size_chars > 0:
+            return chunk_size_chars
+        if chunk_size_chars < 0:
+            return 0
+    provider = (getattr(llm_config, "provider", "") or "").lower()
+    if provider in _ON_DEVICE_PROVIDERS and len(text) > _ON_DEVICE_CHUNK_SIZE:
+        return _ON_DEVICE_CHUNK_SIZE
+    return 0
+
+
 async def process_text(
     text: str,
     prompt: str,
@@ -711,6 +778,8 @@ async def process_text(
     save_to_file_flag: bool = False,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
+    # Long-input chunking (from BASE_CONFIG_SCHEMA)
+    chunk_size_chars: int | None = None,
 ) -> dict[str, Any]:
     """Shared text processing for all LLM text tools."""
     from fichero.llm import chat
@@ -763,11 +832,48 @@ async def process_text(
     ).strip()
 
     try:
-        response = await chat(
-            text,
-            config=effective_config,
-            system=instructions,
+        response: str
+        effective_chunk_size = _effective_chunk_size(
+            text=text,
+            llm_config=effective_config,
+            chunk_size_chars=chunk_size_chars,
         )
+        if effective_chunk_size > 0 and len(text) > effective_chunk_size:
+            chunks = _split_text_into_chunks(text, effective_chunk_size)
+            logger.info(
+                "process_text: chunking %s chars into %s chunks (size=%s)",
+                len(text),
+                len(chunks),
+                effective_chunk_size,
+            )
+            chunk_notes: list[str] = []
+            chunk_system = (
+                "You are processing one section of a larger document. "
+                "Extract the key facts and details relevant to the task. "
+                "Respond in plain concise text."
+            )
+            for idx, chunk in enumerate(chunks):
+                note = await chat(
+                    f"Section {idx + 1} of {len(chunks)}:\n{chunk}",
+                    config=effective_config,
+                    system=chunk_system,
+                )
+                chunk_notes.append(note.strip())
+
+            synthesis_input = "\n\n".join(
+                f"Section {i + 1} notes:\n{note}" for i, note in enumerate(chunk_notes)
+            )
+            response = await chat(
+                synthesis_input,
+                config=effective_config,
+                system=instructions,
+            )
+        else:
+            response = await chat(
+                text,
+                config=effective_config,
+                system=instructions,
+            )
 
         # Parse output
         parsed = parse_output(response, output_format, output_options)

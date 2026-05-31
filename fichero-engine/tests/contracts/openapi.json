@@ -16849,6 +16849,28 @@
         }
       }
     },
+    "/api/workflows/modes": {
+      "get": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "List Workflow Modes",
+        "description": "List supported workflow editor display modes.",
+        "operationId": "list_workflow_modes_api_workflows_modes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowModeListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflows/tools/{tool_name}/prompt": {
       "post": {
         "tags": [
@@ -17446,6 +17468,68 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkflowDeletedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflows/{workflow_id}/estimate-cost": {
+      "post": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "Estimate Workflow Cost",
+        "description": "Estimate run cost from file count and per-file token assumptions.",
+        "operationId": "estimate_workflow_cost_api_workflows__workflow_id__estimate_cost_post",
+        "parameters": [
+          {
+            "name": "workflow_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workflow Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCostEstimateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCostEstimateResponse"
                 }
               }
             }
@@ -39065,6 +39149,16 @@
             "type": "boolean",
             "title": "Skip Cache",
             "default": false
+          },
+          "provider_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider Override"
+          },
+          "model_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Override"
           }
         },
         "type": "object",
@@ -52721,6 +52815,102 @@
         "title": "WorkflowCodeExportResponse",
         "description": "Response with exported Python code for the workflow."
       },
+      "WorkflowCostEstimateRequest": {
+        "properties": {
+          "file_count": {
+            "type": "integer",
+            "title": "File Count",
+            "default": 1
+          },
+          "estimated_input_tokens_per_file": {
+            "type": "integer",
+            "title": "Estimated Input Tokens Per File",
+            "default": 1200
+          },
+          "estimated_output_tokens_per_file": {
+            "type": "integer",
+            "title": "Estimated Output Tokens Per File",
+            "default": 300
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "title": "WorkflowCostEstimateRequest",
+        "description": "Inputs for pre-run workflow cost estimation."
+      },
+      "WorkflowCostEstimateResponse": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "file_count": {
+            "type": "integer",
+            "title": "File Count"
+          },
+          "estimated_input_tokens": {
+            "type": "integer",
+            "title": "Estimated Input Tokens"
+          },
+          "estimated_output_tokens": {
+            "type": "integer",
+            "title": "Estimated Output Tokens"
+          },
+          "estimated_total_tokens": {
+            "type": "integer",
+            "title": "Estimated Total Tokens"
+          },
+          "estimated_cost_usd": {
+            "type": "number",
+            "title": "Estimated Cost Usd"
+          },
+          "input_cost_per_million": {
+            "type": "number",
+            "title": "Input Cost Per Million"
+          },
+          "output_cost_per_million": {
+            "type": "number",
+            "title": "Output Cost Per Million"
+          },
+          "pricing_available": {
+            "type": "boolean",
+            "title": "Pricing Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "provider",
+          "model",
+          "file_count",
+          "estimated_input_tokens",
+          "estimated_output_tokens",
+          "estimated_total_tokens",
+          "estimated_cost_usd",
+          "input_cost_per_million",
+          "output_cost_per_million",
+          "pricing_available"
+        ],
+        "title": "WorkflowCostEstimateResponse",
+        "description": "Estimated run cost for the workflow execute button."
+      },
       "WorkflowDef": {
         "properties": {
           "id": {
@@ -52904,6 +53094,50 @@
         "title": "WorkflowListResponse",
         "description": "Standardized {items, count} envelope for GET /api/workflows."
       },
+      "WorkflowModeListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowModeResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "WorkflowModeListResponse"
+      },
+      "WorkflowModeResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "description"
+        ],
+        "title": "WorkflowModeResponse"
+      },
       "WorkflowPatchRequest": {
         "properties": {
           "name": {
@@ -52915,6 +53149,11 @@
             "type": "string",
             "nullable": true,
             "title": "Description"
+          },
+          "format": {
+            "type": "string",
+            "nullable": true,
+            "title": "Format"
           },
           "folder_path": {
             "type": "string",
@@ -52972,6 +53211,10 @@
             "type": "string",
             "title": "Model"
           },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
           "nodes": {
             "items": {
               "$ref": "#/components/schemas/NodeDef-Output"
@@ -53002,6 +53245,7 @@
           "description",
           "provider",
           "model",
+          "format",
           "nodes",
           "edges",
           "folder_path",

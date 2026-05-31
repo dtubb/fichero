@@ -87,6 +87,7 @@ struct SidebarItemRow: View {
     var importService: ImportServiceGenerated? { library?.importService }
 
     @State var isDropTargeted = false
+    @ObservedObject var workflowRunProviderCache = WorkflowRunProviderCache.shared
     @FocusState var isRenameFocused: Bool
     @State var isCommittingRename = false
     @State var isPulsing = false
@@ -203,8 +204,18 @@ struct SidebarItemRow: View {
                let workflows = workflowStore?.workflows, !workflows.isEmpty {
                 Divider()
                 Menu("Run Workflow") {
-                    workflowMenuItems(workflows: workflows) { workflowId in
-                        runWorkflowOnDocument(workflowId: workflowId, docId: doc.id)
+                    workflowMenuItems(workflows: workflows) { workflowId, providerOverride, modelOverride in
+                        runWorkflowOnDocument(
+                            workflowId: workflowId,
+                            docId: doc.id,
+                            providerOverride: providerOverride,
+                            modelOverride: modelOverride
+                        )
+                    }
+                }
+                .onAppear {
+                    Task { @MainActor in
+                        await workflowRunProviderCache.ensureLoaded(chatService: library?.chatServiceGenerated)
                     }
                 }
             }
@@ -221,7 +232,7 @@ struct SidebarItemRow: View {
     @ViewBuilder
     private func workflowMenuItems(
         workflows: [WorkflowSidebarItem],
-        action: @escaping (String) -> Void
+        action: @escaping (String, String?, String?) -> Void
     ) -> some View {
         let grouped = Dictionary(grouping: workflows) { workflow in
             workflow.folderPath.isEmpty ? "/" : workflow.folderPath
@@ -232,14 +243,40 @@ struct SidebarItemRow: View {
             .sorted()
 
         ForEach(topLevel) { workflow in
-            Button(workflow.name) { action(workflow.id) }
+            Menu(workflow.name) {
+                Button("Default") { action(workflow.id, nil, nil) }
+                ForEach(workflowRunProviderCache.providers.filter { $0.available }) { provider in
+                    if provider.models.isEmpty {
+                        Button(provider.name) { action(workflow.id, provider.id, nil) }
+                    } else {
+                        Menu(provider.name) {
+                            ForEach(provider.models, id: \.self) { model in
+                                Button(model) { action(workflow.id, provider.id, model) }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         ForEach(folderKeys, id: \.self) { folderPath in
             Menu(folderLabel(for: folderPath)) {
                 let inFolder = (grouped[folderPath] ?? []).sorted { $0.name < $1.name }
                 ForEach(inFolder) { workflow in
-                    Button(workflow.name) { action(workflow.id) }
+                    Menu(workflow.name) {
+                        Button("Default") { action(workflow.id, nil, nil) }
+                        ForEach(workflowRunProviderCache.providers.filter { $0.available }) { provider in
+                            if provider.models.isEmpty {
+                                Button(provider.name) { action(workflow.id, provider.id, nil) }
+                            } else {
+                                Menu(provider.name) {
+                                    ForEach(provider.models, id: \.self) { model in
+                                        Button(model) { action(workflow.id, provider.id, model) }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -261,7 +298,12 @@ struct SidebarItemRow: View {
     /// path doesn't notify executionObserver), so users reported "context
     /// menu Run Workflow doesn't work" while the toolbar one did. Converging
     /// on the SSE path is #694's fix.
-    private func runWorkflowOnDocument(workflowId: String, docId: String) {
+    private func runWorkflowOnDocument(
+        workflowId: String,
+        docId: String,
+        providerOverride: String? = nil,
+        modelOverride: String? = nil
+    ) {
         guard let library = library else {
             sidebarRowLogger.error("runWorkflowOnDocument: no library reference")
             return
@@ -277,6 +319,8 @@ struct SidebarItemRow: View {
                 let response = try await stream.execute(
                     workflowId: workflowId,
                     inputs: ["selected_doc_ids": [docId]],
+                    providerOverride: providerOverride,
+                    modelOverride: modelOverride,
                     onEvent: { event in
                         if handleSidebarWorkflowEvent(
                             event,

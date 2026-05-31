@@ -176,6 +176,7 @@ async def summarize_file(
         save_to_db=inputs.get("save_to_db", True),
         save_to_file_flag=inputs.get("save_to_file", False),
         metadata_field=inputs.get("metadata_field") or "summary",
+        chunk_size_chars=inputs.get("chunk_size_chars"),
     )
 
     # Map to expected output format
@@ -323,6 +324,7 @@ async def summarize_folder(
         save_to_db=inputs.get("save_to_db", True),
         save_to_file_flag=inputs.get("save_to_file", False),
         metadata_field=inputs.get("metadata_field") or "summary",
+        chunk_size_chars=inputs.get("chunk_size_chars"),
     )
 
     return {
@@ -489,6 +491,7 @@ Maximum length: {max_length} words.
         save_to_db=inputs.get("save_to_db", True),
         save_to_file_flag=inputs.get("save_to_file", False),
         metadata_field=inputs.get("metadata_field") or "summary",
+        chunk_size_chars=inputs.get("chunk_size_chars"),
     )
 
     return {
