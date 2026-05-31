@@ -8,14 +8,13 @@ Covers:
 
 from __future__ import annotations
 
-import pytest
-
 from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim, EntityType, LibraryEntityType
 from fichero.workflows.tools.extract_all import (
     _load_registry_types,
     _build_instructions,
     _persist_additional_entities,
     _BUILTIN_EXTRACTION_KEYS,
+    _normalize_custom_targets,
 )
 
 
@@ -75,6 +74,20 @@ class TestBuildInstructions:
     def test_empty_custom_types_no_additional_section(self):
         instructions = _build_instructions("English", [])
         assert "additional_entities" not in instructions
+
+
+class TestNormalizeCustomTargets:
+    def test_accepts_list_and_dedupes_case_insensitive(self):
+        result = _normalize_custom_targets(["Fruit", "fruit", "Quotations"])
+        assert result == ["fruit", "quotations"]
+
+    def test_accepts_csv_string(self):
+        result = _normalize_custom_targets("fruit, quotations, methods")
+        assert result == ["fruit", "quotations", "methods"]
+
+    def test_filters_builtin_keys(self):
+        result = _normalize_custom_targets(["people", "events", "fruit"])
+        assert result == ["fruit"]
 
 
 class TestPersistAdditionalEntities:
