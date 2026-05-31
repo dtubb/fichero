@@ -103,7 +103,13 @@ class TestImageEditChainRoutes:
         ops = crop.json()["operations"]
         assert len(ops) == 1
         assert ops[0]["op"] == "crop"
-        assert ops[0]["params"] == {"left": 10, "top": 15, "width": 40, "height": 30}
+        assert ops[0]["params"] == {
+            "left": 10,
+            "top": 15,
+            "width": 40,
+            "height": 30,
+            "auto_orient": True,
+        }
         assert "derived_path" in ops[0]
 
     def test_rotate_operation_appends_chain(self, client, db, tmp_path):

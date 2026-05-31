@@ -39,6 +39,7 @@ class CropOperationRequest(BaseModel):
     top: int
     width: int
     height: int
+    auto_orient: bool = True
     page: int = 1
 
 
@@ -257,17 +258,19 @@ def _apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         return image.rotate(angle, expand=expand)
 
     if name == "crop":
+        auto_orient = bool(params.get("auto_orient", True))
+        crop_base = ImageOps.exif_transpose(image) if auto_orient else image
         left = int(params.get("left", 0))
         top = int(params.get("top", 0))
-        width = int(params.get("width", image.width))
-        height = int(params.get("height", image.height))
+        width = int(params.get("width", crop_base.width))
+        height = int(params.get("height", crop_base.height))
         if width <= 0 or height <= 0:
             raise HTTPException(status_code=400, detail="Crop width/height must be > 0")
-        right = min(left + width, image.width)
-        bottom = min(top + height, image.height)
+        right = min(left + width, crop_base.width)
+        bottom = min(top + height, crop_base.height)
         if left < 0 or top < 0 or right <= left or bottom <= top:
             raise HTTPException(status_code=400, detail="Crop bounds are invalid")
-        return image.crop((left, top, right, bottom))
+        return crop_base.crop((left, top, right, bottom))
 
     if name == "flip_horizontal":
         return ImageOps.mirror(image)
@@ -453,6 +456,7 @@ async def crop_image(
             "top": request.top,
             "width": request.width,
             "height": request.height,
+            "auto_orient": request.auto_orient,
         },
     }
     derived = _apply_operation(base, op)
