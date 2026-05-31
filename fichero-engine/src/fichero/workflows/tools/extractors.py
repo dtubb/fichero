@@ -105,6 +105,19 @@ _LANGUAGE_CONFIG = {
     },
 }
 
+_NER_CONFIG = {
+    "ner_provider": {
+        "type": "string",
+        "default": "spacy",
+        "description": "NER hint provider: spacy, llm, or transformers",
+    },
+    "ner_model": {
+        "type": "string",
+        "default": "",
+        "description": "Optional NER backend model (e.g. en_core_web_sm, en_core_web_trf)",
+    },
+}
+
 
 # =============================================================================
 # Section definitions — schema, instructions, artifact type
@@ -2625,7 +2638,11 @@ def _make_registered(section: dict[str, Any]):
         supports_structured_output=True,
         input_ports=_EXTRACTOR_INPUT_PORTS,
         output_ports=BASE_OUTPUT_PORTS,
-        config_schema=merge_config_schema(BASE_CONFIG_SCHEMA, _LANGUAGE_CONFIG),
+        config_schema=merge_config_schema(
+            BASE_CONFIG_SCHEMA,
+            _LANGUAGE_CONFIG,
+            _NER_CONFIG,
+        ),
         # Expose the prompt for transparency. The JSON-schema portion is a
         # parser contract — editing the prompt is allowed but breaking the
         # schema_key or shape will cause silent parse failures.

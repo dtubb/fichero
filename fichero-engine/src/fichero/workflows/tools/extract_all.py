@@ -127,6 +127,19 @@ _LANGUAGE_CONFIG = {
     },
 }
 
+_NER_CONFIG = {
+    "ner_provider": {
+        "type": "string",
+        "default": "spacy",
+        "description": "NER hint provider for extractor pre-pass: spacy, llm, or transformers",
+    },
+    "ner_model": {
+        "type": "string",
+        "default": "",
+        "description": "Optional NER backend model (e.g. en_core_web_sm, en_core_web_trf)",
+    },
+}
+
 
 async def _yield_page_work(
     phase: str,
@@ -1866,7 +1879,11 @@ register_tool(
         ],
     ),
     config_schema=merge_config_schema(
-        BASE_CONFIG_SCHEMA, _LANGUAGE_CONFIG, TWO_STAGE_CONFIG, KG_WRITE_CONFIG
+        BASE_CONFIG_SCHEMA,
+        _LANGUAGE_CONFIG,
+        _NER_CONFIG,
+        TWO_STAGE_CONFIG,
+        KG_WRITE_CONFIG,
     ),
     default_prompt=_build_instructions("English"),
     sort_order=5,
