@@ -866,6 +866,92 @@ def file_to_data_uri(file_path: str, max_dimension: int = 2048) -> str:
     return f"data:{mime_type};base64,{data}"
 
 
+def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: int = 2048) -> str:
+    """Render a single PDF page to a PNG and return a base64 data URI.
+
+    Uses the Quartz-based ``_render_pdf_page_to_cgimage`` renderer so the
+    LLM vision path receives a proper raster image instead of raw PDF bytes.
+    Falls back to a simple PIL open attempt on non-macOS hosts (CI / Linux).
+
+    Args:
+        file_path: Path to the PDF file.
+        page_index: Zero-based page index to render.
+        max_dimension: Max width/height for the output image (0 = no resize).
+
+    Returns:
+        A ``data:image/png;base64,...`` URI for the rendered page.
+
+    Raises:
+        ValueError: If the page cannot be rendered.
+    """
+    try:
+        # Primary path: macOS Quartz renderer (available on production host).
+        cg_image, _ = _render_pdf_page_to_cgimage(file_path, page_index)
+
+        # Convert the CGImage → PIL Image via a PNG round-trip.
+        from Quartz import CGImageGetWidth, CGImageGetHeight
+        from PIL import Image
+
+        width = CGImageGetWidth(cg_image)
+        height = CGImageGetHeight(cg_image)
+
+        try:
+            # PyObjC ≥ 9: CGImage exposes a bytes buffer directly.
+            from Quartz import CGDataProviderCopyData, CGImageGetDataProvider
+            provider = CGImageGetDataProvider(cg_image)
+            raw_bytes = bytes(CGDataProviderCopyData(provider))
+            img = Image.frombytes("RGBA", (width, height), raw_bytes)
+        except Exception:
+            # Fallback: write to a temp PNG via ImageIO and re-open.
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                tmp_path = tmp.name
+            from Quartz import (
+                CGImageDestinationCreateWithURL,
+                CGImageDestinationAddImage,
+                CGImageDestinationFinalize,
+                kUTTypePNG,
+            )
+            from Foundation import NSURL
+            url = NSURL.fileURLWithPath_(tmp_path)
+            dest = CGImageDestinationCreateWithURL(url, kUTTypePNG, 1, None)
+            CGImageDestinationAddImage(dest, cg_image, None)
+            CGImageDestinationFinalize(dest)
+            img = Image.open(tmp_path).copy()
+            Path(tmp_path).unlink(missing_ok=True)
+
+        if max_dimension > 0 and (img.width > max_dimension or img.height > max_dimension):
+            img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        data = base64.b64encode(buf.getvalue()).decode("utf-8")
+        return f"data:image/png;base64,{data}"
+
+    except Exception as quartz_err:
+        # Non-macOS host (CI / Linux): Quartz not available.
+        # Attempt a PIL fallback — not visually identical but better than
+        # sending raw PDF bytes to the LLM.
+        logger.warning(
+            "Quartz PDF renderer unavailable (%s); falling back to PIL for page %d of %s",
+            quartz_err,
+            page_index,
+            Path(file_path).name,
+        )
+        try:
+            from PIL import Image
+            img = Image.open(file_path)
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            data = base64.b64encode(buf.getvalue()).decode("utf-8")
+            return f"data:image/png;base64,{data}"
+        except Exception as pil_err:
+            raise ValueError(
+                f"Cannot render PDF page {page_index} to image: "
+                f"Quartz error: {quartz_err}; PIL error: {pil_err}"
+            ) from pil_err
+
+
 # =============================================================================
 # Database Operations (wraps llm_base.save_artifact for file-based saving)
 # =============================================================================
@@ -1388,9 +1474,26 @@ async def process_vision(
                 parsed = text
             else:
                 logger.info(f"LLM Vision: {Path(file_path).name}")
-                image_uri = file_to_data_uri(
-                    file_path, max_dimension=max_image_dimension
-                )
+                # #670: PDFs must be rendered to a raster PNG before being
+                # sent to the vision LLM.  file_to_data_uri only handles
+                # standard image formats; passing a raw PDF produces either
+                # a crash, a mis-labelled MIME type, or unreadable bytes.
+                if file_path.lower().endswith(".pdf"):
+                    _pdf_page_idx = requested_page_index if requested_page_index is not None else 0
+                    logger.info(
+                        "LLM Vision PDF: rendering page %d of %s",
+                        _pdf_page_idx,
+                        Path(file_path).name,
+                    )
+                    image_uri = _pdf_page_to_data_uri(
+                        file_path,
+                        page_index=_pdf_page_idx,
+                        max_dimension=max_image_dimension,
+                    )
+                else:
+                    image_uri = file_to_data_uri(
+                        file_path, max_dimension=max_image_dimension
+                    )
 
                 # Check if we should use HF Inference API for thinking models
                 from fichero.llm import (
