@@ -66,6 +66,7 @@ from fichero.workflows.tools import sentiment
 from fichero.workflows.tools import keywords
 from fichero.workflows.tools import questions
 from fichero.workflows.tools import classify_text
+from fichero.workflows.tools import detect_ai_text  # noqa: F401  (#753)
 from fichero.workflows.tools import clean_text  # LLM text cleanup
 from fichero.workflows.tools import translate  # noqa: F401  translation tool
 from fichero.workflows.tools import text_translate  # noqa: F401  LLM translation (#926)
@@ -148,6 +149,7 @@ __all__ = [
     "keywords",
     "questions",
     "classify_text",
+    "detect_ai_text",
     "clean_text",
     "translate",
     "text_translate",
