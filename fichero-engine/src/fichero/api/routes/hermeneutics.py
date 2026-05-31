@@ -257,10 +257,10 @@ async def create_interpretation(
     if not framework.is_active:
         raise HTTPException(status_code=400, detail="Framework is not active")
 
-    if not request.claim_id and not request.document_id and not request.passage_text:
+    if not request.claim_id:
         raise HTTPException(
             status_code=400,
-            detail="One of claim_id, document_id, or passage_text is required",
+            detail="claim_id is required",
         )
 
     now = datetime.now()

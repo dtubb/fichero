@@ -147,6 +147,7 @@ class TestCreateInterpretation:
 
         r = client.post(f"{BASE}/interpretations", json={
             "framework_id": "fwk-int",
+            "claim_id": "claim-int-1",
             "passage_text": "Workers organized in the factories.",
             "interpretation_text": "This evidence shows class conflict.",
             "act": "contextualizing",
@@ -160,6 +161,7 @@ class TestCreateInterpretation:
 
         r = client.post(f"{BASE}/interpretations", json={
             "framework_id": "fwk-int-pred",
+            "claim_id": "claim-int-pred-1",
             "passage_text": "The reading foregrounds labor.",
             "interpretation_text": "This reading foregrounds labor history.",
             "act": "contextualizing",
@@ -275,6 +277,7 @@ class TestKgInterpretationsCanonicalUrls:
         db.save(_make_framework("fwk-kg2"))
         r = client.post(f"{KG_BASE}/interpretations", json={
             "framework_id": "fwk-kg2",
+            "claim_id": "claim-kg2-1",
             "passage_text": "Evidence passage.",
             "interpretation_text": "Structural reading.",
             "act": "contextualizing",
