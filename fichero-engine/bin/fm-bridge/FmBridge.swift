@@ -231,6 +231,50 @@ enum SchemaError: Error, CustomStringConvertible {
     }
 }
 
+/// Validate the incoming schema-tree payload before we build
+/// DynamicGenerationSchema. This gives callers clearer diagnostics for
+/// malformed trees (missing required keys, wrong primitive types) rather
+/// than a generic GenerationSchema init failure.
+func validateSchemaTree(_ json: [String: Any], path: String = "$") throws {
+    let type = (json["type"] as? String) ?? "object"
+
+    switch type {
+    case "object":
+        guard let properties = json["properties"] as? [[String: Any]] else {
+            throw SchemaError.unsupportedType(
+                "\(path): object missing 'properties' array"
+            )
+        }
+        for (idx, prop) in properties.enumerated() {
+            guard let name = prop["name"] as? String, !name.isEmpty else {
+                throw SchemaError.unsupportedType(
+                    "\(path).properties[\(idx)]: missing non-empty 'name'"
+                )
+            }
+            if let nested = prop["schema"] as? [String: Any] {
+                try validateSchemaTree(nested, path: "\(path).\(name)")
+            } else {
+                var inline = prop
+                inline.removeValue(forKey: "name")
+                inline.removeValue(forKey: "description")
+                inline.removeValue(forKey: "optional")
+                try validateSchemaTree(inline, path: "\(path).\(name)")
+            }
+        }
+    case "array":
+        guard let items = json["items"] as? [String: Any] else {
+            throw SchemaError.unsupportedType("\(path): array missing 'items'")
+        }
+        try validateSchemaTree(items, path: "\(path)[]")
+    case "string", "integer", "number", "boolean":
+        break
+    default:
+        throw SchemaError.unsupportedType(
+            "\(path): unsupported type '\(type)' (expected object|array|string|integer|number|boolean)"
+        )
+    }
+}
+
 /// Locale-support response shape for `--supports-locale <code>` (#849).
 struct LocaleSupportResponse: Codable {
     let locale: String
@@ -378,6 +422,7 @@ struct FmBridge {
         if let schemaDict = raw["schema"] as? [String: Any] {
             let dynamic: DynamicGenerationSchema
             do {
+                try validateSchemaTree(schemaDict)
                 dynamic = try buildDynamicSchema(schemaDict)
             } catch {
                 emitError("Failed to build schema: \(error)", kind: "schema")

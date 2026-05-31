@@ -504,6 +504,32 @@ class TestChatStructuredDispatch:
         assert any("input=~" in m and "output=~" in m for m in msgs)
 
     @pytest.mark.asyncio
+    async def test_apple_usage_prefers_bridge_usage_payload(self):
+        """When fm-bridge includes usage counts, we should log exact
+        values (not estimated)."""
+        from fichero.llm import _log_apple_usage_from_bridge, collect_usage
+
+        cfg = LLMConfig(provider="apple", model="apple-intelligence")
+        bridge_payload = {
+            "usage": {
+                "input_tokens": 111,
+                "output_tokens": 22,
+                "total_tokens": 133,
+            }
+        }
+
+        with collect_usage() as bucket:
+            used = _log_apple_usage_from_bridge(
+                cfg, bridge_payload, kind="structured"
+            )
+        assert used is True
+        assert len(bucket) == 1
+        assert bucket[0]["estimated"] is False
+        assert bucket[0]["input_tokens"] == 111
+        assert bucket[0]["output_tokens"] == 22
+        assert bucket[0]["total_tokens"] == 133
+
+    @pytest.mark.asyncio
     async def test_apple_usage_handles_messages_list(self, caplog):
         """When prompt is a messages list (OpenAI shape), the estimator
         concats content fields rather than crashing on str()."""
