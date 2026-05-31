@@ -1,5 +1,5 @@
-import XCTest
 @testable import Fichero
+import XCTest
 
 @MainActor
 final class FeatureManagerTests: XCTestCase {
@@ -11,6 +11,7 @@ final class FeatureManagerTests: XCTestCase {
         XCTAssertTrue(featureManager.isLibraryEnabled)
         XCTAssertTrue(featureManager.isSearchEnabled)
         XCTAssertTrue(featureManager.isWorkflowsEnabled)
+        XCTAssertTrue(featureManager.isWorkflowEditorAdvancedViewsEnabled)
         XCTAssertTrue(featureManager.isActivityEnabled)
         XCTAssertTrue(featureManager.isSettingsGeneralTabEnabled)
         // Mind Palace ships ON during dev (Daniel-facing); revisit before release.

@@ -193,7 +193,7 @@ class FeatureManager: ObservableObject {
         libraryFilterToolbarEnabledInternal = false
         libraryIconZoomControlsEnabledInternal = true // 0.0.3 #517: zoom controls re-enabled
         workflowsEnabledInternal = true
-        workflowEditorAdvancedViewsEnabled = false
+        workflowEditorAdvancedViewsEnabled = true
         workflowChainsEnabledInternal = true
         batchesEnabledInternal = true
         chatEnabledInternal = false
