@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
+import time
 
+import httpx
+import pytest
 from PIL import Image
 
+from fichero.api.main import app
 from fichero.models import DocType, Document, FileType
 
 
@@ -199,6 +204,40 @@ class TestImageEditChainRoutes:
         assert children[1].bbox == (65, 20, 25, 25)
         assert children[0].metadata["view_kind"] == "image_segment"
         assert children[0].metadata["source_document_id"] == doc.id
+
+    @pytest.mark.anyio
+    async def test_crop_operation_does_not_block_concurrent_request(
+        self, db, test_package, tmp_path, monkeypatch
+    ):
+        doc = _make_image_doc(db, tmp_path, size=(120, 90))
+
+        from fichero.api.routes import image_editing as routes
+
+        original_apply_operation = routes._apply_operation
+
+        def slow_apply_operation(image, op):
+            time.sleep(0.25)
+            return original_apply_operation(image, op)
+
+        monkeypatch.setattr(routes, "_apply_operation", slow_apply_operation)
+
+        transport = httpx.ASGITransport(app=app)
+        headers = {"X-Fichero-Library-Path": str(test_package)}
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver", headers=headers
+        ) as async_client:
+            crop_task = asyncio.create_task(
+                async_client.post(
+                    f"/api/images/{doc.id}/operations/crop",
+                    json={"left": 10, "top": 10, "width": 30, "height": 20, "page": 1},
+                )
+            )
+            await asyncio.sleep(0.02)
+            edits_response = await async_client.get(f"/api/images/{doc.id}/edits")
+            crop_response = await crop_task
+
+        assert edits_response.status_code == 200
+        assert crop_response.status_code == 200
 
 
 class TestImagePreviewRoute:

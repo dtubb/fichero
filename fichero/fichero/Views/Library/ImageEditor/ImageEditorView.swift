@@ -1,11 +1,17 @@
 import AppKit
 import SwiftUI
 
+private enum CompareMode: String, CaseIterable {
+    case single = "Single"
+    case wipe = "Slider"
+    case sideBySide = "Side-by-Side"
+}
+
 /// Non-destructive image-editing surface (#469).
 ///
 /// Renders the backend-rendered preview (so the original↔edited toggle is just
 /// `apply_edits=false|true` on `/images/{id}/preview`), exposes the edit-chain
-/// operations as controls, and shows the chain inspector alongside.
+/// operations as controls.
 ///
 /// Mounted from `EditorView` for `fileType == .image` documents. Prev/next
 /// navigation (#1265) and rubber-band crop/batch (#1265) layer on top in
@@ -36,52 +42,49 @@ struct ImageEditorView: View {
 
     /// Marquee selection in normalized image space (0…1); nil when none (#1265).
     @State private var marqueeSelection: CGRect?
+    @State private var compareMode: CompareMode = .single
+    @State private var compareSplit: CGFloat = 0.5
 
     /// Creates region (bbox) annotations from the marquee selection (#1276).
     @StateObject private var annotationService = AnnotationService()
 
-    /// Image documents in the current multi-selection (for batch-apply).
-    private var selectedImages: [Document] {
-        siblingImages.filter { selectedDocumentIDs.contains($0.id) }
+    /// Editable docs in the current multi-selection (for batch-apply).
+    private var selectedEditableDocs: [Document] {
+        siblingEditableDocs.filter { selectedDocumentIDs.contains($0.id) }
     }
 
-    /// Sibling images in the current folder, in display order — the prev/next set.
-    private var siblingImages: [Document] {
-        documentStore.currentDocuments.filter { $0.fileType == .image }
+    /// Sibling editable docs in the current folder, in display order —
+    /// the prev/next set for image files and PDF pages.
+    private var siblingEditableDocs: [Document] {
+        documentStore.currentDocuments.filter { $0.fileType == .image || $0.docType == .page }
     }
 
     /// The document the editor is actually showing (resolved from the active id).
     private var activeDocument: Document {
-        siblingImages.first(where: { $0.id == activeDocumentID })
+        siblingEditableDocs.first(where: { $0.id == activeDocumentID })
             ?? documentStore.currentDocuments.first(where: { $0.id == activeDocumentID })
             ?? document
     }
 
     private var currentIndex: Int? {
-        siblingImages.firstIndex(where: { $0.id == activeDocument.id })
+        siblingEditableDocs.firstIndex(where: { $0.id == activeDocument.id })
     }
 
     var body: some View {
         VStack(spacing: 0) {
             toolbar
             Divider()
-            HStack(spacing: 0) {
-                canvas
-                Divider()
-                ImageEditChainPanel(
-                    chain: model.chain,
-                    isBusy: model.isBusy,
-                    onRemove: { index in Task { await model.removeOperation(at: index) } },
-                    onReset: { Task { await model.resetAll() } }
-                )
-                .frame(width: 260)
-            }
+            canvas
         }
         .task(id: document.id) {
             // External selection changed (host drove a new document).
             activeDocumentID = document.id
             marqueeSelection = nil
-            await model.configure(apiClient: apiClient, documentId: document.id)
+            await model.configure(
+                apiClient: apiClient,
+                documentId: document.id,
+                page: currentPage(for: document)
+            )
         }
         .onChange(of: model.chain.operations.count) { _ in
             // An op changed the rendered image — a stale region would mismap.
@@ -149,7 +152,7 @@ private extension ImageEditorView {
             }
             .disabled(model.isBusy)
 
-            if marqueeSelection != nil {
+            if marqueeSelection != nil && compareMode == .single {
                 Divider().frame(height: 20)
                 Button {
                     Task { await cropToSelection() }
@@ -170,12 +173,22 @@ private extension ImageEditorView {
                 .accessibilityIdentifier("imageEditAnnotateSelection")
             }
 
-            if selectedImages.count > 1 {
+            if selectedEditableDocs.count > 1 {
                 Divider().frame(height: 20)
                 batchMenu
             }
 
             Spacer()
+
+            Picker("", selection: $compareMode) {
+                ForEach(CompareMode.allCases, id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 240)
+            .labelsHidden()
+            .help("Compare original and edited images")
 
             if model.isBusy {
                 ProgressView().controlSize(.small)
@@ -190,7 +203,7 @@ private extension ImageEditorView {
     @ViewBuilder
     private var navigationCluster: some View {
         let index = currentIndex
-        let total = siblingImages.count
+        let total = siblingEditableDocs.count
         HStack(spacing: 6) {
             Button {
                 Task { await step(by: -1) }
@@ -221,17 +234,21 @@ private extension ImageEditorView {
         }
     }
 
-    /// Move `delta` positions through `siblingImages`, loading the neighbour and
+    /// Move `delta` positions through editable siblings, loading the neighbour and
     /// (if wired) syncing app selection so the window inspector follows.
     private func step(by delta: Int) async {
         guard let index = currentIndex else { return }
         let target = index + delta
-        guard siblingImages.indices.contains(target) else { return }
-        let neighbour = siblingImages[target]
+        guard siblingEditableDocs.indices.contains(target) else { return }
+        let neighbour = siblingEditableDocs[target]
         activeDocumentID = neighbour.id
         marqueeSelection = nil
         onNavigate?(neighbour.id)
-        await model.configure(apiClient: apiClient, documentId: neighbour.id)
+        await model.configure(
+            apiClient: apiClient,
+            documentId: neighbour.id,
+            page: currentPage(for: neighbour)
+        )
     }
 
     /// Batch-apply menu (#1265) — fans a uniform op out across the multi-file
@@ -241,33 +258,40 @@ private extension ImageEditorView {
         Menu {
             Button("Rotate Right 90°") {
                 Task {
-                    await model.batchApply(documentIds: selectedImages.map(\.id)) { service, id in
+                    await model.batchApply(documentIds: selectedEditableDocs.map(\.id)) { service, id in
                         try await service.rotate(documentId: id, angle: -90)
                     }
                 }
             }
             Button("Auto-Enhance") {
                 Task {
-                    await model.batchApply(documentIds: selectedImages.map(\.id)) { service, id in
+                    await model.batchApply(documentIds: selectedEditableDocs.map(\.id)) { service, id in
                         try await service.enhance(documentId: id, autoLevels: true)
                     }
                 }
             }
             Button("Remove Background") {
                 Task {
-                    await model.batchApply(documentIds: selectedImages.map(\.id)) { service, id in
+                    await model.batchApply(documentIds: selectedEditableDocs.map(\.id)) { service, id in
                         try await service.removeBackground(documentId: id)
                     }
                 }
             }
         } label: {
-            Label("Apply to \(selectedImages.count)", systemImage: "square.stack.3d.up")
+            Label("Apply to \(selectedEditableDocs.count)", systemImage: "square.stack.3d.up")
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
         .disabled(model.isBusy)
-        .help("Apply an edit to all \(selectedImages.count) selected images")
+        .help("Apply an edit to all \(selectedEditableDocs.count) selected files/pages")
         .accessibilityIdentifier("imageEditBatchMenu")
+    }
+
+    private func currentPage(for doc: Document) -> Int {
+        if doc.docType == .page {
+            return max(1, doc.sequence ?? 1)
+        }
+        return 1
     }
 
     /// Map the marquee (normalized image space) to source pixels and crop.
@@ -374,7 +398,52 @@ private extension ImageEditorView {
     private var canvas: some View {
         ZStack {
             CheckerboardPattern().opacity(0.12)
-            if let preview = model.preview {
+            if compareMode == .sideBySide {
+                if let original = model.originalPreview, let edited = model.editedPreview {
+                    HStack(spacing: 8) {
+                        comparePane(image: original.image, pixelSize: original.pixelSize, title: "Original")
+                        comparePane(image: edited.image, pixelSize: edited.pixelSize, title: "Edited")
+                    }
+                    .padding(8)
+                } else {
+                    ProgressView("Loading compare preview…")
+                        .controlSize(.small)
+                }
+            } else if compareMode == .wipe {
+                if let original = model.originalPreview, let edited = model.editedPreview {
+                    GeometryReader { geo in
+                        let fitted = ImageFit.fittedRect(
+                            imagePixelSize: edited.pixelSize,
+                            in: CGSize(width: geo.size.width - 24, height: geo.size.height - 24)
+                        )
+                        let frame = fitted.offsetBy(dx: 12, dy: 12)
+                        Image(nsImage: original.image)
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: frame.width, height: frame.height)
+                            .position(x: frame.midX, y: frame.midY)
+                        Image(nsImage: edited.image)
+                            .resizable()
+                            .interpolation(.high)
+                            .frame(width: frame.width, height: frame.height)
+                            .position(x: frame.midX, y: frame.midY)
+                            .mask(
+                                Rectangle()
+                                    .frame(width: max(0, min(1, compareSplit)) * frame.width, height: frame.height)
+                                    .offset(x: frame.minX, y: frame.minY)
+                            )
+                    }
+                    VStack {
+                        Spacer()
+                        Slider(value: $compareSplit, in: 0...1)
+                            .padding(.horizontal, 24)
+                            .padding(.bottom, 12)
+                    }
+                } else {
+                    ProgressView("Loading compare preview…")
+                        .controlSize(.small)
+                }
+            } else if let preview = model.preview {
                 GeometryReader { geo in
                     let fitted = ImageFit.fittedRect(
                         imagePixelSize: preview.pixelSize,
@@ -396,5 +465,26 @@ private extension ImageEditorView {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: NSColor(red: 253 / 255, green: 253 / 255, blue: 253 / 255, alpha: 1)))
+    }
+
+    private func comparePane(image: NSImage, pixelSize: CGSize, title: String) -> some View {
+        VStack(spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            GeometryReader { geo in
+                let fitted = ImageFit.fittedRect(
+                    imagePixelSize: pixelSize,
+                    in: CGSize(width: geo.size.width - 12, height: geo.size.height - 12)
+                )
+                let frame = fitted.offsetBy(dx: 6, dy: 6)
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: frame.width, height: frame.height)
+                    .position(x: frame.midX, y: frame.midY)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

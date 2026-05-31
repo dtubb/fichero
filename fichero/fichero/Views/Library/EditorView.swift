@@ -2,11 +2,6 @@ import PDFKit
 import Quartz
 import SwiftUI
 
-private enum ImageSurfaceMode: String, CaseIterable {
-    case preview = "Preview"
-    case edit = "Edit"
-}
-
 /// Document preview/editor view
 struct EditorView: View {
     let document: Document?
@@ -22,14 +17,6 @@ struct EditorView: View {
     var selectedDocumentIDs: Set<String> = []
 
     @EnvironmentObject private var documentStore: DocumentStore
-    @AppStorage("imagePreview.surfaceMode") private var imageSurfaceModeRaw = ImageSurfaceMode.preview.rawValue
-
-    private var imageSurfaceMode: Binding<ImageSurfaceMode> {
-        Binding(
-            get: { ImageSurfaceMode(rawValue: imageSurfaceModeRaw) ?? .preview },
-            set: { imageSurfaceModeRaw = $0.rawValue }
-        )
-    }
 
     var body: some View {
         Group {
@@ -128,22 +115,13 @@ struct EditorView: View {
     private func previewContent(_ doc: Document) -> some View {
         if doc.docType == .folder {
             FolderContentsGrid(folder: doc)
-        } else if doc.docType == .page,
-                  let pdfPath = resolvedParentPDFPath(for: doc),
-                  !pdfPath.isEmpty {
-            // PDF page child — single-page view at the specific page (#595).
-            // Swipe left/right at fit-scale to turn pages; onPageIndexChange
-            // wires back so the grid's selected thumbnail follows (#586).
-            //
-            // Resolver checks metadata["pdf_path"] first, then falls back
-            // to the parent doc via documentStore.selectedCollection /
-            // currentDocuments — the metadata key isn't always set on
-            // page children created by the ingest split (#890).
-            let pageIndex = max(0, (doc.sequence ?? 1) - 1)
-            PDFPageWithToolbar(
-                path: pdfPath,
-                pageIndex: pageIndex,
-                onPageIndexChange: onPDFPageIndexChange
+        } else if doc.docType == .page {
+            // Page children now use the same canonical image-editing surface as
+            // images (navigation + marquee + per-page edit toolbar). (#1265)
+            ImageEditorView(
+                document: doc,
+                onNavigate: onNavigateToDocument,
+                selectedDocumentIDs: selectedDocumentIDs
             )
         } else if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
             // Top-level PDF file — single-page view, starts at page 0 (#595).
@@ -153,37 +131,11 @@ struct EditorView: View {
                 onPageIndexChange: onPDFPageIndexChange
             )
         } else if doc.fileType == .image {
-            // #1383 regression guard: image-editing introduced a hard switch to
-            // editor-only, which removed the classic loupe/magnifier/scroll
-            // preview surface. Keep both paths available.
-            VStack(spacing: 0) {
-                HStack {
-                    Picker("Image Surface", selection: imageSurfaceMode) {
-                        ForEach(ImageSurfaceMode.allCases, id: \.self) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 180)
-                    .labelsHidden()
-                    .help("Switch between classic image preview and non-destructive editor")
-                    Spacer()
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color(.windowBackgroundColor))
-                Divider()
-
-                if imageSurfaceMode.wrappedValue == .preview, let path = doc.path {
-                    ZoomableImagePreview(url: URL(fileURLWithPath: path), documentId: doc.id)
-                } else {
-                    ImageEditorView(
-                        document: doc,
-                        onNavigate: onNavigateToDocument,
-                        selectedDocumentIDs: selectedDocumentIDs
-                    )
-                }
-            }
+            ImageEditorView(
+                document: doc,
+                onNavigate: onNavigateToDocument,
+                selectedDocumentIDs: selectedDocumentIDs
+            )
         } else {
             QuickLookDownloadView(document: doc)
         }

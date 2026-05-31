@@ -839,8 +839,13 @@ def ingest_folder(
     else:
         files = list(folder.glob("*"))
 
-    # Filter to actual files
-    files = [f for f in files if f.is_file() and not f.name.startswith(".")]
+    # Filter to actual files (exclude sidecar files that are metadata companions,
+    # not primary ingest targets).
+    files = [
+        f
+        for f in files
+        if f.is_file() and not f.name.startswith(".") and not _is_sidecar_file(f)
+    ]
 
     total = len(files)
     documents = []
@@ -897,6 +902,13 @@ def ingest_folder(
 
     logger.info(f"Ingested {len(documents)} files from {folder.name}")
     return documents
+
+
+def _is_sidecar_file(path: Path) -> bool:
+    """Return True when ``path`` is a metadata sidecar, not a primary document."""
+    suffix = path.suffix.lower()
+    name = path.name.lower()
+    return suffix == ".xmp" or name.endswith(".iffy.json")
 
 
 _ANCESTOR_MAX_DEPTH = 64
