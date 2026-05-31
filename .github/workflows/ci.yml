@@ -1,6 +1,9 @@
 name: CI (Python + OpenAPI drift)
 
-# Runs on every push to any branch + on PR events.
+# Runs on push to main + on PR events only.
+# (Not on every branch — worker ms/* branches would each burn a CI run and
+#  spam failure notifications before the manager merges them. They're validated
+#  locally pre-merge; CI is the trunk + PR safety net.)
 # Linux runner only — Swift work is handled by Xcode Cloud (separate setup).
 #
 # Catches:
@@ -11,7 +14,7 @@ name: CI (Python + OpenAPI drift)
 
 on:
   push:
-    branches: ['**']
+    branches: ['main']
   pull_request:
 
 jobs:
