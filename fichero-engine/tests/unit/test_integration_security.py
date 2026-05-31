@@ -189,14 +189,14 @@ class TestLibraryPathSecurity:
 
     def test_library_path_validates_allowed_locations(self, client):
         """MEDIUM-2: Library path should be in allowed locations."""
-        headers = {"X-Fichero-Library-Path": "/tmp/malicious.fichero"}
-        
+        # /usr/local is never in the allowlist on any OS or CI environment.
+        headers = {"X-Fichero-Library-Path": "/usr/local/malicious.fichero"}
+
         try:
             response = client.get("/api/research/projects", headers=headers)
-            
+
             # Should validate path is in allowed directory
             # (e.g., ~/Documents, ~/Library/Application Support)
-            allow_origin = response.headers.get("access-control-allow-origin")
             # If CORS passes but path is rejected
             if response.status_code == 200:
                 pytest.fail("Library path not validated against allowed locations")
