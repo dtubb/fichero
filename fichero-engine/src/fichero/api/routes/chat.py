@@ -118,6 +118,8 @@ class ChatResponse(BaseModel):
     model_used: str = (
         ""  # Which model actually handled the request (empty if not known)
     )
+    kg_claims_used: int = 0
+    kg_entities_used: int = 0
 
 
 class ProviderInfo(BaseModel):
@@ -303,6 +305,8 @@ async def chat(
     # Search for relevant docs + KG neighborhood context
     sources = []
     context_docs = []
+    kg_claims_used = 0
+    kg_entities_used = 0
 
     try:
         retrieval = GraphAwareRetriever(db, file_reader=_read_file_content).retrieve(
@@ -315,6 +319,8 @@ async def chat(
         )
         context_docs = retrieval.context_docs
         sources = [DocumentSource(**row) for row in retrieval.sources]
+        kg_claims_used = retrieval.kg_claims_used
+        kg_entities_used = retrieval.kg_entities_used
     except Exception as e:
         logger.warning(f"Search failed, proceeding without context: {e}")
 
@@ -353,6 +359,8 @@ async def chat(
         sources=sources,
         conversation_id=conv.id,
         model_used=model_used,
+        kg_claims_used=kg_claims_used,
+        kg_entities_used=kg_entities_used,
     )
 
 
