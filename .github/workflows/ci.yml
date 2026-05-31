@@ -35,6 +35,11 @@ jobs:
           pip install -e '.[dev]' || pip install -e .
           pip install ruff pytest pytest-asyncio
 
+      - name: Download spaCy models
+        run: |
+          python -m spacy download en_core_web_sm
+          python -m spacy download es_core_news_sm
+
       - name: ruff check
         run: ruff check fichero-engine/src/
 
