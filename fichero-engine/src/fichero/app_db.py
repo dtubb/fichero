@@ -20,10 +20,19 @@ from datetime import datetime
 from pathlib import Path
 
 import duckdb
+from pydantic import BaseModel
 from fichero.storage import settings
 from fichero.models import Provider, Model
 
 logger = logging.getLogger(__name__)
+
+
+class AppSetting(BaseModel):
+    """Typed row wrapper for settings-table write paths."""
+
+    key: str
+    value: str
+    updated_at: datetime
 
 
 def get_db_path() -> str:
@@ -33,6 +42,12 @@ def get_db_path() -> str:
 
 class AppDatabase:
     """App-wide database for providers and settings."""
+    _TABLE_BY_MODEL_NAME: dict[str, str] = {
+        "Provider": "providers",
+        "Model": "models",
+        "MCPServer": "mcp_servers",
+        "AppSetting": "settings",
+    }
 
     def __init__(self, path: str | Path | None = None):
         """
@@ -219,8 +234,12 @@ class AppDatabase:
     def delete_provider(self, provider_id: str):
         """Delete a provider and its associated models."""
         with self._lock:
-            self.conn.execute("DELETE FROM models WHERE provider_id = ?", [provider_id])
-            self.conn.execute("DELETE FROM providers WHERE id = ?", [provider_id])
+            for model in self.list_models(provider_id=provider_id):
+                self._delete_typed(model)
+
+            provider = self.get_provider(provider_id)
+            if provider:
+                self._delete_typed(provider)
             self.conn.commit()
 
     def get_model(self, model_id: str) -> Model | None:
@@ -435,7 +454,14 @@ class AppDatabase:
 
     def delete_setting(self, key: str):
         """Delete a setting."""
-        self.conn.execute("DELETE FROM settings WHERE key = ?", [key])
+        value = self.get_setting(key)
+        if value is None:
+            return
+        self._delete_typed(
+            AppSetting(key=key, value=value, updated_at=datetime.now()),
+            key_field="key",
+            table_name="settings",
+        )
         self.conn.commit()
 
     def get_ai_defaults(self) -> dict[str, str]:
@@ -549,7 +575,9 @@ class AppDatabase:
 
     def delete_model(self, model_id: str):
         """Delete a model."""
-        self.conn.execute("DELETE FROM models WHERE id = ?", [model_id])
+        model = self.get_model(model_id)
+        if model:
+            self._delete_typed(model)
         self.conn.commit()
 
     def save_mcp_server(self, server):
@@ -665,8 +693,30 @@ class AppDatabase:
 
     def delete_mcp_server(self, server_id: str):
         """Delete an MCP server."""
-        self.conn.execute("DELETE FROM mcp_servers WHERE id = ?", [server_id])
+        server = self.get_mcp_server(server_id)
+        if server:
+            self._delete_typed(server)
         self.conn.commit()
+
+    def _delete_typed(
+        self,
+        obj: BaseModel,
+        *,
+        key_field: str = "id",
+        table_name: str | None = None,
+    ) -> None:
+        """Delete using a typed row object instead of raw id-only SQL."""
+        table = table_name or self._TABLE_BY_MODEL_NAME.get(
+            obj.__class__.__name__,
+            f"{obj.__class__.__name__.lower()}s",
+        )
+        value = getattr(obj, key_field, None)
+        if value is None:
+            return
+        self.conn.execute(
+            f"DELETE FROM {table} WHERE {key_field} = ?",
+            [value],
+        )
 
     def close(self):
         """Close the database connection."""
