@@ -395,6 +395,7 @@
 		F64E8DA9BA2DC3A188FE35B2 /* LibraryMapComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8F0249656F38A2DB7AE0C54 /* LibraryMapComponents.swift */; };
 		FC38FF82492B7D35C486CF71 /* EditClaimSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C61D10AF212650451E8C13B /* EditClaimSheet.swift */; };
 		FC3F95AC0E1F4A7DB6B9993E /* FeatureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B27E2AF4EC43E993C19836 /* FeatureManager.swift */; };
+		FCBC65A5D3BC1141E6FD9695 /* WorkflowRunProviderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 506C34038F8A349C075DFBAC /* WorkflowRunProviderCache.swift */; };
 		FEEDCE2D38A6FE7E36FEC8A0 /* NavigationHistoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B044A60D5A8C7BA256FF24 /* NavigationHistoryManager.swift */; };
 		GTE2 /* GeneratedTypeExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = GTE1 /* GeneratedTypeExtensions.swift */; };
 		IMP00012F27F36000EC9EE1 /* ImportServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */; };
@@ -597,6 +598,7 @@
 		43322F30A05232A97F8B3B87 /* ContentView+NavigationHistory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+NavigationHistory.swift"; sourceTree = "<group>"; };
 		43EAB861267206E7A929830F /* KGTemporalSpatial.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGTemporalSpatial.swift; sourceTree = "<group>"; };
 		462 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
+		506C34038F8A349C075DFBAC /* WorkflowRunProviderCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkflowRunProviderCache.swift; sourceTree = "<group>"; };
 		5287875D44BA51CD93CA12F8 /* ResearchTasksPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchTasksPane.swift; sourceTree = "<group>"; };
 		55DF06231EA1679E067896E3 /* MindPalaceTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindPalaceTheme.swift; sourceTree = "<group>"; };
 		5923B00FD0A382F8BBF21D58 /* PageContentPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PageContentPane.swift; sourceTree = "<group>"; };
@@ -1118,6 +1120,7 @@
 				20D8ED482F48E2B1006950A3 /* WorkflowInspector+AgentsSection.swift */,
 				20D8ED4C2F48E2BE006950A3 /* WorkflowInspector+MCPTools.swift */,
 				20D8ED522F48E2CA006950A3 /* WorkflowInspector+DataLoading.swift */,
+				506C34038F8A349C075DFBAC /* WorkflowRunProviderCache.swift */,
 			);
 			path = Workflow;
 			sourceTree = "<group>";
@@ -2209,6 +2212,7 @@
 				D584DA0264AC18C07D78233A /* KGFocusState.swift in Sources */,
 				21B8070BD02B0087A8B83D04 /* MindPalaceTheme.swift in Sources */,
 				02DC70ACB03D52EDE04B84C3 /* MindPalaceLibraryProjector.swift in Sources */,
+				FCBC65A5D3BC1141E6FD9695 /* WorkflowRunProviderCache.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
