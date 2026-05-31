@@ -4,6 +4,7 @@ import SwiftUI
 // MARK: - Entity Detail View
 
 struct EntityDetailView: View {
+    @EnvironmentObject private var entityService: EntityServiceGenerated
     let entity: Components.Schemas.KnowledgeEntity
     let claims: [Components.Schemas.KnowledgeClaim]
     let isLoadingClaims: Bool
@@ -83,6 +84,7 @@ struct EntityDetailView: View {
     @State private var metadataJSON: String = "{}"
     @State private var metadataSaveMessage: String?
     @State private var isSavingMetadata = false
+    @State private var showDigestSheet = false
 
     var body: some View {
         if sourceGroupsMode {
@@ -176,6 +178,17 @@ struct EntityDetailView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Search the library for \"\(entity.canonicalName)\"")
+
+                Spacer()
+
+                Button {
+                    showDigestSheet = true
+                } label: {
+                    Label("Digest", systemImage: "book.closed")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .help("Open researcher digest view for this entity")
             }
 
             if let description = cleanedDisplayText(entity.description) {
@@ -202,6 +215,11 @@ struct EntityDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .sheet(isPresented: $showDigestSheet) {
+            EntityDigestContent(entity: entity, entityService: entityService)
+                .frame(minWidth: 780, minHeight: 560)
+                .padding(20)
+        }
     }
 
     /// Map EntityType → the search-scope token consumed by
