@@ -1,5 +1,20 @@
 # STATE.md — Fichero
 
+## 2026-05-31 (active build night) — IN PROGRESS
+
+**Daniel's directive:** work all night, get things working, build+verify+commit+integrate as you go, 30-min loops, don't crash the machine. Backend + Xcode app running.
+
+**SHIPPED to main this session:**
+- **#1346 WebKit reading-surface focus/scroll** (`0ff21319`, build-verified green via MCP). renderAll() was rebuilding innerHTML on every highlight/tab/page change → reset scroll. Now in-place class toggles + targeted text-node highlight; new `window.fichero.scrollToSpan()` + `highlightEntity()`; `DocumentKGWebPane.syncClaimSpan` scrolls+highlights source span on claim focus. (document_view.html + DocumentKGWebPane.swift.)
+
+**KEY DIAGNOSIS — why real-doc KGs come back empty** (CLI reality-check on tubb2020shift Preface, report `agent-work/proposals/2026-05-31-preface-kg-comparison.md`): Preface (41k chars) → 0 entities/claims/citations/summary/catalogue across 11 catalogue runs. Causes: (1) early runs fail on missing `$small` model = #1344; (2) later runs hit "Connection error" in Extract-All-Entities, and **downstream nodes still fire on empty data and persist NOTHING — no fail-loud** = #1347 (P1, in active fix); (3) zombie status=running threads. The KG isn't weak — extraction never succeeded. Fix pipeline reliability first, then judge quality.
+
+**Filed:** #1346 (WebKit focus), #1347 (P1 catalogue silent-empty fail-loud), #1348 (CLI --doc flag), #1344 already had fix-location pinned.
+
+**In flight (isolated worktrees, TDD):** #881 silent-ingest (ad45bbc6e4f77366d), #1347 catalogue fail-loud (a650976018baa8c02). Loop merges them when green (review + verify_all + push).
+
+---
+
 ## 2026-05-31 (overnight sweep COMPLETE) — MORNING REPORT FOR DANIEL
 
 **ALL 18 content milestones reality-checked against actual code** (read-only; reports in `agent-work/proposals/2026-05-31-reality-check-*.md`, 19 files). Zero code changes overnight — app+backend stayed up; catalogue run finished clean (~21 min, 15 docs).
