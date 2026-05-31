@@ -506,6 +506,22 @@ class TestIngestFolder:
         assert progress_calls[-1][0] == 2  # Final current
         assert progress_calls[-1][1] == 2  # Total
 
+    @patch("fichero.db.db")
+    @patch("fichero.bookmarks.create_bookmark")
+    def test_skips_sidecar_files(self, mock_bookmark, mock_db, tmp_path):
+        """Folder ingest should treat sidecars as metadata for primary files only."""
+        from fichero.ingest import ingest_folder
+
+        (tmp_path / "photo.jpg").write_bytes(b"image")
+        (tmp_path / "photo.xmp").write_text("<x:xmpmeta/>", encoding="utf-8")
+        (tmp_path / "photo.iffy.json").write_text("{}", encoding="utf-8")
+
+        mock_bookmark.return_value = None
+        docs = ingest_folder(tmp_path)
+
+        assert len(docs) == 1
+        assert docs[0].name == "photo.jpg"
+
     @patch("fichero.bookmarks.create_bookmark", return_value=None)
     def test_touches_parent_collection_when_child_is_ingested(
         self, mock_bookmark, tmp_path
