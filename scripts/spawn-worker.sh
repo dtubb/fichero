@@ -36,12 +36,13 @@ SESSION="${3:-f_${MODEL}_${MSLUG}}"
 BRANCH="ms/${MSLUG}"
 WORKTREE="${HOME}/code/fichero-${MSLUG}"
 
-# --- pick the agent launch command -------------------------------------------
+# --- pick the agent launch command + skill-invocation prefix -----------------
+# Claude invokes skills with a leading '/', Codex with a leading '$'.
 case "$MODEL" in
-  claude|opus) AGENT_CMD='claude --dangerously-skip-permissions --model opus' ;;
-  sonnet)      AGENT_CMD='claude --dangerously-skip-permissions --model sonnet' ;;
-  haiku)       AGENT_CMD='claude --dangerously-skip-permissions --model haiku' ;;
-  codex)       AGENT_CMD='codex --dangerously-bypass-approvals-and-sandbox' ;;
+  claude|opus) AGENT_CMD='claude --dangerously-skip-permissions --model opus';   SKILL='/' ;;
+  sonnet)      AGENT_CMD='claude --dangerously-skip-permissions --model sonnet'; SKILL='/' ;;
+  haiku)       AGENT_CMD='claude --dangerously-skip-permissions --model haiku';  SKILL='/' ;;
+  codex)       AGENT_CMD='codex --dangerously-bypass-approvals-and-sandbox';     SKILL='$' ;;
   *) echo "unknown model '$MODEL' (use claude|opus|sonnet|haiku|codex)" >&2; exit 1 ;;
 esac
 
@@ -66,7 +67,7 @@ else
 fi
 
 # --- the milestone-worker prompt the agent receives on launch ----------------
-PROMPT="/session-start-milestone-worker milestone: \"${MILESTONE}\". You are the ${MODEL} worker. Work through 5-15 open, unclaimed issues in this milestone. CLAIM each issue before coding (gh issue edit N --add-assignee @me --add-label status:in-progress; skip any issue already assigned or labelled status:in-progress). Verify every issue (ruff+pytest for backend, swiftlint/xcodebuild for Swift) before committing to this branch (${BRANCH}). Push every 2-3 issues. When done or far ahead, run /session-end-worker. Begin by listing unclaimed issues in the milestone."
+PROMPT="${SKILL}session-start-milestone-worker milestone: \"${MILESTONE}\". You are the ${MODEL} worker. Work through 5-15 open, unclaimed issues in this milestone. CLAIM each issue before coding (gh issue edit N --add-assignee @me --add-label status:in-progress; skip any issue already assigned or labelled status:in-progress). Verify every issue (ruff+pytest for backend, swiftlint/xcodebuild for Swift) before committing to this branch (${BRANCH}). Push every 2-3 issues. When done or far ahead, run ${SKILL}session-end-worker. Begin by listing unclaimed issues in the milestone."
 
 # --- launch tmux session, activate venv, start agent, feed prompt ------------
 tmux new-session -d -s "$SESSION" -c "$WORKTREE"
