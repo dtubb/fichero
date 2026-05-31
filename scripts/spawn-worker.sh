@@ -73,7 +73,7 @@ tmux new-session -d -s "$SESSION" -c "$WORKTREE"
 tmux send-keys -t "$SESSION" "source '${ROOT}/.venv/bin/activate'" Enter
 tmux send-keys -t "$SESSION" "$AGENT_CMD" Enter
 # give the agent a moment to boot before typing the prompt
-sleep 6
+sleep 12
 tmux send-keys -t "$SESSION" "$PROMPT" Enter
 
 echo ""
