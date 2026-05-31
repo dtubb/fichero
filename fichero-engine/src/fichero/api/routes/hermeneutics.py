@@ -20,6 +20,7 @@ from fichero.hermeneutics_models import (
     PatternInstance,
     PatternStatus,
 )
+from fichero.kg._common import canonical_hermeneutic_predicate
 from fichero.models import HermeneuticsListResponse, HermesSuggestionListResponse
 
 
@@ -69,6 +70,7 @@ class InterpretationCreateRequest(BaseModel):
     passage_text: str | None = None
     interpretation_text: str
     act: InterpretiveActType
+    predicate: str | None = None
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     key_insights: list[str] = Field(default_factory=list)
     tensions: list[str] = Field(default_factory=list)
@@ -80,6 +82,7 @@ class InterpretationCreateRequest(BaseModel):
 class InterpretationUpdateRequest(BaseModel):
     interpretation_text: str | None = None
     act: InterpretiveActType | None = None
+    predicate: str | None = None
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     key_insights: list[str] | None = None
     tensions: list[str] | None = None
@@ -268,6 +271,8 @@ async def create_interpretation(
         passage_text=request.passage_text,
         interpretation_text=request.interpretation_text.strip(),
         act=request.act,
+        predicate=(request.predicate or "").strip(),
+        predicate_canonical=canonical_hermeneutic_predicate(request.predicate),
         confidence=request.confidence,
         key_insights=list(request.key_insights),
         tensions=list(request.tensions),
@@ -327,6 +332,11 @@ async def update_interpretation(
         )
 
     updates = request.model_dump(exclude_unset=True, exclude_none=True)
+    if "predicate" in updates:
+        updates["predicate"] = str(updates["predicate"] or "").strip()
+        updates["predicate_canonical"] = canonical_hermeneutic_predicate(
+            updates["predicate"]
+        )
     for key, value in updates.items():
         setattr(interpretation, key, value)
     interpretation.updated_at = datetime.now()

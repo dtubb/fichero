@@ -46,6 +46,7 @@ from fichero.api.routes.kg_rebuild import KGResetResponse, RebuildResponse
 from fichero.api.routes.kg_search import KGSearchResponse
 from fichero.api.routes.provider_models import ProviderResponse
 from fichero.api.routes.mind_palace import MindPalaceDeletedResponse
+from fichero.hermeneutics_models import Interpretation
 from fichero.api.routes.search import SearchResponse
 from fichero.api.routes.settings import AIDefaults
 from fichero.api.routes.workflow_execution.schemas import (
@@ -998,6 +999,75 @@ class FicheroClient:
                 "PATCH",
                 f"/api/claims/{claim_id}",
                 json={"curation_state": status},
+            )
+        )
+
+    # -- hermeneutics -----------------------------------------------------
+    def create_interpretation(
+        self,
+        *,
+        framework_id: str,
+        interpretation_text: str,
+        act: str,
+        claim_id: str | None = None,
+        document_id: str | None = None,
+        passage_text: str | None = None,
+        predicate: str | None = None,
+        confidence: float = 0.5,
+    ) -> Interpretation:
+        return Interpretation.model_validate(
+            self.request(
+                "POST",
+                "/api/hermeneutics/interpretations",
+                json={
+                    "framework_id": framework_id,
+                    "claim_id": claim_id,
+                    "document_id": document_id,
+                    "passage_text": passage_text,
+                    "interpretation_text": interpretation_text,
+                    "act": act,
+                    "predicate": predicate,
+                    "confidence": confidence,
+                },
+            )
+        )
+
+    def list_interpretations(
+        self,
+        *,
+        framework_id: str | None = None,
+        claim_id: str | None = None,
+        act: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Interpretation]:
+        raw = self.request(
+            "GET",
+            "/api/hermeneutics/interpretations",
+            params={
+                "framework_id": framework_id,
+                "claim_id": claim_id,
+                "act": act,
+                "limit": limit,
+                "offset": offset,
+            },
+        )
+        return [
+            Interpretation.model_validate(i)
+            for i in _expect_list(raw, "/api/hermeneutics/interpretations")
+        ]
+
+    def get_interpretation(self, interpretation_id: str) -> Interpretation:
+        return Interpretation.model_validate(
+            self.request("GET", f"/api/hermeneutics/interpretations/{interpretation_id}")
+        )
+
+    def update_interpretation(self, interpretation_id: str, **fields: Any) -> Interpretation:
+        return Interpretation.model_validate(
+            self.request(
+                "PATCH",
+                f"/api/hermeneutics/interpretations/{interpretation_id}",
+                json=fields,
             )
         )
 
