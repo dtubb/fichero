@@ -742,11 +742,20 @@ async def search_tool(
             "files": files,
             "documents": doc_data,
             "count": len(files),
+            "kg_claims_used": getattr(retrieval, "kg_claims_used", 0),
+            "kg_entities_used": getattr(retrieval, "kg_entities_used", 0),
         }
 
     except Exception as e:
         logger.error(f"Search tool failed: {e}")
-        return {"files": [], "documents": [], "count": 0, "error": str(e)}
+        return {
+            "files": [],
+            "documents": [],
+            "count": 0,
+            "kg_claims_used": 0,
+            "kg_entities_used": 0,
+            "error": str(e),
+        }
 
 
 # =============================================================================

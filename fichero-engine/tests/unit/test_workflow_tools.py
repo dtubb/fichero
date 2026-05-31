@@ -238,6 +238,8 @@ class TestSearchTool:
         assert result["documents"][0]["search_score"] == 0.88
         assert result["documents"][1]["id"] == "kg-claim:claim-1"
         assert result["documents"][1]["doc_type"] == "kg_claim"
+        assert result["kg_claims_used"] == 0
+        assert result["kg_entities_used"] == 0
 
     @pytest.mark.asyncio
     async def test_search_passes_graph_knobs_to_retriever(self, mock_llm_config, mock_state):
@@ -306,6 +308,31 @@ class TestSearchTool:
         assert r["count"] == 0
         assert captured["graph_hops"] == 3
         assert captured["max_kg_claims"] == 100
+
+    @pytest.mark.asyncio
+    async def test_search_returns_kg_usage_telemetry(self, mock_llm_config, mock_state):
+        """search_tool returns KG usage counts from shared retriever payload."""
+        from fichero.workflows.tools.sources import search_tool
+
+        mock_db = MagicMock()
+
+        class _Payload:
+            context_docs = []
+            kg_claims_used = 5
+            kg_entities_used = 4
+
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve.return_value = _Payload()
+
+        with (
+            patch("fichero.workflows.tools.sources.db_manager") as mock_manager,
+            patch("fichero.workflows.tools.sources.GraphAwareRetriever", return_value=mock_retriever),
+        ):
+            mock_manager.get_database.return_value = mock_db
+            r = await search_tool({"query": "Ada"}, mock_state, mock_llm_config)
+
+        assert r["kg_claims_used"] == 5
+        assert r["kg_entities_used"] == 4
 
 
 # =============================================================================
