@@ -78,7 +78,13 @@ class TestGarbageText:
         text = "[ilegible] [ilegible] [ilegible] [ilegible] word [ilegible]"
         is_low, reason = assess_text_quality(text)
         assert is_low is True
-        assert reason and "ilegible" in reason.lower()
+        assert reason and "uncertainty" in reason.lower()
+
+    def test_mostly_uncertain_tokens_is_low_quality(self):
+        text = "[UNCERTAIN] [ILLEGIBLE] [UNCERTAIN] [ILLEGIBLE] word [UNCERTAIN]"
+        is_low, reason = assess_text_quality(text)
+        assert is_low is True
+        assert reason and "uncertainty" in reason.lower()
 
     def test_control_char_heavy_output_is_low_quality(self):
         is_low, _ = assess_text_quality("\x00\x01\x02\x03 \x04\x05 ab")

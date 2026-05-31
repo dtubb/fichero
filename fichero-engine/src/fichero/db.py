@@ -106,6 +106,8 @@ def _collect_folder_descendants_helper(conn: duckdb.DuckDBPyConnection, folder_i
 _MARKER_PATTERNS = (
     "[sin texto]",
     "[ilegible]",
+    "[illegible]",
+    "[uncertain]",
     "[no text]",
     "[blank]",
     "[empty]",

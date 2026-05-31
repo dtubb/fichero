@@ -155,6 +155,8 @@ class TestMarkerOnlyDetection:
     def test_ilegible_is_marker(self) -> None:
         assert _is_content_marker_only("[ilegible]")
         assert _is_content_marker_only("[Ilegible]")
+        assert _is_content_marker_only("[ILLEGIBLE]")
+        assert _is_content_marker_only("[UNCERTAIN]")
 
     def test_two_markers_concatenated(self) -> None:
         assert _is_content_marker_only("[sin texto] [ilegible]")

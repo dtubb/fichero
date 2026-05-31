@@ -31,12 +31,14 @@ _BAD_GLYPHS = {"�", "⍰"}
 # won't trip this; a page of box glyphs trips it easily.
 _BAD_GLYPH_RATIO = 0.10
 
-# Fraction of whitespace-split tokens that must be the `[ilegible]`
-# sentinel before the text is judged garbage. The transcribe prompt emits
-# `[ilegible]` inline for unreadable spots; a few are normal, a page made
-# of them is a failed transcription.
+# Fraction of whitespace-split tokens that must be uncertainty sentinels
+# before the text is judged garbage. The transcribe prompt emits
+# `[ILLEGIBLE]` / `[UNCERTAIN]` (plus legacy `[ilegible]`) inline for
+# unreadable or low-confidence spots; a few are normal, a page made of them
+# is a failed transcription.
 _ILEGIBLE_TOKEN_RATIO = 0.4
 _ILEGIBLE_MIN_COUNT = 3
+_UNCERTAINTY_TOKENS = {"[ilegible]", "[illegible]", "[uncertain]"}
 
 # No-text sentinels — a valid "this page has no legible text" result, not
 # a quality failure.
@@ -84,7 +86,7 @@ def assess_text_quality(text: str) -> tuple[bool, str | None]:
     tokens = stripped.split()
     if tokens:
         ilegible = sum(
-            1 for t in tokens if t.strip(".,;:").lower() == "[ilegible]"
+            1 for t in tokens if t.strip(".,;:").lower() in _UNCERTAINTY_TOKENS
         )
         if (
             ilegible >= _ILEGIBLE_MIN_COUNT
@@ -92,7 +94,7 @@ def assess_text_quality(text: str) -> tuple[bool, str | None]:
         ):
             return (
                 True,
-                f"{ilegible}/{len(tokens)} tokens are [ilegible] — "
+                f"{ilegible}/{len(tokens)} tokens are uncertainty markers — "
                 f"transcription mostly unreadable",
             )
 
