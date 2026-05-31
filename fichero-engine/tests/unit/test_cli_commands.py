@@ -905,16 +905,9 @@ def test_import_single_file_unchanged(tmp_path):
 
 
 # -- kg / search / activity ------------------------------------------------
-def test_kg_entities_uses_inspector():
-    """`kg entities <doc-id>` hits the doc-scoped inspector endpoint."""
-    result = runner.invoke(cli.app, ["kg", "entities", "d5"])
-    assert result.exit_code == 0
-    assert ("document_inspector", "d5") in _last_client().calls
-
-
 def test_kg_entities_filters_to_entities_only():
-    """Output must show entities only, not the full inspector blob."""
-    result = runner.invoke(cli.app, ["--json", "kg", "entities", "d5"])
+    """`kg entities` is library-wide and emits only the entity list."""
+    result = runner.invoke(cli.app, ["--json", "kg", "entities"])
     assert result.exit_code == 0
     payload = json.loads(result.output)
     assert isinstance(payload, list)
@@ -934,10 +927,13 @@ def test_kg_claims_positional_doc_id():
     assert call[1]["source_document_id"] == "d5"
 
 
-def test_kg_entities_requires_doc_id():
-    """The doc-id is required — bare `kg entities` should exit non-zero."""
+def test_kg_entities_lists_library_wide():
+    """`kg entities` is a library-wide listing — no doc-id required; it succeeds
+    and calls list_entities (entity_type/limit only)."""
     result = runner.invoke(cli.app, ["kg", "entities"])
-    assert result.exit_code != 0
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "list_entities")
+    assert "entity_type" in call[1] and "limit" in call[1]
 
 
 def test_kg_search_passes_query():
