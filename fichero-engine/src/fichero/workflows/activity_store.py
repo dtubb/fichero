@@ -103,6 +103,44 @@ class ActivityStore:
             except Exception:
                 pass  # Column already exists
 
+            # --- #1362 early zombie guard ---
+            # Flip ANY remaining status='running' rows to 'failed' BEFORE
+            # the index maintenance pass.  On a DB opened after a crash+WAL
+            # replay, DuckDB's DELETE-on-index path raises:
+            #   "Invalid Input Error: Failed to delete all rows from index.
+            #    Only deleted 0 out of N rows."
+            # which then invalidates the entire library DB (fatal error state).
+            # Clearing zombie rows here removes the precondition so index
+            # maintenance never encounters the corrupt state.
+            # This UPDATE is idempotent and safe on a fresh/empty table.
+            try:
+                # Count first so we can log how many were recovered
+                zombie_count_row = conn.execute(
+                    "SELECT count(*) FROM workflow_runs WHERE status = 'running'"
+                ).fetchone()
+                zombie_count = zombie_count_row[0] if zombie_count_row else 0
+                if zombie_count:
+                    conn.execute("""
+                        UPDATE workflow_runs
+                        SET status = 'failed',
+                            error  = COALESCE(
+                                error,
+                                'Run interrupted: process crashed or was killed before completion'
+                            ),
+                            completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP)
+                        WHERE status = 'running'
+                    """)
+                    logger.warning(
+                        "#1362 startup zombie recovery: marked %d stale 'running' "
+                        "workflow_run(s) as 'failed' before index pass",
+                        zombie_count,
+                    )
+            except Exception as _zombie_exc:
+                logger.warning(
+                    "#1362 startup zombie recovery failed (non-fatal): %s",
+                    _zombie_exc,
+                )
+
             # Indexes for efficient queries
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_activities_timestamp
