@@ -1,5 +1,26 @@
 # STATE.md — Fichero
 
+## 2026-05-31 (manager session END — hit 98% token limit) — NEXT SESSION START HERE
+
+**Trunk = `main`, pushed clean at `19adb96f`. CI should now be GREEN (was 10 red, fixed this session).**
+
+**FIRST, on resume:**
+1. **Relaunch the backend** — the P0 #1362 fix is already in main's working tree, so reopening the bricked library now self-recovers (rebuilds `workflow_runs`) instead of re-fataling. If it still 500s on `/api/workflows` immediately after launch, capture the error and STOP — don't fight it.
+2. **Verify the Swift tooltips merge builds** — commits `8a570633`/`d8845866` (UI `.help()` tooltips + removed 2 dead inspector facet buttons #1370/#1371) are pushed but were **Xcode-build UNVERIFIED** (Xcode MCP was down at merge). Run an Xcode MCP build (`windowtab1`) FIRST THING; if it's red, fix or revert before anything else.
+3. **Token discipline / workers:** Daniel said use **codex workers only** going forward (session-limit pressure). The 6 tmux lanes (f_codex53 #1156 graph-RAG, f_sonnet #1361, f_gpt_mini #903, f_haiku #1359, f_gpt #1366, f_opus #1376 RealityKit) had context returned to several and may have been disrupted by the crash — re-check each pane before assuming they're alive.
+
+**P1 to investigate later (per Daniel): #1400** — GPU/WindowServer crashes during work sessions, prime suspect broken RealityKit #1376. Mitigation: default `mindPalace` flag OFF until fixed.
+
+**~30 new issues filed this session: #1368–#1388, #1400.** Themes: KG rendering (Cytoscape.js #1354/#1365, hairball #1368), clickable lozenges/source (#1363/#1364), tooltips (#1371, done-pending-build), localization infra, doc prototypes/classes (#1377), PDF page-ranges (#1378), Mail-style sidebar (#1380), read/flag (#1381), image-preview REGRESSION P1 (#1383), AI image-editing epic (#1385 + per-tool ports from fichero_archive legacy tools), transcript quality (#1386 diacritics / #1387 uncertainty / #1388 contamination).
+
+**Transcript A/B never happened:** Urrutia doc's 13 JPGs are all `status:pending` (never transcribed). Re-run its catalogue once backend is healthy, THEN compare to the human .docx ground-truth (report stub: agent-work/proposals/2026-05-31-transcript-quality-urrutia.md).
+
+**`status:ready-for-test` queue = Daniel's QA sign-off list** (not work for Claude): the [Release Gate] issues #495–#515 + this session's #1362/#900/#1352/#1344/#670/etc. Test in-app and close.
+
+---
+
+# STATE.md — Fichero
+
 ## 2026-05-31 (active build night) — MORNING REPORT (7 fixes shipped)
 
 **7 fixes merged to main + pushed tonight, all build/test-verified, marked `status:ready-for-test` for Daniel's QA:**
