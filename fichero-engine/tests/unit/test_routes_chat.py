@@ -137,6 +137,16 @@ class TestChatWithSources:
         assert captured["graph_hops"] == 2
         assert captured["max_kg_claims"] == 9
 
+    def test_chat_rejects_out_of_range_graph_hops(self, client):
+        r = client.post(
+            "/api/chat",
+            json={
+                "message": "Test invalid graph hops",
+                "graph_hops": 99,
+            },
+        )
+        assert r.status_code == 422
+
 
 # ---------------------------------------------------------------------------
 # GET /api/chat/conversations/{id}

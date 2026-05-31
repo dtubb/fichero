@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.db import Database
 from fichero.api.main import get_library_database
@@ -100,9 +100,9 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     document_ids: Optional[list[str]] = None  # Scope to specific documents
     include_sources: bool = True
-    max_sources: int = 5
-    graph_hops: int = 1
-    max_kg_claims: int = 12
+    max_sources: int = Field(default=5, ge=1, le=50)
+    graph_hops: int = Field(default=1, ge=0, le=3)
+    max_kg_claims: int = Field(default=12, ge=0, le=100)
     provider: Optional[str] = None  # e.g., "openai", "anthropic", "ollama"
     model: Optional[str] = None  # e.g., "gpt-4o-mini", "claude-3-haiku"
 

@@ -273,6 +273,40 @@ class TestSearchTool:
         assert captured["graph_hops"] == 2
         assert captured["max_kg_claims"] == 7
 
+    @pytest.mark.asyncio
+    async def test_search_clamps_graph_knobs(self, mock_llm_config, mock_state):
+        """search_tool clamps oversized graph knobs before retrieval."""
+        from fichero.workflows.tools.sources import search_tool
+
+        captured: dict = {}
+        mock_db = MagicMock()
+
+        class _Payload:
+            context_docs = []
+
+        mock_retriever = MagicMock()
+
+        def _retrieve(**kwargs):
+            captured.update(kwargs)
+            return _Payload()
+
+        mock_retriever.retrieve.side_effect = _retrieve
+
+        with (
+            patch("fichero.workflows.tools.sources.db_manager") as mock_manager,
+            patch("fichero.workflows.tools.sources.GraphAwareRetriever", return_value=mock_retriever),
+        ):
+            mock_manager.get_database.return_value = mock_db
+            r = await search_tool(
+                {"query": "Ada", "graph_hops": 999, "max_kg_claims": 9999},
+                mock_state,
+                mock_llm_config,
+            )
+
+        assert r["count"] == 0
+        assert captured["graph_hops"] == 3
+        assert captured["max_kg_claims"] == 100
+
 
 # =============================================================================
 # Vision Tools Tests

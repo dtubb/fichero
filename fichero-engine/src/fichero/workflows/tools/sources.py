@@ -668,8 +668,8 @@ async def search_tool(
     status_filter = inputs.get("status_filter", "all")
     min_score = inputs.get("min_score", 0.0)
     limit = inputs.get("limit", 100)
-    graph_hops = max(0, int(inputs.get("graph_hops", 1)))
-    max_kg_claims = max(0, int(inputs.get("max_kg_claims", 12)))
+    graph_hops = max(0, min(3, int(inputs.get("graph_hops", 1))))
+    max_kg_claims = max(0, min(100, int(inputs.get("max_kg_claims", 12))))
 
     library_path = state.get("library_path") or inputs.get("library_path")
     if not library_path:
