@@ -805,7 +805,7 @@ import FicheroAPIClient
 /// This is the typed-view counterpart to the existing markdown-artifact
 /// previews in `DocumentInspectorArtifactsTab`. Both render side-by-side
 /// for now (dual-write era) — markdown for debug, typed view for query.
-struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_body_length
+struct KnowledgeGraphInspectorSection: View {
     let documentId: String
     let entityService: EntityServiceGenerated
     let artifactService: ArtifactServiceGenerated
@@ -1039,7 +1039,7 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Pick which knowledge-graph kinds to show")
+            .help("Filter — choose which entity kinds (people, places, organizations…) appear in this list")
             // Text / List mode toggle
             Button {
                 displayMode = .text
@@ -1048,7 +1048,7 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
             }
             .buttonStyle(.plain)
             .foregroundStyle(displayMode == .text ? Color.accentColor : Color.secondary)
-            .help("Text digest")
+            .help("Text digest — entities as a dense prose summary, one paragraph per kind")
             Button {
                 displayMode = .list
             } label: {
@@ -1056,28 +1056,14 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
             }
             .buttonStyle(.plain)
             .foregroundStyle(displayMode == .list ? Color.accentColor : Color.secondary)
-            .help("List view")
+            .help("List view — entities as grouped, expandable rows you can click through to the source")
             Button {
                 Task { await loadStatements() }
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.plain)
-            .help("Reload knowledge-graph entities for this document")
-            Button {
-                Task { await loadStatements() }
-            } label: {
-                Image(systemName: Self.fetchButtonIcon(for: .statements))
-            }
-            .buttonStyle(.plain)
-            .help(Self.fetchButtonHelp(for: .statements))
-            Button {
-                Task { await loadArtifacts() }
-            } label: {
-                Image(systemName: Self.fetchButtonIcon(for: .artifacts))
-            }
-            .buttonStyle(.plain)
-            .help(Self.fetchButtonHelp(for: .artifacts))
+            .help("Reload — re-fetch the knowledge-graph entities for this document")
         }
         .foregroundStyle(.primary)
     }
@@ -1100,22 +1086,6 @@ struct KnowledgeGraphInspectorSection: View { // swiftlint:disable:this type_bod
             loadError = "Couldn't load: \(error.localizedDescription)"
             claims = []
             canonicalGroups = []
-        }
-    }
-
-    private func loadArtifacts() async {
-        isLoading = true
-        defer { isLoading = false }
-
-        do {
-            _ = try await artifactService.getArtifacts(
-                forDocumentId: documentId,
-                forceRefresh: true,
-                includeDescendants: false
-            )
-        } catch {
-            // Explicit artifacts pulls are best-effort; keep the KG section
-            // usable even if the artifact refresh fails.
         }
     }
 }
@@ -1389,11 +1359,6 @@ private struct EntityKindBlock: View {
 extension KnowledgeGraphInspectorSection {
     static let groupVisibleCap = 10
 
-    enum FetchAction {
-        case statements
-        case artifacts
-    }
-
     static func visibleItems<T>(_ items: [T], showingAll: Bool, cap: Int = groupVisibleCap) -> [T] {
         if showingAll || items.count <= cap { return items }
         return Array(items.prefix(cap))
@@ -1406,20 +1371,6 @@ extension KnowledgeGraphInspectorSection {
 
     fileprivate static func isKindStored(_ kind: EntityKind, in csv: String) -> Bool {
         csv.split(separator: ",").contains(Substring(kind.rawValue))
-    }
-
-    static func fetchButtonHelp(for action: FetchAction) -> String {
-        switch action {
-        case .statements: return "Get statements"
-        case .artifacts: return "Get artifacts"
-        }
-    }
-
-    static func fetchButtonIcon(for action: FetchAction) -> String {
-        switch action {
-        case .statements: return "quote.bubble"
-        case .artifacts: return "shippingbox"
-        }
     }
 }
 

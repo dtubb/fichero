@@ -113,7 +113,7 @@ extension ContentView {
                 .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
         )
         .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-        .help("View as: \(mode.rawValue)")
+        .help("\(mode.rawValue) view — \(mode.description.lowercased())")
         // Stable per-mode XCUITest hook, e.g. "viewMode-List" (#1230).
         .accessibilityIdentifier("viewMode-\(mode.rawValue)")
     }
