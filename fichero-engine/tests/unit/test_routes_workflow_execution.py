@@ -289,3 +289,30 @@ class TestIsInternalLangchainNode:
             "LangGraph",  # handled separately by caller
         ):
             assert not _is_internal_langchain_node(name), name
+
+
+class TestClassifyProviderError:
+    def test_quota(self):
+        from fichero.api.routes.workflow_execution.runner import _classify_provider_error
+        out = _classify_provider_error("Error 429: insufficient_quota")
+        assert out["category"] == "quota"
+
+    def test_auth(self):
+        from fichero.api.routes.workflow_execution.runner import _classify_provider_error
+        out = _classify_provider_error("401 Unauthorized: invalid api key")
+        assert out["category"] == "auth"
+
+    def test_model_not_found(self):
+        from fichero.api.routes.workflow_execution.runner import _classify_provider_error
+        out = _classify_provider_error("404 model_not_found")
+        assert out["category"] == "model_not_found"
+
+    def test_network(self):
+        from fichero.api.routes.workflow_execution.runner import _classify_provider_error
+        out = _classify_provider_error("connection timed out while calling provider")
+        assert out["category"] == "network"
+
+    def test_server(self):
+        from fichero.api.routes.workflow_execution.runner import _classify_provider_error
+        out = _classify_provider_error("upstream returned 500 Internal Server Error")
+        assert out["category"] == "server"
