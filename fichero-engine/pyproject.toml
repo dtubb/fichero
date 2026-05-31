@@ -84,6 +84,7 @@ requires = [
     # Document Processing
     "PyMuPDF",
     "Pillow>=12.2.0",
+    "opencv-python-headless",
 ]
 
 [tool.briefcase.app.engine.macOS]
@@ -178,6 +179,7 @@ dependencies = [
     "splink",
     "PyMuPDF",
     "Pillow>=12.2.0",
+    "opencv-python-headless",
 ]
 
 [project.optional-dependencies]

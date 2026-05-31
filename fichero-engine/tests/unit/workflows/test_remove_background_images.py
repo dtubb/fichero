@@ -91,3 +91,66 @@ async def test_remove_background_workflow_appends_preview_editor_operation(tmp_p
     assert chains[0].operations[0]["op"] == "remove_background"
     assert chains[0].operations[0]["params"] == {"method": "threshold", "threshold": 5}
     assert result["image_edit_operations"][0]["document_id"] == doc.id
+
+
+def test_remove_background_opencv_uses_cv2_when_available(monkeypatch):
+    import sys
+    import types
+
+    import numpy as np
+
+    from fichero.workflows.tools.remove_background_images import remove_background
+
+    calls = {"cvtColor": 0, "threshold": 0, "morphologyEx": 0}
+    fake_cv2 = types.SimpleNamespace(
+        COLOR_RGB2GRAY=1,
+        THRESH_BINARY_INV=2,
+        THRESH_OTSU=4,
+        MORPH_OPEN=8,
+    )
+
+    def cvt_color(rgb, code):
+        calls["cvtColor"] += 1
+        return np.zeros(rgb.shape[:2], dtype=np.uint8)
+
+    def threshold(gray, thresh, maxval, mode):
+        calls["threshold"] += 1
+        return 0, np.full(gray.shape, 255, dtype=np.uint8)
+
+    def morphology_ex(mask, op, kernel):
+        calls["morphologyEx"] += 1
+        return mask
+
+    fake_cv2.cvtColor = cvt_color
+    fake_cv2.threshold = threshold
+    fake_cv2.morphologyEx = morphology_ex
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+
+    image = Image.new("RGB", (5, 5), "white")
+    cleaned = remove_background(image, method="opencv", threshold=5)
+
+    assert cleaned.mode == "RGBA"
+    assert calls == {"cvtColor": 1, "threshold": 1, "morphologyEx": 1}
+
+
+def test_remove_background_opencv_falls_back_without_cv2(monkeypatch):
+    import builtins
+
+    from fichero.workflows.tools.remove_background_images import remove_background
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "cv2":
+            raise ImportError("cv2 missing")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    image = Image.new("RGB", (5, 5), "white")
+    image.putpixel((2, 2), (0, 0, 0))
+
+    cleaned = remove_background(image, method="opencv", threshold=5)
+
+    assert cleaned.mode == "RGBA"
+    assert cleaned.getpixel((0, 0))[3] == 0
+    assert cleaned.getpixel((2, 2))[3] == 255
