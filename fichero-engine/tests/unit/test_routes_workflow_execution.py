@@ -237,6 +237,34 @@ class TestGlobalCacheStats:
 
 
 class TestExecuteWorkflow:
+    def test_execute_returns_accepted_with_thread_and_stream_url(self, client, db):
+        wf = _make_workflow(db, "Gate Workflow")
+        payload = {
+            "workflow_id": wf.id,
+            "inputs": {"selected_doc_ids": ["doc-1"]},
+        }
+
+        # Prevent background thread from actually running during route test.
+        fake_thread = MagicMock()
+        fake_thread.start = MagicMock()
+
+        with patch(
+            "fichero.api.routes.workflow_execution.core.threading.Thread",
+            return_value=fake_thread,
+        ):
+            r = client.post("/api/workflow-execution/execute", json=payload)
+
+        assert r.status_code == 202
+        data = r.json()
+        assert data["workflow_id"] == wf.id
+        assert data["workflow_name"] == "Gate Workflow"
+        assert data["status"] == "accepted"
+        assert data["thread_id"].startswith("thread-")
+        assert data["stream_url"].endswith(
+            f"/api/workflows/stream/{data['thread_id']}"
+        )
+        fake_thread.start.assert_called_once()
+
     def test_missing_workflow_returns_404(self, client):
         payload = {
             "workflow_id": "no-such-workflow",
@@ -248,6 +276,41 @@ class TestExecuteWorkflow:
         ):
             r = client.post("/api/workflow-execution/execute", json=payload)
         assert r.status_code == 404
+
+
+class TestGetWorkflowRun:
+    def test_get_workflow_run_returns_saved_execution_data(self, client):
+        run = MagicMock()
+        run.thread_id = "thread-123"
+        run.workflow_id = "wf-123"
+        run.workflow_name = "Transcribe"
+        run.python_code = "print('ok')"
+        run.execution_log = "completed"
+        run.status = "completed"
+        run.started_at = None
+        run.completed_at = None
+        run.duration_ms = 42.0
+        run.error = None
+        run.workflow_snapshot = {"nodes": []}
+        run.node_name_map = {"n1": "Files"}
+        run.progress_timeline = {"steps": []}
+        run.diagram_mermaid = "graph TD;"
+
+        tracker = MagicMock()
+        tracker.store.get_workflow_run = AsyncMock(return_value=run)
+
+        with patch(
+            "fichero.api.routes.workflow_execution.threads.get_activity_tracker",
+            return_value=tracker,
+        ):
+            r = client.get("/api/workflow-execution/threads/thread-123/run")
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["thread_id"] == "thread-123"
+        assert data["workflow_id"] == "wf-123"
+        assert data["status"] == "completed"
+        assert data["execution_log"] == "completed"
 
 
 # ---------------------------------------------------------------------------
