@@ -141,7 +141,7 @@ struct ActivityLogView: View {
         let parts = line.split(separator: "]", maxSplits: 1)
         if parts.count == 2 {
             let timestamp = String(parts[0]).trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
-            let message = String(parts[1]).trimmingCharacters(in: .whitespaces)
+            let message = activityHumanizeMessage(String(parts[1]).trimmingCharacters(in: .whitespaces))
 
             HStack(alignment: .top, spacing: 8) {
                 Text(timestamp)
@@ -156,8 +156,8 @@ struct ActivityLogView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
         } else {
-            Text(line)
-                .font(.system(.caption, design: .monospaced))
+            Text(activityHumanizeMessage(line))
+                    .font(.system(.caption, design: .monospaced))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
         }

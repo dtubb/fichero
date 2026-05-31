@@ -144,7 +144,7 @@ struct ActivityOverviewView: View {
                         .foregroundStyle(ActivityViewHelpers.levelColor(item.level))
                         .frame(width: 16)
 
-                    Text(item.message)
+                    Text(activityHumanizeMessage(item.message))
                         .font(.caption)
                         .lineLimit(1)
 

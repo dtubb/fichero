@@ -178,6 +178,61 @@ func activityHumanNodeName(_ nodeId: String) -> String? {
         .joined(separator: " ")
 }
 
+/// Maps internal identifiers (artifact types, node ids) to user-facing labels.
+/// Falls back to Title Case from snake_case.
+func activityDisplayName(forIdentifier identifier: String) -> String {
+    let key = identifier.lowercased()
+    let known: [String: String] = [
+        "page_content": "Page Content",
+        "transcription": "Transcription",
+        "entities": "Entities",
+        "summary": "Summary",
+        "translation": "Translation",
+        "grouping": "Grouping",
+        "segmentation": "Segmentation",
+        "classification": "Classification",
+        "embedding": "Embedding",
+        "extract_all_entities": "Extract Entities",
+        "extract_entities": "Extract Entities",
+        "catalogue": "Catalogue",
+        "describe": "Describe",
+        "summarize": "Summarize"
+    ]
+    if let mapped = known[key] { return mapped }
+    return identifier
+        .split(separator: "_")
+        .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+        .joined(separator: " ")
+}
+
+/// Humanizes internal pipeline tokens embedded in activity messages so the
+/// Activity UI surfaces user-facing names.
+func activityHumanizeMessage(_ message: String) -> String {
+    var result = message
+    let patterns = [
+        #"(artifact(?:_type)?[=: ]+)([a-z][a-z0-9_]+)"#,
+        #"(node(?:_name|_id)?[=: ]+)([a-z][a-z0-9_]+)"#,
+        #"(step(?:_name)?[=: ]+)([a-z][a-z0-9_]+)"#
+    ]
+    for pattern in patterns {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            continue
+        }
+        let messageNSString = result as NSString
+        let matches = regex.matches(
+            in: result,
+            range: NSRange(location: 0, length: messageNSString.length)
+        ).reversed()
+        for match in matches where match.numberOfRanges >= 3 {
+            let prefix = messageNSString.substring(with: match.range(at: 1))
+            let token = messageNSString.substring(with: match.range(at: 2))
+            let replacement = prefix + activityDisplayName(forIdentifier: token)
+            result = (result as NSString).replacingCharacters(in: match.range, with: replacement)
+        }
+    }
+    return result
+}
+
 func activityRunDisplayName(for run: ActivityRun) -> String {
     let formatter = DateFormatter()
     let daysSince = Calendar.current.dateComponents([.day], from: run.timestamp, to: Date()).day ?? 0
