@@ -394,7 +394,10 @@ struct DisplayAttributesStrip: View { // swiftlint:disable:this type_body_length
         "checksum", "hash", "md5", "sha256",
         "mime_type", "mimetype", "content_type",
         "page_content", "page_content_rtf",
-        "transcription", "bookmark"
+        "transcription", "bookmark",
+        // #1369: internal timeline extraction bucket shouldn't surface as a
+        // top-strip facet.
+        "dates"
     ]
 
     /// Document-metadata keys worth surfacing (file metadata/info + any
