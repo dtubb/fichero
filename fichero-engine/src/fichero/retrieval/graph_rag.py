@@ -31,6 +31,9 @@ class GraphAwareRetriever:
         document_ids: list[str] | None = None,
         graph_hops: int = 1,
         max_kg_claims: int = 12,
+        search_type: str = "hybrid",
+        filters: dict[str, Any] | None = None,
+        min_score: float = 0.0,
     ) -> RetrievalPayload:
         payload = RetrievalPayload()
         content_by_doc_id: dict[str, str] = {}
@@ -67,8 +70,9 @@ class GraphAwareRetriever:
             search_results, _, _ = self.db.search(
                 query=query,
                 limit=max_sources,
-                min_score=0.0,
-                search_type="hybrid",
+                min_score=min_score,
+                search_type=search_type,
+                filters=filters or {},
             )
             for result in search_results:
                 doc = self.db.get(Document, result.document_id)
@@ -203,4 +207,3 @@ class GraphAwareRetriever:
         if not text:
             return ""
         return text[:max_chars] + "..." if len(text) > max_chars else text
-

@@ -196,6 +196,48 @@ class TestSearchTool:
         assert result["error"] == "No search query provided"
         assert result["files"] == []
 
+    @pytest.mark.asyncio
+    async def test_search_includes_kg_context_in_documents(self, mock_llm_config, mock_state):
+        """Graph-aware retrieval returns docs + KG context for researcher flows."""
+        from fichero.workflows.tools.sources import search_tool
+
+        doc = Document(
+            id="doc-1",
+            name="Memo",
+            path="/tmp/memo.txt",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        mock_db = MagicMock()
+        mock_db.get.return_value = doc
+
+        class _Payload:
+            context_docs = [
+                {"id": "doc-1", "kind": "document"},
+                {
+                    "id": "kg-claim:claim-1",
+                    "name": "KG claim claim-1",
+                    "kind": "kg_claim",
+                    "content": "Claim: Ada served as mayor in Popayan.",
+                },
+            ]
+
+        mock_retriever = MagicMock()
+        mock_retriever.retrieve.return_value = _Payload()
+
+        with (
+            patch("fichero.workflows.tools.sources.db_manager") as mock_manager,
+            patch("fichero.workflows.tools.sources.GraphAwareRetriever", return_value=mock_retriever),
+        ):
+            mock_manager.get_database.return_value = mock_db
+            result = await search_tool({"query": "Popayan"}, mock_state, mock_llm_config)
+
+        assert result["files"] == ["/tmp/memo.txt"]
+        assert result["count"] == 1
+        assert len(result["documents"]) == 2
+        assert result["documents"][1]["id"] == "kg-claim:claim-1"
+        assert result["documents"][1]["doc_type"] == "kg_claim"
+
 
 # =============================================================================
 # Vision Tools Tests
