@@ -743,6 +743,8 @@ def _records_from_selected_documents(state: State) -> list[dict[str, Any]]:
     except Exception as exc:
         logger.warning("extract_all: could not open library for text recovery: %s", exc)
         return []
+    if not hasattr(db, "get") or not hasattr(db, "query"):
+        return []
 
     records: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -815,12 +817,14 @@ def _recover_text_and_records(
     records = _normalize_records(inputs.get("records"))
     raw_text = inputs.get("text")
     text = raw_text.strip() if isinstance(raw_text, str) else ""
-    if not text and records:
+    if records and text:
+        return text, records
+    if records and not text:
         text = "\n\n".join(record["text"] for record in records)
-    if text:
         return text, records
 
     outputs = state.get("outputs", {}) or {}
+    fallback_text = text
     for node_id in ("transcribe", "aggregate", "files-source"):
         node_output = outputs.get(node_id)
         if not isinstance(node_output, dict):
@@ -828,11 +832,27 @@ def _recover_text_and_records(
         records = _normalize_records(node_output.get("records"))
         if records:
             return "\n\n".join(record["text"] for record in records), records
+        # Vision/transcribe emits per-doc provenance as `page_records`.
+        # If we read `text` first, we lose doc_id anchors and fall back to
+        # container-scoped KG writes in twostage folder runs (#1403/#1404).
+        page_records = _normalize_records(node_output.get("page_records"))
+        if page_records:
+            return (
+                "\n\n".join(record["text"] for record in page_records),
+                page_records,
+            )
         node_text = node_output.get("text")
-        if isinstance(node_text, str) and node_text.strip():
-            return node_text.strip(), []
+        if (
+            not fallback_text
+            and isinstance(node_text, str)
+            and node_text.strip()
+        ):
+            # Keep scanning for structured records first (especially
+            # `parallel_results.*.result.page_records`), then fall back to this.
+            fallback_text = node_text.strip()
 
     parallel_records: list[dict[str, Any]] = []
+    parallel_text_fallback_records: list[dict[str, Any]] = []
     parallel = state.get("parallel_results", {}) or {}
     for results in parallel.values():
         if not isinstance(results, list):
@@ -852,17 +872,24 @@ def _recover_text_and_records(
                 continue
             node_text = result.get("text")
             if isinstance(node_text, str) and node_text.strip():
-                parallel_records.append({
+                parallel_text_fallback_records.append({
                     "index": item.get("index", len(parallel_records)),
                     "doc_id": "",
                     "text": node_text.strip(),
                 })
     if parallel_records:
         return "\n\n".join(record["text"] for record in parallel_records), parallel_records
+    if parallel_text_fallback_records:
+        return (
+            "\n\n".join(record["text"] for record in parallel_text_fallback_records),
+            parallel_text_fallback_records,
+        )
 
     selected_records = _records_from_selected_documents(state)
     if selected_records:
         return "\n\n".join(record["text"] for record in selected_records), selected_records
+    if fallback_text:
+        return fallback_text, []
     return "", []
 
 
