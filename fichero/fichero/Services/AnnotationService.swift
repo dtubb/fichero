@@ -115,6 +115,45 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
 
     /// True when the annotation carries a text span.
     var hasSpan: Bool { charStart != nil && charEnd != nil }
+
+    /// Convenience initializer for tests and local construction.
+    init(
+        id: String,
+        documentId: String,
+        pageLabel: String? = nil,
+        charStart: Int? = nil,
+        charEnd: Int? = nil,
+        bbox: [Double]? = nil,
+        kind: AnnotationKind = .note,
+        text: String? = nil,
+        rating: Int? = nil,
+        color: String? = nil,
+        tags: [String] = [],
+        linkedClaimIds: [String] = [],
+        linkedEntityIds: [String] = [],
+        linkedNoteIds: [String] = [],
+        createdBy: String? = nil,
+        createdAt: String? = nil,
+        updatedAt: String? = nil
+    ) {
+        self.id = id
+        self.documentId = documentId
+        self.pageLabel = pageLabel
+        self.charStart = charStart
+        self.charEnd = charEnd
+        self.bbox = bbox
+        self.kind = kind
+        self.text = text
+        self.rating = rating
+        self.color = color
+        self.tags = tags
+        self.linkedClaimIds = linkedClaimIds
+        self.linkedEntityIds = linkedEntityIds
+        self.linkedNoteIds = linkedNoteIds
+        self.createdBy = createdBy
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
 }
 
 /// Envelope returned by `GET /api/annotations` (#1276). The backend declares
@@ -216,7 +255,8 @@ final class AnnotationService: ObservableObject {
         bbox: [Double]? = nil,
         kind: AnnotationKind = .note,
         color: String? = nil,
-        tags: [String] = []
+        tags: [String] = [],
+        linkedClaimIds: [String] = []
     ) async -> DocumentAnnotation? {
         guard let url = URL(string: baseURL) else {
             error = "Invalid annotations URL"
@@ -232,6 +272,7 @@ final class AnnotationService: ObservableObject {
         if let pageLabel { payload["page_label"] = pageLabel }
         if let bbox { payload["bbox"] = bbox }
         if let color { payload["color"] = color }
+        if !linkedClaimIds.isEmpty { payload["linked_claim_ids"] = linkedClaimIds }
 
         do {
             let body = try JSONSerialization.data(withJSONObject: payload)
@@ -307,5 +348,20 @@ final class AnnotationService: ObservableObject {
             self.error = "Could not delete annotation"
             return false
         }
+    }
+
+    // MARK: - Search
+
+    static func matchesSearch(_ annotation: DocumentAnnotation, query: String) -> Bool {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        let needle = trimmed.lowercased()
+
+        if annotation.text?.lowercased().contains(needle) == true { return true }
+        if annotation.pageLabel?.lowercased().contains(needle) == true { return true }
+        if annotation.kind.label.lowercased().contains(needle) { return true }
+        if annotation.tags.contains(where: { $0.lowercased().contains(needle) }) { return true }
+        if annotation.linkedClaimIds.contains(where: { $0.lowercased().contains(needle) }) { return true }
+        return false
     }
 }

@@ -18,7 +18,9 @@ struct DocumentInspectorAnnotationsTab: View {
     let document: Document
 
     @StateObject private var service = AnnotationService()
+    @ObservedObject private var claimFocusState = ClaimFocusState.shared
     @State private var newNoteText: String = ""
+    @State private var searchText: String = ""
     @State private var isAdding = false
     @FocusState private var noteFieldFocused: Bool
 
@@ -38,30 +40,49 @@ struct DocumentInspectorAnnotationsTab: View {
     // MARK: - Add bar
 
     private var addBar: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "note.text.badge.plus")
-                .foregroundStyle(.secondary)
-            TextField("Add a note…", text: $newNoteText)
-                .textFieldStyle(.plain)
-                .focused($noteFieldFocused)
-                .onSubmit { addNote() }
-                .accessibilityIdentifier("annotationNoteField")
-            Button {
-                addNote()
-            } label: {
-                if isAdding {
-                    ProgressView().controlSize(.small)
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "note.text.badge.plus")
+                    .foregroundStyle(.secondary)
+                TextField("Add a note…", text: $newNoteText)
+                    .textFieldStyle(.plain)
+                    .focused($noteFieldFocused)
+                    .onSubmit { addNote() }
+                    .accessibilityIdentifier("annotationNoteField")
+                Button {
+                    addNote()
+                } label: {
+                    if isAdding {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("Add")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(newNoteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isAdding)
+                .accessibilityIdentifier("annotationAddButton")
+            }
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search notes, tags, claim id…", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .accessibilityIdentifier("annotationSearchField")
+                if let claimId = activeClaimId {
+                    Text("Linked claim: \(claimId)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 } else {
-                    Text("Add")
+                    Text("No active claim selected")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .disabled(newNoteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isAdding)
-            .accessibilityIdentifier("annotationAddButton")
         }
         .padding(.horizontal, 12)
-        .frame(height: 44)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Content
@@ -71,11 +92,11 @@ struct DocumentInspectorAnnotationsTab: View {
         if service.isLoading && service.annotations.isEmpty {
             ProgressView("Loading annotations…")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if service.annotations.isEmpty {
+        } else if filteredAnnotations.isEmpty {
             emptyState
         } else {
             List {
-                ForEach(service.annotations) { annotation in
+                ForEach(filteredAnnotations) { annotation in
                     AnnotationRow(annotation: annotation) {
                         reveal(annotation)
                     }
@@ -97,7 +118,7 @@ struct DocumentInspectorAnnotationsTab: View {
             Image(systemName: "highlighter")
                 .font(.system(size: 32))
                 .foregroundStyle(.secondary)
-            Text("No annotations")
+            Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No annotations" : "No matches")
                 .font(.headline)
             Text(service.error ?? "Add a note above, or highlight a region on the page.")
                 .font(.caption)
@@ -114,8 +135,13 @@ struct DocumentInspectorAnnotationsTab: View {
         let trimmed = newNoteText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isAdding else { return }
         isAdding = true
+        let linkedClaimIds = activeClaimId.map { [$0] } ?? []
         Task {
-            let created = await service.addNote(documentId: document.id, text: trimmed)
+            let created = await service.addNote(
+                documentId: document.id,
+                text: trimmed,
+                linkedClaimIds: linkedClaimIds
+            )
             if created != nil { newNoteText = "" }
             isAdding = false
             noteFieldFocused = false
@@ -140,6 +166,18 @@ struct DocumentInspectorAnnotationsTab: View {
             object: nil,
             userInfo: info
         )
+    }
+
+    private var filteredAnnotations: [DocumentAnnotation] {
+        service.annotations.filter { AnnotationService.matchesSearch($0, query: searchText) }
+    }
+
+    private var activeClaimId: String? {
+        guard claimFocusState.selectedClaimSourceDocumentId == nil
+                || claimFocusState.selectedClaimSourceDocumentId == document.id else {
+            return nil
+        }
+        return claimFocusState.selectedClaimId
     }
 }
 
@@ -191,6 +229,7 @@ private struct AnnotationRow: View {
         var parts: [String] = [annotation.kind.label]
         if let page = annotation.pageLabel, !page.isEmpty { parts.append("p. \(page)") }
         if annotation.hasRegion { parts.append("region") }
+        if !annotation.linkedClaimIds.isEmpty { parts.append("\(annotation.linkedClaimIds.count) claim") }
         if let rating = annotation.rating { parts.append(String(repeating: "★", count: max(0, min(5, rating)))) }
         for tag in annotation.tags.prefix(3) { parts.append("#\(tag)") }
         return parts
