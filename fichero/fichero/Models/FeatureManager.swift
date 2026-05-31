@@ -6,9 +6,9 @@ import SwiftUI
 @MainActor
 class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
-    // Bumped past both Mind Palace (27) and Researcher (26) so the new
-    // mindPalace + research flag defaults are re-applied on existing installs.
-    private static let releaseProfileVersion = 28
+    // Bumped to re-apply workflow execution release defaults on existing
+    // installs (langgraph preview, run-on-selection, files toolbar, import/export).
+    private static let releaseProfileVersion = 29
     private static let workflowV001EnabledTools =
         "files,collection,folder,aggregate,transcribe,catalogue,"
         + "extract_entities,key_people,timeline,keywords,summarize_file,"
