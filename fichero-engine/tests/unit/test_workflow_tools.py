@@ -1381,6 +1381,59 @@ class TestProcessTextSave:
             assert result["text"] == "Summary result"
             assert result["artifacts"] == []  # No save without documents
 
+    @pytest.mark.asyncio
+    async def test_process_text_chunking_map_reduce_for_long_input(self):
+        """Long on-device input should run chunk map + final synth call (#801)."""
+        from fichero.workflows.tools.llm_base import process_text, LLMToolConfig
+
+        tool_config = LLMToolConfig(artifact_type="summary")
+        llm_config = LLMConfig(provider="apple", model="foundation")
+        long_text = ("A" * 14000) + "\n\n" + ("B" * 14000)
+
+        with patch("fichero.llm.chat", new_callable=AsyncMock) as mock_chat:
+            async def _fake_chat(user_text: str, *, config, system: str) -> str:
+                if "processing one section of a larger document" in system:
+                    return "chunk-notes"
+                return "final-synthesis"
+
+            mock_chat.side_effect = _fake_chat
+
+            result = await process_text(
+                text=long_text,
+                prompt="Summarize",
+                llm_config=llm_config,
+                library_path="",
+                task_id=None,
+                tool_config=tool_config,
+                save_to_db=False,
+            )
+
+            assert result["text"] == "final-synthesis"
+            assert mock_chat.await_count > 1
+
+    @pytest.mark.asyncio
+    async def test_process_text_no_chunking_for_short_input(self):
+        """Short input should keep single-shot call path."""
+        from fichero.workflows.tools.llm_base import process_text, LLMToolConfig
+
+        tool_config = LLMToolConfig(artifact_type="summary")
+        llm_config = LLMConfig(provider="apple", model="foundation")
+
+        with patch("fichero.llm.chat", new_callable=AsyncMock) as mock_chat:
+            mock_chat.return_value = "single-shot"
+            result = await process_text(
+                text="short text",
+                prompt="Summarize",
+                llm_config=llm_config,
+                library_path="",
+                task_id=None,
+                tool_config=tool_config,
+                save_to_db=False,
+            )
+
+            assert result["text"] == "single-shot"
+            assert mock_chat.await_count == 1
+
 
 # =============================================================================
 # Tests: files_tool with selected_doc_ids
