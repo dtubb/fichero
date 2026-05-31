@@ -257,7 +257,7 @@ def ingest_file(
     # so the frontend can show LINK / COPY / MOVE badges and branch the
     # delete-confirmation copy. Pre-fix docs without this key fall back to
     # bookmark presence: bookmark → LINK, no bookmark → COPY.
-    metadata: dict = {"ingest_mode": mode.value}
+    metadata: dict = {"ingest_mode": mode.value, "source_path": str(path)}
 
     if mode in (IngestMode.COPY, IngestMode.MOVE):
         # Copy file into library storage
@@ -849,9 +849,29 @@ def ingest_folder(
 
     total = len(files)
     documents = []
+    existing_hashes: set[tuple[str, str]] = set()
+    try:
+        for existing in db.all(Document):
+            source_path = (
+                (existing.metadata or {}).get("source_path")
+                or existing.path
+            )
+            checksum = (existing.metadata or {}).get("checksum")
+            if isinstance(source_path, str) and isinstance(checksum, str):
+                existing_hashes.add((source_path, checksum))
+    except Exception as exc:
+        logger.debug("Could not pre-index existing checksums for skip logic: %s", exc)
 
     for i, file_path in enumerate(files):
         try:
+            checksum = _file_checksum(file_path)
+            source_key = str(file_path)
+            if (source_key, checksum) in existing_hashes:
+                logger.info("Skipping unchanged file (hash match): %s", file_path)
+                if on_progress:
+                    on_progress(i + 1, total)
+                continue
+
             # For recursive, create subfolder structure
             subfolder_id = folder_id
             if recursive and file_path.parent != folder:
@@ -874,6 +894,7 @@ def ingest_folder(
                 package_path=package_path,
             )
             documents.append(doc)
+            existing_hashes.add((source_key, checksum))
 
         except Exception as e:
             # Fail loud (#881/#1216): persist a failed-status stub so the

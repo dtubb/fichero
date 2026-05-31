@@ -101,3 +101,24 @@ class TestIngestDefaultExtractText:
         assert len(docs) == 1
         assert docs[0].page_content is not None
         assert "extract this sentence" in docs[0].page_content
+
+    @patch("fichero.bookmarks.create_bookmark", return_value=None)
+    def test_folder_ingest_skips_unchanged_files_by_hash(self, _mock_bookmark, tmp_path):
+        md = tmp_path / "stable.md"
+        md.write_text("Stable payload for resumable ingest.", encoding="utf-8")
+        fake_db = MagicMock()
+        saved_docs = {}
+
+        def _save(doc, auto_embed=False):
+            if not getattr(doc, "id", None):
+                doc.id = f"doc-{len(saved_docs)+1}"
+            saved_docs[doc.id] = doc
+
+        fake_db.save.side_effect = _save
+        fake_db.all.side_effect = lambda model: list(saved_docs.values())
+
+        first = ingest_folder(tmp_path, db=fake_db, create_collection=False)
+        second = ingest_folder(tmp_path, db=fake_db, create_collection=False)
+
+        assert len(first) == 1
+        assert len(second) == 0
