@@ -623,6 +623,35 @@ class TestLoadPresetFiles:
         assert segment_node["config"].get("threshold") == 28
         assert segment_node["config"].get("output_format") == "png"
 
+    def test_recombine_segments_preset_wiring(self):
+        """Recombine Segments should ship as a default image-editing workflow (#1392)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Recombine Segments" in presets, "recombine preset must ship"
+        preset = presets["Recombine Segments"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Image Editing"
+        assert preset.get("format") == "nodes"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "recombine_segments"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        files_id = _node_id(preset, "files")
+        recombine_id = _node_id(preset, "recombine_segments")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == recombine_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into recombine_segments"
+
+        recombine_node = next(n for n in preset["nodes"] if n["tool"] == "recombine_segments")
+        assert recombine_node["config"].get("layout") == "vertical"
+        assert recombine_node["config"].get("output_format") == "png"
+
     def test_prepare_images_for_ocr_preset_wiring(self):
         """Prepare Images for OCR should expose the non-destructive image prep
         tool as a stageable default workflow (#1390)."""

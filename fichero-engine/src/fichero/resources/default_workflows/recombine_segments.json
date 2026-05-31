@@ -1,0 +1,47 @@
+{
+  "name": "Recombine Segments",
+  "description": "Stitch segment image files into one derived image. Pairs naturally with Segment Images: run segmentation, then recombine selected segment outputs vertically or horizontally.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Image Editing",
+  "tags": ["preset", "image-editing", "segments", "recombine"],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Segment Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "recombine_segments",
+      "tool": "recombine_segments",
+      "label": "Recombine Segments",
+      "position_x": 300,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "layout": "vertical",
+        "padding": 0,
+        "background": "white",
+        "output_format": "png",
+        "compression_quality": 90
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-files-recombine-segments",
+      "source": "files-source",
+      "target": "recombine_segments",
+      "source_port": "files",
+      "target_port": "files"
+    }
+  ]
+}
