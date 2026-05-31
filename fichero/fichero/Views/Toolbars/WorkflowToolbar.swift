@@ -14,6 +14,7 @@ struct WorkflowToolbar: View {
     let onExport: () -> Void
     var onPreviewDiagram: (() -> Void)?
     var onRunOnDocuments: (() -> Void)?
+    var onCompareModels: (() -> Void)?
     @ObservedObject var featureManager = FeatureManager.shared
 
     var body: some View {
@@ -60,6 +61,13 @@ struct WorkflowToolbar: View {
                         Image(systemName: "doc.on.doc")
                     }
                     .help("Run on Documents...")
+                }
+
+                if let onCompareModels {
+                    Button(action: onCompareModels) {
+                        Image(systemName: "square.split.2x2")
+                    }
+                    .help("Compare Models...")
                 }
 
                 Divider()

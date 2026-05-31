@@ -52,6 +52,7 @@ class TestListWorkflows:
         r = client.get("/api/workflows")
         assert r.status_code == 200
         assert len(r.json()["items"]) == 2
+        assert all("format" in item for item in r.json()["items"])
 
     def test_unfiltered_list_includes_non_root_folder_paths(self, client, db):
         # Regression for #723: list endpoint must return workflows in any
@@ -92,6 +93,7 @@ class TestCreateWorkflow:
         data = r.json()
         assert data["name"] == "My Workflow"
         assert "id" in data
+        assert data["format"] == "nodes"
 
     def test_create_with_empty_nodes(self, client):
         r = client.post("/api/workflows", json=_workflow_payload())
@@ -134,6 +136,12 @@ class TestPatchWorkflow:
         r = client.patch(f"/api/workflows/{wf.id}", json={"folder_path": "/my-folder"})
         assert r.status_code == 200
         assert r.json()["folder_path"] == "/my-folder"
+
+    def test_updates_format(self, client, db):
+        wf = _make_workflow(db)
+        r = client.patch(f"/api/workflows/{wf.id}", json={"format": "table"})
+        assert r.status_code == 200
+        assert r.json()["format"] == "table"
 
     def test_patch_missing_returns_404(self, client):
         r = client.patch("/api/workflows/no-such-id", json={"name": "X"})
@@ -261,3 +269,13 @@ class TestListWorkflowTools:
         data = r.json()
         assert "items" in data
         assert isinstance(data["items"], list)
+
+
+class TestWorkflowModes:
+    def test_returns_workflow_modes(self, client):
+        r = client.get("/api/workflows/modes")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["count"] == 3
+        mode_ids = {m["id"] for m in data["items"]}
+        assert mode_ids == {"icon", "list", "table"}

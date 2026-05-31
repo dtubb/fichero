@@ -16849,6 +16849,28 @@
         }
       }
     },
+    "/api/workflows/modes": {
+      "get": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "List Workflow Modes",
+        "description": "List supported workflow editor display modes.",
+        "operationId": "list_workflow_modes_api_workflows_modes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowModeListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflows/tools/{tool_name}/prompt": {
       "post": {
         "tags": [
@@ -53072,6 +53094,50 @@
         "title": "WorkflowListResponse",
         "description": "Standardized {items, count} envelope for GET /api/workflows."
       },
+      "WorkflowModeListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowModeResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "WorkflowModeListResponse"
+      },
+      "WorkflowModeResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "description"
+        ],
+        "title": "WorkflowModeResponse"
+      },
       "WorkflowPatchRequest": {
         "properties": {
           "name": {
@@ -53083,6 +53149,11 @@
             "type": "string",
             "nullable": true,
             "title": "Description"
+          },
+          "format": {
+            "type": "string",
+            "nullable": true,
+            "title": "Format"
           },
           "folder_path": {
             "type": "string",
@@ -53140,6 +53211,10 @@
             "type": "string",
             "title": "Model"
           },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
           "nodes": {
             "items": {
               "$ref": "#/components/schemas/NodeDef-Output"
@@ -53170,6 +53245,7 @@
           "description",
           "provider",
           "model",
+          "format",
           "nodes",
           "edges",
           "folder_path",

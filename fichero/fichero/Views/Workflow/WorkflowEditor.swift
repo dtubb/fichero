@@ -34,6 +34,7 @@ struct WorkflowEditor: View {
 
     // Document picker state
     @State var showDocumentPicker: Bool = false
+    @State var showModelComparison: Bool = false
 
     @EnvironmentObject var workflowStore: WorkflowStore
     @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated
@@ -80,6 +81,9 @@ struct WorkflowEditor: View {
                 },
                 onRunOnDocuments: {
                     showDocumentPicker = true
+                },
+                onCompareModels: {
+                    showModelComparison = true
                 }
             )
 
@@ -177,6 +181,9 @@ struct WorkflowEditor: View {
             )
             .environmentObject(libraryManager)
             .environmentObject(documentStore)
+        }
+        .sheet(isPresented: $showModelComparison) {
+            ModelComparisonView()
         }
         // Debounced autosave on any editingWorkflow change (#780). Without
         // this, model/provider selections in the node inspector live

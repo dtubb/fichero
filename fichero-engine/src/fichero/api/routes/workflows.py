@@ -115,6 +115,7 @@ class WorkflowResponse(BaseModel):
     description: str
     provider: str
     model: str
+    format: str
     nodes: list[NodeDef]
     edges: list[EdgeDef]
     folder_path: str
@@ -132,6 +133,17 @@ class WorkflowToolListResponse(BaseModel):
     """Standardized {items, count} envelope for GET /api/workflows/tools."""
 
     items: list[ToolResponse]
+    count: int
+
+
+class WorkflowModeResponse(BaseModel):
+    id: str
+    label: str
+    description: str
+
+
+class WorkflowModeListResponse(BaseModel):
+    items: list[WorkflowModeResponse]
     count: int
 
 
@@ -351,6 +363,29 @@ async def get_tool(tool_name: str) -> ToolResponse:
     return _tool_to_response(tool_def)
 
 
+@router.get("/modes", response_model=WorkflowModeListResponse)
+async def list_workflow_modes() -> WorkflowModeListResponse:
+    """List supported workflow editor display modes."""
+    items = [
+        WorkflowModeResponse(
+            id="icon",
+            label="Icon",
+            description="Visual canvas editor for workflow nodes and edges.",
+        ),
+        WorkflowModeResponse(
+            id="list",
+            label="List",
+            description="Linear list of workflow nodes and their wiring.",
+        ),
+        WorkflowModeResponse(
+            id="table",
+            label="Table",
+            description="Structured table view of node configuration values.",
+        ),
+    ]
+    return WorkflowModeListResponse(items=items, count=len(items))
+
+
 class PromptRequest(BaseModel):
     """Request to build a prompt with specific config."""
 
@@ -461,6 +496,7 @@ async def create_workflow(
             description=db_workflow.description,
             provider=db_workflow.provider,
             model=db_workflow.model,
+            format=db_workflow.format,
             nodes=[_dict_to_node_def(n) for n in db_workflow.nodes],
             edges=[_dict_to_edge_def(e) for e in db_workflow.edges],
             folder_path=db_workflow.folder_path,
@@ -513,6 +549,7 @@ async def import_workflow(
             description=db_workflow.description,
             provider=db_workflow.provider,
             model=db_workflow.model,
+            format=db_workflow.format,
             nodes=[_dict_to_node_def(n) for n in db_workflow.nodes],
             edges=[_dict_to_edge_def(e) for e in db_workflow.edges],
             folder_path=db_workflow.folder_path,
@@ -603,6 +640,7 @@ async def list_workflows(
                 description=workflow.description,
                 provider=workflow.provider,
                 model=workflow.model,
+                format=workflow.format,
                 nodes=[_dict_to_node_def(n) for n in workflow.nodes],
                 edges=[_dict_to_edge_def(e) for e in workflow.edges],
                 folder_path=workflow.folder_path,
@@ -637,6 +675,7 @@ async def get_workflow(
             description=workflow.description,
             provider=workflow.provider,
             model=workflow.model,
+            format=workflow.format,
             nodes=[_dict_to_node_def(n) for n in workflow.nodes],
             edges=[_dict_to_edge_def(e) for e in workflow.edges],
             folder_path=workflow.folder_path,
@@ -751,6 +790,7 @@ async def update_workflow(
             description=existing.description,
             provider=existing.provider,
             model=existing.model,
+            format=existing.format,
             nodes=[_dict_to_node_def(n) for n in existing.nodes],
             edges=[_dict_to_edge_def(e) for e in existing.edges],
             folder_path=existing.folder_path,
@@ -771,6 +811,7 @@ class WorkflowPatchRequest(BaseModel):
 
     name: Optional[str] = None
     description: Optional[str] = None
+    format: Optional[str] = None
     folder_path: Optional[str] = None
     sort_order: Optional[int] = None
 
@@ -798,6 +839,8 @@ async def patch_workflow(
             workflow.name = patch.name
         if patch.description is not None:
             workflow.description = patch.description
+        if patch.format is not None:
+            workflow.format = patch.format
         if patch.folder_path is not None:
             workflow.folder_path = patch.folder_path
         if patch.sort_order is not None:
@@ -812,6 +855,7 @@ async def patch_workflow(
             description=workflow.description,
             provider=workflow.provider,
             model=workflow.model,
+            format=workflow.format,
             nodes=[_dict_to_node_def(n) for n in workflow.nodes],
             edges=[_dict_to_edge_def(e) for e in workflow.edges],
             folder_path=workflow.folder_path,
@@ -888,6 +932,7 @@ async def duplicate_workflow(
             description=new_workflow.description,
             provider=new_workflow.provider,
             model=new_workflow.model,
+            format=new_workflow.format,
             nodes=[_dict_to_node_def(n) for n in new_workflow.nodes],
             edges=[_dict_to_edge_def(e) for e in new_workflow.edges],
             folder_path=new_workflow.folder_path,
