@@ -224,7 +224,7 @@ class FeatureManager: ObservableObject {
         workflowEnabledToolsInternal = Self.workflowV001EnabledTools
         providersExtendedEnabledInternal = false
         workflowImportExportEnabledInternal = false
-        workflowLangGraphPreviewEnabledInternal = false
+        workflowLangGraphPreviewEnabledInternal = true
         workflowFilesToolbarEnabledInternal = true
         workflowRunOnSelectionEnabledInternal = true
         researchEnabledInternal = true
