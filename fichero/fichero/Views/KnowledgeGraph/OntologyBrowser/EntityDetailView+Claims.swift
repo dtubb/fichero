@@ -47,6 +47,16 @@ extension EntityDetailView {
                         .scaleEffect(0.7)
                 } else {
                     Button {
+                        showClaimReviewQueueSheet = true
+                    } label: {
+                        Label("Queue", systemImage: "checklist")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(filteredClaims.isEmpty)
+                    .help("Review queue with batch curation transitions")
+
+                    Button {
                         showContradictionTriageSheet = true
                     } label: {
                         Label("Triage", systemImage: "arrow.left.and.right.square")
@@ -133,6 +143,11 @@ extension EntityDetailView {
         .sheet(isPresented: $showContradictionTriageSheet) {
             ContradictionTriageSheet(entity: entity, claims: filteredClaims)
                 .frame(minWidth: 980, minHeight: 640)
+                .padding(16)
+        }
+        .sheet(isPresented: $showClaimReviewQueueSheet) {
+            ClaimReviewQueueSheet(entity: entity, claims: filteredClaims)
+                .frame(minWidth: 920, minHeight: 620)
                 .padding(16)
         }
     }
