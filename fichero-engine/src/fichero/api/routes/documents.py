@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -198,10 +198,17 @@ async def get_document_workflow_runs(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
-    items = [
-        WorkflowRunProvenanceResponse.model_validate(run)
-        for run in doc.workflow_runs
-    ]
+    items: list[WorkflowRunProvenanceResponse] = []
+    for index, run in enumerate(doc.workflow_runs):
+        try:
+            items.append(WorkflowRunProvenanceResponse.model_validate(run))
+        except ValidationError as exc:
+            logger.warning(
+                "Skipping malformed workflow_runs[%d] for document %s: %s",
+                index,
+                doc_id,
+                exc,
+            )
     return WorkflowRunProvenanceListResponse(
         document_id=doc_id,
         items=items,

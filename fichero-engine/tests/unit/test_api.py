@@ -135,6 +135,25 @@ class TestDocumentRoutes:
         assert data["items"][0]["model"] == "gpt-4o-mini"
         assert data["items"][0]["result"]["pages"] == 1
 
+    def test_get_document_workflow_runs_skips_malformed_rows(self, client, db, sample_doc):
+        """Malformed legacy rows should be ignored, not fail the whole response."""
+        sample_doc.workflow_runs = [
+            {"thread_id": "missing-workflow-id"},
+            {
+                "thread_id": "thread-123",
+                "workflow_id": "wf-123",
+                "workflow_name": "Transcribe",
+                "result": {"status": "completed"},
+            },
+        ]
+        db.save(sample_doc)
+
+        response = client.get(f"/api/documents/{sample_doc.id}/workflow-runs")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["items"][0]["workflow_id"] == "wf-123"
+
     def test_get_children(self, client, db, sample_doc, sample_collection):
         """Get children of a document."""
         db.save(sample_collection)
