@@ -5,11 +5,10 @@ Routes manage a BatchManager singleton backed by a DuckDB store.
 Tests mock get_batch_manager() to avoid needing a real batch DB.
 """
 
-import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from fichero.workflows.batch import BatchStatus
+from fichero.workflows.batch import BatchStatus, BatchItemStatus
 
 
 # ---------------------------------------------------------------------------
@@ -162,3 +161,59 @@ class TestGetBatchProgress:
         with patch("fichero.api.routes.batch.get_batch_manager", return_value=manager):
             r = client.get("/api/batches/no-such-batch/progress")
         assert r.status_code == 404
+
+
+class TestBatchControls:
+    def test_pause_batch(self, client):
+        batch = _make_mock_batch(status=BatchStatus.RUNNING)
+        manager = _make_mock_manager(batch)
+        with patch("fichero.api.routes.batch.get_batch_manager", return_value=manager):
+            r = client.post("/api/batches/batch-1/pause")
+        assert r.status_code == 200
+        assert r.json()["batch_id"] == "batch-1"
+        manager.pause_batch.assert_awaited_once_with("batch-1")
+
+    def test_cancel_batch(self, client):
+        batch = _make_mock_batch(status=BatchStatus.RUNNING)
+        manager = _make_mock_manager(batch)
+        with patch("fichero.api.routes.batch.get_batch_manager", return_value=manager):
+            r = client.post("/api/batches/batch-1/cancel")
+        assert r.status_code == 200
+        assert r.json()["batch_id"] == "batch-1"
+        manager.cancel_batch.assert_awaited_once_with("batch-1")
+
+    def test_execute_missing_batch_returns_404(self, client):
+        manager = _make_mock_manager(None)
+        with patch("fichero.api.routes.batch.get_batch_manager", return_value=manager):
+            r = client.post("/api/batches/no-such-batch/execute")
+        assert r.status_code == 404
+
+    def test_resume_missing_batch_returns_404(self, client):
+        manager = _make_mock_manager(None)
+        with patch("fichero.api.routes.batch.get_batch_manager", return_value=manager):
+            r = client.post("/api/batches/no-such-batch/resume")
+        assert r.status_code == 404
+
+    def test_get_batch_includes_failed_item_error_detail(self, client):
+        failed_item = MagicMock()
+        failed_item.thread_id = "thread-2"
+        failed_item.item_index = 1
+        failed_item.inputs = {"input_text": "bad item"}
+        failed_item.status = BatchItemStatus.FAILED
+        failed_item.error = "tool timeout"
+        failed_item.started_at = None
+        failed_item.completed_at = None
+
+        batch = _make_mock_batch(total_items=2)
+        batch.failed_items = 1
+        batch.items = [failed_item]
+
+        manager = _make_mock_manager(batch)
+        with patch("fichero.api.routes.batch.get_batch_manager", return_value=manager):
+            r = client.get("/api/batches/batch-1")
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["failed_items"] == 1
+        assert len(data["items"]) == 1
+        assert data["items"][0]["error"] == "tool timeout"

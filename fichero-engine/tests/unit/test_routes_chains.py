@@ -5,9 +5,14 @@ between steps. Uses an in-memory store. Dev-tier feature.
 """
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
-from fichero.workflows.chaining import chain_store
+from fichero.workflows.chaining import (
+    chain_store,
+    ChainExecutionResult,
+    ChainStepResult,
+    ChainStepStatus,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -103,3 +108,84 @@ class TestDeleteChain:
     def test_delete_missing_returns_404(self, client):
         r = client.delete("/api/chains/no-such-id")
         assert r.status_code == 404
+
+
+class TestExecuteChain:
+    def test_execute_chain_returns_execution_id_and_status(self, client):
+        created = client.post("/api/chains", json=_chain_payload("Runnable")).json()
+
+        fake_result = ChainExecutionResult(
+            chain_id=created["id"],
+            execution_id="exec-fixed",
+            status=ChainStepStatus.COMPLETED,
+            step_results=[
+                ChainStepResult(
+                    step_id="step-1",
+                    workflow_id="wf-abc",
+                    status=ChainStepStatus.COMPLETED,
+                    outputs={"text": "ok"},
+                    output_files=["/tmp/out.txt"],
+                )
+            ],
+            final_outputs={"text": "ok"},
+            final_files=["/tmp/out.txt"],
+        )
+
+        with patch(
+            "fichero.api.routes.chains.ChainExecutor.execute",
+            new_callable=AsyncMock,
+        ) as mock_execute:
+            mock_execute.return_value = fake_result
+            r = client.post(
+                f"/api/chains/{created['id']}/execute",
+                json={"inputs": {"k": "v"}, "input_files": ["/tmp/in.txt"]},
+                headers={"X-Fichero-Library-Path": "/tmp/test.fichero"},
+            )
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["chain_id"] == created["id"]
+        assert payload["status"] == "running"
+        assert payload["execution_id"]
+
+        status = client.get(f"/api/chains/executions/{payload['execution_id']}")
+        assert status.status_code == 200
+        body = status.json()
+        assert body["status"] == "completed"
+        assert body["final_outputs"] == {"text": "ok"}
+        assert body["final_files"] == ["/tmp/out.txt"]
+        assert len(body["step_results"]) == 1
+        assert body["step_results"][0]["step_id"] == "step-1"
+
+    def test_execute_missing_chain_returns_404(self, client):
+        r = client.post(
+            "/api/chains/no-such-id/execute",
+            json={"inputs": {}, "input_files": []},
+            headers={"X-Fichero-Library-Path": "/tmp/test.fichero"},
+        )
+        assert r.status_code == 404
+
+    def test_cancel_execution(self, client):
+        created = client.post("/api/chains", json=_chain_payload("Runnable")).json()
+        pending_result = ChainExecutionResult(
+            chain_id=created["id"],
+            execution_id="exec-pending",
+            status=ChainStepStatus.PENDING,
+        )
+
+        with patch(
+            "fichero.api.routes.chains.ChainExecutor.execute",
+            new_callable=AsyncMock,
+        ) as mock_execute:
+            mock_execute.return_value = pending_result
+            r = client.post(
+                f"/api/chains/{created['id']}/execute",
+                json={"inputs": {}, "input_files": []},
+                headers={"X-Fichero-Library-Path": "/tmp/test.fichero"},
+            )
+
+        assert r.status_code == 200
+        execution_id = r.json()["execution_id"]
+        cancel = client.delete(f"/api/chains/executions/{execution_id}")
+        assert cancel.status_code == 200
+        assert cancel.json()["execution_id"] == execution_id

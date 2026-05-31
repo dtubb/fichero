@@ -205,6 +205,37 @@ class TestExportWorkflow:
         assert r.status_code == 404
 
 
+class TestImportWorkflow:
+    def test_import_workflow_success(self, client):
+        r = client.post(
+            "/api/workflows/import",
+            params={
+                "name": "Imported",
+                "description": "Imported from JSON",
+            },
+            json={
+                "name": "Original Name",
+                "nodes": [],
+                "edges": [],
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["name"] == "Imported"
+        assert data["description"] == "Imported from JSON"
+        assert data["format"] == "nodes"
+        assert data["nodes"] == []
+        assert data["edges"] == []
+
+    def test_import_missing_nodes_or_edges_returns_400(self, client):
+        r = client.post(
+            "/api/workflows/import",
+            json={"name": "Bad Import", "nodes": []},
+        )
+        assert r.status_code == 400
+        assert "missing nodes or edges" in r.json()["detail"]
+
+
 class TestEstimateWorkflowCost:
     def test_estimate_cost_uses_workflow_model_pricing(self, client, db, monkeypatch):
         wf = Workflow(
@@ -269,6 +300,29 @@ class TestListWorkflowTools:
         data = r.json()
         assert "items" in data
         assert isinstance(data["items"], list)
+
+    def test_create_node_from_tool(self, client):
+        r = client.post(
+            "/api/workflows/tools/transcribe/create-node",
+            params={"position_x": 40, "position_y": 80},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["tool"] == "transcribe"
+        assert data["position_x"] == 40
+        assert data["position_y"] == 80
+        assert isinstance(data["input_ports"], list)
+        assert isinstance(data["output_ports"], list)
+
+    def test_generate_tool_prompt(self, client):
+        r = client.post(
+            "/api/workflows/tools/rewrite/prompt",
+            json={"config": {"style": "formal", "target_language": "French"}},
+        )
+        assert r.status_code == 200
+        prompt = r.json()["prompt"]
+        assert "formal, professional tone" in prompt
+        assert "Write the output in French." in prompt
 
 
 class TestWorkflowModes:

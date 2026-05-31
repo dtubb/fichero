@@ -677,7 +677,50 @@ class TestExtractEntitiesTool:
                 mock_llm_config,
             )
 
-        assert result["entities"]["people"] == ["A", "B"]
+            assert result["entities"]["people"] == ["A", "B"]
+
+
+class TestRewriteTool:
+    """Test the rewrite LLM tool."""
+
+    @pytest.mark.asyncio
+    async def test_rewrite_no_text(self, mock_llm_config, mock_state):
+        """Test rewrite with no text."""
+        from fichero.workflows.tools.rewrite import rewrite
+
+        result = await rewrite({}, mock_state, mock_llm_config)
+
+        assert result["error"] == "No text provided"
+        assert result["text"] == ""
+
+    @pytest.mark.asyncio
+    async def test_rewrite_success(self, mock_llm_config, mock_state):
+        """Test rewrite returns transformed text."""
+        from fichero.workflows.tools.rewrite import rewrite
+
+        with patch("fichero.llm.chat", new_callable=AsyncMock) as mock_chat:
+            mock_chat.return_value = "Polished rewritten text."
+
+            result = await rewrite(
+                {
+                    "text": "raw source text",
+                    "style": "formal",
+                    "save_to_db": False,
+                },
+                mock_state,
+                mock_llm_config,
+            )
+
+            assert result["text"] == "Polished rewritten text."
+            mock_chat.assert_called_once()
+
+    def test_rewrite_prompt_has_anti_hallucination_guardrail(self):
+        """Rewrite prompt must preserve meaning and forbid adding new facts."""
+        from fichero.workflows.tools.rewrite import build_rewrite_prompt
+
+        prompt = build_rewrite_prompt({"style": "concise"})
+        assert "Preserve the original meaning" in prompt
+        assert "Do not add new information" in prompt
 
 
 # =============================================================================
@@ -689,6 +732,7 @@ class TestToolRegistration:
 
     def test_source_tools_registered(self):
         """Test source tools are registered."""
+        assert "files" in TOOLS
         assert "collection" in TOOLS
         assert "folder" in TOOLS
         assert "search" in TOOLS
@@ -700,6 +744,7 @@ class TestToolRegistration:
 
     def test_llm_tools_registered(self):
         """Test LLM tools are registered."""
+        assert "rewrite" in TOOLS
         assert "summarize_file" in TOOLS
         assert "summarize_folder" in TOOLS
         assert "summarize_collection" in TOOLS

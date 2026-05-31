@@ -555,6 +555,8 @@ async def import_workflow(
             folder_path=db_workflow.folder_path,
             sort_order=db_workflow.sort_order,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Failed to import workflow")
         raise HTTPException(status_code=500, detail=str(e))
