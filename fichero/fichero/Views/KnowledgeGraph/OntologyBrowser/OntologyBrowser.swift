@@ -1561,6 +1561,85 @@ private struct EdgeKey: Hashable {
     let target: String
 }
 
+struct EpistemologyGraphEdgeInput {
+    let sourceId: String
+    let targetId: String
+    let predicate: String
+    let claimId: String
+    let sourceDocumentId: String
+    let sourcePageLabel: String?
+}
+
+struct EpistemologyGraphReducedEdge: Equatable {
+    let source: String
+    let target: String
+    let predicate: String
+    let claimId: String
+    let sourceDocumentId: String
+    let pageLabel: String?
+    let weight: Int
+}
+
+enum EpistemologyGraphReducer {
+    static func reduce(
+        edges: [EpistemologyGraphEdgeInput],
+        allowedNodeIds: Set<String>,
+        maxEdges: Int
+    ) -> [EpistemologyGraphReducedEdge] {
+        var byPair: [EdgeKey: EpistemologyGraphReducedEdge] = [:]
+        var weights: [EdgeKey: Int] = [:]
+        for edge in edges {
+            guard allowedNodeIds.contains(edge.sourceId), allowedNodeIds.contains(edge.targetId) else {
+                continue
+            }
+            let source = min(edge.sourceId, edge.targetId)
+            let target = max(edge.sourceId, edge.targetId)
+            let key = EdgeKey(source: source, target: target)
+            weights[key, default: 0] += 1
+            if byPair[key] == nil {
+                byPair[key] = EpistemologyGraphReducedEdge(
+                    source: edge.sourceId,
+                    target: edge.targetId,
+                    predicate: edge.predicate,
+                    claimId: edge.claimId,
+                    sourceDocumentId: edge.sourceDocumentId,
+                    pageLabel: edge.sourcePageLabel,
+                    weight: 1
+                )
+            } else if let existing = byPair[key], edge.predicate.count > existing.predicate.count {
+                byPair[key] = EpistemologyGraphReducedEdge(
+                    source: existing.source,
+                    target: existing.target,
+                    predicate: edge.predicate,
+                    claimId: existing.claimId,
+                    sourceDocumentId: existing.sourceDocumentId,
+                    pageLabel: existing.pageLabel,
+                    weight: 1
+                )
+            }
+        }
+        return byPair.compactMap { pair, edge in
+            EpistemologyGraphReducedEdge(
+                source: edge.source,
+                target: edge.target,
+                predicate: edge.predicate,
+                claimId: edge.claimId,
+                sourceDocumentId: edge.sourceDocumentId,
+                pageLabel: edge.pageLabel,
+                weight: weights[pair] ?? 1
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.weight == rhs.weight {
+                return lhs.predicate.count > rhs.predicate.count
+            }
+            return lhs.weight > rhs.weight
+        }
+        .prefix(maxEdges)
+        .map { $0 }
+    }
+}
+
 /// Mutable force-directed simulation state, held as a plain reference type
 /// so the per-frame physics writes from inside the `Canvas` render closure
 /// don't trip SwiftUI's "Modifying state during view update" check (#1019).
@@ -1603,49 +1682,31 @@ private final class GraphSimulation {
             ))
         }
         let nodeIds = Set(newNodes.map(\.id))
-        var byPair: [EdgeKey: GraphEdge] = [:]
-        var weights: [EdgeKey: Int] = [:]
-        for edge in response.edges {
-            guard nodeIds.contains(edge.sourceId), nodeIds.contains(edge.targetId) else {
-                continue
-            }
-            let source = min(edge.sourceId, edge.targetId)
-            let target = max(edge.sourceId, edge.targetId)
-            let key = EdgeKey(source: source, target: target)
-            weights[key, default: 0] += 1
-            if byPair[key] == nil {
-                byPair[key] = GraphEdge(
-                    source: edge.sourceId,
-                    target: edge.targetId,
+        let reduced = EpistemologyGraphReducer.reduce(
+            edges: response.edges.map { edge in
+                EpistemologyGraphEdgeInput(
+                    sourceId: edge.sourceId,
+                    targetId: edge.targetId,
                     predicate: edge.predicate,
                     claimId: edge.claimId,
                     sourceDocumentId: edge.sourceDocumentId,
-                    pageLabel: edge.sourcePageLabel,
-                    weight: 1
+                    sourcePageLabel: edge.sourcePageLabel
                 )
-            }
-        }
-        edges = byPair.compactMap { pair, edge in
-            var e = edge
-            e = GraphEdge(
-                source: e.source,
-                target: e.target,
-                predicate: e.predicate,
-                claimId: e.claimId,
-                sourceDocumentId: e.sourceDocumentId,
-                pageLabel: e.pageLabel,
-                weight: weights[pair] ?? 1
+            },
+            allowedNodeIds: nodeIds,
+            maxEdges: maxEdges
+        )
+        edges = reduced.map { edge in
+            GraphEdge(
+                source: edge.source,
+                target: edge.target,
+                predicate: edge.predicate,
+                claimId: edge.claimId,
+                sourceDocumentId: edge.sourceDocumentId,
+                pageLabel: edge.pageLabel,
+                weight: edge.weight
             )
-            return e
         }
-        .sorted { lhs, rhs in
-            if lhs.weight == rhs.weight {
-                return lhs.predicate.count > rhs.predicate.count
-            }
-            return lhs.weight > rhs.weight
-        }
-        .prefix(maxEdges)
-        .map { $0 }
         nodes = newNodes
         startTime = .now
         lastTick = .now
