@@ -145,14 +145,9 @@ extension ContentView {
                 .overlay { paneFocusIndicator(for: .preview) }
                 .frame(maxWidth: .infinity)
         } else {
-            // When the active "detail" item is a folder there's nothing to
-            // preview — `EditorView` renders `FolderContentsGrid`, which is
-            // the same children the main grid is already showing. Force
-            // layout to `.none` so the grid takes full width and we don't
-            // duplicate the folder's contents in a side/below pane. (#749)
-            let layout: LayoutMode = (detailDocument?.docType == .folder)
-                ? .none
-                : currentLayoutMode
+            // Folders now show the current layout so the WebKit/reading
+            // pane remains visible for folder-level aggregate content (#1405).
+            let layout: LayoutMode = currentLayoutMode
             // Group + .animation gives SwiftUI a stable outer identity so the
             // first .none → .standard/.widescreen transition (when the user
             // first activates a doc from full-grid) animates smoothly instead
