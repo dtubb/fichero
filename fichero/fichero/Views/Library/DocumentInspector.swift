@@ -36,6 +36,22 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         case .info: return "info.circle"
         }
     }
+
+    /// Tooltip copy: what the tab is and how to use it. (#1371)
+    var helpText: String {
+        switch self {
+        case .content:
+            return "Content — read the document's extracted text and page contents"
+        case .annotations:
+            return "Annotations — view and edit highlights and notes on this document"
+        case .knowledgeGraph:
+            return "Knowledge graph — the entities (people, places, organizations…) found in this document"
+        case .artifacts:
+            return "Artifacts — outputs generated for this document, such as summaries and transcripts"
+        case .info:
+            return "Info — file metadata: type, size, dates, and storage location"
+        }
+    }
 }
 
 /// Inspector panel showing document metadata and details
@@ -109,7 +125,7 @@ struct DocumentInspector: View {
                                 : Color.clear)
                 )
                 .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
-                .help(tab.rawValue)
+                .help(tab.helpText)
                 // Stable per-tab XCUITest hook, e.g. "inspectorTab-Content" (#1230).
                 .accessibilityIdentifier("inspectorTab-\(tab.rawValue)")
             }

@@ -68,6 +68,32 @@ enum SidebarMode: String, CaseIterable {
         case .knowledgeGraph: "9"
         }
     }
+
+    /// Tooltip copy: what the mode shows and how to reach it. (#1371)
+    var helpText: String {
+        let body: String
+        switch self {
+        case .library:
+            body = "Library — browse your documents and folders"
+        case .search:
+            body = "Search — saved searches and full-text search across the library"
+        case .chat:
+            body = "Chat — ask questions about your documents in a conversation"
+        case .workflows:
+            body = "Workflows — build and run AI processing pipelines"
+        case .research:
+            body = "Research — research projects and their workspace"
+        case .automation:
+            body = "Automation — schedules and triggers that run workflows automatically"
+        case .activity:
+            body = "Activity — monitor running and recent background jobs"
+        case .mindPalace:
+            body = "Mind Palace — a spatial 3D view of your documents"
+        case .knowledgeGraph:
+            body = "Knowledge Graph — explore entities and how they connect"
+        }
+        return "\(body) (⌘\(shortcutNumber))"
+    }
 }
 
 /// Library layout modes

@@ -26,6 +26,245 @@ from fichero.workflows.activity_types import (
 logger = logging.getLogger(__name__)
 
 
+# Columns of workflow_runs in the canonical CREATE TABLE order. Used by the
+# crash-safe rebuild path so the rebuilt table is byte-for-byte equivalent.
+_WORKFLOW_RUNS_COLUMNS = (
+    "thread_id",
+    "workflow_id",
+    "workflow_name",
+    "python_code",
+    "execution_log",
+    "status",
+    "started_at",
+    "completed_at",
+    "duration_ms",
+    "error",
+    "workflow_snapshot",
+    "node_name_map",
+    "progress_timeline",
+    "diagram_mermaid",
+)
+
+# Secondary indexes on workflow_runs that must be recreated after a rebuild.
+_WORKFLOW_RUNS_INDEXES = (
+    ("idx_workflow_runs_workflow_id", "workflow_runs(workflow_id)"),
+    ("idx_workflow_runs_started_at", "workflow_runs(started_at DESC)"),
+)
+
+_STALE_RUN_ERROR = (
+    "Run interrupted: process crashed or was killed before completion "
+    "(recovered on startup)."
+)
+
+
+def _rebuild_workflow_runs_flipping_stale(
+    db_path: str,
+    *,
+    started_before: Optional[datetime] = None,
+) -> int:
+    """Crash-safe recovery: rebuild ``workflow_runs`` with stale 'running' rows
+    flipped to 'failed', WITHOUT any in-place index-backed DELETE/UPDATE.
+
+    DuckDB maintains an ART index for the ``thread_id`` PRIMARY KEY (plus the
+    secondary indexes). After a crash + WAL replay the index can desync from
+    the table heap; an in-place ``UPDATE``/``DELETE`` then raises::
+
+        Invalid Input Error: Failed to delete all rows from index.
+        Only deleted 0 out of N rows.
+
+    which DuckDB escalates to a FATAL error that invalidates the *entire*
+    database for the lifetime of the process (#1362). Every later query
+    against that connection then 500s with "database has been invalidated".
+
+    A ``CREATE TABLE ... AS SELECT`` reads the heap and writes a brand-new
+    table + fresh indexes, so it never touches the corrupt ART delete path.
+    We DROP the old table and RENAME the new one into place inside a single
+    transaction, so a crash mid-rebuild leaves the original intact.
+
+    Args:
+        db_path: Path to the library DuckDB file.
+        started_before: When set, only rows with ``started_at < started_before``
+            are flipped (mirrors ``recover_stale_runs`` max_age semantics).
+            When ``None``, every ``running`` row is flipped (startup guard).
+
+    Returns:
+        Number of rows flipped 'running' -> 'failed'. ``-1`` if the rebuild
+        itself failed (caller should treat as "degraded, do not raise").
+    """
+    # Use a FRESH connection: the caller's connection may already be poisoned
+    # by the FatalException that sent us down this path.
+    conn = duckdb.connect(db_path)
+    try:
+        # Build the status-flip CASE. Only 'running' rows (optionally older than
+        # the cutoff) become 'failed'; everything else is copied verbatim.
+        if started_before is not None:
+            flip_predicate = (
+                "status = 'running' AND started_at < TIMESTAMP '"
+                f"{started_before.strftime('%Y-%m-%d %H:%M:%S')}'"
+            )
+        else:
+            flip_predicate = "status = 'running'"
+
+        status_expr = f"CASE WHEN {flip_predicate} THEN 'failed' ELSE status END"
+        error_expr = (
+            f"CASE WHEN {flip_predicate} "
+            f"THEN COALESCE(error, '{_STALE_RUN_ERROR}') ELSE error END"
+        )
+        completed_expr = (
+            f"CASE WHEN {flip_predicate} "
+            "THEN COALESCE(completed_at, CURRENT_TIMESTAMP) ELSE completed_at END"
+        )
+
+        select_cols = []
+        for col in _WORKFLOW_RUNS_COLUMNS:
+            if col == "status":
+                select_cols.append(f"{status_expr} AS status")
+            elif col == "error":
+                select_cols.append(f"{error_expr} AS error")
+            elif col == "completed_at":
+                select_cols.append(f"{completed_expr} AS completed_at")
+            else:
+                select_cols.append(col)
+        select_expr = ", ".join(select_cols)
+
+        # Count how many we will flip (read-only SELECT — safe on a fresh conn).
+        count_row = conn.execute(
+            f"SELECT count(*) FROM workflow_runs WHERE {flip_predicate}"
+        ).fetchone()
+        flipped = count_row[0] if count_row else 0
+
+        conn.execute("BEGIN TRANSACTION")
+        conn.execute("DROP TABLE IF EXISTS workflow_runs__rebuild")
+        conn.execute(
+            f"CREATE TABLE workflow_runs__rebuild AS "
+            f"SELECT {select_expr} FROM workflow_runs"
+        )
+        conn.execute("DROP TABLE workflow_runs")
+        conn.execute(
+            "ALTER TABLE workflow_runs__rebuild RENAME TO workflow_runs"
+        )
+        conn.execute("COMMIT")
+
+        # CREATE TABLE AS does NOT carry over the PRIMARY KEY or secondary
+        # indexes — recreate them so query plans and uniqueness are preserved.
+        # A UNIQUE index on thread_id reinstates the PK's enforcement.
+        try:
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_workflow_runs_thread_id "
+                "ON workflow_runs(thread_id)"
+            )
+        except Exception as idx_exc:  # pragma: no cover - defensive
+            logger.warning(
+                "workflow_runs rebuild: could not recreate thread_id unique "
+                "index (non-fatal): %s",
+                idx_exc,
+            )
+        for idx_name, idx_target in _WORKFLOW_RUNS_INDEXES:
+            try:
+                conn.execute(
+                    f"CREATE INDEX IF NOT EXISTS {idx_name} ON {idx_target}"
+                )
+            except Exception as idx_exc:  # pragma: no cover - defensive
+                logger.warning(
+                    "workflow_runs rebuild: could not recreate index %s "
+                    "(non-fatal): %s",
+                    idx_name,
+                    idx_exc,
+                )
+
+        logger.warning(
+            "workflow_runs rebuilt crash-safe: flipped %d stale 'running' "
+            "run(s) to 'failed' (sidestepped ART-index delete bug, #1362)",
+            flipped,
+        )
+        return flipped
+    except Exception:
+        # The rebuild itself failed. Roll back if a txn is open, log, and
+        # report degraded — NEVER re-raise, or we re-poison library-open.
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        logger.exception(
+            "workflow_runs crash-safe rebuild FAILED for %s — zombie rows "
+            "left as-is; library remains open (#1362)",
+            db_path,
+        )
+        return -1
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _recover_stale_workflow_runs(
+    conn: "duckdb.DuckDBPyConnection",
+    db_path: str,
+    *,
+    started_before: Optional[datetime] = None,
+) -> int:
+    """Flip stale 'running' workflow_runs to 'failed' without ever leaving the
+    connection (or the DB) in a poisoned state.
+
+    Fast path: a normal in-place UPDATE on the supplied ``conn``.
+    Fallback: if that raises ANY ``duckdb.Error`` (notably the FATAL
+    "Failed to delete all rows from index"), the connection is now poisoned,
+    so we discard it and rebuild the table from scratch on a fresh connection
+    via :func:`_rebuild_workflow_runs_flipping_stale`.
+
+    Args:
+        conn: The (possibly-soon-to-be-poisoned) connection to try first.
+        db_path: Library DuckDB path, used to open a fresh connection on fallback.
+        started_before: Optional cutoff; see the rebuild helper.
+
+    Returns:
+        Number of rows flipped, or ``-1`` if even the rebuild failed (degraded).
+    """
+    params: list = [_STALE_RUN_ERROR]
+    where = "status = 'running'"
+    if started_before is not None:
+        where += " AND started_at < ?"
+
+    sql = f"""
+        UPDATE workflow_runs
+        SET status = 'failed',
+            error = COALESCE(error, ?),
+            completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP)
+        WHERE {where}
+        RETURNING thread_id
+    """
+    if started_before is not None:
+        params.append(started_before)
+
+    try:
+        # Pre-count is cheap and lets us report even though RETURNING also works.
+        result = conn.execute(sql, params)
+        rows = result.fetchall() if result else []
+        flipped = len(rows)
+        if flipped:
+            logger.warning(
+                "recover_stale_runs: flipped %d stale 'running' run(s) to "
+                "'failed' (in-place) for %s",
+                flipped,
+                db_path,
+            )
+        return flipped
+    except duckdb.Error as exc:
+        # Connection is now poisoned (FATAL index error or otherwise). Do NOT
+        # touch `conn` again. Rebuild the table on a fresh connection.
+        logger.warning(
+            "recover_stale_runs: in-place UPDATE failed (%s: %s) — falling "
+            "back to crash-safe table rebuild for %s (#1362)",
+            type(exc).__name__,
+            exc,
+            db_path,
+        )
+        return _rebuild_workflow_runs_flipping_stale(
+            db_path, started_before=started_before
+        )
+
+
 class ActivityStore:
     """
     Persistent storage for activity events.
@@ -103,44 +342,6 @@ class ActivityStore:
             except Exception:
                 pass  # Column already exists
 
-            # --- #1362 early zombie guard ---
-            # Flip ANY remaining status='running' rows to 'failed' BEFORE
-            # the index maintenance pass.  On a DB opened after a crash+WAL
-            # replay, DuckDB's DELETE-on-index path raises:
-            #   "Invalid Input Error: Failed to delete all rows from index.
-            #    Only deleted 0 out of N rows."
-            # which then invalidates the entire library DB (fatal error state).
-            # Clearing zombie rows here removes the precondition so index
-            # maintenance never encounters the corrupt state.
-            # This UPDATE is idempotent and safe on a fresh/empty table.
-            try:
-                # Count first so we can log how many were recovered
-                zombie_count_row = conn.execute(
-                    "SELECT count(*) FROM workflow_runs WHERE status = 'running'"
-                ).fetchone()
-                zombie_count = zombie_count_row[0] if zombie_count_row else 0
-                if zombie_count:
-                    conn.execute("""
-                        UPDATE workflow_runs
-                        SET status = 'failed',
-                            error  = COALESCE(
-                                error,
-                                'Run interrupted: process crashed or was killed before completion'
-                            ),
-                            completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP)
-                        WHERE status = 'running'
-                    """)
-                    logger.warning(
-                        "#1362 startup zombie recovery: marked %d stale 'running' "
-                        "workflow_run(s) as 'failed' before index pass",
-                        zombie_count,
-                    )
-            except Exception as _zombie_exc:
-                logger.warning(
-                    "#1362 startup zombie recovery failed (non-fatal): %s",
-                    _zombie_exc,
-                )
-
             # Indexes for efficient queries
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_activities_timestamp
@@ -170,8 +371,23 @@ class ActivityStore:
                 CREATE INDEX IF NOT EXISTS idx_workflow_runs_started_at
                 ON workflow_runs(started_at DESC)
             """)
+
+            # --- #1362 startup zombie recovery (crash-safe) ---
+            # Flip ANY leftover status='running' rows to 'failed'. On a DB
+            # opened after a crash + WAL replay, an in-place UPDATE can hit the
+            # DuckDB ART-index delete bug ("Failed to delete all rows from
+            # index. Only deleted 0 out of N rows"), which FATALLY invalidates
+            # the whole library DB. _recover_stale_workflow_runs degrades to a
+            # full table rebuild (CREATE TABLE AS SELECT) on a fresh connection
+            # if the in-place UPDATE poisons `conn`, so startup can never brick
+            # the library. This is the LAST statement on `conn` precisely
+            # because the fast-path UPDATE may poison it.
+            _recover_stale_workflow_runs(conn, self.db_path, started_before=None)
         finally:
-            conn.close()
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     async def save(self, activity: Activity) -> None:
         """Save an activity to the database."""
@@ -641,40 +857,22 @@ class ActivityStore:
 
         Returns the number of rows updated.
         """
-        from datetime import datetime, timezone, timedelta
-
         cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
-        error_msg = (
-            "Run aborted: worker thread did not reach a terminal state "
-            "(app restart or crash). Marked failed on recovery."
-        )
 
         def _recover():
+            # Crash-safe: in-place UPDATE first, table rebuild on ART-index
+            # FATAL (#1362). Never poisons the live library connection.
             conn = duckdb.connect(self.db_path)
             try:
-                result = conn.execute(
-                    """
-                    UPDATE workflow_runs
-                    SET status = 'failed',
-                        error = ?,
-                        completed_at = ?
-                    WHERE status = 'running'
-                      AND started_at < ?
-                    RETURNING thread_id
-                    """,
-                    [error_msg, datetime.now(timezone.utc), cutoff],
+                recovered = _recover_stale_workflow_runs(
+                    conn, self.db_path, started_before=cutoff
                 )
-                rows = result.fetchall() if result else []
-                recovered = len(rows)
-                if recovered:
-                    logger.warning(
-                        "recover_stale_runs: marked %d zombie run(s) as failed "
-                        "(started before %s)",
-                        recovered,
-                        cutoff.isoformat(),
-                    )
-                return recovered
             finally:
-                conn.close()
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            # -1 means even the rebuild failed; report 0 recovered to callers.
+            return max(recovered, 0)
 
         return await asyncio.to_thread(_recover)
