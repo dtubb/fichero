@@ -245,3 +245,51 @@ class TestDeleteClaim:
     def test_delete_missing_returns_404(self, client):
         r = client.delete("/api/claims/no-such-id")
         assert r.status_code == 404
+
+
+class TestResolveClaimSource:
+    def test_resolve_by_claim_id_returns_page_and_char_span(self, client, db):
+        doc = _make_document(db, "Primary source")
+        claim = _make_claim(db, doc, "Ada signed the decree.")
+        claim.source_page_label = "12"
+        claim.source_char_start = 101
+        claim.source_char_end = 127
+        claim.source_excerpt = "Ada signed the decree"
+        db.save(claim)
+
+        r = client.post("/api/claims/resolve-source", json={"claim_id": claim.id})
+        assert r.status_code == 200
+        data = r.json()
+        assert data["claim_id"] == claim.id
+        assert data["source_document_id"] == doc.id
+        assert data["source_page_label"] == "12"
+        assert data["source_char_start"] == 101
+        assert data["source_char_end"] == 127
+
+    def test_resolve_by_svo_returns_exact_anchor(self, client, db):
+        doc = _make_document(db, "Minutes")
+        claim = _make_claim(db, doc, "Ada served as mayor in Popayan.")
+        claim.subject_canonical = "Ada Lovelace"
+        claim.predicate_verb = "served as"
+        claim.object_phrase = "mayor in Popayan"
+        claim.source_page_label = "7"
+        claim.source_char_start = 20
+        claim.source_char_end = 58
+        claim.source_excerpt = "Ada served as mayor in Popayan."
+        db.save(claim)
+
+        r = client.post(
+            "/api/claims/resolve-source",
+            json={
+                "subject_canonical": "Ada Lovelace",
+                "predicate_verb": "served as",
+                "object_phrase": "mayor in Popayan",
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["claim_id"] == claim.id
+        assert data["source_document_id"] == doc.id
+        assert data["source_page_label"] == "7"
+        assert data["source_char_start"] == 20
+        assert data["source_char_end"] == 58
