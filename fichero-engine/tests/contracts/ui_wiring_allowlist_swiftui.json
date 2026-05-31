@@ -384,6 +384,7 @@
     "/api/workflows/tools/{tool_name}/prompt": "baseline: not yet wired",
     "/api/workflows/{workflow_id}/duplicate": "baseline: not yet wired",
     "/api/workflows/{workflow_id}/estimate-cost": "baseline: not yet wired",
-    "/api/workflows/{workflow_id}/export": "baseline: not yet wired"
+    "/api/workflows/{workflow_id}/export": "baseline: not yet wired",
+    "/api/workflow-execution/threads/{thread_id}/pause": "new pause endpoint (#1226) \u2014 wire into Activity workflow-run controls (frontend backlog)"
   }
 }
