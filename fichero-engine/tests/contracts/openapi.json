@@ -5718,6 +5718,58 @@
         }
       }
     },
+    "/api/documents/{doc_id}/workflow-runs": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Get workflow provenance for a document",
+        "description": "Return the recorded workflow runs for a single document.",
+        "operationId": "get_document_workflow_runs_api_documents__doc_id__workflow_runs_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunProvenanceListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{doc_id}/notes": {
       "get": {
         "tags": [
@@ -36714,6 +36766,15 @@
             "title": "Image Provenance",
             "description": "For digitised images: photographer / capture_date / equipment / condition_notes. Separate from the broader provenance_chain because the same physical document can have multiple captures (initial scan + reshoot)."
           },
+          "workflow_runs": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Workflow Runs",
+            "description": "Workflow run provenance entries for this document. Each item records the workflow/model/result plus start and completion timestamps."
+          },
           "status": {
             "$ref": "#/components/schemas/Status",
             "default": "pending"
@@ -52457,6 +52518,100 @@
         ],
         "title": "WorkflowResponse",
         "description": "Workflow definition response."
+      },
+      "WorkflowRunProvenanceListResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRunProvenanceResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "items",
+          "count"
+        ],
+        "title": "WorkflowRunProvenanceListResponse",
+        "description": "Response for a document's workflow provenance history."
+      },
+      "WorkflowRunProvenanceResponse": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Thread Id"
+          },
+          "batch_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Batch Id"
+          },
+          "item_index": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Item Index"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "workflow_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow Name"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "nullable": true,
+            "title": "Result"
+          },
+          "started_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Started At"
+          },
+          "completed_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id"
+        ],
+        "title": "WorkflowRunProvenanceResponse",
+        "description": "One recorded workflow run against a document."
       },
       "WorkflowRunResponse": {
         "properties": {

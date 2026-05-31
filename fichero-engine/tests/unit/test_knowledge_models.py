@@ -583,12 +583,41 @@ class TestDocumentProvenance:
             assert loaded.provenance_chain[0]["actor"] == "Pedro"
             assert loaded.image_provenance["equipment"] == "Nikon D850"
 
+    def test_document_workflow_runs_round_trip(self):
+        from fichero.db import Database
+        from fichero.models import Document, DocType
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Database(Path(tmp) / "test.fichero")
+            doc = Document(
+                name="workflow provenance target",
+                doc_type=DocType.file,
+                workflow_runs=[
+                    {
+                        "workflow_id": "wf-123",
+                        "workflow_name": "Transcribe",
+                        "thread_id": "thread-abc",
+                        "model": "gpt-4o-mini",
+                        "result": {"status": "completed", "pages": 4},
+                        "started_at": "2026-05-31T10:00:00Z",
+                        "completed_at": "2026-05-31T10:02:30Z",
+                    }
+                ],
+            )
+            db.save(doc)
+            loaded = db.get(Document, doc.id)
+            assert loaded is not None
+            assert loaded.workflow_runs[0]["workflow_id"] == "wf-123"
+            assert loaded.workflow_runs[0]["model"] == "gpt-4o-mini"
+            assert loaded.workflow_runs[0]["result"]["pages"] == 4
+
     def test_document_provenance_defaults_empty(self):
         from fichero.models import Document, DocType
 
         doc = Document(name="plain doc", doc_type=DocType.file)
         assert doc.provenance_chain == []
         assert doc.image_provenance is None
+        assert doc.workflow_runs == []
 
 
 class TestProvenanceStepImageProvenance:

@@ -124,3 +124,36 @@ class TestCompleteRunDocuments:
 
     def test_empty_input_is_noop(self, temp_db):
         assert complete_run_documents(temp_db, set()) == 0
+
+    def test_records_workflow_run_provenance(self, temp_db):
+        doc = Document(name="a.txt", path="/a.txt", status=Status.processing)
+        temp_db.save(doc)
+
+        updated = complete_run_documents(
+            temp_db,
+            {doc.id},
+            workflow_run={
+                "thread_id": "thread-123",
+                "workflow_id": "wf-123",
+                "workflow_name": "Transcribe",
+                "model": "gpt-4o-mini",
+                "result": {"status": "completed", "pages": 1},
+                "started_at": "2026-05-31T10:00:00Z",
+                "completed_at": "2026-05-31T10:02:30Z",
+            },
+        )
+
+        loaded = temp_db.get(Document, doc.id)
+        assert updated == 1
+        assert loaded is not None
+        assert loaded.workflow_runs == [
+            {
+                "thread_id": "thread-123",
+                "workflow_id": "wf-123",
+                "workflow_name": "Transcribe",
+                "model": "gpt-4o-mini",
+                "result": {"status": "completed", "pages": 1},
+                "started_at": "2026-05-31T10:00:00Z",
+                "completed_at": "2026-05-31T10:02:30Z",
+            }
+        ]

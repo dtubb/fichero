@@ -24,6 +24,34 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _normalize_workflow_run(workflow_run: Any) -> dict[str, Any] | None:
+    """Return a JSON-safe provenance entry for a workflow run."""
+    if not isinstance(workflow_run, dict):
+        return None
+
+    entry: dict[str, Any] = {}
+    for key in (
+        "thread_id",
+        "batch_id",
+        "item_index",
+        "workflow_id",
+        "workflow_name",
+        "provider",
+        "model",
+        "result",
+        "started_at",
+        "completed_at",
+    ):
+        value = workflow_run.get(key)
+        if value is None:
+            continue
+        if hasattr(value, "isoformat"):
+            value = value.isoformat()
+        entry[key] = value
+
+    return entry or None
+
+
 def collect_processed_document_ids(final_state: Any) -> set[str]:
     """Extract the document ids a workflow run actually processed.
 
@@ -58,7 +86,11 @@ def collect_processed_document_ids(final_state: Any) -> set[str]:
     return ids
 
 
-def complete_run_documents(db: Any, document_ids: set[str]) -> int:
+def complete_run_documents(
+    db: Any,
+    document_ids: set[str],
+    workflow_run: Any | None = None,
+) -> int:
     """Advance the run's documents (and their page children) to ``completed``.
 
     Only documents currently in ``Status.processing`` are advanced. Documents a
@@ -71,12 +103,28 @@ def complete_run_documents(db: Any, document_ids: set[str]) -> int:
 
     from fichero.models import Document, Status
 
+    workflow_run_entry = _normalize_workflow_run(workflow_run)
+
     updated = 0
 
     def _complete(doc: Any) -> None:
         nonlocal updated
-        if doc is not None and getattr(doc, "status", None) == Status.processing:
+        if doc is None:
+            return
+
+        changed = False
+        if getattr(doc, "status", None) == Status.processing:
             doc.status = Status.completed
+            changed = True
+
+        if workflow_run_entry is not None:
+            existing_runs = list(getattr(doc, "workflow_runs", []) or [])
+            if workflow_run_entry not in existing_runs:
+                existing_runs.append(workflow_run_entry)
+                doc.workflow_runs = existing_runs
+                changed = True
+
+        if changed:
             db.save(doc)
             updated += 1
 

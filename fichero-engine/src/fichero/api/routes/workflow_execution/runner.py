@@ -834,30 +834,6 @@ async def _run_workflow_in_background(
         state["status"] = "completed"
         state["final_state"] = final_state
 
-        # Now that the WHOLE workflow has finished, flip the documents this run
-        # processed (and their page children) from processing → completed. Tool
-        # nodes leave docs in `processing` mid-pipeline so the per-page green
-        # check no longer appears after just transcription (#1282). Scoped to
-        # this run's own documents so it can't complete a concurrent run's
-        # still-in-progress pages.
-        try:
-            from fichero.workflows.completion import (
-                collect_processed_document_ids,
-                complete_run_documents,
-            )
-
-            run_doc_ids = collect_processed_document_ids(final_state)
-            completed_count = complete_run_documents(db, run_doc_ids)
-            if completed_count:
-                await log_execution(
-                    f"Marked {completed_count} document(s) completed"
-                )
-        except Exception as completion_exc:  # pragma: no cover - defensive
-            logger.warning(
-                f"Per-document completion failed for workflow {workflow_id}: "
-                f"{completion_exc}"
-            )
-
         # Calculate total duration
         total_duration_ms = (
             datetime.now(timezone.utc) - start_time
@@ -887,6 +863,46 @@ async def _run_workflow_in_background(
                 results = final_state["results"]
                 if isinstance(results, list):
                     completion_metadata["total_results"] = len(results)
+
+        # Now that the WHOLE workflow has finished, flip the documents this run
+        # processed (and their page children) from processing → completed. Tool
+        # nodes leave docs in `processing` mid-pipeline so the per-page green
+        # check no longer appears after just transcription (#1282). Scoped to
+        # this run's own documents so it can't complete a concurrent run's
+        # still-in-progress pages.
+        try:
+            from fichero.workflows.completion import (
+                collect_processed_document_ids,
+                complete_run_documents,
+            )
+
+            run_doc_ids = collect_processed_document_ids(final_state)
+            completed_count = complete_run_documents(
+                db,
+                run_doc_ids,
+                workflow_run={
+                    "thread_id": thread_id,
+                    "workflow_id": workflow_id,
+                    "workflow_name": workflow.name,
+                    "provider": workflow.provider,
+                    "model": workflow.model,
+                    "result": {
+                        "status": "completed",
+                        **completion_metadata,
+                    },
+                    "started_at": start_time,
+                    "completed_at": datetime.now(timezone.utc),
+                },
+            )
+            if completed_count:
+                await log_execution(
+                    f"Marked {completed_count} document(s) completed"
+                )
+        except Exception as completion_exc:  # pragma: no cover - defensive
+            logger.warning(
+                f"Per-document completion failed for workflow {workflow_id}: "
+                f"{completion_exc}"
+            )
 
         # Log activity: workflow completed
         activity_tracker.workflow_completed(

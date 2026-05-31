@@ -112,6 +112,29 @@ class TestDocumentRoutes:
         response = client.get("/api/documents/nonexistent")
         assert response.status_code == 404
 
+    def test_get_document_workflow_runs(self, client, db, sample_doc):
+        """Read the recorded workflow provenance for a document."""
+        sample_doc.workflow_runs = [
+            {
+                "thread_id": "thread-123",
+                "workflow_id": "wf-123",
+                "workflow_name": "Transcribe",
+                "model": "gpt-4o-mini",
+                "result": {"status": "completed", "pages": 1},
+                "started_at": "2026-05-31T10:00:00Z",
+                "completed_at": "2026-05-31T10:02:30Z",
+            }
+        ]
+        db.save(sample_doc)
+
+        response = client.get(f"/api/documents/{sample_doc.id}/workflow-runs")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["items"][0]["workflow_id"] == "wf-123"
+        assert data["items"][0]["model"] == "gpt-4o-mini"
+        assert data["items"][0]["result"]["pages"] == 1
+
     def test_get_children(self, client, db, sample_doc, sample_collection):
         """Get children of a document."""
         db.save(sample_collection)

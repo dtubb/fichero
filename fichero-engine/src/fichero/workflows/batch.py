@@ -572,7 +572,21 @@ class BatchManager:
                             getattr(snapshot, "values", None)
                         )
                         item_db = db_manager.get_database(str(self.db_path.parent))
-                        complete_run_documents(item_db, run_doc_ids)
+                        complete_run_documents(
+                            item_db,
+                            run_doc_ids,
+                            workflow_run={
+                                "batch_id": batch_id,
+                                "item_index": item.item_index,
+                                "workflow_id": batch.workflow_id,
+                                "workflow_name": workflow_def.name,
+                                "provider": workflow_def.provider,
+                                "model": workflow_def.model,
+                                "result": {"status": item.status.value},
+                                "started_at": item.started_at,
+                                "completed_at": item.completed_at,
+                            },
+                        )
                     except Exception as completion_exc:
                         logger.warning(
                             f"Batch {batch_id} item {item.item_index} "

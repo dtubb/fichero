@@ -252,6 +252,17 @@ class Document(BaseModel):
         ),
     )
 
+    # Workflow provenance (#1382). Stored as JSON so the existing DuckDB
+    # table picker can add the new column without a manual migration.
+    workflow_runs: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Workflow run provenance entries for this document. Each item "
+            "records the workflow/model/result plus start and completion "
+            "timestamps."
+        ),
+    )
+
     # Processing state
     status: Status = Status.pending
 

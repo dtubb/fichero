@@ -2110,6 +2110,18 @@
       },
       {
         "method": "GET",
+        "path": "/documents/{doc_id}/workflow-runs",
+        "operation_id": "get_document_workflow_runs_api_documents__doc_id__workflow_runs_get",
+        "summary": "Get workflow provenance for a document",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "WorkflowRunProvenanceListResponse"
+      },
+      {
+        "method": "GET",
         "path": "/documents/{document_id}/citations",
         "operation_id": "get_document_citations_api_documents__document_id__citations_get",
         "summary": "Get Document Citations",

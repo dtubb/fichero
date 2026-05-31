@@ -7,7 +7,7 @@ CRUD operations for Document model.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from pydantic import BaseModel, ConfigDict
@@ -46,6 +46,29 @@ class RelatedDocumentsResponse(BaseModel):
     file_type: str | None = None
     shared_entities: int
     sample_entity_names: list[str] = []
+
+
+class WorkflowRunProvenanceResponse(BaseModel):
+    """One recorded workflow run against a document."""
+
+    thread_id: str | None = None
+    batch_id: str | None = None
+    item_index: int | None = None
+    workflow_id: str
+    workflow_name: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    result: dict[str, Any] | str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+
+
+class WorkflowRunProvenanceListResponse(BaseModel):
+    """Response for a document's workflow provenance history."""
+
+    document_id: str
+    items: list[WorkflowRunProvenanceResponse]
+    count: int
 
 
 class PdfBackfillResponse(BaseModel):
@@ -160,6 +183,30 @@ async def get_document(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
     return doc
+
+
+@router.get(
+    "/{doc_id}/workflow-runs",
+    response_model=WorkflowRunProvenanceListResponse,
+    summary="Get workflow provenance for a document",
+)
+async def get_document_workflow_runs(
+    doc_id: str, db: Database = Depends(get_library_database)
+) -> WorkflowRunProvenanceListResponse:
+    """Return the recorded workflow runs for a single document."""
+    doc = db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+    items = [
+        WorkflowRunProvenanceResponse.model_validate(run)
+        for run in doc.workflow_runs
+    ]
+    return WorkflowRunProvenanceListResponse(
+        document_id=doc_id,
+        items=items,
+        count=len(items),
+    )
 
 
 @router.get("/{doc_id}/notes")
