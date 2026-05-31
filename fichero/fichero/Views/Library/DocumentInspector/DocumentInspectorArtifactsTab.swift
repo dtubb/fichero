@@ -910,7 +910,15 @@ struct KnowledgeGraphInspectorSection: View {
                 ))
             }
             guard !items.isEmpty else { return nil }
-            return (kind, items)
+            let sorted = items.sorted { lhs, rhs in
+                let leftConfidence = lhs.confidence ?? 0
+                let rightConfidence = rhs.confidence ?? 0
+                if leftConfidence == rightConfidence {
+                    return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+                }
+                return leftConfidence > rightConfidence
+            }
+            return (kind, sorted)
         }
     }
 
