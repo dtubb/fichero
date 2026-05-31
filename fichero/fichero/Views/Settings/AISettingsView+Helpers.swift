@@ -231,27 +231,10 @@ extension AISettingsView {
         do {
             defaults = try await appState.fetchAIDefaults()
 
-            // First-run convenience: if no defaults are saved AND Apple is
-            // available locally, default Text/Vision/Audio to Apple.
-            if defaults.textProvider.isEmpty
-                && defaults.visionProvider.isEmpty
-                && defaults.audioProvider.isEmpty,
-               appState.providers.contains(where: { $0.providerType == "apple" }) {
-                defaults.textProvider = "apple"
-                defaults.visionProvider = "apple"
-                defaults.audioProvider = "apple"
-                try? await appState.saveAIDefaults(defaults)
-            }
-
-            // First-run convenience: seed $small / $large to Apple if not yet
-            // set. Apple Intelligence is on-device / free and is the natural
-            // default for both slots. Mirrors the text/vision/audio guard above.
-            // (#1344)
-            if defaults.smallProvider.isEmpty
-                && defaults.largeProvider.isEmpty,
-               appState.providers.contains(where: { $0.providerType == "apple" }) {
-                defaults.smallProvider = "apple"
-                defaults.largeProvider = "apple"
+            let appleAvailable = appState.providers.contains(where: { $0.providerType == "apple" })
+            let beforeSeed = defaults
+            defaults.seedAppleDefaultsIfNeeded(appleAvailable: appleAvailable)
+            if defaults != beforeSeed {
                 try? await appState.saveAIDefaults(defaults)
             }
 

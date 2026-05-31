@@ -8,6 +8,7 @@ Contains:
 
 import logging
 import queue
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -74,6 +75,47 @@ def _is_internal_langchain_node(name: str) -> bool:
     composes inside a single user-authored workflow node. (#1002)
     """
     return name.startswith(_INTERNAL_LANGCHAIN_NAME_PREFIXES)
+
+
+def _classify_provider_error(error_text: str) -> dict[str, str]:
+    """Classify provider-facing failures into stable UI categories (#732)."""
+    text = (error_text or "").lower()
+
+    if any(token in text for token in ("429", "insufficient_quota", "quota", "rate limit", "rate_limit")):
+        return {
+            "category": "quota",
+            "message": "Provider quota or rate limit reached.",
+            "action": "Top up account or switch provider/model.",
+        }
+    if any(token in text for token in ("401", "403", "unauthorized", "invalid api key", "forbidden", "api key")):
+        return {
+            "category": "auth",
+            "message": "Provider authentication failed.",
+            "action": "Update API key in Settings.",
+        }
+    if any(token in text for token in ("404", "model_not_found", "model not found", "unknown model")):
+        return {
+            "category": "model_not_found",
+            "message": "Requested model is unavailable on this provider.",
+            "action": "Choose a different model.",
+        }
+    if any(token in text for token in ("dns", "connection", "timeout", "timed out", "network", "unreachable")):
+        return {
+            "category": "network",
+            "message": "Could not reach provider service.",
+            "action": "Check connectivity and provider status.",
+        }
+    if re.search(r"\b5\d\d\b", text) or "internal server error" in text:
+        return {
+            "category": "server",
+            "message": "Provider service error.",
+            "action": "Retry later or switch provider.",
+        }
+    return {
+        "category": "unknown",
+        "message": "Provider call failed.",
+        "action": "Inspect detailed error and retry.",
+    }
 
 
 # =============================================================================
@@ -440,6 +482,24 @@ async def _run_workflow_in_background(
                 await log_execution(str(data.get("message") or data.get("line") or ""))
                 return
 
+            event_payload = {
+                k: v
+                for k, v in data.items()
+                if k
+                not in {
+                    "node_id",
+                    "file_path",
+                    "file_index",
+                    "file_total",
+                    "progress",
+                }
+            }
+            if event_type == "file_error":
+                cls = _classify_provider_error(str(data.get("error", "")))
+                event_payload["error_category"] = cls["category"]
+                event_payload["error_hint"] = cls["message"]
+                event_payload["error_action"] = cls["action"]
+
             # Emit SSE event (existing behavior)
             event_queue.put(
                 SSEEvent(
@@ -451,18 +511,7 @@ async def _run_workflow_in_background(
                     file_index=data.get("file_index"),
                     file_total=data.get("file_total"),
                     progress=data.get("progress"),
-                    data={
-                        k: v
-                        for k, v in data.items()
-                        if k
-                        not in {
-                            "node_id",
-                            "file_path",
-                            "file_index",
-                            "file_total",
-                            "progress",
-                        }
-                    },
+                    data=event_payload,
                 )
             )
 
@@ -519,7 +568,10 @@ async def _run_workflow_in_background(
                 file_path = data.get("file_path", "")
                 file_name = file_path.split("/")[-1] if file_path else "unknown"
                 error_msg = data.get("error", "Unknown error")
-                await log_execution(f"  ERROR processing {file_name}: {error_msg}")
+                cls = _classify_provider_error(str(error_msg))
+                await log_execution(
+                    f"  ERROR processing {file_name}: {error_msg} [{cls['category']}]"
+                )
 
                 # Find and update the matching file entry
                 for entry in reversed(progress_timeline["steps"]):
@@ -531,6 +583,7 @@ async def _run_workflow_in_background(
                         entry["completed_at"] = datetime.now(timezone.utc).isoformat()
                         entry["status"] = "error"
                         entry["error"] = error_msg
+                        entry["error_category"] = cls["category"]
                         break
             elif event_type == "parallel_complete":
                 # Save aggregate stats for the node
@@ -1007,6 +1060,10 @@ async def _run_workflow_in_background(
                     "error_count": e.error_count,
                     "total_count": e.total_count,
                     "sample_errors": e.errors[:5] if e.errors else [],
+                    "error_category": (
+                        _classify_provider_error(str(e.errors[0]))["category"]
+                        if e.errors else "unknown"
+                    ),
                 },
             )
         )
@@ -1049,7 +1106,10 @@ async def _run_workflow_in_background(
                 event="error",
                 thread_id=thread_id,
                 workflow_id=workflow_id,
-                data={"error": str(e)},
+                data={
+                    "error": str(e),
+                    "error_category": _classify_provider_error(str(e))["category"],
+                },
             )
         )
 

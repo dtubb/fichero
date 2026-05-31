@@ -44,4 +44,25 @@ struct AIDefaults: Codable, Equatable {
         case maxTokens = "max_tokens"
         case promptPrefix = "prompt_prefix"
     }
+
+    /// First-launch seed for Apple Intelligence defaults. Only fills empty
+    /// slots so existing user choices remain untouched.
+    mutating func seedAppleDefaultsIfNeeded(appleAvailable: Bool) {
+        guard appleAvailable else { return }
+
+        if textProvider.isEmpty { textProvider = "apple" }
+        if textProvider == "apple", textModel.isEmpty { textModel = "apple-intelligence" }
+
+        if visionProvider.isEmpty { visionProvider = "apple" }
+        if visionProvider == "apple", visionModel.isEmpty { visionModel = "apple-vision" }
+
+        if audioProvider.isEmpty { audioProvider = "apple" }
+        if audioProvider == "apple", audioModel.isEmpty { audioModel = "apple-speech" }
+
+        if smallProvider.isEmpty { smallProvider = "apple" }
+        if smallProvider == "apple", smallModel.isEmpty { smallModel = "apple-intelligence" }
+
+        if largeProvider.isEmpty { largeProvider = "apple" }
+        if largeProvider == "apple", largeModel.isEmpty { largeModel = "apple-intelligence" }
+    }
 }

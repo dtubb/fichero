@@ -794,21 +794,34 @@ struct OnboardingWizardView: View {
 
         let providerType = entry.providerType
         let model = entry.defaultModel ?? ""
+        let isApple = providerType == "apple"
 
         // Text — every provider supports text.
         if defaults.textProvider.isEmpty { defaults.textProvider = providerType }
-        if defaults.textModel.isEmpty { defaults.textModel = model }
+        if defaults.textModel.isEmpty {
+            defaults.textModel = isApple ? "apple-intelligence" : model
+        }
 
         // Vision — only set when the provider claims vision support.
         if entry.supportsVision {
             if defaults.visionProvider.isEmpty { defaults.visionProvider = providerType }
-            if defaults.visionModel.isEmpty { defaults.visionModel = model }
+            if defaults.visionModel.isEmpty {
+                defaults.visionModel = isApple ? "apple-vision" : model
+            }
         }
 
         // Audio (transcription) — leave the engine's fallback to handle this
         // for providers without dedicated audio models. Setting the provider
         // here only when we know it'll work would mean a per-provider table;
         // safer to let user pick in Settings → AI → Audio if they care.
+        if isApple {
+            if defaults.audioProvider.isEmpty { defaults.audioProvider = providerType }
+            if defaults.audioModel.isEmpty { defaults.audioModel = "apple-speech" }
+            if defaults.smallProvider.isEmpty { defaults.smallProvider = providerType }
+            if defaults.smallModel.isEmpty { defaults.smallModel = "apple-intelligence" }
+            if defaults.largeProvider.isEmpty { defaults.largeProvider = providerType }
+            if defaults.largeModel.isEmpty { defaults.largeModel = "apple-intelligence" }
+        }
 
         try await appState.saveAIDefaults(defaults)
     }
