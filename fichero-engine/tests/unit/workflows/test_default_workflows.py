@@ -963,6 +963,26 @@ class TestSeedDefaultWorkflows:
             assert wf.is_template is True
             assert wf.nodes, f"preset {wf.name} seeded with no nodes"
 
+    def test_deprecated_catalogue_composable_is_removed_and_catalogue_reseeded(self):
+        """Old shipped variant 'Catalogue (composable)' should be retired on
+        normal seed runs so users don't keep executing stale graphs (#720)."""
+        from fichero.models import Workflow
+
+        db = MagicMock()
+        legacy = Workflow(name="Catalogue (composable)")
+        legacy.is_template = True
+        db.all.return_value = [legacy]
+        db.save = MagicMock()
+        db.delete = MagicMock()
+
+        seeded = seed_default_workflows(db)
+
+        deleted_names = [call.args[0].name for call in db.delete.call_args_list]
+        saved_names = [call.args[0].name for call in db.save.call_args_list]
+        assert "Catalogue (composable)" in deleted_names
+        assert "Catalogue" in saved_names
+        assert seeded == len(saved_names)
+
     def test_db_failure_during_list_returns_zero_without_raising(self):
         db = MagicMock()
         db.all.side_effect = RuntimeError("query failed")
