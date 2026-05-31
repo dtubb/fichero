@@ -2440,3 +2440,9 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
   2. `DocumentInspectorArtifactsTab.swift:1406:17` — "method must be declared fileprivate because its parameter uses a private type". **NOT FIXED** — left for next session.
 - Confirmed Xcode project structure with Daniel (Build Phases custom phases: SwiftLint + Embed Fichero Engine; Build Rules unused; Target General is where bundle id `app.fichero.fichero` lives).
 - Xcode MCP server disconnected (`ENOENT` on reconnect) — likely died during earlier worktree path rename; needs full Claude Code restart.
+
+## 2026-05-31 — Manager session (morning, ended at 98% token limit)
+- Shipped to main (pushed): Dependabot ws@8.20.1 (#17); P0 #1362 crash-safe workflow_runs rebuild (root cause: startup in-place UPDATE fataled on desynced ART index, poisoning whole DuckDB conn — now rebuilds table on fresh conn, never re-raises); CI greened (3438 pass) — spaCy CI models, /usr/local allowlist test paths, translate.json→text_translate (#926 miss); UI help tooltips + removed 2 dead inspector facet buttons (#1370/#1371, Swift — swiftlint-clean but Xcode-build UNVERIFIED, MCP was down).
+- Transcript-quality eval (#1386 diacritics, #1387 uncertainty markers, #1388 contamination) — but Urrutia doc's 13 JPGs were never transcribed (all status:pending), so prospective only.
+- Filed ~30 issues from live Preface/image use: #1368-#1388, #1400. Highlights: hairball graph, DATES facet bug, tooltips, arbitrary extraction, timeline, doc prototypes/classes, PDF page-ranges, Mail-style sidebar, read/flag, image-preview REGRESSION (P1), AI image-editing epic (#1385 + per-tool), localization infra, GPU/WindowServer crash (#1400).
+- Diagnosed 2-day WindowServer watchdog crashes as GPU-starvation, prime suspect broken RealityKit view #1376 (f_opus working it).
