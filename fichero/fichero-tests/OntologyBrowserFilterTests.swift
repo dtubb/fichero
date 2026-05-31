@@ -84,6 +84,20 @@ final class OntologyBrowserFilterTests: XCTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
+    // MARK: - OCR garbage heuristics
+
+    func testIsOcrGarbageRejectsSingleCharacter() {
+        XCTAssertTrue(OntologyBrowser.isOcrGarbage("x"))
+    }
+
+    func testIsOcrGarbageRejectsNumericOnly() {
+        XCTAssertTrue(OntologyBrowser.isOcrGarbage("12345"))
+    }
+
+    func testIsOcrGarbageAcceptsNormalName() {
+        XCTAssertFalse(OntologyBrowser.isOcrGarbage("Eugenio Córdoba"))
+    }
+
     // MARK: - Helpers
 
     private func makeEntity(

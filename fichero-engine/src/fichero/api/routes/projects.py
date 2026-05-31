@@ -202,7 +202,7 @@ async def list_items(
     if target_type is not None:
         rows = [r for r in rows if r.target_type == target_type]
     rows.sort(key=lambda r: r.added_at, reverse=True)
-    return rows
+    return ProjectInclusionListResponse(items=rows, count=len(rows))
 
 
 @router.get(

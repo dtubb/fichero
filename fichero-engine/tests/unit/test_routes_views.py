@@ -167,3 +167,28 @@ class TestDocumentViewRoute:
     def test_missing_document_returns_404(self, client):
         response = client.get("/view/document/no-such-document")
         assert response.status_code == 404
+
+    def test_global_kg_view_returns_shared_graph_payload(self, client, db):
+        entity = KnowledgeEntity(
+            id="entity-global-1",
+            canonical_name="Canal Company",
+            entity_type=EntityType.organization,
+            aliases=[],
+        )
+        db.save(entity)
+        claim = KnowledgeClaim(
+            id="claim-global-1",
+            text="Canal Company financed the works.",
+            source_document_id="doc-any",
+            entity_ids=[entity.id],
+            subject_canonical="Canal Company",
+            predicate_verb="financed",
+            object_phrase="the works",
+        )
+        db.save(claim)
+
+        response = client.get("/view/kg/global")
+        assert response.status_code == 200
+        assert "<title>Knowledge Graph</title>" in response.text
+        assert '"id": "entity-global-1"' in response.text
+        assert '"id": "claim-global-1"' in response.text

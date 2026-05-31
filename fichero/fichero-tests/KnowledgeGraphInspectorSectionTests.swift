@@ -86,6 +86,109 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         )
     }
 
+    func testEpistemologyReducerAggregatesWeightAcrossPairRegardlessOfDirection() {
+        let reduced = EpistemologyGraphReducer.reduce(
+            edges: [
+                EpistemologyGraphEdgeInput(
+                    sourceId: "a",
+                    targetId: "b",
+                    predicate: "supports",
+                    claimId: "c1",
+                    sourceDocumentId: "d1",
+                    sourcePageLabel: "1"
+                ),
+                EpistemologyGraphEdgeInput(
+                    sourceId: "b",
+                    targetId: "a",
+                    predicate: "contradicts",
+                    claimId: "c2",
+                    sourceDocumentId: "d2",
+                    sourcePageLabel: "2"
+                )
+            ],
+            allowedNodeIds: ["a", "b"],
+            maxEdges: 10
+        )
+
+        XCTAssertEqual(reduced.count, 1)
+        XCTAssertEqual(reduced[0].weight, 2)
+    }
+
+    func testEpistemologyReducerSkipsEdgesOutsideVisibleNodes() {
+        let reduced = EpistemologyGraphReducer.reduce(
+            edges: [
+                EpistemologyGraphEdgeInput(
+                    sourceId: "a",
+                    targetId: "b",
+                    predicate: "supports",
+                    claimId: "c1",
+                    sourceDocumentId: "d1",
+                    sourcePageLabel: nil
+                ),
+                EpistemologyGraphEdgeInput(
+                    sourceId: "a",
+                    targetId: "x",
+                    predicate: "extends",
+                    claimId: "c2",
+                    sourceDocumentId: "d2",
+                    sourcePageLabel: nil
+                )
+            ],
+            allowedNodeIds: ["a", "b"],
+            maxEdges: 10
+        )
+
+        XCTAssertEqual(reduced.count, 1)
+        XCTAssertEqual(reduced[0].source, "a")
+        XCTAssertEqual(reduced[0].target, "b")
+    }
+
+    func testEpistemologyReducerPrefersLongestPredicateForPair() {
+        let reduced = EpistemologyGraphReducer.reduce(
+            edges: [
+                EpistemologyGraphEdgeInput(
+                    sourceId: "a",
+                    targetId: "b",
+                    predicate: "supports",
+                    claimId: "c1",
+                    sourceDocumentId: "d1",
+                    sourcePageLabel: nil
+                ),
+                EpistemologyGraphEdgeInput(
+                    sourceId: "a",
+                    targetId: "b",
+                    predicate: "directly contradicts",
+                    claimId: "c2",
+                    sourceDocumentId: "d2",
+                    sourcePageLabel: nil
+                )
+            ],
+            allowedNodeIds: ["a", "b"],
+            maxEdges: 10
+        )
+
+        XCTAssertEqual(reduced.count, 1)
+        XCTAssertEqual(reduced[0].predicate, "directly contradicts")
+    }
+
+    func testHeuristicReviewMetricsReviewedCountIsCappedByTotal() {
+        XCTAssertEqual(
+            HeuristicReviewSheet.reviewedCount(
+                total: 2,
+                processed: ["a→b", "b→c", "c→d"]
+            ),
+            2
+        )
+    }
+
+    func testHeuristicReviewMetricsAcceptanceRateUsesReviewedOnly() {
+        let rate = HeuristicReviewSheet.acceptanceRate(
+            processed: ["a→b", "b→c"],
+            accepted: ["a→b", "x→y"]
+        )
+        XCTAssertEqual(rate, 0.5, accuracy: 0.0001)
+    }
+
     private func makeDocument(
         docType: DocType,
         fileType: FileType?,

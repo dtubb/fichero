@@ -5,6 +5,7 @@ import WebKit
 
 enum DocumentKGPaneRoute {
     static let baseURL = "http://localhost:8765"
+    static let globalKGDocumentID = "__kg_global__"
 
     static func documentURL(documentId: String) -> URL? {
         guard let encoded = documentId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
@@ -14,7 +15,13 @@ enum DocumentKGPaneRoute {
     }
 
     static func request(documentId: String, libraryPath: String) -> URLRequest? {
-        guard let url = documentURL(documentId: documentId) else { return nil }
+        let url: URL?
+        if documentId == globalKGDocumentID {
+            url = URL(string: "\(baseURL)/view/kg/global")
+        } else {
+            url = documentURL(documentId: documentId)
+        }
+        guard let url else { return nil }
         var request = URLRequest(url: url)
         request.addEngineAuth(libraryPath: libraryPath)
         return request

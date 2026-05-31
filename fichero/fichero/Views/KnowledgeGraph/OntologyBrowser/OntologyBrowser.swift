@@ -22,6 +22,7 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     @State private var searchText = ""
     @State private var isSearching = false
     @State private var isDateBucketExpanded = false
+    @StateObject private var graphScrollSync = DocumentScrollSyncState()
 
     /// Swap the detail pane between entity-claims view (default) and a
     /// force-directed graph over the filtered entity set. (#902, partial #889)
@@ -338,11 +339,26 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
         case .list:
             entityDetailPanel
         case .graph:
-            ForceDirectedGraphView(
-                entities: filteredEntities,
-                selectedEntityId: $selectedEntityId
-            )
-            .frame(minWidth: 300)
+            if let libraryPath = LibraryManager.shared.globalLibrary?.apiClient.currentLibraryPath,
+               !libraryPath.isEmpty {
+                DocumentKGWebPane(
+                    documentId: DocumentKGPaneRoute.globalKGDocumentID,
+                    libraryPath: libraryPath,
+                    selectedEntityId: selectedEntityId,
+                    selectedClaimId: nil,
+                    activeTab: KGSurfaceTab.graph.rawValue,
+                    activePageNumber: nil,
+                    pageCount: nil,
+                    onPageSelected: { _ in },
+                    scrollSync: graphScrollSync
+                )
+                .frame(minWidth: 300)
+            } else {
+                Text("No library selected")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         case .chart:
             EntityKindChartView(entities: filteredEntities)
                 .frame(minWidth: 300)
@@ -838,6 +854,7 @@ struct HeuristicReviewSheet: View {
     let dismiss: () -> Void
 
     @State private var processed: Set<String> = []
+    @State private var accepted: Set<String> = []
     @State private var status: String = ""
 
     var body: some View {
@@ -907,7 +924,11 @@ struct HeuristicReviewSheet: View {
                 Button("Accept") { Task { await accept(pred, key: key) } }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                Button("Reject") { processed.insert(key) }
+                Button("Reject") {
+                    accepted.remove(key)
+                    processed.insert(key)
+                    status = "Rejected \(pred.sourceClaimId) ↔ \(pred.targetClaimId)"
+                }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
             }
@@ -924,6 +945,12 @@ struct HeuristicReviewSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
+            Text(
+                "\(Self.reviewedCount(total: response.predictions.count, processed: processed))/\(response.predictions.count) reviewed · "
+                + "\(Int(Self.acceptanceRate(processed: processed, accepted: accepted) * 100))% accepted"
+            )
+            .font(.caption2)
+            .foregroundStyle(.secondary)
         }
         .padding(.horizontal)
         .padding(.vertical, 6)
@@ -939,11 +966,22 @@ struct HeuristicReviewSheet: View {
                 linkQuality: pred.similarityScore,
                 evidence: "Heuristic similarity \(String(format: "%.3f", pred.similarityScore))"
             )
+            accepted.insert(key)
             processed.insert(key)
             status = "Linked \(pred.sourceClaimId) ↔ \(pred.targetClaimId)"
         } catch {
             status = "Failed: \(error.localizedDescription)"
         }
+    }
+
+    static func reviewedCount(total: Int, processed: Set<String>) -> Int {
+        min(total, processed.count)
+    }
+
+    static func acceptanceRate(processed: Set<String>, accepted: Set<String>) -> Double {
+        guard !processed.isEmpty else { return 0 }
+        let acceptedCount = accepted.intersection(processed).count
+        return Double(acceptedCount) / Double(processed.count)
     }
 }
 
@@ -1545,6 +1583,85 @@ private struct EdgeKey: Hashable {
     let target: String
 }
 
+struct EpistemologyGraphEdgeInput {
+    let sourceId: String
+    let targetId: String
+    let predicate: String
+    let claimId: String
+    let sourceDocumentId: String
+    let sourcePageLabel: String?
+}
+
+struct EpistemologyGraphReducedEdge: Equatable {
+    let source: String
+    let target: String
+    let predicate: String
+    let claimId: String
+    let sourceDocumentId: String
+    let pageLabel: String?
+    let weight: Int
+}
+
+enum EpistemologyGraphReducer {
+    static func reduce(
+        edges: [EpistemologyGraphEdgeInput],
+        allowedNodeIds: Set<String>,
+        maxEdges: Int
+    ) -> [EpistemologyGraphReducedEdge] {
+        var byPair: [EdgeKey: EpistemologyGraphReducedEdge] = [:]
+        var weights: [EdgeKey: Int] = [:]
+        for edge in edges {
+            guard allowedNodeIds.contains(edge.sourceId), allowedNodeIds.contains(edge.targetId) else {
+                continue
+            }
+            let source = min(edge.sourceId, edge.targetId)
+            let target = max(edge.sourceId, edge.targetId)
+            let key = EdgeKey(source: source, target: target)
+            weights[key, default: 0] += 1
+            if byPair[key] == nil {
+                byPair[key] = EpistemologyGraphReducedEdge(
+                    source: edge.sourceId,
+                    target: edge.targetId,
+                    predicate: edge.predicate,
+                    claimId: edge.claimId,
+                    sourceDocumentId: edge.sourceDocumentId,
+                    pageLabel: edge.sourcePageLabel,
+                    weight: 1
+                )
+            } else if let existing = byPair[key], edge.predicate.count > existing.predicate.count {
+                byPair[key] = EpistemologyGraphReducedEdge(
+                    source: existing.source,
+                    target: existing.target,
+                    predicate: edge.predicate,
+                    claimId: existing.claimId,
+                    sourceDocumentId: existing.sourceDocumentId,
+                    pageLabel: existing.pageLabel,
+                    weight: 1
+                )
+            }
+        }
+        return byPair.compactMap { pair, edge in
+            EpistemologyGraphReducedEdge(
+                source: edge.source,
+                target: edge.target,
+                predicate: edge.predicate,
+                claimId: edge.claimId,
+                sourceDocumentId: edge.sourceDocumentId,
+                pageLabel: edge.pageLabel,
+                weight: weights[pair] ?? 1
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.weight == rhs.weight {
+                return lhs.predicate.count > rhs.predicate.count
+            }
+            return lhs.weight > rhs.weight
+        }
+        .prefix(maxEdges)
+        .map { $0 }
+    }
+}
+
 /// Mutable force-directed simulation state, held as a plain reference type
 /// so the per-frame physics writes from inside the `Canvas` render closure
 /// don't trip SwiftUI's "Modifying state during view update" check (#1019).
@@ -1587,49 +1704,31 @@ private final class GraphSimulation {
             ))
         }
         let nodeIds = Set(newNodes.map(\.id))
-        var byPair: [EdgeKey: GraphEdge] = [:]
-        var weights: [EdgeKey: Int] = [:]
-        for edge in response.edges {
-            guard nodeIds.contains(edge.sourceId), nodeIds.contains(edge.targetId) else {
-                continue
-            }
-            let source = min(edge.sourceId, edge.targetId)
-            let target = max(edge.sourceId, edge.targetId)
-            let key = EdgeKey(source: source, target: target)
-            weights[key, default: 0] += 1
-            if byPair[key] == nil {
-                byPair[key] = GraphEdge(
-                    source: edge.sourceId,
-                    target: edge.targetId,
+        let reduced = EpistemologyGraphReducer.reduce(
+            edges: response.edges.map { edge in
+                EpistemologyGraphEdgeInput(
+                    sourceId: edge.sourceId,
+                    targetId: edge.targetId,
                     predicate: edge.predicate,
                     claimId: edge.claimId,
                     sourceDocumentId: edge.sourceDocumentId,
-                    pageLabel: edge.sourcePageLabel,
-                    weight: 1
+                    sourcePageLabel: edge.sourcePageLabel
                 )
-            }
-        }
-        edges = byPair.compactMap { pair, edge in
-            var e = edge
-            e = GraphEdge(
-                source: e.source,
-                target: e.target,
-                predicate: e.predicate,
-                claimId: e.claimId,
-                sourceDocumentId: e.sourceDocumentId,
-                pageLabel: e.pageLabel,
-                weight: weights[pair] ?? 1
+            },
+            allowedNodeIds: nodeIds,
+            maxEdges: maxEdges
+        )
+        edges = reduced.map { edge in
+            GraphEdge(
+                source: edge.source,
+                target: edge.target,
+                predicate: edge.predicate,
+                claimId: edge.claimId,
+                sourceDocumentId: edge.sourceDocumentId,
+                pageLabel: edge.pageLabel,
+                weight: edge.weight
             )
-            return e
         }
-        .sorted { lhs, rhs in
-            if lhs.weight == rhs.weight {
-                return lhs.predicate.count > rhs.predicate.count
-            }
-            return lhs.weight > rhs.weight
-        }
-        .prefix(maxEdges)
-        .map { $0 }
         nodes = newNodes
         startTime = .now
         lastTick = .now

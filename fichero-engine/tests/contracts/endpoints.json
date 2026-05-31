@@ -7867,6 +7867,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/view/kg/global",
+        "operation_id": "global_kg_view_view_kg_global_get",
+        "summary": "Global Kg View",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
       }
     ],
     "workflow-execution": [
