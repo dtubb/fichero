@@ -1,5 +1,16 @@
 # Durable Lessons Learned / Decisions
 
+## Shared graph-RAG engine now spans Chat + Researcher — 2026-05-31
+
+`fichero.retrieval.graph_rag.GraphAwareRetriever` is now the common retrieval path for chat (`/api/chat`) and researcher workflow search (`workflows/tools/sources.py::search_tool`). Keep future retrieval changes centralized there to avoid divergence in ranking, KG augmentation, and telemetry behavior.
+
+## Retrieval telemetry contract for manager/QA visibility — 2026-05-31
+
+Chat and researcher retrieval flows now emit comparable diagnostics:
+- Chat response: `kg_claims_used`, `kg_entities_used`, `document_count`, `context_count`
+- Research search tool output: same KG fields plus `document_count` + `context_count` (with legacy `count` retained)
+Structured logs (`chat_retrieval`, `research_search`) carry graph knobs and counts; use these markers for runtime verification before blaming model quality.
+
 ## Public vs full MCP surface split — 2026-05-30
 
 For external agents, keep a small stable MCP contract in `fichero/mcp_public.py` (typed request/response models, narrow tool list). Put broader app-control and spatial tooling in a separate `fichero/mcp_full.py` surface. This avoids coupling third-party agents to internal tool churn while still enabling full-capability local agents.

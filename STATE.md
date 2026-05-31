@@ -1,3 +1,15 @@
+## 2026-05-31 (worker/1156 session-end handoff)
+
+- Current branch: `worker/1156` (isolated worktree `~/code/fichero-worker-1156`)
+- Commits added this session: graph-RAG shared retriever, #1364 backend resolver, researcher retriever unification, telemetry/count diagnostics, bounds hardening, resolver/retriever regression coverage.
+
+### Next Session — Start Here
+1. Review commit stack on `worker/1156` and decide squash/cherry-pick strategy into manager integration branch.
+2. Run manager-level cross-stack gates (full Python + Xcode build) against this branch before merge.
+3. Validate chat/research retrieval telemetry in live app logs using `chat_retrieval` / `research_search` markers.
+4. If accepted, merge #1156 + #1364 backend changes first, then telemetry/count/logging commits.
+5. If further scope needed, next related task is adding a thin shared prompt-context formatter so chat/research render KG context consistently.
+
 # STATE.md — Fichero
 
 ## 2026-05-31 (manager session END — hit 98% token limit) — NEXT SESSION START HERE

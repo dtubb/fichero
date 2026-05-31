@@ -1,3 +1,16 @@
+## 2026-05-31 — Session Summary
+
+- Implemented shared graph-aware retrieval for chat (`#1156`): new `fichero/retrieval/graph_rag.py`, chat route integration, and dedicated retriever tests.
+- Implemented backend claim/SVO source-anchor resolution for click-through (`#1364` backend): `POST /api/claims/resolve-source` + resolver tests.
+- Routed researcher `search_tool` through the same shared retriever path (reduced duplicate retrieval logic between chat and researcher).
+- Added graph-RAG control knobs (`graph_hops`, `max_kg_claims`) to chat and researcher search flows, with bounds enforcement and regression tests.
+- Added retrieval telemetry and diagnostics:
+  - Chat response now returns `kg_claims_used`, `kg_entities_used`, `document_count`, `context_count`.
+  - Research search tool now returns `kg_claims_used`, `kg_entities_used`, `document_count`, `context_count` (keeps legacy `count`).
+  - Structured log markers added: `chat_retrieval` and `research_search`.
+- Added resolver hardening tests for ambiguous SVO matches and selector validation behavior.
+- Verification across touched suite: `pytest` and `ruff` green after each concern-focused commit.
+
 ## 2026-05-30 — Session Summary
 
 - f_gpt Batch 6 completed on fresh branches off `origin/0.0.2`: #1264 standalone live Activity window (`gpt-activity-window` `94a0a96e`), #1101 BibTeX canonical metadata + sidecar reader (`gpt-bibtex-metadata` `51099f97`), and #1241 unified inspector selector styling + window-corner toggle (`gpt-inspector-style` `54cb64cf`).
