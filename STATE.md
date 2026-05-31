@@ -1,3 +1,52 @@
+## 2026-05-31 (manager integration session — NEXT SESSION START HERE)
+
+**main is at `ecf25282` — 3474 tests pass, ruff clean, pushed.**
+
+### What Was Merged This Session
+- `worker/1156` (graph-RAG): 14 commits, `fichero-engine/src/fichero/retrieval/graph_rag.py` new module, chat + researcher KG-augmented retrieval (#1156, #1364)
+- `backend/1382` unique commits (8): workflow provenance (#1382), read/star/flag state (#1381), bg folder ingest fix (#1216), diacritics transcribe (#1397), uncertainty markers (#1398), typed db delete wrappers (#1359)
+
+### Old Branches — NOT Mergeable (174 commits behind main)
+haiku, sonnet, opus, gpt-inspector-style, gptmini-folder-import — all branched before 174 commits of main work. Cherry-pick causes heavy conflicts. Work needs to be **re-implemented by fresh workers** on current main.
+
+### Issues From Old Branches Needing Fresh Implementation
+
+**Priority 1 — Backend (Python, no Xcode needed):**
+| Issue | What | Reference Branch |
+|-------|------|-----------------|
+| #1173 | Resolve pronoun subjects to canonical antecedent in KG paragraph mode | opus |
+| #1179 | Reference-corpus context in transcribe_review pass 2 | opus |
+| #1388 | OCR-focused enhance presets with denoise controls | sonnet/opus |
+| #1389 | Non-destructive fuzzy-clean image operation | sonnet/opus |
+| #1390 | Non-destructive prepare-images for OCR normalization | sonnet/opus |
+| #1175 | Stageable paleography A/B/C chain presets | sonnet |
+| #1176 | Recipe-hash provenance and variant pinning for image edits | sonnet |
+
+**Priority 2 — SwiftUI (Xcode required):**
+| Issue | What | Reference Branch |
+|-------|------|-----------------|
+| #1369 | Hide DATES metadata facet from inspector strip | haiku |
+| #1224 | Humanize artifact/node names in activity viewer | haiku |
+| #1374 | Default-expand artifact bodies + min content height | haiku |
+| #1375 | Normalize inspector attribute-strip persistence toggles | haiku |
+| #1383 | Restore classic image preview surface alongside editor | haiku |
+| #1188 | Clamp persisted PDF reading pane width bounds | haiku |
+| #1186 | Cmd+' navigation alias + history tests | haiku (also opus) |
+| #1191 | Entity digest ordering + default selection | haiku (also opus) |
+| #1187 | Claim-linked annotation notes with search | haiku + sonnet + opus (pick opus impl) |
+| #1194 | Typeset reading highlights with claim popovers | sonnet (also opus) |
+| #1174 | Stage variant inspector foundation | sonnet |
+| #1241 | Unified inspector selector styling + window-corner toggle | gpt |
+
+### Claim/Release Skill Gap
+Existing `fs_tasks:claim-task` uses GitHub assignee but workers don't consistently check before starting. Fix needed: update `session-start-worker` to filter `gh issue list --milestone X --no-assignee` so workers only pick unassigned issues. Add `in-progress` label on claim.
+
+### TODO for Daniel
+1. Confirm which Swift issues to dispatch first (need Xcode MCP up)
+2. Dispatch 2 fresh workers from current main: one Python (priority 1 issues), one SwiftUI (priority 2)
+3. Verify graph-RAG in live app: start backend + chat a question, look for `chat_retrieval` log lines
+4. Decide on #1187 implementation: pick opus version (reading popover) vs haiku (inspector panel) — they're different UX surfaces, both could ship
+
 ## 2026-05-31 (worker/1156 session-end handoff)
 
 - Current branch: `worker/1156` (isolated worktree `~/code/fichero-worker-1156`)
