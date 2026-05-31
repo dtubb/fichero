@@ -188,6 +188,10 @@ class FakeClient:
         self.calls.append(("list_claims", kw))
         return [KnowledgeClaim(id="c1", text="X", source_document_id="d5")]
 
+    def citations_at_doc(self, doc_id: str):
+        self.calls.append(("citations_at_doc", doc_id))
+        return [{"canonical_name": "Smith-1999", "entity_type": "citation"}]
+
     def document_inspector(self, doc_id):
         self.calls.append(("document_inspector", doc_id))
         return DocumentInspectorResponse(
@@ -1474,3 +1478,135 @@ def test_library_reset_no_confirm():
     """Reset aborts when user declines confirmation."""
     result = runner.invoke(cli.app, ["library", "reset"], input="n\n")
     assert result.exit_code == 1
+
+
+# -- #1348: consistent --doc/-d flag across kg citations, kg claims, artifacts list -----------
+
+
+def test_kg_claims_positional_still_works():
+    """`kg claims <doc-id>` positional form passes doc-id correctly."""
+    result = runner.invoke(cli.app, ["kg", "claims", "d5"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "list_claims")
+    assert call[1]["source_document_id"] == "d5"
+
+
+def test_kg_claims_doc_flag():
+    """`kg claims --doc <id>` flag form passes doc-id correctly."""
+    result = runner.invoke(cli.app, ["kg", "claims", "--doc", "d5"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "list_claims")
+    assert call[1]["source_document_id"] == "d5"
+
+
+def test_kg_claims_doc_short_flag():
+    """`kg claims -d <id>` short flag passes doc-id correctly."""
+    result = runner.invoke(cli.app, ["kg", "claims", "-d", "d5"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "list_claims")
+    assert call[1]["source_document_id"] == "d5"
+
+
+def test_kg_claims_flag_overrides_positional():
+    """`--doc` overrides the positional arg when both are supplied."""
+    result = runner.invoke(cli.app, ["kg", "claims", "positional-id", "--doc", "flag-id"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "list_claims")
+    assert call[1]["source_document_id"] == "flag-id"
+
+
+def test_kg_claims_requires_doc_id():
+    """Bare `kg claims` without a doc ID should exit non-zero."""
+    result = runner.invoke(cli.app, ["kg", "claims"])
+    assert result.exit_code != 0
+
+
+def test_kg_citations_positional_still_works():
+    """`kg citations <doc-id>` positional form passes doc-id correctly."""
+    result = runner.invoke(cli.app, ["kg", "citations", "doc-1"])
+    assert result.exit_code == 0
+    assert ("citations_at_doc", "doc-1") in _last_client().calls
+
+
+def test_kg_citations_doc_flag():
+    """`kg citations --doc <id>` flag form passes doc-id correctly."""
+    result = runner.invoke(cli.app, ["kg", "citations", "--doc", "doc-1"])
+    assert result.exit_code == 0
+    assert ("citations_at_doc", "doc-1") in _last_client().calls
+
+
+def test_kg_citations_doc_short_flag():
+    """`kg citations -d <id>` short flag passes doc-id correctly."""
+    result = runner.invoke(cli.app, ["kg", "citations", "-d", "doc-1"])
+    assert result.exit_code == 0
+    assert ("citations_at_doc", "doc-1") in _last_client().calls
+
+
+def test_kg_citations_flag_overrides_positional():
+    """`--doc` overrides the positional arg when both are supplied."""
+    result = runner.invoke(cli.app, ["kg", "citations", "positional-id", "--doc", "flag-id"])
+    assert result.exit_code == 0
+    assert ("citations_at_doc", "flag-id") in _last_client().calls
+
+
+def test_kg_citations_requires_doc_id():
+    """Bare `kg citations` without a doc ID should exit non-zero."""
+    result = runner.invoke(cli.app, ["kg", "citations"])
+    assert result.exit_code != 0
+
+
+def test_artifacts_list_positional_still_works():
+    """`artifacts list <doc-id>` positional form still passes doc-id correctly."""
+    result = runner.invoke(cli.app, ["artifacts", "list", "doc-7"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "list_artifacts")
+    assert call[1] == "doc-7"
+
+
+def test_artifacts_list_doc_flag():
+    """`artifacts list --doc <id>` flag form passes doc-id correctly."""
+    result = runner.invoke(cli.app, ["artifacts", "list", "--doc", "doc-7"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "list_artifacts")
+    assert call[1] == "doc-7"
+
+
+def test_artifacts_list_doc_short_flag():
+    """`artifacts list -d <id>` short flag passes doc-id correctly."""
+    result = runner.invoke(cli.app, ["artifacts", "list", "-d", "doc-7"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "list_artifacts")
+    assert call[1] == "doc-7"
+
+
+def test_artifacts_list_flag_overrides_positional():
+    """`--doc` overrides the positional arg when both are supplied."""
+    result = runner.invoke(cli.app, ["artifacts", "list", "positional-id", "--doc", "flag-id"])
+    assert result.exit_code == 0
+    call = next(c for c in _last_client().calls if c[0] == "list_artifacts")
+    assert call[1] == "flag-id"
+
+
+def test_artifacts_list_requires_doc_id():
+    """Bare `artifacts list` without a doc ID should exit non-zero."""
+    result = runner.invoke(cli.app, ["artifacts", "list"])
+    assert result.exit_code != 0
+
+
+def test_artifacts_list_json_flag():
+    """`--json artifacts list <doc-id>` emits valid JSON, not human text."""
+    result = runner.invoke(cli.app, ["--json", "artifacts", "list", "doc-7"])
+    assert result.exit_code == 0
+    # Must be parseable JSON.
+    payload = json.loads(result.output)
+    # FakeClient.list_artifacts returns {"artifacts": [...]} envelope — just
+    # confirm the response is JSON (not a human render_artifact string).
+    assert isinstance(payload, (dict, list))
+
+
+def test_artifacts_list_json_flag_with_doc_option():
+    """`--json artifacts list --doc <id>` emits valid JSON."""
+    result = runner.invoke(cli.app, ["--json", "artifacts", "list", "--doc", "doc-7"])
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert isinstance(payload, (dict, list))
