@@ -84,6 +84,11 @@ Rules:
 - Preserve original layout, line breaks, and paragraph structure.
 - Preserve original spelling and capitalisation, including ALL CAPS
   headers if they appear that way.
+- Preserve orthography exactly as written, including all diacritics
+  and accent marks (e.g., keep "Chocó" as "Chocó", never "Choco";
+  keep "Ramón" as "Ramón", never "Ramon").
+- Do not strip accents, tildes, cedillas, or umlauts. If a mark is
+  visible, keep it.
 - Include every visible text element — headers, body, marginalia, stamps,
   signatures (transcribe the signed name as written), printed labels,
   handwritten annotations.
