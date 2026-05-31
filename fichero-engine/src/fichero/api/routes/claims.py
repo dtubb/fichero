@@ -171,6 +171,25 @@ class ClaimSourceResolveResponse(BaseModel):
     object_phrase: str | None = None
 
 
+class ClaimAssignTimePeriodRequest(BaseModel):
+    """Bulk-assign a temporal scope to claims for timeline population."""
+
+    source_document_id: str
+    include_descendants: bool = False
+    page_start: int | None = Field(default=None, ge=1)
+    page_end: int | None = Field(default=None, ge=1)
+    time_start: str
+    time_end: str | None = None
+    time_precision: str | None = None
+    overwrite_existing: bool = True
+
+
+class ClaimAssignTimePeriodResponse(BaseModel):
+    matched_count: int
+    updated_count: int
+    skipped_existing_count: int
+
+
 def _validate_claim_references(db: Database, data: dict[str, Any]) -> None:
     """Validate editable foreign-key-ish claim references."""
     if data.get("source_document_id") is not None:
@@ -479,6 +498,13 @@ def _normalize_text(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
+def _page_number(value: str | None) -> int | None:
+    if not value:
+        return None
+    digits = "".join(ch for ch in value if ch.isdigit())
+    return int(digits) if digits else None
+
+
 def _descendant_doc_ids(db: Database, root_id: str) -> set[str]:
     """Collect the doc id and every descendant doc id (BFS), so callers
     can scope KG queries to "everything under this folder" — claims are
@@ -498,6 +524,72 @@ def _descendant_doc_ids(db: Database, root_id: str) -> set[str]:
                     next_frontier.append(child.id)
         frontier = next_frontier
     return seen
+
+
+@router.post("/assign-time-period", response_model=ClaimAssignTimePeriodResponse)
+async def assign_time_period(
+    request: ClaimAssignTimePeriodRequest,
+    db: Database = Depends(get_library_database),
+) -> ClaimAssignTimePeriodResponse:
+    """Assign a user-curated period to many claims at once.
+
+    This powers timeline seeding from user decisions (page range / folder scope)
+    by writing directly into `KnowledgeClaim.time_start/time_end`.
+    """
+    source_doc = db.get(Document, request.source_document_id)
+    if source_doc is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Source document not found: {request.source_document_id}",
+        )
+    if (
+        request.page_start is not None
+        and request.page_end is not None
+        and request.page_start > request.page_end
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="page_start must be <= page_end",
+        )
+
+    if request.include_descendants:
+        scope_ids = _descendant_doc_ids(db, request.source_document_id)
+    else:
+        scope_ids = {request.source_document_id}
+
+    matched = 0
+    updated = 0
+    skipped_existing = 0
+
+    for claim in db.all(KnowledgeClaim):
+        if claim.source_document_id not in scope_ids:
+            continue
+        if request.page_start is not None or request.page_end is not None:
+            page_no = _page_number(claim.source_page_label)
+            if page_no is None:
+                continue
+            if request.page_start is not None and page_no < request.page_start:
+                continue
+            if request.page_end is not None and page_no > request.page_end:
+                continue
+
+        matched += 1
+        if not request.overwrite_existing and claim.time_start:
+            skipped_existing += 1
+            continue
+
+        claim.time_start = request.time_start
+        claim.time_end = request.time_end or request.time_start
+        claim.time_precision = request.time_precision
+        claim.updated_at = datetime.now()
+        db.save(claim)
+        updated += 1
+
+    return ClaimAssignTimePeriodResponse(
+        matched_count=matched,
+        updated_count=updated,
+        skipped_existing_count=skipped_existing,
+    )
 
 
 @router.get("", response_model=ClaimListResponse)

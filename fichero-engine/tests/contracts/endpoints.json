@@ -1089,6 +1089,26 @@
         "response_model": "ChainExecutionStatusResponse"
       },
       {
+        "method": "GET",
+        "path": "/chains/presets/paleography",
+        "operation_id": "paleography_preset_preview_api_chains_presets_paleography_get",
+        "summary": "Paleography Preset Preview",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PaleographyPresetResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/chains/presets/paleography",
+        "operation_id": "paleography_preset_create_api_chains_presets_paleography_post",
+        "summary": "Paleography Preset Create",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PaleographyPresetResponse"
+      },
+      {
         "method": "DELETE",
         "path": "/chains/{chain_id}",
         "operation_id": "delete_chain_api_chains__chain_id__delete",
@@ -1539,6 +1559,16 @@
       },
       {
         "method": "POST",
+        "path": "/claims/assign-time-period",
+        "operation_id": "assign_time_period_api_claims_assign_time_period_post",
+        "summary": "Assign Time Period",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ClaimAssignTimePeriodRequest",
+        "response_model": "ClaimAssignTimePeriodResponse"
+      },
+      {
+        "method": "POST",
         "path": "/claims/batch/transition",
         "operation_id": "batch_transition_claims_api_claims_batch_transition_post",
         "summary": "Batch transition claims",
@@ -1690,6 +1720,16 @@
         ],
         "request_model": null,
         "response_model": "QueueListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/claims/resolve-source",
+        "operation_id": "resolve_claim_source_api_claims_resolve_source_post",
+        "summary": "Resolve Claim Source",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ClaimSourceResolveRequest",
+        "response_model": "ClaimSourceResolveResponse"
       },
       {
         "method": "DELETE",
@@ -3407,6 +3447,18 @@
         "response_model": "KGGraphListResponse"
       },
       {
+        "method": "POST",
+        "path": "/kg/entities/{entity_id}/bio",
+        "operation_id": "generate_entity_bio_api_kg_entities__entity_id__bio_post",
+        "summary": "Generate LLM biography for a knowledge entity",
+        "path_params": [
+          "entity_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EntityBioResponse"
+      },
+      {
         "method": "GET",
         "path": "/kg/entity-curation/audit",
         "operation_id": "list_entity_audits_api_kg_entity_curation_audit_get",
@@ -4419,7 +4471,7 @@
           {
             "name": "threshold",
             "required": false,
-            "type": "integer"
+            "type": "number"
           }
         ],
         "request_model": null,
