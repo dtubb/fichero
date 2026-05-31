@@ -44,4 +44,67 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             "shippingbox"
         )
     }
+
+    func testArtifactsTabIncludesPageArtifactsForParentPDFOnly() {
+        let parentPDF = makeDocument(docType: .file, fileType: .pdf)
+        XCTAssertTrue(
+            DocumentInspectorContentV2.shouldIncludeDescendantArtifacts(
+                for: parentPDF,
+                mode: .artifactsOnly
+            )
+        )
+
+        let page = makeDocument(docType: .page, fileType: nil, parentId: parentPDF.id)
+        XCTAssertFalse(
+            DocumentInspectorContentV2.shouldIncludeDescendantArtifacts(
+                for: page,
+                mode: .artifactsOnly
+            )
+        )
+
+        let folder = makeDocument(docType: .folder, fileType: nil)
+        XCTAssertFalse(
+            DocumentInspectorContentV2.shouldIncludeDescendantArtifacts(
+                for: folder,
+                mode: .artifactsOnly
+            )
+        )
+
+        let image = makeDocument(docType: .file, fileType: .image)
+        XCTAssertFalse(
+            DocumentInspectorContentV2.shouldIncludeDescendantArtifacts(
+                for: image,
+                mode: .artifactsOnly
+            )
+        )
+
+        XCTAssertFalse(
+            DocumentInspectorContentV2.shouldIncludeDescendantArtifacts(
+                for: parentPDF,
+                mode: .pageContentOnly
+            )
+        )
+    }
+
+    private func makeDocument(
+        docType: DocType,
+        fileType: FileType?,
+        parentId: String? = nil
+    ) -> Document {
+        Document(
+            id: UUID().uuidString,
+            parentId: parentId,
+            docType: docType,
+            fileType: fileType,
+            name: "Test",
+            path: nil,
+            sequence: nil,
+            bbox: nil,
+            status: .completed,
+            metadata: [:],
+            pageContent: nil,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+    }
 }

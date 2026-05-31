@@ -1524,13 +1524,17 @@ struct DocumentInspectorContentV2: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            // V2 wants strict per-document scope — see #696/V2 redesign.
-            // The legacy aggregation (parent + children) made delete look
-            // broken because deleting one artifact left a sibling in place.
+            // V2 usually wants strict per-document scope — see #696/V2
+            // redesign. Parent PDFs are the exception: extraction workflows
+            // write per-page entity artifacts to page children, and the
+            // parent inspector must surface those raw page outputs.
             artifacts = try await artifactService.getArtifacts(
                 forDocumentId: document.id,
                 forceRefresh: true,
-                includeDescendants: false
+                includeDescendants: Self.shouldIncludeDescendantArtifacts(
+                    for: document,
+                    mode: mode
+                )
             )
             loadError = nil
         } catch is CancellationError {
@@ -1596,6 +1600,12 @@ struct DocumentInspectorContentV2: View {
             documentService: documentService,
             documentStore: documentStore
         ).map { "Couldn't save: \($0)" }
+    }
+
+    static func shouldIncludeDescendantArtifacts(for document: Document, mode: Mode) -> Bool {
+        mode == .artifactsOnly
+            && document.docType == .file
+            && document.fileType == .pdf
     }
 }
 
