@@ -6,6 +6,7 @@ Patterns. Routes live at /api/hermeneutics/... (router has no prefix,
 mounted at "/api/hermeneutics").
 """
 
+from fichero.models import KnowledgeClaim
 from fichero.hermeneutics_models import (
     FrameworkType,
     InterpretiveActType,
@@ -144,6 +145,7 @@ class TestDeleteFramework:
 class TestCreateInterpretation:
     def test_create_interpretation(self, client, db):
         db.save(_make_framework("fwk-int"))
+        db.save(KnowledgeClaim(id="claim-int-1", text="c", source_document_id="d", entity_ids=[]))
 
         r = client.post(f"{BASE}/interpretations", json={
             "framework_id": "fwk-int",
@@ -158,6 +160,7 @@ class TestCreateInterpretation:
 
     def test_create_interpretation_populates_predicate_canonical(self, client, db):
         db.save(_make_framework("fwk-int-pred"))
+        db.save(KnowledgeClaim(id="claim-int-pred-1", text="c", source_document_id="d", entity_ids=[]))
 
         r = client.post(f"{BASE}/interpretations", json={
             "framework_id": "fwk-int-pred",
@@ -275,6 +278,14 @@ class TestKgInterpretationsCanonicalUrls:
 
     def test_interpretations_create(self, client, db):
         db.save(_make_framework("fwk-kg2"))
+        # Interpretations now validate that claim_id references an existing
+        # claim (hermeneutics linking) — seed it before creating.
+        db.save(KnowledgeClaim(
+            id="claim-kg2-1",
+            text="A claim to interpret.",
+            source_document_id="doc-kg2",
+            entity_ids=[],
+        ))
         r = client.post(f"{KG_BASE}/interpretations", json={
             "framework_id": "fwk-kg2",
             "claim_id": "claim-kg2-1",
