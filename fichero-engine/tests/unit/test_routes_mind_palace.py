@@ -8,8 +8,8 @@ rooms, nodes, and connections. Routes live at /api/mind-palace/...
 import pytest
 
 from fichero.spatial_models import (
-    RoomType,
     NodeType,
+    ConnectionType,
     SpatialRoom,
     SpatialNode,
 )
@@ -194,3 +194,74 @@ class TestListNodes:
         assert r.status_code == 200
         assert len(r.json()["items"]["items"]) == 1
         assert r.json()["items"]["items"][0]["room_id"] == "r-a"
+
+
+# ---------------------------------------------------------------------------
+# Connections + viewport routes used by Spatial Library
+# ---------------------------------------------------------------------------
+
+
+class TestConnections:
+    def test_create_and_list_connections(self, client, db):
+        db.save(_make_room("r-conn"))
+        db.save(_make_node("n-src", "r-conn"))
+        db.save(_make_node("n-dst", "r-conn"))
+
+        create = client.post(
+            f"{BASE}/connections",
+            json={
+                "room_id": "r-conn",
+                "source_node_id": "n-src",
+                "target_node_id": "n-dst",
+                "connection_type": ConnectionType.semantic.value,
+            },
+        )
+        assert create.status_code == 200
+        conn_id = create.json()["id"]
+
+        listing = client.get(f"{BASE}/connections?room_id=r-conn")
+        assert listing.status_code == 200
+        body = listing.json()
+        assert body["count"] == 1
+        assert body["items"][0]["id"] == conn_id
+        assert body["items"][0]["source_node_id"] == "n-src"
+        assert body["items"][0]["target_node_id"] == "n-dst"
+
+
+class TestViewport:
+    def test_save_then_get_viewport_roundtrip(self, client, db):
+        db.save(_make_room("r-view"))
+
+        save = client.post(
+            f"{BASE}/rooms/r-view/viewport/user-1",
+            json={
+                "camera_x": 3.0,
+                "camera_y": 2.0,
+                "camera_z": 11.0,
+                "zoom_level": 1.25,
+                "bookmark_name": "working-shot",
+                "metadata": {"mode": "threeD"},
+            },
+        )
+        assert save.status_code == 200
+        saved = save.json()
+        assert saved["room_id"] == "r-view"
+        assert saved["user_id"] == "user-1"
+        assert saved["zoom_level"] == 1.25
+
+        get_resp = client.get(f"{BASE}/rooms/r-view/viewport/user-1")
+        assert get_resp.status_code == 200
+        loaded = get_resp.json()
+        assert loaded["camera_x"] == 3.0
+        assert loaded["camera_y"] == 2.0
+        assert loaded["camera_z"] == 11.0
+        assert loaded["bookmark_name"] == "working-shot"
+        assert loaded["metadata"]["mode"] == "threeD"
+
+    def test_focus_node_sets_viewport_focus(self, client, db):
+        db.save(_make_room("r-focus"))
+        db.save(_make_node("n-focus", "r-focus"))
+
+        r = client.post(f"{BASE}/rooms/r-focus/focus?user_id=user-2&node_id=n-focus")
+        assert r.status_code == 200
+        assert r.json()["focus_node_id"] == "n-focus"
