@@ -81,14 +81,25 @@ jobs:
           FICHERO_FEATURE_TIER: dev
         run: bash fichero-engine/scripts/sync_openapi_schema.sh
 
-      - name: Fail if openapi.json drifted from committed copy
+      - name: Fail if openapi.json drifted from committed copy (key-order-insensitive)
         run: |
-          if ! git diff --quiet -- fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json fichero-engine/tests/contracts/openapi.json; then
-            echo "::error::OpenAPI schema drift detected — the FastAPI backend produces a different openapi.json than what's committed."
-            echo "Fix: run \`bash fichero-engine/scripts/sync_openapi_schema.sh\` locally and commit the regenerated file."
-            echo ""
-            echo "--- DIFF ---"
-            git diff -- fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json fichero-engine/tests/contracts/openapi.json | head -200
-            exit 1
-          fi
-          echo "openapi.json is in sync with the FastAPI app."
+          # Compare the committed schema against the freshly-regenerated one
+          # SEMANTICALLY (sorted keys via jq -S). A byte-exact git diff is too
+          # brittle: pydantic/FastAPI version skew between this runner and a
+          # developer's local .venv reorders JSON keys (description/type/default)
+          # without any real contract change, which used to fail CI on every run.
+          drift=0
+          for f in \
+            fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json \
+            fichero-engine/tests/contracts/openapi.json; do
+            committed="$(git show "HEAD:$f" | jq -S .)"
+            regenerated="$(jq -S . "$f")"
+            if [ "$committed" != "$regenerated" ]; then
+              echo "::error::OpenAPI schema drift detected in $f (semantic diff — a real contract change)."
+              echo "Fix: run \`bash fichero-engine/scripts/sync_openapi_schema.sh\` locally and commit the regenerated file."
+              echo "--- SEMANTIC DIFF (sorted keys) ---"
+              diff <(echo "$committed") <(echo "$regenerated") | head -120
+              drift=1
+            fi
+          done
+          [ "$drift" -eq 0 ] && echo "openapi.json is semantically in sync with the FastAPI app." || exit 1
