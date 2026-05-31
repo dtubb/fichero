@@ -120,6 +120,8 @@ class ChatResponse(BaseModel):
     )
     kg_claims_used: int = 0
     kg_entities_used: int = 0
+    document_count: int = 0
+    context_count: int = 0
 
 
 class ProviderInfo(BaseModel):
@@ -305,6 +307,8 @@ async def chat(
     # Search for relevant docs + KG neighborhood context
     sources = []
     context_docs = []
+    document_count = 0
+    context_count = 0
     kg_claims_used = 0
     kg_entities_used = 0
 
@@ -321,6 +325,10 @@ async def chat(
         sources = [DocumentSource(**row) for row in retrieval.sources]
         kg_claims_used = retrieval.kg_claims_used
         kg_entities_used = retrieval.kg_entities_used
+        context_count = len(context_docs)
+        document_count = sum(
+            1 for item in context_docs if item.get("kind") == "document"
+        )
     except Exception as e:
         logger.warning(f"Search failed, proceeding without context: {e}")
 
@@ -361,6 +369,8 @@ async def chat(
         model_used=model_used,
         kg_claims_used=kg_claims_used,
         kg_entities_used=kg_entities_used,
+        document_count=document_count,
+        context_count=context_count,
     )
 
 

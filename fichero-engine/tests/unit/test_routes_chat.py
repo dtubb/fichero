@@ -105,6 +105,8 @@ class TestChatWithSources:
         assert data["model_used"] == "openai/gpt-4o-mini"
         assert data["kg_claims_used"] == 0
         assert data["kg_entities_used"] == 0
+        assert data["document_count"] == 1
+        assert data["context_count"] == 1
         assert "[Document 1: Lovelace notes]" in fake_llm.prompt
         assert db.get(Conversation, data["conversation_id"]) is not None
 
@@ -162,6 +164,8 @@ class TestChatWithSources:
         data = r.json()
         assert data["kg_claims_used"] == 4
         assert data["kg_entities_used"] == 3
+        assert data["document_count"] == 0
+        assert data["context_count"] == 0
 
     def test_chat_rejects_out_of_range_graph_hops(self, client):
         r = client.post(
