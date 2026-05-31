@@ -1,0 +1,53 @@
+{
+  "name": "Remove Background Images",
+  "description": "Create alpha-background image derivatives without modifying the originals. Uses a threshold method by default and can be switched to OpenCV/rembg where available.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Image Editing",
+  "tags": ["preset", "image-editing", "remove-background", "alpha"],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "remove_background_images",
+      "tool": "remove_background_images",
+      "label": "Remove Background Images",
+      "position_x": 300,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "method": "threshold",
+        "threshold": 28,
+        "output_format": "png",
+        "compression_quality": 90
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-documents-remove-background-images",
+      "source": "files-source",
+      "target": "remove_background_images",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "edge-files-remove-background-images",
+      "source": "files-source",
+      "target": "remove_background_images",
+      "source_port": "files",
+      "target_port": "files"
+    }
+  ]
+}

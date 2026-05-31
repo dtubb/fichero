@@ -547,6 +547,44 @@ class TestLoadPresetFiles:
         assert clean_node["config"].get("background_clean") is True
         assert clean_node["config"].get("output_format") == "jpg"
 
+    def test_remove_background_images_preset_wiring(self):
+        """Remove Background Images should expose alpha-background removal
+        as a default image-editing workflow (#1393)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Remove Background Images" in presets, "remove background preset must ship"
+        preset = presets["Remove Background Images"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Image Editing"
+        assert preset.get("format") == "nodes"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "remove_background_images"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        files_id = _node_id(preset, "files")
+        remove_id = _node_id(preset, "remove_background_images")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == remove_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into remove_background_images"
+        assert any(
+            e["source"] == files_id
+            and e["target"] == remove_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in preset["edges"]
+        ), "documents must flow into remove_background_images for preview editor updates"
+
+        remove_node = next(n for n in preset["nodes"] if n["tool"] == "remove_background_images")
+        assert remove_node["config"].get("method") == "threshold"
+        assert remove_node["config"].get("threshold") == 28
+        assert remove_node["config"].get("output_format") == "png"
+
     def test_prepare_images_for_ocr_preset_wiring(self):
         """Prepare Images for OCR should expose the non-destructive image prep
         tool as a stageable default workflow (#1390)."""
