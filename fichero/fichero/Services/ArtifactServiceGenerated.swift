@@ -669,7 +669,8 @@ final class EntityServiceGenerated: ObservableObject {
         canonicalName: String? = nil,
         entityType: String? = nil,
         aliases: [String]? = nil,
-        description: String? = nil
+        description: String? = nil,
+        metadata: [String: any Sendable]? = nil
     ) async throws -> Components.Schemas.KnowledgeEntity {
         var body = Components.Schemas.EntityPatchRequest()
         body.canonicalName = canonicalName
@@ -678,6 +679,10 @@ final class EntityServiceGenerated: ObservableObject {
         }
         body.aliases = aliases
         body.description = description
+        if let metadata = metadata {
+            let container = try OpenAPIObjectContainer(unvalidatedValue: metadata)
+            body.metadata = .init(additionalProperties: container)
+        }
         let response = try await client.api.patchEntityApiEntitiesEntityIdPatch(
             path: .init(entityId: entityId),
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
