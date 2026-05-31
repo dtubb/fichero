@@ -155,6 +155,10 @@ struct SidebarView: View {
                         viewMode = .workflow(nil)
                         return
                     }
+                    if id == "batches-browser" {
+                        viewMode = .batches
+                        return
+                    }
                     if id.hasPrefix("run:"),
                        let selectedRun = unifiedSelectedRun(forSidebarId: id) {
                         viewMode = .activity(selectedRun.toSelectedRun())

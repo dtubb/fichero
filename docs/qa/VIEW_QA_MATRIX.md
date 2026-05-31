@@ -44,6 +44,9 @@ Backend observables:
 2. Create/rename/delete sidebar items where supported.
 3. Validate context menus and drag/drop behavior.
 4. Confirm mode state persists when navigating.
+5. Batches visibility gate:
+   - With `batches` feature flag OFF: no "Batches" navigation row appears.
+   - With `batches` feature flag ON: "Batches" row appears independently of Workflows/Activity.
 
 Backend observables:
 - `/api/documents/*`

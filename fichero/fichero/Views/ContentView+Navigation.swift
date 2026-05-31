@@ -138,9 +138,9 @@ extension ContentView {
 
         case .batches:
             ContentUnavailableView(
-                "Activity",
-                systemImage: "clock",
-                description: Text("Batch monitoring is now unified under Activity")
+                "Batches",
+                systemImage: "square.stack.3d.up",
+                description: Text("Batch queue surface is feature-gated and shown independently.")
             )
 
         case .batch:
