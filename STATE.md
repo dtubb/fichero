@@ -1,6 +1,24 @@
 # STATE.md — Fichero
 
-## 2026-05-30 (autonomous manager session) — LATEST
+## 2026-05-31 (overnight reality-check + cleanup) — LATEST
+
+**Catalogue run finished clean** (~21 min, 15 docs, "Workflow completed successfully"). Backend idle, app live. NO code changes overnight (app+backend running → held all implementation workers for Daniel).
+
+**Per-milestone REALITY-CHECK (read-only: code vs GitHub) — 9 milestones swept** (Library&Reading, Search, KG, Workflows, Settings&Providers, MCP, Mind Palace, Activity&Automation, Importers). Reports in `agent-work/proposals/2026-05-31-reality-check-*.md`. Each open issue classified DONE/OPEN/PARTIAL with code evidence.
+
+**Closed 19 verified-done issues tonight** (grep-verified each before closing): #711 #928 #285 #287 #432 (Library/Search) · #721 #922 #340 #707 #714 #716 #751 #799 (KG/Workflows) · #937 #242 #283 (Settings) · #1225 (Activity) · #1340 (Importers) · #277 (MCP). Held all **release-gates + product-decision flips** (#495/#496/#497, #484/#485, #255/#253, #493/#494) for Daniel's sign-off — wiring verified present, just needs his QA.
+
+**Reviewer errors I caught (verify-before-act):** MCP reviewer wrongly said `mcp_full.py` doesn't exist — it DOES (merged). Did NOT touch #1338. And left #920 open (reviewer said close, but I'd reopened it for the Note-reconciliation gap — Daniel decides).
+
+**Self-corrected over-eager reopens:** #1186 #616 #747 — reality-check found them implemented; left advisory comments for Daniel to confirm-in-app + one-click close (didn't flip-flop autonomously).
+
+**LIVE BUG found + upgraded — #1345 (P1 retry storm):** post-catalogue the app hammers `GET /api/documents/doc:<uuid>/children` ~25×/sec, all 404. Root cause: SidebarItem ids are `"doc:<uuid>"` (SidebarItem.swift:104) but backend `/children` (documents.py:230) wants the BARE id → 404 → view re-fires. Full fix plan in the issue. **#1344** (first-launch AI model defaults) fix-location pinned: missing $small/$large guard in `AISettingsView+Helpers.swift`.
+
+**Daniel's first-launch QA bugs filed:** #1344 (AI model defaults not auto-selected), #1345 (children 404 storm).
+
+---
+
+## 2026-05-30 (autonomous manager session)
 
 **Trunk-red fully recovered + both lane branches merged + app builds GREEN.** ~25 Swift errors fixed (ViewDisplayMode `.realitykit`, EntityTypeOutput `.citation`, memberwise-init let→var, Swift-6 actor isolation, TextureResource async, NodeDef split, ContentView body-complexity). Merged `opus-realitykit-design` (Mind Palace Phase 3) + `codex53-mcp-full-vision` (full MCP + mindpalace render). Build verified green via Xcode MCP (`BuildProject windowtab1`). Commits `1f9517c9`..`45888e1e` (13 unpushed at this checkpoint).
 
