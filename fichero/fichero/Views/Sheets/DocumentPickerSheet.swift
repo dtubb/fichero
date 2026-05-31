@@ -11,6 +11,7 @@ struct DocumentPickerSheet: View {
 
     @State private var searchText = ""
     @State private var selection: Set<String> = []
+    @State private var processingOrder: BatchProcessingOrder = .alphabeticalAsc
 
     private var allDocuments: [Document] {
         documentStore.currentDocuments.filter { $0.docType != .folder }
@@ -24,6 +25,11 @@ struct DocumentPickerSheet: View {
             document.name.localizedCaseInsensitiveContains(searchText) ||
                 (document.pageContent?.localizedCaseInsensitiveContains(searchText) ?? false)
         }
+    }
+
+    private var selectedDocumentsOrdered: [Document] {
+        let selected = allDocuments.filter { selection.contains($0.id) }
+        return processingOrder.sort(selected)
     }
 
     var body: some View {
@@ -96,6 +102,14 @@ struct DocumentPickerSheet: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
+                Picker("Order", selection: $processingOrder) {
+                    ForEach(BatchProcessingOrder.allCases, id: \.self) { order in
+                        Text(order.label).tag(order)
+                    }
+                }
+                .pickerStyle(.menu)
+                .controlSize(.small)
+
                 Spacer()
 
                 Button("Cancel") {
@@ -119,22 +133,25 @@ struct DocumentPickerSheet: View {
         guard !selection.isEmpty else { return }
 
         Task { @MainActor in
-            await runBatchWorkflow(workflowId: workflowId, documentIds: Array(selection))
+            await runBatchWorkflow(
+                workflowId: workflowId,
+                documents: selectedDocumentsOrdered
+            )
             dismiss()
         }
     }
 
     @MainActor
     // swiftlint:disable:next function_body_length cyclomatic_complexity
-    private func runBatchWorkflow(workflowId: String, documentIds: [String]) async {
+    private func runBatchWorkflow(workflowId: String, documents: [Document]) async {
         guard libraryManager.globalLibrary != nil else {
             print("Error: No global library available")
             return
         }
 
         // Create batch items - one per document
-        let batchItems: [[String: AnyCodableValue]] = documentIds.map { documentId in
-            ["document_id": .string(documentId)]
+        let batchItems: [[String: AnyCodableValue]] = documents.map { document in
+            ["document_id": .string(document.id)]
         }
 
         // Create batch request payload
@@ -181,11 +198,11 @@ struct DocumentPickerSheet: View {
             if httpResponse.statusCode == 200 {
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let batchId = json["batch_id"] as? String {
-                    print("Created batch: \(batchId) with \(documentIds.count) items")
+                    print("Created batch: \(batchId) with \(documents.count) items")
                     // swiftlint:disable:next todo
                     // TODO: Navigate to batches sidebar and execute batch with SSE streaming
                 } else {
-                    print("Created batch with \(documentIds.count) items")
+                    print("Created batch with \(documents.count) items")
                 }
             } else {
                 print("Error: HTTP \(httpResponse.statusCode)")
@@ -195,6 +212,47 @@ struct DocumentPickerSheet: View {
             }
         } catch {
             print("Error creating batch: \(error.localizedDescription)")
+        }
+    }
+}
+
+private enum BatchProcessingOrder: CaseIterable {
+    case alphabeticalAsc
+    case alphabeticalDesc
+    case createdOldestFirst
+    case createdNewestFirst
+    case modifiedOldestFirst
+    case modifiedNewestFirst
+
+    var label: String {
+        switch self {
+        case .alphabeticalAsc: return "Alphabetical (A→Z)"
+        case .alphabeticalDesc: return "Alphabetical (Z→A)"
+        case .createdOldestFirst: return "Date created (oldest first)"
+        case .createdNewestFirst: return "Date created (newest first)"
+        case .modifiedOldestFirst: return "Date modified (oldest first)"
+        case .modifiedNewestFirst: return "Date modified (newest first)"
+        }
+    }
+
+    func sort(_ documents: [Document]) -> [Document] {
+        switch self {
+        case .alphabeticalAsc:
+            return documents.sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+        case .alphabeticalDesc:
+            return documents.sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedDescending
+            }
+        case .createdOldestFirst:
+            return documents.sorted { $0.createdAt < $1.createdAt }
+        case .createdNewestFirst:
+            return documents.sorted { $0.createdAt > $1.createdAt }
+        case .modifiedOldestFirst:
+            return documents.sorted { $0.updatedAt < $1.updatedAt }
+        case .modifiedNewestFirst:
+            return documents.sorted { $0.updatedAt > $1.updatedAt }
         }
     }
 }

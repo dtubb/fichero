@@ -249,6 +249,10 @@ extension SidebarView {
             workflowsNavigationRow()
         }
 
+        if FeatureManager.shared.isBatchesEnabled {
+            batchesNavigationRow()
+        }
+
         if FeatureManager.shared.isAutomationEnabled {
             unifiedDisclosureSection(
                 title: "Automation",
@@ -478,6 +482,16 @@ extension SidebarView {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .tag("workflows-browser")
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+    }
+
+    private func batchesNavigationRow() -> some View {
+        Label("Batches", systemImage: "square.stack.3d.up")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .tag("batches-browser")
             .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)

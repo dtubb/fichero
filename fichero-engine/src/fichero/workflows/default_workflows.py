@@ -26,6 +26,15 @@ logger = logging.getLogger(__name__)
 
 _PRESETS_DIR = Path(__file__).resolve().parent.parent / "resources" / "default_workflows"
 
+# Legacy preset names that should be silently retired when present as
+# system/template rows. These variants were removed from shipped JSON but
+# can remain in existing libraries from older versions.
+_DEPRECATED_PRESET_NAMES: set[str] = {
+    "Catalogue (composable)",
+    "Catalogue (Apple Vision)",
+    "Transcribe (Apple Vision)",
+}
+
 
 def _load_preset_files() -> list[dict]:
     """Read every *.json preset in the resources/default_workflows directory."""
@@ -94,6 +103,23 @@ def seed_default_workflows(db: "Database", force: bool = False) -> int:
         stored_v = (getattr(current, "config", None) or {}).get("preset_version", 1)
         if preset_v > stored_v:
             upgrade_names.add(name)
+
+    # One-way cleanup for known deprecated shipped variants (e.g.
+    # "Catalogue (composable)") so old libraries stop surfacing stale
+    # presets whose graph no longer matches the canonical defaults.
+    # Keep this outside force=True so regular app opens heal old installs.
+    for name in _DEPRECATED_PRESET_NAMES:
+        current = existing_by_name.get(name)
+        if current is None:
+            continue
+        if not (getattr(current, "is_template", False) or getattr(current, "is_system", False)):
+            continue
+        try:
+            db.delete(current)
+            logger.info(f"Removed deprecated default workflow '{name}'")
+            existing_by_name.pop(name, None)
+        except Exception as exc:
+            logger.warning(f"Could not remove deprecated preset '{name}': {exc}")
 
     targets_to_replace: set[str] = preset_names if force else upgrade_names
     for name in targets_to_replace:

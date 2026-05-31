@@ -6,9 +6,9 @@ import SwiftUI
 @MainActor
 class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
-    // Bumped past both Mind Palace (27) and Researcher (26) so the new
-    // mindPalace + research flag defaults are re-applied on existing installs.
-    private static let releaseProfileVersion = 28
+    // Bumped to re-apply workflow execution release defaults on existing
+    // installs (langgraph preview, run-on-selection, files toolbar, import/export).
+    private static let releaseProfileVersion = 29
     private static let workflowV001EnabledTools =
         "files,collection,folder,aggregate,transcribe,catalogue,"
         + "extract_entities,key_people,timeline,keywords,summarize_file,"
@@ -193,9 +193,9 @@ class FeatureManager: ObservableObject {
         libraryFilterToolbarEnabledInternal = false
         libraryIconZoomControlsEnabledInternal = true // 0.0.3 #517: zoom controls re-enabled
         workflowsEnabledInternal = true
-        workflowEditorAdvancedViewsEnabled = false
+        workflowEditorAdvancedViewsEnabled = true
         workflowChainsEnabledInternal = true
-        batchesEnabledInternal = false
+        batchesEnabledInternal = true
         chatEnabledInternal = false
         agentsEnabledInternal = false
         automationEnabledInternal = false
@@ -223,8 +223,8 @@ class FeatureManager: ObservableObject {
         workflowToolsSearchEnabledInternal = false
         workflowEnabledToolsInternal = Self.workflowV001EnabledTools
         providersExtendedEnabledInternal = false
-        workflowImportExportEnabledInternal = false
-        workflowLangGraphPreviewEnabledInternal = false
+        workflowImportExportEnabledInternal = true
+        workflowLangGraphPreviewEnabledInternal = true
         workflowFilesToolbarEnabledInternal = true
         workflowRunOnSelectionEnabledInternal = true
         researchEnabledInternal = true

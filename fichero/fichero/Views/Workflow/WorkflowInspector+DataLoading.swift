@@ -38,6 +38,21 @@ extension WorkflowInspector {
         )
     }
 
+    /// Number of built-in tools currently hidden by feature flags.
+    /// Surfaces gating explicitly in the inspector so missing tools do not
+    /// look like broken wiring (#1220).
+    var hiddenBuiltinToolCount: Int {
+        var hidden = 0
+        for category in toolCategories {
+            if !isWorkflowCategoryEnabled(category.category) {
+                hidden += category.tools.count
+                continue
+            }
+            hidden += category.tools.filter { !isWorkflowToolEnabled($0) }.count
+        }
+        return hidden
+    }
+
     private func isWorkflowCategoryEnabled(_ category: String) -> Bool {
         let normalized = category.lowercased()
 

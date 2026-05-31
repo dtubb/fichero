@@ -11,6 +11,11 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
     @State private var artifacts: [Artifact] = []
     @State private var isLoadingArtifacts = false
     @State private var expandedArtifactTypes: Set<String> = []
+    @State private var comparisonArtifacts: [Artifact] = []
+    @State private var comparisonType: String = ""
+    @State private var leftComparisonId: String = ""
+    @State private var rightComparisonId: String = ""
+    @State private var isComparisonSheetPresented = false
 
     var body: some View {
         // Hide the raw extractor artifact when a `<key>_clean` exists on the
@@ -86,11 +91,16 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
             // refresh is needed after the workflow completes.
             Task { await loadArtifacts(for: documentId) }
         }
+        .sheet(isPresented: $isComparisonSheetPresented) {
+            artifactComparisonSheet
+                .frame(minWidth: 980, minHeight: 560)
+        }
     }
 
     // MARK: - Artifact Type Section
 
     private func artifactTypeSection(type: String, artifacts: [Artifact]) -> some View {
+        let sortedArtifacts = artifacts.sorted { $0.createdAt > $1.createdAt }
         DisclosureGroup(
             isExpanded: Binding(
                 get: { expandedArtifactTypes.contains(type) },
@@ -104,7 +114,7 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
             )
         ) {
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(artifacts) { artifact in
+                ForEach(sortedArtifacts) { artifact in
                     artifactRow(artifact)
                 }
             }
@@ -119,6 +129,14 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
                 Text("(\(artifacts.count))")
                     .font(.caption2)
                     .foregroundColor(.secondary)
+                Spacer()
+                if sortedArtifacts.count > 1 {
+                    Button("Compare") {
+                        startComparison(type: type, artifacts: sortedArtifacts)
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption2)
+                }
             }
         }
     }
@@ -212,6 +230,95 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
             return content
         }
         return attr.string
+    }
+
+    @ViewBuilder
+    private var artifactComparisonSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Compare \(displayNameForArtifactType(comparisonType))")
+                        .font(.headline)
+                    Spacer()
+                }
+                HStack(spacing: 12) {
+                    Picker("Left", selection: $leftComparisonId) {
+                        ForEach(comparisonArtifacts) { artifact in
+                            Text(comparisonLabel(for: artifact)).tag(artifact.id)
+                        }
+                    }
+                    Picker("Right", selection: $rightComparisonId) {
+                        ForEach(comparisonArtifacts) { artifact in
+                            Text(comparisonLabel(for: artifact)).tag(artifact.id)
+                        }
+                    }
+                }
+                .pickerStyle(.menu)
+
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Left")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        ScrollView {
+                            Text(comparisonContent(for: leftComparisonId))
+                                .font(.system(.body, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .textSelection(.enabled)
+                        }
+                        .padding(10)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Right")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        ScrollView {
+                            Text(comparisonContent(for: rightComparisonId))
+                                .font(.system(.body, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .textSelection(.enabled)
+                        }
+                        .padding(10)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .padding(14)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        isComparisonSheetPresented = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func startComparison(type: String, artifacts: [Artifact]) {
+        comparisonType = type
+        comparisonArtifacts = artifacts
+        leftComparisonId = artifacts.first?.id ?? ""
+        rightComparisonId = artifacts.dropFirst().first?.id ?? artifacts.first?.id ?? ""
+        isComparisonSheetPresented = true
+    }
+
+    private func comparisonLabel(for artifact: Artifact) -> String {
+        let model = artifact.model?.isEmpty == false ? artifact.model! : "unknown model"
+        let provider = artifact.provider?.isEmpty == false ? artifact.provider! : "unknown provider"
+        let age = RelativeDateTimeFormatter().localizedString(for: artifact.createdAt, relativeTo: Date())
+        return "\(model) • \(provider) • \(age)"
+    }
+
+    private func comparisonContent(for artifactId: String) -> String {
+        guard let artifact = comparisonArtifacts.first(where: { $0.id == artifactId }) else {
+            return "No artifact selected."
+        }
+        guard let content = artifact.content, !content.isEmpty else {
+            return "Artifact has no textual content."
+        }
+        return plainProjection(of: content)
     }
 
     // MARK: - Structured Preview Router
