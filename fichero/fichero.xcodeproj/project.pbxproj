@@ -371,7 +371,6 @@
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = C10000310000000000000001 /* Sparkle */; };
 		C1C484907B28189E223436BE /* LibraryManager+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */; };
 		C340001000000000PROMPT01 /* PromptPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C340001100000000PROMPT01 /* PromptPreviewPanel.swift */; };
-		C7BF4AC6684C509B038F816C /* StageVariantInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7400677DF50FA7BD1B9D2672 /* StageVariantInspector.swift */; };
 		C835851846598745D40790B6 /* EntityDetailView+FilterChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = D18BA434B3CB3A8C31139293 /* EntityDetailView+FilterChips.swift */; };
 		C96A47B8A003AF3A6FC98CF8 /* AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C07B489C8F89204C43BD6E46 /* AISettingsView.swift */; };
 		CDC0C10EEA6E46633D2868A4 /* RoomListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C08ADDE88D8E020CAB9AB9E /* RoomListView.swift */; };
@@ -610,7 +609,6 @@
 		63B044A60D5A8C7BA256FF24 /* NavigationHistoryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NavigationHistoryManager.swift; sourceTree = "<group>"; };
 		6650E28284D750D9076B0612 /* ContentView+ReadingLayout.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+ReadingLayout.swift"; sourceTree = "<group>"; };
 		72D05E0BE3C8D1AEA1AA3A8D /* ImageMarqueeOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageMarqueeOverlay.swift; sourceTree = "<group>"; };
-		7400677DF50FA7BD1B9D2672 /* StageVariantInspector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StageVariantInspector.swift; sourceTree = "<group>"; };
 		74515FA0260E31DB7F74A1D3 /* PDFReadingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFReadingView.swift; sourceTree = "<group>"; };
 		747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderContentsGrid.swift; sourceTree = "<group>"; };
 		74B8B6B4FF52EDA955679CF0 /* ResearchWorkspaceView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchWorkspaceView.swift; sourceTree = "<group>"; };
@@ -1528,7 +1526,6 @@
 				E80DDED3870C2457BFD97D1E /* DocumentKGWebPane.swift */,
 				A9CC1872944150E583173CB8 /* ImageEditor */,
 				A5C119BA4657FD54B0F01D6C /* DocumentKGSurface.swift */,
-				7400677DF50FA7BD1B9D2672 /* StageVariantInspector.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -2212,7 +2209,6 @@
 				D584DA0264AC18C07D78233A /* KGFocusState.swift in Sources */,
 				21B8070BD02B0087A8B83D04 /* MindPalaceTheme.swift in Sources */,
 				02DC70ACB03D52EDE04B84C3 /* MindPalaceLibraryProjector.swift in Sources */,
-				C7BF4AC6684C509B038F816C /* StageVariantInspector.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
