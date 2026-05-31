@@ -101,7 +101,7 @@ struct DocumentInspectorArtifactsTab: View { // swiftlint:disable:this type_body
 
     private func artifactTypeSection(type: String, artifacts: [Artifact]) -> some View {
         let sortedArtifacts = artifacts.sorted { $0.createdAt > $1.createdAt }
-        DisclosureGroup(
+        return DisclosureGroup(
             isExpanded: Binding(
                 get: { expandedArtifactTypes.contains(type) },
                 set: { isExpanded in
