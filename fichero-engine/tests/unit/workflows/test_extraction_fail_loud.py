@@ -363,6 +363,62 @@ class TestZombieRunRecovery:
         recovered = await store.recover_stale_runs(max_age_hours=1)
         assert recovered == 0
 
+    @pytest.mark.asyncio
+    async def test_get_activity_tracker_schedules_recover_on_new_library(
+        self, tmp_path: Path
+    ) -> None:
+        """get_activity_tracker() fires recover_stale_runs() when a library
+        is first opened (#1350 wiring test).
+
+        Seeds a stale 'running' row directly into the DB, then calls
+        get_activity_tracker() while a real event loop is running (pytest-asyncio
+        provides one).  The background coroutine is awaited by draining the loop,
+        then we assert the zombie is gone.
+        """
+        import asyncio
+        from datetime import datetime, timezone, timedelta
+        from unittest.mock import patch
+
+        from fichero.workflows.activity_store import ActivityStore
+        import fichero.workflows.activity as activity_module
+
+        db_path = str(tmp_path / "wiring_test.db")
+
+        # Seed a stale row directly so there's something to recover.
+        store = ActivityStore(db_path)
+        two_hours_ago = datetime.now(timezone.utc) - timedelta(hours=2)
+        await store.save_workflow_run(
+            thread_id="zombie-wiring",
+            workflow_id="wf-wiring",
+            workflow_name="Wiring Test Workflow",
+            started_at=two_hours_ago,
+        )
+
+        # Remove any cached tracker so get_activity_tracker creates a new one.
+        with activity_module._tracker_lock:
+            activity_module._activity_trackers.pop(db_path, None)
+
+        # Call under the running pytest-asyncio event loop so ensure_future works.
+        tracker = activity_module.get_activity_tracker(db_path)
+        assert tracker is not None
+
+        # Yield control and wait long enough for asyncio.to_thread to complete.
+        # recover_stale_runs uses asyncio.to_thread internally (thread pool),
+        # so we need a real sleep to let that thread finish.
+        await asyncio.sleep(0.1)
+
+        # The zombie run must now be 'failed'.
+        zombie = await tracker.store.get_workflow_run("zombie-wiring")
+        assert zombie is not None, "zombie run should still exist in DB"
+        assert zombie.status == "failed", (
+            f"#1350: wiring test — zombie status={zombie.status!r}, "
+            f"expected 'failed' after get_activity_tracker() scheduled recovery"
+        )
+
+        # Cleanup: remove tracker so it doesn't bleed into other tests.
+        with activity_module._tracker_lock:
+            activity_module._activity_trackers.pop(db_path, None)
+
 
 # ---------------------------------------------------------------------------
 # (d) _make_node_function: generic Exception → error dict (existing behaviour)
