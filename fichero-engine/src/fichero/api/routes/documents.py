@@ -108,6 +108,9 @@ class DocumentUpdate(BaseModel):
     path: Optional[str] = None
     page_content: Optional[str] = None
     status: Optional[Status] = None
+    is_read: Optional[bool] = None
+    is_starred: Optional[bool] = None
+    is_flagged: Optional[bool] = None
     metadata: Optional[dict] = None
 
 

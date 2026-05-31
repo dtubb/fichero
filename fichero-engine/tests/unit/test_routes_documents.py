@@ -256,6 +256,41 @@ class TestUpdateDocument:
         r = client.put("/api/documents/no-such-id", json={"name": "X"})
         assert r.status_code == 404
 
+    def test_update_read_flag_star_state(self, client, db):
+        doc = _make_doc(db, "Mail style states")
+        r = client.put(
+            f"/api/documents/{doc.id}",
+            json={"is_read": True, "is_flagged": True, "is_starred": True},
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["is_read"] is True
+        assert payload["is_flagged"] is True
+        assert payload["is_starred"] is True
+
+        r2 = client.get(f"/api/documents/{doc.id}")
+        assert r2.status_code == 200
+        payload2 = r2.json()
+        assert payload2["is_read"] is True
+        assert payload2["is_flagged"] is True
+        assert payload2["is_starred"] is True
+
+    def test_update_can_clear_read_flag_state(self, client, db):
+        doc = _make_doc(db, "Unread toggle")
+        client.put(
+            f"/api/documents/{doc.id}",
+            json={"is_read": True, "is_flagged": True, "is_starred": True},
+        )
+        r = client.put(
+            f"/api/documents/{doc.id}",
+            json={"is_read": False, "is_flagged": False, "is_starred": False},
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["is_read"] is False
+        assert payload["is_flagged"] is False
+        assert payload["is_starred"] is False
+
 
 # ---------------------------------------------------------------------------
 # DELETE /api/documents/{doc_id}

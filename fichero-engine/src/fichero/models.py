@@ -265,6 +265,9 @@ class Document(BaseModel):
 
     # Processing state
     status: Status = Status.pending
+    is_read: bool = False
+    is_starred: bool = False
+    is_flagged: bool = False
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)
