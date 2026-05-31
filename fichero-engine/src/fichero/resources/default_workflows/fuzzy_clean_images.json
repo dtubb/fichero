@@ -1,0 +1,53 @@
+{
+  "name": "Fuzzy Clean Images",
+  "description": "Despeckle and clean uneven scan background into derived image files without modifying the originals. Useful for noisy scanned documents before OCR or transcription.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Image Editing",
+  "tags": ["preset", "image-editing", "fuzzy-clean", "despeckle", "ocr"],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "fuzzy_clean_images",
+      "tool": "fuzzy_clean_images",
+      "label": "Fuzzy Clean Images",
+      "position_x": 300,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "despeckle_radius": 3,
+        "background_clean": true,
+        "output_format": "jpg",
+        "compression_quality": 90
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-documents-fuzzy-clean-images",
+      "source": "files-source",
+      "target": "fuzzy_clean_images",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "edge-files-fuzzy-clean-images",
+      "source": "files-source",
+      "target": "fuzzy_clean_images",
+      "source_port": "files",
+      "target_port": "files"
+    }
+  ]
+}

@@ -509,6 +509,44 @@ class TestLoadPresetFiles:
         assert enhance_node["config"].get("denoise") is True
         assert enhance_node["config"].get("output_format") == "jpg"
 
+    def test_fuzzy_clean_images_preset_wiring(self):
+        """Fuzzy Clean Images should expose despeckle/background cleanup
+        as a default image-editing workflow (#1389)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Fuzzy Clean Images" in presets, "fuzzy clean preset must ship"
+        preset = presets["Fuzzy Clean Images"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Image Editing"
+        assert preset.get("format") == "nodes"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "fuzzy_clean_images"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        files_id = _node_id(preset, "files")
+        clean_id = _node_id(preset, "fuzzy_clean_images")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == clean_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into fuzzy_clean_images"
+        assert any(
+            e["source"] == files_id
+            and e["target"] == clean_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in preset["edges"]
+        ), "documents must flow into fuzzy_clean_images for preview editor updates"
+
+        clean_node = next(n for n in preset["nodes"] if n["tool"] == "fuzzy_clean_images")
+        assert clean_node["config"].get("despeckle_radius") == 3
+        assert clean_node["config"].get("background_clean") is True
+        assert clean_node["config"].get("output_format") == "jpg"
+
     def test_prepare_images_for_ocr_preset_wiring(self):
         """Prepare Images for OCR should expose the non-destructive image prep
         tool as a stageable default workflow (#1390)."""

@@ -19,6 +19,7 @@ from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.models import DocType, Document, ImageEditChain
 from fichero.storage import resolve_source
+from fichero.workflows.tools.fuzzy_clean_images import apply_fuzzy_clean
 
 router = APIRouter(prefix="/images", tags=["images"])
 
@@ -305,6 +306,13 @@ def _apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
             float(params.get("sharpen", 1.0))
         )
         return enhanced
+
+    if name == "fuzzy_clean":
+        return apply_fuzzy_clean(
+            image,
+            despeckle_radius=int(params.get("despeckle_radius", 3)),
+            background_clean=bool(params.get("background_clean", True)),
+        )
 
     if name == "remove_background":
         return _remove_background(image, params)

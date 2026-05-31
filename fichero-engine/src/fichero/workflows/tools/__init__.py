@@ -48,6 +48,7 @@ from fichero.workflows.tools import similarity
 from fichero.workflows.tools import rotate_images  # noqa: F401  (#1387)
 from fichero.workflows.tools import prepare_images  # noqa: F401  (#1390)
 from fichero.workflows.tools import enhance_images  # noqa: F401  (#1388)
+from fichero.workflows.tools import fuzzy_clean_images  # noqa: F401  (#1389)
 
 # LLM tools
 from fichero.workflows.tools import summarize
@@ -126,6 +127,7 @@ __all__ = [
     "rotate_images",
     "prepare_images",
     "enhance_images",
+    "fuzzy_clean_images",
     # LLM
     "summarize",
     "entities",

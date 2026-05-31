@@ -243,6 +243,33 @@ class TestImagePreviewRoute:
         img = Image.open(io.BytesIO(r.content))
         assert img.size == (50, 80)
 
+    def test_preview_applies_saved_fuzzy_clean_operation(self, client, db, tmp_path):
+        image_path = tmp_path / "speckle.png"
+        image = Image.new("RGB", (9, 9), (128, 128, 128))
+        image.putpixel((4, 4), (0, 0, 0))
+        image.save(image_path, format="PNG")
+        doc = Document(name="speckle.png", path=str(image_path), file_type=FileType.image)
+        db.save(doc)
+
+        put = client.put(
+            f"/api/images/{doc.id}/edits",
+            json={
+                "operations": [
+                    {
+                        "op": "fuzzy_clean",
+                        "page": 1,
+                        "params": {"despeckle_radius": 3, "background_clean": False},
+                    }
+                ]
+            },
+        )
+        assert put.status_code == 200
+
+        edited = client.get(f"/api/images/{doc.id}/preview")
+        assert edited.status_code == 200
+        edited_img = Image.open(io.BytesIO(edited.content))
+        assert edited_img.getpixel((4, 4))[0] > 0
+
     def test_preview_enhance_operation_supports_saved_denoise_param(
         self, client, db, tmp_path
     ):
