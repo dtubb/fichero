@@ -31,6 +31,7 @@ from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.models import Artifact, DocType, Document, FileType, Workflow
 from fichero.workflows.builder import build_graph
 from fichero.workflows.default_workflows import _load_preset_files
+from fichero.workflows import registry as workflow_registry
 from fichero.workflows.runtime import build_initial_state, to_workflow_def
 
 # Import workflow tools for registry side effects before build_graph().
@@ -82,6 +83,41 @@ def test_catalogue_default_workflow_lands_artifacts_and_kg_rows(
         source_doc_id=source_doc_id,
         before_entities=before_entities,
         before_claims=before_claims,
+    )
+
+
+@pytest.mark.parametrize(
+    "preset_name",
+    [p["name"] for p in _load_preset_files()],
+)
+def test_all_default_workflows_complete_with_deterministic_tool_stubs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    preset_name: str,
+):
+    """Smoke-run every shipped default workflow JSON to completion.
+
+    This is the broad CI guard for #1287: if a preset JSON wiring change
+    introduces a graph/runtime regression, this test fails even when single
+    tool unit tests still pass.
+    """
+    seed(tmp_path / "all-defaults-smoke.fichero")
+    workflow = _load_workflow_by_name(preset_name)
+    _install_generic_tool_smoke_stubs(monkeypatch, workflow)
+
+    state = build_initial_state(
+        {"selected_doc_ids": ["stub-doc-1"]},
+        library_path=str(tmp_path / "all-defaults-smoke.fichero"),
+    )
+    state["workflow_id"] = workflow.id
+    state["task_id"] = f"default-smoke-{preset_name.lower().replace(' ', '-')}"
+
+    final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
+    assert not final_state.get("error"), (preset_name, final_state.get("error"))
+    completed = set(final_state.get("completed_nodes") or [])
+    expected = {n.id for n in workflow.nodes}
+    assert expected <= completed, (
+        f"{preset_name}: expected all nodes completed; missing={sorted(expected - completed)}"
     )
 
 
@@ -218,6 +254,67 @@ def _load_catalogue_workflow():
             folder_path=preset.get("folder_path", "/"),
         )
     )
+
+
+def _load_workflow_by_name(name: str):
+    preset = next(p for p in _load_preset_files() if p["name"] == name)
+    return to_workflow_def(
+        Workflow(
+            id=f"default-{name.lower().replace(' ', '-')}-regression-harness",
+            name=preset["name"],
+            description=preset.get("description", ""),
+            nodes=preset["nodes"],
+            edges=preset["edges"],
+            config=preset.get("config", {}),
+            folder_path=preset.get("folder_path", "/"),
+        )
+    )
+
+
+def _install_generic_tool_smoke_stubs(
+    monkeypatch: pytest.MonkeyPatch,
+    workflow,
+) -> None:
+    """Stub every tool used by a workflow with a deterministic async no-op."""
+
+    def resolve_alias(provider: str, model: str) -> tuple[str, str]:
+        if (provider or "").startswith("$"):
+            return ("fake", "fake-model")
+        return (provider, model)
+
+    def _stub_for(tool_name: str):
+        async def _stub(inputs, state, llm_config):
+            text = f"{tool_name} output"
+            # Include the common payload keys consumed by downstream defaults.
+            payload = {
+                "value": text,
+                "text": text,
+                "summary": text,
+                "records": [{"doc_id": "stub-doc-1", "text": text}],
+                "documents": [{"id": "stub-doc-1", "name": "stub.txt"}],
+                "files": ["/tmp/stub.txt"],
+                "doc_ids": ["stub-doc-1"],
+                "file_paths": ["/tmp/stub.txt"],
+                "count": 1,
+                "kg_payload": [
+                    {
+                        "entity_name": "Regression Person",
+                        "entity_type": "person",
+                        "claim": "Regression Person signed the fixture deed.",
+                        "source_document_id": "stub-doc-1",
+                    }
+                ],
+            }
+            # Source-node friendliness.
+            if tool_name in {"files", "folder", "collection"}:
+                payload["selected_doc_ids"] = ["stub-doc-1"]
+            return payload
+
+        return _stub
+
+    monkeypatch.setattr("fichero.llm.resolve_model_alias", resolve_alias)
+    for node in workflow.nodes:
+        monkeypatch.setitem(workflow_registry.TOOLS, node.tool, _stub_for(node.tool))
 
 
 def _assert_workflow_completed(final_state: dict) -> None:
