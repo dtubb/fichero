@@ -5,7 +5,7 @@ import SwiftUI
 ///
 /// Renders the backend-rendered preview (so the original↔edited toggle is just
 /// `apply_edits=false|true` on `/images/{id}/preview`), exposes the edit-chain
-/// operations as controls, and shows the chain inspector alongside.
+/// operations as controls.
 ///
 /// Mounted from `EditorView` for `fileType == .image` documents. Prev/next
 /// navigation (#1265) and rubber-band crop/batch (#1265) layer on top in
@@ -65,17 +65,7 @@ struct ImageEditorView: View {
         VStack(spacing: 0) {
             toolbar
             Divider()
-            HStack(spacing: 0) {
-                canvas
-                Divider()
-                ImageEditChainPanel(
-                    chain: model.chain,
-                    isBusy: model.isBusy,
-                    onRemove: { index in Task { await model.removeOperation(at: index) } },
-                    onReset: { Task { await model.resetAll() } }
-                )
-                .frame(width: 260)
-            }
+            canvas
         }
         .task(id: document.id) {
             // External selection changed (host drove a new document).

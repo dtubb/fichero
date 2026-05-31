@@ -23,6 +23,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
     case annotations = "Annotations"
     case knowledgeGraph = "Knowledge Graph"
     case artifacts = "Artifacts"
+    case edits = "Edits"
     case info = "Info"
 
     var id: String { rawValue }
@@ -33,6 +34,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         case .annotations: return "highlighter"
         case .knowledgeGraph: return "point.3.connected.trianglepath.dotted"
         case .artifacts: return "shippingbox"
+        case .edits: return "slider.horizontal.3"
         case .info: return "info.circle"
         }
     }
@@ -48,6 +50,8 @@ enum InspectorTab: String, CaseIterable, Identifiable {
             return "Knowledge graph — the entities (people, places, organizations…) found in this document"
         case .artifacts:
             return "Artifacts — outputs generated for this document, such as summaries and transcripts"
+        case .edits:
+            return "Edits — non-destructive image/page edit operations for this document"
         case .info:
             return "Info — file metadata: type, size, dates, and storage location"
         }
@@ -102,13 +106,19 @@ struct DocumentInspector: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxHeight: .infinity)
+        .onChange(of: doc.id, initial: true) { _, _ in
+            if !availableTabs(for: doc).contains(selectedTab) {
+                selectedTab = .content
+            }
+        }
     }
 
     /// Xcode-style icon-only tab bar
     @ViewBuilder
     private var tabBar: some View {
+        let tabs = availableTabs(for: document)
         HStack(spacing: 2) {
-            ForEach(InspectorTab.allCases) { tab in
+            ForEach(tabs) { tab in
                 Button {
                     selectedTab = tab
                 } label: {
@@ -148,9 +158,21 @@ struct DocumentInspector: View {
             knowledgeGraphTab(for: doc)
         case .artifacts:
             artifactsTab(for: doc)
+        case .edits:
+            editsTab(for: doc)
         case .info:
             infoTab(for: doc)
         }
+    }
+
+    private func availableTabs(for doc: Document?) -> [InspectorTab] {
+        guard let doc else { return InspectorTab.allCases }
+        var tabs: [InspectorTab] = [.content, .annotations, .knowledgeGraph, .artifacts]
+        if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
+            tabs.append(.edits)
+        }
+        tabs.append(.info)
+        return tabs
     }
 
     @ViewBuilder
@@ -196,6 +218,19 @@ struct DocumentInspector: View {
     }
 
     @ViewBuilder
+    private func editsTab(for doc: Document) -> some View {
+        if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
+            DocumentInspectorImageEditsTab(document: doc)
+        } else {
+            Text("Edits are available for images and PDF pages.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .padding()
+        }
+    }
+
+    @ViewBuilder
     private func infoTab(for doc: Document) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -234,6 +269,34 @@ struct DocumentInspector: View {
     private func copyToClipboard(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+}
+
+private struct DocumentInspectorImageEditsTab: View {
+    let document: Document
+
+    @EnvironmentObject private var apiClient: APIClient
+    @StateObject private var model = ImageEditorModel()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if model.isBusy {
+                ProgressView()
+                    .controlSize(.small)
+                    .padding(.top, 10)
+            }
+
+            ImageEditChainPanel(
+                chain: model.chain,
+                isBusy: model.isBusy,
+                onRemove: { index in Task { await model.removeOperation(at: index) } },
+                onReset: { Task { await model.resetAll() } }
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .task(id: document.id) {
+            await model.configure(apiClient: apiClient, documentId: document.id)
+        }
     }
 }
 
