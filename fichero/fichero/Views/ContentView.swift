@@ -27,10 +27,11 @@ struct ContentView: View {
     static let contentMaxWidth: Double = 2200
     /// Minimum width of the widescreen content-list pane. Clamped to the
     /// view-mode icon rail width so the rail and list rows (thumbnail + text)
-    /// can't be dragged narrow enough to clip (#1243). Derived from the rail:
-    /// 4 mode icons × 40pt + MiniToolbar horizontal padding (12×2) + inter-item
-    /// spacing (12) ≈ 240.
-    static let contentListMinWidth: Double = 240
+    /// can't be dragged narrow enough to clip (#1243). #1477 added the Sort
+    /// menu + Filter button to that same rail, so the floor was widened to
+    /// keep them from clipping at the trailing edge. Rail: 4 mode icons × 40pt
+    /// + Sort + Filter + MiniToolbar padding (12×2) + spacing ≈ 300.
+    static let contentListMinWidth: Double = 300
     /// Minimum width of the flexible PDF canvas pane so its mini-toolbar
     /// (zoom −/%/+, fit, actual-size, magnifier, loupe + two dividers) never
     /// clips when the reading-surface dividers are dragged inward. The
