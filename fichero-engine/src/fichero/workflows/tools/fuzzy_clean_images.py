@@ -88,20 +88,21 @@ def apply_fuzzy_clean(image: Any, *, despeckle_radius: int = 3, background_clean
     """Apply a conservative document despeckle/background cleanup."""
     from PIL import ImageFilter, ImageOps
 
-    cleaned = image.filter(ImageFilter.MedianFilter(size=_normalise_radius(despeckle_radius)))
+    # MedianFilter + autocontrast operate on colour channels only. Remove-
+    # Background produces RGBA (transparent edges) and autocontrast raises
+    # "not supported for mode RGBA"; palette (P) images choke on the filters
+    # too. Split the original alpha off, clean the colour, then re-attach the
+    # untouched alpha so transparency is preserved exactly (#1534).
+    has_alpha = image.mode in {"RGBA", "LA"}
+    alpha = image.getchannel("A") if has_alpha else None
+    base = image if image.mode in {"RGB", "L"} else image.convert("RGB")
+
+    cleaned = base.filter(ImageFilter.MedianFilter(size=_normalise_radius(despeckle_radius)))
     if background_clean:
-        # ImageOps.autocontrast() raises "not supported for mode RGBA". The
-        # Remove-Background step produces RGBA output, so split the alpha off,
-        # autocontrast the colour channels, then re-attach the alpha (#1534).
-        if cleaned.mode in {"RGBA", "LA"}:
-            alpha = cleaned.getchannel("A")
-            rgb = ImageOps.autocontrast(cleaned.convert("RGB"))
-            cleaned = rgb.convert("RGBA")
-            cleaned.putalpha(alpha)
-        elif cleaned.mode == "P":
-            cleaned = ImageOps.autocontrast(cleaned.convert("RGB"))
-        else:
-            cleaned = ImageOps.autocontrast(cleaned)
+        cleaned = ImageOps.autocontrast(cleaned)
+    if alpha is not None:
+        cleaned = cleaned.convert("RGBA")
+        cleaned.putalpha(alpha)
     return cleaned
 
 
