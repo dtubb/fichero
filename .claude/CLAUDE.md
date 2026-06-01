@@ -24,6 +24,27 @@ Convention: `~/code/fichero-<version>` (e.g. `~/code/fichero-0.0.3`, `~/code/fic
 - Claude building: N+2 (e.g. 0.0.3) — one worktree, one agent loop
 - Do NOT start N+3 until Daniel approves N+1.
 
+## Iterate, never replace (HARD RULE)
+
+**Build on the existing code; do not rewrite or start over.** Daniel likes what
+is already there — the frontend and backend as they stand are an asset, not a
+draft. Replacing working code is *costly*: it throws away tested behaviour and
+forces him to re-learn / re-test from scratch.
+
+- **Augment, don't replace.** Extend existing views/services/modules in place.
+  Add a layer, a parameter, an overlay — do not swap a working component for a
+  new parallel one. (See `docs/architecture/swiftui/document_canvas.md`: the
+  right move was to fold the editor onto the *existing* viewer stack, not build
+  a third wrapper.)
+- **Resist the urge to "start over" / "rewrite cleanly."** If a fix feels like
+  it needs a rewrite, scope it down to the smallest in-place change instead.
+- The ONLY thing you retire is genuine **duplication** you just found — and only
+  by collapsing the duplicates onto the existing canonical one, never by
+  introducing a fresh replacement.
+- Applies to BOTH layers (SwiftUI and Python). When unsure, iterate.
+
+This rule is embedded in every worker dispatch prompt.
+
 ## How I Work
 
 **Priority order:**
