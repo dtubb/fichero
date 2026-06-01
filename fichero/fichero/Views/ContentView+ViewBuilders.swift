@@ -90,9 +90,65 @@ extension ContentView {
                     modeRailButton(mode)
                 }
                 Spacer(minLength: 0)
+                // Sort + Filter live here — at the Library view's top-right,
+                // next to the display-mode buttons — instead of the global
+                // window toolbar (#1477).
+                librarySortFilterControls
             }
             // XCUITest hook for the view-mode rail (#1230).
             .accessibilityIdentifier("viewModeRail")
+        }
+    }
+
+    /// Sort menu + inline-filter toggle for the Library mode rail. Library only
+    /// (search/workflows don't carry these). Drives the shared LibraryToolbarState
+    /// so the controls and the LibraryView stay in sync (#1477).
+    @ViewBuilder
+    private var librarySortFilterControls: some View {
+        if sidebarMode == .library {
+            Menu {
+                ForEach(LibrarySortField.allCases) { field in
+                    Button {
+                        libraryToolbarState.sortFieldRaw = field.rawValue
+                    } label: {
+                        Label(field.rawValue, systemImage: field.icon)
+                        if libraryToolbarState.sortField == field {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+                Divider()
+                Button {
+                    libraryToolbarState.sortAscending = true
+                } label: {
+                    Text("Ascending")
+                    if libraryToolbarState.sortAscending { Image(systemName: "checkmark") }
+                }
+                Button {
+                    libraryToolbarState.sortAscending = false
+                } label: {
+                    Text("Descending")
+                    if !libraryToolbarState.sortAscending { Image(systemName: "checkmark") }
+                }
+            } label: {
+                Image(systemName: "arrow.up.arrow.down")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Sort \(libraryToolbarState.sortField.rawValue), \(libraryToolbarState.sortAscending ? "ascending" : "descending")")
+            .accessibilityIdentifier("librarySortMenu")
+
+            if featureManager.isLibraryFilterToolbarEnabled {
+                Button {
+                    libraryToolbarState.showFilterBar.toggle()
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(libraryToolbarState.showFilterBar ? Color.accentColor : Color.secondary)
+                .help("Filter (⌘F)")
+                .accessibilityIdentifier("libraryFilterButton")
+            }
         }
     }
 
@@ -181,9 +237,16 @@ extension ContentView {
                     // per-window (#1448). When the canvas is hidden the reading
                     // pane takes over the freed space so there's never a gap.
                     HStack(spacing: 0) {
+                        // When both reading panes are hidden the list takes the
+                        // whole width instead of staying a fixed column with a
+                        // blank grey area beside it (#1516). list-only is a valid
+                        // state — the library list is the always-present spine.
                         contentWithOptionalModeRail
                             .overlay { paneFocusIndicator(for: .content) }
-                            .frame(width: clampedWidescreenContentPaneWidth)
+                            .frame(
+                                width: (showDocumentCanvas || showReadingPane)
+                                    ? clampedWidescreenContentPaneWidth : .infinity
+                            )
 
                         if showDocumentCanvas || showReadingPane {
                             ResizableDivider(

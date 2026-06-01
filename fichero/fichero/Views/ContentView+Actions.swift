@@ -42,7 +42,12 @@ extension ContentView {
     /// Cycle keyboard focus between sidebar, content, and inspector panes
     func cyclePaneFocus(reverse: Bool) {
         var panes: [PaneFocus] = [.sidebar, .content]
-        if showsPreviewPane {
+        // Only offer the preview pane to Tab-cycling when one actually renders.
+        // In widescreen both the canvas and reading panes can be hidden (#1448),
+        // in which case focusing .preview would be a no-op (#1516).
+        let previewPaneVisible = currentLayoutMode != .widescreen
+            || showDocumentCanvas || showReadingPane
+        if showsPreviewPane && previewPaneVisible {
             panes.append(.preview)
         }
         if showInspectorSidebar {

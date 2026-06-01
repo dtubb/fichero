@@ -58,6 +58,7 @@ extension ContentView {
                             await documentStore.refresh()
                         }
                     },
+                    libraryToolbar: libraryToolbarState,
                     selection: $browserSelection,
                     detailDocument: $detailDocument,
                     viewMode: $viewSettings.libraryLayout,

@@ -116,6 +116,10 @@ struct ContentView: View {
     // selection-driven behaviour (e.g. folders collapse the preview) by
     // turning this on. App-wide preference, toggled from the View menu. (#1452)
     @AppStorage("layout.followsSelection") var layoutFollowsSelection: Bool = false
+    // Library sort field / direction / filter-bar visibility, lifted out of
+    // LibraryView's @State so the in-content mode rail can host the Sort + Filter
+    // controls at the Library view's top-right (#1477).
+    @StateObject var libraryToolbarState = LibraryToolbarState()
 
     // Map view persistence (latitude, longitude, zoom)
     @SceneStorage("mapLatitude") var mapLatitude: Double = 0.0
@@ -669,6 +673,10 @@ extension ContentView {
                     Image(systemName: "doc.richtext")
                 }
                 .help(showDocumentCanvas ? "Hide Document Canvas" : "Show Document Canvas")
+                // The canvas/reading split only exists in the widescreen reading
+                // layout — disable the toggles elsewhere so they're not dead
+                // controls (#1516).
+                .disabled(currentLayoutMode != .widescreen)
             }
 
             ToolbarItem(placement: .automatic) {
@@ -680,6 +688,7 @@ extension ContentView {
                     Image(systemName: "text.book.closed")
                 }
                 .help(showReadingPane ? "Hide Reading Pane" : "Show Reading Pane")
+                .disabled(currentLayoutMode != .widescreen)
             }
         }
 
