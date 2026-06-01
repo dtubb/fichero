@@ -53,6 +53,35 @@ extension ContentView {
         return viewName
     }
 
+    /// SF symbol name for the current view mode — shown alongside toolbarTitle in the navigation header
+    var toolbarIcon: String {
+        switch viewMode {
+        case .library(let document):
+            guard let doc = document else { return "books.vertical" }
+            return doc.docType == .folder ? "folder" : "doc.text"
+        case .search:
+            return "magnifyingglass"
+        case .chat:
+            return "bubble.left.and.bubble.right"
+        case .comparison:
+            return "rectangle.split.2x1"
+        case .workflow:
+            return "bolt"
+        case .chain:
+            return "link"
+        case .batches, .batch, .activity:
+            return "clock"
+        case .automation:
+            return "gearshape.2"
+        case .schedule:
+            return "calendar"
+        case .trigger:
+            return "bolt.circle"
+        case .mindPalace:
+            return "cube.transparent"
+        }
+    }
+
     /// Documents for the browser based on current library selection
     var selectedDocuments: [Document] {
         return documentStore.currentDocuments

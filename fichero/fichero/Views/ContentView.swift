@@ -392,6 +392,14 @@ struct ContentView: View {
 extension ContentView {
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
+        // Mode icon + title in toolbar center — updates on every sidebar/view-mode change (#323).
+        // @ToolbarContentBuilder has no view-chain budget limit, so Label compiles cleanly here.
+        ToolbarItem(placement: .principal) {
+            Label(toolbarTitle, systemImage: toolbarIcon)
+                .labelStyle(.titleAndIcon)
+                .font(.headline)
+        }
+
         ToolbarItemGroup(placement: .navigation) {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
