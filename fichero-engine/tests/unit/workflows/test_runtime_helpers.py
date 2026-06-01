@@ -36,3 +36,28 @@ def test_to_workflow_def_accepts_object_style_nodes_and_edges():
     assert wf_def.nodes[0].provider_name == "openai"
     assert wf_def.edges[0].source == "n1"
     assert wf_def.edges[0].target_port == "context"
+
+
+def test_to_workflow_def_accepts_camel_case_edge_aliases():
+    workflow = SimpleNamespace(
+        id="wf-2",
+        name="Runtime Edge Alias Test",
+        nodes=[
+            {"id": "a", "tool": "transcribe"},
+            {"id": "b", "tool": "summarize"},
+        ],
+        edges=[
+            {
+                "sourceNodeId": "a",
+                "targetNodeId": "b",
+                "sourcePort": "text",
+                "targetPort": "context",
+            }
+        ],
+    )
+
+    wf_def = to_workflow_def(workflow)
+    assert wf_def.edges[0].source == "a"
+    assert wf_def.edges[0].target == "b"
+    assert wf_def.edges[0].source_port == "text"
+    assert wf_def.edges[0].target_port == "context"
