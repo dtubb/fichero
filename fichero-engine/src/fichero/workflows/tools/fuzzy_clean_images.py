@@ -90,7 +90,18 @@ def apply_fuzzy_clean(image: Any, *, despeckle_radius: int = 3, background_clean
 
     cleaned = image.filter(ImageFilter.MedianFilter(size=_normalise_radius(despeckle_radius)))
     if background_clean:
-        cleaned = ImageOps.autocontrast(cleaned)
+        # ImageOps.autocontrast() raises "not supported for mode RGBA". The
+        # Remove-Background step produces RGBA output, so split the alpha off,
+        # autocontrast the colour channels, then re-attach the alpha (#1534).
+        if cleaned.mode in {"RGBA", "LA"}:
+            alpha = cleaned.getchannel("A")
+            rgb = ImageOps.autocontrast(cleaned.convert("RGB"))
+            cleaned = rgb.convert("RGBA")
+            cleaned.putalpha(alpha)
+        elif cleaned.mode == "P":
+            cleaned = ImageOps.autocontrast(cleaned.convert("RGB"))
+        else:
+            cleaned = ImageOps.autocontrast(cleaned)
     return cleaned
 
 
