@@ -69,6 +69,28 @@ class StorageServiceGenerated: ObservableObject {
         return image
     }
 
+    /// Warm the thumbnail cache for a batch of documents (#719).
+    /// Fires concurrent fetches (max 6 at a time) only for uncached ids.
+    /// Errors are swallowed — this is best-effort prefetch, not critical load.
+    func prefetchThumbnails(_ docIds: [String]) async {
+        let uncached = docIds.filter { thumbnailCache[$0] == nil }
+        guard !uncached.isEmpty else { return }
+        await withTaskGroup(of: Void.self) { group in
+            var inFlight = 0
+            for docId in uncached {
+                if inFlight >= 6 {
+                    await group.next()
+                    inFlight -= 1
+                }
+                group.addTask { [weak self] in
+                    guard let self else { return }
+                    _ = try? await self.getThumbnail(docId)
+                }
+                inFlight += 1
+            }
+        }
+    }
+
     /// Evict a document's cached images — call when the user knows a
     /// thumbnail has changed (e.g., after a rebuild/reindex).
     func invalidateImageCache(for docId: String) {
