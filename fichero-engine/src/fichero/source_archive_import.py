@@ -39,6 +39,15 @@ DEFAULT_ARCHIVO_JUDICIAL_LIBRARY = Path(
 DEFAULT_ARCHIVO_JUDICIAL_CATALOGUE = Path(
     "/Users/danieltubb/Library/CloudStorage/Box-Box/Archivo Judicial de Medellín_UN/Catalogue"
 ).expanduser()
+DEFAULT_GHC_LIBRARY = Path(
+    "~/Library/Application Support/Fichero/GHC-Catalogued-Materials.fichero"
+).expanduser()
+DEFAULT_GHC_ACENET_ROOT = Path(
+    "/Users/danieltubb/Library/CloudStorage/Box-Box/GHC/ACENET imports"
+).expanduser()
+DEFAULT_GHC_CATALOGUED_ROOT = Path(
+    "/Users/danieltubb/Library/CloudStorage/Box-Box/GHC/already_catalogued"
+).expanduser()
 
 IMPORTABLE_EXTENSIONS = {
     ".jpg",
@@ -121,6 +130,27 @@ def import_archivo_judicial_medellin(
         corpus_name="Archivo Judicial de Medellin",
         library_path=library_path,
         roots={"catalogue": catalogue_root},
+        reset=reset,
+        auto_embed=auto_embed,
+    )
+
+
+def import_ghc_catalogued_materials(
+    *,
+    library_path: Path = DEFAULT_GHC_LIBRARY,
+    acenet_root: Path = DEFAULT_GHC_ACENET_ROOT,
+    catalogued_root: Path = DEFAULT_GHC_CATALOGUED_ROOT,
+    reset: bool = False,
+    auto_embed: bool = True,
+) -> SourceArchiveImportSummary:
+    return _import_roots(
+        provider="ghc_catalogued_materials",
+        corpus_name="GHC Catalogued Materials",
+        library_path=library_path,
+        roots={
+            "acenet_imports": acenet_root,
+            "already_catalogued": catalogued_root,
+        },
         reset=reset,
         auto_embed=auto_embed,
     )
