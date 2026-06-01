@@ -210,15 +210,21 @@ def resolve_source(doc: "Document") -> Path | None:
 
     # Fall back to paths
     if doc.path:
-        p = Path(doc.path).expanduser()
-        if p.exists():
+        try:
+            p = Path(doc.path).expanduser()
+        except TypeError:
+            p = None
+        if p is not None and p.exists():
             return p
 
     # Check metadata fields
     if doc.metadata:
         for key in ["source_path", "full_path", "display_path", "local_path"]:
             if path_str := doc.metadata.get(key):
-                p = Path(path_str).expanduser()
+                try:
+                    p = Path(path_str).expanduser()
+                except TypeError:
+                    continue
                 if p.exists():
                     return p
 

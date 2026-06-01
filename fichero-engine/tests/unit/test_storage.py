@@ -155,6 +155,20 @@ class TestResolveSource:
         result = resolve_source(doc)
         assert result is None
 
+    def test_invalid_metadata_path_types_are_ignored(self):
+        """Non-string metadata path values should not raise."""
+        from fichero.storage import resolve_source
+
+        doc = Mock()
+        doc.path = "/nonexistent/path.jpg"
+        doc.metadata = {
+            "source_path": 1234,
+            "full_path": {"bad": "type"},
+            "local_path": None,
+        }
+
+        assert resolve_source(doc) is None
+
     def test_metadata_priority_order(self, tmp_path):
         """Should check metadata paths in correct order."""
         from fichero.storage import resolve_source
