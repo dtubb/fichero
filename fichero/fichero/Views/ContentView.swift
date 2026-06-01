@@ -110,6 +110,12 @@ struct ContentView: View {
     // toggleable — it is always present as the spine of the workspace.
     @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool = true
     @SceneStorage("showReadingPane") var showReadingPane: Bool = true
+    // When false (default), selecting a different item NEVER changes which
+    // panes are visible — a folder shows the same panes as a PDF. The visible
+    // pane set is the user's choice (the toggles above). Opt in to the old
+    // selection-driven behaviour (e.g. folders collapse the preview) by
+    // turning this on. App-wide preference, toggled from the View menu. (#1452)
+    @AppStorage("layout.followsSelection") var layoutFollowsSelection: Bool = false
 
     // Map view persistence (latitude, longitude, zoom)
     @SceneStorage("mapLatitude") var mapLatitude: Double = 0.0

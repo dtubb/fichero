@@ -31,6 +31,10 @@ struct ViewMenuCommands: View {
 
         Divider()
 
+        SelectionDrivenLayoutToggle()
+
+        Divider()
+
         NavigateToParentButton()
 
         Divider()
@@ -466,6 +470,23 @@ struct InspectorButton: View {
         }
         .keyboardShortcut("i", modifiers: [.command, .option])
         .disabled(showInspector == nil)
+    }
+}
+
+// MARK: - Selection-driven Layout
+
+/// Opt-in toggle for selection-driven layout changes. OFF by default so the
+/// visible pane set is stable — selecting a folder vs a PDF shows the same
+/// panes. ON restores the legacy behaviour where a folder collapses the
+/// preview pane. App-wide @AppStorage, so a Toggle reflects external changes
+/// (mirrors ShowRulerButton's rationale). (#1452)
+struct SelectionDrivenLayoutToggle: View {
+    @AppStorage("layout.followsSelection") private var layoutFollowsSelection: Bool = false
+
+    var body: some View {
+        Toggle(isOn: $layoutFollowsSelection) {
+            Label("Selection Changes Layout", systemImage: "rectangle.on.rectangle")
+        }
     }
 }
 
