@@ -161,6 +161,7 @@ struct ImageEditChainPanel: View {
     }
 
     @ViewBuilder
+    // swiftlint:disable:next function_body_length
     private func stepEditor(for op: ImageEditOperation, at index: Int) -> some View {
         switch op.opKind {
         case "enhance":
@@ -249,6 +250,69 @@ struct ImageEditChainPanel: View {
                 }
                 Text("Or use the canvas marquee to free-crop.")
                     .font(.caption2).foregroundStyle(.tertiary)
+            }
+        case "remove_background":
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "person.and.background.dotted")
+                        .foregroundStyle(.secondary)
+                    Text("AI background removal — re-apply to rerun on the current image.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                HStack {
+                    Spacer()
+                    Button("Re-apply") {
+                        onRemove(index)
+                        onRemoveBackground()
+                        selectedStepIndex = nil
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(isBusy)
+                }
+            }
+        case "fuzzy_clean":
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.secondary)
+                    Text("AI noise / artifact cleanup — re-apply to rerun on the current image.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                HStack {
+                    Spacer()
+                    Button("Re-apply") {
+                        onRemove(index)
+                        onFuzzyClean()
+                        selectedStepIndex = nil
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(isBusy)
+                }
+            }
+        case "segment":
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.split.2x1")
+                        .foregroundStyle(.secondary)
+                    Text("Region segmentation — re-apply to rerun on the current image.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                HStack {
+                    Spacer()
+                    Button("Re-apply") {
+                        onRemove(index)
+                        onSegment()
+                        selectedStepIndex = nil
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(isBusy)
+                }
             }
         default:
             HStack {
@@ -379,7 +443,7 @@ struct ImageEditChainPanel: View {
     }
 }
 
-// swiftlint:enable type_body_length file_length
+// swiftlint:enable type_body_length
 
 #Preview("With edits") {
     @Previewable @State var selectedIdx: Int? = nil
