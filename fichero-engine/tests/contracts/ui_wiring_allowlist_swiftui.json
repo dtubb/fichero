@@ -387,6 +387,7 @@
     "/api/workflows/{workflow_id}/export": "baseline: not yet wired",
     "/api/workflow-execution/threads/{thread_id}/pause": "new pause endpoint (#1226) \u2014 wire into Activity workflow-run controls (frontend backlog)",
     "/api/claims/assign-time-period-from-metadata": "backend timeline dating (#1373); SwiftUI wiring tracked in Timeline backlog",
-    "/api/kg/review/summary": "backend KG review-queue badge summary (#1356); SwiftUI badge wiring tracked in KG wiring backlog (#1422)"
+    "/api/kg/review/summary": "backend KG review-queue badge summary (#1356); SwiftUI badge wiring tracked in KG wiring backlog (#1422)",
+    "/api/model-comparison/compare-node/apply": "backend model-comparison apply (#1268); SwiftUI wiring tracked with the model-comparison UI work"
   }
 }
