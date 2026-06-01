@@ -153,6 +153,37 @@ struct SidebarModeSection: View {
                     sidebarMode?.wrappedValue = .mindPalace
                 }
             }
+
+            // Research (8) + Knowledge Graph (9) menu entries. These exist in the
+            // sidebar mode-icon bar but had dropped out of the View menu, so the
+            // menu items + ⌃⌘8 / ⌃⌘9 shortcuts that surface the entity browser
+            // (OntologyBrowser) went missing — the lost entry point in #1485.
+            if featureManager.isResearchEnabled {
+                SidebarModeButton(
+                    mode: .research,
+                    label: SidebarMode.research.label,
+                    icon: SidebarMode.research.icon,
+                    shortcut: SidebarMode.research.shortcutNumber,
+                    current: currentMode
+                ) {
+                    sidebarMode?.wrappedValue = .research
+                }
+            }
+
+            if featureManager.isKnowledgeGraphEnabled {
+                Divider()
+
+                // Knowledge Graph mode — entity list + per-entity KG (OntologyBrowser).
+                SidebarModeButton(
+                    mode: .knowledgeGraph,
+                    label: SidebarMode.knowledgeGraph.label,
+                    icon: SidebarMode.knowledgeGraph.icon,
+                    shortcut: SidebarMode.knowledgeGraph.shortcutNumber,
+                    current: currentMode
+                ) {
+                    sidebarMode?.wrappedValue = .knowledgeGraph
+                }
+            }
         }
     }
 }
