@@ -309,6 +309,42 @@ class TestFindDuplicates:
 
         assert duplicates == {}
 
+
+class TestIffySidecar:
+    def test_parse_iffy_sidecar_maps_fields_and_notes(self, tmp_path):
+        from fichero.ingest import _parse_iffy_sidecar
+
+        image = tmp_path / "map-001.jpg"
+        image.write_text("x", encoding="utf-8")
+        sidecar = tmp_path / "map-001.iffy.json"
+        sidecar.write_text(
+            '{"status":"catalogued","record_type":"map","notes":["n1","n2"]}',
+            encoding="utf-8",
+        )
+
+        parsed = _parse_iffy_sidecar(image)
+        assert parsed is not None
+        assert parsed["iffy_status"] == "catalogued"
+        assert parsed["iffy_record_type"] == "map"
+        assert parsed["iffy_notes"] == "n1, n2"
+
+    def test_apply_iffy_does_not_override_existing_metadata(self):
+        from fichero.ingest import _apply_iffy_to_document
+        from fichero.models import Document
+
+        doc = Document(name="x.jpg", metadata={"iffy_status": "human-reviewed"})
+        _apply_iffy_to_document(
+            doc,
+            {
+                "iffy_status": "catalogued",
+                "iffy_repository": "Archive A",
+            },
+        )
+
+        assert doc.metadata["iffy_status"] == "human-reviewed"
+        assert doc.metadata["iffy_repository"] == "Archive A"
+        assert doc.metadata["_iffy_sidecar"] is True
+
     def test_handles_missing_checksum(self):
         """Should handle documents without checksum."""
         from fichero.ingest import find_duplicates
