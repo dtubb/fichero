@@ -56,7 +56,10 @@ extension ContentView {
         // Was 250 — felt bloated on small screens.
         .navigationSplitViewColumnWidth(min: 180, ideal: sidebarWidth, max: 360)
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
-        .focusedSceneValue(\.showInspector, $showInspectorSidebar)
+        // NOTE: \.showInspector is published from the detail column in
+        // ContentView.navigationSplitColumn (always present), NOT here — the
+        // sidebar leaves the hierarchy when collapsed, which disabled ⌘⌥I
+        // and the View-menu toggle while the sidebar was hidden (#1513).
         .focusedSceneValue(\.navigateToParentAction, navigateToParent)
     }
 
