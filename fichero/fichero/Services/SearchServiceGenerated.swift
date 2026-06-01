@@ -96,7 +96,7 @@ class SearchServiceGenerated: ObservableObject {
         }
     }
 
-    /// Reindex all documents (runs in background on server)
+    /// Reindex all documents.  POST /api/search/reindex
     func reindexAll() async throws -> ReindexStatus {
         let response = try await client.api.reindexAllApiSearchReindexPost(
             .init(
@@ -116,7 +116,7 @@ class SearchServiceGenerated: ObservableObject {
         }
     }
 
-    /// Embed a specific document
+    /// Embed a specific document.  POST /api/search/embed/{doc_id}
     func embedDocument(_ documentId: String) async throws -> EmbedStatus {
         let response = try await client.api.embedDocumentApiSearchEmbedDocIdPost(
             .init(
@@ -139,7 +139,7 @@ class SearchServiceGenerated: ObservableObject {
 
     // MARK: - Saved Searches
 
-    /// List all saved searches
+    /// List all saved searches.  GET /api/search/saved
     func listSavedSearches() async throws -> [Components.Schemas.SavedSearchResponse] {
         let response = try await client.api.listSavedSearchesApiSearchSavedGet(
             .init(
@@ -158,7 +158,7 @@ class SearchServiceGenerated: ObservableObject {
         }
     }
 
-    /// Save a search
+    /// Save a search.  POST /api/search/saved
     func saveSearch(
         query: String,
         isSmartSearch: Bool = true,
@@ -203,7 +203,7 @@ class SearchServiceGenerated: ObservableObject {
         }
     }
 
-    /// Update a saved search
+    /// Update a saved search.  PUT /api/search/saved/{search_id}
     func updateSavedSearch(
         searchId: String,
         query: String? = nil,
@@ -248,7 +248,7 @@ class SearchServiceGenerated: ObservableObject {
         }
     }
 
-    /// Delete a saved search
+    /// Delete a saved search.  DELETE /api/search/saved/{search_id}
     func deleteSavedSearch(searchId: String) async throws {
         let response = try await client.api.deleteSavedSearchApiSearchSavedSearchIdDelete(
             .init(
@@ -268,7 +268,7 @@ class SearchServiceGenerated: ObservableObject {
         }
     }
 
-    /// Duplicate a saved search
+    /// Duplicate a saved search.  POST /api/search/saved/{search_id}/duplicate
     func duplicateSavedSearch(searchId: String) async throws -> Components.Schemas.SavedSearchResponse {
         let response = try await client.api.duplicateSavedSearchApiSearchSavedSearchIdDuplicatePost(
             .init(
@@ -288,7 +288,7 @@ class SearchServiceGenerated: ObservableObject {
         }
     }
 
-    /// Reorder saved searches
+    /// Reorder saved searches.  POST /api/search/saved/reorder
     /// Note: The backend returns an untyped object response, so we re-fetch the list after reordering
     func reorderSavedSearches(ids: [String]) async throws -> [Components.Schemas.SavedSearchResponse] {
         let response = try await client.api.reorderSavedSearchesApiSearchSavedReorderPost(
