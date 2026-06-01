@@ -130,7 +130,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         itemRegistry: registry,
         searchText: $searchText
     )
-    .frame(height: 44)
+    .frame(height: MiniToolbar<EmptyView>.standardHeight)
     .onAppear {
         registry.createFolder = { print("Create folder") }
         registry.createSearch = { print("Create search") }

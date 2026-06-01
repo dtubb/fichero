@@ -176,68 +176,96 @@ extension ContentView {
                     .frame(maxWidth: .infinity)
 
                 case .widescreen:
+                    // Library list is always present; the document canvas and the
+                    // reading/WebKit pane are each independently toggleable
+                    // per-window (#1448). When the canvas is hidden the reading
+                    // pane takes over the freed space so there's never a gap.
                     HStack(spacing: 0) {
                         contentWithOptionalModeRail
                             .overlay { paneFocusIndicator(for: .content) }
                             .frame(width: clampedWidescreenContentPaneWidth)
 
-                        ResizableDivider(
-                            width: $widescreenContentPaneWidth,
-                            minWidth: ContentView.contentListMinWidth,
-                            maxWidth: 900,
-                            edge: .leading
-                        )
-
-                        if let pdfPath = detailPDFPath {
-                            PDFPageWithToolbar(
-                                path: pdfPath,
-                                pageIndex: selectedPageIndex,
-                                onPageIndexChange: { index in
-                                    guard documentScrollSync.beginDriving(.pdf) else { return }
-                                    syncGridSelectionToPDFPage(index: index)
-                                }
+                        if showDocumentCanvas || showReadingPane {
+                            ResizableDivider(
+                                width: $widescreenContentPaneWidth,
+                                minWidth: ContentView.contentListMinWidth,
+                                maxWidth: 900,
+                                edge: .leading
                             )
-                            .overlay { paneFocusIndicator(for: .preview) }
-                            .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
-                        } else {
-                            EditorView(
-                                document: detailDocument,
-                                showHeader: false,
-                                onPDFPageIndexChange: { index in
-                                    syncGridSelectionToPDFPage(index: index)
-                                },
-                                onNavigateToDocument: { docId in
-                                    selectDocument(withId: docId)
-                                },
-                                selectedDocumentIDs: browserSelection
-                            )
-                            .overlay { paneFocusIndicator(for: .preview) }
-                            .frame(maxWidth: .infinity)
                         }
 
-                        ResizableDivider(
-                            width: $pageContentPaneWidth,
-                            minWidth: 220,
-                            maxWidth: 540,
-                            edge: .trailing
-                        )
+                        if showDocumentCanvas {
+                            widescreenCanvasPane
 
-                        knowledgeSurface(
-                            for: detailDocument,
-                            activePageNumber: detailPDFPath == nil ? nil : selectedPageIndex + 1,
-                            pageCount: pdfDocPages.isEmpty ? nil : pdfDocPages.count,
-                            scrollSync: documentScrollSync,
-                            onPageSelected: { index in
-                                syncGridSelectionToPDFPage(index: index)
+                            if showReadingPane {
+                                ResizableDivider(
+                                    width: $pageContentPaneWidth,
+                                    minWidth: 220,
+                                    maxWidth: 540,
+                                    edge: .trailing
+                                )
+                                widescreenReadingPane
+                                    .frame(width: CGFloat(pageContentPaneWidth))
                             }
-                        )
-                        .frame(width: CGFloat(pageContentPaneWidth))
+                        } else if showReadingPane {
+                            widescreenReadingPane
+                                .frame(maxWidth: .infinity)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                 }
             }
             .animation(.easeInOut(duration: 0.18), value: layout)
         }
+    }
+
+    /// The document-canvas pane of the widescreen reading layout — a PDF page
+    /// viewer when a PDF is active, otherwise the image/preview editor. Carries
+    /// its own flexible width so it fills whatever the list/reading panes leave.
+    /// Extracted so the canvas can be conditionally shown/hidden (#1448).
+    @ViewBuilder
+    var widescreenCanvasPane: some View {
+        if let pdfPath = detailPDFPath {
+            PDFPageWithToolbar(
+                path: pdfPath,
+                pageIndex: selectedPageIndex,
+                onPageIndexChange: { index in
+                    guard documentScrollSync.beginDriving(.pdf) else { return }
+                    syncGridSelectionToPDFPage(index: index)
+                }
+            )
+            .overlay { paneFocusIndicator(for: .preview) }
+            .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
+        } else {
+            EditorView(
+                document: detailDocument,
+                showHeader: false,
+                onPDFPageIndexChange: { index in
+                    syncGridSelectionToPDFPage(index: index)
+                },
+                onNavigateToDocument: { docId in
+                    selectDocument(withId: docId)
+                },
+                selectedDocumentIDs: browserSelection
+            )
+            .overlay { paneFocusIndicator(for: .preview) }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    /// The reading / WebKit "Knowledge" pane of the widescreen layout.
+    /// Extracted so it can be conditionally shown/hidden per-window (#1448).
+    @ViewBuilder
+    var widescreenReadingPane: some View {
+        knowledgeSurface(
+            for: detailDocument,
+            activePageNumber: detailPDFPath == nil ? nil : selectedPageIndex + 1,
+            pageCount: pdfDocPages.isEmpty ? nil : pdfDocPages.count,
+            scrollSync: documentScrollSync,
+            onPageSelected: { index in
+                syncGridSelectionToPDFPage(index: index)
+            }
+        )
     }
 
     // MARK: - Preview View

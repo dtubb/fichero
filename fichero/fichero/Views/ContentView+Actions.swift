@@ -129,9 +129,11 @@ extension ContentView {
         guard currentLayoutMode != .none else { return false }
         switch viewMode {
         case .library:
-            // Hide preview pane when a folder is selected — grid takes
-            // full width, inspector shows folder metadata. (#712)
-            if let doc = inspectorDocument, doc.docType == .folder {
+            // Stable layout (default): a folder keeps the same panes as a file,
+            // so selecting different items never reflows the window (#1452). The
+            // legacy behaviour — folder collapses the preview so the grid takes
+            // full width (#712) — is now opt-in via layoutFollowsSelection.
+            if layoutFollowsSelection, let doc = inspectorDocument, doc.docType == .folder {
                 return false
             }
             return true
