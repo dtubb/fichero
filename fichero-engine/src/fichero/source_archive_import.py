@@ -33,6 +33,12 @@ DEFAULT_ISTMINA_REVIEW = Path(
     "/Users/danieltubb/Library/CloudStorage/Box-Box/JPG files (minería hasta 1980)/"
     "Workflow/04 Transcribed and catalogued, awaiting human check"
 ).expanduser()
+DEFAULT_ARCHIVO_JUDICIAL_LIBRARY = Path(
+    "~/Library/Application Support/Fichero/Archivo-Judicial-Medellin.fichero"
+).expanduser()
+DEFAULT_ARCHIVO_JUDICIAL_CATALOGUE = Path(
+    "/Users/danieltubb/Library/CloudStorage/Box-Box/Archivo Judicial de Medellín_UN/Catalogue"
+).expanduser()
 
 IMPORTABLE_EXTENSIONS = {
     ".jpg",
@@ -98,6 +104,23 @@ def import_istmina_mineria(
             "added_to_spreadsheet": spreadsheet_root,
             "awaiting_human_check": review_root,
         },
+        reset=reset,
+        auto_embed=auto_embed,
+    )
+
+
+def import_archivo_judicial_medellin(
+    *,
+    library_path: Path = DEFAULT_ARCHIVO_JUDICIAL_LIBRARY,
+    catalogue_root: Path = DEFAULT_ARCHIVO_JUDICIAL_CATALOGUE,
+    reset: bool = False,
+    auto_embed: bool = True,
+) -> SourceArchiveImportSummary:
+    return _import_roots(
+        provider="archivo_judicial_medellin",
+        corpus_name="Archivo Judicial de Medellin",
+        library_path=library_path,
+        roots={"catalogue": catalogue_root},
         reset=reset,
         auto_embed=auto_embed,
     )
