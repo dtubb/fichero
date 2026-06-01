@@ -1199,7 +1199,8 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
 
     private let minScale: CGFloat = 0.4
     private let maxScale: CGFloat = 4.0
-    private let neighborLimit = 24
+    private let neighborLimit = 30
+    @State private var hops: Int = 1
 
     var body: some View {
         ZStack {
@@ -1311,40 +1312,66 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
         }
     }
 
-    // Compact zoom/reset controls. Mirrors the PDF zoom toolbar style.
+    // Compact zoom/reset controls + hop depth. Mirrors the PDF zoom toolbar style.
     private var viewportControls: some View {
-        HStack(spacing: 4) {
-            Button {
-                let next = min(scale * 1.25, maxScale)
-                scale = next
-                scaleAtGestureStart = next
-            } label: {
-                Image(systemName: "plus.magnifyingglass")
+        VStack(alignment: .trailing, spacing: 4) {
+            HStack(spacing: 4) {
+                Button {
+                    let next = min(scale * 1.25, maxScale)
+                    scale = next
+                    scaleAtGestureStart = next
+                } label: {
+                    Image(systemName: "plus.magnifyingglass")
+                }
+                .buttonStyle(.plain)
+                .help("Zoom in")
+                Button {
+                    let next = max(scale / 1.25, minScale)
+                    scale = next
+                    scaleAtGestureStart = next
+                } label: {
+                    Image(systemName: "minus.magnifyingglass")
+                }
+                .buttonStyle(.plain)
+                .help("Zoom out")
+                Button {
+                    scale = 1.0
+                    scaleAtGestureStart = 1.0
+                    panOffset = .zero
+                    panOffsetAtGestureStart = .zero
+                } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                }
+                .buttonStyle(.plain)
+                .help("Reset view")
             }
-            .buttonStyle(.plain)
-            .help("Zoom in")
-            Button {
-                let next = max(scale / 1.25, minScale)
-                scale = next
-                scaleAtGestureStart = next
-            } label: {
-                Image(systemName: "minus.magnifyingglass")
+            // Hop depth — how many hops from focus to show in the graph.
+            HStack(spacing: 4) {
+                Button {
+                    if hops > 1 { hops -= 1 }
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.caption2)
+                }
+                .buttonStyle(.plain)
+                .disabled(hops <= 1)
+                .help("Fewer hops")
+                Text("\(hops)hop")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Button {
+                    if hops < 3 { hops += 1 }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.caption2)
+                }
+                .buttonStyle(.plain)
+                .disabled(hops >= 3)
+                .help("More hops")
             }
-            .buttonStyle(.plain)
-            .help("Zoom out")
-            Button {
-                scale = 1.0
-                scaleAtGestureStart = 1.0
-                panOffset = .zero
-                panOffsetAtGestureStart = .zero
-            } label: {
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-            }
-            .buttonStyle(.plain)
-            .help("Reset view")
         }
         .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 4)
                 .fill(Color(.controlBackgroundColor).opacity(0.85))
@@ -1362,7 +1389,7 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
     private var entitiesKey: String {
         let focus = selectedEntityId ?? entities.compactMap(\.id).first ?? ""
         let signature = entities.count
-        return "\(focus):\(signature)"
+        return "\(focus):\(signature):\(hops)"
     }
 
     // MARK: - Data loading
@@ -1392,7 +1419,7 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
         do {
             let response = try await library.entityService.fetchNeighborhood(
                 entityId: focusId,
-                hops: 1,
+                hops: hops,
                 limit: neighborLimit,
                 rank: "edge_weight"
             )
@@ -1440,7 +1467,11 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
         for node in sim.nodes {
             let pos = centered(node.position, in: ctx)
             guard pos.x.isFinite && pos.y.isFinite else { continue }
-            let radius: CGFloat = node.id == selectedEntityId ? 9 : 6
+            let isFocus = node.id == selectedEntityId
+            // Scale radius by degree so high-connectivity nodes are visually larger.
+            let degree = sim.nodeDegrees[node.id] ?? 0
+            let baseRadius: CGFloat = isFocus ? 9 : 5
+            let radius = baseRadius + CGFloat(min(degree, 10)) * 0.45
             let circle = Path(ellipseIn: CGRect(
                 x: pos.x - radius,
                 y: pos.y - radius,
@@ -1448,13 +1479,13 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
                 height: radius * 2
             ))
             ctx.fill(circle, with: .color(color(for: node.kind)))
-            if node.id == selectedEntityId {
+            if isFocus {
                 ctx.stroke(circle, with: .color(.accentColor), lineWidth: 2)
             } else {
                 ctx.stroke(circle, with: .color(.primary.opacity(0.3)), lineWidth: 0.5)
             }
             let label = Text(node.name).font(.caption2).foregroundColor(.primary)
-            ctx.draw(label, at: CGPoint(x: pos.x, y: pos.y + radius + 8), anchor: .top)
+            ctx.draw(label, at: CGPoint(x: pos.x, y: pos.y + radius + 7), anchor: .top)
         }
     }
 
@@ -1673,6 +1704,8 @@ private final class GraphSimulation {
     private let maxEdges = 80
     var nodes: [GraphNode] = []
     var edges: [GraphEdge] = []
+    /// Precomputed degree (number of edges) per node id, rebuilt in `rebuild(from:)`.
+    var nodeDegrees: [String: Int] = [:]
     private var startTime: Date = .now
     private var lastTick: Date = .now
 
@@ -1730,6 +1763,14 @@ private final class GraphSimulation {
             )
         }
         nodes = newNodes
+        // Precompute degree per node so drawNodes can scale radius without
+        // filtering edges on every frame.
+        var deg: [String: Int] = [:]
+        for edge in edges {
+            deg[edge.source, default: 0] += 1
+            deg[edge.target, default: 0] += 1
+        }
+        nodeDegrees = deg
         startTime = .now
         lastTick = .now
     }
