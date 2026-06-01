@@ -371,6 +371,7 @@
     "/api/model-comparison/compare-node/apply": "backend model-comparison apply (#1268); SwiftUI wiring tracked with the model-comparison UI work",
     "/api/documents/{doc_id}/page-ranges": "backend #1377 prototypes / #1378 page-ranges; SwiftUI surfacing tracked as doc-prototypes/page-range UI backlog",
     "/api/documents/{doc_id}/page-ranges/at/{page}": "backend #1377 prototypes / #1378 page-ranges; SwiftUI surfacing tracked as doc-prototypes/page-range UI backlog",
-    "/api/documents/{doc_id}/prototype": "backend #1377 prototypes / #1378 page-ranges; SwiftUI surfacing tracked as doc-prototypes/page-range UI backlog"
+    "/api/documents/{doc_id}/prototype": "backend #1377 prototypes / #1378 page-ranges; SwiftUI surfacing tracked as doc-prototypes/page-range UI backlog",
+    "/api/bibliography/document/{document_id}/attach": "backend bibliography attach (#1101); SwiftUI BibTeX panel surfaces it via typed client / follow-up"
   }
 }
