@@ -82,6 +82,10 @@ struct FirstRunWindow: View {
                         HStack(spacing: 8) {
                             detailPill("Local-first", icon: "desktopcomputer")
                             detailPill("Knowledge graph ready", icon: "point.3.connected.trianglepath.dotted")
+                            // Surface the Research workspace at first run so it's
+                            // discoverable — it lives behind the flask icon in the
+                            // sidebar mode bar (⌃⌘8). (#1499)
+                            detailPill("Research workspace (⌃⌘8)", icon: "flask")
                         }
                     }
                 )
