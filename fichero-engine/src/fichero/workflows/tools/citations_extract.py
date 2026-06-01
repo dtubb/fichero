@@ -40,6 +40,10 @@ _AUTHOR_YEAR_TEXT_RE = re.compile(
     r"\((?P<year>(?:18|19|20)\d{2}[a-z]?)\)"
 )
 _NUMERIC_CITE_RE = re.compile(r"\[(?P<number>\d{1,3})\]")
+_FOOTNOTE_LINE_RE = re.compile(
+    r"^\s*(?P<number>\d{1,3})[.)]?\s+(?P<rest>.+?(?:\b(?:18|19|20)\d{2}[a-z]?\b.+))$",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 @dataclass(frozen=True)
@@ -268,6 +272,31 @@ def detect_inline_citations(pages: list[PageRecord]) -> list[InlineCitation]:
     return sorted(citations, key=lambda cite: (cite.page_doc_id, cite.char_start))
 
 
+def detect_footnote_citations(pages: list[PageRecord]) -> list[InlineCitation]:
+    """Detect bibliography-like footnote lines on body pages.
+
+    This is heuristic by design: numbered line + a year token.
+    """
+    citations: list[InlineCitation] = []
+    for page in pages:
+        for match in _FOOTNOTE_LINE_RE.finditer(page.text):
+            number = int(match.group("number"))
+            raw = match.group(0).strip()
+            citations.append(
+                InlineCitation(
+                    raw_text=raw,
+                    author_key=None,
+                    year=None,
+                    number=number,
+                    page_doc_id=page.doc_id,
+                    page_label=page.page_label,
+                    char_start=match.start(),
+                    char_end=match.end(),
+                )
+            )
+    return citations
+
+
 def resolve_inline_citation(
     citation: InlineCitation,
     entries: list[BibliographyEntry],
@@ -353,6 +382,11 @@ async def extract_citations_for_document(
     ]
     body_pages = _body_pages_before_bibliography(pages, body_text)
     inline_citations = detect_inline_citations(body_pages)
+    inline_citations.extend(detect_footnote_citations(body_pages))
+    inline_citations = sorted(
+        inline_citations,
+        key=lambda cite: (cite.page_doc_id, cite.char_start, cite.number or 0),
+    )
     claims: list[dict[str, Any]] = []
     for inline in inline_citations:
         entry = resolve_inline_citation(inline, entries)
