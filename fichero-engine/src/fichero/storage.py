@@ -210,7 +210,7 @@ def resolve_source(doc: "Document") -> Path | None:
 
     # Fall back to paths
     if doc.path:
-        p = Path(doc.path)
+        p = Path(doc.path).expanduser()
         if p.exists():
             return p
 
@@ -218,7 +218,7 @@ def resolve_source(doc: "Document") -> Path | None:
     if doc.metadata:
         for key in ["source_path", "full_path", "display_path", "local_path"]:
             if path_str := doc.metadata.get(key):
-                p = Path(path_str)
+                p = Path(path_str).expanduser()
                 if p.exists():
                     return p
 
