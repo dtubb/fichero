@@ -1310,6 +1310,31 @@ final class EntityServiceGenerated: ObservableObject {
         return (try? JSONDecoder().decode(Envelope.self, from: data))?.items ?? []
     }
 
+    /// PATCH /api/hermeneutics/interpretations/{id} — update text and/or confidence.
+    @discardableResult
+    func updateInterpretation(
+        interpretationId: String,
+        interpretationText: String,
+        confidence: Double
+    ) async throws -> Components.Schemas.Interpretation {
+        guard let lib = client.currentLibraryPath else { throw ServiceError.unexpectedResponse(0) }
+        let encoded = interpretationId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? interpretationId
+        guard let url = URL(string: "\(client.baseURL)/api/hermeneutics/interpretations/\(encoded)") else {
+            throw ServiceError.unexpectedResponse(0)
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "PATCH"
+        req.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.addEngineAuth(libraryPath: lib)
+        let body: [String: Any] = [
+            "interpretation_text": interpretationText,
+            "confidence": confidence
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, _) = try await URLSession.shared.data(for: req)
+        return try JSONDecoder().decode(Components.Schemas.Interpretation.self, from: data)
+    }
+
     /// POST /api/hermeneutics/interpretations — create a human interpretation on a document.
     @discardableResult
     func createInterpretation(

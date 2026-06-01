@@ -2120,7 +2120,7 @@ private struct KnowledgeGraphPreviewSurface: View {
 
 /// Shows interpretations for this document + inline "New Interpretation" form.
 /// Always visible so the user can create the first interpretation even when none exist.
-struct DocumentInterpretationsSection: View {
+struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_body_length
     let documentId: String
     let entityService: EntityServiceGenerated
 
@@ -2137,6 +2137,13 @@ struct DocumentInterpretationsSection: View {
     @State private var newConfidence: Double = 0.8
     @State private var isSubmitting = false
     @State private var submitError: String?
+
+    // Edit form (one row expanded at a time)
+    @State private var editingInterpId: String?
+    @State private var editText: String = ""
+    @State private var editConfidence: Double = 0.8
+    @State private var isSavingEdit = false
+    @State private var editError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -2304,6 +2311,7 @@ struct DocumentInterpretationsSection: View {
 
     @ViewBuilder
     private func interpretationRow(_ interp: Components.Schemas.Interpretation) -> some View {
+        let isEditing = editingInterpId == interp.id
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) {
                 Text(actLabel(interp.act))
@@ -2319,23 +2327,89 @@ struct DocumentInterpretationsSection: View {
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.tertiary)
                 }
+                Button {
+                    if isEditing {
+                        editingInterpId = nil
+                        editError = nil
+                    } else {
+                        editText = interp.interpretationText
+                        editConfidence = interp.confidence ?? 0.8
+                        editingInterpId = interp.id
+                        editError = nil
+                    }
+                } label: {
+                    Image(systemName: isEditing ? "xmark.circle" : "pencil.circle")
+                        .font(.caption)
+                        .foregroundStyle(isEditing ? Color.secondary : Color.accentColor)
+                }
+                .buttonStyle(.borderless)
+                .help(isEditing ? "Cancel edit" : "Edit interpretation")
             }
-            Text(interp.interpretationText)
-                .font(.caption)
-                .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
-            if let insights = interp.keyInsights, !insights.isEmpty {
-                VStack(alignment: .leading, spacing: 1) {
-                    ForEach(insights.prefix(2), id: \.self) { insight in
-                        HStack(alignment: .top, spacing: 4) {
-                            Text("•").font(.caption2).foregroundStyle(.secondary)
-                            Text(insight).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+            if isEditing {
+                editForm(for: interp)
+            } else {
+                Text(interp.interpretationText)
+                    .font(.caption)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let insights = interp.keyInsights, !insights.isEmpty {
+                    VStack(alignment: .leading, spacing: 1) {
+                        ForEach(insights.prefix(2), id: \.self) { insight in
+                            HStack(alignment: .top, spacing: 4) {
+                                Text("•").font(.caption2).foregroundStyle(.secondary)
+                                Text(insight).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                            }
                         }
                     }
                 }
             }
         }
         .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private func editForm(for interp: Components.Schemas.Interpretation) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            TextEditor(text: $editText)
+                .font(.caption)
+                .frame(minHeight: 56)
+                .padding(4)
+                .background(Color(.textBackgroundColor))
+                .cornerRadius(4)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(Color(.separatorColor), lineWidth: 0.5)
+                )
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text("Confidence").font(.caption2).foregroundStyle(.secondary)
+                    Spacer()
+                    Text(String(format: "%.0f%%", editConfidence * 100))
+                        .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                }
+                Slider(value: $editConfidence, in: 0...1, step: 0.05)
+            }
+            if let err = editError {
+                Text(err).font(.caption2).foregroundStyle(.red)
+            }
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    editingInterpId = nil
+                    editError = nil
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Button("Save") {
+                    Task { await saveEdit(for: interp) }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(editText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSavingEdit)
+            }
+        }
+        .font(.caption)
+        .padding(.top, 4)
     }
 
     private func actLabel(_ act: Components.Schemas.InterpretiveActType) -> String {
@@ -2386,6 +2460,27 @@ struct DocumentInterpretationsSection: View {
             resetForm()
         } catch {
             submitError = error.localizedDescription
+        }
+    }
+
+    private func saveEdit(for interp: Components.Schemas.Interpretation) async {
+        let text = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, let interpId = interp.id else { return }
+        isSavingEdit = true
+        editError = nil
+        defer { isSavingEdit = false }
+        do {
+            let updated = try await entityService.updateInterpretation(
+                interpretationId: interpId,
+                interpretationText: text,
+                confidence: editConfidence
+            )
+            if let idx = interpretations.firstIndex(where: { $0.id == interp.id }) {
+                interpretations[idx] = updated
+            }
+            editingInterpId = nil
+        } catch {
+            editError = error.localizedDescription
         }
     }
 
