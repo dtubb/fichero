@@ -388,10 +388,15 @@ async def extract_citations_for_document(
         key=lambda cite: (cite.page_doc_id, cite.char_start, cite.number or 0),
     )
     claims: list[dict[str, Any]] = []
+    seen_claim_keys: set[tuple[str, str]] = set()
     for inline in inline_citations:
         entry = resolve_inline_citation(inline, entries)
         if entry is None:
             continue
+        claim_key = (inline.page_doc_id, entry.canonical_name)
+        if claim_key in seen_claim_keys:
+            continue
+        seen_claim_keys.add(claim_key)
         entity_id = upsert_entity(
             db,
             entry.canonical_name,
