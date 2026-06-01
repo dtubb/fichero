@@ -430,7 +430,6 @@ extension ContentView {
                 // to .none for folders (per #749), so any picker change is a silent no-op.
                 // Greyed out makes the dead-state obvious to the user (#787).
                 if showLayoutPicker {
-                    let folderActive = detailDocument?.docType == .folder
                     Picker("Layout", selection: $currentLayoutMode) {
                         ForEach(availableLayoutModes) { mode in
                             Label(mode.rawValue, systemImage: mode.icon)
@@ -439,10 +438,7 @@ extension ContentView {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .help(folderActive
-                            ? "Folder selected — preview pane disabled"
-                            : "Layout: \(currentLayoutMode.rawValue)")
-                    .disabled(folderActive)
+                    .help("Layout: \(currentLayoutMode.rawValue)")
                     .onChange(of: currentLayoutMode) { _, newMode in
                         withAnimation {
                             // Sync toolbar with View menu previewMode

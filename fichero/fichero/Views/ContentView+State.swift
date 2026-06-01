@@ -432,21 +432,14 @@ extension ContentView {
         // the previously-previewed file and inspectorDocument step 1 can
         // match it against the stale browserSelection. (#795)
         detailDocument = nil
-        // Closure to apply a resolved Document — sets detailDocument and,
-        // for folders, collapses the preview pane so navigating in the
-        // sidebar lands on a clean grid view (#785 follow-up). Daniel's
-        // mental model: "click sidebar to browse, click doc in grid to
-        // preview." Folders shouldn't be previewed; clicking a folder
-        // should reset the layout to grid-only.
+        // Closure to apply a resolved Document — sets detailDocument (#961).
+        // Folders now keep the current layout so the WebKit/reading pane
+        // stays visible for folder-level aggregate content (#1405).
         let applyDoc: (Document) -> Void = { doc in
             // Defer mutations to next run loop turn to avoid triggering
             // multiple FocusedValue updates in the same render cycle (#961).
             DispatchQueue.main.async {
                 detailDocument = doc
-                if doc.docType == .folder, currentLayoutMode != .none {
-                    currentLayoutMode = .none
-                    viewSettings.previewMode = .none
-                }
             }
         }
         if detailDocument?.id != docId {
@@ -461,16 +454,6 @@ extension ContentView {
                         applyDoc(fetched)
                     }
                 }
-            }
-        } else if let existing = detailDocument,
-                  existing.docType == .folder,
-                  currentLayoutMode != .none {
-            // Re-clicking the already-selected folder: still collapse the
-            // preview. Earlier guard short-circuits the detailDocument
-            // assignment so we have to handle this branch explicitly.
-            DispatchQueue.main.async {
-                currentLayoutMode = .none
-                viewSettings.previewMode = .none
             }
         }
     }
