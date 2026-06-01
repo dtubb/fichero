@@ -130,6 +130,23 @@ class PrototypeAssignResponse(BaseModel):
     updated_count: int
 
 
+class PageRangeItem(BaseModel):
+    id: str | None = None
+    name: str
+    page_start: int
+    page_end: int
+    prototype_key: str | None = None
+
+
+class PageRangeUpsertRequest(BaseModel):
+    items: list[PageRangeItem]
+
+
+class PageRangeListResponse(BaseModel):
+    items: list[PageRangeItem]
+    count: int
+
+
 class DocumentNoteUpsert(BaseModel):
     """Request body for per-document note upsert."""
 
@@ -500,6 +517,59 @@ async def assign_document_prototype(
         prototype_key=request.prototype_key,
         updated_count=updated,
     )
+
+
+@router.get("/{doc_id}/page-ranges", response_model=PageRangeListResponse)
+async def list_page_ranges(
+    doc_id: str, db: Database = Depends(get_library_database)
+) -> PageRangeListResponse:
+    doc = db.get(Document, doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    ranges = [PageRangeItem(**item) for item in (doc.structure or [])]
+    return PageRangeListResponse(items=ranges, count=len(ranges))
+
+
+@router.put("/{doc_id}/page-ranges", response_model=PageRangeListResponse)
+async def upsert_page_ranges(
+    doc_id: str,
+    request: PageRangeUpsertRequest,
+    db: Database = Depends(get_library_database),
+) -> PageRangeListResponse:
+    doc = db.get(Document, doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    normalized: list[dict[str, Any]] = []
+    for idx, item in enumerate(request.items):
+        if item.page_start > item.page_end:
+            raise HTTPException(status_code=422, detail="page_start must be <= page_end")
+        row = item.model_dump()
+        row["id"] = row.get("id") or f"range-{idx+1}"
+        normalized.append(row)
+    doc.structure = normalized
+    doc.updated_at = datetime.now()
+    db.save(doc)
+    return PageRangeListResponse(
+        items=[PageRangeItem(**row) for row in normalized],
+        count=len(normalized),
+    )
+
+
+@router.get("/{doc_id}/page-ranges/at/{page}", response_model=PageRangeItem)
+async def page_range_for_page(
+    doc_id: str,
+    page: int,
+    db: Database = Depends(get_library_database),
+) -> PageRangeItem:
+    doc = db.get(Document, doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    for item in doc.structure or []:
+        start = int(item.get("page_start", 0))
+        end = int(item.get("page_end", 0))
+        if start <= page <= end:
+            return PageRangeItem(**item)
+    raise HTTPException(status_code=404, detail=f"No page-range for page {page}")
 
 
 def _cascade_delete_kg_rows(db: Database, doc_ids: set[str]) -> tuple[int, int]:

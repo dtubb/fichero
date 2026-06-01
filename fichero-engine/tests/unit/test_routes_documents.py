@@ -482,3 +482,29 @@ class TestDocumentPrototypes:
         assert db.get(Document, page1.id).prototype_key is None
         assert db.get(Document, page2.id).prototype_key == "chapter"
         assert db.get(Document, page3.id).prototype_key == "chapter"
+
+
+class TestDocumentPageRanges:
+    def test_upsert_and_lookup_page_ranges(self, client, db):
+        pdf = Document(name="Book PDF", doc_type=DocType.file)
+        db.save(pdf)
+
+        put = client.put(
+            f"/api/documents/{pdf.id}/page-ranges",
+            json={
+                "items": [
+                    {"name": "Chapter 1", "page_start": 1, "page_end": 10},
+                    {"name": "Chapter 2", "page_start": 11, "page_end": 20},
+                ]
+            },
+        )
+        assert put.status_code == 200
+        assert put.json()["count"] == 2
+
+        get_all = client.get(f"/api/documents/{pdf.id}/page-ranges")
+        assert get_all.status_code == 200
+        assert get_all.json()["count"] == 2
+
+        at_page = client.get(f"/api/documents/{pdf.id}/page-ranges/at/12")
+        assert at_page.status_code == 200
+        assert at_page.json()["name"] == "Chapter 2"
