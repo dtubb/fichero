@@ -366,6 +366,20 @@ extension ContentView {
         }
     }
 
+    /// Handles `.onChange(of: viewDisplayMode)`.
+    /// Syncs toolbar picker changes to viewSettings.libraryLayout (#1215).
+    func handleViewDisplayModeChange(_ newMode: ViewDisplayMode) {
+        let newLayout: LibraryLayout = switch newMode {
+        case .icon: .icons
+        case .list: .list
+        case .table: .table
+        case .map, .realitykit: .map
+        }
+        if viewSettings.libraryLayout != newLayout {
+            viewSettings.libraryLayout = newLayout
+        }
+    }
+
     /// Handles `.onChange(of: viewSettings.libraryLayout)`.
     /// Syncs View-menu changes back to the toolbar view mode picker.
     func handleLibraryLayoutChange(_ newLibraryLayout: LibraryLayout) {

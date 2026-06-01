@@ -362,6 +362,9 @@ struct ContentView: View {
             .onChange(of: kgFocusState.sourcePageLabel) { _, _ in
                 handleKGFocusChanged()
             }
+            .onChange(of: viewDisplayMode) { _, newMode in
+                handleViewDisplayModeChange(newMode)
+            }
             .modifier(
                 MainContentModifiers(
                     documentStore: documentStore,
@@ -458,6 +461,22 @@ extension ContentView {
                             viewSettings.previewMode = normalizedPreviewMode(requestedMode)
                         }
                     }
+                }
+
+                // View display mode picker (icon/list/table/map) — only when the
+                // current mode supports multiple presentations and more than one
+                // option is available. Syncs with viewSettings.libraryLayout so
+                // the View menu checkmark stays in sync (#1215).
+                if showViewModePicker && availableViewDisplayModes.count > 1 {
+                    Picker("View", selection: $viewDisplayMode) {
+                        ForEach(availableViewDisplayModes) { mode in
+                            Label(mode.rawValue, systemImage: mode.icon)
+                                .labelStyle(.iconOnly)
+                                .tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .help("View: \(viewDisplayMode.rawValue)")
                 }
 
                 // Add menu (Plus button)
