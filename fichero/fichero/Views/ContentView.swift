@@ -673,6 +673,10 @@ extension ContentView {
                     Image(systemName: "doc.richtext")
                 }
                 .help(showDocumentCanvas ? "Hide Document Canvas" : "Show Document Canvas")
+                // The canvas/reading split only exists in the widescreen reading
+                // layout — disable the toggles elsewhere so they're not dead
+                // controls (#1516).
+                .disabled(currentLayoutMode != .widescreen)
             }
 
             ToolbarItem(placement: .automatic) {
@@ -684,6 +688,7 @@ extension ContentView {
                     Image(systemName: "text.book.closed")
                 }
                 .help(showReadingPane ? "Hide Reading Pane" : "Show Reading Pane")
+                .disabled(currentLayoutMode != .widescreen)
             }
         }
 

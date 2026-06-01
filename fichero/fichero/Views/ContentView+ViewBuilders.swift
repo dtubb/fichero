@@ -237,9 +237,16 @@ extension ContentView {
                     // per-window (#1448). When the canvas is hidden the reading
                     // pane takes over the freed space so there's never a gap.
                     HStack(spacing: 0) {
+                        // When both reading panes are hidden the list takes the
+                        // whole width instead of staying a fixed column with a
+                        // blank grey area beside it (#1516). list-only is a valid
+                        // state — the library list is the always-present spine.
                         contentWithOptionalModeRail
                             .overlay { paneFocusIndicator(for: .content) }
-                            .frame(width: clampedWidescreenContentPaneWidth)
+                            .frame(
+                                width: (showDocumentCanvas || showReadingPane)
+                                    ? clampedWidescreenContentPaneWidth : .infinity
+                            )
 
                         if showDocumentCanvas || showReadingPane {
                             ResizableDivider(
