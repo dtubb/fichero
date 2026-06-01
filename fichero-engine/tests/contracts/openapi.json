@@ -2946,6 +2946,68 @@
         }
       }
     },
+    "/api/bibliography/document/{document_id}/attach": {
+      "post": {
+        "tags": [
+          "bibliography"
+        ],
+        "summary": "Attach a BibTeX / RIS / CSL-JSON record to a document",
+        "description": "Parses a single bibliographic record and writes it into document.source_metadata, including canonical bibtex.",
+        "operationId": "attach_record_api_bibliography_document__document_id__attach_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetadataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/bibliography/export.bib": {
       "post": {
         "tags": [
@@ -33499,6 +33561,25 @@
         "type": "object",
         "title": "ArtifactUpdate",
         "description": "Request to update an artifact's editable fields. Used by the V2\ninspector's per-panel edit. Only `content` is editable today; provider,\nmodel, version etc. are immutable provenance and stay set by the tool\nthat produced them."
+      },
+      "AttachRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "format": {
+            "type": "string",
+            "nullable": true,
+            "title": "Format"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "AttachRequest",
+        "description": "Attach one bibliography record to a document."
       },
       "AttributesResponse": {
         "properties": {
