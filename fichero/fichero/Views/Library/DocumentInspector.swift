@@ -5,6 +5,7 @@
 // file-sync'd). When V2 promotes to default-on (per
 // docs/architecture/swiftui/inspector_redesign.md Phase 2), they can be
 // split into their own files at that point.
+import FicheroAPIClient
 import SwiftUI
 
 // MARK: - Notification Names
@@ -76,10 +77,20 @@ struct DocumentInspector: View {
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
     @ObservedObject private var featureManager = FeatureManager.shared
     @ObservedObject private var claimFocusState = ClaimFocusState.shared
+    /// Cross-view KG focus. When an entity is focused (a lozenge / WebKit-graph
+    /// click), the inspector retargets to inspect that entity instead of the
+    /// document (#1484). Clearing it returns to the document.
+    @Environment(KGFocusState.self) private var kgFocusState
+
+    /// The entity currently being inspected, loaded from kgFocusState.focusedEntityId.
+    @State private var focusedEntity: Components.Schemas.KnowledgeEntity?
+    @State private var isLoadingEntity = false
 
     var body: some View {
         Group {
-            if let doc = document {
+            if kgFocusState.focusedEntityId != nil {
+                entityInspection
+            } else if let doc = document {
                 documentDetail(doc)
             } else {
                 emptyState
@@ -87,12 +98,66 @@ struct DocumentInspector: View {
         }
         .frame(minWidth: 220, maxWidth: .infinity, maxHeight: .infinity)
         .environmentObject(claimFocusState)
+        .task(id: kgFocusState.focusedEntityId) {
+            await loadFocusedEntity()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .ficheroOpenClaimSource)) { note in
             guard let info = note.userInfo else { return }
             if info["claimId"] is String || info["entityId"] is String {
                 selectedTab = .knowledgeGraph
             }
         }
+    }
+
+    // MARK: - Entity Inspection (#1484)
+
+    /// Inspector content when an entity is focused: a back affordance plus the
+    /// shared EntityDigestContent (details, claims, provenance). Reuses the
+    /// existing entity-digest view rather than a parallel one (iterate-not-replace).
+    @ViewBuilder
+    private var entityInspection: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Button {
+                    kgFocusState.clear()
+                } label: {
+                    Label("Back to document", systemImage: "chevron.left")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.plain)
+                .help("Return to inspecting the document")
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .frame(height: MiniToolbar<EmptyView>.standardHeight)
+            .accessibilityIdentifier("inspectorEntityBackBar")
+
+            Divider()
+
+            if let entity = focusedEntity {
+                EntityDigestContent(entity: entity, entityService: entityService)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if isLoadingEntity {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Text("Entity not found")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+
+    private func loadFocusedEntity() async {
+        guard let entityId = kgFocusState.focusedEntityId, !entityId.isEmpty else {
+            focusedEntity = nil
+            return
+        }
+        // Avoid a reload + flash when the already-loaded entity is re-focused.
+        if focusedEntity?.id == entityId { return }
+        isLoadingEntity = true
+        defer { isLoadingEntity = false }
+        focusedEntity = try? await entityService.getEntity(entityId)
     }
 
     // MARK: - Document Detail
@@ -329,6 +394,7 @@ private struct DocumentInspectorImageEditsTab: View {
     DocumentInspector(document: nil)
         .environmentObject(library.artifactService)
         .environmentObject(library.entityService)
+        .environment(KGFocusState.shared)
         .frame(width: 280, height: 400)
 }
 
@@ -355,6 +421,7 @@ private struct DocumentInspectorImageEditsTab: View {
     DocumentInspector(document: mockDocument)
         .environmentObject(library.artifactService)
         .environmentObject(library.entityService)
+        .environment(KGFocusState.shared)
         .frame(width: 280, height: 400)
 }
 
