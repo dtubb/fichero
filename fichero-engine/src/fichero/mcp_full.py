@@ -9,7 +9,13 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
 from fichero.cli import FicheroClient
+from fichero.api.routes.mind_palace import MindPalaceDeletedResponse
 from fichero.knowledge_models import NoteKind
+from fichero.spatial_models import (
+    NativeNote,
+    SpatialNode,
+    SpatialRoom,
+)
 
 mcp = FastMCP("fichero-full")
 
@@ -162,6 +168,38 @@ class MoveNodeInput(BaseModel):
     position_x: float
     position_y: float
     position_z: float
+
+
+class MPCreateNoteInput(BaseModel):
+    room_id: str | None = None
+    content: str
+    note_type: str = "user"
+    author_type: str = "user"
+    author_id: str = "user"
+    status: str = "draft"
+    linked_claim_ids: list[str] = Field(default_factory=list)
+    linked_source_ids: list[str] = Field(default_factory=list)
+    linked_entity_ids: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class MPListNotesInput(BaseModel):
+    room_id: str | None = None
+    note_type: str | None = None
+
+
+class MPUpdateNoteInput(BaseModel):
+    note_id: str
+    room_id: str | None = None
+    content: str | None = None
+    note_type: str | None = None
+    author_type: str | None = None
+    author_id: str | None = None
+    status: str | None = None
+    linked_claim_ids: list[str] | None = None
+    linked_source_ids: list[str] | None = None
+    linked_entity_ids: list[str] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @mcp.tool()
@@ -398,36 +436,47 @@ def search(input: SearchInput) -> Any:
 
 
 @mcp.tool()
-def mp_list_rooms(room_type: str | None = None) -> Any:
+def mp_list_rooms(room_type: str | None = None) -> list[SpatialRoom]:
     with _client() as client:
-        return client.mp_list_rooms(room_type=room_type)
+        return [SpatialRoom.model_validate(room) for room in client.mp_list_rooms(room_type=room_type)]
 
 
 @mcp.tool()
-def mp_create_room(name: str, room_type: str = "research", description: str = "") -> Any:
+def mp_create_room(name: str, room_type: str = "research", description: str = "") -> SpatialRoom:
     with _client() as client:
-        return client.mp_create_room(name=name, room_type=room_type, description=description)
-
-
-@mcp.tool()
-def mp_place_node(room_id: str, node_type: str, source_id: str | None = None, label: str = "") -> Any:
-    with _client() as client:
-        return client.mp_place_node(
-            room_id=room_id,
-            node_type=node_type,
-            source_id=source_id,
-            label=label,
+        return SpatialRoom.model_validate(
+            client.mp_create_room(name=name, room_type=room_type, description=description)
         )
 
 
 @mcp.tool()
-def mp_move_node(input: MoveNodeInput) -> Any:
+def mp_place_node(
+    room_id: str,
+    node_type: str,
+    source_id: str | None = None,
+    label: str = "",
+) -> SpatialNode:
     with _client() as client:
-        return client.mp_move_node(
-            input.node_id,
-            position_x=input.position_x,
-            position_y=input.position_y,
-            position_z=input.position_z,
+        return SpatialNode.model_validate(
+            client.mp_place_node(
+                room_id=room_id,
+                node_type=node_type,
+                source_id=source_id,
+                label=label,
+            )
+        )
+
+
+@mcp.tool()
+def mp_move_node(input: MoveNodeInput) -> SpatialNode:
+    with _client() as client:
+        return SpatialNode.model_validate(
+            client.mp_move_node(
+                input.node_id,
+                position_x=input.position_x,
+                position_y=input.position_y,
+                position_z=input.position_z,
+            )
         )
 
 
@@ -441,6 +490,54 @@ def scene_render(input: SceneRenderInput) -> SceneRenderOutput:
             json=input.model_dump(mode="json"),
         )
     return SceneRenderOutput.model_validate(raw)
+
+
+@mcp.tool()
+def mp_create_note(input: MPCreateNoteInput) -> NativeNote:
+    with _client() as client:
+        return NativeNote.model_validate(
+            client.mp_create_note(
+                room_id=input.room_id,
+                content=input.content,
+                note_type=input.note_type,
+                author_type=input.author_type,
+                author_id=input.author_id,
+                status=input.status,
+                linked_claim_ids=input.linked_claim_ids,
+                linked_source_ids=input.linked_source_ids,
+                linked_entity_ids=input.linked_entity_ids,
+                metadata=input.metadata,
+            )
+        )
+
+
+@mcp.tool()
+def mp_list_notes(input: MPListNotesInput) -> list[NativeNote]:
+    with _client() as client:
+        return [
+            NativeNote.model_validate(note)
+            for note in client.mp_list_notes(room_id=input.room_id, note_type=input.note_type)
+        ]
+
+
+@mcp.tool()
+def mp_get_note(note_id: str) -> NativeNote:
+    with _client() as client:
+        return NativeNote.model_validate(client.mp_get_note(note_id))
+
+
+@mcp.tool()
+def mp_update_note(input: MPUpdateNoteInput) -> NativeNote:
+    body = input.model_dump(exclude_none=True)
+    note_id = str(body.pop("note_id"))
+    with _client() as client:
+        return NativeNote.model_validate(client.mp_update_note(note_id, **body))
+
+
+@mcp.tool()
+def mp_delete_note(note_id: str) -> MindPalaceDeletedResponse:
+    with _client() as client:
+        return MindPalaceDeletedResponse.model_validate(client.mp_delete_note(note_id))
 
 
 def main(argv: Optional[list[str]] = None) -> int:
