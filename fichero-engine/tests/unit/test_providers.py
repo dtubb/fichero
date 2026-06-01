@@ -45,6 +45,14 @@ class TestProviderCatalog:
         assert openai_info.is_local is False
         assert openai_info.supports_vision is True
 
+    def test_ocr_htr_provider_defaults_use_recommended_models(self):
+        """Vision/transcription defaults should prefer the OCR/HTR-recommended models."""
+        from fichero.providers import PROVIDERS, ProviderType
+
+        assert PROVIDERS[ProviderType.huggingface].default_model == "Qwen/Qwen3-VL-8B-Instruct"
+        assert PROVIDERS[ProviderType.google].default_model == "gemini-3-pro-preview"
+        assert PROVIDERS[ProviderType.openai].default_model == "gpt-5"
+
     def test_local_providers(self):
         """Test local providers are correctly marked."""
         from fichero.providers import get_local_providers
