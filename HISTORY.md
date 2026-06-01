@@ -2459,3 +2459,10 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - Transcript-quality eval (#1386 diacritics, #1387 uncertainty markers, #1388 contamination) — but Urrutia doc's 13 JPGs were never transcribed (all status:pending), so prospective only.
 - Filed ~30 issues from live Preface/image use: #1368-#1388, #1400. Highlights: hairball graph, DATES facet bug, tooltips, arbitrary extraction, timeline, doc prototypes/classes, PDF page-ranges, Mail-style sidebar, read/flag, image-preview REGRESSION (P1), AI image-editing epic (#1385 + per-tool), localization infra, GPU/WindowServer crash (#1400).
 - Diagnosed 2-day WindowServer watchdog crashes as GPU-starvation, prime suspect broken RealityKit view #1376 (f_opus working it).
+
+## 2026-06-01 — Sonnet SwiftUI worker session (ms/library-reading-surface)
+- feat: view display mode picker (icon/list/table/map) added to toolbar navigation group when >1 mode available; wired onChange(of: viewDisplayMode) → handleViewDisplayModeChange to sync toolbar → viewSettings.libraryLayout — the missing reverse direction (#1215 partial)
+- feat(a11y): SidebarModeIcon now has accessibilityLabel, accessibilityIdentifier, accessibilityAddTraits(.isSelected), accessibilityHint; renameField gets accessibilityLabel/accessibilityIdentifier (#584 partial)
+- fix(tooltips): .help() added to ArtifactsBrowserView refresh + copy buttons; LibraryView+FilterAndBatch clear-filter button (#1371 partial)
+- Previously pushed (from prior session): toolbarIcon computed property + ToolbarItem(.principal) for mode icon+title (#323); loupe/magnifier range expansion (#355); eager thumbnail prefetch with bounded TaskGroup (#719)
+- Audited #330 (icon view persistence — already fixed) and #713 (drag asymmetry — NSOutlineView rewrite required, out of scope)

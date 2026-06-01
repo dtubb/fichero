@@ -1,4 +1,22 @@
-## 2026-05-31 (integration sweep COMPLETE — NEXT SESSION START HERE)
+## 2026-06-01 — ms/library-reading-surface SwiftUI polish worker (NEXT SESSION START HERE)
+
+**Branch: `ms/library-reading-surface` — 3 new commits pushed at `26cb2a4c`**
+
+### What was done
+- View display mode picker (icon/list/table/map segmented) added to toolbar; sync gap fixed (#1215 partial)
+- SidebarModeIcon accessibility (label/identifier/traits/hint); renameField accessibility (#584 partial)
+- Missing `.help()` on ArtifactsBrowserView + clear-filter button (#1371 partial)
+
+### Next session — start here
+1. `cd ~/code/fichero-library-reading-surface && git pull --rebase origin ms/library-reading-surface`
+2. Continue Library & Reading Surface milestone: `gh issue list --milestone "Library & Reading Surface" --state open --search "no:assignee -label:status:in-progress"`
+3. Priority candidates: #593 (swipe nav P2), #588 (PDF pinch-zoom P2), #644 (sidebar header P3), #1199 (inspector layout consistency P2)
+4. #713 drag asymmetry is explicitly out-of-scope (needs NSOutlineView rewrite) — don't re-attempt
+5. Build gate before every commit: `xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero -configuration Debug build`
+
+---
+
+## 2026-05-31 (integration sweep COMPLETE)
 
 **main is GREEN and pushed: 3517 Python tests pass, ruff clean, Xcode `BUILD SUCCEEDED`. CI OpenAPI-drift fixed (regen committed).**
 
