@@ -59,7 +59,9 @@ def test_catalogue_default_workflow_lands_artifacts_and_kg_rows(
     )
     db = db_manager.get_database(library_path)
 
-    before_claims = len(db.all(KnowledgeClaim))
+    before_claim_rows = db.all(KnowledgeClaim)
+    before_claim_ids = {claim.id for claim in before_claim_rows}
+    before_claims = len(before_claim_rows)
     before_entities = len(db.all(KnowledgeEntity))
 
     workflow = _load_catalogue_workflow()
@@ -173,6 +175,12 @@ def _install_deterministic_workflow_stubs(
     async def fake_keywords(*args, **kwargs):
         return "regression fixture; workflow harness"
 
+    async def fake_citations_extract(*args, **kwargs):
+        return {"text": "", "value": [], "cached": False}
+
+    async def fake_citations_extract(*args, **kwargs):
+        return {"text": "", "value": [], "cached": False}
+
     monkeypatch.setattr("fichero.llm.resolve_model_alias", resolve_alias)
     monkeypatch.setattr(
         "fichero.workflows.tools.extract_all.chat_structured_with_fallback",
@@ -186,6 +194,26 @@ def _install_deterministic_workflow_stubs(
         "fichero.workflows.tools.catalogue._generate_keywords",
         fake_keywords,
     )
+    monkeypatch.setattr(
+        "fichero.workflows.tools.citations_extract.citations_extract",
+        fake_citations_extract,
+    )
+    monkeypatch.setitem(
+        workflow_registry.TOOLS,
+        "citations_extract",
+        fake_citations_extract,
+    )
+    async def _noop_cleanup(*args, **kwargs):
+        return {"text": "", "value": [], "cached": False}
+    for _tool in (
+        "people_folder_cleanup",
+        "places_folder_cleanup",
+        "organizations_folder_cleanup",
+        "dates_folder_cleanup",
+        "events_folder_cleanup",
+        "keywords_folder_cleanup",
+    ):
+        monkeypatch.setitem(workflow_registry.TOOLS, _tool, _noop_cleanup)
     monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
     monkeypatch.setattr(
         "fichero.kg.entity_vectors.find_similar",
@@ -514,6 +542,37 @@ def _install_twostage_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_keywords(*args, **kwargs):
         return "regression fixture; workflow harness"
 
+    async def fake_process_vision(**kwargs):
+        """Deterministic transcribe output carrying records with doc_id."""
+        docs = kwargs.get("documents") or []
+        records = []
+        texts = []
+        for index, doc in enumerate(docs):
+            if not isinstance(doc, dict):
+                continue
+            doc_id = str(doc.get("id") or "")
+            if not doc_id:
+                continue
+            text = (
+                f"Regression Person signed fixture page {index + 1} "
+                f"in Regression Place in 1842."
+            )
+            records.append({"doc_id": doc_id, "text": text})
+            texts.append(text)
+        joined = "\n\n".join(texts)
+        return {
+            "text": joined,
+            "value": joined,
+            "texts": texts,
+            "values": texts,
+            "results": [{"text": t, "error": None} for t in texts],
+            "records": records,
+            "page_records": records,
+            "artifacts": [],
+            "output_files": [],
+            "error": None,
+        }
+
     def resolve_alias(provider: str, model: str) -> tuple[str, str]:
         if (provider or "").startswith("$"):
             return ("fake", "fake-model")
@@ -537,6 +596,15 @@ def _install_twostage_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "fichero.workflows.tools.catalogue._generate_keywords",
         fake_keywords,
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.tools.transcribe.process_vision",
+        fake_process_vision,
+    )
+    monkeypatch.setattr(
+        workflow_registry.TOOL_DEFS["transcribe"],
+        "supports_batch",
+        False,
     )
     monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
     monkeypatch.setattr(
@@ -618,4 +686,240 @@ def _assert_twostage_kg_rows_landed(
     )
     assert any(claim.entity_ids for claim in all_claims), (
         "claims exist but none have entity_ids linked"
+    )
+
+
+def test_catalogue_twostage_folder_uses_page_records_for_page_scoped_kg(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Regression for #1403/#1404: page_records-only transcribe output must keep page doc_ids."""
+    library_path, selected_doc_id, _catalogue_target_id, child_doc_ids = _seed_folder_with_page_images_fixture(
+        tmp_path
+    )
+    db = db_manager.get_database(library_path)
+
+    async def fake_stage1(**kwargs):
+        schema = kwargs.get("schema")
+        if schema is not extract_all_module._EntitiesOnly:
+            raise AssertionError(f"unexpected schema in stage1 stub: {schema!r}")
+        return extract_all_module._EntitiesOnly(
+            people=[extract_all_module._EntityOnly(name="Regression Person", entity_type="person")],
+            places=[extract_all_module._EntityOnly(name="Regression Place", entity_type="place")],
+            organizations=[],
+            dates=[],
+            events=[],
+        )
+
+    async def fake_stage2_claims(*args, **kwargs):
+        return [
+            {
+                "verb": "signed",
+                "object": "the fixture ledger",
+                "source_text": "Regression Person signed the fixture ledger",
+            }
+        ]
+
+    async def fake_resumen(*args, **kwargs):
+        return ("Catalogue narrative for the regression fixture.", [])
+
+    async def fake_keywords(*args, **kwargs):
+        return "regression fixture; workflow harness"
+
+    async def fake_citations_extract(*args, **kwargs):
+        return {"text": "", "value": [], "cached": False}
+
+    # Simulate provenance only via state.parallel_results while the direct
+    # node output carries plain text. On origin/main, _recover_text_and_records
+    # returns early on node text and misses these page_records.
+    page_records = [
+        {
+            "doc_id": doc_id,
+            "text": f"Regression Person signed ledger page {index + 1} in Regression Place.",
+        }
+        for index, doc_id in enumerate(child_doc_ids)
+    ]
+
+    async def fake_transcribe(inputs, state, llm_config):
+        text = "\n\n".join(record["text"] for record in page_records)
+        return {
+            "text": text,
+            "value": text,
+            # Intentionally no "records"/"page_records" on direct output.
+            "artifacts": [],
+            "output_files": [],
+            "error": None,
+        }
+
+    monkeypatch.setitem(workflow_registry.TOOLS, "transcribe", fake_transcribe)
+    monkeypatch.setattr(
+        "fichero.workflows.tools.extract_all.chat_structured_with_fallback",
+        fake_stage1,
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.tools.extract_all._extract_claims_for_entity",
+        fake_stage2_claims,
+    )
+    monkeypatch.setattr("fichero.llm.resolve_model_alias", lambda p, m: ("fake", "fake-model"))
+    monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
+    monkeypatch.setattr(
+        "fichero.kg.entity_vectors.find_similar",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        "fichero.kg.entity_vectors.index_entity",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.tools.catalogue._generate_resumen",
+        fake_resumen,
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.tools.catalogue._generate_keywords",
+        fake_keywords,
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.tools.citations_extract.citations_extract",
+        fake_citations_extract,
+    )
+    monkeypatch.setitem(
+        workflow_registry.TOOLS,
+        "citations_extract",
+        fake_citations_extract,
+    )
+    async def _noop_cleanup(*args, **kwargs):
+        return {"text": "", "value": [], "cached": False}
+    for _tool in (
+        "people_folder_cleanup",
+        "places_folder_cleanup",
+        "organizations_folder_cleanup",
+        "dates_folder_cleanup",
+        "events_folder_cleanup",
+        "keywords_folder_cleanup",
+    ):
+        monkeypatch.setitem(workflow_registry.TOOLS, _tool, _noop_cleanup)
+
+    before_claim_rows = db.all(KnowledgeClaim)
+    before_claim_ids = {claim.id for claim in before_claim_rows}
+    before_claims = len(before_claim_rows)
+    before_entities = len(db.all(KnowledgeEntity))
+
+    workflow = _load_catalogue_workflow_twostage()
+    state = build_initial_state(
+        {"selected_doc_ids": [selected_doc_id]},
+        library_path=str(library_path),
+    )
+    state["parallel_results"] = {
+        "shadow_records": [
+            {
+                "index": index,
+                "success": True,
+                "result": {"page_records": [record]},
+            }
+            for index, record in enumerate(page_records)
+        ]
+    }
+    state["workflow_id"] = workflow.id
+    state["task_id"] = "test-folder-page-records-catalogue-twostage"
+
+    final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
+    _assert_workflow_completed(final_state)
+
+    claims = db.all(KnowledgeClaim)
+    entities = db.all(KnowledgeEntity)
+    assert len(entities) > before_entities
+    assert len(claims) > before_claims
+
+    page_ids = set(child_doc_ids)
+    new_claims = [claim for claim in claims if claim.id not in before_claim_ids]
+    stage2_claims = [
+        claim
+        for claim in new_claims
+        if claim.text == "Regression Person signed the fixture ledger."
+    ]
+    assert stage2_claims, "expected stage-2 fixture claims from extract_all/kg_writer path"
+    assert all(claim.source_document_id in page_ids for claim in stage2_claims), (
+        "stage-2 claims must persist on page/file doc_ids from page_records, "
+        "not on the folder container"
+    )
+
+def _seed_folder_with_page_images_fixture(
+    tmp_path: Path,
+) -> tuple[Path, str, str, list[str]]:
+    """Seed folder + image leaf docs to emulate folder catalogue on page images."""
+    library_path = tmp_path / "folder-page-images.fichero"
+    seed(library_path)
+    db = db_manager.get_database(library_path)
+
+    folder = Document(
+        id="workflow-folder-pages",
+        name="Folder page fixture",
+        doc_type=DocType.folder,
+    )
+    db.save(folder)
+
+    child_ids: list[str] = []
+    for index in range(2):
+        image_path = tmp_path / f"page-{index + 1}.jpg"
+        image_path.write_bytes(b"fixture")
+        child = Document(
+            id=f"workflow-folder-page-{index + 1}",
+            parent_id=folder.id,
+            name=image_path.name,
+            path=str(image_path),
+            doc_type=DocType.file,
+            file_type=FileType.image,
+        )
+        db.save(child)
+        child_ids.append(child.id)
+
+    return library_path, folder.id, folder.id, child_ids
+
+
+def test_catalogue_twostage_folder_writes_kg_rows_to_child_docs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Folder catalogue contract: summary on folder, KG rows on child page/image docs."""
+    _install_twostage_stubs(monkeypatch)
+    library_path, selected_doc_id, catalogue_target_id, child_doc_ids = _seed_folder_with_page_images_fixture(
+        tmp_path
+    )
+    db = db_manager.get_database(library_path)
+
+    before_claims = len(db.all(KnowledgeClaim))
+    before_entities = len(db.all(KnowledgeEntity))
+
+    workflow = _load_catalogue_workflow_twostage()
+    state = build_initial_state(
+        {"selected_doc_ids": [selected_doc_id]},
+        library_path=str(library_path),
+    )
+    state["workflow_id"] = workflow.id
+    state["task_id"] = "test-folder-pages-catalogue-twostage"
+
+    final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
+
+    _assert_workflow_completed(final_state)
+    _assert_twostage_kg_rows_landed(
+        db,
+        catalogue_target_id=catalogue_target_id,
+        before_entities=before_entities,
+        before_claims=before_claims,
+    )
+
+    folder_claims = [
+        claim
+        for claim in db.query(KnowledgeClaim, source_document_id=catalogue_target_id)
+        if claim.entity_ids
+    ]
+    child_claims = [
+        claim
+        for claim in db.all(KnowledgeClaim)
+        if claim.source_document_id in set(child_doc_ids) and claim.entity_ids
+    ]
+    assert child_claims, "expected entity-linked claims on child page/image docs"
+    assert not folder_claims, (
+        "expected no entity-linked claims on folder container when child "
+        "doc_ids are available"
     )

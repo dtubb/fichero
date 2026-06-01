@@ -1695,6 +1695,10 @@ async def process_vision(
         "texts": texts,
         "values": values,
         "results": results,
+        # Canonical records port for workflow edges (e.g.
+        # transcribe.records -> extract_all.records). Keep the legacy
+        # page_records key for callers that read it directly.
+        "records": page_records,
         "artifacts": artifact_ids,
         "output_files": output_files,
         "page_records": page_records,
