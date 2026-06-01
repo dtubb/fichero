@@ -400,6 +400,53 @@ def _prewarm_embeddings() -> None:
         logger.warning("Embeddings pre-warm failed (will retry on first use): %s", exc)
 
 
+def _discover_known_library_paths() -> list[str]:
+    """Return known .fichero library roots for startup maintenance."""
+    try:
+        from fichero.__main__ import _discover_libraries
+
+        return list(_discover_libraries())
+    except Exception:
+        logger.exception("Could not discover known libraries for startup recovery")
+        return []
+
+
+async def _recover_stale_runs_on_startup(
+    library_paths: Sequence[str] | None = None,
+) -> int:
+    """Recover stale workflow runs in known libraries during engine startup."""
+    from fichero.workflows.activity_store import ActivityStore
+
+    recovered_total = 0
+    targets = (
+        list(library_paths)
+        if library_paths is not None
+        else _discover_known_library_paths()
+    )
+    for library_path in targets:
+        try:
+            package_path = Path(library_path)
+            if package_path.suffix != ".fichero":
+                continue
+            db_path = package_path / "fichero.duckdb"
+            if not db_path.exists():
+                continue
+            recovered = await ActivityStore(str(db_path)).recover_stale_runs()
+            recovered_total += recovered
+            if recovered:
+                logger.info(
+                    "Startup stale-run recovery: recovered %d run(s) in %s",
+                    recovered,
+                    library_path,
+                )
+        except Exception:
+            logger.exception(
+                "Startup stale-run recovery failed for %s (continuing)",
+                library_path,
+            )
+    return recovered_total
+
+
 async def _watch_parent_process() -> None:
     """If FICHERO_PARENT_PID is set, exit when that PID disappears.
 
@@ -462,6 +509,9 @@ async def lifespan(app: FastAPI):
     # One-time cleanup: collapse any duplicate provider rows left over
     # from the pre-fix POST /providers behaviour (#704).
     _collapse_duplicate_providers()
+
+    # Recover stale workflow runs left in 'running' by prior crashes/restarts (#1350).
+    await _recover_stale_runs_on_startup()
 
     # Pre-warm embeddings model in background — avoids 2+ GB download on first search
     loop = asyncio.get_event_loop()
