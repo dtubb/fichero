@@ -205,6 +205,7 @@ dev = [
 [project.scripts]
 fichero = "fichero.__main__:main"
 fichero-mcp = "fichero.mcp_server:main"
+fichero-mcp-simple = "fichero.mcp_simple:main"
 
 [tool.pytest.ini_options]
 markers = [
