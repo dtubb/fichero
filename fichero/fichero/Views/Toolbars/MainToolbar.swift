@@ -66,15 +66,16 @@ struct MainToolbar: View {
                     .frame(height: 20)
 
                 // View mode picker (Icon/List/Table/Map)
-                Picker("View", selection: $viewMode) {
+                Picker("View mode", selection: $viewMode) {
                     ForEach(ViewDisplayMode.allCases) { mode in
                         Label(mode.rawValue, systemImage: mode.icon)
                             .labelStyle(.iconOnly)
                             .tag(mode)
+                            .accessibilityLabel(mode.rawValue + " — " + mode.description)
                     }
                 }
                 .pickerStyle(.segmented)
-                .help("View mode")
+                .help("View mode — choose how documents are displayed")
             }
         }
         .padding(.horizontal, 12)
