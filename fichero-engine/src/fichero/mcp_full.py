@@ -234,6 +234,25 @@ def workflow_status(input: WorkflowStatusInput) -> Any:
 
 
 @mcp.tool()
+def workflow_pause(thread_id: str) -> Any:
+    with _client() as client:
+        return client.request(
+            "POST",
+            f"/api/workflow-execution/threads/{thread_id}/pause",
+        )
+
+
+@mcp.tool()
+def workflow_resume(thread_id: str) -> Any:
+    with _client() as client:
+        return client.request(
+            "POST",
+            f"/api/workflow-execution/threads/{thread_id}/resume",
+            json={},
+        )
+
+
+@mcp.tool()
 def list_artifacts(input: ArtifactsInput) -> Any:
     with _client() as client:
         return client.list_artifacts(
