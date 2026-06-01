@@ -8,6 +8,10 @@ from pathlib import Path
 _LEGACY_APP_SUPPORT_DIRS = (
     ("com.fichero.fichero",),
     ("ca.tubb.fichero", "global.fichero"),
+    # The SwiftUI app historically wrote the global library under its bundle id
+    # (~/Library/Application Support/app.fichero.fichero/) — migrate it into the
+    # canonical Fichero/ dir so all data lives in one place (#1526).
+    ("app.fichero.fichero",),
 )
 
 
