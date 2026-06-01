@@ -128,6 +128,8 @@ struct Document: Identifiable, Codable, Hashable {
     /// `move` route when it accepts a position. Defaults to 0 for documents
     /// created before sort persistence landed. See sidebar plan Step 3.
     var sortOrder: Int
+    /// Document prototype/class assigned via /api/documents/{id}/prototype (#1377).
+    var prototypeKey: String?
     var createdAt: Date
     var updatedAt: Date
     // Computed fields from backend (ignored on encode)
@@ -150,6 +152,7 @@ struct Document: Identifiable, Codable, Hashable {
         case curatedItems = "curated_items"
         case structure
         case sortOrder = "sort_order"
+        case prototypeKey = "prototype_key"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case expectedThumbnailPath = "expected_thumbnail_path"
@@ -172,6 +175,7 @@ struct Document: Identifiable, Codable, Hashable {
         curatedItems: [[String: AnyCodable]] = [],
         structure: [DocumentStructureNode] = [],
         sortOrder: Int = 0,
+        prototypeKey: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         expectedThumbnailPath: String? = nil,
@@ -192,6 +196,7 @@ struct Document: Identifiable, Codable, Hashable {
         self.curatedItems = curatedItems
         self.structure = structure
         self.sortOrder = sortOrder
+        self.prototypeKey = prototypeKey
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.expectedThumbnailPath = expectedThumbnailPath
@@ -218,6 +223,7 @@ struct Document: Identifiable, Codable, Hashable {
         self.curatedItems = try container.decodeIfPresent([[String: AnyCodable]].self, forKey: .curatedItems) ?? []
         self.structure = try container.decodeIfPresent([DocumentStructureNode].self, forKey: .structure) ?? []
         self.sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+        self.prototypeKey = try container.decodeIfPresent(String.self, forKey: .prototypeKey)
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         self.expectedThumbnailPath = try container.decodeIfPresent(String.self, forKey: .expectedThumbnailPath)

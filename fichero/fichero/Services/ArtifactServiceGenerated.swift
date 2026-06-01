@@ -1236,6 +1236,46 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    // MARK: - Document prototype / class registry (#1377)
+
+    /// Fetch all classification values for the document_prototype dimension.
+    /// Uses a direct URLRequest because ClassificationListResponse.items is
+    /// [OpenAPIValueContainer] — untyped — so we decode directly to [ClassificationValue].
+    func listDocumentPrototypes() async throws -> [Components.Schemas.ClassificationValue] {
+        guard let lib = client.currentLibraryPath else { return [] }
+        guard let url = URL(string: "\(client.baseURL)/api/classifications?dimension=document_prototype") else {
+            return []
+        }
+        var req = URLRequest(url: url)
+        req.addEngineAuth(libraryPath: lib)
+        let (data, _) = try await URLSession.shared.data(for: req)
+        struct Envelope: Decodable {
+            let items: [Components.Schemas.ClassificationValue]
+        }
+        return (try? JSONDecoder().decode(Envelope.self, from: data))?.items ?? []
+    }
+
+    @discardableResult
+    func assignDocumentPrototype(
+        documentId: String,
+        prototypeKey: String
+    ) async throws -> Components.Schemas.PrototypeAssignResponse {
+        let response = try await client.api.assignDocumentPrototypeApiDocumentsDocIdPrototypePut(
+            path: .init(docId: documentId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(.init(prototypeKey: prototypeKey))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     private static func decodeSimilar(
         payload: OpenAPIRuntime.OpenAPIValueContainer
     ) -> SimilarClaim? {
