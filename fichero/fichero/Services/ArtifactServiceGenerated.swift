@@ -349,6 +349,23 @@ private struct ArtifactJSON: Codable {
         case createdAt = "created_at"
     }
 }
+// MARK: - Library entity-type registry models (#874 / #1372)
+
+struct LibraryEntityTypeItem: Decodable {
+    let id: String?
+    let entityTypeKey: String
+    let enabled: Bool?
+    enum CodingKeys: String, CodingKey {
+        case id
+        case entityTypeKey = "entity_type_key"
+        case enabled
+    }
+}
+
+private struct EntityTypeListPayload: Decodable {
+    let items: [LibraryEntityTypeItem]
+}
+
 // EntityServiceGenerated lives in this file (instead of its own) because the
 // Xcode project's main target uses traditional file references; new .swift
 // files would need pbxproj edits. See MEMORY: feedback_swift_file_sync.md.
@@ -378,6 +395,7 @@ final class EntityServiceGenerated: ObservableObject {
     enum ServiceError: Error {
         case validationError(String)
         case unexpectedResponse(Int)
+        case noLibrary
     }
 
     /// List all knowledge entities, optionally filtered by type or query.
@@ -1111,6 +1129,50 @@ final class EntityServiceGenerated: ObservableObject {
         case .undocumented(let code, _):
             throw ServiceError.unexpectedResponse(code)
         }
+    }
+
+    // MARK: - Library entity-type registry (#874 / #1372)
+
+    func listLibraryEntityTypes() async throws -> [LibraryEntityTypeItem] {
+        guard let lib = client.currentLibraryPath, !lib.isEmpty else { return [] }
+        let encoded = lib.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? lib
+        guard let url = URL(string: "\(client.baseURL)/api/libraries/\(encoded)/entity-types") else {
+            return []
+        }
+        var req = URLRequest(url: url)
+        req.addEngineAuth(libraryPath: lib)
+        let (data, _) = try await URLSession.shared.data(for: req)
+        return (try? JSONDecoder().decode(EntityTypeListPayload.self, from: data))?.items ?? []
+    }
+
+    @discardableResult
+    func addLibraryEntityType(key: String) async throws -> LibraryEntityTypeItem {
+        guard let lib = client.currentLibraryPath, !lib.isEmpty else {
+            throw ServiceError.noLibrary
+        }
+        let encoded = lib.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? lib
+        let keyEncoded = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
+        guard let url = URL(string: "\(client.baseURL)/api/libraries/\(encoded)/entity-types?entity_type_key=\(keyEncoded)&enabled=true") else {
+            throw ServiceError.noLibrary
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.addEngineAuth(libraryPath: lib)
+        let (data, _) = try await URLSession.shared.data(for: req)
+        return try JSONDecoder().decode(LibraryEntityTypeItem.self, from: data)
+    }
+
+    func removeLibraryEntityType(key: String) async throws {
+        guard let lib = client.currentLibraryPath, !lib.isEmpty else { return }
+        let encoded = lib.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? lib
+        let keyEncoded = key.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? key
+        guard let url = URL(string: "\(client.baseURL)/api/libraries/\(encoded)/entity-types/\(keyEncoded)") else {
+            return
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        req.addEngineAuth(libraryPath: lib)
+        _ = try? await URLSession.shared.data(for: req)
     }
 
     private static func decodeSimilar(

@@ -1439,7 +1439,7 @@ private struct EntityKindBlock: View {
                         }
                     }
                 } else {
-                    VStack(alignment: .leading, spacing: 2) {
+                    LazyVStack(alignment: .leading, spacing: 2) {
                         ForEach(visibleItems) { item in
                             EntityKindRow(
                                 item: item,
