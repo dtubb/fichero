@@ -14,7 +14,15 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
-from fichero.knowledge_models import ClassificationDimension, ClassificationValue
+from fichero.knowledge_models import (
+    Annotation,
+    ClassificationDimension,
+    ClassificationValue,
+    DocumentCitation,
+    KnowledgeClaim,
+    KnowledgeEntity,
+    Note,
+)
 from fichero.models import Artifact, DocType, Document, FileType, Status
 from fichero.models import DocumentListResponse, DocumentNote, RelatedDocumentListResponse
 
@@ -151,6 +159,83 @@ class DocumentNoteUpsert(BaseModel):
     """Request body for per-document note upsert."""
 
     content: str
+
+
+class WorkspaceCuratedItem(BaseModel):
+    id: str
+    target_type: str
+    target_id: str
+    role: str | None = None
+    added_at: str | None = None
+    x: float | None = None
+    y: float | None = None
+    notes: str | None = None
+
+
+class WorkspacePatchRequest(BaseModel):
+    add: list[WorkspaceCuratedItem] = []
+    remove_ids: list[str] = []
+    reorder_ids: list[str] | None = None
+
+
+class WorkspaceItemsResponse(BaseModel):
+    document_id: str
+    items: list[dict[str, Any]]
+    count: int
+
+
+def _workspace_doc_or_404(db: Database, doc_id: str) -> Document:
+    doc = db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    if doc.doc_type != DocType.folder:
+        raise HTTPException(status_code=400, detail="Document is not a folder")
+    return doc
+
+
+def _normalize_curated_items(items: list[Any] | None) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        item_id = str(item.get("id") or "").strip()
+        target_type = str(item.get("target_type") or "").strip()
+        target_id = str(item.get("target_id") or "").strip()
+        if not item_id or not target_type or not target_id:
+            continue
+        normalized.append(
+            {
+                "id": item_id,
+                "target_type": target_type,
+                "target_id": target_id,
+                "role": item.get("role"),
+                "added_at": item.get("added_at"),
+                "x": item.get("x"),
+                "y": item.get("y"),
+                "notes": item.get("notes"),
+            }
+        )
+    return normalized
+
+
+def _resolve_workspace_item_target(db: Database, item: dict[str, Any]) -> Any:
+    target_type = str(item.get("target_type") or "").strip().lower()
+    target_id = str(item.get("target_id") or "").strip()
+    if not target_id:
+        return None
+    model_by_type = {
+        "document": Document,
+        "entity": KnowledgeEntity,
+        "claim": KnowledgeClaim,
+        "note": Note,
+        "annotation": Annotation,
+        "citation": DocumentCitation,
+    }
+    model = model_by_type.get(target_type)
+    if model is None:
+        return None
+    target = db.get(model, target_id)
+    return target.model_dump() if target is not None else None
 
 
 # Routes
@@ -303,6 +388,80 @@ async def delete_document_note(
     if not notes:
         raise HTTPException(status_code=404, detail=f"Document note not found: {doc_id}")
     db.delete(notes[0])
+
+
+@router.patch("/{doc_id}/workspace", response_model=WorkspaceItemsResponse)
+async def patch_workspace_items(
+    doc_id: str,
+    request: WorkspacePatchRequest,
+    db: Database = Depends(get_library_database),
+) -> WorkspaceItemsResponse:
+    """Atomically add/remove/reorder workspace curated items."""
+    doc = _workspace_doc_or_404(db, doc_id)
+    current_items = _normalize_curated_items(doc.curated_items)
+    by_id = {item["id"]: item for item in current_items}
+
+    for remove_id in request.remove_ids:
+        by_id.pop(remove_id, None)
+
+    now_iso = datetime.now().isoformat()
+    for incoming in request.add:
+        payload = incoming.model_dump()
+        payload["added_at"] = payload.get("added_at") or now_iso
+        by_id[payload["id"]] = payload
+
+    ordered_ids: list[str]
+    if request.reorder_ids is not None:
+        seen = set()
+        ordered_ids = []
+        for item_id in request.reorder_ids:
+            if item_id in by_id and item_id not in seen:
+                ordered_ids.append(item_id)
+                seen.add(item_id)
+        for item in current_items:
+            item_id = item["id"]
+            if item_id in by_id and item_id not in seen:
+                ordered_ids.append(item_id)
+                seen.add(item_id)
+        for item_id in by_id:
+            if item_id not in seen:
+                ordered_ids.append(item_id)
+                seen.add(item_id)
+    else:
+        ordered_ids = [item["id"] for item in current_items if item["id"] in by_id]
+        for item_id in by_id:
+            if item_id not in ordered_ids:
+                ordered_ids.append(item_id)
+
+    doc.is_workspace = True
+    doc.curated_items = [by_id[item_id] for item_id in ordered_ids]
+    doc.updated_at = datetime.now()
+    db.save(doc)
+
+    return WorkspaceItemsResponse(
+        document_id=doc.id,
+        items=doc.curated_items,
+        count=len(doc.curated_items),
+    )
+
+
+@router.get("/{doc_id}/workspace/items", response_model=WorkspaceItemsResponse)
+async def get_workspace_items(
+    doc_id: str,
+    db: Database = Depends(get_library_database),
+) -> WorkspaceItemsResponse:
+    """List curated workspace items with alias resolution to full targets."""
+    doc = _workspace_doc_or_404(db, doc_id)
+    items = _normalize_curated_items(doc.curated_items)
+    resolved = []
+    for item in items:
+        resolved.append(
+            {
+                **item,
+                "target": _resolve_workspace_item_target(db, item),
+            }
+        )
+    return WorkspaceItemsResponse(document_id=doc.id, items=resolved, count=len(resolved))
 
 
 @router.get("/{doc_id}/children")

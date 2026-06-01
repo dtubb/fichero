@@ -14,6 +14,7 @@ from fichero.hermeneutics_models import FrameworkType, Interpretation, Interpret
 from fichero.knowledge_models import (
     Annotation,
     AnnotationKind,
+    BookStructureNode,
     DocumentCitation,
     EntityType,
     KnowledgeClaim,
@@ -296,6 +297,57 @@ class TestDocumentKnowledgeGraph:
         assert people.items[0].canonical_name == "J. Davidson"
         assert people.items[0].entity_id == canonical.id
         assert len(people.items[0].claim_ids) == 2
+
+
+class TestDocumentOutline:
+    def test_outline_aggregates_pages_structure_and_groups(self, db):
+        from fichero.api.routes import document_inspector
+
+        doc = Document(id="outline-doc", name="Book", doc_type=DocType.file)
+        page1 = Document(id="outline-page-1", name="Page 1", doc_type=DocType.page, parent_id=doc.id, sequence=1)
+        page2 = Document(id="outline-page-2", name="Page 2", doc_type=DocType.page, parent_id=doc.id, sequence=2)
+        chunk = Document(id="outline-chunk", name="Chunk A", doc_type=DocType.chunk, parent_id=page1.id)
+        db.save(doc)
+        db.save(page1)
+        db.save(page2)
+        db.save(chunk)
+
+        chapter = BookStructureNode(
+            source_document_id=doc.id,
+            title="Chapter 1",
+            level=1,
+            kind="chapter",
+            start_sequence=1,
+            end_sequence=2,
+        )
+        section = BookStructureNode(
+            source_document_id=doc.id,
+            title="Section 1.1",
+            level=2,
+            kind="section",
+            start_sequence=1,
+            end_sequence=1,
+            parent_structure_id=chapter.id,
+        )
+        db.save(chapter)
+        db.save(section)
+
+        entity = KnowledgeEntity(canonical_name="Davidson", entity_type=EntityType.person)
+        db.save(entity)
+        db.save(KnowledgeClaim(text="Davidson signed.", source_document_id=page1.id, entity_ids=[entity.id]))
+        db.save(Annotation(document_id=page1.id, kind=AnnotationKind.note, text="check this"))
+        db.save(Artifact(document_id=page1.id, artifact_type="transcription", content="text"))
+        db.save(DocumentCitation(source_document_id=page1.id, target_citation_text="cite"))
+
+        result = asyncio.run(document_inspector.document_outline(doc.id, db=db))
+        assert result.document_id == doc.id
+        kinds = {row.kind for row in result.rows}
+        assert {"page", "chapter", "section", "chunk", "annotation-group", "entity-group"} <= kinds
+        chapter_row = next(row for row in result.rows if row.kind == "chapter")
+        assert chapter_row.label == "Chapter 1"
+        assert chapter_row.depth == 1
+        page_row = next(row for row in result.rows if row.kind == "page" and row.label == "Page 1")
+        assert page_row.count >= 1
 
     def test_parent_pdf_rolls_up_page_claims_by_default(self, db):
         """Page-level KG rows surface when the parent PDF is selected."""

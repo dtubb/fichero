@@ -52,6 +52,33 @@ class TestNotesCRUD:
         assert by_query.json()["count"] == 1
         assert by_query.json()["items"][0]["title"] == "Hub"
 
+    def test_linked_structure_node_id_create_patch_and_filter(self, client, db):
+        created = client.post(
+            "/api/notes",
+            json={
+                "title": "Section note",
+                "body": "Attached to outline section",
+                "linked_structure_node_id": "node-1",
+            },
+        )
+        assert created.status_code == 200
+        note_id = created.json()["id"]
+        assert created.json()["linked_structure_node_id"] == "node-1"
+
+        db.save(Note(title="Other", body="Detached", linked_structure_node_id="node-2"))
+
+        filtered = client.get("/api/notes?linked_structure_node_id=node-1")
+        assert filtered.status_code == 200
+        assert filtered.json()["count"] == 1
+        assert filtered.json()["items"][0]["id"] == note_id
+
+        patched = client.patch(
+            f"/api/notes/{note_id}",
+            json={"linked_structure_node_id": "node-3"},
+        )
+        assert patched.status_code == 200
+        assert patched.json()["linked_structure_node_id"] == "node-3"
+
 
 class TestNoteLinks:
     def test_create_and_delete_link(self, client, db):

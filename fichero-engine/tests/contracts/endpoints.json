@@ -2232,6 +2232,30 @@
         "response_model": "WorkflowRunProvenanceListResponse"
       },
       {
+        "method": "PATCH",
+        "path": "/documents/{doc_id}/workspace",
+        "operation_id": "patch_workspace_items_api_documents__doc_id__workspace_patch",
+        "summary": "Patch Workspace Items",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": "WorkspacePatchRequest",
+        "response_model": "WorkspaceItemsResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{doc_id}/workspace/items",
+        "operation_id": "get_workspace_items_api_documents__doc_id__workspace_items_get",
+        "summary": "Get Workspace Items",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "WorkspaceItemsResponse"
+      },
+      {
         "method": "GET",
         "path": "/documents/{document_id}/citations",
         "operation_id": "get_document_citations_api_documents__document_id__citations_get",
@@ -2272,6 +2296,18 @@
         ],
         "request_model": null,
         "response_model": "DocumentKnowledgeGraphResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{document_id}/outline",
+        "operation_id": "document_outline_api_documents__document_id__outline_get",
+        "summary": "Hierarchical source outline for document drill-down",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DocumentOutlineResponse"
       }
     ],
     "entities": [
@@ -5782,6 +5818,11 @@
           },
           {
             "name": "linked_entity_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "linked_structure_node_id",
             "required": false,
             "type": "string"
           },

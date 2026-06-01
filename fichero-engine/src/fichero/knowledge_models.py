@@ -1184,6 +1184,7 @@ class Note(BaseModel):
     linked_entity_ids: list[str] = Field(default_factory=list)
     linked_claim_ids: list[str] = Field(default_factory=list)
     linked_document_ids: list[str] = Field(default_factory=list)
+    linked_structure_node_id: str | None = None
 
     # Luhmann-style numeric address (optional). "1.4a.2" denotes
     # zettel #2 under branch 1.4a. Free-form so users can adopt other

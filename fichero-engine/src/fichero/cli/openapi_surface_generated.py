@@ -2156,6 +2156,33 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("patch-workspace-items")
+    def documents_patch_workspace_items_patch(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Patch Workspace Items (PATCH /api/documents/{doc_id}/workspace)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{doc_id}/workspace"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PATCH", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-workspace-items")
+    def documents_get_workspace_items_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+    ) -> None:
+        """Get Workspace Items (GET /api/documents/{doc_id}/workspace/items)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{doc_id}/workspace/items"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-citations")
     def documents_get_citations_get(
         ctx: typer.Context,
@@ -2192,6 +2219,18 @@ def register_generated_openapi_commands(
             params = {
                 "include_children": include_children,
             }
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("hierarchical-source-outline-for-drill-down")
+    def documents_hierarchical_source_outline_for_drill_down_get(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+    ) -> None:
+        """Hierarchical source outline for document drill-down (GET /api/documents/{document_id}/outline)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{document_id}/outline"
+            params = None
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
@@ -5655,6 +5694,7 @@ def register_generated_openapi_commands(
         linked_claim_id: Optional[str] = typer.Option(None, "--linked-claim-id", help="Query parameter: linked_claim_id."),
         linked_document_id: Optional[str] = typer.Option(None, "--linked-document-id", help="Query parameter: linked_document_id."),
         linked_entity_id: Optional[str] = typer.Option(None, "--linked-entity-id", help="Query parameter: linked_entity_id."),
+        linked_structure_node_id: Optional[str] = typer.Option(None, "--linked-structure-node-id", help="Query parameter: linked_structure_node_id."),
         q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
         tag: Optional[str] = typer.Option(None, "--tag", help="Query parameter: tag."),
     ) -> None:
@@ -5666,6 +5706,7 @@ def register_generated_openapi_commands(
                 "linked_claim_id": linked_claim_id,
                 "linked_document_id": linked_document_id,
                 "linked_entity_id": linked_entity_id,
+                "linked_structure_node_id": linked_structure_node_id,
                 "q": q,
                 "tag": tag,
             }
