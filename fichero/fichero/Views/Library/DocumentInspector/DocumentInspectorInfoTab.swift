@@ -371,6 +371,7 @@ struct DocumentBibliographyPanel: View {
     @State private var references: [Components.Schemas.Reference] = []
     @State private var selfRef: Components.Schemas.Reference?
     @State private var isLoading = false
+    @State private var loadError: String?
     @State private var copiedAll = false
 
     private var allBibtex: String {
@@ -382,13 +383,23 @@ struct DocumentBibliographyPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if isLoading && references.isEmpty {
+            if isLoading && references.isEmpty && loadError == nil {
                 HStack(spacing: 6) {
                     ProgressView().scaleEffect(0.6)
                     Text("Loading…").font(.caption).foregroundStyle(.secondary)
                 }
+            } else if let err = loadError {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                    Text(err)
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    Button("Retry") { Task { await load() } }
+                        .font(.caption2).buttonStyle(.borderless)
+                }
             } else if references.isEmpty && selfRef == nil {
-                Text("No bibliography extracted yet")
+                Text("No bibliography extracted yet — run a workflow that includes citation extraction to populate this section.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -440,12 +451,15 @@ struct DocumentBibliographyPanel: View {
     private func load() async {
         guard let library = LibraryManager.shared.globalLibrary else { return }
         isLoading = true
+        loadError = nil
         defer { isLoading = false }
-        guard let resp = try? await library.entityService.listDocumentCitations(documentId: documentId) else {
-            return
+        do {
+            let resp = try await library.entityService.listDocumentCitations(documentId: documentId)
+            selfRef = resp._self
+            references = resp.references
+        } catch {
+            loadError = error.localizedDescription
         }
-        selfRef = resp._self
-        references = resp.references
     }
 }
 
@@ -556,16 +570,27 @@ struct WorkflowProvenancePanel: View {
 
     @State private var runs: [Components.Schemas.WorkflowRunProvenanceResponse] = []
     @State private var isLoading = false
+    @State private var loadError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if isLoading && runs.isEmpty {
+            if isLoading && runs.isEmpty && loadError == nil {
                 HStack(spacing: 6) {
                     ProgressView().scaleEffect(0.6)
                     Text("Loading…").font(.caption).foregroundStyle(.secondary)
                 }
+            } else if let err = loadError {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                    Text(err)
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    Button("Retry") { Task { await load() } }
+                        .font(.caption2).buttonStyle(.borderless)
+                }
             } else if runs.isEmpty {
-                Text("No workflow runs recorded")
+                Text("No workflow runs recorded yet")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -621,8 +646,13 @@ struct WorkflowProvenancePanel: View {
     private func load() async {
         guard let library = LibraryManager.shared.globalLibrary else { return }
         isLoading = true
+        loadError = nil
         defer { isLoading = false }
-        runs = (try? await library.entityService.listDocumentWorkflowRuns(documentId: documentId)) ?? []
+        do {
+            runs = try await library.entityService.listDocumentWorkflowRuns(documentId: documentId)
+        } catch {
+            loadError = error.localizedDescription
+        }
     }
 }
 
@@ -638,43 +668,51 @@ struct DocumentPrototypePicker: View {
 
     var body: some View {
         LabeledContent("Prototype") {
-            Menu {
-                Button("None") {
-                    Task { await assign(nil) }
-                }
-                Divider()
-                ForEach(prototypes, id: \.key) { proto in
-                    Button {
-                        Task { await assign(proto.key) }
-                    } label: {
-                        Label {
-                            Text(proto.label)
-                        } icon: {
-                            if selectedKey == proto.key {
-                                Image(systemName: "checkmark")
+            if prototypes.isEmpty && !isAssigning {
+                Text("No types defined")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .help("Define document prototypes in Settings → Classification to classify documents here")
+            } else {
+                Menu {
+                    Button("None") {
+                        Task { await assign(nil) }
+                    }
+                    Divider()
+                    ForEach(prototypes, id: \.key) { proto in
+                        Button {
+                            Task { await assign(proto.key) }
+                        } label: {
+                            Label {
+                                Text(proto.label)
+                            } icon: {
+                                if selectedKey == proto.key {
+                                    Image(systemName: "checkmark")
+                                }
                             }
                         }
                     }
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    if isAssigning {
-                        ProgressView().scaleEffect(0.6).frame(width: 12, height: 12)
-                    }
-                    if let key = selectedKey,
-                       let proto = prototypes.first(where: { $0.key == key }) {
-                        PrototypeBadge(proto: proto)
-                    } else {
-                        Text("None")
-                            .font(.caption)
+                } label: {
+                    HStack(spacing: 4) {
+                        if isAssigning {
+                            ProgressView().scaleEffect(0.6).frame(width: 12, height: 12)
+                        }
+                        if let key = selectedKey,
+                           let proto = prototypes.first(where: { $0.key == key }) {
+                            PrototypeBadge(proto: proto)
+                        } else {
+                            Text("None")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
                 }
+                .buttonStyle(.plain)
+                .help("Assign a document prototype (class) to this file")
             }
-            .buttonStyle(.plain)
         }
         .task {
             selectedKey = initialKey
