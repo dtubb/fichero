@@ -425,6 +425,25 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    /// List entities filtered to a specific source document.
+    /// Uses a direct URLRequest because the generated client's query struct
+    /// does not expose the `document_id` query parameter (#1434 / Timeline+Map fix).
+    func listEntitiesForDocument(
+        documentId: String,
+        limit: Int = 200
+    ) async throws -> [Components.Schemas.KnowledgeEntity] {
+        guard let lib = client.currentLibraryPath else { return [] }
+        let docEncoded = documentId.addingPercentEncoding(
+            withAllowedCharacters: .urlQueryAllowed) ?? documentId
+        guard let url = URL(string: "\(client.baseURL)/api/entities"
+            + "?document_id=\(docEncoded)&limit=\(limit)") else { return [] }
+        var req = URLRequest(url: url)
+        req.addEngineAuth(libraryPath: lib)
+        let (data, _) = try await URLSession.shared.data(for: req)
+        struct Envelope: Decodable { let items: [Components.Schemas.KnowledgeEntity] }
+        return (try? JSONDecoder().decode(Envelope.self, from: data))?.items ?? []
+    }
+
     /// Fetch per-entity claim counts for badge display in the entity browser.
     func fetchClaimCounts() async throws -> [String: Int] {
         let response = try await client.api.entityClaimCountsApiEntitiesClaimCountsGet(
