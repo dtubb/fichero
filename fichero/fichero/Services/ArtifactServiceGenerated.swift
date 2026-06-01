@@ -1297,6 +1297,49 @@ final class EntityServiceGenerated: ObservableObject {
         return (try? JSONDecoder().decode(Envelope.self, from: data))?.items ?? []
     }
 
+    /// Fetch available interpretive frameworks via GET /api/hermeneutics/frameworks
+    func listFrameworks() async throws -> [Components.Schemas.InterpretiveFramework] {
+        guard let lib = client.currentLibraryPath else { return [] }
+        guard let url = URL(string: "\(client.baseURL)/api/hermeneutics/frameworks") else { return [] }
+        var req = URLRequest(url: url)
+        req.addEngineAuth(libraryPath: lib)
+        let (data, _) = try await URLSession.shared.data(for: req)
+        struct Envelope: Decodable {
+            let items: [Components.Schemas.InterpretiveFramework]
+        }
+        return (try? JSONDecoder().decode(Envelope.self, from: data))?.items ?? []
+    }
+
+    /// POST /api/hermeneutics/interpretations — create a human interpretation on a document.
+    @discardableResult
+    func createInterpretation(
+        frameworkId: String,
+        documentId: String,
+        act: Components.Schemas.InterpretiveActType,
+        interpretationText: String,
+        confidence: Double = 0.8
+    ) async throws -> Components.Schemas.Interpretation {
+        guard let lib = client.currentLibraryPath else { throw ServiceError.unexpectedResponse(0) }
+        guard let url = URL(string: "\(client.baseURL)/api/hermeneutics/interpretations") else {
+            throw ServiceError.unexpectedResponse(0)
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.addEngineAuth(libraryPath: lib)
+        let body: [String: Any] = [
+            "framework_id": frameworkId,
+            "document_id": documentId,
+            "act": act.rawValue,
+            "interpretation_text": interpretationText,
+            "confidence": confidence,
+            "created_by": "human"
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, _) = try await URLSession.shared.data(for: req)
+        return try JSONDecoder().decode(Components.Schemas.Interpretation.self, from: data)
+    }
+
     private static func decodeSimilar(
         payload: OpenAPIRuntime.OpenAPIValueContainer
     ) -> SimilarClaim? {
