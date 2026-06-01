@@ -942,10 +942,16 @@ def _touch_ancestor_documents(db: "Database", parent_id: str | None) -> None:
     unexpectedly deep trees: stops when a doc id is seen a second time (cycle)
     or after _ANCESTOR_MAX_DEPTH hops.
     """
-    current_parent_id = parent_id
+    current_parent_id = parent_id if isinstance(parent_id, str) else None
     visited: set[str] = set()
     depth = 0
     while current_parent_id:
+        if not isinstance(current_parent_id, str):
+            logger.warning(
+                "Non-string ancestor id %r encountered — stopping walk",
+                current_parent_id,
+            )
+            break
         if current_parent_id in visited:
             logger.warning(
                 "Cycle detected in ancestor chain at doc id %s — stopping walk",
@@ -966,7 +972,8 @@ def _touch_ancestor_documents(db: "Database", parent_id: str | None) -> None:
             break
         parent.updated_at = datetime.now()
         db.save(parent)
-        current_parent_id = parent.parent_id
+        next_parent_id = getattr(parent, "parent_id", None)
+        current_parent_id = next_parent_id if isinstance(next_parent_id, str) else None
 
 
 def _ensure_folder_hierarchy(

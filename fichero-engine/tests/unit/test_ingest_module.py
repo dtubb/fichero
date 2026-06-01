@@ -1580,3 +1580,21 @@ class TestTouchAncestorDocumentsCycleGuard:
         assert saved_ids.count("doc-b") == 1
         # Total saves == 2 (A then B — the third step would re-visit A and halt)
         assert len(saved_ids) == 2
+
+    def test_truthy_magicmock_parent_id_terminates_without_looping(self):
+        """Non-string parent ids (e.g. MagicMock) must stop immediately."""
+        from fichero.ingest import _touch_ancestor_documents
+
+        mock_parent = MagicMock()
+        mock_parent.parent_id = MagicMock()  # truthy, non-str, unstable
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = mock_parent
+        mock_db.save.side_effect = lambda obj, **_kw: None
+
+        _touch_ancestor_documents(mock_db, "doc-a")
+
+        # Only the first real string doc-id hop is allowed; the next non-str
+        # parent_id must terminate the walk.
+        assert mock_db.get.call_count == 1
+        assert mock_db.save.call_count == 1
