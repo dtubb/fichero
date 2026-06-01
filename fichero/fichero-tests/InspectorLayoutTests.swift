@@ -7,21 +7,22 @@ import Testing
 
 struct InspectorTabTests {
 
-    @Test("InspectorTab includes content/annotations/kg/artifacts/edits/info")
+    @Test("InspectorTab includes content/annotations/notes/kg/artifacts/edits/info")
     func allCases() {
-        #expect(InspectorTab.allCases.count == 6)
+        #expect(InspectorTab.allCases.count == 7)
         #expect(InspectorTab.allCases.contains(.content))
         #expect(InspectorTab.allCases.contains(.annotations))
+        #expect(InspectorTab.allCases.contains(.notes))
         #expect(InspectorTab.allCases.contains(.knowledgeGraph))
         #expect(InspectorTab.allCases.contains(.artifacts))
         #expect(InspectorTab.allCases.contains(.edits))
         #expect(InspectorTab.allCases.contains(.info))
     }
 
-    @Test("InspectorTab order keeps Edits as second-from-last")
+    @Test("InspectorTab order: content, annotations, notes, kg, artifacts, edits, info")
     func ordering() {
         let expected: [InspectorTab] = [
-            .content, .annotations, .knowledgeGraph, .artifacts, .edits, .info
+            .content, .annotations, .notes, .knowledgeGraph, .artifacts, .edits, .info
         ]
         #expect(InspectorTab.allCases == expected)
     }
@@ -37,6 +38,7 @@ struct InspectorTabTests {
     func icons() {
         #expect(InspectorTab.content.icon == "doc.text")
         #expect(InspectorTab.annotations.icon == "highlighter")
+        #expect(InspectorTab.notes.icon == "pencil.and.scribble")
         #expect(InspectorTab.knowledgeGraph.icon == "point.3.connected.trianglepath.dotted")
         #expect(InspectorTab.artifacts.icon == "shippingbox")
         #expect(InspectorTab.edits.icon == "slider.horizontal.3")
@@ -47,6 +49,7 @@ struct InspectorTabTests {
     func rawValues() {
         #expect(InspectorTab.content.rawValue == "Content")
         #expect(InspectorTab.annotations.rawValue == "Annotations")
+        #expect(InspectorTab.notes.rawValue == "Notes")
         #expect(InspectorTab.knowledgeGraph.rawValue == "Knowledge Graph")
         #expect(InspectorTab.artifacts.rawValue == "Artifacts")
         #expect(InspectorTab.edits.rawValue == "Edits")
