@@ -177,6 +177,7 @@ class Document(BaseModel):
     # For pages/chunks
     sequence: int | None = None  # Page number or order
     bbox: tuple[int, int, int, int] | None = None  # x, y, width, height
+    prototype_key: str | None = None  # user-assigned document prototype/class key
 
     # Content (LangChain compatible)
     page_content: str | None = None
