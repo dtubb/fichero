@@ -35,6 +35,13 @@ struct DocumentInspectorInfoTab: View {
                     }
                 }
 
+                Section("Class") {
+                    DocumentPrototypePicker(
+                        documentId: document.id,
+                        initialKey: document.prototypeKey
+                    )
+                }
+
                 Section("File") {
                     LabeledContent("Kind") {
                         Text(document.docType.rawValue.capitalized)
@@ -364,6 +371,14 @@ struct DocumentBibliographyPanel: View {
     @State private var references: [Components.Schemas.Reference] = []
     @State private var selfRef: Components.Schemas.Reference?
     @State private var isLoading = false
+    @State private var copiedAll = false
+
+    private var allBibtex: String {
+        let parts = ([selfRef].compactMap { $0 } + references)
+            .compactMap { $0.bibtex }
+            .filter { !$0.isEmpty }
+        return parts.joined(separator: "\n\n")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -377,6 +392,32 @@ struct DocumentBibliographyPanel: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
+                if !allBibtex.isEmpty {
+                    HStack {
+                        Spacer()
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(allBibtex, forType: .string)
+                            copiedAll = true
+                        } label: {
+                            Label(
+                                copiedAll ? "Copied!" : "Copy all BibTeX",
+                                systemImage: copiedAll ? "checkmark" : "doc.on.doc"
+                            )
+                            .font(.caption2)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .onChange(of: copiedAll) { _, newValue in
+                            if newValue {
+                                Task {
+                                    try? await Task.sleep(for: .seconds(1.5))
+                                    copiedAll = false
+                                }
+                            }
+                        }
+                    }
+                }
                 if let selfRef {
                     referenceRow(selfRef, isSelf: true)
                     if !references.isEmpty { Divider() }
@@ -393,6 +434,29 @@ struct DocumentBibliographyPanel: View {
 
     @ViewBuilder
     private func referenceRow(_ ref: Components.Schemas.Reference, isSelf: Bool) -> some View {
+        ReferenceRowView(ref: ref, isSelf: isSelf)
+    }
+
+    private func load() async {
+        guard let library = LibraryManager.shared.globalLibrary else { return }
+        isLoading = true
+        defer { isLoading = false }
+        guard let resp = try? await library.entityService.listDocumentCitations(documentId: documentId) else {
+            return
+        }
+        selfRef = resp._self
+        references = resp.references
+    }
+}
+
+private struct ReferenceRowView: View {
+    let ref: Components.Schemas.Reference
+    let isSelf: Bool
+
+    @State private var isExpanded = false
+    @State private var copied = false
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 if isSelf {
@@ -400,11 +464,37 @@ struct DocumentBibliographyPanel: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-                Text(refTitle(ref))
+                Text(refTitle)
                     .font(.caption)
                     .foregroundStyle(.primary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                if let bibtex = ref.bibtex, !bibtex.isEmpty {
+                    Button {
+                        if isExpanded {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(bibtex, forType: .string)
+                            copied = true
+                        } else {
+                            isExpanded = true
+                        }
+                    } label: {
+                        Image(systemName: copied ? "checkmark" : (isExpanded ? "doc.on.doc" : "chevron.down"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(isExpanded ? "Copy BibTeX" : "Show BibTeX")
+                    .onChange(of: copied) { _, newValue in
+                        if newValue {
+                            Task {
+                                try? await Task.sleep(for: .seconds(1.5))
+                                copied = false
+                            }
+                        }
+                    }
+                }
             }
             HStack(spacing: 6) {
                 if let authors = ref.authors, !authors.isEmpty {
@@ -418,6 +508,12 @@ struct DocumentBibliographyPanel: View {
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.tertiary)
                 }
+                if let doi = ref.doi, !doi.isEmpty {
+                    Text("DOI")
+                        .font(.caption2)
+                        .foregroundStyle(Color.accentColor)
+                        .help(doi)
+                }
                 Spacer(minLength: 4)
                 if let journal = ref.journalOrBook {
                     Text(journal)
@@ -427,25 +523,26 @@ struct DocumentBibliographyPanel: View {
                         .lineLimit(1)
                 }
             }
+            if isExpanded, let bibtex = ref.bibtex, !bibtex.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Text(bibtex)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .padding(6)
+                        .background(Color(.textBackgroundColor).opacity(0.6))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+                .frame(maxHeight: 80)
+            }
         }
         .padding(.vertical, 2)
     }
 
-    private func refTitle(_ ref: Components.Schemas.Reference) -> String {
+    private var refTitle: String {
         if let title = ref.title, !title.isEmpty { return title }
         if let bib = ref.bibtex, !bib.isEmpty { return String(bib.prefix(60)) + "…" }
         return "Untitled"
-    }
-
-    private func load() async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
-        isLoading = true
-        defer { isLoading = false }
-        guard let resp = try? await library.entityService.listDocumentCitations(documentId: documentId) else {
-            return
-        }
-        selfRef = resp._self
-        references = resp.references
     }
 }
 
@@ -526,5 +623,104 @@ struct WorkflowProvenancePanel: View {
         isLoading = true
         defer { isLoading = false }
         runs = (try? await library.entityService.listDocumentWorkflowRuns(documentId: documentId)) ?? []
+    }
+}
+
+// MARK: - Document prototype / class picker (#1377)
+
+struct DocumentPrototypePicker: View {
+    let documentId: String
+    let initialKey: String?
+
+    @State private var selectedKey: String?
+    @State private var prototypes: [Components.Schemas.ClassificationValue] = []
+    @State private var isAssigning = false
+
+    var body: some View {
+        LabeledContent("Prototype") {
+            Menu {
+                Button("None") {
+                    Task { await assign(nil) }
+                }
+                Divider()
+                ForEach(prototypes, id: \.key) { proto in
+                    Button {
+                        Task { await assign(proto.key) }
+                    } label: {
+                        Label {
+                            Text(proto.label)
+                        } icon: {
+                            if selectedKey == proto.key {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    if isAssigning {
+                        ProgressView().scaleEffect(0.6).frame(width: 12, height: 12)
+                    }
+                    if let key = selectedKey,
+                       let proto = prototypes.first(where: { $0.key == key }) {
+                        PrototypeBadge(proto: proto)
+                    } else {
+                        Text("None")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .task {
+            selectedKey = initialKey
+            if let svc = LibraryManager.shared.globalLibrary?.entityService {
+                prototypes = (try? await svc.listDocumentPrototypes()) ?? []
+            }
+        }
+    }
+
+    private func assign(_ key: String?) async {
+        guard let svc = LibraryManager.shared.globalLibrary?.entityService else { return }
+        isAssigning = true
+        defer { isAssigning = false }
+        if let key {
+            _ = try? await svc.assignDocumentPrototype(documentId: documentId, prototypeKey: key)
+        }
+        selectedKey = key
+    }
+}
+
+private extension Color {
+    init?(hex: String) {
+        let stripped = hex.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "#", with: "")
+        guard stripped.count == 6, let value = UInt64(stripped, radix: 16) else { return nil }
+        let red = Double((value >> 16) & 0xFF) / 255
+        let green = Double((value >> 8) & 0xFF) / 255
+        let blue = Double(value & 0xFF) / 255
+        self.init(red: red, green: green, blue: blue)
+    }
+}
+
+private struct PrototypeBadge: View {
+    let proto: Components.Schemas.ClassificationValue
+
+    var body: some View {
+        Text(proto.label)
+            .font(.caption)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(badgeColor.opacity(0.18))
+            .foregroundStyle(badgeColor)
+            .clipShape(Capsule())
+    }
+
+    private var badgeColor: Color {
+        guard let hex = proto.color, !hex.isEmpty else { return .accentColor }
+        return Color(hex: hex) ?? .accentColor
     }
 }
