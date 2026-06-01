@@ -165,9 +165,6 @@ struct KGMapView: View {
         return map
     }
 
-    private var scopeEntityIds: Set<String> {
-        Set(entities.compactMap(\.id))
-    }
 
     /// Claims with valid coordinates that pass the scope filter.
     private var locatedClaims: [LocatedClaim] {
@@ -199,13 +196,16 @@ struct KGMapView: View {
     }
 
     private func isInScope(_ claim: Components.Schemas.KnowledgeClaim) -> Bool {
+        // `claims` are already document-scoped by listClaims(sourceDocumentId:,
+        // includeDescendants:), so every loaded claim is in scope by
+        // construction. The previous additional entity-overlap filter (claim's
+        // entities ∩ this document's entity list) dropped every geocoded place
+        // claim whose place entity wasn't in the doc-only entity list, so the
+        // map always read "No mapped claims" even with geocoded data (#1471).
+        // Only narrow by entity when the user explicitly focuses on a selection.
+        guard focusOnSelection, let selectedEntityId else { return true }
         let ids = Set([claim.subjectEntityId].compactMap { $0 }).union(claim.entityIds ?? [])
-        if focusOnSelection, let selectedEntityId {
-            guard ids.contains(selectedEntityId) else { return false }
-        }
-        if ids.isEmpty { return !focusOnSelection }
-        if scopeEntityIds.isEmpty { return !focusOnSelection }
-        return !ids.isDisjoint(with: scopeEntityIds)
+        return ids.contains(selectedEntityId)
     }
 
     @MainActor
