@@ -416,6 +416,117 @@ def import_sergio_corpus_command(
     typer.echo(f"skipped_files: {summary.skipped_files}")
 
 
+@app.command(name="import-newton-marshall-diary")
+def import_newton_marshall_diary_command(
+    library_path: Path = typer.Option(
+        Path("~/Library/Application Support/Fichero/Newton-C-Marshall.fichero"),
+        "--library-path",
+        help="Target .fichero package to create/update.",
+    ),
+    source_path: Path = typer.Option(
+        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/Newton C Marshall Diary"),
+        "--source-path",
+        help="Newton C. Marshall diary source folder.",
+    ),
+    reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
+    no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
+) -> None:
+    """Import Newton C. Marshall diary archive into a Fichero corpus."""
+    from fichero.source_archive_import import import_newton_marshall_diary
+
+    try:
+        summary = import_newton_marshall_diary(
+            library_path=library_path,
+            source_path=source_path,
+            reset=reset,
+            auto_embed=not no_embed,
+        )
+    except Exception as exc:
+        typer.secho(f"Newton Marshall import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    if summary.warnings:
+        typer.secho(
+            f"Imported with {len(summary.warnings)} warning(s).",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        for warning in summary.warnings[:10]:
+            typer.echo(f"  {warning}", err=True)
+
+    typer.echo(f"library: {summary.library_path}")
+    typer.echo(f"provider: {summary.provider}")
+    typer.echo(f"root_documents: {summary.root_documents}")
+    typer.echo(f"files_imported: {summary.files_imported}")
+    typer.echo(f"skipped: {summary.skipped}")
+
+
+@app.command(name="import-istmina-mineria")
+def import_istmina_mineria_command(
+    library_path: Path = typer.Option(
+        Path("~/Library/Application Support/Fichero/Istmina-Mineria.fichero"),
+        "--library-path",
+        help="Target .fichero package to create/update.",
+    ),
+    transcript_root: Path = typer.Option(
+        Path(
+            "/Users/danieltubb/Library/CloudStorage/Box-Box/JPG files (minería hasta 1980)/"
+            "Istmina_Minería 1980_Completo_Transcripcion"
+        ),
+        "--transcript-root",
+        help="Transcribed corpus root.",
+    ),
+    spreadsheet_root: Path = typer.Option(
+        Path(
+            "/Users/danieltubb/Library/CloudStorage/Box-Box/JPG files (minería hasta 1980)/"
+            "Workflow/05 Added to spreadsheet"
+        ),
+        "--spreadsheet-root",
+        help="Spreadsheet-complete root.",
+    ),
+    review_root: Path = typer.Option(
+        Path(
+            "/Users/danieltubb/Library/CloudStorage/Box-Box/JPG files (minería hasta 1980)/"
+            "Workflow/04 Transcribed and catalogued, awaiting human check"
+        ),
+        "--review-root",
+        help="Awaiting-human-check root.",
+    ),
+    reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
+    no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
+) -> None:
+    """Import Istmina minería workflow outputs into a Fichero corpus."""
+    from fichero.source_archive_import import import_istmina_mineria
+
+    try:
+        summary = import_istmina_mineria(
+            library_path=library_path,
+            transcript_root=transcript_root,
+            spreadsheet_root=spreadsheet_root,
+            review_root=review_root,
+            reset=reset,
+            auto_embed=not no_embed,
+        )
+    except Exception as exc:
+        typer.secho(f"Istmina mineria import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    if summary.warnings:
+        typer.secho(
+            f"Imported with {len(summary.warnings)} warning(s).",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        for warning in summary.warnings[:10]:
+            typer.echo(f"  {warning}", err=True)
+
+    typer.echo(f"library: {summary.library_path}")
+    typer.echo(f"provider: {summary.provider}")
+    typer.echo(f"root_documents: {summary.root_documents}")
+    typer.echo(f"files_imported: {summary.files_imported}")
+    typer.echo(f"skipped: {summary.skipped}")
+
+
 @app.command(name="import-dropbox-links")
 def import_dropbox_links_command(
     library_path: Path = typer.Option(
