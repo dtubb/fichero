@@ -416,6 +416,53 @@ def import_sergio_corpus_command(
     typer.echo(f"skipped_files: {summary.skipped_files}")
 
 
+@app.command(name="import-dropbox-links")
+def import_dropbox_links_command(
+    library_path: Path = typer.Option(
+        Path("~/Library/Application Support/Fichero/Dropbox-Links.fichero"),
+        "--library-path",
+        help="Target .fichero package to create/update.",
+    ),
+    manifest_path: Path = typer.Option(
+        Path("~/Downloads/dropbox_links.json"),
+        "--manifest-path",
+        help="JSON or CSV manifest of Dropbox links exported from Dropbox Files API.",
+    ),
+    reset: bool = typer.Option(
+        False,
+        "--reset",
+        help="Delete the target package before importing.",
+    ),
+) -> None:
+    """Import Dropbox shared links as library references (no file download)."""
+
+    from fichero.cloud_link_import import import_dropbox_links
+
+    try:
+        summary = import_dropbox_links(
+            library_path=library_path,
+            manifest_path=manifest_path,
+            reset=reset,
+        )
+    except Exception as exc:
+        typer.secho(f"Dropbox link import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    if summary.errors:
+        typer.secho(
+            f"Imported with {len(summary.errors)} errors.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        for err in summary.errors[:10]:
+            typer.echo(f"  {err}", err=True)
+
+    typer.echo(f"library: {summary.library_path}")
+    typer.echo(f"root_document_id: {summary.root_document_id}")
+    typer.echo(f"imported_links: {summary.imported_links}")
+    typer.echo(f"skipped_rows: {summary.skipped_rows}")
+
+
 @artifacts_app.command("list")
 def artifacts_list(
     ctx: typer.Context,
