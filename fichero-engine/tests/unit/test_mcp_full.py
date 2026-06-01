@@ -19,6 +19,8 @@ EXPECTED_FULL_TOOLS = {
     "list_workflows",
     "run_workflow",
     "workflow_status",
+    "workflow_pause",
+    "workflow_resume",
     "list_artifacts",
     "get_artifact",
     "query_kg_entities",
@@ -62,6 +64,19 @@ class _FakeClient:
                 "png_base64": "png",
                 "mp4_base64": "mp4",
                 "metadata": {"frame": self._render_counter},
+            }
+        if method == "POST" and path.endswith("/pause"):
+            return {
+                "thread_id": path.split("/")[-2],
+                "status": "pause_requested",
+                "message": "Pause requested.",
+            }
+        if method == "POST" and path.endswith("/resume"):
+            return {
+                "thread_id": path.split("/")[-2],
+                "workflow_id": "wf-1",
+                "workflow_name": "Test",
+                "status": "running",
             }
         raise AssertionError(f"unexpected request: {method} {path}")
 
@@ -139,3 +154,16 @@ def test_claim_mutation_tools_passthrough(monkeypatch):
     assert fake.calls[0][0] == "create_claim"
     assert fake.calls[1][0] == "update_claim"
     assert fake.calls[2][0] == "delete_claim"
+
+
+def test_workflow_pause_resume_tools(monkeypatch):
+    fake = _FakeClient()
+    monkeypatch.setattr(mcp_full, "_client", lambda: fake)
+
+    paused = mcp_full.workflow_pause("thread-123")
+    resumed = mcp_full.workflow_resume("thread-123")
+
+    assert paused["status"] == "pause_requested"
+    assert paused["thread_id"] == "thread-123"
+    assert resumed["status"] == "running"
+    assert resumed["thread_id"] == "thread-123"
