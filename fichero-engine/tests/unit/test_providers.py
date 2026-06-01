@@ -426,11 +426,31 @@ class TestProviderIntegration:
 class TestAppDatabase:
     """Test app-wide database for providers and models."""
 
+    class _TrackingLock:
+        def __init__(self):
+            self.enter_count = 0
+
+        def __enter__(self):
+            self.enter_count += 1
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
     def test_create_app_database(self, app_db):
         """Test app database initialization."""
         assert app_db is not None
         assert app_db.path.exists()
         assert app_db.conn is not None
+
+    def test_get_setting_uses_connection_lock(self, app_db):
+        """Reads must acquire AppDatabase RLock to avoid pending-query races (#709)."""
+        app_db.set_setting("test_lock_key", "v")
+        lock = self._TrackingLock()
+        app_db._lock = lock
+
+        assert app_db.get_setting("test_lock_key") == "v"
+        assert lock.enter_count == 1
 
     def test_save_and_get_provider(self, app_db):
         """Test saving and retrieving a provider."""
