@@ -62,7 +62,8 @@ struct ImageEditChainPanel: View {
             }
         }
         .padding(.horizontal, 12)
-        .frame(height: 44)
+        // Match the shared pane top-toolbar height (#1449/#1460).
+        .frame(height: MiniToolbar<EmptyView>.standardHeight)
     }
 
     // MARK: - Chain
