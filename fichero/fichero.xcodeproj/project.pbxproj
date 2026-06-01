@@ -325,6 +325,7 @@
 		AD284E03A3377968AE568677 /* DocumentInspectorMetadataTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */; };
 		ADC61F9B335300BEA77F278C /* EntityDetailView+Audit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E8622F0305ED125BEDB904 /* EntityDetailView+Audit.swift */; };
 		AF3C46E684A7D133B1BAA5D2 /* TriggerEditorFormPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */; };
+		AF3C8529001F34ACB80A8D50 /* EntityDetailView+Notes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD96D53320D07109835C90BF /* EntityDetailView+Notes.swift */; };
 		AF868ABDCF249BD2499197F3 /* ContentView+NavigationHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43322F30A05232A97F8B3B87 /* ContentView+NavigationHistory.swift */; };
 		AUT00022F27F36000EC9EE1 /* AutomationServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = AUT00012F27F36000EC9EE1 /* AutomationServiceGenerated.swift */; };
 		B2A0020100000000BATCH2S1 /* SidebarItemRow+Label.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0010100000000BATCH2S1 /* SidebarItemRow+Label.swift */; };
@@ -836,6 +837,7 @@
 		D661A54EFC8800F710E16A23 /* ActivityOverviewView+Cards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ActivityOverviewView+Cards.swift"; sourceTree = "<group>"; };
 		D82A9BAC0F995F9199F94B69 /* KGFocusState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGFocusState.swift; sourceTree = "<group>"; };
 		DD03402A88F98251F388870F /* DocumentInspectorInfoTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorInfoTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorInfoTab.swift; sourceTree = SOURCE_ROOT; };
+		DD96D53320D07109835C90BF /* EntityDetailView+Notes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Notes.swift"; sourceTree = "<group>"; };
 		DF77122ADD78F941D7F1968D /* KGTimelineView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGTimelineView.swift; sourceTree = "<group>"; };
 		E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorMetadataTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorMetadataTab.swift; sourceTree = SOURCE_ROOT; };
 		E80DDED3870C2457BFD97D1E /* DocumentKGWebPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentKGWebPane.swift; sourceTree = "<group>"; };
@@ -923,6 +925,7 @@
 				7F3FE2F360EADE051A3D2D51 /* EntitySplitSheet.swift */,
 				2F46B999D0208EA4C734535C /* ClaimReviewQueueSheet.swift */,
 				53458DC3387BC4C694EE3452 /* ContradictionTriageSheet.swift */,
+				DD96D53320D07109835C90BF /* EntityDetailView+Notes.swift */,
 			);
 			path = OntologyBrowser;
 			sourceTree = "<group>";
@@ -2257,6 +2260,7 @@
 				560311302E8DCC126BD757E2 /* LibraryToolbarState.swift in Sources */,
 				0DCB0C277BB0F99DF7326AF0 /* SourceOutlineView.swift in Sources */,
 				2C8A895EE1B0F5029E3D00B6 /* WorkspaceItemPicker.swift in Sources */,
+				AF3C8529001F34ACB80A8D50 /* EntityDetailView+Notes.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

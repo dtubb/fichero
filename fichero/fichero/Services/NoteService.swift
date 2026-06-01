@@ -37,6 +37,20 @@ struct NoteCreateBody: Encodable {
     }
 }
 
+/// Create body for an entity-linked note (#1501). `kind` defaults to
+/// `reference` for entity bio/summary notes.
+struct NoteCreateEntityBody: Encodable {
+    let title: String?
+    let body: String
+    let kind: String
+    let linkedEntityIds: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case title, body, kind
+        case linkedEntityIds = "linked_entity_ids"
+    }
+}
+
 struct NotePatchBody: Encodable {
     let body: String
 }
@@ -69,6 +83,44 @@ final class NoteService: ObservableObject {
             self.error = error.localizedDescription
             logger.error("load notes failed: \(error.localizedDescription)")
         }
+    }
+
+    /// Load notes linked to a KG entity (#1501).
+    func load(linkedEntityId: String) async {
+        isLoading = true
+        error = nil
+        defer { isLoading = false }
+        do {
+            guard var comps = URLComponents(string: base) else { return }
+            comps.queryItems = [URLQueryItem(name: "linked_entity_id", value: linkedEntityId)]
+            guard let url = comps.url else { return }
+            var req = URLRequest(url: url)
+            req.addEngineAuth()
+            let (data, _) = try await URLSession.shared.data(for: req)
+            let resp = try JSONDecoder().decode(NoteListResponse.self, from: data)
+            notes = resp.items
+        } catch {
+            self.error = error.localizedDescription
+            logger.error("load entity notes failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Create a note linked to a KG entity. Defaults to `kind=reference`
+    /// (entity bio/summary). (#1501)
+    func create(body: String, linkedEntityId: String, kind: String = "reference") async throws -> NoteItem {
+        guard let url = URL(string: base) else { throw NoteServiceError.invalidURL }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.addEngineAuth()
+        let payload = NoteCreateEntityBody(
+            title: nil, body: body, kind: kind, linkedEntityIds: [linkedEntityId]
+        )
+        req.httpBody = try JSONEncoder().encode(payload)
+        let (data, _) = try await URLSession.shared.data(for: req)
+        let note = try JSONDecoder().decode(NoteItem.self, from: data)
+        notes.insert(note, at: 0)
+        return note
     }
 
     func create(body: String, linkedDocumentId: String) async throws -> NoteItem {
