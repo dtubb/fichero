@@ -1569,6 +1569,11 @@ def test_kg_claims_requires_doc_id():
     assert result.exit_code != 0
 
 
+def test_kg_claims_rejects_empty_doc_flag():
+    result = runner.invoke(cli.app, ["kg", "claims", "--doc", ""])
+    assert result.exit_code != 0
+
+
 def test_kg_citations_positional_still_works():
     """`kg citations <doc-id>` positional form passes doc-id correctly."""
     result = runner.invoke(cli.app, ["kg", "citations", "doc-1"])
@@ -1600,6 +1605,11 @@ def test_kg_citations_flag_overrides_positional():
 def test_kg_citations_requires_doc_id():
     """Bare `kg citations` without a doc ID should exit non-zero."""
     result = runner.invoke(cli.app, ["kg", "citations"])
+    assert result.exit_code != 0
+
+
+def test_kg_citations_rejects_empty_doc_flag():
+    result = runner.invoke(cli.app, ["kg", "citations", "--doc", ""])
     assert result.exit_code != 0
 
 
@@ -1638,6 +1648,11 @@ def test_artifacts_list_flag_overrides_positional():
 def test_artifacts_list_requires_doc_id():
     """Bare `artifacts list` without a doc ID should exit non-zero."""
     result = runner.invoke(cli.app, ["artifacts", "list"])
+    assert result.exit_code != 0
+
+
+def test_artifacts_list_rejects_empty_doc_flag():
+    result = runner.invoke(cli.app, ["artifacts", "list", "--doc", ""])
     assert result.exit_code != 0
 
 

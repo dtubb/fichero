@@ -132,6 +132,21 @@ def _invoke(ctx: typer.Context, operation: Callable[[FicheroClient], Any]) -> No
     typer.echo(render(data, as_json=ctx.obj["json"]))
 
 
+def _resolve_required_doc_id(
+    *, doc_flag: Optional[str], doc_positional: Optional[str]
+) -> str:
+    """Resolve doc ID from flag/positional forms and enforce non-empty value."""
+    doc_id = doc_flag if doc_flag is not None else doc_positional
+    if doc_id is None or not str(doc_id).strip():
+        typer.secho(
+            "Error: a document ID is required (positional or --doc/-d).",
+            err=True,
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=2)
+    return str(doc_id).strip()
+
+
 register_generated_openapi_commands(
     app,
     _invoke,
@@ -347,10 +362,7 @@ def artifacts_list(
     Both forms are equivalent; ``--doc`` overrides the positional when both are
     supplied.
     """
-    doc_id = doc if doc is not None else doc_id_positional
-    if doc_id is None:
-        typer.secho("Error: a document ID is required (positional or --doc/-d).", err=True, fg=typer.colors.RED)
-        raise typer.Exit(code=2)
+    doc_id = _resolve_required_doc_id(doc_flag=doc, doc_positional=doc_id_positional)
     if ctx.obj["json"]:
         _invoke(
             ctx, lambda c: c.list_artifacts(doc_id, artifact_type=artifact_type, limit=limit)
@@ -1002,10 +1014,7 @@ def kg_claims(
     Both forms are equivalent; ``--doc`` overrides the positional when both are
     supplied.
     """
-    doc_id = doc if doc is not None else doc_id_positional
-    if doc_id is None:
-        typer.secho("Error: a document ID is required (positional or --doc/-d).", err=True, fg=typer.colors.RED)
-        raise typer.Exit(code=2)
+    doc_id = _resolve_required_doc_id(doc_flag=doc, doc_positional=doc_id_positional)
     _invoke(
         ctx,
         lambda c: c.list_claims(source_document_id=doc_id, limit=limit),
@@ -1028,10 +1037,7 @@ def kg_citations(
     Both forms are equivalent; ``--doc`` overrides the positional when both are
     supplied.
     """
-    doc_id = doc if doc is not None else doc_id_positional
-    if doc_id is None:
-        typer.secho("Error: a document ID is required (positional or --doc/-d).", err=True, fg=typer.colors.RED)
-        raise typer.Exit(code=2)
+    doc_id = _resolve_required_doc_id(doc_flag=doc, doc_positional=doc_id_positional)
     _invoke(ctx, lambda c: c.citations_at_doc(doc_id))
 
 
