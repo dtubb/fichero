@@ -411,14 +411,15 @@ class AppDatabase:
             return cat_default
 
         # Legacy fallback: check is_default column on models table
-        result = self.conn.execute("""
-            SELECT p.provider_type, m.model_id
-            FROM models m
-            JOIN providers p ON m.provider_id = p.id
-            WHERE m.is_default = TRUE AND m.enabled = TRUE AND p.enabled = TRUE
-            ORDER BY m.updated_at DESC
-            LIMIT 1
-        """).fetchone()
+        with self._lock:
+            result = self.conn.execute("""
+                SELECT p.provider_type, m.model_id
+                FROM models m
+                JOIN providers p ON m.provider_id = p.id
+                WHERE m.is_default = TRUE AND m.enabled = TRUE AND p.enabled = TRUE
+                ORDER BY m.updated_at DESC
+                LIMIT 1
+            """).fetchone()
 
         if result:
             return (result[0], result[1])
@@ -430,9 +431,10 @@ class AppDatabase:
 
     def get_setting(self, key: str) -> str | None:
         """Get a setting value by key."""
-        result = self.conn.execute(
-            "SELECT value FROM settings WHERE key = ?", [key]
-        ).fetchone()
+        with self._lock:
+            result = self.conn.execute(
+                "SELECT value FROM settings WHERE key = ?", [key]
+            ).fetchone()
         return result[0] if result else None
 
     def set_setting(self, key: str, value: str):
@@ -440,17 +442,18 @@ class AppDatabase:
 
 
         now = datetime.now()
-        self.conn.execute(
-            """
-            INSERT INTO settings (key, value, updated_at)
-            VALUES (?, ?, ?)
-            ON CONFLICT (key) DO UPDATE SET
-                value = excluded.value,
-                updated_at = excluded.updated_at
-        """,
-            [key, value, now],
-        )
-        self.conn.commit()
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO settings (key, value, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT (key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = excluded.updated_at
+            """,
+                [key, value, now],
+            )
+            self.conn.commit()
 
     def delete_setting(self, key: str):
         """Delete a setting."""
@@ -492,10 +495,11 @@ class AppDatabase:
             "default_prompt_prefix",
         ]
         placeholders = ",".join(["?"] * len(keys))
-        rows = self.conn.execute(
-            f"SELECT key, value FROM settings WHERE key IN ({placeholders})",
-            keys,
-        ).fetchall()
+        with self._lock:
+            rows = self.conn.execute(
+                f"SELECT key, value FROM settings WHERE key IN ({placeholders})",
+                keys,
+            ).fetchall()
         return {key: value for key, value in rows if value}
 
     def get_default_model_for_category(self, category: str) -> tuple[str, str] | None:
@@ -585,42 +589,43 @@ class AppDatabase:
 
 
 
-        self.conn.execute(
-            """
-            INSERT INTO mcp_servers (
-                id, name, description, transport, command, args, env,
-                url, headers, tool_name_prefix, enabled, updated_at
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO mcp_servers (
+                    id, name, description, transport, command, args, env,
+                    url, headers, tool_name_prefix, enabled, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (id) DO UPDATE SET
+                    name = excluded.name,
+                    description = excluded.description,
+                    transport = excluded.transport,
+                    command = excluded.command,
+                    args = excluded.args,
+                    env = excluded.env,
+                    url = excluded.url,
+                    headers = excluded.headers,
+                    tool_name_prefix = excluded.tool_name_prefix,
+                    enabled = excluded.enabled,
+                    updated_at = excluded.updated_at
+            """,
+                [
+                    server.id,
+                    server.name,
+                    server.description,
+                    server.transport,
+                    server.command,
+                    json.dumps(server.args),
+                    json.dumps(server.env),
+                    server.url,
+                    json.dumps(server.headers),
+                    server.tool_name_prefix,
+                    server.enabled,
+                    datetime.now(),
+                ],
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (id) DO UPDATE SET
-                name = excluded.name,
-                description = excluded.description,
-                transport = excluded.transport,
-                command = excluded.command,
-                args = excluded.args,
-                env = excluded.env,
-                url = excluded.url,
-                headers = excluded.headers,
-                tool_name_prefix = excluded.tool_name_prefix,
-                enabled = excluded.enabled,
-                updated_at = excluded.updated_at
-        """,
-            [
-                server.id,
-                server.name,
-                server.description,
-                server.transport,
-                server.command,
-                json.dumps(server.args),
-                json.dumps(server.env),
-                server.url,
-                json.dumps(server.headers),
-                server.tool_name_prefix,
-                server.enabled,
-                datetime.now(),
-            ],
-        )
-        self.conn.commit()
+            self.conn.commit()
         return server
 
     def get_mcp_server(self, server_id: str):
@@ -628,9 +633,10 @@ class AppDatabase:
 
         from fichero.models import MCPServer
 
-        result = self.conn.execute(
-            "SELECT * FROM mcp_servers WHERE id = ?", [server_id]
-        ).fetchone()
+        with self._lock:
+            result = self.conn.execute(
+                "SELECT * FROM mcp_servers WHERE id = ?", [server_id]
+            ).fetchone()
 
         if not result:
             return None
@@ -665,9 +671,10 @@ class AppDatabase:
 
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
-        results = self.conn.execute(
-            f"SELECT * FROM mcp_servers {where_sql} ORDER BY name", params
-        ).fetchall()
+        with self._lock:
+            results = self.conn.execute(
+                f"SELECT * FROM mcp_servers {where_sql} ORDER BY name", params
+            ).fetchall()
 
         servers = []
         for row in results:
@@ -713,16 +720,18 @@ class AppDatabase:
         value = getattr(obj, key_field, None)
         if value is None:
             return
-        self.conn.execute(
-            f"DELETE FROM {table} WHERE {key_field} = ?",
-            [value],
-        )
+        with self._lock:
+            self.conn.execute(
+                f"DELETE FROM {table} WHERE {key_field} = ?",
+                [value],
+            )
 
     def close(self):
         """Close the database connection."""
-        if self.conn:
-            self.conn.close()
-            logger.info("App database connection closed")
+        with self._lock:
+            if self.conn:
+                self.conn.close()
+                logger.info("App database connection closed")
 
 
 # Global app database instance
