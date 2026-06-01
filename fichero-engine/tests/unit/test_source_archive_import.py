@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 
 from fichero import __main__ as cli
 from fichero.source_archive_import import (
+    import_chota_colombian_pacific_maps,
     import_archivo_judicial_medellin,
     import_ghc_catalogued_materials,
     import_istmina_mineria,
@@ -195,3 +196,56 @@ def test_cli_import_ghc_catalogued_materials_invokes_importer(monkeypatch, tmp_p
     )
     assert result.exit_code == 0
     assert Path(called["library_path"]) == tmp_path / "GHC.fichero"
+
+
+def test_import_chota_colombian_pacific_maps_ingests_source_tree(tmp_path):
+    library = tmp_path / "ChotaPacificMaps.fichero"
+    source_root = tmp_path / "maps_southern_colombia"
+    (source_root / "chota_valley").mkdir(parents=True)
+    (source_root / "colombian_pacific").mkdir(parents=True)
+    (source_root / "chota_valley" / "map-001.tif").write_text("x", encoding="utf-8")
+    (source_root / "colombian_pacific" / "map-002.jpg").write_text("x", encoding="utf-8")
+
+    summary = import_chota_colombian_pacific_maps(
+        library_path=library,
+        source_root=source_root,
+    )
+
+    assert summary.provider == "chota_colombian_pacific_maps"
+    assert summary.files_imported == 2
+    assert summary.skipped == 0
+
+
+def test_cli_import_chota_colombian_pacific_maps_invokes_importer(monkeypatch, tmp_path):
+    called: dict = {}
+
+    def fake_import(**kwargs):
+        called.update(kwargs)
+        from fichero.source_archive_import import SourceArchiveImportSummary
+
+        return SourceArchiveImportSummary(
+            provider="chota_colombian_pacific_maps",
+            library_path=Path(kwargs["library_path"]),
+            root_documents=2,
+            files_imported=2,
+            skipped=0,
+            warnings=[],
+        )
+
+    monkeypatch.setattr(
+        "fichero.source_archive_import.import_chota_colombian_pacific_maps",
+        fake_import,
+    )
+    runner = CliRunner()
+    result = runner.invoke(
+        cli.app,
+        [
+            "import-chota-colombian-pacific-maps",
+            "--library-path",
+            str(tmp_path / "Maps.fichero"),
+            "--source-root",
+            str(tmp_path / "maps_southern_colombia"),
+        ],
+    )
+    assert result.exit_code == 0
+    assert Path(called["library_path"]) == tmp_path / "Maps.fichero"

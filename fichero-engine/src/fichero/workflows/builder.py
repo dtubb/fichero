@@ -70,12 +70,12 @@ def _resolve_node_llm_config(
         from fichero.app_db import get_app_db
         app_db = get_app_db()
 
+        if workflow_llm_config.provider and workflow_llm_config.model:
+            return workflow_llm_config
+
         cat_default = app_db.get_default_model_for_category(tool_def.category)
         if cat_default:
             return LLMConfig(provider=cat_default[0], model=cat_default[1])
-
-        if workflow_llm_config.provider and workflow_llm_config.model:
-            return workflow_llm_config
 
         generic_default = app_db.get_default_model()
         if generic_default:
