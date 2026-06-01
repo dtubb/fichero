@@ -7,6 +7,7 @@ providing a clean separation from the broader knowledge graph functionality.
 from __future__ import annotations
 
 from datetime import datetime
+import re
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -188,6 +189,56 @@ class ClaimAssignTimePeriodResponse(BaseModel):
     matched_count: int
     updated_count: int
     skipped_existing_count: int
+
+
+class ClaimAssignTimePeriodFromMetadataRequest(BaseModel):
+    """Bulk-assign time period using metadata date on a source document."""
+
+    source_document_id: str
+    include_descendants: bool = False
+    overwrite_existing: bool = True
+
+
+class ClaimAssignTimePeriodFromMetadataResponse(ClaimAssignTimePeriodResponse):
+    time_start: str
+    time_end: str
+    source_field: str
+
+
+_DATE_FIELDS = (
+    "publication_date",
+    "date",
+    "issued",
+    "year",
+    "publication_year",
+    "time_start",
+)
+
+
+def _normalize_date_value(raw: Any) -> str | None:
+    value = str(raw or "").strip()
+    if not value:
+        return None
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        return value
+    if re.fullmatch(r"\d{4}-\d{2}", value):
+        return f"{value}-01"
+    if re.fullmatch(r"\d{4}", value):
+        return f"{value}-01-01"
+    return None
+
+
+def _resolve_metadata_date(doc: Document) -> tuple[str, str] | None:
+    """Return (field_name, normalized_iso_date) when metadata has a date."""
+    for field in _DATE_FIELDS:
+        normalized = _normalize_date_value((doc.metadata or {}).get(field))
+        if normalized:
+            return field, normalized
+    for field in _DATE_FIELDS:
+        normalized = _normalize_date_value((doc.source_metadata or {}).get(field))
+        if normalized:
+            return f"source_metadata.{field}", normalized
+    return None
 
 
 def _validate_claim_references(db: Database, data: dict[str, Any]) -> None:
@@ -589,6 +640,61 @@ async def assign_time_period(
         matched_count=matched,
         updated_count=updated,
         skipped_existing_count=skipped_existing,
+    )
+
+
+@router.post(
+    "/assign-time-period-from-metadata",
+    response_model=ClaimAssignTimePeriodFromMetadataResponse,
+)
+async def assign_time_period_from_metadata(
+    request: ClaimAssignTimePeriodFromMetadataRequest,
+    db: Database = Depends(get_library_database),
+) -> ClaimAssignTimePeriodFromMetadataResponse:
+    """Assign claim dates from the source document's metadata date field."""
+    source_doc = db.get(Document, request.source_document_id)
+    if source_doc is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Source document not found: {request.source_document_id}",
+        )
+    resolved = _resolve_metadata_date(source_doc)
+    if resolved is None:
+        raise HTTPException(
+            status_code=422,
+            detail="No supported date field found on source document metadata",
+        )
+    source_field, date_value = resolved
+
+    scoped_ids = (
+        _descendant_doc_ids(db, request.source_document_id)
+        if request.include_descendants
+        else {request.source_document_id}
+    )
+    matched = 0
+    updated = 0
+    skipped_existing = 0
+    for claim in db.all(KnowledgeClaim):
+        if claim.source_document_id not in scoped_ids:
+            continue
+        matched += 1
+        if not request.overwrite_existing and claim.time_start:
+            skipped_existing += 1
+            continue
+        claim.time_start = date_value
+        claim.time_end = date_value
+        claim.time_precision = "metadata"
+        claim.updated_at = datetime.now()
+        db.save(claim)
+        updated += 1
+
+    return ClaimAssignTimePeriodFromMetadataResponse(
+        matched_count=matched,
+        updated_count=updated,
+        skipped_existing_count=skipped_existing,
+        time_start=date_value,
+        time_end=date_value,
+        source_field=source_field,
     )
 
 

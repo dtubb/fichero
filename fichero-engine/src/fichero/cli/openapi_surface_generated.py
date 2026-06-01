@@ -1518,6 +1518,20 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("assign-time-period-from-metadata")
+    def claims_assign_time_period_from_metadata_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Assign Time Period From Metadata (POST /api/claims/assign-time-period-from-metadata)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/claims/assign-time-period-from-metadata"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("batch-transition")
     def claims_batch_transition_post(
         ctx: typer.Context,

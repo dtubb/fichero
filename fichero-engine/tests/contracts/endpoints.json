@@ -1569,6 +1569,16 @@
       },
       {
         "method": "POST",
+        "path": "/claims/assign-time-period-from-metadata",
+        "operation_id": "assign_time_period_from_metadata_api_claims_assign_time_period_from_metadata_post",
+        "summary": "Assign Time Period From Metadata",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ClaimAssignTimePeriodFromMetadataRequest",
+        "response_model": "ClaimAssignTimePeriodFromMetadataResponse"
+      },
+      {
+        "method": "POST",
         "path": "/claims/batch/transition",
         "operation_id": "batch_transition_claims_api_claims_batch_transition_post",
         "summary": "Batch transition claims",
