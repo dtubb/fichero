@@ -107,6 +107,56 @@ def test_extract_citations_writes_page_scoped_kg_rows(tmp_path, monkeypatch):
     assert claims[0].metadata["citation_entry"]["canonical_name"] == "Smith-1999"
 
 
+def test_extract_citations_detects_footnote_citation_lines(tmp_path, monkeypatch):
+    package_path = tmp_path / "Lib.fichero"
+    (package_path / "lance").mkdir(parents=True)
+    (package_path / "storage").mkdir()
+    db = db_manager.get_database(package_path)
+
+    parent = Document(
+        id="doc-book-footnote",
+        name="Book.pdf",
+        path="/tmp/Book.pdf",
+        doc_type=DocType.file,
+        file_type=FileType.pdf,
+    )
+    page1 = Document(
+        id="page-foot-1",
+        parent_id=parent.id,
+        name="Book.pdf - Page 1",
+        doc_type=DocType.page,
+        sequence=1,
+        page_content="Claim in body.\n\n1 Smith, John. 1999. A Book. Press.",
+    )
+    page2 = Document(
+        id="page-foot-2",
+        parent_id=parent.id,
+        name="Book.pdf - Page 2",
+        doc_type=DocType.page,
+        sequence=2,
+        page_content="References\n1. Smith, John. 1999. A Book. Press.",
+    )
+    for doc in (parent, page1, page2):
+        db.save(doc)
+
+    async def fake_parse(raw_text, index, llm_config):
+        return parse_bibliography_entry_regex(raw_text, index)
+
+    monkeypatch.setattr(cite_tool, "parse_bibliography_entry", fake_parse)
+
+    asyncio.run(
+        extract_citations_for_document(
+            db,
+            parent,
+            LLMConfig(provider="openrouter", model="openai/gpt-4o-mini"),
+        )
+    )
+
+    claims = db.query(KnowledgeClaim, source_document_id=page1.id)
+    assert len(claims) == 1
+    assert claims[0].source_excerpt.startswith("1 Smith")
+
+
 def test_citations_extract_workflow_uses_selected_document(tmp_path, monkeypatch):
     package_path = tmp_path / "Lib.fichero"
     (package_path / "lance").mkdir(parents=True)

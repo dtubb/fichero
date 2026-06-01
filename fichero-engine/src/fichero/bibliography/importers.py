@@ -92,6 +92,8 @@ def read_bibtex(text: str) -> list[dict[str, Any]]:
                     out[k] = fields[k]
         if "number" in fields:
             out["issue"] = fields["number"]
+        if "file" in fields:
+            out.setdefault("metadata", {})["filename"] = Path(fields["file"]).name
         out.setdefault("metadata", {})["bibtex_entry_type"] = entry_type
         out["bibtex"] = write_bibtex([out])
         entries.append(out)
@@ -237,6 +239,22 @@ def read_sidecar(path: str | Path) -> list[dict[str, Any]]:
         p.with_name(p.stem + ".ris"),
         p.with_name(p.stem + ".csl.json"),
         p.with_name(p.stem + ".json"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return read_file(candidate)
+    return []
+
+
+def read_folder_sidecars(path: str | Path) -> list[dict[str, Any]]:
+    """Read folder-level bibliography sidecars near a source document."""
+    p = Path(path)
+    folder = p.parent
+    candidates = [
+        folder / "references.bib",
+        folder / "library.bib",
+        folder / "zotero-export.json",
+        folder / "library.csl.json",
     ]
     for candidate in candidates:
         if candidate.exists():

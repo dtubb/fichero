@@ -45,6 +45,10 @@ class ImportRequest(BaseModel):
     format: str | None = None  # auto-detected when None
 
 
+class AttachRequest(ImportRequest):
+    """Attach one bibliography record to a document."""
+
+
 class ImportResponse(BaseModel):
     count: int
     entries: list[dict[str, Any]]
@@ -86,6 +90,44 @@ async def import_bibliography(
             "Format not recognised — try 'bibtex', 'ris', or 'csl_json'",
         )
     return ImportResponse(count=len(entries), entries=entries)
+
+
+@router.post(
+    "/document/{document_id}/attach",
+    response_model=MetadataResponse,
+    summary="Attach a BibTeX / RIS / CSL-JSON record to a document",
+    description=(
+        "Parses a single bibliographic record and writes it into "
+        "document.source_metadata, including canonical bibtex."
+    ),
+)
+async def attach_record(
+    document_id: str,
+    request: AttachRequest,
+    db: Database = Depends(get_library_database),
+) -> MetadataResponse:
+    from fichero.bibliography.importers import detect_format, read_bibtex, read_csl_json, read_ris
+
+    doc = db.get(Document, document_id)
+    if doc is None:
+        raise HTTPException(404, f"Document not found: {document_id}")
+
+    fmt = request.format or detect_format(request.text)
+    if fmt == "bibtex":
+        entries = read_bibtex(request.text)
+    elif fmt == "ris":
+        entries = read_ris(request.text)
+    elif fmt == "csl_json":
+        entries = read_csl_json(request.text)
+    else:
+        raise HTTPException(400, "Format not recognised — try 'bibtex', 'ris', or 'csl_json'")
+    if not entries:
+        raise HTTPException(400, "No parsable bibliography record found")
+
+    doc.source_metadata = entries[0]
+    doc.updated_at = datetime.now()
+    db.save(doc)
+    return MetadataResponse(document_id=document_id, metadata=doc.source_metadata or {})
 
 
 class ExportRequest(BaseModel):

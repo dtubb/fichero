@@ -354,12 +354,31 @@ def ingest_file(
 
 def _load_bibliography_sidecar(path: Path) -> dict[str, Any] | None:
     """Load a same-stem bibliography sidecar if one exists."""
-    from fichero.bibliography.importers import read_sidecar
+    from fichero.bibliography.importers import read_folder_sidecars, read_sidecar
 
     entries = read_sidecar(path)
+    if entries:
+        return entries[0]
+
+    # Folder-level sidecar fallback (references.bib / zotero-export.json).
+    entries = read_folder_sidecars(path)
     if not entries:
         return None
-    return entries[0]
+
+    target_name = path.name.lower()
+    target_stem = path.stem.lower()
+    for entry in entries:
+        metadata = entry.get("metadata") if isinstance(entry, dict) else None
+        filename = ""
+        if isinstance(metadata, dict):
+            filename = str(metadata.get("filename") or "").strip().lower()
+        title = str(entry.get("title") or "").strip().lower() if isinstance(entry, dict) else ""
+        if filename and filename == target_name:
+            return entry
+        if title and (title == target_stem or target_stem in title):
+            return entry
+
+    return None
 
 
 def _create_pdf_page_children(
