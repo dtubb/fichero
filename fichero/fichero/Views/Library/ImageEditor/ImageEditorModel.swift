@@ -97,10 +97,16 @@ final class ImageEditorModel: ObservableObject {
 
     /// Flip the original↔edited toggle and re-render (#469).
     func toggleEdited() {
-        showEdited.toggle()
-        preview = showEdited ? editedPreview : originalPreview
-        if preview == nil {
-            Task { await reloadPreviews() }
+        // Defer @Published mutations off the view-update cycle — this method is
+        // called from editedBinding (ImageEditorView), a Binding set: closure.
+        // Mutating synchronously from a view update produces runtime warnings
+        // "Publishing changes from within view updates is not allowed" (#1444).
+        Task { @MainActor in
+            self.showEdited.toggle()
+            self.preview = self.showEdited ? self.editedPreview : self.originalPreview
+            if self.preview == nil {
+                await self.reloadPreviews()
+            }
         }
     }
 
