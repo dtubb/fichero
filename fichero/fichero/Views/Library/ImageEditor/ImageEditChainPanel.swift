@@ -25,6 +25,7 @@ struct ImageEditChainPanel: View {
     @State private var enhanceContrast: Double = 1.0
     @State private var enhanceSharpen: Double = 1.0
     @State private var enhanceAutoLevels = false
+    @State private var rotateAngle: Double = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -113,6 +114,7 @@ struct ImageEditChainPanel: View {
                     } else {
                         selectedStepIndex = index
                         seedEnhanceSliders(from: op)
+                        seedRotateSlider(from: op)
                     }
                 }
             } label: {
@@ -178,19 +180,42 @@ struct ImageEditChainPanel: View {
             }
             .font(.caption)
         case "rotate":
-            let angle = (op.params["angle"] as? Double) ?? Double(op.params["angle"] as? Int ?? 0)
-            HStack {
-                Image(systemName: "info.circle").foregroundStyle(.secondary)
-                Text("Rotated \(Int(angle))°. Remove and re-add to change.")
-                    .font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Text("Angle")
+                        Spacer()
+                        Text("\(Int(rotateAngle))°").monospacedDigit().foregroundStyle(.secondary)
+                    }
+                    Slider(value: $rotateAngle, in: -180...180, step: 1)
+                }
+                HStack(spacing: 8) {
+                    Button("0°") { rotateAngle = 0 }.buttonStyle(.bordered).controlSize(.mini)
+                    Button("90°") { rotateAngle = 90 }.buttonStyle(.bordered).controlSize(.mini)
+                    Button("−90°") { rotateAngle = -90 }.buttonStyle(.bordered).controlSize(.mini)
+                    Spacer()
+                    Button("Re-apply") {
+                        onRemove(index)
+                        onRotate(rotateAngle)
+                        selectedStepIndex = nil
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(isBusy)
+                }
             }
+            .font(.caption)
         case "crop":
             let width = op.params["width"] as? Int ?? 0
             let height = op.params["height"] as? Int ?? 0
-            HStack {
-                Image(systemName: "info.circle").foregroundStyle(.secondary)
-                Text("Cropped to \(width)×\(height) px.")
-                    .font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "crop").foregroundStyle(.secondary)
+                    Text("Cropped to \(width)×\(height) px")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Text("Use the crop tool on the canvas to re-crop.")
+                    .font(.caption2).foregroundStyle(.tertiary)
             }
         default:
             HStack {
@@ -207,6 +232,12 @@ struct ImageEditChainPanel: View {
         enhanceContrast = (op.params["contrast"] as? Double) ?? 1.0
         enhanceSharpen = (op.params["sharpen"] as? Double) ?? 1.0
         enhanceAutoLevels = (op.params["auto_levels"] as? Bool) ?? false
+    }
+
+    private func seedRotateSlider(from op: ImageEditOperation) {
+        guard op.opKind == "rotate" else { return }
+        rotateAngle = (op.params["angle"] as? Double)
+            ?? Double(op.params["angle"] as? Int ?? 0)
     }
 
     // MARK: - Add Step
