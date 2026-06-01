@@ -18,6 +18,12 @@ struct EditorView: View {
 
     @EnvironmentObject private var documentStore: DocumentStore
 
+    /// Whether the canvas is showing the editing surface (tools) rather than
+    /// the plain zoom/loupe preview. Off by default so chrome stays minimal
+    /// until the user opts into editing (#1453). Reset whenever the document
+    /// changes so a new selection always opens in view mode.
+    @State private var isEditing = false
+
     var body: some View {
         Group {
             if let doc = document {
@@ -27,6 +33,9 @@ struct EditorView: View {
             }
         }
         .frame(minWidth: 300)
+        .onChange(of: document?.id) { _, _ in
+            isEditing = false
+        }
     }
 
     // MARK: - Document Preview
@@ -131,11 +140,25 @@ struct EditorView: View {
                 onPageIndexChange: onPDFPageIndexChange
             )
         } else if doc.fileType == .image, let path = doc.path, !path.isEmpty {
-            // Local image file with a path → plain preview via DocumentCanvas (#1402).
-            // Uses the full ZoomableImagePreview stack (zoom/loupe/magnifier).
-            DocumentCanvas(
-                content: .imageFile(url: URL(fileURLWithPath: path), documentId: doc.id)
-            )
+            // Local image file with a path. View mode → plain preview via
+            // DocumentCanvas (#1402, full ZoomableImagePreview zoom/loupe/
+            // magnifier). Edit mode → the same ImageEditorView used by
+            // page-children, exposing crop/rotate/enhance/remove-bg tools, so
+            // single image files finally have a way to reach editing (#1453).
+            ZStack(alignment: .topTrailing) {
+                if isEditing {
+                    ImageEditorView(
+                        document: doc,
+                        onNavigate: onNavigateToDocument,
+                        selectedDocumentIDs: selectedDocumentIDs
+                    )
+                } else {
+                    DocumentCanvas(
+                        content: .imageFile(url: URL(fileURLWithPath: path), documentId: doc.id)
+                    )
+                }
+                editModeToggle
+            }
         } else if doc.fileType == .image {
             // Remote/no-path image → editor provides preview via backend render.
             ImageEditorView(
@@ -146,6 +169,28 @@ struct EditorView: View {
         } else {
             QuickLookDownloadView(document: doc)
         }
+    }
+
+    // MARK: - Edit-mode Toggle
+
+    /// Far-corner toggle that flips the image canvas between view and edit
+    /// mode. Floats at the top-trailing edge so it is visible whether or not
+    /// the document header is shown (the reading surface hides the header). (#1453)
+    private var editModeToggle: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isEditing.toggle()
+            }
+        } label: {
+            Image(systemName: isEditing ? "checkmark.circle.fill" : "pencil.tip.crop.circle")
+                .font(.title3)
+                .padding(6)
+                .background(.thinMaterial, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .help(isEditing ? "Done — return to viewing" : "Edit image (crop, rotate, enhance, remove background)")
+        .accessibilityIdentifier("canvasEditModeToggle")
+        .padding(10)
     }
 
     // MARK: - Text Preview
