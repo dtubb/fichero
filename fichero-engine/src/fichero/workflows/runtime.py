@@ -27,6 +27,11 @@ def to_workflow_def(workflow: Any) -> WorkflowDef:
     if isinstance(workflow, WorkflowDef):
         return workflow
 
+    def _as_mapping(obj: Any) -> dict[str, Any]:
+        if isinstance(obj, dict):
+            return obj
+        return vars(obj)
+
     return WorkflowDef(
         id=workflow.id,
         name=workflow.name,
@@ -35,22 +40,22 @@ def to_workflow_def(workflow: Any) -> WorkflowDef:
         model=getattr(workflow, "model", "") or "",
         nodes=[
             NodeDef(
-                id=n["id"],
-                tool=n["tool"],
-                label=n.get("label", ""),
-                inputs=n.get("inputs", {}),
-                config=n.get("config", {}),
-                provider_name=n.get("provider_name", ""),
-                model_name=n.get("model_name", ""),
+                id=_as_mapping(n)["id"],
+                tool=_as_mapping(n)["tool"],
+                label=_as_mapping(n).get("label", ""),
+                inputs=_as_mapping(n).get("inputs", {}),
+                config=_as_mapping(n).get("config", {}),
+                provider_name=_as_mapping(n).get("provider_name", ""),
+                model_name=_as_mapping(n).get("model_name", ""),
             )
             for n in workflow.nodes
         ],
         edges=[
             EdgeDef(
-                source=e.get("source") or e.get("source_node_id", ""),
-                target=e.get("target") or e.get("target_node_id", ""),
-                source_port=e.get("source_port", "output"),
-                target_port=e.get("target_port", "input"),
+                source=_as_mapping(e).get("source") or _as_mapping(e).get("source_node_id", ""),
+                target=_as_mapping(e).get("target") or _as_mapping(e).get("target_node_id", ""),
+                source_port=_as_mapping(e).get("source_port", "output"),
+                target_port=_as_mapping(e).get("target_port", "input"),
             )
             for e in workflow.edges
         ],
