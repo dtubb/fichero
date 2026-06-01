@@ -762,6 +762,56 @@ def import_box_links_command(
     typer.echo(f"skipped_rows: {summary.skipped_rows}")
 
 
+@app.command(name="import-tinderbox-links")
+def import_tinderbox_links_command(
+    library_path: Path = typer.Option(
+        Path("~/Library/Application Support/Fichero/Tinderbox-Links.fichero"),
+        "--library-path",
+        help="Target .fichero package to create/update.",
+    ),
+    tbx_path: Path = typer.Option(
+        Path("~/Documents/Notes.tbx"),
+        "--tbx-path",
+        help="Path to the Tinderbox .tbx document.",
+    ),
+    reset: bool = typer.Option(
+        False,
+        "--reset",
+        help="Delete the target package before importing.",
+    ),
+) -> None:
+    """Import/link Tinderbox notes from a .tbx file into the library model."""
+
+    from fichero.tinderbox_link_import import import_tinderbox_links
+
+    try:
+        summary = import_tinderbox_links(
+            library_path=library_path,
+            tbx_path=tbx_path,
+            reset=reset,
+        )
+    except Exception as exc:
+        typer.secho(f"Tinderbox link import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    if summary.errors:
+        typer.secho(
+            f"Imported with {len(summary.errors)} errors.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        for err in summary.errors[:10]:
+            typer.echo(f"  {err}", err=True)
+
+    typer.echo(f"library: {summary.library_path}")
+    typer.echo(f"tbx_path: {summary.tbx_path}")
+    typer.echo(f"root_document_id: {summary.root_document_id}")
+    typer.echo(f"imported_notes: {summary.imported_notes}")
+    typer.echo(f"updated_notes: {summary.updated_notes}")
+    typer.echo(f"deleted_notes: {summary.deleted_notes}")
+    typer.echo(f"skipped_notes: {summary.skipped_notes}")
+
+
 @artifacts_app.command("list")
 def artifacts_list(
     ctx: typer.Context,
