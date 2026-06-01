@@ -47,6 +47,16 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
             case .map: return "map"
             }
         }
+
+        var helpText: String {
+            switch self {
+            case .list: return "List — browse entities and their claims"
+            case .graph: return "Graph — force-directed network of entity relationships"
+            case .chart: return "Chart — entity counts by type"
+            case .timeline: return "Timeline — entities arranged by date"
+            case .map: return "Map — geographic entities on a map"
+            }
+        }
     }
     @SceneStorage("ontology.viewMode") private var viewModeRaw: String = ViewMode.list.rawValue
     private var viewMode: ViewMode {
@@ -315,14 +325,16 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
             .help("New entity (#916)")
             toolsMenu
             filterMenu
-            Picker("View", selection: viewModeBinding) {
+            Picker("Knowledge graph view", selection: viewModeBinding) {
                 ForEach(ViewMode.allCases) { mode in
-                    Image(systemName: mode.icon).tag(mode)
+                    Image(systemName: mode.icon)
+                        .tag(mode)
+                        .accessibilityLabel(mode.helpText)
                 }
             }
             .pickerStyle(.segmented)
             .fixedSize()
-            .help("Switch between list and graph views (#902)")
+            .help("Switch view: List, Graph, Chart, Timeline, or Map")
             // The manual refresh button was removed in #1007 — the
             // entity list now auto-refreshes when a workflow completes
             // (see `.onChange(of: executionObserver.workflowCompletedCount)`
@@ -1356,9 +1368,10 @@ struct ForceDirectedGraphView: View { // swiftlint:disable:this type_body_length
                 .buttonStyle(.plain)
                 .disabled(hops <= 1)
                 .help("Fewer hops")
-                Text("\(hops)hop")
+                Text(hops == 1 ? "1 hop" : "\(hops) hops")
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
+                    .help("Neighborhood depth: how many relationship hops from the focus entity to show")
                 Button {
                     if hops < 3 { hops += 1 }
                 } label: {
