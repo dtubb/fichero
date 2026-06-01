@@ -49,6 +49,7 @@ extension LibraryView {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .help("Clear filter")
                 }
 
                 Button("Done") {

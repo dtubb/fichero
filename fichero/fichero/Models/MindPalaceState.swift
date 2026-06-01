@@ -33,8 +33,15 @@ final class MindPalaceState: ObservableObject {
 
     func selectRoom(_ roomId: String?) {
         guard selectedRoomId != roomId else { return }
-        selectedRoomId = roomId
-        selectedNodeId = nil
+        // Defer @Published mutations off the view-update cycle — this method is
+        // called from a Binding set: closure (RoomListView roomSelection), and
+        // mutating @Published state synchronously from within a view update
+        // produces "Publishing changes from within view updates is not allowed"
+        // runtime warnings (#1444).
+        Task { @MainActor in
+            self.selectedRoomId = roomId
+            self.selectedNodeId = nil
+        }
     }
 
     /// Ask the open canvas to reload the current room's nodes/connections.

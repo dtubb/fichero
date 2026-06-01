@@ -1,4 +1,24 @@
-## 2026-05-31 (integration sweep COMPLETE — NEXT SESSION START HERE)
+## 2026-06-01 — ms/library-reading-surface SwiftUI session 2 (NEXT SESSION START HERE)
+
+**Branch: `ms/library-reading-surface` — head at `de88e2fa` (57+ commits ahead of main)**
+
+### What was done this session
+- #1444 runtime warnings: MindPalaceState.selectRoom + ImageEditorModel.toggleEdited @Published deferral
+- #1463 keystone: @State pageFocusDocument decouples scroll → inspector from WebKit active-doc
+- #1459/#1458: thumbnail size 64×80→40×50; image files load from disk before text-preview branch
+- #1473: entity filter menu only shows in list mode (hidden in icon/table/map)
+- #1481: WebKit ::selection uses NSColor.selectedTextBackgroundColor (macOS accent, not browser default)
+
+### Next session — start here
+1. `cd ~/code/fichero-library-reading-surface && git pull --rebase origin ms/library-reading-surface`
+2. **Branch is 57+ commits ahead — integrator should merge before adding more**
+3. If continuing: `gh issue list --milestone "Library & Reading Surface" --state open --search "no:assignee -label:status:in-progress"`
+4. Next unclaimed: #1480 (path bar), #1483 (scope selector), #593 (swipe nav P2), #588 (PDF pinch-zoom P2)
+5. #713 drag asymmetry: skip — requires NSOutlineView rewrite
+
+---
+
+## 2026-05-31 (integration sweep COMPLETE)
 
 **main is GREEN and pushed: 3517 Python tests pass, ruff clean, Xcode `BUILD SUCCEEDED`. CI OpenAPI-drift fixed (regen committed).**
 

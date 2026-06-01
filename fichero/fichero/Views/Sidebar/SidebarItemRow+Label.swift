@@ -126,6 +126,8 @@ extension SidebarItemRow {
         TextField("Name", text: $renameState.editingName)
             .textFieldStyle(.plain)
             .focused($isRenameFocused)
+            .accessibilityLabel("Rename \(item.name)")
+            .accessibilityIdentifier("renameField.\(item.id)")
             .lineLimit(1)
             .truncationMode(.tail)
             .onSubmit {

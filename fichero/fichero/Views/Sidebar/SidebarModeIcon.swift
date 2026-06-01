@@ -30,6 +30,10 @@ struct SidebarModeIcon: View {
         .buttonStyle(.plain)
         .focusEffectDisabled()
         .help(mode.helpText)
+        .accessibilityLabel(mode.label)
+        .accessibilityIdentifier("sidebarMode.\(mode.rawValue)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityHint(isSelected ? "Currently active" : "Switch to \(mode.label)")
     }
 
     /// Selected state uses filled variant where available

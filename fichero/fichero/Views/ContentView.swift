@@ -54,6 +54,9 @@ struct ContentView: View {
     // Runtime state - full objects for use in views
     @State var viewMode: AppViewMode = .library(nil)
     @State var detailDocument: Document?
+    /// The page document currently in view, updated only by scroll/page-flip
+    /// events. Drives the inspector without re-rooting the WebKit pane (#1463).
+    @State var pageFocusDocument: Document?
     @State var columnVisibility: NavigationSplitViewVisibility = .all
     @State var browserSelection: Set<String> = []
 
@@ -362,6 +365,9 @@ struct ContentView: View {
             .onChange(of: kgFocusState.sourcePageLabel) { _, _ in
                 handleKGFocusChanged()
             }
+            .onChange(of: viewDisplayMode) { _, newMode in
+                handleViewDisplayModeChange(newMode)
+            }
             .modifier(
                 MainContentModifiers(
                     documentStore: documentStore,
@@ -458,6 +464,22 @@ extension ContentView {
                             viewSettings.previewMode = normalizedPreviewMode(requestedMode)
                         }
                     }
+                }
+
+                // View display mode picker (icon/list/table/map) — only when the
+                // current mode supports multiple presentations and more than one
+                // option is available. Syncs with viewSettings.libraryLayout so
+                // the View menu checkmark stays in sync (#1215).
+                if showViewModePicker && availableViewDisplayModes.count > 1 {
+                    Picker("View", selection: $viewDisplayMode) {
+                        ForEach(availableViewDisplayModes) { mode in
+                            Label(mode.rawValue, systemImage: mode.icon)
+                                .labelStyle(.iconOnly)
+                                .tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .help("View: \(viewDisplayMode.rawValue)")
                 }
 
                 // Add menu (Plus button)

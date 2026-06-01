@@ -1,5 +1,13 @@
 # Durable Lessons Learned / Decisions
 
+## viewDisplayMode toolbar sync — reverse direction was missing — 2026-06-01
+
+`viewDisplayMode` (@SceneStorage) drives `LibraryView.displayMode` directly, but mutations to `viewDisplayMode` from the toolbar picker were NOT propagated back to `viewSettings.libraryLayout`. The `handleLibraryLayoutChange` → `viewDisplayMode` path existed (View menu → toolbar); the reverse (toolbar → View menu) didn't. Pattern: any time you add a `Picker` bound to `@SceneStorage`, check whether the OTHER direction needs an `onChange` handler too.
+
+## @ToolbarContentBuilder escapes the SwiftUI type-checker budget — 2026-06-01
+
+`ContentView.swift` is deliberately split across `navigationSplitColumn` + `decoratedNavigationSplitColumn` to stay within Swift's view-chain complexity limit. Adding any generic type (e.g. `Label<Text, Image>`) to those view bodies pushes them over budget. Use `@ToolbarContentBuilder` functions instead — they use a different type resolver with no budget limit. Already used for `ToolbarItem(.principal)` (#323); confirmed for segmented `Picker` in navigation group (#1215).
+
 ## Shared graph-RAG engine now spans Chat + Researcher — 2026-05-31
 
 `fichero.retrieval.graph_rag.GraphAwareRetriever` is now the common retrieval path for chat (`/api/chat`) and researcher workflow search (`workflows/tools/sources.py::search_tool`). Keep future retrieval changes centralized there to avoid divergence in ranking, KG augmentation, and telemetry behavior.

@@ -15,9 +15,13 @@ extension ContentView {
         let match = documentStore.currentDocuments.first { doc in
             doc.docType == .page && (doc.sequence ?? 0) == index + 1
         }
-        if let match, detailDocument?.id != match.id {
-            detailDocument = match
-            browserSelection = [match.id]
+        guard let match else { return }
+        // Update only the page-focus cursor — never re-root detailDocument or
+        // browserSelection from a scroll event (#1463). detailDocument stays
+        // pinned to the active container (parent PDF / folder) so the WebKit
+        // transcript doesn't reload; pageFocusDocument drives the inspector.
+        if pageFocusDocument?.id != match.id {
+            pageFocusDocument = match
         }
     }
 
@@ -68,9 +72,12 @@ extension ContentView {
         return nil
     }
 
-    /// Current PDF page index for the previewed document.
+    /// Current PDF page index. Prefers pageFocusDocument (set by scroll/flip)
+    /// over detailDocument so the PDF viewer tracks scrolling without
+    /// re-rooting the active container (#1463).
     var selectedPageIndex: Int {
-        if let doc = detailDocument, doc.docType == .page {
+        let focusDoc = pageFocusDocument ?? detailDocument
+        if let doc = focusDoc, doc.docType == .page {
             return max(0, (doc.sequence ?? 1) - 1)
         }
         return 0
@@ -88,7 +95,8 @@ extension ContentView {
     @ViewBuilder
     func fivePaneReadingView(pdfPath: String, pages: [Document]) -> some View {
         let selectedIdx: Int = {
-            if let doc = detailDocument, doc.docType == .page {
+            let focusDoc = pageFocusDocument ?? detailDocument
+            if let doc = focusDoc, doc.docType == .page {
                 return max(0, (doc.sequence ?? 1) - 1)
             }
             return 0
@@ -122,7 +130,7 @@ extension ContentView {
                 edge: .trailing
             )
 
-            PageContentPane(document: detailDocument)
+            PageContentPane(document: pageFocusDocument ?? detailDocument)
                 .frame(width: CGFloat(pageContentPaneWidth))
                 .overlay { paneFocusIndicator(for: .content) }
         }

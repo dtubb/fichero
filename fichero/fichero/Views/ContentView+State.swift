@@ -111,11 +111,14 @@ extension ContentView {
            doc.parentId == currentSidebarFolder?.id {
             return doc
         }
-        // 2. Page document — PDF reading context (#1366). When the user
-        //    has scrolled to a specific page (syncGridSelectionToPDFPage),
-        //    detailDocument is that page. The sidebar folder must not shadow
-        //    it: the inspector needs the page doc so its KG tab shows the
-        //    per-page entities the backend now writes per page doc_id.
+        // 2. Page focus — updated by scroll/page-flip via syncGridSelectionToPDFPage
+        //    without touching detailDocument (#1463). Shows per-page KG/content
+        //    while the WebKit pane stays pinned to the parent container.
+        if let pageFocusDoc = pageFocusDocument {
+            return pageFocusDoc
+        }
+        // 2b. Legacy: detailDocument may still be a page doc if set by direct
+        //    navigation (double-click a page child) rather than scroll sync.
         if let pageDoc = detailDocument, pageDoc.docType == .page {
             return pageDoc
         }
@@ -366,6 +369,20 @@ extension ContentView {
         }
     }
 
+    /// Handles `.onChange(of: viewDisplayMode)`.
+    /// Syncs toolbar picker changes to viewSettings.libraryLayout (#1215).
+    func handleViewDisplayModeChange(_ newMode: ViewDisplayMode) {
+        let newLayout: LibraryLayout = switch newMode {
+        case .icon: .icons
+        case .list: .list
+        case .table: .table
+        case .map, .realitykit: .map
+        }
+        if viewSettings.libraryLayout != newLayout {
+            viewSettings.libraryLayout = newLayout
+        }
+    }
+
     /// Handles `.onChange(of: viewSettings.libraryLayout)`.
     /// Syncs View-menu changes back to the toolbar view mode picker.
     func handleLibraryLayoutChange(_ newLibraryLayout: LibraryLayout) {
@@ -569,6 +586,9 @@ extension ContentView {
         // Keep documentStore.selectedDocument in sync so WorkflowEditor
         // toolbar button sees the current document at run time.
         documentStore.selectedDocument = newDoc
+        // Clear page focus so the inspector starts fresh on the new container
+        // rather than showing a page from the previous document (#1463).
+        pageFocusDocument = nil
         guard !isRestoringNavigationHistory else { return }
         recordNavigationEntry()
     }
