@@ -6,8 +6,14 @@ import SwiftUI
 
 // swiftlint:disable:next type_body_length
 struct ZoomableImagePreview: View {
-    let url: URL
+    /// Local file URL. Required for the plain-preview path; ignored when
+    /// `renderedImage` is provided (editor / backend-rendered preview mode).
+    var url: URL
     var documentId: String?
+    /// Backend-rendered NSImage (editor mode). When non-nil, takes precedence
+    /// over `url` for display — the URL is still used as a stable identity key
+    /// but image data comes from this override (#1402).
+    var renderedImage: NSImage? = nil
 
     private static let logger = Logger(subsystem: "app.fichero.fichero", category: "ZoomableImagePreview")
 
@@ -162,6 +168,7 @@ struct ZoomableImagePreview: View {
                     // Image view with cursor tracking and integrated loupe
                     ImageWithCursorTracking(
                         url: url,
+                        overrideImage: renderedImage,
                         scale: $scale,
                         cursorPosition: $cursorPosition,
                         imageSize: $imageSize,
@@ -233,7 +240,7 @@ struct ZoomableImagePreview: View {
             }
         }
         .onAppear {
-            image = NSImage(contentsOf: url)
+            image = renderedImage ?? NSImage(contentsOf: url)
             if let img = image {
                 imageSize = img.size
             } else {
@@ -246,7 +253,7 @@ struct ZoomableImagePreview: View {
             }
         }
         .onChange(of: url) { _, newURL in
-            image = NSImage(contentsOf: newURL)
+            image = renderedImage ?? NSImage(contentsOf: newURL)
             if let img = image {
                 imageSize = img.size
             } else {
@@ -259,6 +266,13 @@ struct ZoomableImagePreview: View {
             // that would flash at 100%. (#773)
             if let key = scaleKey, let saved = loadSavedScale(for: key) {
                 scale = saved
+            }
+        }
+        .onChange(of: renderedImage) { _, newImg in
+            // Editor mode: backend delivered a new preview frame (#1402).
+            if let img = newImg {
+                image = img
+                imageSize = img.size
             }
         }
         .onChange(of: scale) { _, newScale in

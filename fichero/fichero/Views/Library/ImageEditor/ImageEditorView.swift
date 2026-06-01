@@ -113,19 +113,22 @@ private extension ImageEditorView {
 
             Divider().frame(height: 20)
 
-            // #469 original↔edited toggle.
+            // Original ↔ Edited — icon-only segmented control (#1420).
             Picker("", selection: editedBinding) {
-                Text("Original").tag(false)
-                Text("Edited").tag(true)
+                Image(systemName: "photo").tag(false)
+                    .help("Original")
+                Image(systemName: "wand.and.stars").tag(true)
+                    .help("Edited")
             }
             .pickerStyle(.segmented)
-            .frame(width: 160)
+            .frame(width: 64)
             .labelsHidden()
-            .help("Compare the original image with the edited result")
+            .help(model.showEdited ? "Showing edited — tap to compare original" : "Showing original — tap to show edited")
             .accessibilityIdentifier("imageEditOriginalEditedToggle")
 
             Divider().frame(height: 20)
 
+            // Edit tools — icon-only SF Symbols (#1420 spec).
             Group {
                 toolButton("rotate.left", help: "Rotate left 90°") {
                     Task { await model.rotate(by: 90) }
@@ -134,19 +137,20 @@ private extension ImageEditorView {
                     Task { await model.rotate(by: -90) }
                 }
 
+                // Enhance with slider popover
                 Button {
                     showEnhancePopover = true
                 } label: {
-                    Image(systemName: "wand.and.stars")
+                    Image(systemName: "slider.horizontal.3")
                 }
                 .buttonStyle(.borderless)
-                .help("Enhance — brightness, contrast, sharpen")
+                .help("Enhance — adjust brightness, contrast, sharpen")
                 .popover(isPresented: $showEnhancePopover, arrowEdge: .bottom) { enhancePopover }
 
-                toolButton("person.crop.rectangle.badge.xmark", help: "Remove background") {
+                toolButton("person.and.background.dotted", help: "Remove background") {
                     Task { await model.removeBackground() }
                 }
-                toolButton("square.split.bottomrightquarter", help: "Segment into regions") {
+                toolButton("square.split.2x1", help: "Segment into regions") {
                     Task { await model.segment() }
                 }
             }
@@ -154,22 +158,15 @@ private extension ImageEditorView {
 
             if marqueeSelection != nil && compareMode == .single {
                 Divider().frame(height: 20)
-                Button {
+                toolButton("crop", help: "Crop to selection") {
                     Task { await cropToSelection() }
-                } label: {
-                    Label("Crop", systemImage: "crop")
                 }
                 .disabled(model.isBusy)
-                .help("Crop the image to the selected region")
                 .accessibilityIdentifier("imageEditCropToSelection")
-
-                Button {
+                toolButton("highlighter", help: "Save selection as annotation") {
                     Task { await annotateSelection() }
-                } label: {
-                    Label("Annotate", systemImage: "highlighter")
                 }
                 .disabled(model.isBusy)
-                .help("Save the selected region as an annotation on this image")
                 .accessibilityIdentifier("imageEditAnnotateSelection")
             }
 
@@ -180,15 +177,16 @@ private extension ImageEditorView {
 
             Spacer()
 
+            // Compare mode — icon-only segmented (#1420 spec).
             Picker("", selection: $compareMode) {
-                ForEach(CompareMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
+                Image(systemName: "rectangle").tag(CompareMode.single)
+                Image(systemName: "rectangle.righthalf.inset.filled.arrow.right").tag(CompareMode.wipe)
+                Image(systemName: "rectangle.split.2x1").tag(CompareMode.sideBySide)
             }
             .pickerStyle(.segmented)
-            .frame(width: 240)
+            .frame(width: 96)
             .labelsHidden()
-            .help("Compare original and edited images")
+            .help("Compare mode: Single / Wipe / Side-by-Side")
 
             if model.isBusy {
                 ProgressView().controlSize(.small)
@@ -443,24 +441,23 @@ private extension ImageEditorView {
                     ProgressView("Loading compare preview…")
                         .controlSize(.small)
                 }
-            } else if let preview = model.preview {
-                GeometryReader { geo in
-                    let fitted = ImageFit.fittedRect(
-                        imagePixelSize: preview.pixelSize,
-                        in: CGSize(width: geo.size.width - 24, height: geo.size.height - 24)
-                    )
-                    // Re-centre into the padded container.
-                    let frame = fitted.offsetBy(dx: 12, dy: 12)
-                    Image(nsImage: preview.image)
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: frame.width, height: frame.height)
-                        .position(x: frame.midX, y: frame.midY)
-                    ImageMarqueeOverlay(fittedRect: frame, normalizedSelection: $marqueeSelection)
-                }
             } else {
-                ProgressView("Loading image…")
-                    .controlSize(.small)
+                // Single-mode: DocumentCanvas gives zoom/loupe/magnifier (#1402).
+                // Shows last rendered frame while loading (model.preview?.image may
+                // be nil briefly after an op; canvas retains the stale frame).
+                DocumentCanvas(
+                    content: .imageRendered(
+                        image: model.preview?.image,
+                        documentId: activeDocumentID
+                    )
+                )
+                if model.isBusy {
+                    // Translucent overlay so the last image stays visible mid-op.
+                    Color.black.opacity(0.10).allowsHitTesting(false)
+                    ProgressView()
+                        .controlSize(.small)
+                        .allowsHitTesting(false)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

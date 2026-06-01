@@ -49,6 +49,9 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     private static let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageWithCursorTracking")
 
     let url: URL
+    /// When non-nil, this image is used directly instead of loading from `url`.
+    /// Enables editor mode where the canvas shows a backend-rendered preview (#1402).
+    var overrideImage: NSImage? = nil
     @Binding var scale: CGFloat
     @Binding var cursorPosition: CGPoint  // Normalized 0-1 position in image
     @Binding var imageSize: CGSize
@@ -128,7 +131,8 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         imageView.loupeMagnification = loupeMagnification
         imageView.loupeSize = loupeSize
 
-        if let image = loadSDRImage(from: url) {
+        let initialImage = overrideImage ?? loadSDRImage(from: url)
+        if let image = initialImage {
             imageView.image = image
             imageView.frame = NSRect(origin: .zero, size: image.size)
             Self.logger.info("makeNSView: Set image size=\(image.size.width)x\(image.size.height)")
@@ -138,6 +142,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         } else {
             Self.logger.error("makeNSView: Failed to load image from: \(url.lastPathComponent)")
         }
+        context.coordinator.currentOverrideImage = overrideImage
 
         scrollView.documentView = imageView
         context.coordinator.scrollView = scrollView
@@ -224,12 +229,19 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             imageView.loupeMagnification = loupeMagnification
             imageView.loupeSize = loupeSize
 
-            if context.coordinator.currentURL != url {
-                if let image = loadSDRImage(from: url) {
+            // Detect image change: either a new overrideImage or a new URL.
+            let overrideChanged = overrideImage !== context.coordinator.currentOverrideImage
+            let urlChanged = context.coordinator.currentURL != url
+            let needsImageUpdate = overrideImage != nil ? overrideChanged : urlChanged
+
+            if needsImageUpdate {
+                let newImage = overrideImage ?? loadSDRImage(from: url)
+                if let image = newImage {
                     imageView.image = image
                     imageView.frame = NSRect(origin: .zero, size: image.size)
                     imageView.loupePosition = nil  // Reset loupe on image change
                     context.coordinator.currentURL = url
+                    context.coordinator.currentOverrideImage = overrideImage
                     Task { @MainActor in
                         self.imageSize = image.size
                     }
@@ -249,6 +261,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                         }
                     }
                     centerImage(scrollView: scrollView, imageView: imageView)
+                    if scrollView.alphaValue < 1 { scrollView.alphaValue = 1 }
                 }
             }
         }
@@ -315,6 +328,8 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         var scrollView: NSScrollView?
         var imageView: NSView?
         var currentURL: URL?
+        /// Tracks the last override image set so we detect changes by identity (#1402).
+        weak var currentOverrideImage: NSImage?
         var onVisibleRectChanged: ((CGRect) -> Void)?
         /// #596 (2nd attempt): fires once at gesture `.ended` with the final
         /// magnification. The owning `ImageWithCursorTracking` writes it

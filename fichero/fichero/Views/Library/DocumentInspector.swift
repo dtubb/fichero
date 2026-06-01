@@ -289,8 +289,19 @@ private struct DocumentInspectorImageEditsTab: View {
             ImageEditChainPanel(
                 chain: model.chain,
                 isBusy: model.isBusy,
+                selectedStepIndex: Binding(
+                    get: { model.selectedStepIndex },
+                    set: { model.selectedStepIndex = $0 }
+                ),
                 onRemove: { index in Task { await model.removeOperation(at: index) } },
-                onReset: { Task { await model.resetAll() } }
+                onReset: { Task { await model.resetAll() } },
+                onRotate: { angle in Task { await model.rotate(by: angle) } },
+                onEnhance: { brightness, contrast, sharpen, auto in
+                    Task { await model.enhance(brightness: brightness, contrast: contrast, sharpen: sharpen, autoLevels: auto) }
+                },
+                onRemoveBackground: { Task { await model.removeBackground() } },
+                onFuzzyClean: { Task { await model.fuzzyClean() } },
+                onSegment: { Task { await model.segment() } }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
