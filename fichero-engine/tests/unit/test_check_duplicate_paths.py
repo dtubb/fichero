@@ -1,0 +1,53 @@
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+
+_SCRIPT = (
+    Path(__file__).resolve().parents[3] / "scripts" / "check_duplicate_paths.py"
+)
+_SPEC = importlib.util.spec_from_file_location("check_duplicate_paths", _SCRIPT)
+assert _SPEC and _SPEC.loader
+check_duplicate_paths = importlib.util.module_from_spec(_SPEC)
+sys.modules[_SPEC.name] = check_duplicate_paths
+_SPEC.loader.exec_module(check_duplicate_paths)  # type: ignore[attr-defined]
+
+
+def test_duplicate_detector_flags_unallowlisted_duplicates(tmp_path):
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "dupes.py").write_text(
+        """
+from fastapi import APIRouter
+from fichero.knowledge_models import KnowledgeEntity
+router = APIRouter(prefix="/dupes")
+
+@router.post("/x")
+def create_a():
+    KnowledgeEntity(id="a", canonical_name="a", entity_type="person")
+
+@router.post("/x")
+def create_b():
+    KnowledgeEntity(id="b", canonical_name="b", entity_type="person")
+""",
+        encoding="utf-8",
+    )
+
+    violations = check_duplicate_paths.find_violations(src)
+    assert "route:POST /dupes/x" in violations
+    assert "kg_write:KnowledgeEntity" in violations
+
+
+def test_repo_duplicate_gate_has_no_unallowlisted_concerns():
+    violations = check_duplicate_paths.find_violations()
+    assert violations == {}
+
+
+def test_allowlist_has_only_known_concerns():
+    payload = json.loads(check_duplicate_paths.ALLOWLIST.read_text(encoding="utf-8"))
+    known = set(check_duplicate_paths.collect().keys())
+    for concern in payload.get("concerns", {}):
+        assert concern in known
