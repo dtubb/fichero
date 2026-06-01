@@ -16,6 +16,9 @@ struct ImageEditChainPanel: View {
     let onReset: () -> Void
     let onRotate: (Double) -> Void
     let onEnhance: (Double, Double, Double, Bool) -> Void
+    /// Re-apply a crop at a new pixel rect (left, top, width, height). Called after
+    /// onRemove so the chain has only one crop step at a time.
+    let onCrop: (Int, Int, Int, Int) -> Void
     let onRemoveBackground: () -> Void
     let onFuzzyClean: () -> Void
     let onSegment: () -> Void
@@ -206,15 +209,45 @@ struct ImageEditChainPanel: View {
             }
             .font(.caption)
         case "crop":
-            let width = op.params["width"] as? Int ?? 0
-            let height = op.params["height"] as? Int ?? 0
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
+            let cropLeft = op.params["left"] as? Int ?? 0
+            let cropTop = op.params["top"] as? Int ?? 0
+            let cropWidth = op.params["width"] as? Int ?? 0
+            let cropHeight = op.params["height"] as? Int ?? 0
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
                     Image(systemName: "crop").foregroundStyle(.secondary)
-                    Text("Cropped to \(width)×\(height) px")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Text("\(cropWidth)×\(cropHeight) px")
+                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    Text("at \(cropLeft),\(cropTop)")
+                        .font(.caption2).foregroundStyle(.tertiary)
                 }
-                Text("Use the crop tool on the canvas to re-crop.")
+                Text("Aspect ratio presets:")
+                    .font(.caption2).foregroundStyle(.tertiary)
+                HStack(spacing: 6) {
+                    ForEach([("1:1", 1.0), ("4:3", 4.0/3.0), ("3:2", 1.5), ("16:9", 16.0/9.0)],
+                            id: \.0) { label, ratio in
+                        Button(label) {
+                            let newWidth: Int
+                            let newHeight: Int
+                            if cropHeight > 0 && Double(cropWidth) / Double(cropHeight) > ratio {
+                                newHeight = cropHeight
+                                newWidth = Int(Double(cropHeight) * ratio)
+                            } else {
+                                newWidth = cropWidth
+                                newHeight = cropWidth > 0 ? Int(Double(cropWidth) / ratio) : 0
+                            }
+                            let newLeft = cropLeft + (cropWidth - newWidth) / 2
+                            let newTop = cropTop + (cropHeight - newHeight) / 2
+                            onRemove(index)
+                            onCrop(newLeft, newTop, newWidth, newHeight)
+                            selectedStepIndex = nil
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                        .disabled(isBusy || cropWidth == 0 || cropHeight == 0)
+                    }
+                }
+                Text("Or use the canvas marquee to free-crop.")
                     .font(.caption2).foregroundStyle(.tertiary)
             }
         default:
@@ -366,6 +399,7 @@ struct ImageEditChainPanel: View {
         onReset: {},
         onRotate: { _ in },
         onEnhance: { _, _, _, _ in },
+        onCrop: { _, _, _, _ in },
         onRemoveBackground: {},
         onFuzzyClean: {},
         onSegment: {}
@@ -383,6 +417,7 @@ struct ImageEditChainPanel: View {
         onReset: {},
         onRotate: { _ in },
         onEnhance: { _, _, _, _ in },
+        onCrop: { _, _, _, _ in },
         onRemoveBackground: {},
         onFuzzyClean: {},
         onSegment: {}
