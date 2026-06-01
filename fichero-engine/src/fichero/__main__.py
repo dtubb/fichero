@@ -623,6 +623,51 @@ def import_ghc_catalogued_materials_command(
     typer.echo(f"skipped: {summary.skipped}")
 
 
+@app.command(name="import-chota-colombian-pacific-maps")
+def import_chota_colombian_pacific_maps_command(
+    library_path: Path = typer.Option(
+        Path("~/Library/Application Support/Fichero/Chota-Pacific-Maps.fichero"),
+        "--library-path",
+        help="Target .fichero package to create/update.",
+    ),
+    source_root: Path = typer.Option(
+        Path("/Users/danieltubb/code/maps_southern_colombia"),
+        "--source-root",
+        help="Root folder containing Chota Valley + Colombian Pacific maps corpus.",
+    ),
+    reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
+    no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
+) -> None:
+    """Import Chota Valley + Colombian Pacific maps corpus."""
+    from fichero.source_archive_import import import_chota_colombian_pacific_maps
+
+    try:
+        summary = import_chota_colombian_pacific_maps(
+            library_path=library_path,
+            source_root=source_root,
+            reset=reset,
+            auto_embed=not no_embed,
+        )
+    except Exception as exc:
+        typer.secho(f"Chota/Pacific maps import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    if summary.warnings:
+        typer.secho(
+            f"Imported with {len(summary.warnings)} warning(s).",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        for warning in summary.warnings[:10]:
+            typer.echo(f"  {warning}", err=True)
+
+    typer.echo(f"library: {summary.library_path}")
+    typer.echo(f"provider: {summary.provider}")
+    typer.echo(f"root_documents: {summary.root_documents}")
+    typer.echo(f"files_imported: {summary.files_imported}")
+    typer.echo(f"skipped: {summary.skipped}")
+
+
 @app.command(name="import-dropbox-links")
 def import_dropbox_links_command(
     library_path: Path = typer.Option(
