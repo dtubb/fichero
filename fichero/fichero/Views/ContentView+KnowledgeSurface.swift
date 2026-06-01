@@ -29,7 +29,11 @@ extension ContentView {
         } else {
             VStack(spacing: 8) {
                 Spacer()
-                Text("Knowledge Surface")
+                // User-facing name for this pane. The internal type is
+                // DocumentKGWebPane / DocumentKGSurface, but the user only ever
+                // sees "Knowledge" (and the Transcript/Digest/Graph tab strip
+                // when a document is loaded) — the internal name never leaks. (#1450)
+                Text("Knowledge")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("Select a document with extracted knowledge to view transcript, digest, and graph.")
