@@ -164,6 +164,16 @@ extension LibraryView {
                         proxy.scrollTo(id, anchor: nil)
                     }
                 }
+                // Eager prefetch: warm the thumbnail cache as soon as the folder
+                // contents arrive so fast-scrolling sees images not placeholders (#719).
+                // Only file docs have backend thumbnails; folders use SF icons locally.
+                .task(id: filteredDocuments.map(\.id).joined()) {
+                    guard !Task.isCancelled else { return }
+                    let fileIds = filteredDocuments
+                        .filter { $0.docType == .file && $0.fileType != .pdf }
+                        .map(\.id)
+                    await libraryManager.globalLibrary?.storageService.prefetchThumbnails(fileIds)
+                }
             }
         }
     }
