@@ -207,11 +207,6 @@ struct KGTimelineView: View {
         return map
     }
 
-    /// Set of in-scope entity ids — drives the kind-filter cross-filter.
-    private var scopeEntityIds: Set<String> {
-        Set(entities.compactMap(\.id))
-    }
-
     /// Claims with a parseable start date, in scope, sorted by start.
     private var datedClaims: [DatedClaim] {
         claims.compactMap { claim -> DatedClaim? in
@@ -243,16 +238,16 @@ struct KGTimelineView: View {
     /// In scope when (a) the claim's subject resolves to a visible entity
     /// (kind filter), and (b) if focusing, it belongs to the selected entity.
     private func isInScope(_ claim: Components.Schemas.KnowledgeClaim) -> Bool {
+        // `claims` are already document-scoped by listClaims(sourceDocumentId:,
+        // includeDescendants:), so every loaded claim is in scope by
+        // construction. The previous entity-overlap filter (claim's entities ∩
+        // this document's entity list) dropped every dated claim whose entity
+        // wasn't in the doc-only entity list, so the timeline showed "No dated
+        // claims" even with parseable dates (#1470). Only narrow by entity when
+        // the user explicitly focuses on a selection.
+        guard focusOnSelection, let selectedEntityId else { return true }
         let ids = Set([claim.subjectEntityId].compactMap { $0 }).union(claim.entityIds ?? [])
-        if focusOnSelection, let selectedEntityId {
-            guard ids.contains(selectedEntityId) else { return false }
-        }
-        // Honour the kind filter: keep claims touching at least one visible
-        // entity. Claims with no resolved entity are kept (otherwise they'd
-        // silently vanish) only when no focus is active.
-        if ids.isEmpty { return !focusOnSelection }
-        if scopeEntityIds.isEmpty { return !focusOnSelection }
-        return !ids.isDisjoint(with: scopeEntityIds)
+        return ids.contains(selectedEntityId)
     }
 
     private static func lane(for kind: Components.Schemas.EntityTypeOutput?) -> String {
