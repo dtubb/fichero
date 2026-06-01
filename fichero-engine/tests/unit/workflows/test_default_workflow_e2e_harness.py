@@ -413,6 +413,34 @@ def _assert_kg_rows_landed(
     assert "Regression Person signed the fixture deed." in claim_texts
     assert any(claim.entity_ids for claim in fixture_claims)
 
+    # #1470/#1471 backend probe contract:
+    # - timeline path needs parsed temporal fields on extracted date claims
+    # - map path needs structured place_values on extracted place claims
+    date_claims = [
+        claim
+        for claim in fixture_claims
+        if (
+            (claim.metadata or {}).get("date_normalized")
+            or "1842" in (claim.text or "")
+        )
+    ]
+    assert date_claims, "expected at least one extracted date claim in fixture output"
+    assert any(
+        claim.time_start or claim.time_end or claim.date_values
+        for claim in date_claims
+    ), "date claims missing parsed temporal fields (time_start/time_end/date_values)"
+
+    place_claims = [
+        claim
+        for claim in fixture_claims
+        if "Regression Place" in (claim.text or "")
+    ]
+    assert place_claims, "expected at least one extracted place claim in fixture output"
+    assert any(
+        claim.claim_location or claim.place_values
+        for claim in place_claims
+    ), "place claims missing spatial fields (claim_location/place_values)"
+
 
 # ---------------------------------------------------------------------------
 # Twostage-path harness (#1285 re-open)

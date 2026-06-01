@@ -2373,6 +2373,7 @@ def _write_kg_rows(
         # KnowledgeClaim field stays NULL when the LLM doesn't date it.
         t_start = (item.get("time_start") or "").strip() or None
         t_end = (item.get("time_end") or "").strip() or None
+        t_precision = (item.get("time_precision") or "").strip() or None
         # Toulmin (#907) — populated by the LLM only for analytic
         # claim_types; fact claims emit empty strings which we drop.
         grounds_val = (item.get("grounds") or "").strip() or None
@@ -2394,6 +2395,23 @@ def _write_kg_rows(
                 or item.get("fecha_normalizada")
                 or ""
             )
+            normalized = str(normalized).strip()
+            if normalized and not t_start and not t_end:
+                if "/" in normalized:
+                    start_raw, end_raw = normalized.split("/", 1)
+                    t_start = start_raw.strip() or None
+                    t_end = end_raw.strip() or None
+                    t_precision = t_precision or "range"
+                else:
+                    t_start = normalized
+                    t_end = normalized
+                    if not t_precision:
+                        if len(normalized) == 4:
+                            t_precision = "year"
+                        elif len(normalized) == 7:
+                            t_precision = "month"
+                        elif len(normalized) >= 10:
+                            t_precision = "day"
             stem = normalized or date_text
             # Avoid double-period when predicate already ends in
             # terminal punctuation (#1113 polish).
@@ -2430,6 +2448,7 @@ def _write_kg_rows(
                 epistemic_status=epistemic,
                 time_start=t_start,
                 time_end=t_end,
+                time_precision=t_precision,
                 # SVO promotion (#984): also write to the typed
                 # top-level fields. Date-style claims have an implicit
                 # subject = the normalised date string.
@@ -2566,6 +2585,11 @@ def _write_kg_rows(
             claim_type=ctype or ClaimType.fact,
             metadata=meta,
             epistemic_status=epistemic,
+            claim_location=(
+                canonical
+                if entity_type == EntityType.location and canonical
+                else None
+            ),
             # SVO promotion (#984): typed top-level fields. The
             # subject IS the entity, so subject_entity_id resolves
             # the lookup at write time.

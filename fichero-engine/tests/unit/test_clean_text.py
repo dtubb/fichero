@@ -25,6 +25,7 @@ from fichero.workflows.tools.clean_text import (
     clean_text,
     _build_prompt,
 )
+from fichero.workflows.tools.text_cleaning import TextCleaner
 from fichero.llm import LLMConfig
 
 
@@ -142,6 +143,38 @@ class TestRegistration:
 
 
 class TestRuntimeBehavior:
+    def test_programmatic_cleaner_drops_ocr_digit_soup_keeps_real_lines(self):
+        raw_text = """
+33005 00s000Gc00000(0000005a5a 0D6000000000000000002 ...
+República de Colombia
+INTENDE ICIA NAL. DEL CHOCO
+DISTRITO JUDICIAL DE CALI
+JUZGADO PRIMERO DEL CIBCEITO
+ISTMIN
+1930
+...
+000000000000000000
+23908
+TTP. HERALDO.
+290029090
+"""
+
+        cleaned = TextCleaner.clean_text(raw_text)
+
+        # Real content remains.
+        assert "República de Colombia" in cleaned
+        assert "DISTRITO JUDICIAL DE CALI" in cleaned
+        assert "JUZGADO PRIMERO DEL CIBCEITO" in cleaned
+        assert "ISTMIN" in cleaned
+        assert "1930" in cleaned
+        assert "TTP. HERALDO." in cleaned
+
+        # OCR digit/symbol soup and single-number garbage are removed.
+        assert "33005 00s000Gc00000" not in cleaned
+        assert "000000000000000000" not in cleaned
+        assert "23908" not in cleaned
+        assert "290029090" not in cleaned
+
     @pytest.mark.asyncio
     async def test_programmatic_is_default_and_does_not_call_llm(self):
         cfg = LLMConfig(provider="openai", model="gpt-5")
