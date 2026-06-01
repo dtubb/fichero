@@ -104,6 +104,12 @@ struct ContentView: View {
     @SceneStorage("showSidebar") var showSidebar: Bool = true
     @SceneStorage("showInspectorSidebar") var showInspectorSidebar: Bool = true
     @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool = true
+    // Per-window visibility of the two reading-surface panes (#1448). Each
+    // window keeps its own choice via @SceneStorage (same pattern as the
+    // sidebar/inspector toggles). The library list/grid is intentionally NOT
+    // toggleable — it is always present as the spine of the workspace.
+    @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool = true
+    @SceneStorage("showReadingPane") var showReadingPane: Bool = true
 
     // Map view persistence (latitude, longitude, zoom)
     @SceneStorage("mapLatitude") var mapLatitude: Double = 0.0
@@ -641,6 +647,34 @@ extension ContentView {
             }
             .help(showDocumentGrid ? "Hide Document Grid (⌘⇧G)" : "Show Document Grid (⌘⇧G)")
             .keyboardShortcut("g", modifiers: [.command, .shift])
+        }
+
+        // Per-window show/hide for the document canvas and the reading/WebKit
+        // pane (#1448). Only meaningful in the reading-capable modes where those
+        // panes exist, so they're gated on showsPreviewPane to avoid dead
+        // controls elsewhere. The library list/grid stays always-present.
+        if showsPreviewPane {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showDocumentCanvas.toggle()
+                    }
+                } label: {
+                    Image(systemName: "doc.richtext")
+                }
+                .help(showDocumentCanvas ? "Hide Document Canvas" : "Show Document Canvas")
+            }
+
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showReadingPane.toggle()
+                    }
+                } label: {
+                    Image(systemName: "text.book.closed")
+                }
+                .help(showReadingPane ? "Hide Reading Pane" : "Show Reading Pane")
+            }
         }
 
         // Inspector toggle at the trailing edge of the toolbar — the
