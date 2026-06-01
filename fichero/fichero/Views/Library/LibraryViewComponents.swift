@@ -16,8 +16,8 @@ struct MailStyleRow: View {
 
     @EnvironmentObject private var documentStore: DocumentStore
 
-    private static let thumbWidth: CGFloat = 64
-    private static let thumbHeight: CGFloat = 80
+    private static let thumbWidth: CGFloat = 40
+    private static let thumbHeight: CGFloat = 50
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -183,6 +183,16 @@ struct MailStyleRow: View {
                     path: pdfPath, size: size, pageIndex: pageIndex
                 )
                 .clipped()
+            } else if document.fileType == .image,
+                      let path = document.path, !path.isEmpty,
+                      let nsImage = NSImage(contentsOfFile: path) {
+                // Load image directly from disk — avoids showing OCR text
+                // as a TextPreviewThumbnail when pageContent is non-empty (#1458).
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
             } else if let preview = document.pageContent, !preview.isEmpty {
                 TextPreviewThumbnail(text: preview)
                     .frame(width: size.width, height: size.height)
@@ -313,6 +323,16 @@ struct DocumentThumbnailView: View {
                         pageIndex: pageIndex
                     )
                     .clipped()
+                } else if document.fileType == .image,
+                          let path = document.path, !path.isEmpty,
+                          let nsImage = NSImage(contentsOfFile: path) {
+                    // Load image directly from disk — avoids the TextPreviewThumbnail
+                    // branch showing OCR text when pageContent is non-empty (#1458).
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
                 } else if let preview = document.pageContent, !preview.isEmpty {
                     TextPreviewThumbnail(text: preview)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)

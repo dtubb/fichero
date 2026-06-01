@@ -259,14 +259,13 @@ struct LibraryView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 // Entity-type filter — toggles which People/Places/Orgs/
-                // Dates/Events/Keywords lozenges show in list-row UI.
-                // Always present so the top-right control survives across
-                // icon / list / table / map modes (#883).
-                // Entity-type filter is the only top-toolbar control —
-                // the icon list uses trackpad pinch-to-zoom (#604), not
-                // toolbar zoom buttons, and the filter strip isn't driven
-                // from here (#1023).
-                entityFilterMenu
+                // Dates/Events/Keywords lozenges show in list rows.
+                // Hidden in non-list modes (icon/table/map) where no
+                // lozenges are rendered, so the button's purpose is clear
+                // (#1473 — Daniel: "not sure why this is here").
+                if displayMode == .list {
+                    entityFilterMenu
+                }
             }
         }
     }

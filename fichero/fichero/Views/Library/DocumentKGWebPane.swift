@@ -53,6 +53,8 @@ enum DocumentKGPaneRoute {
         }
 
         var vars = ""
+        var selectionBg = ""
+        var selectionText = ""
         NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
             vars = """
             --bg: \(cssColor(.textBackgroundColor));
@@ -63,8 +65,13 @@ enum DocumentKGPaneRoute {
             --accent: \(cssColor(.controlAccentColor));
             --accent-soft: \(cssColor(.controlAccentColor.withAlphaComponent(0.14)));
             """
+            // Bridge the macOS system selection color so ::selection in the
+            // WebKit document matches the user's accent / appearance setting
+            // instead of the browser's reddish-brown default (#1481).
+            selectionBg = cssColor(.selectedTextBackgroundColor)
+            selectionText = cssColor(.selectedTextColor)
         }
-        return ":root{\(vars)}"
+        return ":root{\(vars)}::selection{background-color:\(selectionBg);color:\(selectionText);}"
     }
 
     /// JS that injects (or refreshes) the system-theme `<style>` element so it
