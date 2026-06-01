@@ -854,9 +854,12 @@ class MigrationRunner:
         if not mutations:
             return None
 
+        all_reversed = all(bool(m.reversal_id) for m in mutations)
+        status = MigrationStatus.rolled_back.value if all_reversed else MigrationStatus.completed.value
+
         return {
             "run_id": run_id,
-            "status": "completed" if mutations else "unknown",
+            "status": status,
             "total_mutations": len(mutations),
             "entity_types": list(set(m.entity_type for m in mutations)),
             "created_at": min(m.created_at for m in mutations).isoformat(),

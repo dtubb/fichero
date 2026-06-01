@@ -449,6 +449,36 @@ class TestMigrationResult:
         assert data["audit_id"] == "audit123"
 
 
+class TestMigrationStatus:
+    def test_get_migration_status_reports_rolled_back_when_all_reversed(
+        self, migration_runner, mock_db
+    ):
+        mutation_a = MutationLog(
+            id="mut-a",
+            entity_type="KnowledgeClaim",
+            entity_id="claim-a",
+            operation=MutationOperationType.update,
+            before_state={"text": "before"},
+            after_state={"text": "after"},
+            run_id="run-1",
+            reversal_id="rollback_1",
+        )
+        mutation_b = MutationLog(
+            id="mut-b",
+            entity_type="KnowledgeEntity",
+            entity_id="entity-b",
+            operation=MutationOperationType.update,
+            before_state={"canonical_name": "before"},
+            after_state={"canonical_name": "after"},
+            run_id="run-1",
+            reversal_id="rollback_2",
+        )
+        mock_db.query.return_value = [mutation_a, mutation_b]
+
+        status = migration_runner.get_migration_status("run-1")
+        assert status is not None
+        assert status["status"] == "rolled_back"
+
 class TestDataIntegrityChecks:
     """Test cases for data integrity validation."""
 
