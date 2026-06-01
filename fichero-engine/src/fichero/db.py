@@ -62,9 +62,12 @@ T = TypeVar("T", bound=BaseModel)
 # Minimum content length to create embedding
 MIN_CONTENT_LENGTH = 10
 
-# Default embedding model (FastEmbed).
-# BGE-M3 gives stronger multilingual retrieval for hybrid search.
-DEFAULT_MODEL = "BAAI/bge-m3"
+# Default embedding model (FastEmbed). MUST be a model that fastembed's
+# TextEmbedding actually supports — keep in sync with
+# db_embeddings.DEFAULT_MODEL (the single source of truth for the real
+# embedder). "BAAI/bge-m3" is NOT supported by fastembed and made the
+# embeddings pre-warm fail on every startup (#1524).
+DEFAULT_MODEL = "intfloat/multilingual-e5-large"
 
 # Valid identifier pattern for SQL column/table names
 _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")

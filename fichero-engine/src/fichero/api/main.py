@@ -383,19 +383,39 @@ def _prewarm_embeddings() -> None:
     """Download + initialise the embeddings model so it's ready before first use."""
     try:
         from fastembed import TextEmbedding
-        from fichero.db import DEFAULT_MODEL
+
+        # Use the embedder's own canonical default (single source of truth) so
+        # pre-warm always loads the same model the real embedder uses (#1524).
+        from fichero.db_embeddings import DEFAULT_MODEL
         from fichero.local_models import MODELS_BASE
+
+        # Guard against an unsupported model name (e.g. a stale setting, or a
+        # default that fastembed dropped support for): fall back to the
+        # canonical default rather than failing the whole pre-warm (#1524).
+        model_name = DEFAULT_MODEL
+        try:
+            supported = {m["model"] for m in TextEmbedding.list_supported_models()}
+            if model_name not in supported:
+                logger.warning(
+                    "Embedding model %s not supported by fastembed; "
+                    "falling back to %s",
+                    model_name,
+                    DEFAULT_MODEL,
+                )
+                model_name = DEFAULT_MODEL
+        except Exception:  # noqa: BLE001 — never let the guard block pre-warm
+            pass
 
         cache_dir = MODELS_BASE / "embeddings"
         cache_dir.mkdir(parents=True, exist_ok=True)
-        logger.info("Pre-warming embeddings model: %s", DEFAULT_MODEL)
+        logger.info("Pre-warming embeddings model: %s", model_name)
         import warnings
 
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore", message=".*multilingual-e5-large.*pooling.*"
             )
-            TextEmbedding(model_name=DEFAULT_MODEL, cache_dir=str(cache_dir))
+            TextEmbedding(model_name=model_name, cache_dir=str(cache_dir))
         logger.info("Embeddings model ready")
     except Exception as exc:
         logger.warning("Embeddings pre-warm failed (will retry on first use): %s", exc)
