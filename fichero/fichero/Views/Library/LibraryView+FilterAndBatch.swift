@@ -242,6 +242,14 @@ extension LibraryView {
             }
         }
 
+        // Add-to-Workspace bridge (#1494): alias this document into a
+        // workspace folder. Never moves the source (#1487).
+        Button {
+            workspacePickerDocument = document
+        } label: {
+            Label("Add to Workspace…", systemImage: "square.grid.2x2")
+        }
+
         // Run Workflow submenu — workflows grouped by `folderPath` so
         // user-organized presets (e.g. /Catalogue, /Transcribe) appear
         // as nested submenus matching the context menu in the sidebar

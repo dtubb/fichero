@@ -70,6 +70,10 @@ struct LibraryView: View {
     @State var showWorkflowPicker = false
     @State var selectedDocumentIdsForBatch: [String] = []
 
+    /// Document pending presentation in the Add-to-Workspace picker (#1494).
+    /// Non-nil drives the `.sheet(item:)` below.
+    @State var workspacePickerDocument: Document?
+
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var windowState: WindowState
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
@@ -214,6 +218,9 @@ struct LibraryView: View {
                     }
                 )
                 .environmentObject(libraryManager)
+            }
+            .sheet(item: $workspacePickerDocument) { document in
+                WorkspaceItemPicker(document: document)
             }
             .focusedSceneValue(
                 \.runWorkflowOnSelection,
