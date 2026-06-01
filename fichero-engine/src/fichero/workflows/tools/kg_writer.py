@@ -90,6 +90,18 @@ async def kg_writer(
             (s for s in _SECTIONS if s.get("name") == section_name),
             None,
         )
+        target_doc_id = str(record.get("target_doc_id") or "").strip()
+        if not target_doc_id:
+            await emit_progress_event(
+                progress_callback,
+                "file_complete",
+                "",
+                phase,
+                index,
+                total,
+                message="KG writer skipped record with empty target_doc_id",
+            )
+            continue
         if section is None:
             await emit_progress_event(
                 progress_callback,
@@ -105,7 +117,7 @@ async def kg_writer(
             db,
             section,
             record.get("items") or [],
-            str(record.get("target_doc_id") or ""),
+            target_doc_id,
             page_label=record.get("page_label"),
             source_excerpt=record.get("source_excerpt"),
             provider=record.get("provider") or getattr(llm_config, "provider", None),
