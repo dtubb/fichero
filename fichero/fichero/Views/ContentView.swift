@@ -405,7 +405,7 @@ extension ContentView {
             Button {
                 navigateBack()
             } label: {
-                Image(systemName: "chevron.left")
+                Image(systemName: "chevron.backward")
             }
             .help("Back (⌘[)")
             .keyboardShortcut("[", modifiers: [.command])
@@ -414,7 +414,7 @@ extension ContentView {
             Button {
                 navigateForward()
             } label: {
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
             }
             .help("Forward (⌘])")
             .keyboardShortcut("]", modifiers: [.command])

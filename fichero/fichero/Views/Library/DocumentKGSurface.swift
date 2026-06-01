@@ -93,6 +93,14 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .realitykit: return "Spatial view — documents arranged in a 3D scene"
         }
     }
+
+    /// True for tabs rendered inside the shared WKWebView (#1346).
+    var usesWebKit: Bool {
+        switch self {
+        case .transcript, .digest, .graph: return true
+        case .claims, .timeline, .map, .realitykit: return false
+        }
+    }
 }
 
 /// Hosts the WebKit document KG plus native document-scoped claims, timeline,
@@ -136,8 +144,10 @@ struct DocumentKGSurface: View {
 
     @ViewBuilder
     private var content: some View {
-        switch activeTab {
-        case .transcript, .digest, .graph:
+        // Keep the WKWebView alive across tab switches via ZStack + opacity
+        // so scroll position survives when the user moves between transcript/
+        // digest/graph and the native tabs (claims, timeline, map). (#1346)
+        ZStack {
             DocumentKGWebPane(
                 documentId: documentId,
                 libraryPath: libraryPath,
@@ -149,6 +159,20 @@ struct DocumentKGSurface: View {
                 onPageSelected: onPageSelected,
                 scrollSync: scrollSync
             )
+            .opacity(activeTab.usesWebKit ? 1 : 0)
+            .allowsHitTesting(activeTab.usesWebKit)
+
+            if !activeTab.usesWebKit {
+                nativeTabContent
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var nativeTabContent: some View {
+        switch activeTab {
+        case .transcript, .digest, .graph:
+            EmptyView()
         case .claims:
             ScrollView {
                 KnowledgeGraphInspectorSection(
