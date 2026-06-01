@@ -21,6 +21,7 @@ extension Notification.Name {
 enum InspectorTab: String, CaseIterable, Identifiable {
     case content = "Content"
     case annotations = "Annotations"
+    case notes = "Notes"
     case knowledgeGraph = "Knowledge Graph"
     case artifacts = "Artifacts"
     case edits = "Edits"
@@ -32,6 +33,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         switch self {
         case .content: return "doc.text"
         case .annotations: return "highlighter"
+        case .notes: return "pencil.and.scribble"
         case .knowledgeGraph: return "point.3.connected.trianglepath.dotted"
         case .artifacts: return "shippingbox"
         case .edits: return "slider.horizontal.3"
@@ -46,6 +48,8 @@ enum InspectorTab: String, CaseIterable, Identifiable {
             return "Content — read the document's extracted text and page contents"
         case .annotations:
             return "Annotations — view and edit highlights and notes on this document"
+        case .notes:
+            return "Notes — free-text research notes linked to this document"
         case .knowledgeGraph:
             return "Knowledge graph — the entities (people, places, organizations…) found in this document"
         case .artifacts:
@@ -154,6 +158,8 @@ struct DocumentInspector: View {
             contentTab(for: doc)
         case .annotations:
             DocumentInspectorAnnotationsTab(document: doc)
+        case .notes:
+            DocumentNotesTab(document: doc)
         case .knowledgeGraph:
             knowledgeGraphTab(for: doc)
         case .artifacts:
@@ -167,7 +173,7 @@ struct DocumentInspector: View {
 
     private func availableTabs(for doc: Document?) -> [InspectorTab] {
         guard let doc else { return InspectorTab.allCases }
-        var tabs: [InspectorTab] = [.content, .annotations, .knowledgeGraph, .artifacts]
+        var tabs: [InspectorTab] = [.content, .annotations, .notes, .knowledgeGraph, .artifacts]
         if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
             tabs.append(.edits)
         }
