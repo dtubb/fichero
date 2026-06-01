@@ -48,6 +48,12 @@ DEFAULT_GHC_ACENET_ROOT = Path(
 DEFAULT_GHC_CATALOGUED_ROOT = Path(
     "/Users/danieltubb/Library/CloudStorage/Box-Box/GHC/already_catalogued"
 ).expanduser()
+DEFAULT_CHOTA_PACIFIC_LIBRARY = Path(
+    "~/Library/Application Support/Fichero/Chota-Pacific-Maps.fichero"
+).expanduser()
+DEFAULT_CHOTA_PACIFIC_SOURCE = Path(
+    "/Users/danieltubb/code/maps_southern_colombia"
+).expanduser()
 
 IMPORTABLE_EXTENSIONS = {
     ".jpg",
@@ -151,6 +157,23 @@ def import_ghc_catalogued_materials(
             "acenet_imports": acenet_root,
             "already_catalogued": catalogued_root,
         },
+        reset=reset,
+        auto_embed=auto_embed,
+    )
+
+
+def import_chota_colombian_pacific_maps(
+    *,
+    library_path: Path = DEFAULT_CHOTA_PACIFIC_LIBRARY,
+    source_root: Path = DEFAULT_CHOTA_PACIFIC_SOURCE,
+    reset: bool = False,
+    auto_embed: bool = True,
+) -> SourceArchiveImportSummary:
+    return _import_roots(
+        provider="chota_colombian_pacific_maps",
+        corpus_name="Chota Valley + Colombian Pacific Maps",
+        library_path=library_path,
+        roots={"maps_southern_colombia": source_root},
         reset=reset,
         auto_embed=auto_embed,
     )
