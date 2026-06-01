@@ -471,7 +471,13 @@ extension ContentView {
                 // current mode supports multiple presentations and more than one
                 // option is available. Syncs with viewSettings.libraryLayout so
                 // the View menu checkmark stays in sync (#1215).
-                if showViewModePicker && availableViewDisplayModes.count > 1 {
+                //
+                // De-duplicated (#1446): in Library/Search the same control is
+                // already rendered as the in-content mode rail (horizontalModeStrip),
+                // so suppress the toolbar copy there. The toolbar picker remains the
+                // sole view-mode control for modes that have no mode rail (e.g.
+                // Workflows), where `showModeRail` is false.
+                if showViewModePicker && availableViewDisplayModes.count > 1 && !showModeRail {
                     Picker("View", selection: $viewDisplayMode) {
                         ForEach(availableViewDisplayModes) { mode in
                             Label(mode.rawValue, systemImage: mode.icon)
