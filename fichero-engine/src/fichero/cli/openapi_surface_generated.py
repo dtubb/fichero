@@ -5655,6 +5655,7 @@ def register_generated_openapi_commands(
         linked_claim_id: Optional[str] = typer.Option(None, "--linked-claim-id", help="Query parameter: linked_claim_id."),
         linked_document_id: Optional[str] = typer.Option(None, "--linked-document-id", help="Query parameter: linked_document_id."),
         linked_entity_id: Optional[str] = typer.Option(None, "--linked-entity-id", help="Query parameter: linked_entity_id."),
+        linked_structure_node_id: Optional[str] = typer.Option(None, "--linked-structure-node-id", help="Query parameter: linked_structure_node_id."),
         q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
         tag: Optional[str] = typer.Option(None, "--tag", help="Query parameter: tag."),
     ) -> None:
@@ -5666,6 +5667,7 @@ def register_generated_openapi_commands(
                 "linked_claim_id": linked_claim_id,
                 "linked_document_id": linked_document_id,
                 "linked_entity_id": linked_entity_id,
+                "linked_structure_node_id": linked_structure_node_id,
                 "q": q,
                 "tag": tag,
             }

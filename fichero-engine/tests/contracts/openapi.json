@@ -1495,6 +1495,16 @@
             }
           },
           {
+            "name": "linked_structure_node_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Linked Structure Node Id"
+            }
+          },
+          {
             "name": "q",
             "in": "query",
             "required": false,
@@ -45397,6 +45407,11 @@
             "type": "array",
             "title": "Linked Document Ids"
           },
+          "linked_structure_node_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Linked Structure Node Id"
+          },
           "address": {
             "type": "string",
             "nullable": true,
@@ -45583,6 +45598,11 @@
             "type": "array",
             "nullable": true,
             "title": "Linked Document Ids"
+          },
+          "linked_structure_node_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Linked Structure Node Id"
           },
           "address": {
             "type": "string",
@@ -54924,6 +54944,11 @@
             "type": "array",
             "title": "Linked Document Ids",
             "default": []
+          },
+          "linked_structure_node_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Linked Structure Node Id"
           },
           "address": {
             "type": "string",

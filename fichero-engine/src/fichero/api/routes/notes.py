@@ -37,6 +37,7 @@ class NoteCreateRequest(BaseModel):
     linked_entity_ids: list[str] = []
     linked_claim_ids: list[str] = []
     linked_document_ids: list[str] = []
+    linked_structure_node_id: str | None = None
     address: str | None = None
     parent_address: str | None = None
 
@@ -58,6 +59,7 @@ async def list_notes(
     linked_entity_id: str | None = Query(default=None),
     linked_claim_id: str | None = Query(default=None),
     linked_document_id: str | None = Query(default=None),
+    linked_structure_node_id: str | None = Query(default=None),
     q: str | None = Query(default=None, description="full-text body search"),
     db: Database = Depends(get_library_database),
 ) -> NoteListResponse:
@@ -72,6 +74,8 @@ async def list_notes(
         rows = [r for r in rows if linked_claim_id in (r.linked_claim_ids or [])]
     if linked_document_id is not None:
         rows = [r for r in rows if linked_document_id in (r.linked_document_ids or [])]
+    if linked_structure_node_id is not None:
+        rows = [r for r in rows if r.linked_structure_node_id == linked_structure_node_id]
     if q:
         needle = q.lower()
         rows = [
@@ -103,6 +107,7 @@ class NotePatchRequest(BaseModel):
     linked_entity_ids: list[str] | None = None
     linked_claim_ids: list[str] | None = None
     linked_document_ids: list[str] | None = None
+    linked_structure_node_id: str | None = None
     address: str | None = None
     parent_address: str | None = None
 
