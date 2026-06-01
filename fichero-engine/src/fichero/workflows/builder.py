@@ -22,7 +22,10 @@ from fichero.workflows.types import State, WorkflowDef, NodeDef
 from fichero.workflows.registry import get_tool, get_tool_def
 from fichero.workflows.resolver import resolve_inputs, evaluate_condition
 from fichero.workflows.cache import get_node_cache, compute_cache_key, CACHEABLE_TOOLS
-from fichero.workflows.tools.output_quality import assess_result_quality
+from fichero.workflows.tools.output_quality import (
+    assess_result_quality,
+    detect_page_contamination_warnings,
+)
 from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
@@ -623,6 +626,26 @@ def _make_node_function(
                         total_count=1,
                         errors=[{"node": node_id, "error": reason}],
                     )
+
+            # Page-level cross-document contamination heuristic (#1399):
+            # flag suspicious outlier pages (language/jurisdiction mismatch)
+            # without aborting the run.
+            if isinstance(result, dict):
+                contamination = detect_page_contamination_warnings(result)
+                if contamination:
+                    logger.warning(
+                        "Node %s flagged %d possible mis-filed page(s)",
+                        node_id,
+                        len(contamination),
+                    )
+                    existing_warnings = result.get("quality_warnings")
+                    if isinstance(existing_warnings, list):
+                        result["quality_warnings"] = [
+                            *existing_warnings,
+                            *contamination,
+                        ]
+                    else:
+                        result["quality_warnings"] = contamination
 
             # Update outputs
             outputs = dict(state.get("outputs", {}))

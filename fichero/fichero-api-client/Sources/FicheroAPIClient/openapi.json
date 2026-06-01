@@ -5417,6 +5417,60 @@
         }
       }
     },
+    "/api/claims/assign-time-period-from-metadata": {
+      "post": {
+        "tags": [
+          "claims",
+          "claims"
+        ],
+        "summary": "Assign Time Period From Metadata",
+        "description": "Assign claim dates from the source document's metadata date field.",
+        "operationId": "assign_time_period_from_metadata_api_claims_assign_time_period_from_metadata_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimAssignTimePeriodFromMetadataRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimAssignTimePeriodFromMetadataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents": {
       "get": {
         "tags": [
@@ -19518,6 +19572,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApplyPredictionsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/review/summary": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Review queue summary for badge counts",
+        "operationId": "review_summary_api_kg_review_summary_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSummaryResponse"
                 }
               }
             }
@@ -34743,6 +34839,68 @@
         ],
         "title": "CitationUsageListResponse"
       },
+      "ClaimAssignTimePeriodFromMetadataRequest": {
+        "properties": {
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "include_descendants": {
+            "type": "boolean",
+            "title": "Include Descendants",
+            "default": false
+          },
+          "overwrite_existing": {
+            "type": "boolean",
+            "title": "Overwrite Existing",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_document_id"
+        ],
+        "title": "ClaimAssignTimePeriodFromMetadataRequest",
+        "description": "Bulk-assign time period using metadata date on a source document."
+      },
+      "ClaimAssignTimePeriodFromMetadataResponse": {
+        "properties": {
+          "matched_count": {
+            "type": "integer",
+            "title": "Matched Count"
+          },
+          "updated_count": {
+            "type": "integer",
+            "title": "Updated Count"
+          },
+          "skipped_existing_count": {
+            "type": "integer",
+            "title": "Skipped Existing Count"
+          },
+          "time_start": {
+            "type": "string",
+            "title": "Time Start"
+          },
+          "time_end": {
+            "type": "string",
+            "title": "Time End"
+          },
+          "source_field": {
+            "type": "string",
+            "title": "Source Field"
+          }
+        },
+        "type": "object",
+        "required": [
+          "matched_count",
+          "updated_count",
+          "skipped_existing_count",
+          "time_start",
+          "time_end",
+          "source_field"
+        ],
+        "title": "ClaimAssignTimePeriodFromMetadataResponse"
+      },
       "ClaimAssignTimePeriodRequest": {
         "properties": {
           "source_document_id": {
@@ -48338,6 +48496,25 @@
         ],
         "title": "ReviewPairResponse",
         "description": "One pending pair waiting for a reviewer decision."
+      },
+      "ReviewSummaryResponse": {
+        "properties": {
+          "pending_count": {
+            "type": "integer",
+            "title": "Pending Count"
+          },
+          "has_pending": {
+            "type": "boolean",
+            "title": "Has Pending"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pending_count",
+          "has_pending"
+        ],
+        "title": "ReviewSummaryResponse",
+        "description": "Compact queue status for badge/UI polling."
       },
       "RollbackRequest": {
         "properties": {

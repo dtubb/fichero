@@ -44,6 +44,133 @@ _UNCERTAINTY_TOKENS = {"[ilegible]", "[illegible]", "[uncertain]"}
 # a quality failure.
 _NO_TEXT_SENTINELS = {"[sin texto]", "[no text]", "[sintexto]"}
 
+# Cross-document contamination heuristics (#1399). Kept intentionally
+# lightweight/transparent so false-positives are inspectable.
+_EN_MARKERS = {
+    "the", "and", "of", "to", "in", "we", "people", "constitution",
+    "article", "amendment", "bearer", "gold", "dollars",
+}
+_ES_MARKERS = {
+    "de", "la", "el", "y", "en", "que", "del", "trabajo", "juzgado",
+    "demanda", "compania", "compañía", "quibdo", "quibdó", "andagoya",
+    "istmina", "cedula", "cédula",
+}
+_JURISDICTION_KEYWORDS = {
+    "us": {
+        "constitution", "amendment", "united", "states", "bearer",
+        "gold", "dollars", "article", "we", "people",
+    },
+    "colombia": {
+        "juzgado", "trabajo", "istmina", "quibdo", "quibdó", "andagoya",
+        "demanda", "laboral", "cedula", "cédula", "compania", "compañía",
+        "choco", "chocó",
+    },
+    "spain": {
+        "guardia", "civil", "alicante", "españa", "espana",
+    },
+}
+
+
+def _tokenize_words(text: str) -> list[str]:
+    import re
+
+    return re.findall(r"[a-zA-ZáéíóúñüÁÉÍÓÚÑÜ]+", text.lower())
+
+
+def _guess_language(tokens: list[str]) -> str:
+    if not tokens:
+        return "unknown"
+    en = sum(1 for t in tokens if t in _EN_MARKERS)
+    es = sum(1 for t in tokens if t in _ES_MARKERS)
+    if en == es:
+        return "unknown"
+    return "en" if en > es else "es"
+
+
+def _guess_jurisdiction(tokens: list[str]) -> str:
+    if not tokens:
+        return "unknown"
+    best_name = "unknown"
+    best_score = 0
+    for name, vocab in _JURISDICTION_KEYWORDS.items():
+        score = sum(1 for t in tokens if t in vocab)
+        if score > best_score:
+            best_score = score
+            best_name = name
+    return best_name if best_score > 0 else "unknown"
+
+
+def detect_page_contamination_warnings(result: dict) -> list[dict]:
+    """Detect pages that look inconsistent with the folder baseline (#1399)."""
+    page_records = result.get("page_records")
+    if not isinstance(page_records, list) or len(page_records) < 3:
+        return []
+
+    analyzed: list[dict] = []
+    for idx, rec in enumerate(page_records):
+        if not isinstance(rec, dict):
+            continue
+        text = str(rec.get("text") or "").strip()
+        if not text:
+            continue
+        tokens = _tokenize_words(text)
+        analyzed.append(
+            {
+                "index": idx,
+                "doc_id": rec.get("doc_id"),
+                "page_number": rec.get("page_number"),
+                "language": _guess_language(tokens),
+                "jurisdiction": _guess_jurisdiction(tokens),
+            }
+        )
+
+    if len(analyzed) < 3:
+        return []
+
+    from collections import Counter
+
+    lang_counts = Counter(
+        item["language"] for item in analyzed if item["language"] != "unknown"
+    )
+    juris_counts = Counter(
+        item["jurisdiction"]
+        for item in analyzed
+        if item["jurisdiction"] != "unknown"
+    )
+    majority_lang = lang_counts.most_common(1)[0][0] if lang_counts else "unknown"
+    majority_juris = juris_counts.most_common(1)[0][0] if juris_counts else "unknown"
+
+    warnings: list[dict] = []
+    for item in analyzed:
+        reasons: list[str] = []
+        if (
+            majority_juris != "unknown"
+            and item["jurisdiction"] != "unknown"
+            and item["jurisdiction"] != majority_juris
+        ):
+            reasons.append(
+                f"jurisdiction differs ({item['jurisdiction']} vs {majority_juris})"
+            )
+        if (
+            majority_lang != "unknown"
+            and item["language"] != "unknown"
+            and item["language"] != majority_lang
+        ):
+            reasons.append(
+                f"language differs ({item['language']} vs {majority_lang})"
+            )
+        if reasons:
+            warnings.append(
+                {
+                    "type": "page_cross_document_contamination",
+                    "doc_id": item.get("doc_id"),
+                    "page_index": item["index"],
+                    "page_number": item.get("page_number"),
+                    "reason": "; ".join(reasons),
+                }
+            )
+    return warnings
+
 
 def _is_bad_char(ch: str) -> bool:
     if ch in _BAD_GLYPHS:

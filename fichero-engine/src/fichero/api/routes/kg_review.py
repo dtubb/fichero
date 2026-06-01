@@ -98,6 +98,29 @@ class ReviewPairResponse(BaseModel):
     created_at: datetime
 
 
+class ReviewSummaryResponse(BaseModel):
+    """Compact queue status for badge/UI polling."""
+    pending_count: int
+    has_pending: bool
+
+
+@router.get(
+    "/summary",
+    response_model=ReviewSummaryResponse,
+    summary="Review queue summary for badge counts",
+)
+async def review_summary(
+    db: Database = Depends(get_library_database),
+) -> ReviewSummaryResponse:
+    pending_count = len(
+        db.query(EntityMatchCandidate, state=PendingMatchState.pending)
+    )
+    return ReviewSummaryResponse(
+        pending_count=pending_count,
+        has_pending=pending_count > 0,
+    )
+
+
 @router.get(
     "/pairs",
     response_model=ReviewListResponse,

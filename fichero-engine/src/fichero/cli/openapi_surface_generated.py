@@ -1518,6 +1518,20 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("assign-time-period-from-metadata")
+    def claims_assign_time_period_from_metadata_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Assign Time Period From Metadata (POST /api/claims/assign-time-period-from-metadata)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/claims/assign-time-period-from-metadata"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("batch-transition")
     def claims_batch_transition_post(
         ctx: typer.Context,
@@ -4261,6 +4275,17 @@ def register_generated_openapi_commands(
             path = f"/api/kg/review/pairs/{pair_id}/reject"
             params = None
             return client.request("POST", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("review-queue-summary-for-badge-counts")
+    def kg_review_queue_summary_for_badge_counts_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Review queue summary for badge counts (GET /api/kg/review/summary)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/review/summary"
+            params = None
+            return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("mixed-type-search-one-call-hits-across-entities-claims-notes-annotations")
@@ -7908,6 +7933,18 @@ def register_generated_openapi_commands(
                 "limit": limit,
             }
             return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("pause")
+    def workflow_execution_pause_post(
+        ctx: typer.Context,
+        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+    ) -> None:
+        """Pause Workflow (POST /api/workflow-execution/threads/{thread_id}/pause)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/workflow-execution/threads/{thread_id}/pause"
+            params = None
+            return client.request("POST", path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("resume")

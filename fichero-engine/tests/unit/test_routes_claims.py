@@ -325,6 +325,31 @@ class TestAssignTimePeriod:
         unchanged = db.get(KnowledgeClaim, claim.id)
         assert unchanged.time_start == "1900-01-01"
 
+    def test_assigns_period_from_document_metadata(self, client, db):
+        folder = Document(name="Book Folder", doc_type=DocType.folder)
+        folder.metadata = {"publication_date": "1937-03-10"}
+        db.save(folder)
+
+        page = Document(name="Page 1", doc_type=DocType.page, parent_id=folder.id)
+        db.save(page)
+        claim = _make_claim(db, page, "Metadata dated claim")
+        db.save(claim)
+
+        r = client.post(
+            "/api/claims/assign-time-period-from-metadata",
+            json={
+                "source_document_id": folder.id,
+                "include_descendants": True,
+            },
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["time_start"] == "1937-03-10"
+        assert payload["updated_count"] == 1
+        updated = db.get(KnowledgeClaim, claim.id)
+        assert updated.time_start == "1937-03-10"
+        assert updated.time_end == "1937-03-10"
+
 
 class TestResolveClaimSource:
     def test_resolve_by_claim_id_returns_page_and_char_span(self, client, db):
