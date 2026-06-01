@@ -1,6 +1,8 @@
 import AppKit
 import SwiftUI
 
+// swiftlint:disable file_length
+
 private enum CompareMode: String, CaseIterable {
     case single = "Single"
     case wipe = "Slider"
@@ -415,27 +417,63 @@ private extension ImageEditorView {
                             in: CGSize(width: geo.size.width - 24, height: geo.size.height - 24)
                         )
                         let frame = fitted.offsetBy(dx: 12, dy: 12)
-                        Image(nsImage: original.image)
-                            .resizable()
-                            .interpolation(.high)
-                            .frame(width: frame.width, height: frame.height)
-                            .position(x: frame.midX, y: frame.midY)
-                        Image(nsImage: edited.image)
-                            .resizable()
-                            .interpolation(.high)
-                            .frame(width: frame.width, height: frame.height)
-                            .position(x: frame.midX, y: frame.midY)
-                            .mask(
-                                Rectangle()
-                                    .frame(width: max(0, min(1, compareSplit)) * frame.width, height: frame.height)
-                                    .offset(x: frame.minX, y: frame.minY)
-                            )
-                    }
-                    VStack {
-                        Spacer()
-                        Slider(value: $compareSplit, in: 0...1)
-                            .padding(.horizontal, 24)
-                            .padding(.bottom, 12)
+                        let split = max(0, min(1, compareSplit))
+                        ZStack(alignment: .topLeading) {
+                            // Original underneath — full size
+                            Image(nsImage: original.image)
+                                .resizable()
+                                .interpolation(.high)
+                                .frame(width: frame.width, height: frame.height)
+                            // Edited on top — clipped to left split portion via double-frame
+                            Image(nsImage: edited.image)
+                                .resizable()
+                                .interpolation(.high)
+                                .frame(width: frame.width, height: frame.height)
+                                .frame(width: split * frame.width, height: frame.height, alignment: .leading)
+                                .clipped()
+                            // Divider line
+                            Rectangle()
+                                .fill(Color.white.opacity(0.9))
+                                .frame(width: 2, height: frame.height)
+                                .offset(x: split * frame.width - 1)
+                            // Before / After labels
+                            HStack(spacing: 0) {
+                                Text("Before")
+                                    .font(.caption2.weight(.medium))
+                                    .padding(.horizontal, 5).padding(.vertical, 2)
+                                    .background(Color.black.opacity(0.45))
+                                    .foregroundStyle(.white)
+                                    .cornerRadius(3)
+                                    .padding(.leading, 6).padding(.top, 6)
+                                    .opacity(split > 0.1 ? 1 : 0)
+                                Spacer()
+                                Text("After")
+                                    .font(.caption2.weight(.medium))
+                                    .padding(.horizontal, 5).padding(.vertical, 2)
+                                    .background(Color.black.opacity(0.45))
+                                    .foregroundStyle(.white)
+                                    .cornerRadius(3)
+                                    .padding(.trailing, 6).padding(.top, 6)
+                                    .opacity(split < 0.9 ? 1 : 0)
+                            }
+                            .frame(width: frame.width)
+                            // Drag handle on divider
+                            Image(systemName: "arrow.left.and.right")
+                                .font(.caption2)
+                                .padding(5)
+                                .background(Color.white.opacity(0.88))
+                                .clipShape(Circle())
+                                .offset(x: split * frame.width - 11, y: frame.height / 2 - 11)
+                        }
+                        .frame(width: frame.width, height: frame.height)
+                        .offset(x: frame.minX, y: frame.minY)
+                        // Drag on the image to adjust the wipe position
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    compareSplit = max(0, min(1, value.location.x / frame.width))
+                                }
+                        )
                     }
                 } else {
                     ProgressView("Loading compare preview…")

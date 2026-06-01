@@ -305,6 +305,9 @@ private struct DocumentInspectorImageEditsTab: View {
                 onEnhance: { brightness, contrast, sharpen, auto in
                     Task { await model.enhance(brightness: brightness, contrast: contrast, sharpen: sharpen, autoLevels: auto) }
                 },
+                onCrop: { left, top, width, height in
+                    Task { await model.crop(left: left, top: top, width: width, height: height) }
+                },
                 onRemoveBackground: { Task { await model.removeBackground() } },
                 onFuzzyClean: { Task { await model.fuzzyClean() } },
                 onSegment: { Task { await model.segment() } }
