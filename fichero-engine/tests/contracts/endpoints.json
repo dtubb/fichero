@@ -2296,6 +2296,18 @@
         ],
         "request_model": null,
         "response_model": "DocumentKnowledgeGraphResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{document_id}/outline",
+        "operation_id": "document_outline_api_documents__document_id__outline_get",
+        "summary": "Hierarchical source outline for document drill-down",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DocumentOutlineResponse"
       }
     ],
     "entities": [

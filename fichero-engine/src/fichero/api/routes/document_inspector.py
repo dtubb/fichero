@@ -20,6 +20,7 @@ from fichero.db import Database
 from fichero.hermeneutics_models import Interpretation
 from fichero.knowledge_models import (
     Annotation,
+    BookStructureNode,
     DocumentCitation,
     EntityType,
     KnowledgeClaim,
@@ -28,7 +29,7 @@ from fichero.knowledge_models import (
     Project,
     ProjectInclusion,
 )
-from fichero.models import Artifact, Document
+from fichero.models import Artifact, Document, DocType
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents")
@@ -48,6 +49,20 @@ class DocumentInspectorResponse(BaseModel):
     citations_inbound: list[DocumentCitation]  # what cites this doc
     interpretations: list[Interpretation]
     projects: list[Project]
+
+
+class DocumentOutlineRow(BaseModel):
+    id: str
+    depth: int
+    kind: str
+    label: str
+    count: int
+
+
+class DocumentOutlineResponse(BaseModel):
+    document_id: str
+    rows: list[DocumentOutlineRow]
+    count: int
 
 
 @router.get(
@@ -146,6 +161,140 @@ async def inspector(
         interpretations=interpretations,
         projects=projects,
     )
+
+
+@router.get(
+    "/{document_id}/outline",
+    response_model=DocumentOutlineResponse,
+    summary="Hierarchical source outline for document drill-down",
+)
+async def document_outline(
+    document_id: str,
+    db: Database = Depends(get_library_database),
+) -> DocumentOutlineResponse:
+    doc = db.get(Document, document_id)
+    if doc is None:
+        raise HTTPException(404, f"Document not found: {document_id}")
+
+    from fichero.api.routes.claims import _descendant_doc_ids
+
+    doc_ids = _descendant_doc_ids(db, document_id)
+    descendants = [d for d in db.query(Document) if d.id in doc_ids and d.id != document_id]
+    pages = sorted(
+        [d for d in descendants if d.doc_type == DocType.page],
+        key=lambda d: (d.sequence or 0, d.name),
+    )
+    chunks = [d for d in descendants if d.doc_type == DocType.chunk]
+
+    claims = [c for c in db.query(KnowledgeClaim) if c.source_document_id in doc_ids]
+    annotations = [a for a in db.query(Annotation) if a.document_id in doc_ids]
+    artifacts = [a for a in db.query(Artifact) if a.document_id in doc_ids]
+    citations = [
+        c for c in db.query(DocumentCitation)
+        if c.source_document_id in doc_ids or c.target_document_id in doc_ids
+    ]
+
+    page_id_by_sequence = {p.sequence: p.id for p in pages if p.sequence is not None}
+    claim_count_by_doc: dict[str, int] = {}
+    for claim in claims:
+        claim_count_by_doc[claim.source_document_id] = claim_count_by_doc.get(claim.source_document_id, 0) + 1
+    annotation_count_by_doc: dict[str, int] = {}
+    for ann in annotations:
+        annotation_count_by_doc[ann.document_id] = annotation_count_by_doc.get(ann.document_id, 0) + 1
+    artifact_count_by_doc: dict[str, int] = {}
+    for artifact in artifacts:
+        artifact_count_by_doc[artifact.document_id] = artifact_count_by_doc.get(artifact.document_id, 0) + 1
+    citation_count_by_doc: dict[str, int] = {}
+    for citation in citations:
+        if citation.source_document_id in doc_ids:
+            citation_count_by_doc[citation.source_document_id] = citation_count_by_doc.get(citation.source_document_id, 0) + 1
+        if citation.target_document_id in doc_ids:
+            citation_count_by_doc[citation.target_document_id] = citation_count_by_doc.get(citation.target_document_id, 0) + 1
+
+    rows: list[DocumentOutlineRow] = []
+    for page in pages:
+        rows.append(
+            DocumentOutlineRow(
+                id=page.id,
+                depth=1,
+                kind="page",
+                label=page.name,
+                count=(
+                    claim_count_by_doc.get(page.id, 0)
+                    + annotation_count_by_doc.get(page.id, 0)
+                    + artifact_count_by_doc.get(page.id, 0)
+                    + citation_count_by_doc.get(page.id, 0)
+                ),
+            )
+        )
+
+    for chunk in chunks:
+        rows.append(
+            DocumentOutlineRow(
+                id=chunk.id,
+                depth=2,
+                kind="chunk",
+                label=chunk.name,
+                count=(
+                    claim_count_by_doc.get(chunk.id, 0)
+                    + annotation_count_by_doc.get(chunk.id, 0)
+                    + artifact_count_by_doc.get(chunk.id, 0)
+                    + citation_count_by_doc.get(chunk.id, 0)
+                ),
+            )
+        )
+
+    structure_nodes = [
+        s for s in db.query(BookStructureNode)
+        if s.source_document_id == document_id
+    ]
+    structure_nodes.sort(key=lambda s: (s.level, s.start_sequence, s.title))
+    for node in structure_nodes:
+        in_range_doc_ids = {
+            page_id_by_sequence.get(seq)
+            for seq in range(node.start_sequence, (node.end_sequence or node.start_sequence) + 1)
+        }
+        in_range_doc_ids.discard(None)
+        rows.append(
+            DocumentOutlineRow(
+                id=node.id,
+                depth=node.level,
+                kind=node.kind,
+                label=node.title,
+                count=sum(claim_count_by_doc.get(pid, 0) for pid in in_range_doc_ids),
+            )
+        )
+
+    linked_entity_ids = {
+        entity_id
+        for claim in claims
+        for entity_id in (claim.entity_ids or [])
+        if entity_id
+    }
+    entities = [
+        entity for entity in (db.get(KnowledgeEntity, entity_id) for entity_id in linked_entity_ids)
+        if entity is not None
+    ]
+    rows.append(
+        DocumentOutlineRow(
+            id=f"{document_id}:annotations",
+            depth=1,
+            kind="annotation-group",
+            label="Annotations",
+            count=len(annotations),
+        )
+    )
+    rows.append(
+        DocumentOutlineRow(
+            id=f"{document_id}:entities",
+            depth=1,
+            kind="entity-group",
+            label="Entities",
+            count=len(entities),
+        )
+    )
+
+    return DocumentOutlineResponse(document_id=document_id, rows=rows, count=len(rows))
 
 
 # =============================================================================

@@ -2222,6 +2222,18 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("hierarchical-source-outline-for-drill-down")
+    def documents_hierarchical_source_outline_for_drill_down_get(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+    ) -> None:
+        """Hierarchical source outline for document drill-down (GET /api/documents/{document_id}/outline)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{document_id}/outline"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('entities')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for entities endpoints.', no_args_is_help=True)

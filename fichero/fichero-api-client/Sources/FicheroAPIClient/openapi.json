@@ -7419,6 +7419,57 @@
         }
       }
     },
+    "/api/documents/{document_id}/outline": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Hierarchical source outline for document drill-down",
+        "operationId": "document_outline_api_documents__document_id__outline_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentOutlineResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{document_id}/knowledge-graph": {
       "get": {
         "tags": [
@@ -38649,6 +38700,65 @@
         ],
         "title": "DocumentNoteUpsert",
         "description": "Request body for per-document note upsert."
+      },
+      "DocumentOutlineResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentOutlineRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "rows",
+          "count"
+        ],
+        "title": "DocumentOutlineResponse"
+      },
+      "DocumentOutlineRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "depth": {
+            "type": "integer",
+            "title": "Depth"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "depth",
+          "kind",
+          "label",
+          "count"
+        ],
+        "title": "DocumentOutlineRow"
       },
       "DocumentSource": {
         "properties": {
