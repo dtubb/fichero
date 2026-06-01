@@ -4,6 +4,7 @@ Search explain provides transparency into RAG search operations — how results
 were ranked, source attribution, and available RAG modes. Routes live at
 /api/search/... (router prefix="/search" mounted at "/api").
 """
+from fichero.models import Document
 
 # ---------------------------------------------------------------------------
 # GET /api/search/modes
@@ -81,6 +82,27 @@ class TestExplainSearch:
         })
         assert r.status_code == 200
         assert r.json()["rag_mode"] == "speculative"
+
+    def test_explain_fulltext_includes_source_attribution(self, client, db):
+        doc = Document(
+            id="doc-camilo",
+            name="Camilo ledger note",
+            page_content="Camilo appears in this archival passage.",
+        )
+        db.save(doc)
+
+        r = client.post("/api/search/explain", json={
+            "query": "camilo",
+            "search_type": "fulltext",
+            "rag_mode": "balanced",
+        })
+        assert r.status_code == 200
+        body = r.json()
+        assert body["sources"], "Expected at least one attributed source"
+        first = body["sources"][0]
+        assert first["source_id"] == doc.id
+        assert first["title"] == doc.name
+        assert first["excerpt"]
 
 
 # ---------------------------------------------------------------------------

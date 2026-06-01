@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database
-from fichero.db import Database
+from fichero.db import Database, _fold_for_search
 from fichero.knowledge_models import KnowledgeClaim
 from fichero.models import Document
 
@@ -444,24 +444,24 @@ async def _semantic_search(
 ) -> list[dict[str, Any]]:
     """Perform semantic search."""
     try:
-        from fichero.embeddings import generate_query_embedding
-
-        query_vector = generate_query_embedding(query)
-
-        # Search documents
-        results = db.search_vectors("document_chunks", query_vector, limit=config.max_results)
-
+        results, _, _ = db.search(
+            query=query,
+            limit=config.max_results,
+            min_score=config.min_score_threshold,
+            search_type="semantic",
+            highlight_results=False,
+        )
         return [
             {
-                "id": r.get("id", ""),
-                "title": r.get("title", "Untitled"),
-                "text": r.get("text", ""),
-                "relevance_score": r.get("_score", 0.0),
+                "id": r.document_id,
+                "title": (r.metadata or {}).get("name", "Untitled"),
+                "text": r.content_preview or "",
+                "relevance_score": r.score,
                 "source_type": "document",
                 "match_type": "semantic",
             }
             for r in results
-            if r.get("_score", 0) >= config.min_score_threshold
+            if r.score >= config.min_score_threshold
         ]
     except Exception as e:
         logger.warning(f"Semantic search failed: {e}")
@@ -473,19 +473,21 @@ async def _fulltext_search(
 ) -> list[dict[str, Any]]:
     """Perform full-text search."""
     try:
-        # Simple keyword search across documents
+        # Simple keyword search across documents using folded text.
         documents = db.all(Document)
-        query_lower = query.lower()
+        query_folded = _fold_for_search(query)
 
         results = []
         for doc in documents:
             score = 0.0
-            text = getattr(doc, "content", "") or ""
-            title = getattr(doc, "title", "") or ""
+            text = getattr(doc, "page_content", "") or ""
+            title = getattr(doc, "name", "") or ""
+            title_folded = _fold_for_search(title)
+            text_folded = _fold_for_search(text)
 
-            if query_lower in title.lower():
+            if query_folded in title_folded:
                 score += 0.5
-            if query_lower in text.lower():
+            if query_folded in text_folded:
                 score += 0.3
 
             if score >= config.min_score_threshold * 0.5:  # Lower threshold for keyword
