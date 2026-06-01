@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
+from fichero.knowledge_models import ClassificationDimension, ClassificationValue
 from fichero.models import Artifact, DocType, Document, FileType, Status
 from fichero.models import DocumentListResponse, DocumentNote, RelatedDocumentListResponse
 
@@ -94,6 +95,7 @@ class DocumentCreate(BaseModel):
     path: Optional[str] = None
     page_content: Optional[str] = None
     metadata: dict = {}
+    prototype_key: Optional[str] = None
 
 
 class DocumentUpdate(BaseModel):
@@ -112,6 +114,20 @@ class DocumentUpdate(BaseModel):
     is_starred: Optional[bool] = None
     is_flagged: Optional[bool] = None
     metadata: Optional[dict] = None
+    prototype_key: Optional[str] = None
+
+
+class PrototypeAssignRequest(BaseModel):
+    prototype_key: str
+    include_descendants: bool = False
+    page_start: int | None = None
+    page_end: int | None = None
+
+
+class PrototypeAssignResponse(BaseModel):
+    source_document_id: str
+    prototype_key: str
+    updated_count: int
 
 
 class DocumentNoteUpsert(BaseModel):
@@ -349,6 +365,7 @@ async def create_document(
         path=doc.path,
         page_content=doc.page_content,
         metadata=doc.metadata,
+        prototype_key=doc.prototype_key,
     )
 
     # Verify parent exists if specified
@@ -425,6 +442,64 @@ async def update_document(
 
     logger.info(f"Updated document: {doc_id}")
     return doc
+
+
+@router.put("/{doc_id}/prototype", response_model=PrototypeAssignResponse)
+async def assign_document_prototype(
+    doc_id: str,
+    request: PrototypeAssignRequest,
+    db: Database = Depends(get_library_database),
+) -> PrototypeAssignResponse:
+    doc = db.get(Document, doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    if request.page_start is not None and request.page_end is not None and request.page_start > request.page_end:
+        raise HTTPException(status_code=422, detail="page_start must be <= page_end")
+
+    known_values = {
+        v.key
+        for v in db.query(ClassificationValue, dimension=ClassificationDimension.document_prototype)
+    }
+    if known_values and request.prototype_key not in known_values:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown prototype key: {request.prototype_key}",
+        )
+
+    scoped_ids: set[str] = {doc_id}
+    if request.include_descendants:
+        frontier = [doc_id]
+        while frontier:
+            next_frontier: list[str] = []
+            for parent_id in frontier:
+                children = db.query(Document, parent_id=parent_id) or []
+                for child in children:
+                    if child.id not in scoped_ids:
+                        scoped_ids.add(child.id)
+                        next_frontier.append(child.id)
+            frontier = next_frontier
+
+    updated = 0
+    for candidate in db.all(Document):
+        if candidate.id not in scoped_ids:
+            continue
+        if request.page_start is not None or request.page_end is not None:
+            if candidate.doc_type != DocType.page or candidate.sequence is None:
+                continue
+            if request.page_start is not None and candidate.sequence < request.page_start:
+                continue
+            if request.page_end is not None and candidate.sequence > request.page_end:
+                continue
+        candidate.prototype_key = request.prototype_key
+        candidate.updated_at = datetime.now()
+        db.save(candidate)
+        updated += 1
+
+    return PrototypeAssignResponse(
+        source_document_id=doc_id,
+        prototype_key=request.prototype_key,
+        updated_count=updated,
+    )
 
 
 def _cascade_delete_kg_rows(db: Database, doc_ids: set[str]) -> tuple[int, int]:

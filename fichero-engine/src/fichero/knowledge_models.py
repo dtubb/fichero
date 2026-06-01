@@ -721,6 +721,7 @@ class ClassificationDimension(str, Enum):
     epistemic_status = "epistemic_status"
     claim_type = "claim_type"
     entity_type = "entity_type"
+    document_prototype = "document_prototype"
 
 
 class ClassificationValue(BaseModel):

@@ -441,6 +441,44 @@ class TestGetDocumentParent:
     def test_get_parent_when_parent_is_missing_returns_404(self, client, db):
         """Test getting parent when parent document is missing returns 404."""
         child = _make_doc(db, "Child Doc", parent_id="missing-parent-id")
-        
+
         r = client.get(f"/api/documents/{child.id}/parent")
         assert r.status_code == 404
+
+
+class TestDocumentPrototypes:
+    def test_assigns_prototype_to_single_document(self, client, db):
+        doc = _make_doc(db, "Letter A")
+        r = client.put(
+            f"/api/documents/{doc.id}/prototype",
+            json={"prototype_key": "letter"},
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["updated_count"] == 1
+        refreshed = db.get(Document, doc.id)
+        assert refreshed.prototype_key == "letter"
+
+    def test_assigns_prototype_to_descendant_page_range(self, client, db):
+        folder = _make_doc(db, "Folder")
+        page1 = Document(name="p1", doc_type=DocType.page, parent_id=folder.id, sequence=1)
+        page2 = Document(name="p2", doc_type=DocType.page, parent_id=folder.id, sequence=2)
+        page3 = Document(name="p3", doc_type=DocType.page, parent_id=folder.id, sequence=3)
+        db.save(page1)
+        db.save(page2)
+        db.save(page3)
+        r = client.put(
+            f"/api/documents/{folder.id}/prototype",
+            json={
+                "prototype_key": "chapter",
+                "include_descendants": True,
+                "page_start": 2,
+                "page_end": 3,
+            },
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["updated_count"] == 2
+        assert db.get(Document, page1.id).prototype_key is None
+        assert db.get(Document, page2.id).prototype_key == "chapter"
+        assert db.get(Document, page3.id).prototype_key == "chapter"
