@@ -121,6 +121,8 @@ struct DocumentKGSurface: View {
     // `selectedEntityId` parameter above (which is read-only from the parent).
     @State private var internalSelectedEntityId: String?
     @State private var selectedSpatialNodeId: String?
+    /// Entities for this document, loaded lazily when Timeline or Map tab activates.
+    @State private var documentEntities: [Components.Schemas.KnowledgeEntity] = []
     @Environment(KGFocusState.self) private var kgFocusState
     @EnvironmentObject private var entityService: EntityServiceGenerated
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
@@ -139,6 +141,10 @@ struct DocumentKGSurface: View {
             Divider()
 
             content
+        }
+        .task(id: documentId) {
+            documentEntities = (try? await entityService.listEntitiesForDocument(
+                documentId: documentId)) ?? []
         }
     }
 
@@ -191,13 +197,13 @@ struct DocumentKGSurface: View {
             }
         case .timeline:
             KGTimelineView(
-                entities: [],
+                entities: documentEntities,
                 selectedEntityId: $internalSelectedEntityId,
                 sourceDocumentId: documentId
             )
         case .map:
             KGMapView(
-                entities: [],
+                entities: documentEntities,
                 selectedEntityId: $internalSelectedEntityId,
                 sourceDocumentId: documentId
             )
