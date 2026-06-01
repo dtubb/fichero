@@ -8,7 +8,7 @@ so tests can exercise it without a seeded vector store.
 
 from fichero.db import SearchAnchor, SearchExcerpt
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
-from fichero.models import SavedSearch
+from fichero.models import DocType, Document, FileType, SavedSearch
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +207,73 @@ class TestEnhancedSearch:
 
         assert enriched[0].kg_claim_ids == ["claim-leidy"]
         assert enriched[0].kg_entity_ids == ["entity-leidy"]
+
+    def test_pdf_file_hit_projects_to_matching_page_with_anchor(self, client, db, monkeypatch):
+        from fichero.db import SearchResult
+
+        parent = Document(
+            id="pdf-parent",
+            name="archive.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            page_content="Full PDF content blob",
+        )
+        page1 = Document(
+            id="pdf-parent-page-1",
+            parent_id=parent.id,
+            name="archive.pdf - Page 1",
+            doc_type=DocType.page,
+            sequence=1,
+            page_content="No relevant name on this page.",
+            metadata={"page_number": 1},
+        )
+        page2 = Document(
+            id="pdf-parent-page-2",
+            parent_id=parent.id,
+            name="archive.pdf - Page 2",
+            doc_type=DocType.page,
+            sequence=2,
+            page_content="Camilo appears in this passage with context.",
+            metadata={"page_number": 2},
+        )
+        db.save(parent)
+        db.save(page1)
+        db.save(page2)
+
+        file_hit = SearchResult(
+            document_id=parent.id,
+            score=0.91,
+            content_preview="Camilo appears in this passage with context.",
+            metadata={
+                "name": parent.name,
+                "doc_type": "file",
+                "file_type": "pdf",
+            },
+            highlights=[],
+        )
+
+        monkeypatch.setattr(
+            type(db),
+            "search",
+            lambda self, **kwargs: (
+                [file_hit],
+                1,
+                {"search_type": "hybrid", "execution_time_ms": 1.0, "has_more": False},
+            ),
+        )
+
+        r = client.post("/api/search", json={"query": "camilo", "search_type": "hybrid"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["count"] == 1
+        result = body["results"][0]
+        assert result["document_id"] == page2.id
+        assert result["metadata"]["page_number"] == 2
+        assert result["metadata"]["pdf_parent_id"] == parent.id
+        assert result["transcript_excerpts"]
+        anchor = result["transcript_excerpts"][0]["anchor"]
+        assert anchor["document_id"] == page2.id
+        assert result["transcript_excerpts"][0]["match_start"] is not None
 
 
 # ---------------------------------------------------------------------------
