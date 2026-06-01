@@ -28,8 +28,8 @@ class TrackingImageView: NSImageView {
             }
         }
     }
-    private let minLoupeSize: CGFloat = 80
-    private let maxLoupeSize: CGFloat = 400
+    private let minLoupeSize: CGFloat = 40
+    private let maxLoupeSize: CGFloat = 600
     var loupeMagnification: CGFloat = 3.0 {
         didSet {
             if loupePosition != nil {

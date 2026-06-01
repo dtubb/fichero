@@ -13,9 +13,9 @@ struct MagnifierPanelView: View {
     var onLockToggle: () -> Void
 
     private let minMagnification: CGFloat = 0.25
-    private let maxMagnification: CGFloat = 16.0
-    private let minHeight: CGFloat = 60
-    private let maxHeight: CGFloat = 300
+    private let maxMagnification: CGFloat = 32.0
+    private let minHeight: CGFloat = 40
+    private let maxHeight: CGFloat = 400
 
     var body: some View {
         VStack(spacing: 0) {
