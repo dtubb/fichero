@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 from fichero import __main__ as cli
 from fichero.source_archive_import import (
     import_archivo_judicial_medellin,
+    import_ghc_catalogued_materials,
     import_istmina_mineria,
     import_newton_marshall_diary,
 )
@@ -137,3 +138,60 @@ def test_cli_import_archivo_judicial_invokes_importer(monkeypatch, tmp_path):
     )
     assert result.exit_code == 0
     assert Path(called["library_path"]) == tmp_path / "AJM.fichero"
+
+
+def test_import_ghc_catalogued_materials_ingests_roots(tmp_path):
+    library = tmp_path / "GHC.fichero"
+    acenet_root = tmp_path / "ACENET imports"
+    catalogued_root = tmp_path / "GHC catalogued"
+    acenet_root.mkdir(parents=True)
+    catalogued_root.mkdir(parents=True)
+    (acenet_root / "acen-001.jpg").write_text("x", encoding="utf-8")
+    (catalogued_root / "ghc-001.pdf").write_text("x", encoding="utf-8")
+
+    summary = import_ghc_catalogued_materials(
+        library_path=library,
+        acenet_root=acenet_root,
+        catalogued_root=catalogued_root,
+    )
+
+    assert summary.provider == "ghc_catalogued_materials"
+    assert summary.files_imported == 2
+    assert summary.skipped == 0
+
+
+def test_cli_import_ghc_catalogued_materials_invokes_importer(monkeypatch, tmp_path):
+    called: dict = {}
+
+    def fake_import(**kwargs):
+        called.update(kwargs)
+        from fichero.source_archive_import import SourceArchiveImportSummary
+
+        return SourceArchiveImportSummary(
+            provider="ghc_catalogued_materials",
+            library_path=Path(kwargs["library_path"]),
+            root_documents=2,
+            files_imported=2,
+            skipped=0,
+            warnings=[],
+        )
+
+    monkeypatch.setattr(
+        "fichero.source_archive_import.import_ghc_catalogued_materials",
+        fake_import,
+    )
+    runner = CliRunner()
+    result = runner.invoke(
+        cli.app,
+        [
+            "import-ghc-catalogued-materials",
+            "--library-path",
+            str(tmp_path / "GHC.fichero"),
+            "--acenet-root",
+            str(tmp_path / "ACENET"),
+            "--catalogued-root",
+            str(tmp_path / "Catalogued"),
+        ],
+    )
+    assert result.exit_code == 0
+    assert Path(called["library_path"]) == tmp_path / "GHC.fichero"

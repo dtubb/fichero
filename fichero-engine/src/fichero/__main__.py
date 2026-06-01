@@ -572,6 +572,57 @@ def import_archivo_judicial_medellin_command(
     typer.echo(f"skipped: {summary.skipped}")
 
 
+@app.command(name="import-ghc-catalogued-materials")
+def import_ghc_catalogued_materials_command(
+    library_path: Path = typer.Option(
+        Path("~/Library/Application Support/Fichero/GHC-Catalogued-Materials.fichero"),
+        "--library-path",
+        help="Target .fichero package to create/update.",
+    ),
+    acenet_root: Path = typer.Option(
+        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/GHC/ACENET imports"),
+        "--acenet-root",
+        help="Root for ACENET import materials.",
+    ),
+    catalogued_root: Path = typer.Option(
+        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/GHC/already_catalogued"),
+        "--catalogued-root",
+        help="Root for already-catalogued GHC materials.",
+    ),
+    reset: bool = typer.Option(False, "--reset", help="Delete target package before import."),
+    no_embed: bool = typer.Option(False, "--no-embed", help="Skip embedding creation."),
+) -> None:
+    """Import already-catalogued GHC materials, including ACENET imports."""
+    from fichero.source_archive_import import import_ghc_catalogued_materials
+
+    try:
+        summary = import_ghc_catalogued_materials(
+            library_path=library_path,
+            acenet_root=acenet_root,
+            catalogued_root=catalogued_root,
+            reset=reset,
+            auto_embed=not no_embed,
+        )
+    except Exception as exc:
+        typer.secho(f"GHC catalogued import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    if summary.warnings:
+        typer.secho(
+            f"Imported with {len(summary.warnings)} warning(s).",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        for warning in summary.warnings[:10]:
+            typer.echo(f"  {warning}", err=True)
+
+    typer.echo(f"library: {summary.library_path}")
+    typer.echo(f"provider: {summary.provider}")
+    typer.echo(f"root_documents: {summary.root_documents}")
+    typer.echo(f"files_imported: {summary.files_imported}")
+    typer.echo(f"skipped: {summary.skipped}")
+
+
 @app.command(name="import-dropbox-links")
 def import_dropbox_links_command(
     library_path: Path = typer.Option(
