@@ -9,6 +9,36 @@ def _tool_names() -> set[str]:
     return {tool.name for tool in asyncio.run(mcp_full.mcp.list_tools())}
 
 
+EXPECTED_FULL_TOOLS = {
+    "health",
+    "import_document",
+    "list_documents",
+    "get_document",
+    "document_inspector",
+    "document_knowledge_graph",
+    "list_workflows",
+    "run_workflow",
+    "workflow_status",
+    "list_artifacts",
+    "get_artifact",
+    "query_kg_entities",
+    "query_kg_claims",
+    "kg_search",
+    "kg_neighborhood",
+    "kg_sparql",
+    "citations_at_document",
+    "create_note",
+    "list_notes",
+    "get_note",
+    "search",
+    "mp_list_rooms",
+    "mp_create_room",
+    "mp_place_node",
+    "mp_move_node",
+    "scene_render",
+}
+
+
 class _FakeClient:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict]] = []
@@ -49,9 +79,7 @@ class _FakeClient:
 
 def test_full_tools_include_scene_render():
     names = _tool_names()
-    assert "scene_render" in names
-    assert "mp_move_node" in names
-    assert "run_workflow" in names
+    assert names == EXPECTED_FULL_TOOLS
 
 
 def test_scripted_render_move_rerender(monkeypatch):

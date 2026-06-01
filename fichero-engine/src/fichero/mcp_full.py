@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
 from fichero.cli import FicheroClient
+from fichero.knowledge_models import NoteKind
 
 mcp = FastMCP("fichero-full")
 
@@ -24,6 +25,15 @@ def _client() -> FicheroClient:
 
 class DocumentInput(BaseModel):
     doc_id: str
+
+
+class DocumentListInput(BaseModel):
+    parent_id: str | None = None
+    doc_type: str | None = None
+    file_type: str | None = None
+    status: str | None = None
+    limit: int = Field(default=50, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)
 
 
 class WorkflowRunInput(BaseModel):
@@ -44,6 +54,74 @@ class SearchInput(BaseModel):
     limit: int = Field(default=10, ge=1, le=200)
     search_type: str = "hybrid"
     min_score: float = Field(default=0.3, ge=0.0, le=1.0)
+
+
+class WorkflowStatusInput(BaseModel):
+    thread_id: str
+
+
+class ArtifactsInput(BaseModel):
+    doc_id: str
+    artifact_type: str | None = None
+    limit: int = Field(default=50, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)
+    include_descendants: bool = True
+
+
+class KGEntitiesInput(BaseModel):
+    query: str | None = None
+    entity_type: str | None = None
+    limit: int = Field(default=50, ge=1, le=200)
+
+
+class KGClaimsInput(BaseModel):
+    query: str | None = None
+    source_document_id: str | None = None
+    entity_id: str | None = None
+    claim_type: str | None = None
+    limit: int = Field(default=50, ge=1, le=200)
+
+
+class KGNeighborhoodInput(BaseModel):
+    entity_id: str
+    hops: int = Field(default=1, ge=1, le=5)
+    limit: int = Field(default=50, ge=1, le=500)
+    rank: str = "edge_weight"
+
+
+class KGSparqlInput(BaseModel):
+    query: str
+
+
+class CitationsInput(BaseModel):
+    doc_id: str
+
+
+class CreateNoteInput(BaseModel):
+    body: str
+    title: str | None = None
+    kind: NoteKind = NoteKind.zettel
+    linked_document_ids: list[str] = Field(default_factory=list)
+    linked_entity_ids: list[str] = Field(default_factory=list)
+    linked_claim_ids: list[str] = Field(default_factory=list)
+
+
+class ListNotesInput(BaseModel):
+    kind: NoteKind | None = None
+    tag: str | None = None
+    linked_entity_id: str | None = None
+    linked_claim_id: str | None = None
+    linked_document_id: str | None = None
+    query: str | None = None
+
+
+class ArtifactInput(BaseModel):
+    artifact_id: str
+
+
+class ImportDocumentInput(BaseModel):
+    path: str
+    parent_id: str | None = None
 
 
 class SceneRenderInput(BaseModel):
@@ -70,15 +148,54 @@ class MoveNodeInput(BaseModel):
 
 
 @mcp.tool()
-def list_documents(parent_id: str | None = None, limit: int = 50) -> Any:
+def health() -> Any:
     with _client() as client:
-        return client.list_documents(parent_id=parent_id, limit=limit)
+        return client.health()
 
 
 @mcp.tool()
-def get_document_content(input: DocumentInput) -> Any:
+def import_document(input: ImportDocumentInput) -> Any:
+    with _client() as client:
+        return client.import_file(input.path, parent_id=input.parent_id)
+
+
+@mcp.tool()
+def list_documents(input: DocumentListInput) -> Any:
+    with _client() as client:
+        return client.list_documents(
+            parent_id=input.parent_id,
+            doc_type=input.doc_type,
+            file_type=input.file_type,
+            status=input.status,
+            limit=input.limit,
+            offset=input.offset,
+        )
+
+
+@mcp.tool()
+def get_document(input: DocumentInput) -> Any:
     with _client() as client:
         return client.get_document(input.doc_id)
+
+
+@mcp.tool()
+def document_inspector(input: DocumentInput) -> Any:
+    with _client() as client:
+        return client.document_inspector(input.doc_id)
+
+
+@mcp.tool()
+def document_knowledge_graph(input: DocumentInput, include_children: bool = False) -> Any:
+    with _client() as client:
+        return client.document_knowledge_graph(
+            input.doc_id, include_children=include_children
+        )
+
+
+@mcp.tool()
+def list_workflows() -> Any:
+    with _client() as client:
+        return client.list_workflows()
 
 
 @mcp.tool()
@@ -94,41 +211,114 @@ def run_workflow(input: WorkflowRunInput) -> WorkflowRunOutput:
 
 
 @mcp.tool()
-def list_artifacts(doc_id: str, include_descendants: bool = True) -> Any:
+def workflow_status(input: WorkflowStatusInput) -> Any:
     with _client() as client:
-        return client.list_artifacts(doc_id, include_descendants=include_descendants)
+        return client.execution_status(input.thread_id)
 
 
 @mcp.tool()
-def query_kg_entities(query: str | None = None, entity_type: str | None = None, limit: int = 50) -> Any:
+def list_artifacts(input: ArtifactsInput) -> Any:
     with _client() as client:
-        return client.list_entities(query=query, entity_type=entity_type, limit=limit)
+        return client.list_artifacts(
+            input.doc_id,
+            artifact_type=input.artifact_type,
+            limit=input.limit,
+            offset=input.offset,
+            include_descendants=input.include_descendants,
+        )
 
 
 @mcp.tool()
-def query_kg_claims(
-    query: str | None = None,
-    source_document_id: str | None = None,
-    entity_id: str | None = None,
-    limit: int = 50,
-) -> Any:
+def get_artifact(input: ArtifactInput) -> Any:
+    with _client() as client:
+        return client.get_artifact(input.artifact_id)
+
+
+@mcp.tool()
+def query_kg_entities(input: KGEntitiesInput) -> Any:
+    with _client() as client:
+        return client.list_entities(
+            query=input.query,
+            entity_type=input.entity_type,
+            limit=input.limit,
+        )
+
+
+@mcp.tool()
+def query_kg_claims(input: KGClaimsInput) -> Any:
     with _client() as client:
         return client.list_claims(
-            query=query,
-            source_document_id=source_document_id,
-            entity_id=entity_id,
-            limit=limit,
+            query=input.query,
+            source_document_id=input.source_document_id,
+            entity_id=input.entity_id,
+            claim_type=input.claim_type,
+            limit=input.limit,
         )
 
 
 @mcp.tool()
-def save_note(body: str, title: str | None = None, linked_document_ids: list[str] | None = None) -> Any:
+def kg_search(input: SearchInput) -> Any:
+    with _client() as client:
+        return client.kg_search(input.query, limit=input.limit)
+
+
+@mcp.tool()
+def kg_neighborhood(input: KGNeighborhoodInput) -> Any:
+    with _client() as client:
+        return client.entity_neighborhood(
+            input.entity_id,
+            hops=input.hops,
+            limit=input.limit,
+            rank=input.rank,
+        )
+
+
+@mcp.tool()
+def kg_sparql(input: KGSparqlInput) -> Any:
+    with _client() as client:
+        return client.request(
+            "POST",
+            "/api/kg/sparql",
+            json=input.model_dump(mode="json"),
+        )
+
+
+@mcp.tool()
+def citations_at_document(input: CitationsInput) -> Any:
+    with _client() as client:
+        return client.citations_at_doc(input.doc_id)
+
+
+@mcp.tool()
+def create_note(input: CreateNoteInput) -> Any:
     with _client() as client:
         return client.create_note(
-            body=body,
-            title=title,
-            linked_document_ids=linked_document_ids or [],
+            body=input.body,
+            title=input.title,
+            kind=input.kind,
+            linked_document_ids=input.linked_document_ids,
+            linked_entity_ids=input.linked_entity_ids,
+            linked_claim_ids=input.linked_claim_ids,
         )
+
+
+@mcp.tool()
+def list_notes(input: ListNotesInput) -> Any:
+    with _client() as client:
+        return client.list_notes(
+            kind=input.kind,
+            tag=input.tag,
+            linked_entity_id=input.linked_entity_id,
+            linked_claim_id=input.linked_claim_id,
+            linked_document_id=input.linked_document_id,
+            query=input.query,
+        )
+
+
+@mcp.tool()
+def get_note(note_id: str) -> Any:
+    with _client() as client:
+        return client.get_note(note_id)
 
 
 @mcp.tool()
