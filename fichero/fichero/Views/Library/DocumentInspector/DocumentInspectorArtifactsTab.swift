@@ -1356,12 +1356,12 @@ private enum EntityKind: String, Hashable, CaseIterable {
 
     static var displayOrder: [EntityKind] {
         // Keywords (concept) up top — densest summary, scan first.
-        // Named entities next; events last (they carry their own dates
+        // Named entities next; events then dates (events carry their own dates
         // inside their descriptions, e.g. "Pronunciamiento ... el 23 de
-        // julio de 1993"). Bare Dates section is suppressed in the
-        // inspector — see body filter — because it duplicates info
-        // already visible in event descriptions.
-        [.concept, .person, .location, .organization, .event, .other]
+        // julio de 1993"). Dates are included here so they get their own filter
+        // toggle AND are covered by "Hide all" — previously .date was omitted,
+        // so the Dates facet ignored the filter and could not be hidden (#1468).
+        [.concept, .person, .location, .organization, .event, .date, .other]
     }
 }
 

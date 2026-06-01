@@ -154,14 +154,26 @@
             font: 500 11px/1.4 var(--font-mono);
         }
 
+        /* Let the graph fill the whole pane instead of a tiny fixed box (#1465).
+           #graph-panel is a child of `.content` which has a definite height
+           (`.shell` is 100vh), so height:100% resolves; the flex column lets the
+           svg stretch to whatever space is left. */
+        #graph-panel:not(.hidden) {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
         .graph-wrap {
+            flex: 1 1 auto;
             min-height: 340px;
             position: relative;
         }
 
         svg {
             width: 100%;
-            height: 360px;
+            height: 100%;
+            min-height: 340px;
             display: block;
         }
 
@@ -492,9 +504,8 @@ function renderGraph() {
     forceLayout(nodes, edges);
     const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
     panel.innerHTML = `
-        <div class="legend">Entity graph for the current document. Active page filtering dims off-page entities.</div>
         <div class="graph-wrap">
-            <svg viewBox="0 0 440 340" role="img" aria-label="Knowledge graph">
+            <svg viewBox="0 0 440 340" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Knowledge graph: entities for this document. Active-page filtering dims off-page entities.">
                 ${edges.map((edge) => {
                     const source = nodeLookup.get(edge.from);
                     const target = nodeLookup.get(edge.to);
