@@ -100,3 +100,38 @@ def test_kg_writer_missing_payload_key_is_noop_not_error():
         )
     )
     assert "error" not in result
+
+
+def test_kg_writer_skips_record_without_target_doc_id(monkeypatch):
+    calls = []
+
+    class FakeDB:
+        pass
+
+    monkeypatch.setattr(
+        "fichero.db.db_manager.get_database",
+        lambda _library_path: FakeDB(),
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.tools.kg_writer._write_kg_rows",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    payload = [
+        {
+            "section_name": "people_extract",
+            "items": [{"name": "Leidy"}],
+            # target_doc_id intentionally missing
+        }
+    ]
+
+    result = asyncio.run(
+        kg_writer(
+            {"kg_payload": payload},
+            state={"library_path": "/tmp/library"},
+            llm_config=SimpleNamespace(provider="openai", model="gpt-4o-mini"),
+        )
+    )
+
+    assert result["value"] == payload
+    assert calls == []
