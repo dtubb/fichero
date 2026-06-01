@@ -272,6 +272,7 @@ class FakeClient:
         self.calls.append(("get_note", note_id))
         return Note(id=note_id, title="Field note", body="Remember this")
 
+
     def create_library(self, path):
         # Real client returns LibraryCreateResponse — keep the typed
         # contract so the CLI's render() goes through the model_dump path.
@@ -1038,6 +1039,7 @@ def test_notes_list_and_get_call_client():
     get_result = runner.invoke(cli.app, ["notes", "get", "note-z1"])
     assert get_result.exit_code == 0
     assert _last_client().calls[0] == ("get_note", "note-z1")
+
 
 
 def test_search_command():
