@@ -6,7 +6,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from fichero import __main__ as cli
-from fichero.cloud_link_import import import_dropbox_links
+from fichero.cloud_link_import import import_box_links, import_dropbox_links
 from fichero.db import db_manager
 from fichero.models import DocType, Document
 
@@ -92,3 +92,80 @@ def test_cli_import_dropbox_links_invokes_importer(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert calls[0]["reset"] is True
     assert "imported_links: 3" in result.output
+
+
+def test_import_box_links_creates_reference_documents(tmp_path):
+    library = tmp_path / "BoxLinks.fichero"
+    manifest = tmp_path / "box_links.json"
+    manifest.write_text(
+        json.dumps(
+            [
+                {
+                    "name": "Box Letter 001",
+                    "url": "https://app.box.com/file/12345",
+                    "external_id": "box-1",
+                    "path_display": "/Sergio/box_letter_001.jpg",
+                },
+                {
+                    "name": "Non-box",
+                    "url": "https://example.com/skip-me",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        summary = import_box_links(
+            library_path=library,
+            manifest_path=manifest,
+            reset=True,
+        )
+        docs = db_manager.get_database(library).query(Document)
+    finally:
+        db_manager.close_all()
+
+    assert summary.imported_links == 1
+    assert summary.skipped_rows == 1
+    assert summary.errors == []
+    link_docs = [d for d in docs if d.metadata and d.metadata.get("source_type") == "box_link"]
+    assert len(link_docs) == 1
+    assert link_docs[0].path.startswith("https://app.box.com/")
+
+
+def test_cli_import_box_links_invokes_importer(monkeypatch, tmp_path):
+    calls: list[dict] = []
+
+    def fake_import_box_links(**kwargs):
+        from fichero.cloud_link_import import CloudLinkImportSummary
+
+        calls.append(kwargs)
+        return CloudLinkImportSummary(
+            provider="box",
+            library_path=kwargs["library_path"],
+            root_document_id="root-1",
+            imported_links=2,
+            skipped_rows=2,
+            errors=[],
+        )
+
+    monkeypatch.setattr(
+        "fichero.cloud_link_import.import_box_links",
+        fake_import_box_links,
+    )
+
+    result = runner.invoke(
+        cli.app,
+        [
+            "import-box-links",
+            "--library-path",
+            str(tmp_path / "BoxLinks.fichero"),
+            "--manifest-path",
+            str(tmp_path / "box_links.json"),
+            "--reset",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert calls[0]["reset"] is True
+    assert "imported_links: 2" in result.output
