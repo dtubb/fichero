@@ -155,7 +155,9 @@ class LibraryManager: ObservableObject {
     }
 
     /// Load or create the Global library
-    /// Global library is stored at ~/Library/Application Support/app.fichero.fichero/global.fichero
+    /// Global library is stored at ~/Library/Application Support/Fichero/global.fichero
+    /// (the single canonical data dir, matching the engine's paths.engine_state_dir;
+    /// the legacy app.fichero.fichero/ location is migrated by the engine — #1526).
     private func loadGlobalLibrary() {
         // Under XCUITest the harness redirects Application Support to a
         // disposable temp dir (#1230) so smoke tests never touch the real
@@ -163,7 +165,7 @@ class LibraryManager: ObservableObject {
         let appSupport = uiTestSupportDirectory()
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let globalURL = appSupport
-            .appendingPathComponent("app.fichero.fichero")
+            .appendingPathComponent("Fichero")
             .appendingPathComponent("global.fichero")
 
         // Check if Global library already exists
