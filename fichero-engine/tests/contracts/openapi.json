@@ -14060,6 +14060,60 @@
         }
       }
     },
+    "/api/model-comparison/compare-node/apply": {
+      "post": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Apply Model To Workflow Node",
+        "description": "Persist a selected provider/model choice onto one workflow node.",
+        "operationId": "apply_model_to_workflow_node_api_model_comparison_compare_node_apply_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyNodeModelRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyNodeModelResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/model-comparison/tools": {
       "get": {
         "tags": [
@@ -32817,6 +32871,62 @@
         ],
         "title": "AppleIntelligenceProbeResponse",
         "description": "Result of probing whether Apple Intelligence is usable on this Mac."
+      },
+      "ApplyNodeModelRequest": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name"
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "node_id",
+          "provider_name",
+          "model_name"
+        ],
+        "title": "ApplyNodeModelRequest"
+      },
+      "ApplyNodeModelResponse": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "provider_name": {
+            "type": "string",
+            "title": "Provider Name"
+          },
+          "model_name": {
+            "type": "string",
+            "title": "Model Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "node_id",
+          "provider_name",
+          "model_name"
+        ],
+        "title": "ApplyNodeModelResponse"
       },
       "ApplyPredictionsResponse": {
         "properties": {

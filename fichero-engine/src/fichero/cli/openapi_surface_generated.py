@@ -5296,6 +5296,20 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("apply-to-workflow-node")
+    def model_comparison_apply_to_workflow_node_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Apply Model To Workflow Node (POST /api/model-comparison/compare-node/apply)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/model-comparison/compare-node/apply"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("compare-tool-across-models")
     def model_comparison_compare_tool_across_models_post(
         ctx: typer.Context,

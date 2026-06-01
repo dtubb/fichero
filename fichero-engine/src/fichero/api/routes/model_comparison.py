@@ -242,6 +242,20 @@ class NodeComparisonResponse(BaseModel):
     choices: list[NodeComparisonItem]
 
 
+class ApplyNodeModelRequest(BaseModel):
+    workflow_id: str
+    node_id: str
+    provider_name: str
+    model_name: str
+
+
+class ApplyNodeModelResponse(BaseModel):
+    workflow_id: str
+    node_id: str
+    provider_name: str
+    model_name: str
+
+
 def _get_app_database() -> AppDatabase:
     return get_app_db()
 
@@ -618,6 +632,39 @@ async def compare_workflow_node(
         input_snapshot=inputs,
         comparison=ComparisonResultResponse(**result.to_dict()),
         choices=choices,
+    )
+
+
+@router.post("/compare-node/apply")
+async def apply_model_to_workflow_node(
+    request: ApplyNodeModelRequest,
+    db: Database = Depends(get_library_database),
+) -> ApplyNodeModelResponse:
+    """Persist a selected provider/model choice onto one workflow node."""
+    workflow = db.get(Workflow, request.workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    node_updated = False
+    updated_nodes: list[dict[str, Any]] = []
+    for raw_node in workflow.nodes:
+        node_dict = dict(raw_node)
+        if node_dict.get("id") == request.node_id:
+            node_dict["provider_name"] = request.provider_name
+            node_dict["model_name"] = request.model_name
+            node_updated = True
+        updated_nodes.append(node_dict)
+
+    if not node_updated:
+        raise HTTPException(status_code=404, detail="Node not found")
+
+    workflow.nodes = updated_nodes
+    db.save(workflow)
+    return ApplyNodeModelResponse(
+        workflow_id=workflow.id,
+        node_id=request.node_id,
+        provider_name=request.provider_name,
+        model_name=request.model_name,
     )
 
 

@@ -7,7 +7,7 @@ prefix="/model-comparison" mounted at "/api"). Engine calls are mocked.
 
 from unittest.mock import MagicMock, patch, AsyncMock
 
-from fichero.models import Model, Provider, ProviderType
+from fichero.models import Model, Provider, ProviderType, Workflow
 from fichero.workflows.model_comparison import ComparisonResult, ModelResult
 
 
@@ -294,3 +294,43 @@ class TestCompareWorkflowNode:
             "provider_name": "openai",
             "model_name": "gpt-4o-mini",
         }
+
+
+class TestApplyNodeModel:
+    def test_apply_model_persists_provider_and_model_on_node(self, client, db):
+        workflow = Workflow(
+            name="Compare Me",
+            format="nodes",
+            nodes=[
+                {
+                    "id": "node-a",
+                    "tool": "model_comparison",
+                    "uses_llm": True,
+                    "provider_name": "",
+                    "model_name": "",
+                }
+            ],
+            edges=[],
+        )
+        db.save(workflow)
+
+        r = client.post(
+            "/api/model-comparison/compare-node/apply",
+            json={
+                "workflow_id": workflow.id,
+                "node_id": "node-a",
+                "provider_name": "openai",
+                "model_name": "gpt-4o-mini",
+            },
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["workflow_id"] == workflow.id
+        assert payload["node_id"] == "node-a"
+        assert payload["provider_name"] == "openai"
+        assert payload["model_name"] == "gpt-4o-mini"
+
+        refreshed = db.get(Workflow, workflow.id)
+        node = refreshed.nodes[0]
+        assert node["provider_name"] == "openai"
+        assert node["model_name"] == "gpt-4o-mini"

@@ -5425,6 +5425,16 @@
       },
       {
         "method": "POST",
+        "path": "/model-comparison/compare-node/apply",
+        "operation_id": "apply_model_to_workflow_node_api_model_comparison_compare_node_apply_post",
+        "summary": "Apply Model To Workflow Node",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ApplyNodeModelRequest",
+        "response_model": "ApplyNodeModelResponse"
+      },
+      {
+        "method": "POST",
         "path": "/model-comparison/compare-tool",
         "operation_id": "compare_tool_across_models_api_model_comparison_compare_tool_post",
         "summary": "Compare Tool Across Models",
