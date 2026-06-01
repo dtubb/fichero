@@ -50,7 +50,7 @@ class TestDatabaseBasics:
         _reload(_storage_mod)
         from fichero.db import Database as _Database
         db = _Database()
-        expected = Path.home() / "Library/Application Support/com.fichero.fichero/library.duckdb"
+        expected = Path.home() / "Library/Application Support/Fichero/library.duckdb"
         assert db.path == expected
         db.close()
 

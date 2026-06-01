@@ -59,6 +59,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from fichero.db import Database, db_manager
+from fichero.paths import migrate_legacy_engine_state
 
 logger = logging.getLogger(__name__)
 
@@ -498,6 +499,12 @@ async def lifespan(app: FastAPI):
     logger.info("Fichero API starting up...")
     logger.info("Engine binary: %s", sys.executable)
     logger.info("DatabaseManager initialized")
+    migrated_entries = migrate_legacy_engine_state()
+    if migrated_entries:
+        logger.info(
+            "Migrated %d legacy engine-state entries into canonical path",
+            migrated_entries,
+        )
 
     # Quiet the /api/health access-log spam now that uvicorn has
     # configured its access logger (#1000).

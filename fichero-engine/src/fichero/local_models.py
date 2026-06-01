@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+from fichero.paths import engine_state_dir
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,9 +32,7 @@ class ModelType(str, Enum):
 
 
 # Stable storage location (not ~/.cache which gets auto-cleaned by macOS)
-MODELS_BASE = (
-    Path.home() / "Library" / "Application Support" / "com.fichero.fichero" / "models"
-)
+MODELS_BASE = engine_state_dir() / "models"
 
 
 # =============================================================================

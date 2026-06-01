@@ -43,6 +43,7 @@ if TYPE_CHECKING:
 
 from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from fichero.paths import engine_state_dir
 
 try:
     from PIL import Image, ImageOps
@@ -73,9 +74,7 @@ class StorageSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="FICHERO_")
 
     # Base path - can be overridden for testing
-    base_path: Path = Path(
-        "~/Library/Application Support/com.fichero.fichero"
-    ).expanduser()
+    base_path: Path = engine_state_dir()
 
     # Thumbnail settings
     thumb_width: int = 200
@@ -802,4 +801,3 @@ from fichero.storage_snapshots import (  # noqa: F401, E402 (re-exported)
     restore_snapshot,
     snapshot_library,
 )
-
