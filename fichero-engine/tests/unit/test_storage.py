@@ -126,6 +126,21 @@ class TestResolveSource:
         result = resolve_source(doc)
         assert result == file
 
+    def test_metadata_tilde_path_is_expanded(self, tmp_path, monkeypatch):
+        """source_path with '~' should resolve via expanduser()."""
+        from fichero.storage import resolve_source
+
+        monkeypatch.setenv("HOME", str(tmp_path))
+        file = tmp_path / "from-home.jpg"
+        file.touch()
+
+        doc = Mock()
+        doc.path = "/nonexistent/path.jpg"
+        doc.metadata = {"source_path": "~/from-home.jpg"}
+
+        result = resolve_source(doc)
+        assert result == file
+
     def test_returns_none_if_nothing_exists(self):
         """Should return None if no paths exist."""
         from fichero.storage import resolve_source
