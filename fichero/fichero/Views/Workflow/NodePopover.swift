@@ -7,16 +7,18 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "NodePop
 struct NodePopover: View {
     @Binding var node: WorkflowNode
     let allNodes: [WorkflowNode]
+    let workflowId: String
     let onDelete: () -> Void
     let onDuplicate: () -> Void
 
     @State private var showAdvanced: Bool = false
+    @State var showingNodeComparison = false
 
-    // Provider/model loading
-    @State private var providers: [NodeProviderModelSelector.ProviderOption] = []
-    @State private var isLoadingProviders: Bool = false
-    @State private var selectedProviderId: String = ""
-    @State private var selectedModelId: String = ""
+    // Provider/model loading — fileprivate so NodePopover+Comparison.swift can access them
+    @State var providers: [NodeProviderModelSelector.ProviderOption] = []
+    @State var isLoadingProviders: Bool = false
+    @State var selectedProviderId: String = ""
+    @State var selectedModelId: String = ""
 
     // Vision mode is now managed by the provider selector (Apple Vision = a provider)
 
@@ -247,18 +249,24 @@ struct NodePopover: View {
 
     // MARK: - Actions Row
 
-    private var actionsRow: some View {
-        HStack {
-            Button(role: .destructive, action: onDelete) {
-                Label("Delete", systemImage: "trash")
-                    .font(.caption)
+    var actionsRow: some View {
+        VStack(spacing: 8) {
+            if shouldShowProviderSection {
+                compareModelsButton
             }
 
-            Spacer()
+            HStack {
+                Button(role: .destructive, action: onDelete) {
+                    Label("Delete", systemImage: "trash")
+                        .font(.caption)
+                }
 
-            Button(action: onDuplicate) {
-                Label("Duplicate", systemImage: "doc.on.doc")
-                    .font(.caption)
+                Spacer()
+
+                Button(action: onDuplicate) {
+                    Label("Duplicate", systemImage: "doc.on.doc")
+                        .font(.caption)
+                }
             }
         }
     }
@@ -304,46 +312,6 @@ struct NodePopover: View {
         return toolUsesLLM
     }
 
-    private func loadProviders() async {
-        guard !isLoadingProviders else { return }
-        isLoadingProviders = true
-        defer { isLoadingProviders = false }
-
-        do {
-            let configured = try await providerService.listProviders()
-            var loaded: [NodeProviderModelSelector.ProviderOption] = []
-            for provider in configured where provider.enabled {
-                let modelInfos = try await providerService.listAvailableModels(
-                    providerType: provider.providerType
-                )
-                let modelIds = modelInfos.map(\.modelId)
-                let supportsVision = modelInfos.contains { $0.supportsVision }
-                loaded.append(
-                    NodeProviderModelSelector.ProviderOption(
-                        id: provider.id,
-                        name: provider.name,
-                        providerType: provider.providerType,
-                        available: true,
-                        supportsVision: supportsVision,
-                        models: modelIds
-                    )
-                )
-            }
-            providers = loaded
-            logger.info("Loaded \(providers.count) providers, \(providers.filter { $0.available }.count) available")
-
-            // Restore selection from node if set
-            // providerName now stores the provider ID (e.g. "openrouter")
-            if let providerId = node.providerName,
-               let provider = providers.first(where: { $0.id == providerId }) {
-                selectedProviderId = provider.id
-                selectedModelId = node.modelName ?? provider.models.first ?? ""
-            }
-            // Don't auto-select a provider - let user choose
-        } catch {
-            logger.error("Failed to load providers: \(String(describing: error))")
-        }
-    }
 }
 
 // MARK: - Preview
@@ -372,6 +340,7 @@ struct NodePopover: View {
             ]
         )),
         allNodes: [],
+        workflowId: "preview-workflow-id",
         onDelete: {},
         onDuplicate: {}
     )

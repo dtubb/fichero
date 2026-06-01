@@ -341,3 +341,56 @@ enum ComparisonError: LocalizedError {
         }
     }
 }
+
+// MARK: - Node Comparison
+
+struct NodeCompareRequest: Encodable {
+    let workflowId: String?
+    let nodeId: String
+    let models: [ModelRequestSpec]
+    let pinnedInputs: [String: String]
+    let timeoutSeconds: Int
+
+    enum CodingKeys: String, CodingKey {
+        case workflowId = "workflow_id"
+        case nodeId = "node_id"
+        case models
+        case pinnedInputs = "pinned_inputs"
+        case timeoutSeconds = "timeout_seconds"
+    }
+}
+
+struct NodeComparisonResponse: Decodable {
+    let workflowId: String?
+    let nodeId: String
+    let toolName: String
+    let choices: [NodeComparisonChoice]
+
+    enum CodingKeys: String, CodingKey {
+        case workflowId = "workflow_id"
+        case nodeId = "node_id"
+        case toolName = "tool_name"
+        case choices
+    }
+}
+
+struct NodeModelResult: Decodable {
+    let response: String
+    let latencyMs: Double
+    let costUsd: Double
+    let error: String?
+
+    enum CodingKeys: String, CodingKey {
+        case response
+        case latencyMs = "latency_ms"
+        case costUsd = "cost_usd"
+        case error
+    }
+}
+
+struct NodeComparisonChoice: Decodable, Identifiable {
+    var id: String { "\(provider)/\(model)" }
+    let provider: String
+    let model: String
+    let result: NodeModelResult
+}

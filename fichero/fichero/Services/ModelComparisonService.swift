@@ -222,6 +222,35 @@ final class ModelComparisonService: ObservableObject {
         }
     }
 
+    // MARK: - Node Comparison
+
+    func compareNode(
+        workflowId: String,
+        nodeId: String,
+        models: [ModelSpec],
+        pinnedInputs: [String: String] = [:]
+    ) async throws -> NodeComparisonResponse {
+        guard let url = URL(string: "\(baseURL)/compare-node") else { throw ComparisonError.invalidURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addEngineAuth()
+
+        let body = NodeCompareRequest(
+            workflowId: workflowId,
+            nodeId: nodeId,
+            models: models.map { ModelRequestSpec(provider: $0.provider, model: $0.model, temperature: $0.temperature) },
+            pinnedInputs: pinnedInputs,
+            timeoutSeconds: 120
+        )
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        let decoder = JSONDecoder()
+        return try decoder.decode(NodeComparisonResponse.self, from: data)
+    }
+
     // MARK: - Load Available Tools
 
     func loadTools() async {
