@@ -1121,6 +1121,12 @@ struct KnowledgeGraphInspectorSection: View {
             Divider()
                 .padding(.vertical, 4)
             KGCurationHistorySection(entityService: entityService)
+            Divider()
+                .padding(.vertical, 4)
+            DocumentInterpretationsSection(
+                documentId: documentId,
+                entityService: entityService
+            )
         }
         .task(id: documentId) { await loadStatements() }
     }
@@ -2108,6 +2114,109 @@ private struct KnowledgeGraphPreviewSurface: View {
 
 #Preview("KG — dates (no duplicate context)") {
     KnowledgeGraphPreviewSurface(groups: [(.date, PreviewMocks.dates)])
+}
+
+// MARK: - Hermeneutics interpretations panel
+
+/// Shows AI-generated hermeneutic interpretations for this document,
+/// backed by GET /api/hermeneutics/interpretations?document_id=...
+/// Collapses when empty so it takes no space when no interpretations exist.
+struct DocumentInterpretationsSection: View {
+    let documentId: String
+    let entityService: EntityServiceGenerated
+
+    @State private var interpretations: [Components.Schemas.Interpretation] = []
+    @State private var isExpanded = false
+    @State private var isLoading = false
+
+    var body: some View {
+        if !interpretations.isEmpty || isLoading {
+            DisclosureGroup(isExpanded: $isExpanded) {
+                if isLoading {
+                    HStack(spacing: 6) {
+                        ProgressView().scaleEffect(0.6)
+                        Text("Loading…").font(.caption).foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                } else {
+                    LazyVStack(alignment: .leading, spacing: 8) {
+                        ForEach(interpretations.prefix(6), id: \.id) { interp in
+                            interpretationRow(interp)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "text.magnifyingglass")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("Interpretations (\(interpretations.count))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 12)
+            .task(id: documentId) { await load() }
+        } else {
+            EmptyView()
+                .task(id: documentId) { await load() }
+        }
+    }
+
+    @ViewBuilder
+    private func interpretationRow(_ interp: Components.Schemas.Interpretation) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Text(actLabel(interp.act))
+                    .font(.caption2)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Color.accentColor.opacity(0.12))
+                    .foregroundStyle(Color.accentColor)
+                    .clipShape(Capsule())
+                Spacer()
+                if let conf = interp.confidence {
+                    Text(String(format: "%.0f%%", conf * 100))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            Text(interp.interpretationText)
+                .font(.caption)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+            if let insights = interp.keyInsights, !insights.isEmpty {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(insights.prefix(2), id: \.self) { insight in
+                        HStack(alignment: .top, spacing: 4) {
+                            Text("•").font(.caption2).foregroundStyle(.secondary)
+                            Text(insight).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func actLabel(_ act: Components.Schemas.InterpretiveActType) -> String {
+        switch act {
+        case .reading: return "Reading"
+        case .translating: return "Translating"
+        case .contextualizing: return "Contextualizing"
+        case .synthesizing: return "Synthesizing"
+        case .critiquing: return "Critiquing"
+        case .applying: return "Applying"
+        }
+    }
+
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
+        interpretations = (try? await entityService.listDocumentInterpretations(documentId: documentId)) ?? []
+        if !interpretations.isEmpty { isExpanded = true }
+    }
 }
 
 #Preview("KG — empty") {

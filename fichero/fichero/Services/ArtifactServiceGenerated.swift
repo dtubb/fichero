@@ -1276,6 +1276,27 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    // MARK: - Hermeneutics interpretations per document
+
+    /// Fetch interpretations for a document via GET /api/hermeneutics/interpretations?document_id=...
+    /// Uses direct URLRequest because HermeneuticsListResponse.items is [OpenAPIValueContainer].
+    func listDocumentInterpretations(
+        documentId: String
+    ) async throws -> [Components.Schemas.Interpretation] {
+        guard let lib = client.currentLibraryPath else { return [] }
+        let docEncoded = documentId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? documentId
+        guard let url = URL(string: "\(client.baseURL)/api/hermeneutics/interpretations?document_id=\(docEncoded)") else {
+            return []
+        }
+        var req = URLRequest(url: url)
+        req.addEngineAuth(libraryPath: lib)
+        let (data, _) = try await URLSession.shared.data(for: req)
+        struct Envelope: Decodable {
+            let items: [Components.Schemas.Interpretation]
+        }
+        return (try? JSONDecoder().decode(Envelope.self, from: data))?.items ?? []
+    }
+
     private static func decodeSimilar(
         payload: OpenAPIRuntime.OpenAPIValueContainer
     ) -> SimilarClaim? {
