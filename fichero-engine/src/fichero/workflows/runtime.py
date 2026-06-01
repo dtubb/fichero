@@ -52,10 +52,26 @@ def to_workflow_def(workflow: Any) -> WorkflowDef:
         ],
         edges=[
             EdgeDef(
-                source=_as_mapping(e).get("source") or _as_mapping(e).get("source_node_id", ""),
-                target=_as_mapping(e).get("target") or _as_mapping(e).get("target_node_id", ""),
-                source_port=_as_mapping(e).get("source_port", "output"),
-                target_port=_as_mapping(e).get("target_port", "input"),
+                source=(
+                    _as_mapping(e).get("source")
+                    or _as_mapping(e).get("source_node_id")
+                    or _as_mapping(e).get("sourceNodeId", "")
+                ),
+                target=(
+                    _as_mapping(e).get("target")
+                    or _as_mapping(e).get("target_node_id")
+                    or _as_mapping(e).get("targetNodeId", "")
+                ),
+                source_port=(
+                    _as_mapping(e).get("source_port")
+                    or _as_mapping(e).get("sourcePort")
+                    or "output"
+                ),
+                target_port=(
+                    _as_mapping(e).get("target_port")
+                    or _as_mapping(e).get("targetPort")
+                    or "input"
+                ),
             )
             for e in workflow.edges
         ],
