@@ -21,6 +21,7 @@ extension Notification.Name {
 /// outputs" → "metadata about the document".
 enum InspectorTab: String, CaseIterable, Identifiable {
     case content = "Content"
+    case outline = "Outline"
     case annotations = "Annotations"
     case notes = "Notes"
     case knowledgeGraph = "Knowledge Graph"
@@ -33,6 +34,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .content: return "doc.text"
+        case .outline: return "list.bullet.indent"
         case .annotations: return "highlighter"
         case .notes: return "pencil.and.scribble"
         case .knowledgeGraph: return "point.3.connected.trianglepath.dotted"
@@ -47,6 +49,8 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         switch self {
         case .content:
             return "Content — read the document's extracted text and page contents"
+        case .outline:
+            return "Outline — drill down the document's structure: chapters, sections, pages, and what's on each"
         case .annotations:
             return "Annotations — view and edit highlights and notes on this document"
         case .notes:
@@ -221,6 +225,8 @@ struct DocumentInspector: View {
         switch selectedTab {
         case .content:
             contentTab(for: doc)
+        case .outline:
+            SourceOutlineView(documentId: doc.id)
         case .annotations:
             DocumentInspectorAnnotationsTab(document: doc)
         case .notes:
@@ -238,7 +244,7 @@ struct DocumentInspector: View {
 
     private func availableTabs(for doc: Document?) -> [InspectorTab] {
         guard let doc else { return InspectorTab.allCases }
-        var tabs: [InspectorTab] = [.content, .annotations, .notes, .knowledgeGraph, .artifacts]
+        var tabs: [InspectorTab] = [.content, .outline, .annotations, .notes, .knowledgeGraph, .artifacts]
         if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
             tabs.append(.edits)
         }
