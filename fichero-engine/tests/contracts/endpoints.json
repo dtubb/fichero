@@ -4427,6 +4427,16 @@
       },
       {
         "method": "GET",
+        "path": "/kg/review/summary",
+        "operation_id": "review_summary_api_kg_review_summary_get",
+        "summary": "Review queue summary for badge counts",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ReviewSummaryResponse"
+      },
+      {
+        "method": "GET",
         "path": "/kg/search",
         "operation_id": "search_kg_api_kg_search_get",
         "summary": "Mixed-type KG search \u2014 one call, hits across entities + claims + notes + annotations",

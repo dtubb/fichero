@@ -4263,6 +4263,17 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("review-queue-summary-for-badge-counts")
+    def kg_review_queue_summary_for_badge_counts_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Review queue summary for badge counts (GET /api/kg/review/summary)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/review/summary"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("mixed-type-search-one-call-hits-across-entities-claims-notes-annotations")
     def kg_mixed_type_search_one_call_hits_across_entities_claims_notes_annotations_get(
         ctx: typer.Context,
@@ -7908,6 +7919,18 @@ def register_generated_openapi_commands(
                 "limit": limit,
             }
             return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("pause")
+    def workflow_execution_pause_post(
+        ctx: typer.Context,
+        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+    ) -> None:
+        """Pause Workflow (POST /api/workflow-execution/threads/{thread_id}/pause)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/workflow-execution/threads/{thread_id}/pause"
+            params = None
+            return client.request("POST", path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("resume")

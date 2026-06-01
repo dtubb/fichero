@@ -19535,6 +19535,48 @@
         }
       }
     },
+    "/api/kg/review/summary": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Review queue summary for badge counts",
+        "operationId": "review_summary_api_kg_review_summary_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/review/pairs": {
       "get": {
         "tags": [
@@ -48338,6 +48380,25 @@
         ],
         "title": "ReviewPairResponse",
         "description": "One pending pair waiting for a reviewer decision."
+      },
+      "ReviewSummaryResponse": {
+        "properties": {
+          "pending_count": {
+            "type": "integer",
+            "title": "Pending Count"
+          },
+          "has_pending": {
+            "type": "boolean",
+            "title": "Has Pending"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pending_count",
+          "has_pending"
+        ],
+        "title": "ReviewSummaryResponse",
+        "description": "Compact queue status for badge/UI polling."
       },
       "RollbackRequest": {
         "properties": {
