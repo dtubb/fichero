@@ -9,6 +9,9 @@ struct LibraryView: View {
     let isConnected: Bool
     let errorMessage: String?
     let onRetry: () -> Void
+    /// Sort field / direction / filter-bar visibility, lifted out of @State so
+    /// the in-content mode rail can drive them too (#1477). Owned by ContentView.
+    @ObservedObject var libraryToolbar: LibraryToolbarState
     @Binding var selection: Set<String>
     @Binding var detailDocument: Document?
     @Binding var viewMode: LibraryLayout
@@ -32,7 +35,6 @@ struct LibraryView: View {
     var onToolbarSearchSubmit: (String) -> Void = { _ in }
 
     @State var searchText: String = ""
-    @State var showFilterBar = false
     /// Text for the toolbar's `.searchable` field. Distinct from
     /// `searchText` (which drives the inline ⌘F filter bar inside the
     /// view) — `toolbarQuery` lives on the window toolbar so users can
@@ -40,14 +42,28 @@ struct LibraryView: View {
     /// inline filter stays as a quick local-narrow.
     @State var toolbarQuery: String = ""
     @FocusState var filterFieldFocused: Bool
-    @State var sortFieldRaw: String = LibrarySortField.name.rawValue
-    @State var sortAscending: Bool = true
     @State var sortOrder: [KeyPathComparator<Document>] = [.init(\.name, order: .forward)]
     @SceneStorage("library.sortFieldsByFolder") var sortFieldsByFolderJSON: String = "{}"
     @SceneStorage("library.sortAscendingByFolder") var sortAscendingByFolderJSON: String = "{}"
 
+    // Sort field / direction / filter-bar visibility now live on the shared
+    // store (#1477). These computed forwarders keep the existing call sites and
+    // `$`-bindings working unchanged.
+    var sortFieldRaw: String {
+        get { libraryToolbar.sortFieldRaw }
+        nonmutating set { libraryToolbar.sortFieldRaw = newValue }
+    }
+    var sortAscending: Bool {
+        get { libraryToolbar.sortAscending }
+        nonmutating set { libraryToolbar.sortAscending = newValue }
+    }
+    var showFilterBar: Bool {
+        get { libraryToolbar.showFilterBar }
+        nonmutating set { libraryToolbar.showFilterBar = newValue }
+    }
+
     var sortField: LibrarySortField {
-        LibrarySortField(rawValue: sortFieldRaw) ?? .name
+        libraryToolbar.sortField
     }
 
     // Workflow picker state
@@ -303,6 +319,7 @@ struct LibraryView: View {
         isConnected: true,
         errorMessage: nil,
         onRetry: {},
+        libraryToolbar: LibraryToolbarState(),
         selection: .constant(Set<String>()),
         detailDocument: .constant(nil),
         viewMode: .constant(.icons),
@@ -319,6 +336,7 @@ struct LibraryView: View {
         isConnected: false,
         errorMessage: nil,
         onRetry: {},
+        libraryToolbar: LibraryToolbarState(),
         selection: .constant(Set<String>()),
         detailDocument: .constant(nil),
         viewMode: .constant(.icons),

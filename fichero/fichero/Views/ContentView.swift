@@ -116,6 +116,10 @@ struct ContentView: View {
     // selection-driven behaviour (e.g. folders collapse the preview) by
     // turning this on. App-wide preference, toggled from the View menu. (#1452)
     @AppStorage("layout.followsSelection") var layoutFollowsSelection: Bool = false
+    // Library sort field / direction / filter-bar visibility, lifted out of
+    // LibraryView's @State so the in-content mode rail can host the Sort + Filter
+    // controls at the Library view's top-right (#1477).
+    @StateObject var libraryToolbarState = LibraryToolbarState()
 
     // Map view persistence (latitude, longitude, zoom)
     @SceneStorage("mapLatitude") var mapLatitude: Double = 0.0

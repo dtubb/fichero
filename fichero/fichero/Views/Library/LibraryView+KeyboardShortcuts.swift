@@ -45,8 +45,8 @@ extension LibraryView {
             .focusedSceneValue(\.libraryDeleteSelection, !selection.isEmpty ? {
                 promptDeleteSelected()
             } : nil)
-            .focusedSceneValue(\.librarySortField, $sortFieldRaw)
-            .focusedSceneValue(\.librarySortAscending, $sortAscending)
+            .focusedSceneValue(\.librarySortField, $libraryToolbar.sortFieldRaw)
+            .focusedSceneValue(\.librarySortAscending, $libraryToolbar.sortAscending)
             .confirmationDialog(
                 "Delete \(documentsToDelete.count) document\(documentsToDelete.count == 1 ? "" : "s")?",
                 isPresented: $showDeleteConfirmation,
