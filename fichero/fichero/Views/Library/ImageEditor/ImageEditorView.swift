@@ -116,16 +116,17 @@ private extension ImageEditorView {
             Divider().frame(height: 20)
 
             // Original ↔ Edited — icon-only segmented control (#1420).
-            Picker("", selection: editedBinding) {
+            Picker("Show image as", selection: editedBinding) {
                 Image(systemName: "photo").tag(false)
-                    .help("Original")
+                    .accessibilityLabel("Original — unedited source image")
                 Image(systemName: "wand.and.stars").tag(true)
-                    .help("Edited")
+                    .accessibilityLabel("Edited — with all applied edits")
             }
             .pickerStyle(.segmented)
             .frame(width: 64)
-            .labelsHidden()
-            .help(model.showEdited ? "Showing edited — tap to compare original" : "Showing original — tap to show edited")
+            .help(model.showEdited
+                  ? "Showing edited version — click to compare original"
+                  : "Showing original — click to show with edits applied")
             .accessibilityIdentifier("imageEditOriginalEditedToggle")
 
             Divider().frame(height: 20)
@@ -149,10 +150,13 @@ private extension ImageEditorView {
                 .help("Enhance — adjust brightness, contrast, sharpen")
                 .popover(isPresented: $showEnhancePopover, arrowEdge: .bottom) { enhancePopover }
 
-                toolButton("person.and.background.dotted", help: "Remove background") {
+                toolButton("person.and.background.dotted", help: "Remove background — AI-powered background removal") {
                     Task { await model.removeBackground() }
                 }
-                toolButton("square.split.2x1", help: "Segment into regions") {
+                toolButton("sparkles", help: "Fuzzy clean — despeckle and remove noise artifacts") {
+                    Task { await model.fuzzyClean() }
+                }
+                toolButton("square.split.2x1", help: "Segment — detect and label image regions") {
                     Task { await model.segment() }
                 }
             }
@@ -180,15 +184,20 @@ private extension ImageEditorView {
             Spacer()
 
             // Compare mode — icon-only segmented (#1420 spec).
-            Picker("", selection: $compareMode) {
-                Image(systemName: "rectangle").tag(CompareMode.single)
-                Image(systemName: "rectangle.righthalf.inset.filled.arrow.right").tag(CompareMode.wipe)
-                Image(systemName: "rectangle.split.2x1").tag(CompareMode.sideBySide)
+            Picker("Compare mode", selection: $compareMode) {
+                Image(systemName: "rectangle")
+                    .tag(CompareMode.single)
+                    .accessibilityLabel("Single — show one view of the image")
+                Image(systemName: "rectangle.righthalf.inset.filled.arrow.right")
+                    .tag(CompareMode.wipe)
+                    .accessibilityLabel("Slider — drag to wipe between original and edited")
+                Image(systemName: "rectangle.split.2x1")
+                    .tag(CompareMode.sideBySide)
+                    .accessibilityLabel("Side-by-Side — original and edited in split view")
             }
             .pickerStyle(.segmented)
             .frame(width: 96)
-            .labelsHidden()
-            .help("Compare mode: Single / Wipe / Side-by-Side")
+            .help("Compare mode — Single view, Slider wipe, or Side-by-Side")
 
             if model.isBusy {
                 ProgressView().controlSize(.small)
