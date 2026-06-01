@@ -909,6 +909,22 @@ class TestLoadPresetFiles:
         )
         assert "provider_name" not in transcribe_node.get("config", {})
 
+    def test_translate_deepl_preset_wiring(self):
+        """Provider-driven translation preset uses the `translate` tool with
+        explicit DeepL provider defaults for Dutch→English workflows (#1332)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Translate (DeepL)" in presets, "Translate (DeepL) preset must ship"
+        preset = presets["Translate (DeepL)"]
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "transcribe", "translate"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        translate_node = next(n for n in preset["nodes"] if n["tool"] == "translate")
+        assert translate_node["config"].get("provider_name") == "deepl"
+        assert translate_node["config"].get("source_lang") == "nl"
+        assert translate_node["config"].get("target_lang") == "en"
+
 
 def _node_id(preset: dict, tool: str) -> str:
     for node in preset["nodes"]:

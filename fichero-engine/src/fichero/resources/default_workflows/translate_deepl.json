@@ -1,0 +1,65 @@
+{
+  "name": "Translate (DeepL)",
+  "description": "Transcribe each file, then translate the extracted text through DeepL (default Dutch to English). Edit source/target language on the Translate node as needed.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Translate",
+  "tags": ["preset", "translate", "deepl", "text", "language"],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 220,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "transcribe",
+      "tool": "transcribe",
+      "label": "Transcribe each file",
+      "position_x": 280,
+      "position_y": 220,
+      "inputs": {},
+      "config": {
+        "vision_mode": "auto",
+        "language": "auto",
+        "update_page_content": true
+      }
+    },
+    {
+      "id": "translate",
+      "tool": "translate",
+      "label": "Translate (DeepL)",
+      "position_x": 500,
+      "position_y": 220,
+      "inputs": {},
+      "config": {
+        "provider_name": "deepl",
+        "source_lang": "nl",
+        "target_lang": "en"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-files-transcribe",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-transcribe-translate",
+      "source": "transcribe",
+      "target": "translate",
+      "source_port": "text",
+      "target_port": "text"
+    }
+  ]
+}
