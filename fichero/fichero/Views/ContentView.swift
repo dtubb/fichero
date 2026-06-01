@@ -302,18 +302,12 @@ struct ContentView: View {
         .onChange(of: documentStore.currentDocuments) { _, newDocs in
             handleCurrentDocumentsChange(newDocs)
         }
-        .onChange(of: showInspectorSidebar) { _, newValue in
-            if viewSettings.showInspector != newValue {
-                viewSettings.showInspector = newValue
-            }
+        // Inspector visibility is per-window (@SceneStorage). It is NOT mirrored
+        // into the app-wide ViewSettings any more — doing so flipped the
+        // inspector in every open window at once (#1451). The View menu reaches
+        // this window's state through FocusedValues.showInspector instead.
+        .onChange(of: showInspectorSidebar) { _, _ in
             updateColumnVisibility()
-        }
-        .onChange(of: viewSettings.showInspector) { _, newValue in
-            if showInspectorSidebar != newValue {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showInspectorSidebar = newValue
-                }
-            }
         }
         .toolbar { mainToolbarContent }
         .onChange(of: viewSettings.previewMode) { _, newPreviewMode in

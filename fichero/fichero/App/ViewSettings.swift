@@ -6,7 +6,10 @@ import SwiftUI
 class ViewSettings: ObservableObject {
     @Published var libraryLayout: LibraryLayout = .icons
     @Published var previewMode: PreviewMode = .widescreen
-    @Published var showInspector: Bool = true
+    // NOTE: inspector visibility is intentionally NOT here. It is per-window
+    // state (`ContentView.showInspectorSidebar`, @SceneStorage) exposed to the
+    // View menu via `FocusedValues.showInspector` below, so toggling the
+    // inspector in one window no longer flips it in every other window (#1451).
 }
 
 // MARK: - View Mode Enums
@@ -125,4 +128,9 @@ enum PreviewMode: String, CaseIterable {
 /// Focused value for sidebar mode - allows menu commands to change per-window sidebar mode
 extension FocusedValues {
     @Entry var sidebarMode: Binding<SidebarMode>?
+
+    /// Per-window inspector visibility, published by the focused ContentView so
+    /// the View-menu "Show/Hide Inspector" command toggles only the focused
+    /// window — not every open window (#1451).
+    @Entry var showInspector: Binding<Bool>?
 }

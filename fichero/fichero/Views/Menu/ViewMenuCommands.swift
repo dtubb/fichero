@@ -27,7 +27,7 @@ struct ViewMenuCommands: View {
 
         Divider()
 
-        InspectorButton(viewSettings: viewSettings)
+        InspectorButton()
 
         Divider()
 
@@ -444,20 +444,28 @@ struct PreviewModeButton: View {
 
 // MARK: - Inspector Button
 
-/// Inspector show/hide command
+/// Inspector show/hide command.
+/// Reads/writes the focused window's inspector visibility via FocusedValues so
+/// the toggle is per-window, not app-wide (#1451). Defaults to "Show" when no
+/// window is focused (e.g. the command is evaluated with no key window).
 struct InspectorButton: View {
-    @ObservedObject var viewSettings: ViewSettings
+    @FocusedValue(\.showInspector) var showInspector
+
+    private var isVisible: Bool {
+        showInspector?.wrappedValue ?? false
+    }
 
     var body: some View {
         Button {
-            viewSettings.showInspector.toggle()
+            showInspector?.wrappedValue.toggle()
         } label: {
             Label(
-                viewSettings.showInspector ? "Hide Inspector" : "Show Inspector",
+                isVisible ? "Hide Inspector" : "Show Inspector",
                 systemImage: "sidebar.right"
             )
         }
         .keyboardShortcut("i", modifiers: [.command, .option])
+        .disabled(showInspector == nil)
     }
 }
 

@@ -56,6 +56,7 @@ extension ContentView {
         // Was 250 — felt bloated on small screens.
         .navigationSplitViewColumnWidth(min: 180, ideal: sidebarWidth, max: 360)
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
+        .focusedSceneValue(\.showInspector, $showInspectorSidebar)
         .focusedSceneValue(\.navigateToParentAction, navigateToParent)
     }
 
