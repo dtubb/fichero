@@ -342,6 +342,80 @@ def import_slipbox_command(
     typer.echo(f"skipped_files: {summary.skipped_files}")
 
 
+@app.command(name="import-sergio-corpus")
+def import_sergio_corpus_command(
+    library_path: Path = typer.Option(
+        Path("~/Library/Application Support/Fichero/Sergio-Mosquera.fichero"),
+        "--library-path",
+        help="Target .fichero package to create/update.",
+    ),
+    source_root: Path = typer.Option(
+        Path("/Users/danieltubb/Library/CloudStorage/Box-Box/Sergio Mosquera Notebooks"),
+        "--source-root",
+        help="Notebook source directory.",
+    ),
+    spreadsheet_path: Path = typer.Option(
+        Path(
+            "/Users/danieltubb/Library/CloudStorage/Box-Box/01 Database/"
+            "Base de datos Cuadernos Sergio_Notaría Primera de Quibdó (1808-1825).xlsx"
+        ),
+        "--spreadsheet-path",
+        help="Catalogue spreadsheet (.xlsx).",
+    ),
+    limit: Optional[int] = typer.Option(
+        None,
+        "--limit",
+        help="Maximum number of source files to import.",
+    ),
+    reset: bool = typer.Option(
+        False,
+        "--reset",
+        help="Delete the target package before importing.",
+    ),
+    no_embed: bool = typer.Option(
+        False,
+        "--no-embed",
+        help="Skip embedding creation.",
+    ),
+) -> None:
+    """Import Sergio notebooks + catalogue spreadsheet into a Fichero corpus."""
+
+    from fichero.sergio_import import import_sergio_corpus
+
+    try:
+        summary = import_sergio_corpus(
+            library_path=library_path,
+            source_root=source_root,
+            spreadsheet_path=spreadsheet_path,
+            limit=limit,
+            reset=reset,
+            auto_embed=not no_embed,
+        )
+    except Exception as exc:
+        typer.secho(f"Sergio corpus import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    if summary.errors:
+        typer.secho(
+            f"Imported with {len(summary.errors)} errors.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        for err in summary.errors[:10]:
+            typer.echo(f"  {err}", err=True)
+        if len(summary.errors) > 10:
+            typer.echo(f"  ... {len(summary.errors) - 10} more", err=True)
+
+    typer.echo(f"library: {summary.library_path}")
+    typer.echo(f"root_document_id: {summary.root_document_id}")
+    typer.echo(f"imported_files: {summary.imported_files}")
+    typer.echo(f"spreadsheet_rows: {summary.spreadsheet_rows}")
+    typer.echo(f"matched_rows: {summary.matched_rows}")
+    typer.echo(f"unmatched_rows: {summary.unmatched_rows}")
+    typer.echo(f"duplicate_filename_rows: {summary.duplicate_filename_rows}")
+    typer.echo(f"skipped_files: {summary.skipped_files}")
+
+
 @artifacts_app.command("list")
 def artifacts_list(
     ctx: typer.Context,
