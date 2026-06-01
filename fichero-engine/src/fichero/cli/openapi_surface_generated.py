@@ -2156,6 +2156,33 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("patch-workspace-items")
+    def documents_patch_workspace_items_patch(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Patch Workspace Items (PATCH /api/documents/{doc_id}/workspace)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{doc_id}/workspace"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PATCH", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-workspace-items")
+    def documents_get_workspace_items_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+    ) -> None:
+        """Get Workspace Items (GET /api/documents/{doc_id}/workspace/items)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{doc_id}/workspace/items"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-citations")
     def documents_get_citations_get(
         ctx: typer.Context,

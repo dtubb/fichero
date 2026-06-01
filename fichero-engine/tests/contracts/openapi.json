@@ -6159,6 +6159,120 @@
         }
       }
     },
+    "/api/documents/{doc_id}/workspace": {
+      "patch": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Patch Workspace Items",
+        "description": "Atomically add/remove/reorder workspace curated items.",
+        "operationId": "patch_workspace_items_api_documents__doc_id__workspace_patch",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspacePatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceItemsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{doc_id}/workspace/items": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Get Workspace Items",
+        "description": "List curated workspace items with alias resolution to full targets.",
+        "operationId": "get_workspace_items_api_documents__doc_id__workspace_items_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceItemsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{doc_id}/children": {
       "get": {
         "tags": [
@@ -54395,6 +54509,111 @@
         ],
         "title": "WorkflowVisualizationResponse",
         "description": "Response with workflow visualization data."
+      },
+      "WorkspaceCuratedItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "target_type": {
+            "type": "string",
+            "title": "Target Type"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true,
+            "title": "Role"
+          },
+          "added_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Added At"
+          },
+          "x": {
+            "type": "number",
+            "nullable": true,
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "nullable": true,
+            "title": "Y"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "target_type",
+          "target_id"
+        ],
+        "title": "WorkspaceCuratedItem"
+      },
+      "WorkspaceItemsResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "items",
+          "count"
+        ],
+        "title": "WorkspaceItemsResponse"
+      },
+      "WorkspacePatchRequest": {
+        "properties": {
+          "add": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceCuratedItem"
+            },
+            "type": "array",
+            "title": "Add",
+            "default": []
+          },
+          "remove_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Remove Ids",
+            "default": []
+          },
+          "reorder_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Reorder Ids"
+          }
+        },
+        "type": "object",
+        "title": "WorkspacePatchRequest"
       },
       "XlsxIngestRequest": {
         "properties": {
