@@ -171,6 +171,32 @@
             font: 500 11px/1.4 var(--font-mono);
         }
 
+        /* Provenance + click-to-expand source passage, inline under the claim
+           (#1467). The hint is always visible; the source box reveals on click
+           (the .source-open class is toggled on the .claim-row). */
+        .claim-source-hint {
+            margin-top: 6px;
+            color: var(--accent);
+            font: 600 11px/1.4 var(--font-system);
+        }
+
+        .claim-source-hint::before { content: "\25B8  "; }
+        .claim-row.source-open .claim-source-hint::before { content: "\25BE  "; }
+
+        .claim-source {
+            display: none;
+            margin-top: 8px;
+            padding: 8px 10px;
+            border-left: 3px solid var(--accent);
+            background: var(--accent-soft);
+            border-radius: 4px;
+            color: var(--text);
+            font: 400 12px/1.55 var(--font-system);
+            white-space: pre-wrap;
+        }
+
+        .claim-row.source-open .claim-source { display: block; }
+
         /* Let the graph fill the whole pane instead of a tiny fixed box (#1465).
            #graph-panel is a child of `.content` which has a definite height
            (`.shell` is 100vh), so height:100% resolves; the flex column lets the
@@ -395,8 +421,9 @@ function renderDigest() {
             ${group.claims.map((claim) => `
                 <div class="claim-row ${state.activeClaimId === claim.id ? "active" : ""}" data-claim-id="${claim.id}">
                     <div>${escapeHtml(claimSummary(claim))}</div>
-                    ${claim.source_excerpt ? `<div class="claim-meta">${escapeHtml(claim.source_excerpt)}</div>` : ""}
                     <div class="claim-meta">${escapeHtml(claimMeta(claim))}</div>
+                    ${claim.source_excerpt ? `<div class="claim-source-hint">Source</div>
+                    <div class="claim-source">${escapeHtml(claim.source_excerpt)}</div>` : ""}
                 </div>
             `).join("")}
         </section>
@@ -406,6 +433,9 @@ function renderDigest() {
         row.addEventListener("click", () => {
             const claim = claims.find((item) => item.id === row.dataset.claimId);
             if (!claim) return;
+            // Expand/collapse the claim's source passage inline, right under the
+            // statement — an in-place disclosure, not a jump-away (#1467).
+            row.classList.toggle("source-open");
             state.activeClaimId = claim.id;
             state.activeEntityId = claim.entity_ids?.[0] || null;
             // Update active class in-place so scroll position is preserved.
