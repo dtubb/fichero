@@ -25,6 +25,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 OPENAPI = ROOT / "fichero-engine" / "tests" / "contracts" / "openapi.json"
@@ -73,15 +74,73 @@ def path_regex(path: str) -> re.Pattern:
     return re.compile(escaped)
 
 
-def endpoint_paths() -> list[str]:
-    data = json.loads(OPENAPI.read_text())
-    # One entry per path (method-agnostic — wiring is about the URL).
-    return sorted(data.get("paths", {}).keys())
+def _snake_to_lower_camel(value: str) -> str:
+    parts = [p for p in re.split(r"[^A-Za-z0-9]+", value) if p]
+    if not parts:
+        return value
+    return parts[0].lower() + "".join(p[:1].upper() + p[1:] for p in parts[1:])
 
 
-def unwired(surface: dict) -> list[str]:
+def _operation_tokens(operation_id: str) -> set[str]:
+    """Potential handwritten method-name tokens for an OpenAPI operation.
+
+    - raw operationId from openapi
+    - normalized snake_case form
+    - lowerCamel form (Swift generated client methods)
+    """
+    op = operation_id.strip()
+    snake = re.sub(r"[^A-Za-z0-9]+", "_", op).strip("_").lower()
+    return {op, snake, _snake_to_lower_camel(snake)}
+
+
+def endpoint_specs(openapi_data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten OpenAPI paths into path+operation specs.
+
+    Returns one dict per path:
+      {"path": "/api/...", "operations": [{"method":"get","operationId":"..."}, ...]}
+    """
+    out: list[dict[str, Any]] = []
+    for path, methods in sorted((openapi_data.get("paths") or {}).items()):
+        ops: list[dict[str, str]] = []
+        for method, meta in (methods or {}).items():
+            if method.lower() not in {"get", "post", "put", "patch", "delete", "head", "options"}:
+                continue
+            if not isinstance(meta, dict):
+                continue
+            op_id = str(meta.get("operationId") or "").strip()
+            if not op_id:
+                continue
+            ops.append({"method": method.lower(), "operationId": op_id})
+        out.append({"path": path, "operations": ops})
+    return out
+
+
+def _is_path_wired(path: str, operations: list[dict[str, str]], src: str) -> bool:
+    """A path is wired if raw URL is referenced OR a generated-client operation token is used."""
+    if path_regex(path).search(src):
+        return True
+
+    for op in operations:
+        op_id = op.get("operationId") or ""
+        for token in _operation_tokens(op_id):
+            if not token:
+                continue
+            if re.search(rf"\b{re.escape(token)}\b", src):
+                return True
+    return False
+
+
+def endpoint_paths(openapi_data: dict[str, Any]) -> list[str]:
+    return [spec["path"] for spec in endpoint_specs(openapi_data)]
+
+
+def unwired(surface: dict, openapi_data: dict[str, Any]) -> list[str]:
     src = surface_source(surface)
-    return [p for p in endpoint_paths() if not path_regex(p).search(src)]
+    miss: list[str] = []
+    for spec in endpoint_specs(openapi_data):
+        if not _is_path_wired(spec["path"], spec["operations"], src):
+            miss.append(spec["path"])
+    return miss
 
 
 def load_allowlist(surface: dict, name: str) -> dict:
@@ -95,7 +154,8 @@ def load_allowlist(surface: dict, name: str) -> dict:
 
 
 def check_surface(name: str, surface: dict, write: bool) -> int:
-    miss = unwired(surface)
+    openapi_data = json.loads(OPENAPI.read_text())
+    miss = unwired(surface, openapi_data)
     allow = load_allowlist(surface, name)
     allowed = set(allow.get("paths", {}).keys())
 
@@ -107,7 +167,7 @@ def check_surface(name: str, surface: dict, write: bool) -> int:
 
     drift = [p for p in miss if p not in allowed]
     stale = [p for p in allowed if p not in set(miss)]
-    total = len(endpoint_paths())
+    total = len(endpoint_paths(openapi_data))
     wired = total - len(miss)
     print(f"[{name}] {wired}/{total} endpoints wired, {len(miss)} unwired ({len(allowed)} allowlisted).")
     if stale:
