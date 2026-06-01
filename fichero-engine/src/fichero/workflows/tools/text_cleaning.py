@@ -31,6 +31,61 @@ class TextCleaner:
         return "\n".join(clean_lines)
 
     @staticmethod
+    def remove_ocr_garbage_lines(text: str) -> str:
+        """Drop obvious OCR garbage while preserving plausible content lines."""
+        lines = text.splitlines()
+        kept: list[str] = []
+
+        for raw_line in lines:
+            line = raw_line.strip()
+            if not line:
+                kept.append("")
+                continue
+
+            # Keep plausible year-only lines (timeline-relevant).
+            if re.fullmatch(r"(1[5-9]\d{2}|20\d{2})", line):
+                kept.append(line)
+                continue
+
+            letters = sum(1 for ch in line if ch.isalpha())
+            digits = sum(1 for ch in line if ch.isdigit())
+            alnum = sum(1 for ch in line if ch.isalnum())
+            non_space = sum(1 for ch in line if not ch.isspace())
+            words = [w for w in re.split(r"\s+", line) if w]
+            alpha_words = [w for w in words if sum(c.isalpha() for c in w) >= 2]
+
+            if non_space == 0:
+                kept.append("")
+                continue
+
+            letter_ratio = letters / non_space
+            digit_ratio = digits / non_space
+            alpha_word_ratio = (len(alpha_words) / len(words)) if words else 0.0
+
+            # Drop extreme repeated-char lines such as "000000000000000000".
+            collapsed = re.sub(r"\s+", "", line)
+            if len(collapsed) >= 10 and len(set(collapsed)) <= 2:
+                continue
+
+            # Drop very short pure number lines (page noise / OCR residue).
+            if re.fullmatch(r"\d{1,8}", line):
+                continue
+
+            # Drop symbol/digit soup lines with too little alphabetic signal.
+            if digit_ratio >= 0.4 and letter_ratio < 0.35 and alpha_word_ratio < 0.5:
+                continue
+
+            # Lines like "..." are non-content separators.
+            if re.fullmatch(r"[.\-_=:;,*]{3,}", line):
+                continue
+
+            # Keep line by default when it has meaningful alphabetic content.
+            if letters >= 3 or alnum >= 3:
+                kept.append(line)
+
+        return "\n".join(kept)
+
+    @staticmethod
     def remove_specific_phrases(text: str) -> str:
         """Remove common OCR/LLM wrapper phrases and formatting noise."""
         phrases_to_remove = [
@@ -215,6 +270,7 @@ class TextCleaner:
     def clean_text(text: str) -> str:
         """Run deterministic cleaning passes in fixed order."""
         text = TextCleaner.remove_pathological_patterns(text)
+        text = TextCleaner.remove_ocr_garbage_lines(text)
         text = TextCleaner.remove_specific_phrases(text)
         text = TextCleaner.combine_single_word_paragraphs(text)
         text = TextCleaner.remove_repeated_phrases(text)
@@ -222,4 +278,3 @@ class TextCleaner:
         text = TextCleaner.split_long_lines(text, max_length=72)
         text = TextCleaner.clean_line_spacing(text)
         return text.strip()
-
