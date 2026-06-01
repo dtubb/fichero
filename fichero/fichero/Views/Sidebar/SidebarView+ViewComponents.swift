@@ -74,6 +74,9 @@ extension SidebarView {
             ForEach(cachedLibraryHeaders) { libraryHeader in
                 unifiedLibrarySection(libraryHeader)
             }
+            // App-level destinations pinned once at the bottom, not repeated
+            // under every library (#1456).
+            pinnedGlobalNavigationRows()
         }
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
@@ -245,13 +248,12 @@ extension SidebarView {
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
 
-        if FeatureManager.shared.isWorkflowsEnabled {
-            workflowsNavigationRow()
-        }
-
-        if FeatureManager.shared.isBatchesEnabled {
-            batchesNavigationRow()
-        }
+        // Workflows / Batches / Activity used to render here, once per
+        // library. They are app-level destinations (fixed selection tags, no
+        // library scope), so repeating them under every library both
+        // duplicated the rows and made all copies highlight together. They are
+        // now pinned ONCE at the bottom of the sidebar — see
+        // `pinnedGlobalNavigationRows()` in `unifiedContent`. (#1456)
 
         if FeatureManager.shared.isAutomationEnabled {
             unifiedDisclosureSection(
@@ -261,10 +263,6 @@ extension SidebarView {
                 libraryId: libraryId,
                 items: buckets.scheduleItems + buckets.triggerItems
             )
-        }
-
-        if FeatureManager.shared.isActivityEnabled {
-            activityNavigationRow()
         }
 
         // Saved Searches at the bottom — Daniel: 'saved searches should
@@ -495,6 +493,34 @@ extension SidebarView {
             .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
+    }
+
+    /// Workflows / Batches / Activity pinned once at the bottom of the sidebar.
+    /// These are app-level destinations with fixed selection tags, so they must
+    /// appear exactly once — not repeated under every library, which both
+    /// duplicated them and made all copies share one selection highlight (#1456).
+    @ViewBuilder
+    private func pinnedGlobalNavigationRows() -> some View {
+        if FeatureManager.shared.isWorkflowsEnabled
+            || FeatureManager.shared.isBatchesEnabled
+            || FeatureManager.shared.isActivityEnabled {
+            Divider()
+                .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+        }
+
+        if FeatureManager.shared.isWorkflowsEnabled {
+            workflowsNavigationRow()
+        }
+
+        if FeatureManager.shared.isBatchesEnabled {
+            batchesNavigationRow()
+        }
+
+        if FeatureManager.shared.isActivityEnabled {
+            activityNavigationRow()
+        }
     }
 
     // MARK: - Compact Activity Grid (no longer used for section — struct kept for reuse)
