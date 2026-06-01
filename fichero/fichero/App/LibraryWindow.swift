@@ -108,6 +108,13 @@ struct LibraryWindow: View {
                 .environmentObject(appState)
                 .environmentObject(appState.mcpService)
         }
+        // Standalone notes browser (#1500)
+        .sheet(isPresented: Binding(
+            get: { appState.showNotesBrowser },
+            set: { appState.showNotesBrowser = $0 }
+        )) {
+            NotesBrowserView()
+        }
         // Integrations sheets
         .sheet(isPresented: Binding(
             get: { appState.showFolderWatchers },

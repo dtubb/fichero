@@ -32,6 +32,11 @@ class AppState: ObservableObject {
 
     @Published var showMCPServers: Bool = false
 
+    // MARK: - Notes browser (#1500)
+
+    /// Drives the standalone NotesBrowserView sheet (Data ▸ Notes Browser…).
+    @Published var showNotesBrowser: Bool = false
+
     // MARK: - Integrations (Hazel-like folder/app observers)
 
     @Published var showFolderWatchers: Bool = false

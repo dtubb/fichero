@@ -128,6 +128,7 @@ struct EntityDetailView: View {
                     metadataSection
                     claimsSection
                     auditSection
+                    EntityNotesSection(entityId: entity.id ?? "")
                 }
                 .padding()
             }
