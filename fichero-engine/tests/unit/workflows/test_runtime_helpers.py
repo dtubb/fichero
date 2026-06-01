@@ -61,3 +61,23 @@ def test_to_workflow_def_accepts_camel_case_edge_aliases():
     assert wf_def.edges[0].target == "b"
     assert wf_def.edges[0].source_port == "text"
     assert wf_def.edges[0].target_port == "context"
+
+
+def test_to_workflow_def_accepts_camel_case_node_provider_fields():
+    workflow = SimpleNamespace(
+        id="wf-3",
+        name="Runtime Node Alias Test",
+        nodes=[
+            {
+                "id": "n1",
+                "tool": "transcribe",
+                "providerName": "openai",
+                "modelName": "gpt-5",
+            }
+        ],
+        edges=[],
+    )
+
+    wf_def = to_workflow_def(workflow)
+    assert wf_def.nodes[0].provider_name == "openai"
+    assert wf_def.nodes[0].model_name == "gpt-5"
