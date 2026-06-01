@@ -55,6 +55,14 @@ struct NotePatchBody: Encodable {
     let body: String
 }
 
+/// Create body for a free-floating note (no links) — used by the standalone
+/// notes browser (#1500).
+struct NoteCreateFreeBody: Encodable {
+    let title: String?
+    let body: String
+    let kind: String
+}
+
 // MARK: - Service
 
 @MainActor
@@ -83,6 +91,53 @@ final class NoteService: ObservableObject {
             self.error = error.localizedDescription
             logger.error("load notes failed: \(error.localizedDescription)")
         }
+    }
+
+    /// Load all notes, optionally filtered by kind / tag / linked entity /
+    /// full-text query. Powers the standalone notes browser (#1500).
+    func loadAll(
+        kind: String? = nil,
+        tag: String? = nil,
+        linkedEntityId: String? = nil,
+        query: String? = nil
+    ) async {
+        isLoading = true
+        error = nil
+        defer { isLoading = false }
+        do {
+            guard var comps = URLComponents(string: base) else { return }
+            var items: [URLQueryItem] = []
+            if let kind, !kind.isEmpty { items.append(URLQueryItem(name: "kind", value: kind)) }
+            if let tag, !tag.isEmpty { items.append(URLQueryItem(name: "tag", value: tag)) }
+            if let linkedEntityId, !linkedEntityId.isEmpty {
+                items.append(URLQueryItem(name: "linked_entity_id", value: linkedEntityId))
+            }
+            if let query, !query.isEmpty { items.append(URLQueryItem(name: "q", value: query)) }
+            comps.queryItems = items.isEmpty ? nil : items
+            guard let url = comps.url else { return }
+            var req = URLRequest(url: url)
+            req.addEngineAuth()
+            let (data, _) = try await URLSession.shared.data(for: req)
+            let resp = try JSONDecoder().decode(NoteListResponse.self, from: data)
+            notes = resp.items
+        } catch {
+            self.error = error.localizedDescription
+            logger.error("loadAll notes failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Create a free-floating note with no links (#1500).
+    func createFree(body: String, kind: String) async throws -> NoteItem {
+        guard let url = URL(string: base) else { throw NoteServiceError.invalidURL }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.addEngineAuth()
+        req.httpBody = try JSONEncoder().encode(NoteCreateFreeBody(title: nil, body: body, kind: kind))
+        let (data, _) = try await URLSession.shared.data(for: req)
+        let note = try JSONDecoder().decode(NoteItem.self, from: data)
+        notes.insert(note, at: 0)
+        return note
     }
 
     /// Load notes linked to a KG entity (#1501).
