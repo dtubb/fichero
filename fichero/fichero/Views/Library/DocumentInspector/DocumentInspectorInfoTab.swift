@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import FicheroAPIClient
 import OSLog
 import SwiftUI
@@ -56,6 +57,14 @@ struct DocumentInspectorInfoTab: View {
 
                 Section("Citations") {
                     CitationGraphPanel(documentId: document.id)
+                }
+
+                Section("Bibliography") {
+                    DocumentBibliographyPanel(documentId: document.id)
+                }
+
+                Section("Workflow History") {
+                    WorkflowProvenancePanel(documentId: document.id)
                 }
             }
             .formStyle(.grouped)
@@ -340,5 +349,182 @@ struct CitationGraphPanel: View {
             inbound = []
             outbound = []
         }
+    }
+}
+
+// MARK: - DocumentBibliographyPanel (#1434)
+
+/// Extracted bibliography panel — scholarly references extracted from
+/// within the document, backed by `GET /api/documents/{id}/citations`.
+/// Distinct from CitationGraphPanel (doc-to-doc links in the knowledge
+/// graph); this shows the bibliography inside the document itself.
+struct DocumentBibliographyPanel: View {
+    let documentId: String
+
+    @State private var references: [Components.Schemas.Reference] = []
+    @State private var selfRef: Components.Schemas.Reference?
+    @State private var isLoading = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if isLoading && references.isEmpty {
+                HStack(spacing: 6) {
+                    ProgressView().scaleEffect(0.6)
+                    Text("Loading…").font(.caption).foregroundStyle(.secondary)
+                }
+            } else if references.isEmpty && selfRef == nil {
+                Text("No bibliography extracted yet")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                if let selfRef {
+                    referenceRow(selfRef, isSelf: true)
+                    if !references.isEmpty { Divider() }
+                }
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    ForEach(references, id: \.id) { ref in
+                        referenceRow(ref, isSelf: false)
+                    }
+                }
+            }
+        }
+        .task(id: documentId) { await load() }
+    }
+
+    @ViewBuilder
+    private func referenceRow(_ ref: Components.Schemas.Reference, isSelf: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                if isSelf {
+                    Image(systemName: "doc.text")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Text(refTitle(ref))
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 6) {
+                if let authors = ref.authors, !authors.isEmpty {
+                    Text(authors.prefix(2).joined(separator: ", "))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                if let year = ref.year {
+                    Text(String(year))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer(minLength: 4)
+                if let journal = ref.journalOrBook {
+                    Text(journal)
+                        .font(.caption2)
+                        .italic()
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func refTitle(_ ref: Components.Schemas.Reference) -> String {
+        if let title = ref.title, !title.isEmpty { return title }
+        if let bib = ref.bibtex, !bib.isEmpty { return String(bib.prefix(60)) + "…" }
+        return "Untitled"
+    }
+
+    private func load() async {
+        guard let library = LibraryManager.shared.globalLibrary else { return }
+        isLoading = true
+        defer { isLoading = false }
+        guard let resp = try? await library.entityService.listDocumentCitations(documentId: documentId) else {
+            return
+        }
+        selfRef = resp._self
+        references = resp.references
+    }
+}
+
+// MARK: - WorkflowProvenancePanel (#1434)
+
+/// Shows which workflow runs touched this document, backed by
+/// `GET /api/documents/{id}/workflow-runs`. Lets the user see
+/// which AI pipeline produced the document's entities and artifacts.
+struct WorkflowProvenancePanel: View {
+    let documentId: String
+
+    @State private var runs: [Components.Schemas.WorkflowRunProvenanceResponse] = []
+    @State private var isLoading = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if isLoading && runs.isEmpty {
+                HStack(spacing: 6) {
+                    ProgressView().scaleEffect(0.6)
+                    Text("Loading…").font(.caption).foregroundStyle(.secondary)
+                }
+            } else if runs.isEmpty {
+                Text("No workflow runs recorded")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    ForEach(runs.prefix(10), id: \.workflowId) { run in
+                        provenanceRow(run)
+                    }
+                }
+            }
+        }
+        .task(id: documentId) { await load() }
+    }
+
+    @ViewBuilder
+    private func provenanceRow(_ run: Components.Schemas.WorkflowRunProvenanceResponse) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "gearshape.2")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 14)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(run.workflowName ?? run.workflowId)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                HStack(spacing: 4) {
+                    if let model = run.model, !model.isEmpty {
+                        Text(model)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                    if let started = run.startedAt, !started.isEmpty {
+                        Text(relativeDate(started))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func relativeDate(_ iso: String) -> String {
+        let fmt = ISO8601DateFormatter()
+        fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = fmt.date(from: iso) else { return iso }
+        let rel = RelativeDateTimeFormatter()
+        rel.unitsStyle = .abbreviated
+        return rel.localizedString(for: date, relativeTo: Date())
+    }
+
+    private func load() async {
+        guard let library = LibraryManager.shared.globalLibrary else { return }
+        isLoading = true
+        defer { isLoading = false }
+        runs = (try? await library.entityService.listDocumentWorkflowRuns(documentId: documentId)) ?? []
     }
 }
