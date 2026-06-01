@@ -2118,9 +2118,8 @@ private struct KnowledgeGraphPreviewSurface: View {
 
 // MARK: - Hermeneutics interpretations panel
 
-/// Shows AI-generated hermeneutic interpretations for this document,
-/// backed by GET /api/hermeneutics/interpretations?document_id=...
-/// Collapses when empty so it takes no space when no interpretations exist.
+/// Shows interpretations for this document + inline "New Interpretation" form.
+/// Always visible so the user can create the first interpretation even when none exist.
 struct DocumentInterpretationsSection: View {
     let documentId: String
     let entityService: EntityServiceGenerated
@@ -2129,40 +2128,179 @@ struct DocumentInterpretationsSection: View {
     @State private var isExpanded = false
     @State private var isLoading = false
 
+    // Create form
+    @State private var showingCreateForm = false
+    @State private var frameworks: [Components.Schemas.InterpretiveFramework] = []
+    @State private var selectedFrameworkId: String = ""
+    @State private var selectedAct: Components.Schemas.InterpretiveActType = .reading
+    @State private var newInterpretationText: String = ""
+    @State private var newConfidence: Double = 0.8
+    @State private var isSubmitting = false
+    @State private var submitError: String?
+
     var body: some View {
-        if !interpretations.isEmpty || isLoading {
-            DisclosureGroup(isExpanded: $isExpanded) {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header row — always visible
+            HStack(spacing: 6) {
                 if isLoading {
-                    HStack(spacing: 6) {
-                        ProgressView().scaleEffect(0.6)
-                        Text("Loading…").font(.caption).foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
+                    ProgressView().scaleEffect(0.55)
                 } else {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(interpretations.prefix(6), id: \.id) { interp in
-                            interpretationRow(interp)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            } label: {
-                HStack(spacing: 6) {
                     Image(systemName: "text.magnifyingglass")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("Interpretations (\(interpretations.count))")
+                }
+                Text(interpretations.isEmpty
+                     ? "Interpretations"
+                     : "Interpretations (\(interpretations.count))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        showingCreateForm.toggle()
+                        if showingCreateForm && frameworks.isEmpty {
+                            Task { await loadFrameworks() }
+                        }
+                    }
+                } label: {
+                    Image(systemName: showingCreateForm ? "xmark.circle" : "plus.circle")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.accentColor)
+                }
+                .buttonStyle(.borderless)
+                .help(showingCreateForm ? "Cancel" : "Add interpretation")
+                if !interpretations.isEmpty {
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .onTapGesture { withAnimation { isExpanded.toggle() } }
                 }
             }
             .padding(.horizontal, 12)
-            .task(id: documentId) { await load() }
-        } else {
-            EmptyView()
-                .task(id: documentId) { await load() }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if !interpretations.isEmpty {
+                    withAnimation { isExpanded.toggle() }
+                }
+            }
+
+            // Interpretation list (collapsed by default until loaded)
+            if isExpanded && !isLoading {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(interpretations.prefix(8), id: \.id) { interp in
+                        interpretationRow(interp)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 6)
+            }
+
+            // Inline create form
+            if showingCreateForm {
+                createForm
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
+            }
         }
+        .task(id: documentId) { await load() }
     }
+
+    // MARK: - Create form
+
+    @ViewBuilder
+    private var createForm: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
+
+            // Framework picker — required for the backend
+            if frameworks.isEmpty {
+                HStack(spacing: 6) {
+                    ProgressView().scaleEffect(0.55)
+                    Text("Loading frameworks…").font(.caption2).foregroundStyle(.secondary)
+                }
+            } else {
+                Picker("Framework", selection: $selectedFrameworkId) {
+                    ForEach(frameworks, id: \.id) { framework in
+                        Text(framework.name).tag(framework.id ?? "")
+                    }
+                }
+                .pickerStyle(.menu)
+                .font(.caption)
+                .labelsHidden()
+            }
+
+            // Act picker
+            Picker("Act", selection: $selectedAct) {
+                ForEach(Components.Schemas.InterpretiveActType.allCases, id: \.self) { act in
+                    Text(actLabel(act)).tag(act)
+                }
+            }
+            .pickerStyle(.menu)
+            .font(.caption)
+            .labelsHidden()
+
+            // Interpretation text
+            TextEditor(text: $newInterpretationText)
+                .font(.caption)
+                .frame(minHeight: 60)
+                .padding(4)
+                .background(Color(.textBackgroundColor))
+                .cornerRadius(4)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(Color(.separatorColor), lineWidth: 0.5)
+                )
+                .overlay(alignment: .topLeading) {
+                    if newInterpretationText.isEmpty {
+                        Text("Interpretation text…")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 8)
+                            .padding(.top, 8)
+                            .allowsHitTesting(false)
+                    }
+                }
+
+            // Confidence slider
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text("Confidence").font(.caption2).foregroundStyle(.secondary)
+                    Spacer()
+                    Text(String(format: "%.0f%%", newConfidence * 100))
+                        .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                }
+                Slider(value: $newConfidence, in: 0...1, step: 0.05)
+            }
+
+            if let err = submitError {
+                Text(err).font(.caption2).foregroundStyle(.red)
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    withAnimation { showingCreateForm = false }
+                    resetForm()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button("Save") {
+                    Task { await submitInterpretation() }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(
+                    newInterpretationText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || selectedFrameworkId.isEmpty
+                    || isSubmitting
+                )
+            }
+        }
+        .font(.caption)
+    }
+
+    // MARK: - Rows
 
     @ViewBuilder
     private func interpretationRow(_ interp: Components.Schemas.Interpretation) -> some View {
@@ -2211,11 +2349,51 @@ struct DocumentInterpretationsSection: View {
         }
     }
 
+    // MARK: - Load / Submit
+
     private func load() async {
         isLoading = true
         defer { isLoading = false }
         interpretations = (try? await entityService.listDocumentInterpretations(documentId: documentId)) ?? []
         if !interpretations.isEmpty { isExpanded = true }
+    }
+
+    private func loadFrameworks() async {
+        let loaded = (try? await entityService.listFrameworks()) ?? []
+        frameworks = loaded
+        if let first = loaded.first, let fwId = first.id {
+            selectedFrameworkId = fwId
+        }
+    }
+
+    private func submitInterpretation() async {
+        let text = newInterpretationText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !selectedFrameworkId.isEmpty else { return }
+        isSubmitting = true
+        submitError = nil
+        defer { isSubmitting = false }
+        do {
+            let created = try await entityService.createInterpretation(
+                frameworkId: selectedFrameworkId,
+                documentId: documentId,
+                act: selectedAct,
+                interpretationText: text,
+                confidence: newConfidence
+            )
+            interpretations.insert(created, at: 0)
+            isExpanded = true
+            withAnimation { showingCreateForm = false }
+            resetForm()
+        } catch {
+            submitError = error.localizedDescription
+        }
+    }
+
+    private func resetForm() {
+        newInterpretationText = ""
+        selectedAct = .reading
+        newConfidence = 0.8
+        submitError = nil
     }
 }
 
