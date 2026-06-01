@@ -866,6 +866,10 @@ def _recover_text_and_records(
             result = item.get("result")
             if not isinstance(result, dict):
                 continue
+            records = _normalize_records(result.get("records"))
+            if records:
+                parallel_records.extend(records)
+                continue
             page_records = _normalize_records(result.get("page_records"))
             if page_records:
                 parallel_records.extend(page_records)

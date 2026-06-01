@@ -45,8 +45,16 @@ def to_workflow_def(workflow: Any) -> WorkflowDef:
                 label=_as_mapping(n).get("label", ""),
                 inputs=_as_mapping(n).get("inputs", {}),
                 config=_as_mapping(n).get("config", {}),
-                provider_name=_as_mapping(n).get("provider_name", ""),
-                model_name=_as_mapping(n).get("model_name", ""),
+                provider_name=(
+                    _as_mapping(n).get("provider_name")
+                    or _as_mapping(n).get("providerName")
+                    or ""
+                ),
+                model_name=(
+                    _as_mapping(n).get("model_name")
+                    or _as_mapping(n).get("modelName")
+                    or ""
+                ),
             )
             for n in workflow.nodes
         ],
