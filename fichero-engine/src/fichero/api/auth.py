@@ -35,6 +35,7 @@ _UNAUTHENTICATED_PATHS = frozenset(
         "/redoc",
     }
 )
+_UNAUTHENTICATED_PREFIXES = ("/docs/", "/redoc/")
 
 
 def _token_file_path() -> Path:
@@ -104,14 +105,16 @@ def attach_auth_middleware(app: FastAPI, token: str) -> None:
         # but a misconfiguration shouldn't bypass auth).
         # "testserver" is used by FastAPI's TestClient in test environments.
         client_host = request.client.host if request.client else None
-        if client_host not in {"127.0.0.1", "::1", "testserver"}:
+        if client_host not in {"127.0.0.1", "::1", "localhost", "testserver", "testclient"}:
             logger.warning("Reject non-loopback request from %s", client_host)
             return JSONResponse(
                 {"detail": "loopback only"}, status_code=403
             )
 
         # Allow unauthenticated paths through.
-        if request.url.path in _UNAUTHENTICATED_PATHS:
+        if request.url.path in _UNAUTHENTICATED_PATHS or any(
+            request.url.path.startswith(prefix) for prefix in _UNAUTHENTICATED_PREFIXES
+        ):
             return await call_next(request)
 
         provided = request.headers.get("authorization", "")
