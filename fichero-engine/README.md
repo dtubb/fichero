@@ -36,6 +36,11 @@ When backend API routes or schemas change, regenerate and copy the OpenAPI schem
 ./fichero-engine/scripts/sync_openapi_schema.sh
 ```
 
+## OCR vs HTR Model Guidance
+- `OCR` (printed/typewritten pages): start with `Qwen/Qwen3-VL-8B-Instruct` or OCR-specialized models like `datalab-to/chandra-ocr-2` and `nanonets/Nanonets-OCR-s`.
+- `HTR` (handwritten pages): prefer `gpt-5` first; `gemini-3-pro-preview` is a strong alternative.
+- In `Transcribe (Auto-Detect)`, handwritten branches (`manuscript`, `htr`, `paleography`) should use HTR-capable vision models, while printed branches (`typescript`) can prioritize OCR-specialized models.
+
 ## Clean local generated artifacts
 
 ```bash
