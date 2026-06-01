@@ -31,6 +31,13 @@ struct ContentView: View {
     /// 4 mode icons × 40pt + MiniToolbar horizontal padding (12×2) + inter-item
     /// spacing (12) ≈ 240.
     static let contentListMinWidth: Double = 240
+    /// Minimum width of the flexible PDF canvas pane so its mini-toolbar
+    /// (zoom −/%/+, fit, actual-size, magnifier, loupe + two dividers) never
+    /// clips when the reading-surface dividers are dragged inward. The
+    /// resizable neighbours are already clamped by their ResizableDividers;
+    /// this guards the one `.frame(maxWidth: .infinity)` pane that otherwise
+    /// has no floor. (#1454)
+    static let pdfCanvasMinWidth: Double = 360
 
     // MARK: - Environment
 

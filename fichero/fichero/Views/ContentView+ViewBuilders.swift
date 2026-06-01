@@ -195,7 +195,7 @@ extension ContentView {
                                 }
                             )
                             .overlay { paneFocusIndicator(for: .preview) }
-                            .frame(maxWidth: .infinity)
+                            .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
                         } else {
                             EditorView(
                                 document: detailDocument,
