@@ -133,6 +133,23 @@
             font: 700 14px/1.3 var(--font-system);
         }
 
+        /* Entity names render as clickable macOS-accent lozenges, not bold
+           text — clicking opens that entity across the library via the bridge
+           (#1466 / #1363). */
+        .entity-lozenge {
+            font: 600 13px/1.2 var(--font-system);
+            color: var(--accent);
+            background: var(--accent-soft);
+            border: none;
+            border-radius: 999px;
+            padding: 3px 11px;
+            cursor: pointer;
+        }
+
+        .entity-lozenge:hover {
+            text-decoration: underline;
+        }
+
         .claim-row {
             border: 1px solid var(--line);
             border-radius: 10px;
@@ -372,7 +389,9 @@ function renderDigest() {
     }
     panel.innerHTML = groups.map((group) => `
         <section class="digest-group">
-            <h3>${escapeHtml(group.entity.canonical_name)}</h3>
+            <h3>${group.entity.id && group.entity.id !== "__ungrouped__"
+                ? `<button type="button" class="entity-lozenge" data-entity-id="${escapeHtml(group.entity.id)}">${escapeHtml(group.entity.canonical_name)}</button>`
+                : escapeHtml(group.entity.canonical_name)}</h3>
             ${group.claims.map((claim) => `
                 <div class="claim-row ${state.activeClaimId === claim.id ? "active" : ""}" data-claim-id="${claim.id}">
                     <div>${escapeHtml(claimSummary(claim))}</div>
@@ -400,6 +419,25 @@ function renderDigest() {
                 sourceDocumentId: claim.source_document_id,
                 passage: claim.source_excerpt,
                 pageNumber: claim.page_number,
+            });
+        });
+    });
+
+    // Clicking an entity-name lozenge opens that entity (#1466). The native
+    // bridge handles `entitySelected` → KGFocusState → retargets the Document
+    // Inspector to the entity (#1484). stopPropagation so it doesn't also fire
+    // the surrounding section's handlers.
+    panel.querySelectorAll(".entity-lozenge").forEach((el) => {
+        el.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const entityId = el.dataset.entityId;
+            if (!entityId) return;
+            const entityClaims = claims.filter((item) => (item.entity_ids || []).includes(entityId));
+            state.activeEntityId = entityId;
+            updateGraphActiveNode();
+            notify("entitySelected", {
+                entityId: entityId,
+                sourceDocumentId: entityClaims[0]?.source_document_id || null,
             });
         });
     });
