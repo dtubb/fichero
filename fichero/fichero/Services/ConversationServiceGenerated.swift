@@ -23,7 +23,7 @@ class ConversationServiceGenerated: ObservableObject {
 
     // MARK: - API Methods
 
-    /// List all conversations.
+    /// List all conversations.  GET /api/chat/conversations
     func listConversations() async throws -> [ConversationSummary] {
         let response = try await client.api.listConversationsApiChatConversationsGet(.init(
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
@@ -41,7 +41,7 @@ class ConversationServiceGenerated: ObservableObject {
         }
     }
 
-    /// Get a conversation with full message history.
+    /// Get a conversation with full message history.  GET /api/chat/conversations/{conversation_id}
     func getConversation(_ id: String) async throws -> ConversationDetail {
         let response = try await client.api.getConversationApiChatConversationsConversationIdGet(.init(
             path: .init(conversationId: id),
@@ -57,7 +57,7 @@ class ConversationServiceGenerated: ObservableObject {
         }
     }
 
-    /// Delete a conversation.
+    /// Delete a conversation.  DELETE /api/chat/conversations/{conversation_id}
     func deleteConversation(_ id: String) async throws {
         let response = try await client.api.deleteConversationApiChatConversationsConversationIdDelete(.init(
             path: .init(conversationId: id),
@@ -74,7 +74,7 @@ class ConversationServiceGenerated: ObservableObject {
         }
     }
 
-    /// Duplicate a conversation.
+    /// Duplicate a conversation.  POST /api/chat/conversations/{conversation_id}/duplicate
     func duplicateConversation(_ id: String) async throws -> ConversationAPI {
         let response = try await client.api.duplicateConversationApiChatConversationsConversationIdDuplicatePost(.init(
             path: .init(conversationId: id),
@@ -103,7 +103,7 @@ class ConversationServiceGenerated: ObservableObject {
         return try await updateConversation(id, title: newTitle)
     }
 
-    /// Update a conversation.
+    /// Update a conversation.  PUT /api/chat/conversations/{conversation_id}
     func updateConversation(
         _ id: String,
         title: String? = nil,
@@ -149,7 +149,7 @@ class ConversationServiceGenerated: ObservableObject {
         return try await updateConversation(id, folderPath: folderPath)
     }
 
-    /// Reorder conversations.
+    /// Reorder conversations.  POST /api/chat/conversations/reorder
     func reorderConversations(_ conversationIds: [String], folderPath: String = "/") async throws {
         let response = try await client.api.reorderConversationsApiChatConversationsReorderPost(.init(
             query: .init(folderPath: folderPath),

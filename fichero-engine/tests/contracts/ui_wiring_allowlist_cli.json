@@ -4,7 +4,6 @@
     "/api/activity/stream": "streaming endpoint; CLI harness uses request/response commands, not live event streams",
     "/api/storage/debug/{doc_id}": "debug-only endpoint; intentionally omitted from the default generated CLI surface",
     "/api/tasks/tasks/health": "internal queue-health endpoint; intentionally omitted from the default generated CLI surface",
-    "/api/workflow-execution/stream/{thread_id}": "streaming endpoint; CLI harness uses pollable workflow commands, not live event streams",
-    "/api/workflow-execution/threads/{thread_id}/pause": "new pause endpoint (#1226) — wire into CLI workflow-run controls when needed"
+    "/api/workflow-execution/stream/{thread_id}": "streaming endpoint; CLI harness uses pollable workflow commands, not live event streams"
   }
 }

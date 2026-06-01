@@ -18,7 +18,7 @@ class ChatServiceGenerated: ObservableObject {
 
     // MARK: - Chat
 
-    /// Send a chat message and get a RAG response.
+    /// Send a chat message and get a RAG response.  POST /api/chat
     func chat(
         message: String,
         conversationId: String? = nil,
@@ -57,7 +57,7 @@ class ChatServiceGenerated: ObservableObject {
 
     // MARK: - Providers
 
-    /// List available LLM providers.
+    /// List available LLM providers.  GET /api/chat/providers
     func listProviders() async throws -> [LLMProvider] {
         // Providers are app-wide (not per-library), so no library path header needed
         let response = try await client.api.listProvidersApiChatProvidersGet(.init())
@@ -73,7 +73,7 @@ class ChatServiceGenerated: ObservableObject {
 
     // MARK: - Text Extraction
 
-    /// Extract text from documents (populates page_content for search/chat).
+    /// Extract text from documents (populates page_content for search/chat).  POST /api/chat/extract-text
     func extractText(documentIds: [String]? = nil, force: Bool = false) async throws -> ExtractTextResponse {
         // Use typed fields; see 31fc4141.
         let request = Components.Schemas.ExtractTextRequest(
