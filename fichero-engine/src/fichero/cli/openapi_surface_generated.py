@@ -929,6 +929,21 @@ def register_generated_openapi_commands(
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("attach-a-bibtex-ris-csl-json-record-to-a-document")
+    def bibliography_attach_a_bibtex_ris_csl_json_record_to_a_document_post(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Attach a BibTeX / RIS / CSL-JSON record to a document (POST /api/bibliography/document/{document_id}/attach)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/bibliography/document/{document_id}/attach"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("run-the-bibliographic-extractor-on-a-document")
     def bibliography_run_the_bibliographic_extractor_on_a_document_post(
         ctx: typer.Context,

@@ -979,6 +979,18 @@
       },
       {
         "method": "POST",
+        "path": "/bibliography/document/{document_id}/attach",
+        "operation_id": "attach_record_api_bibliography_document__document_id__attach_post",
+        "summary": "Attach a BibTeX / RIS / CSL-JSON record to a document",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "AttachRequest",
+        "response_model": "MetadataResponse"
+      },
+      {
+        "method": "POST",
         "path": "/bibliography/document/{document_id}/extract",
         "operation_id": "run_extractor_api_bibliography_document__document_id__extract_post",
         "summary": "Run the bibliographic extractor on a document",
