@@ -28,6 +28,9 @@ final class ImageEditorModel: ObservableObject {
     /// True while any op / load is in flight (drives the busy overlay + disables controls).
     @Published var isBusy: Bool = false
     @Published var errorMessage: String?
+    /// Bidirectional selection between inspector and canvas (#1420).
+    /// The inspector highlights this step; the canvas could show an overlay handle.
+    @Published var selectedStepIndex: Int?
 
     private var service: ImageEditingServiceGenerated?
     private(set) var documentId: String = ""
@@ -131,6 +134,20 @@ final class ImageEditorModel: ObservableObject {
     func segment(method: String = "foreground") async {
         await runOp { service in
             try await service.segment(documentId: self.documentId, method: method, page: self.page)
+        }
+    }
+
+    /// Append a fuzzy_clean (despeckle) step via setOperations (#1420).
+    func fuzzyClean(despeckleRadius: Int = 3) async {
+        await runOp { service in
+            var ops = self.chain.operations.map(\.raw)
+            let newOp = AnyCodable([
+                "op": "fuzzy_clean",
+                "page": self.page,
+                "params": ["despeckle_radius": despeckleRadius]
+            ] as [String: Any])
+            ops.append(newOp)
+            return try await service.setOperations(documentId: self.documentId, operations: ops)
         }
     }
 
