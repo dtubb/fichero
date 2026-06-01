@@ -265,6 +265,7 @@ extension WorkflowCanvasView {
                     set: { workflow.nodes[index] = $0 }
                 ),
                 allNodes: workflow.nodes,
+                workflowId: workflow.id,
                 onDelete: {
                     deleteNode(at: index)
                 },
