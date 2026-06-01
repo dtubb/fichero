@@ -553,6 +553,58 @@ class TestIngestFolder:
         assert len(docs) == 1
         assert len(folder_saves) == 2
 
+    def test_large_folder_uses_parallel_file_processing(self, tmp_path, monkeypatch):
+        """#1360: large folder ingest should process files concurrently."""
+        import time
+
+        from fichero.ingest import ingest_folder
+        from fichero.models import DocType, Document, FileType
+
+        for i in range(6):
+            (tmp_path / f"p-{i}.txt").write_text(f"doc {i}", encoding="utf-8")
+
+        def fake_ingest_file(
+            file_path,
+            mode,
+            parent_id,
+            extract_metadata,
+            extract_text,
+            auto_embed,
+            save,
+            db,
+            package_path,
+        ):
+            time.sleep(0.10)
+            return Document(
+                name=file_path.name,
+                path=str(file_path),
+                doc_type=DocType.file,
+                file_type=FileType.text,
+                parent_id=parent_id,
+            )
+
+        monkeypatch.setattr("fichero.ingest.ingest_file", fake_ingest_file)
+
+        mock_db = MagicMock()
+        mock_db.all.return_value = []
+        mock_db.query.return_value = []
+        mock_db.get.return_value = None
+        mock_db.save.side_effect = lambda *_args, **_kwargs: None
+
+        started = time.perf_counter()
+        docs = ingest_folder(
+            tmp_path,
+            db=mock_db,
+            create_collection=False,
+            auto_embed=False,
+        )
+        elapsed = time.perf_counter() - started
+
+        assert len(docs) == 6
+        assert elapsed < 0.45, (
+            f"expected parallel ingest for 6 files (~<0.45s), got {elapsed:.3f}s"
+        )
+
 
 class TestCopyToLibrary:
     """Tests for _copy_to_library function."""

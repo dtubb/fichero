@@ -848,7 +848,7 @@ def ingest_folder(
     ]
 
     total = len(files)
-    documents = []
+    documents: list[Document] = []
     existing_hashes: set[tuple[str, str]] = set()
     try:
         for existing in db.all(Document):
@@ -862,6 +862,7 @@ def ingest_folder(
     except Exception as exc:
         logger.debug("Could not pre-index existing checksums for skip logic: %s", exc)
 
+    work_items: list[tuple[int, Path, str | None, str, str]] = []
     for i, file_path in enumerate(files):
         try:
             checksum = _file_checksum(file_path)
@@ -882,19 +883,7 @@ def ingest_folder(
                     db,
                 )
 
-            doc = ingest_file(
-                file_path,
-                mode=mode,
-                parent_id=subfolder_id,
-                extract_metadata=True,
-                extract_text=extract_text,
-                auto_embed=auto_embed,
-                save=True,
-                db=db,
-                package_path=package_path,
-            )
-            documents.append(doc)
-            existing_hashes.add((source_key, checksum))
+            work_items.append((i, file_path, subfolder_id, source_key, checksum))
 
         except Exception as e:
             # Fail loud (#881/#1216): persist a failed-status stub so the
@@ -917,9 +906,68 @@ def ingest_folder(
                     file_path,
                     save_err,
                 )
+            if on_progress:
+                on_progress(i + 1, total)
 
-        if on_progress:
-            on_progress(i + 1, total)
+    if not work_items:
+        logger.info(f"Ingested {len(documents)} files from {folder.name}")
+        return documents
+
+    def _ingest_one(item: tuple[int, Path, str | None, str, str]) -> tuple[int, Document | None, Exception | None, str, str, str | None, Path]:
+        i, file_path, subfolder_id, source_key, checksum = item
+        try:
+            doc = ingest_file(
+                file_path,
+                mode=mode,
+                parent_id=subfolder_id,
+                extract_metadata=True,
+                extract_text=extract_text,
+                auto_embed=auto_embed,
+                save=True,
+                db=db,
+                package_path=package_path,
+            )
+            return (i, doc, None, source_key, checksum, subfolder_id, file_path)
+        except Exception as exc:
+            return (i, None, exc, source_key, checksum, subfolder_id, file_path)
+
+    import concurrent.futures
+    import os
+
+    max_workers = min(8, max(1, (os.cpu_count() or 4)), len(work_items))
+    ordered_docs: dict[int, Document] = {}
+    completed = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = [pool.submit(_ingest_one, item) for item in work_items]
+        for future in concurrent.futures.as_completed(futures):
+            i, doc, err, source_key, checksum, subfolder_id, file_path = future.result()
+            completed += 1
+            if err is None and doc is not None:
+                ordered_docs[i] = doc
+                existing_hashes.add((source_key, checksum))
+            else:
+                logger.warning(f"Failed to ingest {file_path}: {err}")
+                try:
+                    stub = Document(
+                        name=file_path.name,
+                        path=str(file_path),
+                        doc_type=DocType.file,
+                        file_type=detect_file_type(file_path),
+                        parent_id=subfolder_id,
+                        status=Status.failed,
+                        metadata={"ingest_error": str(err)},
+                    )
+                    db.save(stub)
+                except Exception as save_err:
+                    logger.error(
+                        "Could not persist failed-ingest stub for %s: %s",
+                        file_path,
+                        save_err,
+                    )
+            if on_progress:
+                on_progress(completed, total)
+
+    documents.extend(doc for _, doc in sorted(ordered_docs.items(), key=lambda item: item[0]))
 
     logger.info(f"Ingested {len(documents)} files from {folder.name}")
     return documents
