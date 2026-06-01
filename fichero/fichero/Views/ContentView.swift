@@ -54,6 +54,9 @@ struct ContentView: View {
     // Runtime state - full objects for use in views
     @State var viewMode: AppViewMode = .library(nil)
     @State var detailDocument: Document?
+    /// The page document currently in view, updated only by scroll/page-flip
+    /// events. Drives the inspector without re-rooting the WebKit pane (#1463).
+    @State var pageFocusDocument: Document?
     @State var columnVisibility: NavigationSplitViewVisibility = .all
     @State var browserSelection: Set<String> = []
 
