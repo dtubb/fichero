@@ -119,6 +119,15 @@ class TestComputeSupportCounts:
         assert len(supports) == 1
         assert next(iter(supports.values())).support_count == 2
 
+    def test_skips_structurally_empty_svo_claims(self, db):
+        """Claims with no usable predicate/object should not inflate support."""
+        eid = _seed_entity(db, "Davidson")
+        _seed_claim(db, entity_id=eid, source_doc="doc-1", verb="", obj="")
+        _seed_claim(db, entity_id=eid, source_doc="doc-2", verb="", obj="")
+
+        supports = triangulation.compute_support_counts(db)
+        assert supports == {}
+
 
 class TestTriplesForEntity:
     def test_returns_only_triples_with_entity_as_subject(self, db):

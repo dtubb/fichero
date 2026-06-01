@@ -139,6 +139,11 @@ def compute_support_counts(db: "Database") -> dict[TripleKey, TripleSupport]:
 
     for claim in db.query(KnowledgeClaim):
         verb, raw_object = extract_svo(claim)
+        # Claims with no verb + no object are structurally empty SVO rows.
+        # Treating them as "assertedAbout ''" collapses unrelated claims into
+        # one synthetic triple and inflates corroboration metrics.
+        if not (str(verb or "").strip() or str(raw_object or "").strip()):
+            continue
         object_text = _normalize_object(raw_object)
         predicate = slug_verb(verb)
 
