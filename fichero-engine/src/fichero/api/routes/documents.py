@@ -281,12 +281,14 @@ async def get_children(
     db: Database = Depends(get_library_database),
 ) -> DocumentListResponse:
     """Get child documents."""
-    # Verify parent exists
-    parent = db.get(Document, doc_id)
-    if not parent:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
-
     children = list(db.query(Document, parent_id=doc_id))
+    if not children:
+        # Verify parent exists only when there are no children to return.
+        # During long-running workflows, a transient parent lookup miss can
+        # race with reads; if children exist, prefer returning them over 404.
+        parent = db.get(Document, doc_id)
+        if not parent:
+            raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
     if limit is not None:
         children = children[:limit]
     return DocumentListResponse(items=children, count=len(children))

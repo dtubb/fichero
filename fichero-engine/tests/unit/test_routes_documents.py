@@ -158,6 +158,29 @@ class TestGetChildren:
         r = client.get("/api/documents/no-such-parent/children")
         assert r.status_code == 404
 
+    def test_returns_children_when_parent_lookup_is_transiently_missing(
+        self, client, db, monkeypatch
+    ):
+        """#1345: don't 404 if children exist but parent lookup races to None."""
+        from fichero.db import Database
+
+        parent = _make_doc(db, "Parent")
+        child = _make_doc(db, "Child 1", parent_id=parent.id)
+
+        real_get = Database.get
+
+        def flaky_get(self, model, doc_id):
+            if model is Document and doc_id == parent.id:
+                return None
+            return real_get(self, model, doc_id)
+
+        monkeypatch.setattr(Database, "get", flaky_get)
+
+        r = client.get(f"/api/documents/{parent.id}/children")
+        assert r.status_code == 200
+        ids = [d["id"] for d in r.json()["items"]]
+        assert child.id in ids
+
 
 # ---------------------------------------------------------------------------
 # GET /api/documents/{doc_id}/ancestors
