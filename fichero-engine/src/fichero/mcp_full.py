@@ -82,6 +82,23 @@ class KGClaimsInput(BaseModel):
     limit: int = Field(default=50, ge=1, le=200)
 
 
+class CreateClaimInput(BaseModel):
+    text: str
+    source_document_id: str | None = None
+    entity_ids: list[str] = Field(default_factory=list)
+    predicate_verb: str | None = None
+    subject_canonical: str | None = None
+    object_phrase: str | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class UpdateClaimInput(BaseModel):
+    claim_id: str
+    text: str | None = None
+    curation_state: str | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
 class KGNeighborhoodInput(BaseModel):
     entity_id: str
     hops: int = Field(default=1, ge=1, le=5)
@@ -254,6 +271,35 @@ def query_kg_claims(input: KGClaimsInput) -> Any:
             claim_type=input.claim_type,
             limit=input.limit,
         )
+
+
+@mcp.tool()
+def create_claim(input: CreateClaimInput) -> Any:
+    with _client() as client:
+        return client.create_claim(
+            text=input.text,
+            source_document_id=input.source_document_id,
+            entity_ids=input.entity_ids,
+            predicate_verb=input.predicate_verb,
+            subject_canonical=input.subject_canonical,
+            object_phrase=input.object_phrase,
+            confidence=input.confidence,
+        )
+
+
+@mcp.tool()
+def update_claim(input: UpdateClaimInput) -> Any:
+    body = input.model_dump(exclude_none=True)
+    claim_id = str(body.pop("claim_id"))
+    with _client() as client:
+        return client.update_claim(claim_id, **body)
+
+
+@mcp.tool()
+def delete_claim(claim_id: str) -> None:
+    with _client() as client:
+        client.delete_claim(claim_id)
+    return None
 
 
 @mcp.tool()

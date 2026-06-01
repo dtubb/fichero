@@ -23,6 +23,9 @@ EXPECTED_FULL_TOOLS = {
     "get_artifact",
     "query_kg_entities",
     "query_kg_claims",
+    "create_claim",
+    "update_claim",
+    "delete_claim",
     "kg_search",
     "kg_neighborhood",
     "kg_sparql",
@@ -62,6 +65,18 @@ class _FakeClient:
             }
         raise AssertionError(f"unexpected request: {method} {path}")
 
+    def create_claim(self, text: str, **kwargs):
+        self.calls.append(("create_claim", {"text": text, **kwargs}))
+        return {"id": "claim-1", "text": text}
+
+    def update_claim(self, claim_id: str, **fields):
+        self.calls.append(("update_claim", {"claim_id": claim_id, **fields}))
+        return {"id": claim_id, **fields}
+
+    def delete_claim(self, claim_id: str):
+        self.calls.append(("delete_claim", {"claim_id": claim_id}))
+        return None
+
     def mp_move_node(self, node_id: str, *, position_x: float, position_y: float, position_z: float):
         self.calls.append(
             (
@@ -96,3 +111,31 @@ def test_scripted_render_move_rerender(monkeypatch):
     assert moved["id"] == "node-1"
     assert second.metadata["frame"] == 2
     assert fake.calls[0][0] == "move"
+
+
+def test_claim_mutation_tools_passthrough(monkeypatch):
+    fake = _FakeClient()
+    monkeypatch.setattr(mcp_full, "_client", lambda: fake)
+
+    created = mcp_full.create_claim(
+        mcp_full.CreateClaimInput(
+            text="A links to B",
+            source_document_id="doc-1",
+            entity_ids=["e1", "e2"],
+        )
+    )
+    updated = mcp_full.update_claim(
+        mcp_full.UpdateClaimInput(
+            claim_id="claim-1",
+            text="A strongly links to B",
+            confidence=0.9,
+        )
+    )
+    deleted = mcp_full.delete_claim("claim-1")
+
+    assert created["id"] == "claim-1"
+    assert updated["id"] == "claim-1"
+    assert deleted is None
+    assert fake.calls[0][0] == "create_claim"
+    assert fake.calls[1][0] == "update_claim"
+    assert fake.calls[2][0] == "delete_claim"
