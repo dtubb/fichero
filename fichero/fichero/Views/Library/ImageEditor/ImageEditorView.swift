@@ -443,24 +443,23 @@ private extension ImageEditorView {
                     ProgressView("Loading compare preview…")
                         .controlSize(.small)
                 }
-            } else if let preview = model.preview {
-                GeometryReader { geo in
-                    let fitted = ImageFit.fittedRect(
-                        imagePixelSize: preview.pixelSize,
-                        in: CGSize(width: geo.size.width - 24, height: geo.size.height - 24)
-                    )
-                    // Re-centre into the padded container.
-                    let frame = fitted.offsetBy(dx: 12, dy: 12)
-                    Image(nsImage: preview.image)
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: frame.width, height: frame.height)
-                        .position(x: frame.midX, y: frame.midY)
-                    ImageMarqueeOverlay(fittedRect: frame, normalizedSelection: $marqueeSelection)
-                }
             } else {
-                ProgressView("Loading image…")
-                    .controlSize(.small)
+                // Single-mode: DocumentCanvas gives zoom/loupe/magnifier (#1402).
+                // Shows last rendered frame while loading (model.preview?.image may
+                // be nil briefly after an op; canvas retains the stale frame).
+                DocumentCanvas(
+                    content: .imageRendered(
+                        image: model.preview?.image,
+                        documentId: activeDocumentID
+                    )
+                )
+                if model.isBusy {
+                    // Translucent overlay so the last image stays visible mid-op.
+                    Color.black.opacity(0.10).allowsHitTesting(false)
+                    ProgressView()
+                        .controlSize(.small)
+                        .allowsHitTesting(false)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

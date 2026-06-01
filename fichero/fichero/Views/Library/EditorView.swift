@@ -130,7 +130,14 @@ struct EditorView: View {
                 pageIndex: 0,
                 onPageIndexChange: onPDFPageIndexChange
             )
+        } else if doc.fileType == .image, let path = doc.path, !path.isEmpty {
+            // Local image file with a path → plain preview via DocumentCanvas (#1402).
+            // Uses the full ZoomableImagePreview stack (zoom/loupe/magnifier).
+            DocumentCanvas(
+                content: .imageFile(url: URL(fileURLWithPath: path), documentId: doc.id)
+            )
         } else if doc.fileType == .image {
+            // Remote/no-path image → editor provides preview via backend render.
             ImageEditorView(
                 document: doc,
                 onNavigate: onNavigateToDocument,
@@ -231,136 +238,10 @@ struct EditorView: View {
     }
 }
 
-// MARK: - Zoomable Image View (with pinch/scroll zoom and pan)
-
-struct ZoomableImageView: View {
-    let document: Document
-
-    @State private var scale: CGFloat = 1.0
-    @State private var lastScale: CGFloat = 1.0
-    @State private var offset: CGSize = .zero
-    @State private var lastOffset: CGSize = .zero
-
-    private let minScale: CGFloat = 0.5
-    private let maxScale: CGFloat = 5.0
-
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // Checkerboard background
-                CheckerboardPattern()
-                    .opacity(0.1)
-
-                // Load from local path if available, otherwise from API
-                if let path = document.path {
-                    // Local file
-                    if let nsImage = NSImage(contentsOfFile: path) {
-                        Image(nsImage: nsImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .scaleEffect(scale)
-                            .offset(offset)
-                            .gesture(zoomGesture)
-                            .gesture(panGesture)
-                            .onTapGesture(count: 2) { toggleZoom(in: geometry.size) }
-                    } else {
-                        failedView
-                    }
-                } else {
-                    // Remote API - use LibraryImageView with library path header
-                    LibraryImageView(documentId: document.id, imageType: .display)
-                        .aspectRatio(contentMode: .fit)
-                        .scaleEffect(scale)
-                        .offset(offset)
-                        .gesture(zoomGesture)
-                        .gesture(panGesture)
-                        .onTapGesture(count: 2) { toggleZoom(in: geometry.size) }
-                }
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .clipped()
-        }
-        .background(Color(nsColor: NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)))
-        // Scroll wheel zoom
-        .onContinuousHover { _ in } // Enable scroll events
-        .background(ScrollWheelZoomView(scale: $scale, minScale: minScale, maxScale: maxScale))
-    }
-
-    // MARK: - Gestures
-
-    private var zoomGesture: some Gesture {
-        MagnificationGesture()
-            .onChanged { value in
-                let newScale = lastScale * value
-                scale = min(max(newScale, minScale), maxScale)
-            }
-            .onEnded { _ in
-                lastScale = scale
-                // Reset offset if zoomed out
-                if scale <= 1.0 {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        offset = .zero
-                        lastOffset = .zero
-                    }
-                }
-            }
-    }
-
-    private var panGesture: some Gesture {
-        DragGesture()
-            .onChanged { value in
-                if scale > 1.0 {
-                    offset = CGSize(
-                        width: lastOffset.width + value.translation.width,
-                        height: lastOffset.height + value.translation.height
-                    )
-                }
-            }
-            .onEnded { _ in
-                lastOffset = offset
-            }
-    }
-
-    private func toggleZoom(in size: CGSize) {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            if scale > 1.0 {
-                scale = 1.0
-                lastScale = 1.0
-                offset = .zero
-                lastOffset = .zero
-            } else {
-                scale = 2.0
-                lastScale = 2.0
-            }
-        }
-    }
-
-    // MARK: - Subviews
-
-    private var loadingView: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-            Text("Loading image...")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
-
-    private var failedView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "photo")
-                .font(.system(size: 64))
-                .foregroundColor(.secondary)
-            Text("Failed to load image")
-                .font(.headline)
-                .foregroundColor(.secondary)
-        }
-    }
-}
-
 // MARK: - Preview
 
 #Preview("Empty") {
     EditorView(document: nil)
         .frame(width: 500, height: 400)
 }
+// ZoomableImageView retired in #1402 — all image display now routes through DocumentCanvas.
