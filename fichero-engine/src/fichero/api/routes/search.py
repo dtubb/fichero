@@ -13,8 +13,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.api.main import get_library_database
 from fichero.search.query_parser import parse_query
-from fichero.db import Database, SearchResult
-from fichero.models import Document, SavedSearch
+from fichero.db import (
+    Database,
+    SearchResult,
+    _build_transcript_excerpts,
+    _fold_for_search,
+    _search_match_terms,
+)
+from fichero.models import DocType, Document, SavedSearch
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -221,6 +227,93 @@ def _apply_phrase_and_exclude_filters(
             continue
         out.append(r)
     return out
+
+
+def _project_pdf_file_hits_to_pages(
+    db: Database,
+    results: list[SearchResult],
+    query: str,
+) -> list[SearchResult]:
+    """Replace PDF file-level hits with best-matching child page hits."""
+    if not results or not query.strip():
+        return results
+
+    terms = _search_match_terms(query)
+    if not terms:
+        return results
+
+    projected: list[SearchResult] = []
+    seen_doc_ids: set[str] = set()
+
+    def _page_match_score(text: str) -> int:
+        folded = _fold_for_search(text or "")
+        return sum(folded.count(term) for term in terms)
+
+    for result in results:
+        metadata = result.metadata or {}
+        doc_type = str(metadata.get("doc_type") or "").lower()
+        file_type = str(metadata.get("file_type") or "").lower()
+        if doc_type != "file" or file_type != "pdf":
+            if result.document_id not in seen_doc_ids:
+                projected.append(result)
+                seen_doc_ids.add(result.document_id)
+            continue
+
+        pages = sorted(
+            db.query(Document, parent_id=result.document_id, doc_type=DocType.page),
+            key=lambda page: page.sequence or 0,
+        )
+        if not pages:
+            if result.document_id not in seen_doc_ids:
+                projected.append(result)
+                seen_doc_ids.add(result.document_id)
+            continue
+
+        scored_pages = [
+            (page, _page_match_score(page.page_content or ""))
+            for page in pages
+            if page.page_content
+        ]
+        scored_pages = [pair for pair in scored_pages if pair[1] > 0]
+        if not scored_pages:
+            if result.document_id not in seen_doc_ids:
+                projected.append(result)
+                seen_doc_ids.add(result.document_id)
+            continue
+
+        best_page, _ = max(
+            scored_pages,
+            key=lambda pair: (pair[1], -(pair[0].sequence or 0)),
+        )
+        page_metadata = dict(metadata)
+        page_metadata["doc_type"] = str(best_page.doc_type)
+        page_metadata["file_type"] = str(best_page.file_type) if best_page.file_type else None
+        page_metadata["pdf_parent_id"] = result.document_id
+        page_metadata["page_number"] = best_page.sequence
+        if isinstance(best_page.metadata, dict):
+            page_metadata.update(best_page.metadata)
+
+        excerpts = _build_transcript_excerpts(
+            document_id=best_page.id,
+            content=best_page.page_content or "",
+            query=query,
+        )
+        replacement = SearchResult(
+            document_id=best_page.id,
+            score=result.score,
+            content_preview=(best_page.page_content or "")[:200]
+            + ("..." if len(best_page.page_content or "") > 200 else ""),
+            metadata=page_metadata,
+            highlights=result.highlights,
+            transcript_excerpts=excerpts,
+            kg_claim_ids=result.kg_claim_ids,
+            kg_entity_ids=result.kg_entity_ids,
+        )
+        if replacement.document_id not in seen_doc_ids:
+            projected.append(replacement)
+            seen_doc_ids.add(replacement.document_id)
+
+    return projected
 
 
 _ALL_ENTITY_TYPES: tuple[str, ...] = (
@@ -479,6 +572,8 @@ async def enhanced_search(
             use_fuzzy_match=request.use_fuzzy_match,
             highlight_results=request.highlight_results,
         )
+        results = _project_pdf_file_hits_to_pages(db, results, retrieval_query)
+        total_count = len(results)
 
     # Apply NOT exclusions and required phrases. Both operate on the
     # post-retrieval result set — cheaper than rebuilding the index for
