@@ -2466,3 +2466,12 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - fix(tooltips): .help() added to ArtifactsBrowserView refresh + copy buttons; LibraryView+FilterAndBatch clear-filter button (#1371 partial)
 - Previously pushed (from prior session): toolbarIcon computed property + ToolbarItem(.principal) for mode icon+title (#323); loupe/magnifier range expansion (#355); eager thumbnail prefetch with bounded TaskGroup (#719)
 - Audited #330 (icon view persistence — already fixed) and #713 (drag asymmetry — NSOutlineView rewrite required, out of scope)
+
+## 2026-06-01 — Library & Reading Surface SwiftUI worker session
+
+- Fixed #1444 (runtime warnings): deferred @Published mutations in MindPalaceState.selectRoom + ImageEditorModel.toggleEdited to Task { @MainActor in } (commit 5a30f005)
+- Fixed #1463 (keystone — active-doc/page-focus decoupling): added @State pageFocusDocument; syncGridSelectionToPDFPage now updates only page focus, not detailDocument; inspectorDocument prefers pageFocusDocument; WebKit stays pinned to container on scroll (commit 3abf3d38)
+- Fixed #1459: reduced MailStyleRow thumbnail 64×80 → 40×50pt (more text space in list rows) (commit de88e2fa)
+- Fixed #1458: added fileType==.image early branch in MailStyleRow + DocumentThumbnailView to load images from disk before pageContent check (commit de88e2fa)
+- Fixed #1473: entity filter menu hidden in non-list modes where lozenges don't render (commit de88e2fa)
+- Fixed #1481: WebKit ::selection CSS now bridges NSColor.selectedTextBackgroundColor for macOS-native selection highlight (commit de88e2fa)

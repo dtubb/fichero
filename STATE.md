@@ -1,18 +1,20 @@
-## 2026-06-01 — ms/library-reading-surface SwiftUI polish worker (NEXT SESSION START HERE)
+## 2026-06-01 — ms/library-reading-surface SwiftUI session 2 (NEXT SESSION START HERE)
 
-**Branch: `ms/library-reading-surface` — 3 new commits pushed at `26cb2a4c`**
+**Branch: `ms/library-reading-surface` — head at `de88e2fa` (57+ commits ahead of main)**
 
-### What was done
-- View display mode picker (icon/list/table/map segmented) added to toolbar; sync gap fixed (#1215 partial)
-- SidebarModeIcon accessibility (label/identifier/traits/hint); renameField accessibility (#584 partial)
-- Missing `.help()` on ArtifactsBrowserView + clear-filter button (#1371 partial)
+### What was done this session
+- #1444 runtime warnings: MindPalaceState.selectRoom + ImageEditorModel.toggleEdited @Published deferral
+- #1463 keystone: @State pageFocusDocument decouples scroll → inspector from WebKit active-doc
+- #1459/#1458: thumbnail size 64×80→40×50; image files load from disk before text-preview branch
+- #1473: entity filter menu only shows in list mode (hidden in icon/table/map)
+- #1481: WebKit ::selection uses NSColor.selectedTextBackgroundColor (macOS accent, not browser default)
 
 ### Next session — start here
 1. `cd ~/code/fichero-library-reading-surface && git pull --rebase origin ms/library-reading-surface`
-2. Continue Library & Reading Surface milestone: `gh issue list --milestone "Library & Reading Surface" --state open --search "no:assignee -label:status:in-progress"`
-3. Priority candidates: #593 (swipe nav P2), #588 (PDF pinch-zoom P2), #644 (sidebar header P3), #1199 (inspector layout consistency P2)
-4. #713 drag asymmetry is explicitly out-of-scope (needs NSOutlineView rewrite) — don't re-attempt
-5. Build gate before every commit: `xcodebuild -project fichero/fichero.xcodeproj -scheme Fichero -configuration Debug build`
+2. **Branch is 57+ commits ahead — integrator should merge before adding more**
+3. If continuing: `gh issue list --milestone "Library & Reading Surface" --state open --search "no:assignee -label:status:in-progress"`
+4. Next unclaimed: #1480 (path bar), #1483 (scope selector), #593 (swipe nav P2), #588 (PDF pinch-zoom P2)
+5. #713 drag asymmetry: skip — requires NSOutlineView rewrite
 
 ---
 
