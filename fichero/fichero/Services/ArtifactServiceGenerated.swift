@@ -1152,7 +1152,9 @@ final class EntityServiceGenerated: ObservableObject {
         }
         let encoded = lib.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? lib
         let keyEncoded = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
-        guard let url = URL(string: "\(client.baseURL)/api/libraries/\(encoded)/entity-types?entity_type_key=\(keyEncoded)&enabled=true") else {
+        let urlString = "\(client.baseURL)/api/libraries/\(encoded)/entity-types"
+            + "?entity_type_key=\(keyEncoded)&enabled=true"
+        guard let url = URL(string: urlString) else {
             throw ServiceError.noLibrary
         }
         var req = URLRequest(url: url)
@@ -1173,6 +1175,46 @@ final class EntityServiceGenerated: ObservableObject {
         req.httpMethod = "DELETE"
         req.addEngineAuth(libraryPath: lib)
         _ = try? await URLSession.shared.data(for: req)
+    }
+
+    // MARK: - Document workflow provenance (#1434)
+
+    func listDocumentWorkflowRuns(
+        documentId: String
+    ) async throws -> [Components.Schemas.WorkflowRunProvenanceResponse] {
+        let response = try await client.api.getDocumentWorkflowRunsApiDocumentsDocIdWorkflowRunsGet(
+            path: .init(docId: documentId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    // MARK: - Document citations (extracted bibliography) (#1434)
+
+    func listDocumentCitations(
+        documentId: String
+    ) async throws -> Components.Schemas.DocumentCitationsResponse {
+        let response = try await client.api.getDocumentCitationsApiDocumentsDocumentIdCitationsGet(
+            path: .init(documentId: documentId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
     }
 
     private static func decodeSimilar(
