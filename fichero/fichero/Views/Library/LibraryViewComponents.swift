@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import SwiftUI
 
 // MARK: - Mail-Style Row (like Apple Mail)
@@ -182,6 +183,10 @@ struct MailStyleRow: View {
                     path: pdfPath, size: size, pageIndex: pageIndex
                 )
                 .clipped()
+            } else if let preview = document.pageContent, !preview.isEmpty {
+                TextPreviewThumbnail(text: preview)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
             } else {
                 LibraryImageView(documentId: document.id, imageType: .thumbnail)
                     .aspectRatio(contentMode: .fill)
@@ -308,6 +313,10 @@ struct DocumentThumbnailView: View {
                         pageIndex: pageIndex
                     )
                     .clipped()
+                } else if let preview = document.pageContent, !preview.isEmpty {
+                    TextPreviewThumbnail(text: preview)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
                 } else {
                     // Load thumbnail from backend API with library path header.
                     // Pin to the cell's 3:4 aspect via the inner GeometryReader-
@@ -378,5 +387,37 @@ struct DocumentThumbnailView: View {
         case .pending:
             EmptyView()
         }
+    }
+}
+
+// MARK: - TextPreviewThumbnail
+
+/// Monospaced text thumbnail for JSON/text documents when no image thumbnail exists (#625).
+struct TextPreviewThumbnail: View {
+    let text: String
+
+    private static let previewLimit = 600
+
+    private var displayText: String {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("{") || trimmed.hasPrefix("["),
+           let data = trimmed.data(using: .utf8),
+           let obj = try? JSONSerialization.jsonObject(with: data),
+           let pretty = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted]),
+           let str = String(data: pretty, encoding: .utf8) {
+            return String(str.prefix(Self.previewLimit))
+        }
+        return String(trimmed.prefix(Self.previewLimit))
+    }
+
+    var body: some View {
+        Text(displayText)
+            .font(.system(size: 6, design: .monospaced))
+            .foregroundStyle(.primary)
+            .lineSpacing(1)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(4)
+            .background(Color(.textBackgroundColor))
+            .allowsHitTesting(false)
     }
 }

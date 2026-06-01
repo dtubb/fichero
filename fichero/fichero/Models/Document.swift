@@ -26,6 +26,7 @@ enum FileType: String, Codable, CaseIterable {
     case image
     case pdf
     case text
+    case json
     case word
     case audio
     case video
@@ -42,6 +43,7 @@ enum FileType: String, Codable, CaseIterable {
         case .image: return "photo"
         case .pdf: return "doc.richtext"
         case .text: return "doc.plaintext"
+        case .json: return "curlybraces"
         case .word: return "doc.text.fill"
         case .audio: return "waveform"
         case .video: return "film"

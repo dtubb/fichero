@@ -283,6 +283,7 @@ struct QuickLookDownloadView: View {
             case .audio: ext = "mp3"
             case .video: ext = "mp4"
             case .text: ext = "txt"
+            case .json: ext = "json"
             case .word: ext = "docx"
             case .epub: ext = "epub"
             case .spreadsheet: ext = "xlsx"
