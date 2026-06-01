@@ -298,6 +298,10 @@ struct ContentView: View {
         } detail: {
             centerContent
                 .frame(minWidth: CGFloat(ContentView.contentMinWidth), maxWidth: .infinity)
+                // Publish the per-window inspector binding from the detail
+                // column (always present) rather than the sidebar, which leaves
+                // the hierarchy when collapsed and made ⌘⌥I no-op (#1513/#1451).
+                .focusedSceneValue(\.showInspector, $showInspectorSidebar)
         }
         // Avoid duplicate generic per-column title pills in macOS split view.
         .navigationTitle(toolbarTitle)
