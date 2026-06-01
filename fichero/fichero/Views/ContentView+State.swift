@@ -82,11 +82,19 @@ extension ContentView {
            doc.parentId == currentSidebarFolder?.id {
             return doc
         }
-        // 2. Sidebar viewMode's folder doc.
+        // 2. Page document — PDF reading context (#1366). When the user
+        //    has scrolled to a specific page (syncGridSelectionToPDFPage),
+        //    detailDocument is that page. The sidebar folder must not shadow
+        //    it: the inspector needs the page doc so its KG tab shows the
+        //    per-page entities the backend now writes per page doc_id.
+        if let pageDoc = detailDocument, pageDoc.docType == .page {
+            return pageDoc
+        }
+        // 3. Sidebar viewMode's folder doc.
         if let folder = currentSidebarFolder {
             return folder
         }
-        // 3. Legacy fallback.
+        // 4. Legacy fallback.
         return detailDocument
     }
 
