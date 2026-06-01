@@ -15,6 +15,7 @@ workflows without HTTP overhead.
 from __future__ import annotations
 
 import ipaddress
+import asyncio
 import logging
 import re
 import socket
@@ -76,7 +77,7 @@ _CLOUD_METADATA_HOSTS = frozenset(
 _MAX_CONTENT_SIZE = 10 * 1024 * 1024
 
 
-def _is_internal_ip(hostname: str | None) -> bool:
+async def _is_internal_ip(hostname: str | None) -> bool:
     """Check if a hostname or IP is internal/private.
 
     Args:
@@ -106,7 +107,7 @@ def _is_internal_ip(hostname: str | None) -> bool:
     # Try to resolve the hostname
     try:
         # Get all addresses (IPv4 and IPv6)
-        addrs = socket.getaddrinfo(hostname, None)
+        addrs = await asyncio.to_thread(socket.getaddrinfo, hostname, None)
         for addr_info in addrs:
             ip_str = addr_info[4][0]
             try:
@@ -124,7 +125,7 @@ def _is_internal_ip(hostname: str | None) -> bool:
     return False
 
 
-def _is_safe_url(url: str, allow_userinfo: bool = False) -> tuple[bool, str]:
+async def _is_safe_url(url: str, allow_userinfo: bool = False) -> tuple[bool, str]:
     """Comprehensive URL safety check for sandboxed requests.
 
     Args:
@@ -164,14 +165,14 @@ def _is_safe_url(url: str, allow_userinfo: bool = False) -> tuple[bool, str]:
         return False, "URL must have a hostname"
 
     # Check for internal IPs
-    if _is_internal_ip(hostname):
+    if await _is_internal_ip(hostname):
         return False, f"Internal addresses are not allowed: {hostname}"
 
     # Check for bare IP address bypass attempts
     # (e.g., http://0x7f.0.0.1/ is 127.0.0.1 in hex)
     if re.match(r"^0[xX][0-9a-fA-F]+", hostname) or re.match(r"^\d+$", hostname):
         # Numeric hostname might be octal/hex IP
-        if _is_internal_ip(hostname):
+        if await _is_internal_ip(hostname):
             return False, "Numeric IP addresses are not allowed"
 
     return True, ""
@@ -198,12 +199,12 @@ def _check_content_size(content: bytes | str, max_size: int = _MAX_CONTENT_SIZE)
     return True, ""
 
 
-def _is_sandbox_violation(url: str) -> bool:
+async def _is_sandbox_violation(url: str) -> bool:
     """Check if URL violates sandbox constraints.
 
     DEPRECATED: Use _is_safe_url() instead for comprehensive validation.
     """
-    is_safe, _ = _is_safe_url(url)
+    is_safe, _ = await _is_safe_url(url)
     return not is_safe
 
 
@@ -372,7 +373,7 @@ async def research_web_search(
         snippet = re.sub(r"<[^>]+>", "", match.group(3)).strip()
         # Validate search results using comprehensive security check
         if url:
-            is_safe, _ = _is_safe_url(url)
+            is_safe, _ = await _is_safe_url(url)
             if is_safe:
                 results.append(
                     {
@@ -500,7 +501,7 @@ async def research_browser_navigate(
             "error": "No URL provided",
         }
 
-    if _is_sandbox_violation(url):
+    if await _is_sandbox_violation(url):
         return {
             "url": url,
             "title": None,
@@ -511,7 +512,7 @@ async def research_browser_navigate(
         }
 
     # Comprehensive URL validation (SSRF protection)
-    is_safe, error_msg = _is_safe_url(url)
+    is_safe, error_msg = await _is_safe_url(url)
     if not is_safe:
         return {
             "url": url,
@@ -588,7 +589,7 @@ async def research_browser_navigate(
         href = match.group(1)
         # Validate extracted links using comprehensive security check
         if href.startswith("http"):
-            is_safe, _ = _is_safe_url(href)
+            is_safe, _ = await _is_safe_url(href)
             if is_safe:
                 links.append(href)
 
@@ -738,7 +739,7 @@ async def research_document_fetch(
             "error": "No URL provided",
         }
 
-    if _is_sandbox_violation(url):
+    if await _is_sandbox_violation(url):
         return {
             "url": url,
             "title": None,
@@ -750,7 +751,7 @@ async def research_document_fetch(
         }
 
     # Comprehensive URL validation (SSRF protection)
-    is_safe, error_msg = _is_safe_url(url)
+    is_safe, error_msg = await _is_safe_url(url)
     if not is_safe:
         return {
             "url": url,

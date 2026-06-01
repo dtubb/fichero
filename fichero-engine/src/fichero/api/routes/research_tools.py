@@ -29,6 +29,7 @@ Internal/private IP ranges and blocked URL schemes are rejected at the boundary.
 """
 
 import ipaddress
+import asyncio
 import re
 import socket
 import time
@@ -98,7 +99,7 @@ _CLOUD_METADATA_HOSTS = frozenset(
 )
 
 
-def _is_internal_ip(hostname: str | None) -> bool:
+async def _is_internal_ip(hostname: str | None) -> bool:
     """Check if a hostname or IP is internal/private."""
     if not hostname:
         return False
@@ -116,7 +117,7 @@ def _is_internal_ip(hostname: str | None) -> bool:
         pass
 
     try:
-        addrs = socket.getaddrinfo(hostname, None)
+        addrs = await asyncio.to_thread(socket.getaddrinfo, hostname, None)
         for addr_info in addrs:
             ip_str = addr_info[4][0]
             try:
@@ -132,7 +133,7 @@ def _is_internal_ip(hostname: str | None) -> bool:
     return False
 
 
-def _is_safe_url(url: str, allow_userinfo: bool = False) -> tuple[bool, str]:
+async def _is_safe_url(url: str, allow_userinfo: bool = False) -> tuple[bool, str]:
     """Comprehensive URL safety check for sandboxed requests."""
     if not url:
         return False, "URL is empty"
@@ -159,11 +160,11 @@ def _is_safe_url(url: str, allow_userinfo: bool = False) -> tuple[bool, str]:
     if not hostname:
         return False, "URL must have a hostname"
 
-    if _is_internal_ip(hostname):
+    if await _is_internal_ip(hostname):
         return False, f"Internal addresses are not allowed: {hostname}"
 
     if re.match(r"^0[xX][0-9a-fA-F]+", hostname) or re.match(r"^\d+$", hostname):
-        if _is_internal_ip(hostname):
+        if await _is_internal_ip(hostname):
             return False, "Numeric IP addresses are not allowed"
 
     # Basic traversal hardening for path confusion vectors.
@@ -178,9 +179,9 @@ def _is_safe_url(url: str, allow_userinfo: bool = False) -> tuple[bool, str]:
     return True, ""
 
 
-def _is_sandbox_violation(url: str) -> bool:
+async def _is_sandbox_violation(url: str) -> bool:
     """Check if URL violates sandbox constraints."""
-    is_safe, _ = _is_safe_url(url)
+    is_safe, _ = await _is_safe_url(url)
     return not is_safe
 
 
@@ -195,7 +196,7 @@ async def _safe_http_get(
     """GET with explicit redirect validation to prevent SSRF redirect bypass."""
     current_url = url
     for _ in range(max_redirects + 1):
-        is_safe, error = _is_safe_url(current_url)
+        is_safe, error = await _is_safe_url(current_url)
         if not is_safe:
             raise HTTPException(status_code=400, detail=f"URL not allowed: {error}")
 
@@ -211,7 +212,7 @@ async def _safe_http_get(
             if not location:
                 raise HTTPException(status_code=400, detail="Redirect missing location")
             next_url = urljoin(str(current_url), location)
-            is_safe, error = _is_safe_url(next_url)
+            is_safe, error = await _is_safe_url(next_url)
             if not is_safe:
                 raise HTTPException(
                     status_code=400,
@@ -293,7 +294,7 @@ async def execute_web_search(
         snippet = re.sub(r"<[^>]+>", "", match.group(3)).strip()
         # Validate search results using comprehensive security check
         if url:
-            is_safe, _ = _is_safe_url(url)
+            is_safe, _ = await _is_safe_url(url)
             if is_safe:
                 results.append(
                     WebSearchResult(
@@ -321,14 +322,14 @@ async def execute_browser_navigate(
     request: BrowserNavigateRequest,
 ) -> BrowserNavigateResponse:
     """Navigate to a URL and extract content (sandboxed — no filesystem/CLI escape)."""
-    if _is_sandbox_violation(request.url):
+    if await _is_sandbox_violation(request.url):
         raise HTTPException(
             status_code=400,
             detail="URL scheme not allowed in sandboxed browser",
         )
 
     # Comprehensive URL validation (SSRF protection)
-    is_safe, error_msg = _is_safe_url(request.url)
+    is_safe, error_msg = await _is_safe_url(request.url)
     if not is_safe:
         raise HTTPException(status_code=400, detail=f"URL not allowed: {error_msg}")
 
@@ -379,7 +380,7 @@ async def execute_browser_navigate(
         href = match.group(1)
         # Validate extracted links using comprehensive security check
         if href.startswith("http"):
-            is_safe, _ = _is_safe_url(href)
+            is_safe, _ = await _is_safe_url(href)
             if is_safe:
                 links.append(href)
 
@@ -406,14 +407,14 @@ async def execute_document_fetch(
     db: Database = Depends(get_library_database),
 ) -> DocumentFetchResponse:
     """Fetch a document URL and optionally save as Layer 1 Source (sandboxed)."""
-    if _is_sandbox_violation(request.url):
+    if await _is_sandbox_violation(request.url):
         raise HTTPException(
             status_code=400,
             detail="URL scheme not allowed in sandboxed fetch",
         )
 
     # Comprehensive URL validation (SSRF protection)
-    is_safe, error_msg = _is_safe_url(request.url)
+    is_safe, error_msg = await _is_safe_url(request.url)
     if not is_safe:
         raise HTTPException(status_code=400, detail=f"URL not allowed: {error_msg}")
 
@@ -535,10 +536,10 @@ async def browser_save(
     from pathlib import Path as _Path
     from fichero.ingest import ingest_file, IngestMode
 
-    if _is_sandbox_violation(request.url):
+    if await _is_sandbox_violation(request.url):
         raise HTTPException(status_code=400, detail="URL scheme not allowed in sandboxed fetch")
 
-    is_safe, error_msg = _is_safe_url(request.url)
+    is_safe, error_msg = await _is_safe_url(request.url)
     if not is_safe:
         raise HTTPException(status_code=400, detail=f"URL not allowed: {error_msg}")
 
