@@ -143,6 +143,7 @@ struct ArtifactsBrowserView: View {
                 Image(systemName: "arrow.clockwise")
             }
             .disabled(isLoading)
+            .help("Reload artifacts")
 
             // Stats
             Text("\(displayedArtifacts.count) artifacts")
@@ -227,6 +228,7 @@ struct ArtifactsBrowserView: View {
                             .font(.caption)
                     }
                     .buttonStyle(.plain)
+                    .help("Copy artifact content to clipboard")
                 }
             }
 
