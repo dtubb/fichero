@@ -6256,6 +6256,237 @@
         }
       }
     },
+    "/api/documents/{doc_id}/prototype": {
+      "put": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Assign Document Prototype",
+        "operationId": "assign_document_prototype_api_documents__doc_id__prototype_put",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrototypeAssignRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrototypeAssignResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{doc_id}/page-ranges": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "List Page Ranges",
+        "operationId": "list_page_ranges_api_documents__doc_id__page_ranges_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageRangeListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Upsert Page Ranges",
+        "operationId": "upsert_page_ranges_api_documents__doc_id__page_ranges_put",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PageRangeUpsertRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageRangeListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{doc_id}/page-ranges/at/{page}": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Page Range For Page",
+        "operationId": "page_range_for_page_api_documents__doc_id__page_ranges_at__page__get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Page"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageRangeItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{doc_id}/related": {
       "get": {
         "tags": [
@@ -36041,7 +36272,8 @@
         "enum": [
           "epistemic_status",
           "claim_type",
-          "entity_type"
+          "entity_type",
+          "document_prototype"
         ],
         "title": "ClassificationDimension",
         "description": "Which classification axis a registry value belongs to (#915)."
@@ -37591,6 +37823,11 @@
             "nullable": true,
             "title": "Bbox"
           },
+          "prototype_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prototype Key"
+          },
           "page_content": {
             "type": "string",
             "nullable": true,
@@ -37855,6 +38092,11 @@
             "type": "object",
             "title": "Metadata",
             "default": {}
+          },
+          "prototype_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prototype Key"
           }
         },
         "additionalProperties": true,
@@ -38286,6 +38528,11 @@
             "type": "object",
             "nullable": true,
             "title": "Metadata"
+          },
+          "prototype_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prototype Key"
           }
         },
         "additionalProperties": true,
@@ -45373,6 +45620,76 @@
         "title": "OutputSchema",
         "description": "JSON Schema for structured output from LLM nodes.\n\nWhen specified, the LLM will be instructed to return\ndata matching this schema exactly (using structured output mode).\n\nExample for named entity extraction:\n{\n    \"type\": \"object\",\n    \"properties\": {\n        \"people\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"organizations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"dates\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n    },\n    \"required\": [\"people\", \"organizations\", \"dates\"]\n}"
       },
+      "PageRangeItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "page_start": {
+            "type": "integer",
+            "title": "Page Start"
+          },
+          "page_end": {
+            "type": "integer",
+            "title": "Page End"
+          },
+          "prototype_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prototype Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "page_start",
+          "page_end"
+        ],
+        "title": "PageRangeItem"
+      },
+      "PageRangeListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PageRangeItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "PageRangeListResponse"
+      },
+      "PageRangeUpsertRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PageRangeItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "PageRangeUpsertRequest"
+      },
       "PaleographyPresetResponse": {
         "properties": {
           "chain": {
@@ -46720,6 +47037,57 @@
         "type": "object",
         "title": "PromptResponse",
         "description": "Response with built prompt."
+      },
+      "PrototypeAssignRequest": {
+        "properties": {
+          "prototype_key": {
+            "type": "string",
+            "title": "Prototype Key"
+          },
+          "include_descendants": {
+            "type": "boolean",
+            "title": "Include Descendants",
+            "default": false
+          },
+          "page_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Page Start"
+          },
+          "page_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Page End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "prototype_key"
+        ],
+        "title": "PrototypeAssignRequest"
+      },
+      "PrototypeAssignResponse": {
+        "properties": {
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "prototype_key": {
+            "type": "string",
+            "title": "Prototype Key"
+          },
+          "updated_count": {
+            "type": "integer",
+            "title": "Updated Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_document_id",
+          "prototype_key",
+          "updated_count"
+        ],
+        "title": "PrototypeAssignResponse"
       },
       "ProvenanceInfo": {
         "properties": {

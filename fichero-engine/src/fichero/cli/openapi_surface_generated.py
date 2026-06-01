@@ -2047,6 +2047,46 @@ def register_generated_openapi_commands(
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("list-page-ranges")
+    def documents_list_page_ranges_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+    ) -> None:
+        """List Page Ranges (GET /api/documents/{doc_id}/page-ranges)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{doc_id}/page-ranges"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("upsert-page-ranges")
+    def documents_upsert_page_ranges_put(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Upsert Page Ranges (PUT /api/documents/{doc_id}/page-ranges)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{doc_id}/page-ranges"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PUT", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("page-range-for-page")
+    def documents_page_range_for_page_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        page: str = typer.Argument(..., help="Path parameter: page."),
+    ) -> None:
+        """Page Range For Page (GET /api/documents/{doc_id}/page-ranges/at/{page})."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{doc_id}/page-ranges/at/{page}"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-parent")
     def documents_get_parent_get(
         ctx: typer.Context,
@@ -2057,6 +2097,21 @@ def register_generated_openapi_commands(
             path = f"/api/documents/{doc_id}/parent"
             params = None
             return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("assign-prototype")
+    def documents_assign_prototype_put(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Assign Document Prototype (PUT /api/documents/{doc_id}/prototype)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{doc_id}/prototype"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("related")

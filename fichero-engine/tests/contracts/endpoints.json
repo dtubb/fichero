@@ -2130,6 +2130,43 @@
       },
       {
         "method": "GET",
+        "path": "/documents/{doc_id}/page-ranges",
+        "operation_id": "list_page_ranges_api_documents__doc_id__page_ranges_get",
+        "summary": "List Page Ranges",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PageRangeListResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/documents/{doc_id}/page-ranges",
+        "operation_id": "upsert_page_ranges_api_documents__doc_id__page_ranges_put",
+        "summary": "Upsert Page Ranges",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": "PageRangeUpsertRequest",
+        "response_model": "PageRangeListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{doc_id}/page-ranges/at/{page}",
+        "operation_id": "page_range_for_page_api_documents__doc_id__page_ranges_at__page__get",
+        "summary": "Page Range For Page",
+        "path_params": [
+          "doc_id",
+          "page"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PageRangeItem"
+      },
+      {
+        "method": "GET",
         "path": "/documents/{doc_id}/parent",
         "operation_id": "get_document_parent_api_documents__doc_id__parent_get",
         "summary": "Get Document Parent",
@@ -2139,6 +2176,18 @@
         "query_params": [],
         "request_model": null,
         "response_model": "Document"
+      },
+      {
+        "method": "PUT",
+        "path": "/documents/{doc_id}/prototype",
+        "operation_id": "assign_document_prototype_api_documents__doc_id__prototype_put",
+        "summary": "Assign Document Prototype",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": "PrototypeAssignRequest",
+        "response_model": "PrototypeAssignResponse"
       },
       {
         "method": "GET",
