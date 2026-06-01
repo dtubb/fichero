@@ -14,7 +14,19 @@ extension ContentView {
         let viewName: String
         switch viewMode {
         case .library(let document):
-            viewName = document?.name ?? "Library"
+            let baseName = document?.name ?? "Library"
+            // For a PDF, append the page the user is currently reading so the
+            // window/tab title tracks scroll + page-flip. Reuses the page-focus
+            // signal from #1463 (pageFocusDocument) rather than a parallel
+            // tracker, and the page-child count for the "of M" total. (#1482)
+            if let page = pageFocusDocument, page.docType == .page, let seq = page.sequence {
+                let total = pdfDocPages.count
+                viewName = total > 0
+                    ? "\(baseName) — Page \(seq) of \(total)"
+                    : "\(baseName) — Page \(seq)"
+            } else {
+                viewName = baseName
+            }
         case .search(let savedSearch):
             viewName = savedSearch?.name ?? "Search"
         case .chat(let conversation):
@@ -227,10 +239,8 @@ extension ContentView {
             sidebarMode = .library
             viewMode = .library(nil)
         }
-        // Sync View menu inspector command to per-window inspector state.
-        if viewSettings.showInspector != showInspectorSidebar {
-            viewSettings.showInspector = showInspectorSidebar
-        }
+        // Inspector visibility is per-window (@SceneStorage) and reaches the
+        // View menu via FocusedValues.showInspector — no app-wide seeding needed (#1451).
         updateColumnVisibility()
         viewDisplayMode = normalizedViewDisplayMode(viewDisplayMode)
         viewSettings.previewMode = normalizedPreviewMode(viewSettings.previewMode)

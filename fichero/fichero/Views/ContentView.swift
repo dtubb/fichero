@@ -31,6 +31,13 @@ struct ContentView: View {
     /// 4 mode icons × 40pt + MiniToolbar horizontal padding (12×2) + inter-item
     /// spacing (12) ≈ 240.
     static let contentListMinWidth: Double = 240
+    /// Minimum width of the flexible PDF canvas pane so its mini-toolbar
+    /// (zoom −/%/+, fit, actual-size, magnifier, loupe + two dividers) never
+    /// clips when the reading-surface dividers are dragged inward. The
+    /// resizable neighbours are already clamped by their ResizableDividers;
+    /// this guards the one `.frame(maxWidth: .infinity)` pane that otherwise
+    /// has no floor. (#1454)
+    static let pdfCanvasMinWidth: Double = 360
 
     // MARK: - Environment
 
@@ -302,18 +309,12 @@ struct ContentView: View {
         .onChange(of: documentStore.currentDocuments) { _, newDocs in
             handleCurrentDocumentsChange(newDocs)
         }
-        .onChange(of: showInspectorSidebar) { _, newValue in
-            if viewSettings.showInspector != newValue {
-                viewSettings.showInspector = newValue
-            }
+        // Inspector visibility is per-window (@SceneStorage). It is NOT mirrored
+        // into the app-wide ViewSettings any more — doing so flipped the
+        // inspector in every open window at once (#1451). The View menu reaches
+        // this window's state through FocusedValues.showInspector instead.
+        .onChange(of: showInspectorSidebar) { _, _ in
             updateColumnVisibility()
-        }
-        .onChange(of: viewSettings.showInspector) { _, newValue in
-            if showInspectorSidebar != newValue {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showInspectorSidebar = newValue
-                }
-            }
         }
         .toolbar { mainToolbarContent }
         .onChange(of: viewSettings.previewMode) { _, newPreviewMode in
