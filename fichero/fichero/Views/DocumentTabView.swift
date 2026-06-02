@@ -24,6 +24,11 @@ struct DocumentTabView: View {
     @EnvironmentObject var storageService: StorageServiceGenerated
     @EnvironmentObject var windowState: WindowState
 
+    // @Observable objects injected by LibraryWindow — must be forwarded explicitly
+    // when ContentView() is constructed below (SwiftUI does not re-propagate
+    // @Environment(T.self) values across an explicit .environmentObject() chain).
+    @Environment(WorkflowExecutionObserver.self) var executionObserver
+
     // Get the library reference
     private var library: LibraryManager.LibraryReference? {
         LibraryManager.shared.getLibrary(id: libraryId)
@@ -91,6 +96,13 @@ struct DocumentTabView: View {
                     .environmentObject(documentService)
                     .environmentObject(storageService)
                     .environmentObject(windowState)
+                    // Forward the @Observable observer so ContentView and its subtree
+                    // (DocumentInspector → ArtifactEntityViews) can read it via
+                    // @Environment(WorkflowExecutionObserver.self). Without this the
+                    // environment chain breaks at the ContentView() host and crashes
+                    // with "No Observable object of type WorkflowExecutionObserver found."
+                    // (#1561). Single shared instance — no new object created here.
+                    .environment(executionObserver)
 
             case .workflow:
                 // Workflow tab view (will create later)
