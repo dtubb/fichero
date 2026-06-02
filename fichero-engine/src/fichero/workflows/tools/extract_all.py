@@ -565,7 +565,7 @@ def _load_registry_types(db, library_path: str) -> list[str]:
 def _persist_additional_entities(
     db,
     additional_entities: dict[str, list[str]],
-    container_id: str,
+    target_doc_id: str,
 ) -> None:
     """Persist names extracted for custom registry types as KnowledgeEntity rows.
 
@@ -574,7 +574,15 @@ def _persist_additional_entities(
     appears under multiple custom types preserves all of them). Also writes a
     minimal KnowledgeClaim linking the entity to the source document so it
     participates in "which documents mention X?" queries just like built-in types.
+
+    `target_doc_id` is the per-child page/image doc id when cataloguing a folder
+    or multi-page PDF (the caller iterates chunks and passes each chunk's
+    `page_doc_id or container.id`), so both the provenance claim's
+    source_document_id and the entity's accumulated source_document_ids land on
+    the right child — the parent then compiles the union via descendants
+    (#1562 write-path).
     """
+    container_id = target_doc_id
     from fichero.knowledge_models import KnowledgeEntity, EntityType
     from fichero.workflows.tools._entity_writer import save_claim
 
@@ -595,10 +603,10 @@ def _persist_additional_entities(
                     existing_keys = [*existing_keys, type_key]
                     e.metadata = {**e.metadata, "custom_entity_type_keys": existing_keys}
                     changed = True
-                # #1562 — record the source page/doc scope. NOTE: this call
-                # site only has the container/doc id (additional_entities are
-                # merged across all chunks before persisting), so we scope to
-                # container_id here rather than a per-page target_doc_id.
+                # #1562 — record the source page/doc scope. The caller now
+                # passes the per-child target_doc_id (page/image), so this
+                # accumulates each child the name was extracted from; the parent
+                # compiles the union across descendants.
                 if container_id and container_id not in (e.source_document_ids or []):
                     e.source_document_ids = [*(e.source_document_ids or []), container_id]
                     changed = True
@@ -610,7 +618,8 @@ def _persist_additional_entities(
                     canonical_name=name,
                     entity_type=EntityType.other,
                     metadata={"custom_entity_type_keys": [type_key]},
-                    # #1562 — only the container/doc id is in scope here.
+                    # #1562 — scope to the per-child target_doc_id supplied by
+                    # the caller (page/image), not the parent container.
                     source_document_ids=[container_id] if container_id else [],
                 )
                 db.save(entity)
@@ -1843,27 +1852,50 @@ async def extract_all(
                         run_id=state.get("task_id"),
                     ))
             # Persist custom entity types from the registry (#1240).
+            #
+            # #1562 write-path: scope each custom-entity name to the CHILD doc
+            # (page/image) it was extracted from, not the parent container. We
+            # accumulate per target_doc_id (page_doc_id or container.id) so a
+            # name found on page 2 stamps page 2's id on both the provenance
+            # claim and the entity's source_document_ids. Merging across all
+            # chunks first (the old behaviour) collapsed everything onto the
+            # folder, which is exactly the bug — selecting a child then showed
+            # no per-child custom entities and the parent could not compile a
+            # real descendant union.
             if custom_entity_types and persist_kg:
                 custom_entity_type_set = set(custom_entity_types)
-                # Use sets while accumulating to keep dedup O(n).
-                seen: dict[str, set[str]] = {}
+                # target_doc_id → {type_key → set(names)}; sets keep dedup O(n).
+                by_doc: dict[str, dict[str, set[str]]] = {}
                 for chunk_idx, cr in enumerate(chunk_results):
                     await _yield_page_work(
                         "custom entity merge",
                         chunk_idx,
                         len(chunk_results),
                     )
+                    page_doc_id = (
+                        page_doc_ids[chunk_idx]
+                        if chunk_idx < len(page_doc_ids)
+                        else None
+                    )
+                    target_doc_id = page_doc_id or container.id
                     for type_key, names in (cr.get("additional_entities") or {}).items():
                         if type_key not in custom_entity_type_set:
                             continue
-                        bucket = seen.setdefault(type_key, set())
+                        bucket = by_doc.setdefault(target_doc_id, {}).setdefault(
+                            type_key, set()
+                        )
                         for name in (names or []):
                             name = name.strip() if isinstance(name, str) else ""
                             if name:
                                 bucket.add(name)
-                merged_additional = {k: list(v) for k, v in seen.items() if v}
-                if merged_additional:
-                    _persist_additional_entities(db, merged_additional, container.id)
+                for target_doc_id, type_map in by_doc.items():
+                    merged_additional = {
+                        k: list(v) for k, v in type_map.items() if v
+                    }
+                    if merged_additional:
+                        _persist_additional_entities(
+                            db, merged_additional, target_doc_id
+                        )
 
             # Drain the queued artifact writes before this node returns
             # — downstream folder-cleanup nodes read these artifacts.

@@ -8,7 +8,12 @@ Covers:
 
 from __future__ import annotations
 
+import pytest
+
 from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim, EntityType, LibraryEntityType
+from fichero.llm import LLMConfig
+from fichero.models import DocType, Document
+from fichero.workflows.tools import extract_all as extract_all_module
 from fichero.workflows.tools.extract_all import (
     _load_registry_types,
     _build_instructions,
@@ -164,3 +169,123 @@ class TestPersistAdditionalEntities:
         keys = all_entities[0].metadata.get("custom_entity_type_keys", [])
         assert "crops" in keys
         assert "grains" in keys
+
+
+class TestCustomEntityPerChildScope:
+    """#1562 write-path: custom-registry entities extracted while cataloguing a
+    FOLDER (or multi-page PDF) must carry the PER-CHILD document id on their
+    provenance claim and source_document_ids — not the parent container id.
+
+    Before the fix, `extract_all` merged `additional_entities` across all chunks
+    and called `_persist_additional_entities` once with `container.id`, so every
+    custom-entity claim landed on the folder. Selecting a single child then
+    showed no per-child custom entities, and the parent could only ever show a
+    flat folder-scoped blob rather than a true union compiled from descendants.
+    """
+
+    @pytest.mark.asyncio
+    async def test_folder_catalogue_scopes_custom_entities_per_child(
+        self, db, test_package, monkeypatch
+    ):
+        folder = Document(name="Folder", path="/tmp/f", doc_type=DocType.folder)
+        page1 = Document(
+            name="p1", path="/tmp/f/p1.png", doc_type=DocType.page, parent_id=None
+        )
+        page2 = Document(
+            name="p2", path="/tmp/f/p2.png", doc_type=DocType.page, parent_id=None
+        )
+        page1.parent_id = folder.id
+        page2.parent_id = folder.id
+        db.save(folder)
+        db.save(page1)
+        db.save(page2)
+
+        lib_path = str(test_package)
+        db.save(LibraryEntityType(library_id=lib_path, entity_type_key="crops", enabled=True))
+        db.save(LibraryEntityType(library_id=lib_path, entity_type_key="minerals", enabled=True))
+
+        # Mock the LLM so each page yields a DIFFERENT custom entity: page1 ->
+        # "wheat" (crops), page2 -> "silver" (minerals). The chunk text routes
+        # which custom entity comes back, mirroring a real per-page extraction.
+        async def fake_extract(**kwargs):
+            prompt = kwargs.get("prompt", "")
+            if "WHEAT" in prompt:
+                additional = {"crops": ["wheat"]}
+            elif "SILVER" in prompt:
+                additional = {"minerals": ["silver"]}
+            else:
+                additional = {}
+            return extract_all_module._Extraction(
+                people=[],
+                places=[],
+                organizations=[],
+                dates=[],
+                events=[],
+                quotes=[],
+                keywords=[],
+                additional_entities=additional,
+            )
+
+        monkeypatch.setattr(
+            "fichero.workflows.tools.extract_all.chat_structured_with_fallback",
+            fake_extract,
+        )
+
+        state = {
+            "library_path": lib_path,
+            "selected_doc_ids": [folder.id],
+        }
+        llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
+
+        await extract_all_module.extract_all(
+            inputs={
+                "persist_kg": True,
+                "extraction_mode": "oneshot",
+                "records": [
+                    {"doc_id": page1.id, "text": "Page one mentions WHEAT in the field."},
+                    {"doc_id": page2.id, "text": "Page two mentions SILVER from the mine."},
+                ],
+            },
+            state=state,
+            llm_config=llm_config,
+        )
+
+        # Custom-entity provenance claims must be stamped per CHILD, not folder.
+        folder_claims = db.query(KnowledgeClaim, source_document_id=folder.id)
+        page1_claims = db.query(KnowledgeClaim, source_document_id=page1.id)
+        page2_claims = db.query(KnowledgeClaim, source_document_id=page2.id)
+
+        assert len(folder_claims) == 0, (
+            "custom-entity provenance claims must attach to the per-child page "
+            "doc, not the parent folder (#1562 write-path)"
+        )
+        p1_names = {c.subject_canonical for c in page1_claims}
+        p2_names = {c.subject_canonical for c in page2_claims}
+        assert "wheat" in p1_names
+        assert "silver" in p2_names
+        assert "silver" not in p1_names
+        assert "wheat" not in p2_names
+
+        # Entity rows accumulate the child doc id in source_document_ids.
+        wheat = db.query(KnowledgeEntity, canonical_name="wheat", entity_type=EntityType.other)[0]
+        silver = db.query(KnowledgeEntity, canonical_name="silver", entity_type=EntityType.other)[0]
+        assert page1.id in (wheat.source_document_ids or [])
+        assert page2.id in (silver.source_document_ids or [])
+        assert folder.id not in (wheat.source_document_ids or [])
+
+        # Read-side: selecting a single child shows only that child's custom
+        # entity; the parent/folder compiles the union across descendants.
+        from fichero.api.routes.claims import _descendant_doc_ids
+
+        page1_scope = _descendant_doc_ids(db, page1.id)
+        folder_scope = _descendant_doc_ids(db, folder.id)
+
+        def entities_for(scope):
+            names = set()
+            for ent in db.query(KnowledgeEntity, entity_type=EntityType.other):
+                if scope.intersection(ent.source_document_ids or []):
+                    names.add(ent.canonical_name)
+            return names
+
+        assert entities_for(page1_scope) == {"wheat"}
+        assert entities_for(folder_scope) == {"wheat", "silver"}
