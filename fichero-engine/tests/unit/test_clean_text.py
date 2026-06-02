@@ -25,7 +25,7 @@ from fichero.workflows.tools.clean_text import (
     clean_text,
     _build_prompt,
 )
-from fichero.workflows.tools.text_cleaning import TextCleaner
+from fichero.workflows.tools.text_cleaning import clean_ocr_text
 from fichero.llm import LLMConfig
 
 
@@ -159,15 +159,16 @@ TTP. HERALDO.
 290029090
 """
 
-        cleaned = TextCleaner.clean_text(raw_text)
+        cleaned = clean_ocr_text(raw_text)
 
         # Real content remains.
         assert "República de Colombia" in cleaned
+        assert "INTENDENCIA NAL. DEL CHOCÓ" in cleaned
         assert "DISTRITO JUDICIAL DE CALI" in cleaned
-        assert "JUZGADO PRIMERO DEL CIBCEITO" in cleaned
-        assert "ISTMIN" in cleaned
+        assert "JUZGADO PRIMERO DEL CIRCUITO" in cleaned
+        assert "ISTMINA" in cleaned
         assert "1930" in cleaned
-        assert "TTP. HERALDO." in cleaned
+        assert "TIP. HERALDO." in cleaned
 
         # OCR digit/symbol soup and single-number garbage are removed.
         assert "33005 00s000Gc00000" not in cleaned
