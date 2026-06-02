@@ -39,6 +39,7 @@ import json
 import logging
 import mimetypes
 import shutil
+import threading
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -932,20 +933,33 @@ def ingest_folder(
         logger.info(f"Ingested {len(documents)} files from {folder.name}")
         return documents
 
+    # DuckDB connections are NOT thread-safe for concurrent reads/writes
+    # (#1554). ingest_file interleaves db.save/db.embed/db.query throughout,
+    # so we serialize every db touch behind a shared lock. Under contention
+    # an unguarded shared connection returned None for required Document
+    # columns (id/name/created_at/updated_at), tripping Pydantic validation
+    # and persisting sourceless Status.failed stubs (no thumbnail/preview).
+    # The lock spans the whole ingest_file call — the work that runs while
+    # holding it is db-bound anyway, so the executor parallelism it preempts
+    # was never real, while genuine per-file errors still flow to the stub
+    # path below.
+    db_lock = threading.Lock()
+
     def _ingest_one(item: tuple[int, Path, str | None, str, str]) -> tuple[int, Document | None, Exception | None, str, str, str | None, Path]:
         i, file_path, subfolder_id, source_key, checksum = item
         try:
-            doc = ingest_file(
-                file_path,
-                mode=mode,
-                parent_id=subfolder_id,
-                extract_metadata=True,
-                extract_text=extract_text,
-                auto_embed=auto_embed,
-                save=True,
-                db=db,
-                package_path=package_path,
-            )
+            with db_lock:
+                doc = ingest_file(
+                    file_path,
+                    mode=mode,
+                    parent_id=subfolder_id,
+                    extract_metadata=True,
+                    extract_text=extract_text,
+                    auto_embed=auto_embed,
+                    save=True,
+                    db=db,
+                    package_path=package_path,
+                )
             return (i, doc, None, source_key, checksum, subfolder_id, file_path)
         except Exception as exc:
             return (i, None, exc, source_key, checksum, subfolder_id, file_path)
