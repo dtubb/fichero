@@ -153,7 +153,7 @@ private extension ImageEditorView {
                 toolButton("person.and.background.dotted", help: "Remove background — AI-powered background removal") {
                     Task { await model.removeBackground() }
                 }
-                toolButton("sparkles", help: "Fuzzy clean — despeckle and remove noise artifacts") {
+                toolButton("sparkles", help: "Despeckle — remove noise and speckle artifacts") {
                     Task { await model.fuzzyClean() }
                 }
                 toolButton("square.split.2x1", help: "Segment — detect and label image regions") {
