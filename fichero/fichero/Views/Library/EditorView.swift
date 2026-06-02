@@ -192,7 +192,12 @@ struct EditorView: View {
         .foregroundColor(isEditing ? .accentColor : .primary)
         .help(isEditing ? "Done — return to viewing" : "Edit image (crop, rotate, enhance, remove background)")
         .accessibilityIdentifier("canvasEditModeToggle")
-        .padding(10)
+        // Center within the canvas toolbar's standard band and inset from the
+        // trailing edge so the edit icon sits on the same baseline as the zoom /
+        // loupe icons in the mini-toolbar, instead of floating slightly high
+        // with its own padding (#1556).
+        .frame(height: MiniToolbar<EmptyView>.standardHeight, alignment: .center)
+        .padding(.trailing, 12)
     }
 
     // MARK: - Text Preview
