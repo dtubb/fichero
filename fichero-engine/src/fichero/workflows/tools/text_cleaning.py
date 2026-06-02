@@ -5,8 +5,21 @@ from __future__ import annotations
 import re
 
 
+def clean_ocr_text(text: str) -> str:
+    """Clean OCR/transcription text with deterministic rules only."""
+    return TextCleaner.clean_text(text)
+
+
 class TextCleaner:
     """Pure string-to-string cleanup pipeline."""
+
+    _LINE_REPLACEMENTS = (
+        (re.compile(r"\bINTENDE\s+ICIA\b", flags=re.IGNORECASE), "INTENDENCIA"),
+        (re.compile(r"\bCIBCEITO\b", flags=re.IGNORECASE), "CIRCUITO"),
+        (re.compile(r"\bISTMIN\b", flags=re.IGNORECASE), "ISTMINA"),
+        (re.compile(r"\bTTP\.", flags=re.IGNORECASE), "TIP."),
+        (re.compile(r"\bDEL\s+CHOCO\b", flags=re.IGNORECASE), "DEL CHOCÓ"),
+    )
 
     @staticmethod
     def remove_pathological_patterns(text: str) -> str:
@@ -84,6 +97,17 @@ class TextCleaner:
                 kept.append(line)
 
         return "\n".join(kept)
+
+    @staticmethod
+    def normalize_obvious_ocr_tokens(text: str) -> str:
+        """Apply narrow OCR token corrections with low false-positive risk."""
+        normalized_lines: list[str] = []
+        for line in text.splitlines():
+            normalized = line
+            for pattern, replacement in TextCleaner._LINE_REPLACEMENTS:
+                normalized = pattern.sub(replacement, normalized)
+            normalized_lines.append(normalized)
+        return "\n".join(normalized_lines)
 
     @staticmethod
     def remove_specific_phrases(text: str) -> str:
@@ -271,6 +295,7 @@ class TextCleaner:
         """Run deterministic cleaning passes in fixed order."""
         text = TextCleaner.remove_pathological_patterns(text)
         text = TextCleaner.remove_ocr_garbage_lines(text)
+        text = TextCleaner.normalize_obvious_ocr_tokens(text)
         text = TextCleaner.remove_specific_phrases(text)
         text = TextCleaner.combine_single_word_paragraphs(text)
         text = TextCleaner.remove_repeated_phrases(text)
