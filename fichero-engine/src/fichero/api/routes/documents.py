@@ -193,6 +193,17 @@ def _workspace_doc_or_404(db: Database, doc_id: str) -> Document:
     return doc
 
 
+def _ordered_by_sort_order(docs: list[Document]) -> list[Document]:
+    """Order documents by ``sort_order`` ASC, then ``name`` ASC (#572).
+
+    The drag-drop reorder endpoint persists ``sort_order`` per document; list
+    endpoints sort by it so the client doesn't have to re-sort and a dragged
+    position survives a refresh. Reorder-unaware siblings tie at 0 and fall
+    through to case-insensitive name order, preserving the old default.
+    """
+    return sorted(docs, key=lambda d: (d.sort_order, (d.name or "").lower()))
+
+
 def _normalize_curated_items(items: list[Any] | None) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     for item in items or []:
@@ -271,6 +282,10 @@ async def list_documents(
     else:
         docs = list(db.all(Document))
 
+    # Order by user-defined sort_order before paginating so drag-drop
+    # positions survive a refresh and clients don't re-sort (#572).
+    docs = _ordered_by_sort_order(docs)
+
     # Apply pagination (if limit is specified)
     if limit is not None:
         items = docs[offset : offset + limit]
@@ -284,14 +299,14 @@ async def list_collections(
     db: Database = Depends(get_library_database),
 ) -> DocumentListResponse:
     """List all root-level items (documents without parents)."""
-    items = list(db.query(Document, parent_id=None))
+    items = _ordered_by_sort_order(list(db.query(Document, parent_id=None)))
     return DocumentListResponse(items=items, count=len(items))
 
 
 @router.get("/roots")
 async def list_roots(db: Database = Depends(get_library_database)) -> DocumentListResponse:
     """List root documents (no parent)."""
-    items = list(db.query(Document, parent_id=None))
+    items = _ordered_by_sort_order(list(db.query(Document, parent_id=None)))
     return DocumentListResponse(items=items, count=len(items))
 
 
@@ -477,7 +492,7 @@ async def get_children(
     # (e.g. "doc:abc123").  Documents are stored with bare hex ids, so strip
     # the prefix before every DB lookup so both forms resolve correctly (#1345).
     normalized_id = doc_id.removeprefix("doc:")
-    children = list(db.query(Document, parent_id=normalized_id))
+    children = _ordered_by_sort_order(list(db.query(Document, parent_id=normalized_id)))
     if not children:
         # Verify parent exists only when there are no children to return.
         # During long-running workflows, a transient parent lookup miss can
