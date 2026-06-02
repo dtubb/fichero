@@ -14,7 +14,7 @@ from unittest.mock import patch, MagicMock
 
 from fichero.db import Database, SearchResult
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
-from fichero.models import Document
+from fichero.models import DocType, Document, FileType
 from fichero.ingest import ingest_file, ingest_folder, IngestMode
 
 
@@ -70,6 +70,93 @@ class TestDatabaseSearch:
         assert len(results) >= 1
         assert total_count >= 1
         assert results[0].document_id == doc.id
+        db.close()
+
+    def test_search_prefers_indexed_pdf_pages_over_parent_document(self, tmp_path):
+        """PDF search should return page-scoped hits when page embeddings exist."""
+        db = Database(tmp_path / "test.duckdb")
+
+        parent = Document(
+            id="pdf-parent",
+            name="archive.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            page_content=(
+                "Whole PDF text blob mentioning Camilo. "
+                "This should not be returned when pages are indexed."
+            ),
+        )
+        page1 = Document(
+            id="pdf-parent-page-1",
+            parent_id=parent.id,
+            name="archive.pdf - Page 1",
+            doc_type=DocType.page,
+            sequence=1,
+            page_content="A page about unrelated correspondence.",
+        )
+        page2 = Document(
+            id="pdf-parent-page-2",
+            parent_id=parent.id,
+            name="archive.pdf - Page 2",
+            doc_type=DocType.page,
+            sequence=2,
+            page_content="Camilo appears in this passage with context.",
+        )
+        db.save(parent)
+        db.save(page1)
+        db.save(page2)
+
+        query_vector = [1.0, 0.0]
+        db.save_embedding(parent, query_vector, parent.page_content)
+        db.save_embedding(page1, [0.0, 1.0], page1.page_content)
+        db.save_embedding(page2, query_vector, page2.page_content)
+
+        with patch.object(db, "_embed_text", return_value=query_vector):
+            results, total_count, _stats = db.search(
+                "Camilo",
+                min_score=0.55,
+                search_type="semantic",
+            )
+
+        assert total_count == 1
+        assert [result.document_id for result in results] == [page2.id]
+        assert results[0].content_preview == page2.page_content
+        db.close()
+
+    def test_search_keeps_pdf_parent_when_page_children_are_not_indexed(self, tmp_path):
+        """Legacy libraries with only parent embeddings still return results."""
+        db = Database(tmp_path / "test.duckdb")
+
+        parent = Document(
+            id="pdf-parent",
+            name="archive.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            page_content="Whole PDF text blob mentioning Camilo.",
+        )
+        page = Document(
+            id="pdf-parent-page-1",
+            parent_id=parent.id,
+            name="archive.pdf - Page 1",
+            doc_type=DocType.page,
+            sequence=1,
+            page_content="Camilo appears here but has no embedding yet.",
+        )
+        db.save(parent)
+        db.save(page)
+
+        query_vector = [1.0, 0.0]
+        db.save_embedding(parent, query_vector, parent.page_content)
+
+        with patch.object(db, "_embed_text", return_value=query_vector):
+            results, total_count, _stats = db.search(
+                "Camilo",
+                min_score=0.55,
+                search_type="semantic",
+            )
+
+        assert total_count == 1
+        assert [result.document_id for result in results] == [parent.id]
         db.close()
 
     def test_search_empty_query_returns_empty(self, tmp_path):
