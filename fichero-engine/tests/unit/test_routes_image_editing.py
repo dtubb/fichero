@@ -249,6 +249,25 @@ class TestImagePreviewRoute:
         img = Image.open(io.BytesIO(r.content))
         assert img.size == (90, 60)
 
+    def test_preview_honours_exif_orientation(self, client, db, tmp_path):
+        # A JPEG whose pixels are stored landscape (90x60) but tagged
+        # orientation=6 (rotate 90° for display) should come back oriented
+        # portrait (60x90) — matching what the SwiftUI viewer / Finder show, so
+        # the editor opens at the same orientation as the viewer (#1529).
+        image_path = tmp_path / "rotated.jpg"
+        img = Image.new("RGB", (90, 60), "white")
+        exif = Image.Exif()
+        exif[0x0112] = 6  # Orientation: rotate 90° CW for display
+        img.save(image_path, format="JPEG", exif=exif)
+
+        doc = Document(name="rotated.jpg", path=str(image_path), file_type=FileType.image)
+        db.save(doc)
+
+        r = client.get(f"/api/images/{doc.id}/preview?apply_edits=false")
+        assert r.status_code == 200
+        rendered = Image.open(io.BytesIO(r.content))
+        assert rendered.size == (60, 90)
+
     def test_preview_applies_edit_chain(self, client, db, tmp_path):
         doc = _make_image_doc(db, tmp_path, size=(100, 80))
         put = client.put(
