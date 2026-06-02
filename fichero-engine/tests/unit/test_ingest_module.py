@@ -589,10 +589,24 @@ class TestIngestFolder:
         assert len(docs) == 1
         assert len(folder_saves) == 2
 
-    def test_large_folder_uses_parallel_file_processing(self, tmp_path, monkeypatch):
-        """#1360: large folder ingest should process files concurrently."""
-        import time
+    def test_large_folder_keeps_executor_and_ingests_every_file(self, tmp_path, monkeypatch):
+        """#1360 + #1554: large folder ingest keeps the ThreadPoolExecutor
+        fan-out, and every file is ingested exactly once with no drops.
 
+        Originally (#1360) this asserted wall-clock parallelism of the
+        ``ingest_file`` calls. That parallelism is what caused the #1554
+        race: ``ingest_file`` interleaves reads/writes on a single,
+        non-thread-safe DuckDB connection, so concurrent calls nulled out
+        required ``Document`` columns and dropped files as failed stubs.
+
+        The fix serializes the db-touching ``ingest_file`` call behind a
+        shared lock, so the per-file work no longer overlaps — the real
+        win #1360 cared about (no dropped files on big folders, executor
+        structure retained for the parallel pre-pass: checksum/dedup/
+        hierarchy) still holds. We therefore assert *correctness and
+        coverage* (all 6 files come back, each once), not raw wall-clock
+        overlap of the serialized critical section.
+        """
         from fichero.ingest import ingest_folder
         from fichero.models import DocType, Document, FileType
 
@@ -610,7 +624,6 @@ class TestIngestFolder:
             db,
             package_path,
         ):
-            time.sleep(0.10)
             return Document(
                 name=file_path.name,
                 path=str(file_path),
@@ -627,19 +640,15 @@ class TestIngestFolder:
         mock_db.get.return_value = None
         mock_db.save.side_effect = lambda *_args, **_kwargs: None
 
-        started = time.perf_counter()
         docs = ingest_folder(
             tmp_path,
             db=mock_db,
             create_collection=False,
             auto_embed=False,
         )
-        elapsed = time.perf_counter() - started
 
         assert len(docs) == 6
-        assert elapsed < 0.45, (
-            f"expected parallel ingest for 6 files (~<0.45s), got {elapsed:.3f}s"
-        )
+        assert sorted(d.name for d in docs) == [f"p-{i}.txt" for i in range(6)]
 
 
 class TestCopyToLibrary:
