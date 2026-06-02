@@ -434,6 +434,7 @@ private extension ImageEditorView {
                             Image(nsImage: edited.image)
                                 .resizable()
                                 .interpolation(.high)
+                                .aspectRatio(contentMode: .fit)
                                 .frame(width: frame.width, height: frame.height)
                             // Original on top — clipped to the left split portion,
                             // so left = Before (original), right = After (edited)
@@ -441,6 +442,7 @@ private extension ImageEditorView {
                             Image(nsImage: original.image)
                                 .resizable()
                                 .interpolation(.high)
+                                .aspectRatio(contentMode: .fit)
                                 .frame(width: frame.width, height: frame.height)
                                 .frame(width: split * frame.width, height: frame.height, alignment: .leading)
                                 .clipped()
@@ -535,6 +537,7 @@ private extension ImageEditorView {
                 Image(nsImage: image)
                     .resizable()
                     .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
                     .frame(width: frame.width, height: frame.height)
                     .position(x: frame.midX, y: frame.midY)
             }
