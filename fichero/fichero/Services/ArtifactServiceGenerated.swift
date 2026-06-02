@@ -1255,6 +1255,23 @@ final class EntityServiceGenerated: ObservableObject {
         return (try? JSONDecoder().decode(Envelope.self, from: data))?.items ?? []
     }
 
+    /// Fetch all classification values for the node_class dimension —
+    /// Tinderbox-style node classes for workspace curated items (#1570).
+    /// Mirrors `listDocumentPrototypes()`; `dimension=node_class`.
+    func listNodeClasses() async throws -> [Components.Schemas.ClassificationValue] {
+        guard let lib = client.currentLibraryPath else { return [] }
+        guard let url = URL(string: "\(client.baseURL)/api/classifications?dimension=node_class") else {
+            return []
+        }
+        var req = URLRequest(url: url)
+        req.addEngineAuth(libraryPath: lib)
+        let (data, _) = try await URLSession.shared.data(for: req)
+        struct Envelope: Decodable {
+            let items: [Components.Schemas.ClassificationValue]
+        }
+        return (try? JSONDecoder().decode(Envelope.self, from: data))?.items ?? []
+    }
+
     @discardableResult
     func assignDocumentPrototype(
         documentId: String,

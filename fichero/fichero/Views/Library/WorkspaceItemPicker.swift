@@ -68,6 +68,56 @@ final class WorkspacePickerService: ObservableObject {
         let resp = try JSONDecoder().decode(WorkspaceItemsCountResponse.self, from: data)
         return resp.count
     }
+
+    /// Load the curated items for a workspace folder, resolving each alias.
+    /// First caller of `GET /api/documents/{id}/workspace/items` (#1570).
+    func loadCuratedItems(folderId: String) async throws -> [WorkspaceCuratedItem] {
+        guard let url = URL(string: "\(documentsBase)/\(folderId)/workspace/items") else {
+            throw WorkspacePickerError.invalidURL
+        }
+        var req = URLRequest(url: url)
+        req.addEngineAuth()
+        let (data, response) = try await URLSession.shared.data(for: req)
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            throw WorkspacePickerError.server(http.statusCode)
+        }
+        let resp = try JSONDecoder().decode(WorkspaceItemsResponse.self, from: data)
+        return resp.items
+    }
+
+    /// Set (or clear) the Tinderbox-style `node_class` on one curated item
+    /// and PATCH it back. The backend's `add` path replaces the item by id,
+    /// so we resend the *whole* item (id/target/role/notes) with the new
+    /// node_class — sending a partial payload would wipe the other fields (#1570).
+    @discardableResult
+    func setNodeClass(
+        folderId: String,
+        item: WorkspaceCuratedItem,
+        nodeClass: String?
+    ) async throws -> Int {
+        guard let url = URL(string: "\(documentsBase)/\(folderId)/workspace") else {
+            throw WorkspacePickerError.invalidURL
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "PATCH"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.addEngineAuth()
+        let add = WorkspaceCuratedItemAdd(
+            id: item.id,
+            targetType: item.targetType,
+            targetId: item.targetId,
+            role: item.role ?? "curated_item",
+            notes: item.notes,
+            nodeClass: nodeClass
+        )
+        req.httpBody = try JSONEncoder().encode(WorkspacePatchBody(add: [add]))
+        let (data, response) = try await URLSession.shared.data(for: req)
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            throw WorkspacePickerError.server(http.statusCode)
+        }
+        let resp = try JSONDecoder().decode(WorkspaceItemsCountResponse.self, from: data)
+        return resp.count
+    }
 }
 
 enum WorkspacePickerError: LocalizedError {
@@ -117,11 +167,14 @@ private struct WorkspaceCuratedItemAdd: Encodable {
     let targetType: String
     let targetId: String
     let role: String
+    var notes: String?
+    var nodeClass: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, role
+        case id, role, notes
         case targetType = "target_type"
         case targetId = "target_id"
+        case nodeClass = "node_class"
     }
 }
 
@@ -131,6 +184,68 @@ private struct WorkspacePatchBody: Encodable {
 
 private struct WorkspaceItemsCountResponse: Codable {
     let count: Int
+}
+
+/// Typed projection of a curated workspace item (#1570). Mirrors the backend
+/// `WorkspaceCuratedItem` rows returned by `GET .../workspace/items`. Old
+/// payloads that predate `node_class` decode cleanly — every optional field
+/// tolerates absence.
+struct WorkspaceCuratedItem: Decodable, Identifiable, Hashable {
+    let id: String
+    let targetType: String
+    let targetId: String
+    let role: String?
+    let notes: String?
+    let nodeClass: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, role, notes
+        case targetType = "target_type"
+        case targetId = "target_id"
+        case nodeClass = "node_class"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        targetType = (try? container.decode(String.self, forKey: .targetType)) ?? ""
+        targetId = (try? container.decode(String.self, forKey: .targetId)) ?? ""
+        role = try? container.decodeIfPresent(String.self, forKey: .role)
+        notes = try? container.decodeIfPresent(String.self, forKey: .notes)
+        nodeClass = try? container.decodeIfPresent(String.self, forKey: .nodeClass)
+    }
+
+    private init(
+        id: String, targetType: String, targetId: String,
+        role: String?, notes: String?, nodeClass: String?
+    ) {
+        self.id = id
+        self.targetType = targetType
+        self.targetId = targetId
+        self.role = role
+        self.notes = notes
+        self.nodeClass = nodeClass
+    }
+
+    /// Returns a copy with `node_class` replaced — lets the picker update a row
+    /// in place after a successful PATCH without a full reload.
+    func withNodeClass(_ newValue: String?) -> WorkspaceCuratedItem {
+        WorkspaceCuratedItem(
+            id: id, targetType: targetType, targetId: targetId,
+            role: role, notes: notes, nodeClass: newValue
+        )
+    }
+}
+
+private struct WorkspaceItemsResponse: Decodable {
+    let documentId: String
+    let items: [WorkspaceCuratedItem]
+    let count: Int
+
+    enum CodingKeys: String, CodingKey {
+        case items, count
+        case documentId = "document_id"
+    }
 }
 
 // MARK: - View
