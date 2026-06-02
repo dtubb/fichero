@@ -188,6 +188,39 @@ class TestChatWithFallbackChain:
         assert "incurs cost" in fallback_warnings[0].message
 
     @pytest.mark.asyncio
+    async def test_local_builtin_fallback_not_labeled_paid(self, apple_cfg, caplog):
+        """#1560: when the $large fallback resolves to an on-device /
+        builtin provider (e.g. Apple Intelligence or a local omlx/ollama
+        server — all free), the cost note must NOT claim it is PAID or
+        that it incurs cost. Mislabeling free local inference as paid is a
+        false billing scare on every catalogue run."""
+        proc = _fake_subprocess(
+            stdout=b"", stderr=_bridge_guardrail_err(), returncode=1,
+        )
+        cloud = MagicMock()
+        cloud_response = MagicMock()
+        cloud_response.content = "ok"
+        cloud_response.usage_metadata = None
+        cloud.ainvoke = AsyncMock(return_value=cloud_response)
+
+        # $large resolves to a LOCAL provider — free, on-device.
+        with patch("asyncio.create_subprocess_exec",
+                   new=AsyncMock(return_value=proc)), \
+             patch("fichero.llm.resolve_model_alias",
+                   return_value=("ollama", "llama3.1")), \
+             patch("fichero.llm.get_langchain_model", return_value=cloud), \
+             caplog.at_level(logging.WARNING, logger="fichero.llm"):
+            await chat_with_fallback("text", config=apple_cfg)
+
+        msgs = [r.message for r in caplog.records]
+        assert not any("PAID" in m or "incurs cost" in m for m in msgs), (
+            f"local fallback wrongly labeled PAID: {msgs}"
+        )
+        assert any("no API cost" in m for m in msgs), (
+            f"expected a free/on-device cost note, got: {msgs}"
+        )
+
+    @pytest.mark.asyncio
     async def test_decoding_error_routes_to_large(self, apple_cfg):
         """Grammar-decode failures ARE fallback-eligible since #949/#962:
         StructuredDecodeError is an AppleUnavailableError subclass so the

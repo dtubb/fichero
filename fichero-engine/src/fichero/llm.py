@@ -746,10 +746,11 @@ async def chat_with_fallback(
 
         # #1001: warning, not info — falling back is an offline-mode
         # regression, and to a cloud provider it's also a billing event.
-        # Local providers (omlx/ollama/lmstudio) are free, so don't cry cost.
+        # #1560: local (omlx/ollama/lmstudio) AND builtin (apple) providers
+        # run on-device for free, so don't mislabel them as PAID.
         _cost_note = (
-            "a local model — no API cost"
-            if large_config.provider in _KEYLESS_OPENAI_COMPATIBLE
+            "an on-device model — no API cost"
+            if _is_local_or_builtin_provider(large_config.provider)
             else "a PAID remote model — this request now incurs cost"
         )
         logger.warning(
@@ -1861,9 +1862,11 @@ async def chat_structured_with_fallback(
             # #1001/#1308: structured extractor fallback may become a billing
             # event. $medium is intentionally a capable cloud model by
             # default; local providers (omlx/ollama/lmstudio) remain free.
+            # #1560: builtin (apple) providers are also on-device/free —
+            # don't mislabel them as PAID.
             _cost_note = (
-                "a local model — no API cost"
-                if fallback_config.provider in _KEYLESS_OPENAI_COMPATIBLE
+                "an on-device model — no API cost"
+                if _is_local_or_builtin_provider(fallback_config.provider)
                 else "a PAID remote model — this request now incurs cost"
             )
             logger.warning(

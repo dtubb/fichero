@@ -158,6 +158,29 @@ class TestGetChildren:
         r = client.get("/api/documents/no-such-parent/children")
         assert r.status_code == 404
 
+    def test_doc_prefixed_id_resolves_same_as_bare(self, client, db):
+        """#1345: callers (e.g. the catalogue workflow) sometimes pass a
+        ``doc:``-prefixed id. It must normalize to the bare hex id so the
+        children lookup returns the same result instead of 404ing."""
+        parent = _make_doc(db, "Parent")
+        child = _make_doc(db, "Child 1", parent_id=parent.id)
+
+        bare = client.get(f"/api/documents/{parent.id}/children")
+        prefixed = client.get(f"/api/documents/doc:{parent.id}/children")
+
+        assert bare.status_code == 200
+        assert prefixed.status_code == 200  # not 404
+        bare_ids = sorted(d["id"] for d in bare.json()["items"])
+        prefixed_ids = sorted(d["id"] for d in prefixed.json()["items"])
+        assert bare_ids == prefixed_ids
+        assert child.id in prefixed_ids
+
+    def test_doc_prefixed_missing_parent_still_404(self, client):
+        """A ``doc:``-prefixed id for a genuinely-absent parent still 404s
+        (normalization must not mask real misses)."""
+        r = client.get("/api/documents/doc:no-such-parent/children")
+        assert r.status_code == 404
+
     def test_returns_children_when_parent_lookup_is_transiently_missing(
         self, client, db, monkeypatch
     ):
