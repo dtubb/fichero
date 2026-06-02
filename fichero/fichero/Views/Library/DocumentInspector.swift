@@ -1284,55 +1284,15 @@ struct ArtifactPanel: View { // swiftlint:disable:this type_body_length
     /// Decode an artifact's stored content into an NSAttributedString. RTF
     /// source (`{\rtf...`) is parsed; plain text becomes a styled run.
     private func decodeArtifactContent(_ content: String) -> NSAttributedString {
-        if content.hasPrefix("{\\rtf"),
-           let data = content.data(using: .utf8),
-           let attr = try? NSAttributedString(
-            data: data,
-            options: [.documentType: NSAttributedString.DocumentType.rtf],
-            documentAttributes: nil
-           ) {
-            return attr
-        }
-        return NSAttributedString(string: content)
+        ArtifactRichTextCodec.decode(content)
     }
 
     /// Encode an NSAttributedString back to a content string. Inline RTF
     /// source (not base64) so the artifact's `content` field stays human-
     /// readable when the artifact is plain text and round-trips losslessly
-    /// when the user added formatting.
-    ///
-    /// Custom paragraph styles (ruler tab stops, indents, line spacing
-    /// changes) MUST round-trip through RTF — earlier this function
-    /// excluded .paragraphStyle from the formatting check, which made
-    /// ruler edits silently lose on save (Daniel feedback 2026-04-26).
+    /// when the user added formatting. See `ArtifactRichTextCodec` (#710).
     private func encodeArtifactContent(_ attr: NSAttributedString) -> String {
-        let fullRange = NSRange(location: 0, length: attr.length)
-        let plain = attr.string
-
-        var hasFormatting = false
-        let defaultPara = NSParagraphStyle.default
-        attr.enumerateAttributes(in: fullRange) { attrs, _, stop in
-            for (key, value) in attrs {
-                if key == .paragraphStyle {
-                    if let para = value as? NSParagraphStyle, para != defaultPara {
-                        hasFormatting = true
-                    }
-                    continue
-                }
-                hasFormatting = true
-            }
-            if hasFormatting { stop.pointee = true }
-        }
-
-        if !hasFormatting { return plain }
-
-        guard let data = try? attr.data(
-            from: fullRange,
-            documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf]
-        ), let rtfString = String(data: data, encoding: .utf8) else {
-            return plain
-        }
-        return rtfString
+        ArtifactRichTextCodec.encode(attr)
     }
 
     // MARK: - Computed properties
