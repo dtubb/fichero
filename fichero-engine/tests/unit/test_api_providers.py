@@ -115,7 +115,9 @@ class TestProviderCatalog:
         response = client.get(f"{API_BASE}/providers/catalog")
         data = response.json()["items"]
 
-        local_types = {"apple", "ollama", "lmstudio", "omlx"}
+        # mock (#1566) is a built-in deterministic debug provider — local,
+        # builtin, no api_key_env — so it belongs with the local set.
+        local_types = {"apple", "ollama", "lmstudio", "omlx", "mock"}
 
         for provider in data:
             if provider["type"] in local_types:

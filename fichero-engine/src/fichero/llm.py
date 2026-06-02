@@ -646,6 +646,22 @@ async def chat(
             use_case=use_case,
         )
 
+    # Built-in deterministic debug provider (#1566). The catalogue
+    # narrative node calls plain chat() (not chat_structured), so without
+    # this branch a full mock run would reach LangChain with a nonexistent
+    # model and error. Return a fixed canned narrative so a whole
+    # folder/PDF catalogue runs free end-to-end.
+    if config.provider == "mock":
+        if stream:
+            raise ValueError(
+                "Mock provider does not support streaming — it returns a "
+                "single deterministic response."
+            )
+        from fichero.llm_mock import mock_chat_response
+
+        prompt_text = prompt if isinstance(prompt, str) else str(prompt)
+        return mock_chat_response(prompt_text)
+
     # Get LangChain model
     model = get_langchain_model(config)
 
@@ -1644,6 +1660,13 @@ async def chat_structured(
             use_case=use_case,
             permissive_guardrails=permissive_guardrails,
         )
+
+    # Built-in deterministic debug provider (#1566): no LLM, no network,
+    # no cost. chat_structured_with_fallback inherits this automatically.
+    if config.provider == "mock":
+        from fichero.llm_mock import mock_structured_response
+
+        return mock_structured_response(schema, prompt)
 
     from langchain_core.messages import HumanMessage, SystemMessage
 
