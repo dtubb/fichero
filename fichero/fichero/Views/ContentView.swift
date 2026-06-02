@@ -319,6 +319,11 @@ struct ContentView: View {
                 // column (always present) rather than the sidebar, which leaves
                 // the hierarchy when collapsed and made ⌘⌥I no-op (#1513/#1451).
                 .focusedSceneValue(\.showInspector, $showInspectorSidebar)
+                // Publish the reading-surface pane toggles so the View menu can
+                // mirror the toolbar buttons for each pane (#1215).
+                .focusedSceneValue(\.showDocumentGrid, $showDocumentGrid)
+                .focusedSceneValue(\.showDocumentCanvas, $showDocumentCanvas)
+                .focusedSceneValue(\.showReadingPane, $showReadingPane)
         }
         // Avoid duplicate generic per-column title pills in macOS split view.
         .navigationTitle(toolbarTitle)
