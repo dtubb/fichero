@@ -73,8 +73,11 @@ struct ZoomableImagePreview: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Zoom toolbar
-            HStack(spacing: 12) {
+            // Zoom toolbar. Uses MiniToolbar so the image preview header is the
+            // same standard 44pt height as the PDF preview, list mode rail,
+            // knowledge surface, and inspector tab strip — instead of the short
+            // ad-hoc padded strip it used to be (#1555).
+            MiniToolbar {
                 Button(action: zoomOut) {
                     Image(systemName: "minus.magnifyingglass")
                 }
@@ -156,9 +159,6 @@ struct ZoomableImagePreview: View {
 
                 Spacer()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color(.windowBackgroundColor))
 
             Divider()
 
