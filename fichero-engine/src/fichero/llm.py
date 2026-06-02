@@ -531,6 +531,31 @@ def _build_fallback_config(config: LLMConfig, tier: str = "large") -> LLMConfig:
     )
 
 
+def _paid_remote_fallbacks_enabled() -> bool:
+    """Whether Apple structured fallback may use paid remote providers."""
+    raw = os.environ.get("FICHERO_ALLOW_PAID_AI_FALLBACKS")
+    if raw is not None:
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+    try:
+        from fichero.app_db import get_app_db
+
+        setting = get_app_db().get_setting("allow_paid_ai_fallbacks")
+    except Exception:
+        setting = None
+
+    if setting is None:
+        return False
+    return str(setting).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _is_local_or_builtin_provider(provider: str) -> bool:
+    from fichero.providers import get_provider_info
+
+    info = get_provider_info((provider or "").strip().lower())
+    return bool(info and (info.is_local or info.is_builtin))
+
+
 # =============================================================================
 # API Key Resolution
 # =============================================================================
@@ -1773,6 +1798,29 @@ async def chat_structured_with_fallback(
                 # retry's error as the operative cause.
                 apple_exc = retry_exc
 
+        if (
+            isinstance(apple_exc, StructuredDecodeError)
+            and include_schema_in_prompt is not False
+            and apple_exc.kind in {"context_overflow", "schema"}
+        ):
+            logger.warning(
+                "Apple Intelligence structured decode failed (%s) — "
+                "retrying once on-device with include_schema_in_prompt=False.",
+                apple_exc.kind,
+            )
+            try:
+                return await chat_structured(
+                    prompt,
+                    schema,
+                    config,
+                    system=system,
+                    include_schema_in_prompt=False,
+                    use_case=use_case,
+                    permissive_guardrails=permissive_guardrails,
+                )
+            except AppleUnavailableError as compact_retry_exc:
+                apple_exc = compact_retry_exc
+
         last_config_error: ValueError | None = None
         for tier in ("medium", "large"):
             try:
@@ -1793,6 +1841,21 @@ async def chat_structured_with_fallback(
             ):
                 # Alias resolves to the same model we just tried — no point
                 # retrying that tier. Try the next tier before surfacing.
+                continue
+
+            if (
+                not _paid_remote_fallbacks_enabled()
+                and not _is_local_or_builtin_provider(fallback_config.provider)
+            ):
+                logger.warning(
+                    "Skipping $%s structured fallback %s/%s because paid "
+                    "remote fallbacks are disabled by default. Configure "
+                    "a local provider or set "
+                    "FICHERO_ALLOW_PAID_AI_FALLBACKS=1.",
+                    tier,
+                    fallback_config.provider,
+                    fallback_config.model,
+                )
                 continue
 
             # #1001/#1308: structured extractor fallback may become a billing

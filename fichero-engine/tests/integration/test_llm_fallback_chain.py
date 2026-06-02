@@ -293,7 +293,8 @@ class TestChatStructuredWithFallbackChain:
                    new=AsyncMock(return_value=proc)), \
              patch("fichero.llm.resolve_model_alias",
                    return_value=("anthropic", "claude-sonnet-4-6")), \
-             patch("fichero.llm.get_langchain_model", return_value=base_model):
+             patch("fichero.llm.get_langchain_model", return_value=base_model), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True):
             result = await chat_structured_with_fallback(
                 prompt="extract entities from this text",
                 schema=_Result,
@@ -324,7 +325,8 @@ class TestChatStructuredWithFallbackChain:
                    new=AsyncMock(return_value=proc)), \
              patch("fichero.llm.resolve_model_alias",
                    return_value=("openai", "gpt-5")), \
-             patch("fichero.llm.get_langchain_model", return_value=base_model):
+             patch("fichero.llm.get_langchain_model", return_value=base_model), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True):
             result = await chat_structured_with_fallback(
                 prompt="x", schema=_Result, config=apple_cfg,
             )
@@ -356,7 +358,8 @@ class TestChatStructuredWithFallbackChain:
                    new=AsyncMock(return_value=proc)), \
              patch("fichero.llm.resolve_model_alias",
                    return_value=("anthropic", "claude-sonnet-4-6")), \
-             patch("fichero.llm.get_langchain_model", return_value=base_model):
+             patch("fichero.llm.get_langchain_model", return_value=base_model), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True):
             result = await chat_structured_with_fallback(
                 prompt="x", schema=_Result, config=apple_cfg,
             )

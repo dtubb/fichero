@@ -653,7 +653,8 @@ class TestProviderQuotaHandling:
                 raise AppleUnavailableError("guardrail")
             return _Result(answer="from-env")
 
-        with patch("fichero.llm.chat_structured", new=fake_chat_structured):
+        with patch("fichero.llm.chat_structured", new=fake_chat_structured), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True):
             result = await chat_structured_with_fallback(
                 prompt="x", schema=_Result, config=cfg
             )
@@ -707,7 +708,8 @@ class TestChatStructuredWithFallback:
              patch(
                  "fichero.llm.resolve_model_alias",
                  return_value=("openrouter", "openai/gpt-4o-mini"),
-             ):
+             ), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True):
             result = await chat_structured_with_fallback(
                 prompt="x", schema=_Result, config=apple_cfg
             )
@@ -746,7 +748,8 @@ class TestChatStructuredWithFallback:
             raise AssertionError(provider)
 
         with patch("fichero.llm.chat_structured", new=fake_chat_structured), \
-             patch("fichero.llm.resolve_model_alias", side_effect=resolve_alias):
+             patch("fichero.llm.resolve_model_alias", side_effect=resolve_alias), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True):
             result = await chat_structured_with_fallback(
                 prompt="x", schema=_Result, config=apple_cfg
             )
@@ -756,6 +759,91 @@ class TestChatStructuredWithFallback:
             ("apple", "apple-intelligence"),
             ("openrouter", "openai/gpt-4o-mini"),
             ("openai", "mlx-local"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_schema_failure_retries_without_schema_prompt_injection(self):
+        apple_cfg = LLMConfig(provider="apple", model="apple-intelligence")
+        good = _Result(answer="from-compact-retry")
+        mock_structured = AsyncMock(
+            side_effect=[
+                StructuredDecodeError("(schema): too large", kind="schema"),
+                good,
+            ]
+        )
+
+        with patch("fichero.llm.chat_structured", new=mock_structured), \
+             patch("fichero.llm.resolve_model_alias") as mock_resolve:
+            result = await chat_structured_with_fallback(
+                prompt="x", schema=_Result, config=apple_cfg
+            )
+
+        assert result == good
+        assert mock_structured.await_count == 2
+        assert mock_structured.await_args_list[1].kwargs["include_schema_in_prompt"] is False
+        mock_resolve.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_remote_paid_fallbacks_are_skipped_by_default(self):
+        apple_cfg = LLMConfig(provider="apple", model="apple-intelligence")
+        mock_structured = AsyncMock(side_effect=GuardrailViolationError("blocked"))
+
+        def resolve_alias(provider, model):
+            if provider == "$medium":
+                return ("openrouter", "openai/gpt-4o-mini")
+            if provider == "$large":
+                return ("openai", "gpt-5")
+            raise AssertionError(provider)
+
+        with patch("fichero.llm.chat_structured", new=mock_structured), \
+             patch("fichero.llm.resolve_model_alias", side_effect=resolve_alias), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=False):
+            with pytest.raises(GuardrailViolationError, match="blocked"):
+                await chat_structured_with_fallback(
+                    prompt="x", schema=_Result, config=apple_cfg
+                )
+
+        assert mock_structured.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_local_large_fallback_still_runs_when_paid_remote_disabled(self):
+        apple_cfg = LLMConfig(provider="apple", model="apple-intelligence")
+        calls: list[LLMConfig] = []
+
+        async def fake_chat_structured(
+            prompt,
+            schema,
+            config,
+            system=None,
+            include_schema_in_prompt=None,
+            use_case=None,
+            permissive_guardrails=False,
+        ):
+            calls.append(config)
+            if config.provider == "apple":
+                raise GuardrailViolationError("blocked")
+            assert config.provider == "ollama"
+            assert config.model == "llama3.2"
+            return _Result(answer="from-local")
+
+        def resolve_alias(provider, model):
+            if provider == "$medium":
+                return ("openrouter", "openai/gpt-4o-mini")
+            if provider == "$large":
+                return ("ollama", "llama3.2")
+            raise AssertionError(provider)
+
+        with patch("fichero.llm.chat_structured", new=fake_chat_structured), \
+             patch("fichero.llm.resolve_model_alias", side_effect=resolve_alias), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=False):
+            result = await chat_structured_with_fallback(
+                prompt="x", schema=_Result, config=apple_cfg
+            )
+
+        assert result == _Result(answer="from-local")
+        assert [(c.provider, c.model) for c in calls] == [
+            ("apple", "apple-intelligence"),
+            ("ollama", "llama3.2"),
         ]
 
     @pytest.mark.asyncio
@@ -830,7 +918,8 @@ class TestChatStructuredWithFallback:
              patch(
                  "fichero.llm.resolve_model_alias",
                  return_value=("openrouter", "openai/gpt-4o-mini"),
-             ):
+             ), \
+             patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True):
             result = await chat_structured_with_fallback(
                 prompt="x", schema=_Result, config=apple_cfg
             )
