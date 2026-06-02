@@ -43089,6 +43089,14 @@
             "type": "array",
             "title": "Source Supports"
           },
+          "source_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Document Ids",
+            "description": "Document/page ids this entity was extracted from (per-page scope; parent aggregates via descendants). #1562"
+          },
           "corroboration_count": {
             "type": "integer",
             "title": "Corroboration Count",
