@@ -34,6 +34,8 @@ class ProviderType(str, Enum):
 
     # On-device (Apple)
     apple = "apple"
+    # Built-in deterministic debug provider (no LLM, no cost) — #1566
+    mock = "mock"
     # Local servers
     ollama = "ollama"
     lmstudio = "lmstudio"
@@ -105,6 +107,32 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="apple.logo",
         color="gray",
         sort_order=0,
+    ),
+    # ==========================================================================
+    # Built-in Debug Provider (#1566) - deterministic, zero-cost.
+    #
+    # Selected only by explicit LLMConfig(provider="mock"). Registered
+    # is_local + is_builtin so it inherits every free / no-PAID gate via
+    # _is_local_or_builtin_provider. No alias / preset / fallback ever
+    # yields "mock", so it can never activate by accident — it exists so a
+    # whole folder/PDF catalogue run can be debugged end-to-end (output,
+    # persistence, per-page artifacts, UI) with ZERO paid LLM calls.
+    # ==========================================================================
+    ProviderType.mock: ProviderInfo(
+        type=ProviderType.mock,
+        name="Mock (Debug)",
+        description="Built-in deterministic responder — zero-cost catalogue debug runs",
+        api_key_env=None,
+        api_key_url=None,
+        is_local=True,
+        is_builtin=True,  # inherits the free / no-PAID gates
+        supports_vision=False,
+        supports_embeddings=False,
+        supports_streaming=False,
+        default_model="mock",
+        icon="wrench.and.screwdriver",
+        color="gray",
+        sort_order=999,
     ),
     # ==========================================================================
     # Local Servers - sort_order 1-2
