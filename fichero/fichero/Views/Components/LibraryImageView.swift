@@ -40,10 +40,17 @@ struct LibraryImageView: View {
             guard !Task.isCancelled else { return }
             await loadImage()
         }
+        // Re-fetch when this document is edited in the image editor (#469), so
+        // the thumbnail reflects the edit-baked rendition served by the backend.
+        .onReceive(NotificationCenter.default.publisher(for: .ficheroImageEditCompleted)) { note in
+            guard (note.object as? String) == documentId else { return }
+            image = nil
+            Task { await loadImage(force: true) }
+        }
     }
 
-    private func loadImage() async {
-        guard image == nil else { return }
+    private func loadImage(force: Bool = false) async {
+        guard force || image == nil else { return }
 
         isLoading = true
         loadError = nil

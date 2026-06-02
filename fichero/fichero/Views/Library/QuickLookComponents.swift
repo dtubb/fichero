@@ -7,6 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "QuickLo
 
 // MARK: - Quick Look Components
 
+// swiftlint:disable:next type_body_length
 struct QuickLookDownloadView: View {
     let document: Document
 
@@ -15,6 +16,10 @@ struct QuickLookDownloadView: View {
     @State private var isLoading = true
     @State private var needsAccess = false
     @State private var error: String?
+    /// Set once this document has been edited in the image editor (#469).
+    /// While true, the viewer renders the backend's edit-baked display image
+    /// instead of the untouched local source, so edits show up immediately.
+    @State private var preferEditedRendition = false
 
     @EnvironmentObject var apiClient: APIClient
 
@@ -70,6 +75,13 @@ struct QuickLookDownloadView: View {
         }
         .task(id: document.id) {
             await loadFile()
+        }
+        // When this document is edited in the image editor, drop the cached
+        // (original) rendition and re-fetch the edit-baked image (#469).
+        .onReceive(NotificationCenter.default.publisher(for: .ficheroImageEditCompleted)) { note in
+            guard (note.object as? String) == document.id else { return }
+            preferEditedRendition = true
+            Task { await loadFile() }
         }
     }
 
@@ -133,6 +145,15 @@ struct QuickLookDownloadView: View {
         fileURL = nil
         needsAccess = false
 
+        // Edited images (#469): the on-disk source is untouched, so the local
+        // file would show the *original*. Render the backend's edit-baked
+        // display image instead. The original stays on disk for revert.
+        if preferEditedRendition {
+            logger.info("Loading edit-baked rendition for document: \(document.id)")
+            await downloadEditedRendition()
+            return
+        }
+
         // First try local path if we have access
         if let path = document.path {
             let localURL = URL(fileURLWithPath: path)
@@ -169,6 +190,51 @@ struct QuickLookDownloadView: View {
         // No local path or file doesn't exist - download from API
         logger.info("Loading file from API for document: \(document.id)")
         await downloadFromAPI()
+    }
+
+    /// Download the backend's edit-baked display image (#469) and show it.
+    ///
+    /// Cache-busts with a per-fetch query item and writes to a unique temp file
+    /// so the viewer's `NSImage(contentsOf:)` never reuses a stale cached file
+    /// after another edit. Falls back to surfacing an error; the original source
+    /// is never modified, so revert remains a pure backend operation.
+    private func downloadEditedRendition() async {
+        var components = URLComponents(
+            url: apiClient.displayURL(for: document.id),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [URLQueryItem(name: "_t", value: String(Date().timeIntervalSince1970))]
+        let url = components?.url ?? apiClient.displayURL(for: document.id)
+
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.addEngineAuth(libraryPath: apiClient.currentLibraryPath)
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+                throw URLError(.badServerResponse)
+            }
+
+            let cacheDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("FicheroPreview")
+            try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+            let destURL = cacheDir.appendingPathComponent(
+                "\(document.id)_edited_\(UUID().uuidString).jpg"
+            )
+            try data.write(to: destURL)
+
+            await MainActor.run {
+                self.fileURL = destURL
+                self.isLoading = false
+            }
+        } catch {
+            logger.error("Edited-rendition download failed: \(error.localizedDescription)")
+            await MainActor.run {
+                self.error = "Failed to load edited image: \(error.localizedDescription)"
+                self.isLoading = false
+            }
+        }
     }
 
     // swiftlint:disable:next function_body_length

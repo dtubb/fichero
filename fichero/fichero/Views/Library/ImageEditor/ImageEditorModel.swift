@@ -5,6 +5,16 @@ import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageEditorModel")
 
+extension Notification.Name {
+    /// Posted (object = documentId String) whenever a document's image edit
+    /// chain changes — an op is applied, a batch runs, or all edits are reset
+    /// (#469). Surfaces that render the *baked* image outside the editor (the
+    /// browse viewer, the library thumbnail) observe this to invalidate their
+    /// cached rendition and re-fetch, so the edited image shows up immediately
+    /// while the original source on disk stays intact for revert.
+    static let ficheroImageEditCompleted = Notification.Name("ficheroImageEditCompleted")
+}
+
 /// View-model for the non-destructive image editor (#469).
 ///
 /// Owns the `ImageEditingServiceGenerated` and all async state so the view
@@ -212,6 +222,9 @@ final class ImageEditorModel: ObservableObject {
             errorMessage = "Batch applied with \(failures) failure(s) out of \(documentIds.count)."
         }
         await reload()
+        for id in documentIds {
+            NotificationCenter.default.post(name: .ficheroImageEditCompleted, object: id)
+        }
     }
 
     func resetAll() async {
@@ -222,6 +235,7 @@ final class ImageEditorModel: ObservableObject {
             try await service.resetChain(documentId: documentId)
             chain = ImageEditChain(documentId: documentId, operations: [], updatedAt: nil)
             await reloadPreviews()
+            notifyEditCompleted()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -238,9 +252,17 @@ final class ImageEditorModel: ObservableObject {
             chain = try await body(service)
             showEdited = true
             await reloadPreviews()
+            notifyEditCompleted()
         } catch {
             logger.error("operation failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Tell the browse viewer + library thumbnail to drop their cached
+    /// rendition and re-fetch the edit-baked image (#469).
+    private func notifyEditCompleted() {
+        guard !documentId.isEmpty else { return }
+        NotificationCenter.default.post(name: .ficheroImageEditCompleted, object: documentId)
     }
 }

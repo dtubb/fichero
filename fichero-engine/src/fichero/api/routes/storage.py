@@ -51,6 +51,74 @@ def _inline_content_disposition(filename: str) -> str:
     return f"inline; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded_filename}"
 
 
+def _edit_chain_mtime(db: Database, doc_id: str) -> float | None:
+    """Return the edit-chain's last-updated time as an epoch float, or None.
+
+    Used to invalidate cached thumbnail/display renditions when an image has
+    been edited (#469 non-destructive edit chain). The chain is stored
+    separately from the source, so a cached rendition generated *before* the
+    most recent edit is stale even though the on-disk source is untouched.
+    """
+    from fichero.api.routes.image_editing import _get_chain
+
+    chain = _get_chain(db, doc_id)
+    if not chain or not chain.operations:
+        return None
+    updated = getattr(chain, "updated_at", None) or getattr(chain, "created_at", None)
+    try:
+        return updated.timestamp() if updated is not None else None
+    except (AttributeError, TypeError):
+        return None
+
+
+def _edited_rendition_path(base_rendition: Path) -> Path:
+    """Sibling path that holds the edit-baked copy of a thumbnail/display image.
+
+    The base rendition stays a faithful copy of the *original* source (so revert
+    is just "stop serving the edited sibling"). The edited copy is regenerated
+    whenever the edit chain changes, which keeps the bake idempotent — we never
+    re-apply ops onto an already-baked image.
+    """
+    return base_rendition.with_name(base_rendition.stem + "_edited" + base_rendition.suffix)
+
+
+def _edited_rendition(db: Database, doc_id: str, base_rendition: Path, chain_mtime: float) -> Path | None:
+    """Return a baked-with-edits copy of ``base_rendition``, generating if stale.
+
+    Applies the page-1 edit chain (#469) onto a *fresh copy* of the original
+    rendition and caches it alongside, keyed off the chain's last-updated time.
+    Returns None on failure (caller then falls back to the original rendition).
+    """
+    try:
+        from PIL import Image as _PILImage
+    except ImportError:
+        return None
+    from fichero.api.routes.image_editing import _apply_saved_operations
+
+    edited_path = _edited_rendition_path(base_rendition)
+
+    # Reuse the cached edited copy when it is newer than both the source
+    # rendition and the most recent edit.
+    if (
+        edited_path.exists()
+        and edited_path.stat().st_mtime >= base_rendition.stat().st_mtime
+        and edited_path.stat().st_mtime >= chain_mtime
+    ):
+        return edited_path
+
+    try:
+        with _PILImage.open(base_rendition) as img:
+            img.load()
+            edited = _apply_saved_operations(db, doc_id, 1, img)
+            if edited.mode not in ("RGB", "L"):
+                edited = edited.convert("RGB")
+            edited.save(edited_path, "JPEG", quality=92)
+        return edited_path
+    except Exception as exc:  # noqa: BLE001 — never break image serving on edit-bake failure
+        logger.warning("Failed to bake edit chain onto rendition %s: %s", doc_id, exc)
+        return None
+
+
 @router.get("/thumbnail/{doc_id}")
 async def get_thumbnail(
     doc_id: str,
@@ -78,6 +146,21 @@ async def get_thumbnail(
 
     if not thumb_path or not thumb_path.exists():
         raise HTTPException(status_code=404, detail="Thumbnail not available")
+
+    # If the image has been edited (#469), the cached thumbnail was generated
+    # from the untouched source and so shows the *original*. Serve an
+    # edit-baked sibling instead, regenerated whenever the chain changes.
+    # Cache-Control is no-cache so the client re-fetches after each edit; the
+    # base rendition keeps the original, so revert just drops back to it.
+    chain_mtime = _edit_chain_mtime(db, doc_id)
+    if chain_mtime is not None:
+        edited_path = _edited_rendition(db, doc_id, thumb_path, chain_mtime)
+        if edited_path is not None and edited_path.exists():
+            return FileResponse(
+                edited_path,
+                media_type="image/jpeg",
+                headers={"Cache-Control": "no-cache"},
+            )
 
     return FileResponse(
         thumb_path,
@@ -113,6 +196,19 @@ async def get_display_image(
 
     if not display_path or not display_path.exists():
         raise HTTPException(status_code=404, detail="Display image not available")
+
+    # Serve the edit-baked sibling when the image has been edited (#469), so the
+    # browse viewer / inspector reflect edits while the base copy stays original
+    # for revert. See get_thumbnail for the same pattern.
+    chain_mtime = _edit_chain_mtime(db, doc_id)
+    if chain_mtime is not None:
+        edited_path = _edited_rendition(db, doc_id, display_path, chain_mtime)
+        if edited_path is not None and edited_path.exists():
+            return FileResponse(
+                edited_path,
+                media_type="image/jpeg",
+                headers={"Cache-Control": "no-cache"},
+            )
 
     return FileResponse(
         display_path,
