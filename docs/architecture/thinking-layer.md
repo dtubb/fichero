@@ -137,6 +137,31 @@ Daniel's key insight: typing isn't just a workspace nicety — it's **how we dec
 
 Phase 1 ships value now and de-risks Phase 2; Phase 2 is where the archival-container grouping lives.
 
+### North star: a UNIVERSAL node-class system (everything is a typed node)
+
+The end-state (Daniel, 2026-06-02): **everything enters the class system** — folders, files,
+PDFs, pages, chunks, entities, claims, notes, annotations, maps, workspaces, research projects.
+Fichero is already structurally there: `Document` is a universal node tree
+(folder→group→file→page→chunk via `parent_id`) typed by **`DocType`**; `KnowledgeEntity` by
+**`EntityType`**; `Note` by **`NoteKind`**. The move is to **collapse those three fixed
+typologies into ONE user-extensible class/prototype registry** — the existing enums become
+*seed classes*, not hardcoded types. Then **grouping + hierarchy are one mechanism** for
+"these pages = a chapter", "these files = an archival box", "these sources = a workspace", and
+every view (table/map/list/outline) renders any node-set **by class**. (Phase 2 of #1570; the
+god-node refactor is gated on Phase 1 proving the registry.)
+
+### Workspace and ResearchProject are both first-class container NODES, distinguished by class
+
+- **Workspace** = container node, class `Workspace` (curation + views).
+- **ResearchProject** = container node, class `ResearchProject` (adds the browser + agent + tasks
+  sub-surface). It is **not** "a thing you click at the bottom" — it's added to the **library tree**
+  like a workspace: addable, movable, **nestable** (a ResearchProject can live inside a Workspace,
+  or vice-versa). The bottom "Research" sidebar mode becomes a *filtered view* of
+  ResearchProject-class nodes, not their only home.
+- Charters stay distinct (materials store vs AI research-agent) and the **models are not merged** —
+  only the "first-class node in the tree, typed by class" treatment is shared. This leans on #1570
+  Phase 1: derive both from class rather than hardcoding two special container types.
+
 ## CONSTITUTION.md addition (proposed)
 
 > The thinking layer sits above the archive: a **source outline navigator**
