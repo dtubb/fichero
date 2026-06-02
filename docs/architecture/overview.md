@@ -16,6 +16,29 @@ fichero-engine (FastAPI)
     -> LLM providers
 ```
 
+## Library and Data Locations
+
+Fichero libraries are `.fichero` package directories. The backend accepts
+library paths only under the allowlisted user-data roots:
+
+- `~/Documents`
+- `~/Desktop`
+- `~/Dropbox`
+- `~/Library/Application Support`
+- `~/Library/Mobile Documents/com~apple~CloudDocs` for iCloud Drive and
+  iCloud-synced Desktop/Documents
+- test/temp roots used by CI and local pytest
+
+The `.fichero` suffix is still required. When Desktop/Documents are synced to
+iCloud, macOS may expose `~/Documents` as a symlink into Mobile Documents; the
+allowlist checks both the expanded path and the resolved path so real user
+libraries in `~/Documents/Fichero` continue to open.
+
+Inside a library package, DuckDB lives at `fichero.duckdb` and vector data lives
+under `vectors/`. These are real user data once Daniel is working against live
+libraries, so repair schema/index problems with idempotent migrations rather
+than deleting databases.
+
 ## Canonical architecture docs
 
 - API/backend architecture: `docs/architecture/api/overview.md`
