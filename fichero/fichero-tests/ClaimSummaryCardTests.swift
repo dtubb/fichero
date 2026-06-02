@@ -1,7 +1,9 @@
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import XCTest
 
+@MainActor
 final class ClaimSummaryCardTests: XCTestCase {
 
     func testOpenClaimSourceUserInfoIncludesProvenanceFields() {
