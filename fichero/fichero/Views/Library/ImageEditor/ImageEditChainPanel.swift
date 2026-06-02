@@ -278,7 +278,7 @@ struct ImageEditChainPanel: View {
                 HStack(spacing: 6) {
                     Image(systemName: "sparkles")
                         .foregroundStyle(.secondary)
-                    Text("AI noise / artifact cleanup — re-apply to rerun on the current image.")
+                    Text("Despeckle — removes noise and speckle artifacts; re-apply to rerun on the current image.")
                         .font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -406,7 +406,7 @@ struct ImageEditChainPanel: View {
                 addToolButton("person.and.background.dotted", title: "Remove BG") {
                     onRemoveBackground(); addStepExpanded = false
                 }
-                addToolButton("sparkles", title: "Fuzzy Clean") {
+                addToolButton("sparkles", title: "Despeckle") {
                     onFuzzyClean(); addStepExpanded = false
                 }
             }

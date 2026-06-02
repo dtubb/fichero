@@ -45,7 +45,7 @@ struct ImageEditOperation: Identifiable, Hashable {
 
     var title: String {
         switch opKind {
-        case "fuzzy_clean": return "Fuzzy Clean"
+        case "fuzzy_clean": return "Despeckle"
         default:
             return opKind.split(separator: "_")
                 .map { $0.prefix(1).uppercased() + $0.dropFirst() }

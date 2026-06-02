@@ -35,6 +35,10 @@ final class ImageEditorModel: ObservableObject {
     private var service: ImageEditingServiceGenerated?
     private(set) var documentId: String = ""
 
+    /// In-flight original↔edited toggle. Tracked so rapid taps coalesce to the
+    /// latest intended state instead of running out of order (#1508).
+    private var toggleTask: Task<Void, Never>?
+
     init(documentId: String = "") {
         self.documentId = documentId
         self.chain = ImageEditChain(documentId: documentId, operations: [], updatedAt: nil)
@@ -97,14 +101,25 @@ final class ImageEditorModel: ObservableObject {
 
     /// Flip the original↔edited toggle and re-render (#469).
     func toggleEdited() {
-        // Defer @Published mutations off the view-update cycle — this method is
-        // called from editedBinding (ImageEditorView), a Binding set: closure.
-        // Mutating synchronously from a view update produces runtime warnings
-        // "Publishing changes from within view updates is not allowed" (#1444).
-        Task { @MainActor in
-            self.showEdited.toggle()
-            self.preview = self.showEdited ? self.editedPreview : self.originalPreview
-            if self.preview == nil {
+        setShowEdited(!showEdited)
+    }
+
+    /// Set the original↔edited toggle to an explicit `target` and re-render.
+    ///
+    /// The target is captured synchronously by the caller (the view's Binding
+    /// already knows the new value), not derived from `toggle()` at task-run
+    /// time, and any in-flight toggle is cancelled — so two rapid taps always
+    /// converge on the latest intended state rather than racing (#1508).
+    ///
+    /// The mutation is still deferred into a `Task` to avoid "Publishing changes
+    /// from within view updates is not allowed" warnings, since this is called
+    /// from a Binding `set:` closure (#1444).
+    func setShowEdited(_ target: Bool) {
+        toggleTask?.cancel()
+        toggleTask = Task { @MainActor in
+            self.showEdited = target
+            self.preview = target ? self.editedPreview : self.originalPreview
+            if self.preview == nil, !Task.isCancelled {
                 await self.reloadPreviews()
             }
         }

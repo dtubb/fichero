@@ -29,6 +29,10 @@ final class MindPalaceState: ObservableObject {
     /// (after add-sources, arrangement, or any node mutation).
     @Published var sceneRevision: Int = 0
 
+    /// In-flight room selection. Tracked so rapid selections coalesce to the
+    /// latest intended room instead of running out of order (#1508).
+    private var selectTask: Task<Void, Never>?
+
     private init() {}
 
     func selectRoom(_ roomId: String?) {
@@ -37,8 +41,11 @@ final class MindPalaceState: ObservableObject {
         // called from a Binding set: closure (RoomListView roomSelection), and
         // mutating @Published state synchronously from within a view update
         // produces "Publishing changes from within view updates is not allowed"
-        // runtime warnings (#1444).
-        Task { @MainActor in
+        // runtime warnings (#1444). The explicit `roomId` (not a relative
+        // mutation) plus cancelling any in-flight selection ensures two rapid
+        // taps converge on the latest intended room (#1508).
+        selectTask?.cancel()
+        selectTask = Task { @MainActor in
             self.selectedRoomId = roomId
             self.selectedNodeId = nil
         }

@@ -153,7 +153,7 @@ private extension ImageEditorView {
                 toolButton("person.and.background.dotted", help: "Remove background — AI-powered background removal") {
                     Task { await model.removeBackground() }
                 }
-                toolButton("sparkles", help: "Fuzzy clean — despeckle and remove noise artifacts") {
+                toolButton("sparkles", help: "Despeckle — remove noise and speckle artifacts") {
                     Task { await model.fuzzyClean() }
                 }
                 toolButton("square.split.2x1", help: "Segment — detect and label image regions") {
@@ -348,7 +348,7 @@ private extension ImageEditorView {
     private var editedBinding: Binding<Bool> {
         Binding(
             get: { model.showEdited },
-            set: { newValue in if newValue != model.showEdited { model.toggleEdited() } }
+            set: { newValue in if newValue != model.showEdited { model.setShowEdited(newValue) } }
         )
     }
 
@@ -430,13 +430,15 @@ private extension ImageEditorView {
                         let frame = fitted.offsetBy(dx: 12, dy: 12)
                         let split = max(0, min(1, compareSplit))
                         ZStack(alignment: .topLeading) {
-                            // Original underneath — full size
-                            Image(nsImage: original.image)
+                            // Edited underneath — full size (revealed on the right).
+                            Image(nsImage: edited.image)
                                 .resizable()
                                 .interpolation(.high)
                                 .frame(width: frame.width, height: frame.height)
-                            // Edited on top — clipped to left split portion via double-frame
-                            Image(nsImage: edited.image)
+                            // Original on top — clipped to the left split portion,
+                            // so left = Before (original), right = After (edited)
+                            // and the labels below read correctly (#1538).
+                            Image(nsImage: original.image)
                                 .resizable()
                                 .interpolation(.high)
                                 .frame(width: frame.width, height: frame.height)
@@ -500,13 +502,19 @@ private extension ImageEditorView {
                         documentId: activeDocumentID
                     )
                 )
-                if model.isBusy {
-                    // Translucent overlay so the last image stays visible mid-op.
-                    Color.black.opacity(0.10).allowsHitTesting(false)
-                    ProgressView()
-                        .controlSize(.small)
-                        .allowsHitTesting(false)
-                }
+            }
+
+            // Busy overlay for any in-flight edit/load, in every compare mode
+            // (#1532). Translucent so the last image stays visible mid-op; the
+            // labelled spinner makes clear a potentially-slow op (remove-bg,
+            // despeckle, enhance) is actually running.
+            if model.isBusy {
+                Color.black.opacity(0.10).allowsHitTesting(false)
+                ProgressView("Working…")
+                    .controlSize(.small)
+                    .padding(10)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    .allowsHitTesting(false)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

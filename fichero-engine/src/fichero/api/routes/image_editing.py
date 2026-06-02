@@ -102,9 +102,15 @@ def _load_source_image(path: Path, page: int = 1) -> Image.Image:
         return Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
     with Image.open(path) as img:
-        if img.mode not in ("RGB", "L", "RGBA"):
-            img = img.convert("RGB")
-        return img.copy()
+        # Honour EXIF orientation so the backend render matches what the
+        # SwiftUI viewer (NSImage) and Finder/Preview show. Without this the
+        # editor opened the image at a different orientation than the viewer
+        # (#1529). exif_transpose also strips the orientation tag, so the
+        # crop op's own exif_transpose (auto_orient) becomes a safe no-op.
+        oriented = ImageOps.exif_transpose(img) or img
+        if oriented.mode not in ("RGB", "L", "RGBA"):
+            oriented = oriented.convert("RGB")
+        return oriented.copy()
 
 
 def _remove_background(image: Image.Image, params: dict[str, Any]) -> Image.Image:

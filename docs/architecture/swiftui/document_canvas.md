@@ -114,12 +114,18 @@ tooltip/hover help and the accessibility label, never inline text.
 | Crop | ✅ | ✅ (cropbox) |
 | Enhance (contrast/denoise/sharpen) | ✅ | ⚠️ raster-only → applies to a rasterized page render / page-image |
 | Remove background | ✅ | ⚠️ raster-only → same |
-| Fuzzy clean / despeckle | ✅ | ⚠️ raster-only |
+| Despeckle (`fuzzy_clean` op) | ✅ raster despeckle | ⚠️ raster-only |
 | Split / Segment / Recombine | ✅ | ✅ (page ops) |
 
 Universal tools (Rotate, Crop, Split) act on both natively. Raster tools on a
 PDF operate on a rasterized render of the page (or its stored page-image), not
 vector text — surface this in the UI so the user knows what an edit produces.
+
+> **Despeckle ≠ Clean Up Text.** The image **Despeckle** step (backend op
+> `fuzzy_clean`, `workflows/tools/fuzzy_clean_images.apply_fuzzy_clean`) is a
+> raster noise/speckle filter. It is unrelated to the text/OCR `clean_text`
+> tool (#1462/#284), which operates on transcribed text, not pixels. The image
+> op is surfaced in the UI as "Despeckle" to avoid that confusion (#1534).
 
 ## Re-scope of the issues
 
