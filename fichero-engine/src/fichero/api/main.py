@@ -655,10 +655,12 @@ def _is_allowed_library_path(library_path: str) -> bool:
     """Validate that a library path is in an allowed location.
 
     Allowed roots:
+    - ~/Fichero (Daniel's real-data library root)
     - ~/Documents
     - ~/Desktop (iCloud-syncable, natural place for libraries)
     - ~/Dropbox
     - ~/Library/Application Support
+    - ~/Library/CloudStorage — macOS File Provider roots such as Box
     - ~/Library/Mobile Documents/com~apple~CloudDocs — iCloud Drive AND
       iCloud-synced Documents/Desktop physically live here
     - test temp dirs under /var/folders and /private/var/folders (macOS)
@@ -685,11 +687,14 @@ def _is_allowed_library_path(library_path: str) -> bool:
 
     home = Path.home().resolve()
     icloud = home / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
+    cloud_storage = home / "Library" / "CloudStorage"
     allowed_roots = [
+        home / "Fichero",
         home / "Documents",
         home / "Desktop",
         home / "Dropbox",
         home / "Library" / "Application Support",
+        cloud_storage,
         icloud,
         Path("/var/folders"),
         Path("/private/var/folders"),

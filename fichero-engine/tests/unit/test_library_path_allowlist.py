@@ -79,6 +79,25 @@ def test_documents_plain_path_allowed():
     assert _is_allowed_library_path(str(p)) is True
 
 
+def test_home_fichero_path_allowed():
+    """~/Fichero/X.fichero is allowed for Daniel's real-data libraries."""
+    p = Path.home() / "Fichero" / "Jesuit Mapping.fichero"
+    assert _is_allowed_library_path(str(p)) is True
+
+
+def test_cloudstorage_box_path_allowed():
+    """Box File Provider libraries under ~/Library/CloudStorage are allowed."""
+    p = (
+        Path.home()
+        / "Library"
+        / "CloudStorage"
+        / "Box-Box"
+        / "Fichero"
+        / "Marshall.fichero"
+    )
+    assert _is_allowed_library_path(str(p)) is True
+
+
 def test_desktop_path_allowed():
     """~/Desktop/X.fichero is allowed (Desktop is iCloud-syncable)."""
     p = Path.home() / "Desktop" / "X.fichero"
