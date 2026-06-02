@@ -2561,6 +2561,9 @@ def _write_kg_rows(
             # reject degenerate fragments ("called", "noted") that
             # leak when the LLM can't compose a real predicate. (#1016)
             description=entity_description,
+            # container_id here is the per-page target_doc_id (#1562) —
+            # scope the entity to the page it was extracted from.
+            source_document_id=container_id,
         )
         # #1119 — reverse alias scan over claim text + predicate + excerpt.
         # Subject entity is already in entity_ids; the scan extends with

@@ -684,6 +684,10 @@ class KnowledgeEntity(BaseModel):
     place_values: list[EvidentialPlace] = Field(default_factory=list)
     attribution_chain: list[AttributionStep] = Field(default_factory=list)
     source_supports: list[SourceSupport] = Field(default_factory=list)
+    source_document_ids: list[str] = Field(
+        default_factory=list,
+        description="Document/page ids this entity was extracted from (per-page scope; parent aggregates via descendants). #1562",
+    )
     corroboration_count: int = 0
     merged_into_id: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)

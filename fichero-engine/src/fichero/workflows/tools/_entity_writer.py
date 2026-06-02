@@ -735,12 +735,33 @@ def _merge_corroborating_claim(
         )
 
 
+def _record_source_page(
+    db: Database,
+    entity: "KnowledgeEntity",
+    source_document_id: Optional[str],
+) -> None:
+    """Append ``source_document_id`` to the entity's per-page scope (#1562).
+
+    Idempotent: only persists when the id is truthy and not already present,
+    so an existing entity accumulates each page it appears on without dupes.
+    """
+    if not source_document_id:
+        return
+    existing_ids = list(entity.source_document_ids or [])
+    if source_document_id in existing_ids:
+        return
+    existing_ids.append(source_document_id)
+    entity.source_document_ids = existing_ids
+    db.save(entity)
+
+
 def upsert_entity(
     db: Database,
     canonical_name: str,
     entity_type: EntityType,
     aliases: Optional[list[str]] = None,
     description: Optional[str] = None,
+    source_document_id: Optional[str] = None,
 ) -> str:
     """Look up entity by ``(canonical_name, entity_type)``; create if missing.
 
@@ -771,6 +792,7 @@ def upsert_entity(
         entity_type=entity_type,
     )
     if existing:
+        _record_source_page(db, existing[0], source_document_id)  # #1562
         return existing[0].id
 
     # Stage 1.5 — Type-conflict detector (#1114 issue 1)
@@ -815,6 +837,7 @@ def upsert_entity(
             )
             prior.entity_type = entity_type
             db.save(prior)
+            _record_source_page(db, prior, source_document_id)  # #1562
             return prior.id
         # Symmetric: existing row is specific, new request is `concept`.
         # Keep the existing specific type; just return the same id.
@@ -824,6 +847,7 @@ def upsert_entity(
                 "existing specific entity %r (%s) (#1114)",
                 canonical_name, prior_type_val,
             )
+            _record_source_page(db, prior, source_document_id)  # #1562
             return prior.id
         # Both types are specific (location vs event, etc.) — log and
         # fall through to create a new row. Human review can later
@@ -865,6 +889,7 @@ def upsert_entity(
                 v for k, v in seen_folded.items() if k != canonical_key
             )
             db.save(ent)
+            _record_source_page(db, ent, source_document_id)  # #1562
             return ent.id
 
     # Stage 2: embedding cosine. Lazy-imports the model on first call;
@@ -957,6 +982,7 @@ def upsert_entity(
             )
         except Exception:
             pass
+        _record_source_page(db, matched, source_document_id)  # #1562
         return matched.id
 
     # Stage 4: create a brand-new entity + index its vector.
@@ -965,6 +991,7 @@ def upsert_entity(
         entity_type=entity_type,
         aliases=aliases or [],
         description=description,
+        source_document_ids=[source_document_id] if source_document_id else [],  # #1562
     )
     db.save(entity)
 
@@ -1024,6 +1051,7 @@ def upsert_entity(
         )
         # The caller wants the surviving id, not the one we just
         # created (which we just deleted above if we lost the race).
+        _record_source_page(db, survivor, source_document_id)  # #1562
         return survivor.id
 
     try:

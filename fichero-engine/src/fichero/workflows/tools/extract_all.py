@@ -590,9 +590,19 @@ def _persist_additional_entities(
                 # multiple custom types (e.g. "silver" tagged as both "minerals"
                 # and "trade_goods").
                 existing_keys: list[str] = e.metadata.get("custom_entity_type_keys") or []
+                changed = False
                 if type_key not in existing_keys:
                     existing_keys = [*existing_keys, type_key]
                     e.metadata = {**e.metadata, "custom_entity_type_keys": existing_keys}
+                    changed = True
+                # #1562 — record the source page/doc scope. NOTE: this call
+                # site only has the container/doc id (additional_entities are
+                # merged across all chunks before persisting), so we scope to
+                # container_id here rather than a per-page target_doc_id.
+                if container_id and container_id not in (e.source_document_ids or []):
+                    e.source_document_ids = [*(e.source_document_ids or []), container_id]
+                    changed = True
+                if changed:
                     db.save(e)
                 entity_id = e.id
             else:
@@ -600,6 +610,8 @@ def _persist_additional_entities(
                     canonical_name=name,
                     entity_type=EntityType.other,
                     metadata={"custom_entity_type_keys": [type_key]},
+                    # #1562 — only the container/doc id is in scope here.
+                    source_document_ids=[container_id] if container_id else [],
                 )
                 db.save(entity)
                 entity_id = entity.id
