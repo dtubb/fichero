@@ -313,6 +313,17 @@ def migrate_knowledge_indices(conn) -> None:
     silently no-ops and the next call picks it up after the tables get
     lazily created by ``_ensure_table``. (#991 — scaling-review bottleneck 2)
     """
+    # DuckDB ART secondary indexes can become desynchronised from the table
+    # heap after sustained update/delete churn and then raise a FATAL
+    # "Failed to delete all rows from index" error. KnowledgeEntity rows churn
+    # heavily during catalogue dedup/alias/source-page accumulation, so keep
+    # canonical-name lookup on a table scan until DuckDB's ART delete path is
+    # safe for this workload. Dropping this index is data-safe.
+    try:
+        conn.execute("DROP INDEX IF EXISTS idx_entities_name")
+    except Exception as exc:
+        logger.warning("Knowledge entity name index drop skipped: %s", exc)
+
     statements = [
         # Claims by source document — drives every per-doc inspector
         # section + the "open source" navigation path.
@@ -322,11 +333,6 @@ def migrate_knowledge_indices(conn) -> None:
         # source preview (View 4).
         ("idx_claims_page", "CREATE INDEX IF NOT EXISTS idx_claims_page "
             "ON knowledgeclaims(source_document_id, source_page_label)"),
-        # Entity name lookup — alias resolution at object-phrase →
-        # entity-URI time (kg.graph.build_graph), entity-curation/
-        # semantic search, KG explorer search field.
-        ("idx_entities_name", "CREATE INDEX IF NOT EXISTS idx_entities_name "
-            "ON knowledgeentitys(canonical_name)"),
         # Claim filtering by type / status — claim card status+kind
         # filter bar in the inspector.
         ("idx_claims_type", "CREATE INDEX IF NOT EXISTS idx_claims_type "
