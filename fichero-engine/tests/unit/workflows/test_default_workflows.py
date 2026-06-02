@@ -467,8 +467,46 @@ class TestLoadPresetFiles:
 
         rotate_node = next(n for n in preset["nodes"] if n["tool"] == "rotate_images")
         assert rotate_node["config"].get("auto_orient") is True
+        assert rotate_node["config"].get("auto_deskew") is True
         assert rotate_node["config"].get("rotation_degrees") == 0
         assert rotate_node["config"].get("output_format") == "jpg"
+
+    def test_crop_images_preset_wiring(self):
+        """Crop Images should expose the restored archive crop path (#1595)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Crop Images" in presets, "crop preset must ship"
+        preset = presets["Crop Images"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Image Editing"
+        assert preset.get("format") == "nodes"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        for tool in ("files", "crop_images"):
+            assert tool in node_tools, f"preset missing {tool!r} node"
+
+        files_id = _node_id(preset, "files")
+        crop_id = _node_id(preset, "crop_images")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == crop_id
+            and e["source_port"] == "files"
+            and e["target_port"] == "files"
+            for e in preset["edges"]
+        ), "files must flow into crop_images"
+        assert any(
+            e["source"] == files_id
+            and e["target"] == crop_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in preset["edges"]
+        ), "documents must flow into crop_images for preview editor updates"
+
+        crop_node = next(n for n in preset["nodes"] if n["tool"] == "crop_images")
+        assert crop_node["config"].get("method") == "photocopy"
+        assert crop_node["config"].get("padding") == 20
+        assert crop_node["config"].get("output_format") == "png"
 
     def test_enhance_images_preset_wiring(self):
         """Enhance Images should expose contrast/sharpness/denoise controls
@@ -581,7 +619,7 @@ class TestLoadPresetFiles:
         ), "documents must flow into remove_background_images for preview editor updates"
 
         remove_node = next(n for n in preset["nodes"] if n["tool"] == "remove_background_images")
-        assert remove_node["config"].get("method") == "threshold"
+        assert remove_node["config"].get("method") == "opencv"
         assert remove_node["config"].get("threshold") == 28
         assert remove_node["config"].get("output_format") == "png"
 
@@ -678,6 +716,7 @@ class TestLoadPresetFiles:
         ), "files must flow into split_images"
 
         split_node = next(n for n in preset["nodes"] if n["tool"] == "split_images")
+        assert split_node["config"].get("strategy") == "auto"
         assert split_node["config"].get("rows") == 1
         assert split_node["config"].get("columns") == 2
         assert split_node["config"].get("output_format") == "png"

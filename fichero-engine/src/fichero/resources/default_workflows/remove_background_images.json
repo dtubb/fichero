@@ -1,6 +1,6 @@
 {
   "name": "Remove Background Images",
-  "description": "Create alpha-background image derivatives without modifying the originals. Uses a threshold method by default and can be switched to OpenCV/rembg where available.",
+  "description": "Create alpha-background image derivatives without modifying the originals. Uses the restored OpenCV document remover for black photocopy margins by default.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -27,7 +27,7 @@
       "position_y": 200,
       "inputs": {},
       "config": {
-        "method": "threshold",
+        "method": "opencv",
         "threshold": 28,
         "output_format": "png",
         "compression_quality": 90

@@ -41,6 +41,31 @@ def test_rotate_image_file_rotates_without_touching_source(tmp_path):
         assert rotated.size == (20, 10)
 
 
+def test_rotate_image_file_auto_deskews_text_lines(tmp_path):
+    pytest.importorskip("cv2")
+    source = tmp_path / "skewed.png"
+    output_dir = tmp_path / "rotated"
+    image = Image.new("RGB", (260, 120), color="white")
+    for x in range(40, 220):
+        for y in range(58, 62):
+            image.putpixel((x, y), (0, 0, 0))
+    image = image.rotate(3, expand=False, fillcolor="white")
+    image.save(source)
+
+    result = rotate_image_file(
+        source,
+        output_dir,
+        auto_deskew=True,
+        auto_orient=False,
+        output_format="png",
+    )
+
+    assert result["error"] is None
+    assert result["details"]["auto_deskew"] is True
+    assert result["details"]["deskew"]["found_lines"] is True
+    assert abs(result["details"]["deskew"]["rotation_angle"]) > 1
+
+
 def test_rotate_images_tool_is_registered():
     tool = get_tool("rotate_images")
     tool_def = get_tool_def("rotate_images")

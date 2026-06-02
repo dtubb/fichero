@@ -31,6 +31,12 @@ SPLIT_IMAGES_CONFIG = {
         "maximum": 20,
         "description": "Columns for image grid splitting.",
     },
+    "strategy": {
+        "type": "string",
+        "enum": ["grid", "auto"],
+        "default": "grid",
+        "description": "grid splits fixed rows/columns; auto detects two-page spreads using the restored archive OpenCV splitter.",
+    },
     "pdf_dpi": {
         "type": "integer",
         "default": 200,
@@ -86,6 +92,195 @@ def _save_image(
     if fmt == "jpeg" and image.mode in {"RGBA", "P"}:
         image = image.convert("RGB")
     image.save(output_path, **save_kwargs)
+
+
+def _to_jsonable(value: Any) -> Any:
+    try:
+        import numpy as np
+    except ImportError:  # pragma: no cover - numpy is present in engine env
+        np = None  # type: ignore[assignment]
+
+    if np is not None:
+        if isinstance(value, np.ndarray):
+            return value.tolist()
+        if isinstance(value, np.generic):
+            return value.item()
+    if isinstance(value, dict):
+        return {key: _to_jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_jsonable(item) for item in value]
+    return value
+
+
+def _is_likely_single_cover_or_label(source: Path) -> bool:
+    name = source.stem.lower()
+    parent = source.parent.name.lower()
+    label_patterns = ("_001", "_img_001", "cover", "label", "title", "front", "endpaper")
+    photo_patterns = ("photo", "album", "photograph")
+    is_first = any(part.isdigit() and int(part) == 1 for part in name.split("_"))
+    return any(pattern in name for pattern in label_patterns) or is_first or any(
+        pattern in parent for pattern in photo_patterns
+    )
+
+
+def _analyse_content_density(gray: Any) -> tuple[float, float]:
+    import numpy as np
+
+    height, width = gray.shape
+    midpoint = width // 2
+    threshold = 240
+    left_content = np.sum(gray[:, :midpoint] < threshold)
+    right_content = np.sum(gray[:, midpoint:] < threshold)
+    half_pixels = height * midpoint
+    return left_content / half_pixels, right_content / half_pixels
+
+
+def _detect_auto_split_point(image: Any, source: Path) -> tuple[bool, int | None, dict[str, Any]]:
+    """Detect double-page spreads using the known-good archive heuristics."""
+    try:
+        import cv2  # type: ignore[import-not-found]
+        import numpy as np
+    except ImportError:
+        return False, None, {"strategy": "auto", "reason": "opencv_unavailable"}
+
+    width, height = image.size
+    aspect_ratio = width / height
+    debug: dict[str, Any] = {
+        "strategy": "auto",
+        "aspect_ratio": float(aspect_ratio),
+        "should_split": False,
+        "split_point": None,
+    }
+    if aspect_ratio < 1.2 or width < 1000:
+        debug["reason"] = "not_wide_enough"
+        return False, None, debug
+
+    gray = np.array(image.convert("L"))
+    edges = cv2.Canny(gray, 100, 200)
+    edge_density = np.sum(edges > 0) / (width * height)
+    text_density = np.mean(gray < 200)
+    left_density, right_density = _analyse_content_density(gray)
+
+    if _is_likely_single_cover_or_label(source):
+        debug.update(
+            {
+                "reason": "cover_or_label_filename",
+                "edge_density": float(edge_density),
+                "text_density": float(text_density),
+            }
+        )
+        return False, None, debug
+
+    if min(left_density, right_density) < 0.02 and max(left_density, right_density) > 0.10:
+        debug.update(
+            {
+                "reason": "one_side_empty",
+                "content_density": {"left": float(left_density), "right": float(right_density)},
+            }
+        )
+        return False, None, debug
+
+    center_x = width // 2
+    mid_region_start = max(0, int(width * 0.4))
+    mid_region_end = min(width, int(width * 0.6))
+    if aspect_ratio > 1.6:
+        max_deviation = int(width * 0.1)
+        mid_region_start = max(mid_region_start, center_x - max_deviation)
+        mid_region_end = min(mid_region_end, center_x + max_deviation)
+
+    vertical_sums = np.array([np.sum(gray[:, x]) / height for x in range(mid_region_start, mid_region_end)])
+    if vertical_sums.size == 0:
+        debug["reason"] = "empty_center_region"
+        return False, None, debug
+
+    local_index = int(np.argmin(vertical_sums))
+    split_x = mid_region_start + local_index
+    avg_darkness = float(vertical_sums[local_index])
+    slice_start = max(0, local_index - 3)
+    slice_end = min(vertical_sums.size, local_index + 4)
+    avg_slice_value = float(np.mean(vertical_sums[slice_start:slice_end]))
+    darkness_diff = avg_slice_value - avg_darkness
+    vertical_pattern = float(np.std(np.diff(vertical_sums))) if vertical_sums.size > 1 else 0.0
+
+    should_split = False
+    if width > 2000 and aspect_ratio > 1.35 and text_density > 0.9 and abs(left_density - right_density) < 0.2:
+        should_split = True
+        split_x = center_x
+    if not should_split and aspect_ratio > 1.4:
+        if vertical_pattern > 10:
+            should_split = darkness_diff > 3
+        else:
+            should_split = (avg_darkness < 180 and darkness_diff > 8) or darkness_diff > 15
+    if aspect_ratio > 1.65 and not should_split:
+        should_split = darkness_diff > 5
+    if aspect_ratio > 1.35 and vertical_pattern > 1000:
+        should_split = True
+        search_range = min(200, center_x)
+        min_sum = float("inf")
+        split_x = center_x
+        for x in range(center_x - search_range, min(width, center_x + search_range)):
+            vertical_sum = np.sum(gray[:, x])
+            if vertical_sum < min_sum:
+                min_sum = vertical_sum
+                split_x = x
+
+    debug.update(
+        _to_jsonable(
+            {
+                "should_split": bool(should_split),
+                "split_point": int(split_x),
+                "avg_darkness": avg_darkness,
+                "darkness_diff": float(darkness_diff),
+                "vertical_pattern": vertical_pattern,
+                "edge_density": float(edge_density),
+                "text_density": float(text_density),
+                "content_density": {"left": float(left_density), "right": float(right_density)},
+                "mid_region_start": int(mid_region_start),
+                "mid_region_end": int(mid_region_end),
+            }
+        )
+    )
+    return bool(should_split), int(split_x), debug
+
+
+def _split_image_auto(
+    image: Any,
+    source: Path,
+    output_root: Path,
+    *,
+    output_format: str,
+    compression_quality: int,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    ext = _extension_for_format(output_format)
+    should_split, split_x, debug = _detect_auto_split_point(image, source)
+    width, height = image.size
+    boxes = [(0, 0, width, height)]
+    if should_split and split_x is not None:
+        boxes = [(0, 0, split_x, height), (split_x, 0, width, height)]
+
+    outputs: list[str] = []
+    parts: list[dict[str, Any]] = []
+    for index, box in enumerate(boxes, start=1):
+        cropped = image.crop(box)
+        suffix = f"_part_{index:03d}" if len(boxes) > 1 else ""
+        output_path = output_root / f"{source.stem}{suffix}.{ext}"
+        _save_image(
+            cropped,
+            output_path,
+            output_format=output_format,
+            compression_quality=compression_quality,
+        )
+        left, top, right, bottom = box
+        outputs.append(str(output_path))
+        parts.append(
+            {
+                "part": index,
+                "bbox": [left, top, right - left, bottom - top],
+                "output_file": str(output_path),
+                "debug": debug,
+            }
+        )
+    return outputs, parts
 
 
 def _split_image_grid(
@@ -181,6 +376,7 @@ def split_image_file(
     file_path: str | Path,
     output_dir: str | Path,
     *,
+    strategy: str = "grid",
     rows: int = 1,
     columns: int = 2,
     pdf_dpi: int = 200,
@@ -207,8 +403,19 @@ def split_image_file(
             from PIL import Image
 
             with Image.open(source) as image:
+                image_copy = image.copy()
+            if (strategy or "grid").strip().lower() == "auto":
+                outputs, parts = _split_image_auto(
+                    image_copy,
+                    source,
+                    output_root,
+                    output_format=output_format,
+                    compression_quality=compression_quality,
+                )
+                split_mode = "auto"
+            else:
                 outputs, parts = _split_image_grid(
-                    image.copy(),
+                    image_copy,
                     source.stem,
                     output_root,
                     rows=rows,
@@ -216,7 +423,7 @@ def split_image_file(
                     output_format=output_format,
                     compression_quality=compression_quality,
                 )
-            split_mode = "grid"
+                split_mode = "grid"
 
         return {
             "source": str(source),
@@ -300,6 +507,7 @@ async def split_images(
             output_dir,
             rows=inputs.get("rows", 1),
             columns=inputs.get("columns", 2),
+            strategy=inputs.get("strategy", "grid"),
             pdf_dpi=inputs.get("pdf_dpi", 200),
             output_format=inputs.get("output_format", "png"),
             compression_quality=inputs.get("compression_quality", 90),

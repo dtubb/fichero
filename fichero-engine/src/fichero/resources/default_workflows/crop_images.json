@@ -1,11 +1,11 @@
 {
-  "name": "Split Images",
-  "description": "Split images into grid tiles or PDFs into per-page image derivatives without modifying originals. Useful before OCR, segmentation, or recombination workflows.",
+  "name": "Crop Images",
+  "description": "Crop photocopy/document pages without modifying the originals. Uses the restored archive contour/photocopy crop path.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
   "folder_path": "/Image Editing",
-  "tags": ["preset", "image-editing", "split", "pdf", "ocr"],
+  "tags": ["preset", "image-editing", "crop", "photocopy"],
   "config": {
     "preset_version": 1
   },
@@ -20,17 +20,15 @@
       "config": {}
     },
     {
-      "id": "split_images",
-      "tool": "split_images",
-      "label": "Split Images",
+      "id": "crop_images",
+      "tool": "crop_images",
+      "label": "Crop Images",
       "position_x": 300,
       "position_y": 200,
       "inputs": {},
       "config": {
-        "strategy": "auto",
-        "rows": 1,
-        "columns": 2,
-        "pdf_dpi": 200,
+        "method": "photocopy",
+        "padding": 20,
         "output_format": "png",
         "compression_quality": 90
       }
@@ -38,9 +36,16 @@
   ],
   "edges": [
     {
-      "id": "edge-files-split-images",
+      "id": "edge-documents-crop-images",
       "source": "files-source",
-      "target": "split_images",
+      "target": "crop_images",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "edge-files-crop-images",
+      "source": "files-source",
+      "target": "crop_images",
       "source_port": "files",
       "target_port": "files"
     }

@@ -1,6 +1,6 @@
 {
   "name": "Rotate / Auto-Orient Images",
-  "description": "Create rotated or EXIF-oriented image derivatives without modifying the originals. Defaults to auto-orienting camera scans and writing JPGs for downstream image editing or OCR workflows.",
+  "description": "Create rotated, EXIF-oriented, or text-line-deskewed image derivatives without modifying the originals. Defaults to auto-orienting and archive Hough-line deskew for OCR workflows.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -28,6 +28,7 @@
       "inputs": {},
       "config": {
         "auto_orient": true,
+        "auto_deskew": true,
         "rotation_degrees": 0,
         "output_format": "jpg",
         "compression_quality": 90

@@ -51,6 +51,32 @@ def test_remove_background_image_file_writes_alpha_derivative(tmp_path):
         assert cleaned.getpixel((10, 10))[3] == 255
 
 
+def test_remove_background_opencv_crops_black_photocopy_margins(tmp_path):
+    pytest.importorskip("cv2")
+    source = tmp_path / "saladin_like.png"
+    output_dir = tmp_path / "background_removed"
+    image = Image.new("RGB", (120, 100), color="black")
+    for x in range(24, 96):
+        for y in range(18, 82):
+            image.putpixel((x, y), (232, 226, 208))
+    image.save(source)
+
+    result = remove_background_image_file(
+        source,
+        output_dir,
+        method="opencv",
+        output_format="png",
+    )
+
+    assert result["error"] is None
+    assert result["details"]["method"] == "opencv"
+    with Image.open(result["outputs"][0]) as cleaned:
+        assert cleaned.mode == "RGBA"
+        assert cleaned.width < 100
+        assert cleaned.height < 90
+        assert cleaned.getbbox() is not None
+
+
 def test_remove_background_images_tool_is_registered():
     tool = get_tool("remove_background_images")
     tool_def = get_tool_def("remove_background_images")
@@ -93,44 +119,19 @@ async def test_remove_background_workflow_appends_preview_editor_operation(tmp_p
     assert result["image_edit_operations"][0]["document_id"] == doc.id
 
 
-def test_remove_background_opencv_uses_cv2_when_available(monkeypatch):
-    import sys
-    import types
-
-    import numpy as np
-
+def test_remove_background_opencv_uses_archive_black_margin_remover():
+    pytest.importorskip("cv2")
     from fichero.workflows.tools.remove_background_images import remove_background
 
-    calls = {"cvtColor": 0, "threshold": 0, "morphologyEx": 0}
-    fake_cv2 = types.SimpleNamespace(
-        COLOR_RGB2GRAY=1,
-        THRESH_BINARY_INV=2,
-        THRESH_OTSU=4,
-        MORPH_OPEN=8,
-    )
-
-    def cvt_color(rgb, code):
-        calls["cvtColor"] += 1
-        return np.zeros(rgb.shape[:2], dtype=np.uint8)
-
-    def threshold(gray, thresh, maxval, mode):
-        calls["threshold"] += 1
-        return 0, np.full(gray.shape, 255, dtype=np.uint8)
-
-    def morphology_ex(mask, op, kernel):
-        calls["morphologyEx"] += 1
-        return mask
-
-    fake_cv2.cvtColor = cvt_color
-    fake_cv2.threshold = threshold
-    fake_cv2.morphologyEx = morphology_ex
-    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
-
-    image = Image.new("RGB", (5, 5), "white")
+    image = Image.new("RGB", (100, 80), "black")
+    for x in range(20, 80):
+        for y in range(10, 70):
+            image.putpixel((x, y), (245, 245, 235))
     cleaned = remove_background(image, method="opencv", threshold=5)
 
     assert cleaned.mode == "RGBA"
-    assert calls == {"cvtColor": 1, "threshold": 1, "morphologyEx": 1}
+    assert cleaned.size[0] < image.size[0]
+    assert cleaned.size[1] < image.size[1]
 
 
 def test_remove_background_opencv_falls_back_without_cv2(monkeypatch):

@@ -46,6 +46,7 @@ from fichero.workflows.tools import handwriting
 from fichero.workflows.tools import style
 from fichero.workflows.tools import similarity
 from fichero.workflows.tools import rotate_images  # noqa: F401  (#1387)
+from fichero.workflows.tools import crop_images  # noqa: F401  (#1595)
 from fichero.workflows.tools import prepare_images  # noqa: F401  (#1390)
 from fichero.workflows.tools import enhance_images  # noqa: F401  (#1388)
 from fichero.workflows.tools import fuzzy_clean_images  # noqa: F401  (#1389)
@@ -132,6 +133,7 @@ __all__ = [
     "style",
     "similarity",
     "rotate_images",
+    "crop_images",
     "prepare_images",
     "enhance_images",
     "fuzzy_clean_images",

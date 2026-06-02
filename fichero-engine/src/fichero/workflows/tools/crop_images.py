@@ -1,4 +1,4 @@
-"""Rotate/auto-orient images without modifying source files (#1387)."""
+"""Crop photocopy/document pages without modifying source files (#1595)."""
 
 from __future__ import annotations
 
@@ -10,36 +10,33 @@ from typing import Any
 from fichero.llm import LLMConfig
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.image_edit_chains import append_image_edit_operations
+from fichero.workflows.tools.remove_background_images import _dark_edge_trim_bbox
 from fichero.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
 
 _IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
 _ALLOWED_FORMATS = {"jpg", "jpeg", "png", "tiff", "webp"}
-_ALLOWED_ROTATIONS = {0, 90, 180, 270}
 
-ROTATE_IMAGES_CONFIG = {
-    "rotation_degrees": {
+CROP_IMAGES_CONFIG = {
+    "method": {
+        "type": "string",
+        "enum": ["photocopy", "contour"],
+        "default": "photocopy",
+        "description": "photocopy trims sustained black edge bands; contour uses archive-style document contour detection.",
+    },
+    "padding": {
         "type": "integer",
-        "enum": [0, 90, 180, 270],
-        "default": 0,
-        "description": "Clockwise rotation to apply after EXIF auto-orientation.",
-    },
-    "auto_orient": {
-        "type": "boolean",
-        "default": True,
-        "description": "Apply EXIF orientation before any explicit rotation.",
-    },
-    "auto_deskew": {
-        "type": "boolean",
-        "default": False,
-        "description": "Use archive Hough text-line detection to rotate near-horizontal text to level.",
+        "default": 20,
+        "minimum": 0,
+        "maximum": 200,
+        "description": "Padding to add around detected document crop.",
     },
     "output_format": {
         "type": "string",
         "enum": ["jpg", "png", "tiff", "webp"],
-        "default": "jpg",
-        "description": "Derived image format.",
+        "default": "png",
+        "description": "Derived crop image format.",
     },
     "compression_quality": {
         "type": "integer",
@@ -57,7 +54,7 @@ ROTATE_IMAGES_CONFIG = {
 
 
 def _normalise_format(output_format: str) -> str:
-    fmt = (output_format or "jpg").lower().lstrip(".")
+    fmt = (output_format or "png").lower().lstrip(".")
     if fmt not in _ALLOWED_FORMATS:
         raise ValueError(f"Unsupported output format: {output_format}")
     return "jpeg" if fmt == "jpg" else fmt
@@ -66,13 +63,6 @@ def _normalise_format(output_format: str) -> str:
 def _extension_for_format(output_format: str) -> str:
     fmt = _normalise_format(output_format)
     return "jpg" if fmt == "jpeg" else fmt
-
-
-def _normalise_rotation(rotation_degrees: int) -> int:
-    rotation = int(rotation_degrees) % 360
-    if rotation not in _ALLOWED_ROTATIONS:
-        raise ValueError(f"Unsupported rotation: {rotation_degrees}")
-    return rotation
 
 
 def _save_image(
@@ -92,76 +82,71 @@ def _save_image(
     image.save(output_path, **save_kwargs)
 
 
-def _hough_line_deskew(image: Any) -> tuple[Any, dict[str, Any]]:
-    """Archive Hough-line deskew for text-line based leveling."""
+def _with_padding(
+    bbox: tuple[int, int, int, int],
+    *,
+    width: int,
+    height: int,
+    padding: int,
+) -> tuple[int, int, int, int]:
+    left, top, right, bottom = bbox
+    padding = max(0, min(200, int(padding)))
+    return (
+        max(0, left - padding),
+        max(0, top - padding),
+        min(width, right + padding),
+        min(height, bottom + padding),
+    )
+
+
+def _contour_crop_bbox(image: Any, *, padding: int) -> tuple[int, int, int, int] | None:
+    """Archive-style contour crop for a page/document foreground."""
     try:
         import cv2  # type: ignore[import-not-found]
         import numpy as np
-        from PIL import Image
     except ImportError:
-        return image, {
-            "found_lines": False,
-            "rotation_angle": 0.0,
-            "reason": "opencv_unavailable",
-        }
+        return None
 
     img_array = np.array(image.convert("RGB"))
     gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 50, 150)
-    debug = {
-        "found_lines": False,
-        "rotation_angle": 0.0,
-        "num_lines": 0,
-        "edge_points": int(np.sum(edges > 0)),
-    }
-    lines = cv2.HoughLinesP(
-        edges,
-        1,
-        np.pi / 180,
-        threshold=100,
-        minLineLength=100,
-        maxLineGap=10,
-    )
-    if lines is None:
-        return image, debug
+    if bbox := _dark_edge_trim_bbox(gray):
+        return _with_padding(bbox, width=image.width, height=image.height, padding=padding)
 
-    angles = []
-    for line in lines:
-        x1, y1, x2, y2 = line[0]
-        angle = float(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
-        if -5 <= angle <= 5:
-            angles.append(angle)
-    debug["num_lines"] = len(lines)
-    debug["num_valid_angles"] = len(angles)
-    if not angles:
-        return image, debug
+    mean_brightness = float(np.mean(gray))
+    if mean_brightness > 127:
+        _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
+    else:
+        _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None
 
-    median_angle = float(np.median(angles))
-    debug["found_lines"] = True
-    debug["rotation_angle"] = median_angle
-    center = (img_array.shape[1] // 2, img_array.shape[0] // 2)
-    matrix = cv2.getRotationMatrix2D(center, median_angle, 1.0)
-    rotated = cv2.warpAffine(
-        img_array,
-        matrix,
-        (img_array.shape[1], img_array.shape[0]),
-        borderValue=(255, 255, 255),
-    )
-    return Image.fromarray(rotated), debug
+    image_area = image.width * image.height
+    candidates = []
+    for contour in contours:
+        area_ratio = cv2.contourArea(contour) / image_area
+        if not 0.1 <= area_ratio <= 0.99:
+            continue
+        x, y, w, h = cv2.boundingRect(contour)
+        aspect_ratio = w / h if h else 0
+        if 0.4 <= aspect_ratio <= 2.5:
+            candidates.append((contour, x, y, w, h))
+    if not candidates:
+        return None
+    _, x, y, w, h = max(candidates, key=lambda item: cv2.contourArea(item[0]))
+    return _with_padding((x, y, x + w, y + h), width=image.width, height=image.height, padding=padding)
 
 
-def rotate_image_file(
+def crop_image_file(
     file_path: str | Path,
     output_dir: str | Path,
     *,
-    rotation_degrees: int = 0,
-    auto_orient: bool = True,
-    auto_deskew: bool = False,
-    output_format: str = "jpg",
+    method: str = "photocopy",
+    padding: int = 20,
+    output_format: str = "png",
     compression_quality: int = 90,
 ) -> dict[str, Any]:
-    """Rotate one image into a derived output file."""
+    """Crop one image into a derived output file."""
     source = Path(file_path)
     output_root = Path(output_dir)
     ext = _extension_for_format(output_format)
@@ -170,23 +155,34 @@ def rotate_image_file(
         if source.suffix.lower() not in _IMAGE_SUFFIXES:
             raise ValueError(f"Unsupported input file type: {source.suffix}")
 
+        import numpy as np
         from PIL import Image, ImageOps
 
-        rotation = _normalise_rotation(rotation_degrees)
         with Image.open(source) as image:
-            original_size = list(image.size)
-            prepared = ImageOps.exif_transpose(image) if auto_orient else image.copy()
-            oriented_size = list(prepared.size)
-            deskew_debug: dict[str, Any] | None = None
-            if auto_deskew:
-                prepared, deskew_debug = _hough_line_deskew(prepared)
-            if rotation:
-                # PIL rotates counter-clockwise for positive angles; negate for clockwise UI semantics.
-                prepared = prepared.rotate(-rotation, expand=True)
+            prepared = ImageOps.exif_transpose(image)
+            original_size = list(prepared.size)
+            bbox = None
+            if method == "photocopy":
+                try:
+                    import cv2  # type: ignore[import-not-found]
 
+                    gray = cv2.cvtColor(np.array(prepared.convert("RGB")), cv2.COLOR_RGB2GRAY)
+                    bbox = _dark_edge_trim_bbox(gray)
+                    if bbox is not None:
+                        bbox = _with_padding(bbox, width=prepared.width, height=prepared.height, padding=padding)
+                except ImportError:
+                    bbox = None
+            if bbox is None:
+                bbox = _contour_crop_bbox(prepared, padding=padding)
+            if bbox is None:
+                bbox = (0, 0, prepared.width, prepared.height)
+                crop_method = "original"
+            else:
+                crop_method = method
+            cropped = prepared.crop(bbox)
             output_path = output_root / f"{source.stem}.{ext}"
             _save_image(
-                prepared,
+                cropped,
                 output_path,
                 output_format=output_format,
                 compression_quality=compression_quality,
@@ -200,17 +196,15 @@ def rotate_image_file(
                 "original_format": source.suffix.lower(),
                 "output_format": ext,
                 "original_size": original_size,
-                "oriented_size": oriented_size,
-                "prepared_size": list(prepared.size),
-                "auto_orient": auto_orient,
-                "auto_deskew": auto_deskew,
-                "deskew": deskew_debug,
-                "rotation_degrees": rotation,
+                "prepared_size": list(cropped.size),
+                "crop_bbox": list(bbox),
+                "method": crop_method,
+                "padding": padding,
             },
             "error": None,
         }
     except Exception as exc:
-        logger.warning("rotate_images failed for %s: %s", source, exc)
+        logger.warning("crop_images failed for %s: %s", source, exc)
         return {
             "source": str(source),
             "outputs": [],
@@ -221,11 +215,11 @@ def rotate_image_file(
 
 
 @register_tool(
-    name="rotate_images",
-    display_name="Rotate / Auto-Orient Images",
-    description="Create rotated or EXIF-oriented image derivatives without modifying source files.",
+    name="crop_images",
+    display_name="Crop Images",
+    description="Crop photocopy/document pages without modifying source files.",
     category="transform",
-    icon="rotate.right",
+    icon="crop",
     color="orange",
     uses_llm=False,
     supports_batch=True,
@@ -236,7 +230,7 @@ def rotate_image_file(
             port_type="input",
             data_type=DataType.FILES,
             required=True,
-            description="Image files to rotate or auto-orient.",
+            description="Image files to crop.",
         ),
         PortDef(
             id="documents",
@@ -250,36 +244,34 @@ def rotate_image_file(
     output_ports=[
         PortDef(
             id="output_files",
-            name="Rotated Files",
+            name="Cropped Files",
             port_type="output",
             data_type=DataType.FILES,
-            description="Rotated derived image files.",
+            description="Cropped derived image files.",
         ),
     ],
-    config_schema=ROTATE_IMAGES_CONFIG,
-    sort_order=24,
+    config_schema=CROP_IMAGES_CONFIG,
+    sort_order=27,
 )
-async def rotate_images(
+async def crop_images(
     inputs: dict[str, Any],
     state: State,
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
-    """Rotate/auto-orient input images for downstream workflows."""
+    """Crop input images for downstream workflows."""
     files = inputs.get("files") or state.get("input_files", [])
     if isinstance(files, str):
         files = [files]
 
-    output_dir = inputs.get("output_dir") or str(
-        Path(tempfile.gettempdir()) / "fichero-rotated-images"
-    )
+    output_dir = inputs.get("output_dir") or str(Path(tempfile.gettempdir()) / "fichero-cropped-images")
+    method = (inputs.get("method") or "photocopy").strip().lower()
     results = [
-        rotate_image_file(
+        crop_image_file(
             file_path,
             output_dir,
-            rotation_degrees=inputs.get("rotation_degrees", 0),
-            auto_orient=bool(inputs.get("auto_orient", True)),
-            auto_deskew=bool(inputs.get("auto_deskew", False)),
-            output_format=inputs.get("output_format", "jpg"),
+            method=method,
+            padding=inputs.get("padding", 20),
+            output_format=inputs.get("output_format", "png"),
             compression_quality=inputs.get("compression_quality", 90),
         )
         for file_path in files
@@ -289,12 +281,9 @@ async def rotate_images(
         inputs,
         state,
         lambda _doc: {
-            "op": "rotate",
+            "op": "crop",
             "page": int(inputs.get("page", 1)),
-            "params": {
-                "angle": -_normalise_rotation(inputs.get("rotation_degrees", 0)),
-                "expand": True,
-            },
+            "params": {"method": method, "padding": int(inputs.get("padding", 20))},
         },
     )
 
