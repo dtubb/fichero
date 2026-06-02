@@ -111,7 +111,11 @@ struct MagnifierPanelView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(.ultraThinMaterial)
+                // Thick (not ultraThin) material: this control bar overlaps the
+                // magnified image, which is often bright (light document scans),
+                // so a translucent backing left the labels invisible. Keep the
+                // overlap, give it an opaque-enough backdrop for contrast (#1530).
+                .background(.thickMaterial)
                 .cornerRadius(4)
                 .padding(8)
             }

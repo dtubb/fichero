@@ -8,7 +8,7 @@ import SwiftUI
 /// fetch + parse identically.
 ///
 /// Cache: reads ArtifactServiceGenerated.artifactsByDocument["{id}|own"]
-/// (matches the V2 strict-scope convention from DocumentInspectorArtifactsTab —
+/// (matches the V2 strict-scope convention used by DocumentInspectorContentV2 —
 /// per-row counts shouldn't include descendants, otherwise a parent PDF
 /// shows the union of every page-child's artifacts).
 struct ArtifactEntitiesView: View {
