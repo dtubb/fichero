@@ -176,8 +176,9 @@ class TestStructuredDecodeKind:
 
     @pytest.mark.asyncio
     async def test_context_overflow_does_not_retry_on_device(self):
-        # context_overflow fails identically on retry — must go straight
-        # to the fallback path (here: no $large configured → re-raise).
+        # context_overflow gets one compact retry without schema prompt
+        # injection before the fallback path (here: no $large configured
+        # → re-raise).
         mock_structured = AsyncMock(
             side_effect=StructuredDecodeError(
                 "(context_overflow): too long", kind="context_overflow"
@@ -194,7 +195,7 @@ class TestStructuredDecodeKind:
                 await chat_structured_with_fallback(
                     prompt="p", schema=_MiniSchema, config=_apple_config(),
                 )
-        assert mock_structured.await_count == 1  # no on-device retry
+        assert mock_structured.await_count == 2
 
     @pytest.mark.asyncio
     async def test_retry_failure_falls_through_to_paid_fallback(self):
