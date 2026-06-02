@@ -51,6 +51,9 @@ _BUILTIN_SEEDS: list[tuple[ClassificationDimension, str, str, str | None]] = [
     (ClassificationDimension.document_prototype, "secondary_source", "Secondary Source", "#AF52DE"),
     (ClassificationDimension.document_prototype, "map", "Map", "#64D2FF"),
     (ClassificationDimension.document_prototype, "translation", "Translation", "#FFD60A"),
+    (ClassificationDimension.node_class, "chapter", "Chapter", "#0A84FF"),
+    (ClassificationDimension.node_class, "container", "Container", "#5856D6"),
+    (ClassificationDimension.node_class, "note", "Note", "#FF9500"),
 ]
 
 

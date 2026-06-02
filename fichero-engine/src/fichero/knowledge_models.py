@@ -720,12 +720,17 @@ class EntityMergeAudit(BaseModel):
 
 
 class ClassificationDimension(str, Enum):
-    """Which classification axis a registry value belongs to (#915)."""
+    """Which classification axis a registry value belongs to (#915).
+
+    ``node_class`` (#1570) is the Tinderbox-style prototype/class axis for
+    workspace curated items; values key off ``ClassificationValue.key``.
+    """
 
     epistemic_status = "epistemic_status"
     claim_type = "claim_type"
     entity_type = "entity_type"
     document_prototype = "document_prototype"
+    node_class = "node_class"
 
 
 class ClassificationValue(BaseModel):

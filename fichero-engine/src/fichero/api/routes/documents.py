@@ -170,6 +170,7 @@ class WorkspaceCuratedItem(BaseModel):
     x: float | None = None
     y: float | None = None
     notes: str | None = None
+    node_class: str | None = None
 
 
 class WorkspacePatchRequest(BaseModel):
@@ -224,6 +225,7 @@ def _normalize_curated_items(items: list[Any] | None) -> list[dict[str, Any]]:
                 "x": item.get("x"),
                 "y": item.get("y"),
                 "notes": item.get("notes"),
+                "node_class": item.get("node_class"),
             }
         )
     return normalized

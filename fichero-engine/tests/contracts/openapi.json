@@ -36529,10 +36529,11 @@
           "epistemic_status",
           "claim_type",
           "entity_type",
-          "document_prototype"
+          "document_prototype",
+          "node_class"
         ],
         "title": "ClassificationDimension",
-        "description": "Which classification axis a registry value belongs to (#915)."
+        "description": "Which classification axis a registry value belongs to (#915).\n\n``node_class`` (#1570) is the Tinderbox-style prototype/class axis for\nworkspace curated items; values key off ``ClassificationValue.key``."
       },
       "ClassificationListResponse": {
         "properties": {
@@ -54666,6 +54667,11 @@
             "type": "string",
             "nullable": true,
             "title": "Notes"
+          },
+          "node_class": {
+            "type": "string",
+            "nullable": true,
+            "title": "Node Class"
           }
         },
         "type": "object",
