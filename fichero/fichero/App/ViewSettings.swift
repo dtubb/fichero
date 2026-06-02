@@ -133,4 +133,13 @@ extension FocusedValues {
     /// the View-menu "Show/Hide Inspector" command toggles only the focused
     /// window — not every open window (#1451).
     @Entry var showInspector: Binding<Bool>?
+
+    /// Per-window visibility of the major reading-surface panes, published by
+    /// the focused ContentView so the View menu mirrors the toolbar toggles
+    /// for each pane (#1215). Same per-window rationale as `showInspector`:
+    /// each binds the focused window's @SceneStorage flag.
+    @Entry var showDocumentGrid: Binding<Bool>?
+    @Entry var showDocumentCanvas: Binding<Bool>?
+    /// The WebKit/reading content pane (transcript surface).
+    @Entry var showReadingPane: Binding<Bool>?
 }

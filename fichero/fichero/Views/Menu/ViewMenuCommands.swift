@@ -29,6 +29,8 @@ struct ViewMenuCommands: View {
 
         InspectorButton()
 
+        PaneVisibilitySection()
+
         Divider()
 
         SelectionDrivenLayoutToggle()
@@ -501,6 +503,70 @@ struct InspectorButton: View {
         }
         .keyboardShortcut("i", modifiers: [.command, .option])
         .disabled(showInspector == nil)
+    }
+}
+
+// MARK: - Pane Visibility Section
+
+/// View-menu items that mirror the reading-surface pane toggles already present
+/// as toolbar buttons (#1215). Each reads the focused window's pane-visibility
+/// binding via FocusedValues so the command is per-window (same rationale as
+/// `InspectorButton`) and stays in sync with the toolbar. A binding is only
+/// published while its window is focused, so each item disables when no
+/// reading-capable window is key.
+struct PaneVisibilitySection: View {
+    @FocusedValue(\.showDocumentGrid) private var showDocumentGrid
+    @FocusedValue(\.showDocumentCanvas) private var showDocumentCanvas
+    @FocusedValue(\.showReadingPane) private var showReadingPane
+
+    var body: some View {
+        Section("Panes") {
+            PaneToggleButton(
+                binding: showDocumentGrid,
+                showLabel: "Show Document Grid",
+                hideLabel: "Hide Document Grid",
+                icon: "rectangle.split.2x1",
+                shortcut: KeyboardShortcut("g", modifiers: [.command, .shift])
+            )
+            PaneToggleButton(
+                binding: showDocumentCanvas,
+                showLabel: "Show Document Canvas",
+                hideLabel: "Hide Document Canvas",
+                icon: "doc.richtext",
+                shortcut: nil
+            )
+            PaneToggleButton(
+                binding: showReadingPane,
+                showLabel: "Show Reading Pane",
+                hideLabel: "Hide Reading Pane",
+                icon: "text.book.closed",
+                shortcut: nil
+            )
+        }
+    }
+}
+
+/// Reusable Show/Hide pane command. Mirrors `InspectorButton`: toggles the
+/// focused window's binding and disables when no window publishes it.
+struct PaneToggleButton: View {
+    let binding: Binding<Bool>?
+    let showLabel: String
+    let hideLabel: String
+    let icon: String
+    let shortcut: KeyboardShortcut?
+
+    private var isVisible: Bool {
+        binding?.wrappedValue ?? false
+    }
+
+    var body: some View {
+        Button {
+            binding?.wrappedValue.toggle()
+        } label: {
+            Label(isVisible ? hideLabel : showLabel, systemImage: icon)
+        }
+        .keyboardShortcut(shortcut)
+        .disabled(binding == nil)
     }
 }
 

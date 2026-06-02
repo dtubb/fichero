@@ -183,6 +183,67 @@ class TestGetChildren:
 
 
 # ---------------------------------------------------------------------------
+# Ordering: list + children honour sort_order (#572)
+# ---------------------------------------------------------------------------
+
+
+def _make_ordered_doc(db, name, sort_order, parent_id=None):
+    doc = Document(
+        name=name, parent_id=parent_id, doc_type=DocType.file, sort_order=sort_order
+    )
+    db.save(doc)
+    return doc
+
+
+class TestSortOrder:
+    """After a reorder persists sort_order, list endpoints must return rows in
+    sort_order ASC, name ASC order so the client doesn't have to re-sort and the
+    drag-drop position survives refresh (#572)."""
+
+    def test_children_ordered_by_sort_order(self, client, db):
+        parent = _make_doc(db, "Parent")
+        # Inserted out of order; sort_order should drive the result order.
+        _make_ordered_doc(db, "Zebra", sort_order=0, parent_id=parent.id)
+        _make_ordered_doc(db, "Apple", sort_order=1, parent_id=parent.id)
+        _make_ordered_doc(db, "Mango", sort_order=2, parent_id=parent.id)
+        r = client.get(f"/api/documents/{parent.id}/children")
+        assert r.status_code == 200
+        names = [d["name"] for d in r.json()["items"]]
+        assert names == ["Zebra", "Apple", "Mango"]
+
+    def test_children_tie_breaks_by_name(self, client, db):
+        parent = _make_doc(db, "Parent")
+        # Reorder-unaware siblings all tie at sort_order 0 → fall back to name.
+        _make_ordered_doc(db, "Charlie", sort_order=0, parent_id=parent.id)
+        _make_ordered_doc(db, "Alpha", sort_order=0, parent_id=parent.id)
+        _make_ordered_doc(db, "Bravo", sort_order=0, parent_id=parent.id)
+        r = client.get(f"/api/documents/{parent.id}/children")
+        names = [d["name"] for d in r.json()["items"]]
+        assert names == ["Alpha", "Bravo", "Charlie"]
+
+    def test_list_documents_ordered_by_sort_order(self, client, db):
+        parent = _make_doc(db, "Parent")
+        _make_ordered_doc(db, "Third", sort_order=2, parent_id=parent.id)
+        _make_ordered_doc(db, "First", sort_order=0, parent_id=parent.id)
+        _make_ordered_doc(db, "Second", sort_order=1, parent_id=parent.id)
+        r = client.get(f"/api/documents?parent_id={parent.id}")
+        names = [d["name"] for d in r.json()["items"]]
+        assert names == ["First", "Second", "Third"]
+
+    def test_reorder_then_children_reflects_new_order(self, client, db):
+        parent = _make_doc(db, "Parent")
+        a = _make_ordered_doc(db, "A", sort_order=0, parent_id=parent.id)
+        b = _make_ordered_doc(db, "B", sort_order=1, parent_id=parent.id)
+        c = _make_ordered_doc(db, "C", sort_order=2, parent_id=parent.id)
+        # Move C to the front.
+        resp = client.post("/api/documents/reorder", json=[c.id, a.id, b.id])
+        assert resp.status_code == 200
+        r = client.get(f"/api/documents/{parent.id}/children")
+        names = [d["name"] for d in r.json()["items"]]
+        assert names == ["C", "A", "B"]
+
+
+# ---------------------------------------------------------------------------
 # GET /api/documents/{doc_id}/ancestors
 # ---------------------------------------------------------------------------
 
