@@ -42,6 +42,15 @@ struct DocumentInspectorInfoTab: View {
                     )
                 }
 
+                // Workspace curated items + per-item node class (#1570 Phase 1).
+                // Only shown for workspace folders — folded into the existing
+                // inspector Form as one more Section (conservative placement).
+                if document.isWorkspace {
+                    Section("Curated Items") {
+                        WorkspaceCuratedItemsSection(folderId: document.id)
+                    }
+                }
+
                 Section("File") {
                     LabeledContent("Kind") {
                         Text(document.docType.rawValue.capitalized)
@@ -733,7 +742,9 @@ struct DocumentPrototypePicker: View {
     }
 }
 
-private extension Color {
+// Promoted from `private` so the workspace NodeClassPicker (#1570) can reuse
+// the SAME hex parser — no second copy.
+extension Color {
     init?(hex: String) {
         let stripped = hex.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "#", with: "")
         guard stripped.count == 6, let value = UInt64(stripped, radix: 16) else { return nil }
@@ -744,7 +755,9 @@ private extension Color {
     }
 }
 
-private struct PrototypeBadge: View {
+// Promoted from `private` so the workspace NodeClassPicker (#1570) reuses the
+// SAME coloured-capsule chip — no parallel badge view.
+struct PrototypeBadge: View {
     let proto: Components.Schemas.ClassificationValue
 
     var body: some View {
