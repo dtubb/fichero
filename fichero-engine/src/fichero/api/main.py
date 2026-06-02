@@ -657,8 +657,10 @@ def _is_allowed_library_path(library_path: str) -> bool:
     Allowed roots:
     - ~/Documents
     - ~/Desktop (iCloud-syncable, natural place for libraries)
+    - ~/Fichero
     - ~/Dropbox
     - ~/Library/Application Support
+    - ~/Library/CloudStorage (Box/Dropbox/iCloud provider roots)
     - ~/Library/Mobile Documents/com~apple~CloudDocs — iCloud Drive AND
       iCloud-synced Documents/Desktop physically live here
     - test temp dirs under /var/folders and /private/var/folders (macOS)
@@ -688,8 +690,10 @@ def _is_allowed_library_path(library_path: str) -> bool:
     allowed_roots = [
         home / "Documents",
         home / "Desktop",
+        home / "Fichero",
         home / "Dropbox",
         home / "Library" / "Application Support",
+        home / "Library" / "CloudStorage",
         icloud,
         Path("/var/folders"),
         Path("/private/var/folders"),

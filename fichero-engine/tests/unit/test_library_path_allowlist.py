@@ -85,6 +85,25 @@ def test_desktop_path_allowed():
     assert _is_allowed_library_path(str(p)) is True
 
 
+def test_home_fichero_path_allowed():
+    """~/Fichero/X.fichero is allowed for Daniel's local libraries."""
+    p = Path.home() / "Fichero" / "Jesuit Mapping.fichero"
+    assert _is_allowed_library_path(str(p)) is True
+
+
+def test_cloudstorage_box_path_allowed():
+    """~/Library/CloudStorage provider roots are allowed for library packages."""
+    p = (
+        Path.home()
+        / "Library"
+        / "CloudStorage"
+        / "Box-Box"
+        / "Libraries"
+        / "Jesuit Mapping.fichero"
+    )
+    assert _is_allowed_library_path(str(p)) is True
+
+
 def test_non_fichero_suffix_rejected():
     """A path without a .fichero suffix is rejected."""
     p = Path.home() / "Documents" / "notes.txt"
