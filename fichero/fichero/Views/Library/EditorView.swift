@@ -182,12 +182,14 @@ struct EditorView: View {
                 isEditing.toggle()
             }
         } label: {
-            Image(systemName: isEditing ? "checkmark.circle.fill" : "pencil.tip.crop.circle")
-                .font(.title3)
-                .padding(6)
-                .background(.thinMaterial, in: Circle())
+            // Plain icon button matching the canvas toolbar convention (the
+            // PDF loupe toggle): a filled/outline `pencil.circle` pair shows the
+            // selected state via accent tint instead of a grey filled circle, at
+            // the same default icon size as its neighbours. (#1528)
+            Image(systemName: isEditing ? "pencil.circle.fill" : "pencil.circle")
         }
         .buttonStyle(.plain)
+        .foregroundColor(isEditing ? .accentColor : .primary)
         .help(isEditing ? "Done — return to viewing" : "Edit image (crop, rotate, enhance, remove background)")
         .accessibilityIdentifier("canvasEditModeToggle")
         .padding(10)
