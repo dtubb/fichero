@@ -822,6 +822,30 @@ class Database(DatabaseEmbeddingMixin):
         """Wrap the free helper so callers don't reach into module level."""
         return _collect_folder_descendants_helper(self.conn, folder_id)
 
+    def _has_indexed_page_children(self, document_id: str | None) -> bool:
+        """True when a file-level document has page children in the vector index.
+
+        Search should rank and return the matching page rows when they exist,
+        not the parent PDF's whole-document text blob. If a legacy library has
+        only the parent embedded, keep the parent result so search still works.
+        """
+        if not document_id:
+            return False
+
+        try:
+            from fichero.models import DocType, Document
+
+            doc = self.get(Document, document_id)
+            if doc is None or doc.doc_type != DocType.file:
+                return False
+
+            pages = self.query(Document, parent_id=document_id, doc_type=DocType.page)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Page-child lookup failed for search result %s: %s", document_id, exc)
+            return False
+
+        return any(self.has_embedding(page.id) for page in pages)
+
     def enrich_search_results_with_kg(
         self, results: list[SearchResult], query: str
     ) -> list[SearchResult]:
@@ -1050,6 +1074,10 @@ class Database(DatabaseEmbeddingMixin):
 
                     # Convert to SearchResult, filter by score
                     for r in raw_results:
+                        document_id = r.get("document_id") or r.get("id")
+                        if self._has_indexed_page_children(document_id):
+                            continue
+
                         # LanceDB returns _distance (L2; lower is better).
                         # Vectors are L2-normalised at index + query time
                         # (see db_embeddings._l2_normalize), so L2² = 2 - 2·cos.
@@ -1066,7 +1094,7 @@ class Database(DatabaseEmbeddingMixin):
 
                         semantic_results.append(
                             {
-                                "document_id": r.get("document_id") or r.get("id"),
+                                "document_id": document_id,
                                 "score": score,
                                 "content": r.get("text", ""),
                                 "metadata": {
@@ -1113,14 +1141,17 @@ class Database(DatabaseEmbeddingMixin):
 
                         # Convert to results format
                         for _, row in fulltext_docs.sort_values("bm25", ascending=False).iterrows():
+                            document_id = row.get("document_id") or row.get("id")
+                            if self._has_indexed_page_children(document_id):
+                                continue
+
                             lexical_score = float(row.get("bm25", 0.0))
                             normalised = (
                                 lexical_score / max_bm25 if max_bm25 > 0 else 1.0
                             )
                             fulltext_results.append(
                                 {
-                                    "document_id": row.get("document_id")
-                                    or row.get("id"),
+                                    "document_id": document_id,
                                     "score": max(0.0, min(1.0, normalised)),
                                     "content": row.get("text", ""),
                                     "metadata": {
