@@ -473,12 +473,16 @@ async def get_children(
     db: Database = Depends(get_library_database),
 ) -> DocumentListResponse:
     """Get child documents."""
-    children = list(db.query(Document, parent_id=doc_id))
+    # Callers (e.g. the catalogue workflow) sometimes pass a doc:-prefixed id
+    # (e.g. "doc:abc123").  Documents are stored with bare hex ids, so strip
+    # the prefix before every DB lookup so both forms resolve correctly (#1345).
+    normalized_id = doc_id.removeprefix("doc:")
+    children = list(db.query(Document, parent_id=normalized_id))
     if not children:
         # Verify parent exists only when there are no children to return.
         # During long-running workflows, a transient parent lookup miss can
         # race with reads; if children exist, prefer returning them over 404.
-        parent = db.get(Document, doc_id)
+        parent = db.get(Document, normalized_id)
         if not parent:
             raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
     if limit is not None:

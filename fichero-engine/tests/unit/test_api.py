@@ -166,6 +166,28 @@ class TestDocumentRoutes:
         assert isinstance(data, list)
         assert len(data) == 1
 
+    def test_get_children_doc_prefix(self, client, db, sample_doc, sample_collection):
+        """GET /children accepts a doc:-prefixed id and returns the same result (#1345).
+
+        During folder catalogue runs the caller sometimes URL-encodes a
+        ``doc:<hex>`` id (e.g. ``doc%3Acoll123``). FastAPI decodes the percent
+        encoding, leaving the literal ``doc:`` prefix in the path parameter.
+        The handler must strip the prefix before the DB lookup, otherwise the
+        exact-match query misses and returns 404.
+        """
+        db.save(sample_collection)
+        sample_doc.parent_id = sample_collection.id
+        db.save(sample_doc)
+
+        # Simulate caller passing the doc:-prefixed form
+        prefixed_id = f"doc:{sample_collection.id}"
+        response = client.get(f"/api/documents/{prefixed_id}/children")
+        assert response.status_code == 200
+        data = response.json()["items"]
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["id"] == sample_doc.id
+
     def test_create_document(self, client, db):
         """Create document returns new document."""
         response = client.post("/api/documents", json={
