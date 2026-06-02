@@ -1,21 +1,35 @@
-## 2026-06-02 — Design lock-in + hard-foundation kickoff (NEXT SESSION START HERE)
+## 2026-06-02 (PM) — Manager loop: foundation + bug sweep (NEXT SESSION START HERE)
 
-**Branch: `main` — all work merged via PR. Tree clean.** This session: Daniel live-tested the catalogue (tubb2020shift → Global library, 80 entities / 212 claims saved), a long design conversation locked the thinking-layer model, then we started the hard foundation.
+**Branch: `main` @ `8175fa29` — all work merged via PR, integrator-verified GREEN (backend 3746 pass, Swift BUILD SUCCEEDED). Tree clean.** Ran as `/session-start-manager` with parallel backend/frontend Agent-tool worker lanes (isolated worktrees), each claim→gate→review→merge.
 
-### Shipped this session (merged to main, gated)
-- **#1573 / #1562** — `KnowledgeEntity.source_document_ids`: entities now carry **native per-page scope** (accumulated idempotently across every `upsert_entity` return branch; parent aggregates via descendants). Pydantic field, no migration; OpenAPI regen'd. 3739 tests pass.
-- **#1574 / #1561** — inspector crash fixed: `DocumentTabView` forwards the shared `WorkflowExecutionObserver` into `ContentView` (the `.environmentObject` re-host had broken `@Environment(_.self)` propagation).
-- **Design locked in `docs/architecture/thinking-layer.md`** (PRs #1571/#1572): 5 workspace decisions + **node-class/prototype north star** (#1570) — *everything is a typed node*; `DocType`/`EntityType`/`NoteKind` collapse into one user-extensible class registry; Workspace + ResearchProject are both first-class container **nodes** in the tree, distinguished by class. Phased: #1570 Phase 1 (workspace items) → Phase 2 (god-nodes).
+### Shipped this PM (merged to main, gated)
+- **#1562 CLOSED — per-page catalogue scope, both halves + verified:**
+  - Write-path (PR #1578): custom-registry `additional_entities` were merged across chunks and stamped onto the parent `container.id` — now accumulated per `target_doc_id = page_doc_id or container.id` and persisted per-child in `extract_all.py`. Built-in/two-stage paths were already per-child (`17288ccd`).
+  - Read-side (PR #1577): `GET /api/entities?document_id=` now unions claim-scope + entity `source_document_ids`.
+  - Frontend confirmed already-correct (inspector uses `/api/documents/{id}/knowledge-graph`, claim-scoped by page id).
+- **#1570 Phase 1 BACKEND done** (PR #1579): `node_class` added as a new `ClassificationDimension` on the existing #915 classification store (NOT a new registry — key reuse). `WorkspaceCuratedItem.node_class` round-trips. Seeds chapter/container/note. CRUD via `/api/classifications?dimension=node_class`. OpenAPI regen'd.
+- **#1560 CLOSED** (PR #1580): on-device Apple Intelligence no longer mislabeled "PAID" — both `llm.py` cost-note sites gated on `_is_local_or_builtin_provider`.
+- **#1345 CLOSED**: source already fixed on main (`removeprefix("doc:")` in /children); added the missing regression tests.
 
-### Issues filed this session: #1552–#1570
-Open P1s: **#1554** (folder-ingest thread race → drops image previews), and #1562 **frontend** read-side (page table must query the page id). Design-gated: #1559 (Activity window), #1567 (viewer layout), #1568 (node-map fill+layout+page-scope), #1569 (3D→view-modes), #1570 (node-class epic).
+### Earlier 2026-06-02 (AM), already on main
+- #1573/#1562 entity `source_document_ids` field; #1574/#1561 inspector crash fix; #1554 ingest race; design locked in `docs/architecture/thinking-layer.md` (#1571/#1572).
+
+### Also merged this PM (after the above)
+- **#1566 CLOSED** (PR #1582): built-in `mock` LLM provider — set `LLMConfig.provider="mock"` to run a whole folder/PDF catalogue with ZERO paid calls (structured + narrative). Zero-cost #1562 regression vehicle.
+
+### OPEN PRs awaiting Daniel's VISUAL verify (both have manager-verified GREEN builds)
+- **PR #1581** — image-editing cluster **#1555/#1556/#1558** (toolbar height, edit-button alignment, compare aspect ratio).
+- **PR #1583** — **#1570 Phase 1 FRONTEND**: node-class chip picker on workspace curated items, in the Inspector → Info tab "Curated Items" section (reuses `DocumentPrototypePicker`/`PrototypeBadge` pointed at `dimension=node_class`). First UI for the node-class system.
+
+### Backend bug queue essentially drained
+Clean, autonomously-mergeable backend work is mostly done. Remaining open issues are **frontend** (need Daniel's visual review) or **design-gated** (need Daniel's decisions): #1552/#1553/#1563/#1564/#1565 (KG/library interactions), #1559 (Activity window — 3 open Qs), #1567/#1568/#1569/#1455 (viewer/map/3D layout), #1474/#1476/#1472/#1445, and #1570 Phase 1 follow-ups (curated-items canvas pane, class-driven table columns / map shape+colour / outline grouping).
 
 ### Next session — start here
-1. `cd ~/code/fichero && git pull --ff-only origin main`.
-2. **Daniel rebuilds the Swift app (⌘R)** for the #1561 crash fix; re-run a catalogue to see per-page entities (#1562 backend).
-3. **Continue hard foundation in order:** #1554 (ingest race) → #1562 frontend → **#1570 Phase 1** (node-class registry on workspace items; reuse the #874 entity-type-registry pattern; god-nodes untouched).
-4. **Gotcha:** subagents can hit session limits mid-task — their worktree changes stay intact; salvage + gate + merge, don't re-dispatch. Always `git merge --ff-only origin/main` after each merge (local main goes stale otherwise).
-5. Read `docs/architecture/thinking-layer.md` first — canonical design-of-record for the workspace/node-class build.
+1. `cd ~/code/fichero && git pull --ff-only origin main` (now `8175fa29`+).
+2. **Daniel:** rebuild Swift app (⌘R); **re-catalogue a folder/PDF** and select a single page/image → per-child entities should now show (#1562). Old data needs re-cataloguing.
+3. Check the **open image-cluster PR** (visual verify #1555/#1556/#1558) and the **#1566 plan comment**; approve/merge or send back.
+4. **#1570 Phase 1 FRONTEND** is the next foundation piece: class picker on workspace items + class-aware table columns / map shape+colour / outline grouping. Backend contract ready (PR #1579 body). Scope the workspace-items UI surface first (ResearchWorkspaceView / curated-items) before dispatching — it may be partial.
+5. **Manager hygiene:** Agent-tool worktrees leave `.claude/worktrees/agent-*` + local branches behind after `gh pr merge --delete-branch` fails (worktree holds the branch) — clean with `git worktree remove --force` then `git branch -D`. Always `git merge --ff-only origin/main` after each merge.
 
 ---
 
