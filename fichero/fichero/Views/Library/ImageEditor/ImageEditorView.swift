@@ -502,13 +502,19 @@ private extension ImageEditorView {
                         documentId: activeDocumentID
                     )
                 )
-                if model.isBusy {
-                    // Translucent overlay so the last image stays visible mid-op.
-                    Color.black.opacity(0.10).allowsHitTesting(false)
-                    ProgressView()
-                        .controlSize(.small)
-                        .allowsHitTesting(false)
-                }
+            }
+
+            // Busy overlay for any in-flight edit/load, in every compare mode
+            // (#1532). Translucent so the last image stays visible mid-op; the
+            // labelled spinner makes clear a potentially-slow op (remove-bg,
+            // despeckle, enhance) is actually running.
+            if model.isBusy {
+                Color.black.opacity(0.10).allowsHitTesting(false)
+                ProgressView("Working…")
+                    .controlSize(.small)
+                    .padding(10)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    .allowsHitTesting(false)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
