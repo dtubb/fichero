@@ -656,31 +656,53 @@ def _is_allowed_library_path(library_path: str) -> bool:
 
     Allowed roots:
     - ~/Documents
+    - ~/Desktop (iCloud-syncable, natural place for libraries)
     - ~/Dropbox
     - ~/Library/Application Support
+    - ~/Library/Mobile Documents/com~apple~CloudDocs — iCloud Drive AND
+      iCloud-synced Documents/Desktop physically live here
     - test temp dirs under /var/folders and /private/var/folders (macOS)
     - /tmp and /private/tmp — Linux CI and macOS sandbox pytest tmp_path
+
+    Symlink tolerance: when "Desktop & Documents in iCloud" is ON, ~/Documents
+    is a symlink into ~/Library/Mobile Documents/com~apple~CloudDocs/Documents.
+    Path.resolve() follows that symlink, moving the path outside the literal
+    ~/Documents root. We therefore test BOTH the resolved path and the
+    un-resolved (expanded) path against the allowed roots and allow if EITHER
+    is under an allowed root — so ~/Documents/... passes whether or not it is
+    symlinked into iCloud, and the iCloud root catches the resolved form.
     """
     try:
-        resolved = Path(library_path).expanduser().resolve()
+        expanded = Path(library_path).expanduser()
+        resolved = expanded.resolve()
     except Exception:
         return False
 
-    if resolved.suffix != ".fichero":
+    # Use the expanded (un-resolved) suffix so a symlinked or not-yet-created
+    # .fichero package still reads as a .fichero package.
+    if expanded.suffix != ".fichero":
         return False
 
     home = Path.home().resolve()
+    icloud = home / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
     allowed_roots = [
         home / "Documents",
+        home / "Desktop",
         home / "Dropbox",
         home / "Library" / "Application Support",
+        icloud,
         Path("/var/folders"),
         Path("/private/var/folders"),
         Path("/tmp"),
         Path("/private/tmp"),
     ]
 
-    return any(resolved.is_relative_to(root) for root in allowed_roots)
+    candidates = [resolved, expanded]
+    return any(
+        candidate.is_relative_to(root)
+        for candidate in candidates
+        for root in allowed_roots
+    )
 
 
 async def get_library_database(
