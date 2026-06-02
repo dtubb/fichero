@@ -430,13 +430,15 @@ private extension ImageEditorView {
                         let frame = fitted.offsetBy(dx: 12, dy: 12)
                         let split = max(0, min(1, compareSplit))
                         ZStack(alignment: .topLeading) {
-                            // Original underneath — full size
-                            Image(nsImage: original.image)
+                            // Edited underneath — full size (revealed on the right).
+                            Image(nsImage: edited.image)
                                 .resizable()
                                 .interpolation(.high)
                                 .frame(width: frame.width, height: frame.height)
-                            // Edited on top — clipped to left split portion via double-frame
-                            Image(nsImage: edited.image)
+                            // Original on top — clipped to the left split portion,
+                            // so left = Before (original), right = After (edited)
+                            // and the labels below read correctly (#1538).
+                            Image(nsImage: original.image)
                                 .resizable()
                                 .interpolation(.high)
                                 .frame(width: frame.width, height: frame.height)
