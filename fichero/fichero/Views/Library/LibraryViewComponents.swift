@@ -184,13 +184,11 @@ struct MailStyleRow: View {
                 )
                 .clipped()
             } else if document.fileType == .image,
-                      let path = document.path, !path.isEmpty,
-                      let nsImage = NSImage(contentsOfFile: path) {
-                // Load image directly from disk — avoids showing OCR text
-                // as a TextPreviewThumbnail when pageContent is non-empty (#1458).
-                Image(nsImage: nsImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
+                      let path = document.path, !path.isEmpty {
+                // Decode off the main thread (cached) — avoids scroll jank from
+                // synchronous NSImage(contentsOfFile:) in body (#1509). Still
+                // skips the OCR-text TextPreviewThumbnail branch for images (#1458).
+                LocalImageThumbnailView(path: path, documentId: document.id)
                     .frame(width: size.width, height: size.height)
                     .clipped()
             } else if let preview = document.pageContent, !preview.isEmpty {
@@ -324,13 +322,11 @@ struct DocumentThumbnailView: View {
                     )
                     .clipped()
                 } else if document.fileType == .image,
-                          let path = document.path, !path.isEmpty,
-                          let nsImage = NSImage(contentsOfFile: path) {
-                    // Load image directly from disk — avoids the TextPreviewThumbnail
-                    // branch showing OCR text when pageContent is non-empty (#1458).
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
+                          let path = document.path, !path.isEmpty {
+                    // Decode off the main thread (cached) — avoids scroll jank
+                    // from synchronous NSImage(contentsOfFile:) in body (#1509).
+                    // Still skips the OCR-text TextPreviewThumbnail branch (#1458).
+                    LocalImageThumbnailView(path: path, documentId: document.id)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
                 } else if let preview = document.pageContent, !preview.isEmpty {

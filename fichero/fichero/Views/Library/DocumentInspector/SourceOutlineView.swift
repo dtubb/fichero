@@ -81,7 +81,8 @@ struct SourceOutlineView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: 4)
-            if row.count > 0 {
+            // `row.count` is a numeric child-count badge, not a collection — empty_count is a false positive here.
+            if row.count > 0 {  // swiftlint:disable:this empty_count
                 Text("\(row.count)")
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)

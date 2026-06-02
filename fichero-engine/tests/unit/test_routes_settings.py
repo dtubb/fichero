@@ -48,8 +48,8 @@ class TestSetAIDefaults:
             "small_model": "apple-intelligence",
             "medium_provider": "openrouter",
             "medium_model": "openai/gpt-4o-mini",
-            "large_provider": "openrouter",
-            "large_model": "openrouter/free",
+            "large_provider": "apple",
+            "large_model": "apple-intelligence",
             "temperature": "0.7",
             "max_tokens": "1000",
             "prompt_prefix": "",
@@ -74,8 +74,8 @@ class TestSetAIDefaults:
             "small_model": "apple-intelligence",
             "medium_provider": "openrouter",
             "medium_model": "openai/gpt-4o-mini",
-            "large_provider": "openrouter",
-            "large_model": "openrouter/free",
+            "large_provider": "apple",
+            "large_model": "apple-intelligence",
             "temperature": "",
             "max_tokens": "",
             "prompt_prefix": "",
@@ -92,8 +92,8 @@ class TestSetAIDefaults:
         assert data["small_model"] == "apple-intelligence"
         assert data["medium_provider"] == "openrouter"
         assert data["medium_model"] == "openai/gpt-4o-mini"
-        assert data["large_provider"] == "openrouter"
-        assert data["large_model"] == "openrouter/free"
+        assert data["large_provider"] == "apple"
+        assert data["large_model"] == "apple-intelligence"
 
     def test_empty_values_clear_setting(self, client):
         # Set then clear
@@ -105,7 +105,7 @@ class TestSetAIDefaults:
             "embeddings_provider": "", "embeddings_model": "",
             "small_provider": "apple", "small_model": "apple-intelligence",
             "medium_provider": "openrouter", "medium_model": "openai/gpt-4o-mini",
-            "large_provider": "openrouter", "large_model": "openrouter/free",
+            "large_provider": "apple", "large_model": "apple-intelligence",
             "temperature": "", "max_tokens": "",
             "prompt_prefix": "",
         }
@@ -121,8 +121,8 @@ class TestSetAIDefaults:
         assert data["small_model"] == "apple-intelligence"
         assert data["medium_provider"] == "openrouter"
         assert data["medium_model"] == "openai/gpt-4o-mini"
-        assert data["large_provider"] == "openrouter"
-        assert data["large_model"] == "openrouter/free"
+        assert data["large_provider"] == "apple"
+        assert data["large_model"] == "apple-intelligence"
 
 
 class TestResetAIDefaults:

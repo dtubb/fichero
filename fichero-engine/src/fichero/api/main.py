@@ -280,6 +280,7 @@ def _seed_builtin_providers() -> None:
             # configuration. Apple Intelligence is the natural pick on
             # macOS 26+ Apple Silicon (free, on-device, always available).
             _ensure_default_ai_defaults(app_db, apple_provider.id)
+            _repair_known_bad_ai_defaults(app_db)
     except Exception as exc:
         logger.warning("Could not seed built-in providers: %s", exc)
 
@@ -327,6 +328,19 @@ def _ensure_default_ai_defaults(app_db, apple_provider_id: str) -> None:
             "Seeded Apple Intelligence as default for %d AI tier keys: %s",
             len(written),
             ", ".join(written),
+        )
+
+
+def _repair_known_bad_ai_defaults(app_db) -> None:
+    """Repair stale tier defaults from older broken seeds."""
+    large_provider = app_db.get_setting("default_large_provider")
+    large_model = app_db.get_setting("default_large_model")
+    if large_provider == "openrouter" and large_model == "openrouter/free":
+        app_db.set_setting("default_large_provider", "apple")
+        app_db.set_setting("default_large_model", "apple-intelligence")
+        logger.warning(
+            "Repaired stale AI default $large from openrouter/openrouter/free "
+            "to apple/apple-intelligence."
         )
 
 

@@ -1,6 +1,7 @@
 @testable import Fichero
 import XCTest
 
+@MainActor
 final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testVisibleItemsCapsWhenCollapsed() {
@@ -26,24 +27,9 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         )
     }
 
-    func testFetchButtonHelpersExposeExpectedLabelsAndIcons() {
-        XCTAssertEqual(
-            KnowledgeGraphInspectorSection.fetchButtonHelp(for: .statements),
-            "Get statements"
-        )
-        XCTAssertEqual(
-            KnowledgeGraphInspectorSection.fetchButtonHelp(for: .artifacts),
-            "Get artifacts"
-        )
-        XCTAssertEqual(
-            KnowledgeGraphInspectorSection.fetchButtonIcon(for: .statements),
-            "quote.bubble"
-        )
-        XCTAssertEqual(
-            KnowledgeGraphInspectorSection.fetchButtonIcon(for: .artifacts),
-            "shippingbox"
-        )
-    }
+    // testFetchButtonHelpersExposeExpectedLabelsAndIcons removed: the
+    // KnowledgeGraphInspectorSection.fetchButtonHelp(for:)/fetchButtonIcon(for:)
+    // helpers no longer exist in production, so the test no longer compiles.
 
     func testArtifactsTabIncludesPageArtifactsForParentPDFOnly() {
         let parentPDF = makeDocument(docType: .file, fileType: .pdf)

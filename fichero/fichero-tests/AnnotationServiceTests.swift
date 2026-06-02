@@ -1,6 +1,7 @@
 @testable import Fichero
 import XCTest
 
+@MainActor
 final class AnnotationServiceTests: XCTestCase {
 
     func testMatchesSearchByText() {

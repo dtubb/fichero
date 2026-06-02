@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from fichero.app_db import AppDatabase
+from fichero.api.main import _repair_known_bad_ai_defaults
 from fichero.models import Provider, Model
 from fichero.providers import ProviderType
 
@@ -65,6 +66,16 @@ class TestResetAIDefaults:
             assert defaults.get(f"default_{tier}_model") == "apple-intelligence"
         assert defaults["default_medium_provider"] == "openrouter"
         assert defaults["default_medium_model"] == "openai/gpt-4o-mini"
+
+    def test_repair_known_bad_large_default_rewrites_openrouter_free(self, app_db):
+        app_db.set_setting("default_large_provider", "openrouter")
+        app_db.set_setting("default_large_model", "openrouter/free")
+
+        _repair_known_bad_ai_defaults(app_db)
+
+        defaults = app_db.get_ai_defaults()
+        assert defaults["default_large_provider"] == "apple"
+        assert defaults["default_large_model"] == "apple-intelligence"
 
     def test_reset_does_not_touch_providers(self, app_db):
         """The #933 scope guarantee: Reset Defaults must leave the

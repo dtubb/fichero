@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import AppKit
 @testable import Fichero
 import Foundation
@@ -616,5 +617,80 @@ struct FindBarSelectorTests {
         // ShowFindBarButton sets menuItem.tag = .showFindPanel.rawValue. If
         // Apple ever renumbered these, the find action would silently break.
         #expect(AppKit.NSFindPanelAction.showFindPanel.rawValue == 1)
+    }
+}
+
+// MARK: - ArtifactRichTextCodec Tests (#710)
+
+struct ArtifactRichTextCodecTests {
+
+    private func bold(_ string: String) -> NSAttributedString {
+        let font = NSFont.boldSystemFont(ofSize: 13)
+        return NSAttributedString(string: string, attributes: [.font: font])
+    }
+
+    @Test("Plain text encodes to a plain string (no RTF wrapper)")
+    func plainTextEncodesPlain() {
+        let attr = NSAttributedString(string: "Hello world")
+        let encoded = ArtifactRichTextCodec.encode(attr)
+        #expect(encoded == "Hello world")
+        #expect(!encoded.hasPrefix("{\\rtf"))
+    }
+
+    @Test("Bold attribute encodes to RTF source containing \\b")
+    func boldEncodesToRTF() {
+        let encoded = ArtifactRichTextCodec.encode(bold("Bold text"))
+        #expect(encoded.hasPrefix("{\\rtf"))
+        #expect(encoded.contains("\\b"))
+    }
+
+    @Test("Custom paragraph style encodes to RTF preserving the style")
+    func paragraphStyleEncodesToRTF() {
+        let para = NSMutableParagraphStyle()
+        para.lineSpacing = 8
+        para.firstLineHeadIndent = 24
+        let attr = NSAttributedString(
+            string: "Indented spaced paragraph",
+            attributes: [.paragraphStyle: para]
+        )
+        let encoded = ArtifactRichTextCodec.encode(attr)
+        // A non-default paragraph style must NOT be dropped on save (ruler
+        // edits silently lost before #710's predecessor fix).
+        #expect(encoded.hasPrefix("{\\rtf"))
+
+        let decoded = ArtifactRichTextCodec.decode(encoded)
+        var decodedRange = NSRange(location: 0, length: 0)
+        let decodedPara = decoded.attribute(
+            .paragraphStyle, at: 0, effectiveRange: &decodedRange
+        ) as? NSParagraphStyle
+        #expect(decodedPara?.lineSpacing == 8)
+        #expect(decodedPara?.firstLineHeadIndent == 24)
+    }
+
+    @Test("Decode of plain (non-RTF) content yields a plain attributed string")
+    func decodePlain() {
+        let decoded = ArtifactRichTextCodec.decode("just text")
+        #expect(decoded.string == "just text")
+    }
+
+    @Test("Bold round-trips: encode then decode preserves the bold trait")
+    func boldRoundTrips() {
+        let original = bold("Round trip")
+        let decoded = ArtifactRichTextCodec.decode(ArtifactRichTextCodec.encode(original))
+        #expect(decoded.string == "Round trip")
+
+        var range = NSRange(location: 0, length: 0)
+        let font = decoded.attribute(.font, at: 0, effectiveRange: &range) as? NSFont
+        let traits = font.map {
+            NSFontManager.shared.traits(of: $0)
+        } ?? []
+        #expect(traits.contains(.boldFontMask))
+    }
+
+    @Test("Plain text round-trips unchanged")
+    func plainRoundTrips() {
+        let encoded = ArtifactRichTextCodec.encode(NSAttributedString(string: "abc 123"))
+        let decoded = ArtifactRichTextCodec.decode(encoded)
+        #expect(decoded.string == "abc 123")
     }
 }
