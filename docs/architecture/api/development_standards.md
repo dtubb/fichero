@@ -19,6 +19,25 @@
 - **LanceDB**: Use for vector search and semantic operations
 - **Transactions**: Use proper transaction management for data consistency
 
+### Real-Data Library Discipline
+
+Daniel is using real libraries in `~/Documents/Fichero` and iCloud-synced
+`.fichero` packages. Treat every local DuckDB file as user data:
+
+- **Never nuke or recreate a library database** to fix a schema or index issue.
+- **Structural changes go through `db_migrations.py`** when existing libraries
+  need table rewrites, backfills, index drops/rebuilds, or other durable state
+  changes.
+- **Pydantic model fields still define the fresh-database shape**, but existing
+  real libraries need an idempotent compatibility path. `_ensure_table()` handles
+  additive columns; non-additive changes belong in a migration.
+- **Secondary DuckDB indexes are performance aids, not data contracts.** If an
+  index becomes unsafe under real write churn, drop/rebuild the index rather than
+  touching user rows.
+- **Regression tests for storage bugs should use persistent on-disk DuckDB
+  files**, not only `:memory:`, because WAL replay, index maintenance, and
+  multi-connection behavior differ on disk.
+
 ## Testing Standards
 
 ### Unit Testing
@@ -278,4 +297,3 @@ when the provider returned `usage_metadata`.
 The runner integration (writing the bucket into Activity.metadata at
 node-end) is the final wiring step — landing it requires the runner
 to set up a per-node collector around each LangGraph tool call.
-
