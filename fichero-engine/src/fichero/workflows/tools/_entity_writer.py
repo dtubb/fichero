@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
+from functools import wraps
 from typing import Optional
 
 from fichero.db import Database
@@ -37,6 +39,18 @@ from fichero.knowledge_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+_ENTITY_UPSERT_LOCK = threading.RLock()
+
+
+def _serialized_entity_upsert(func):
+    """Run KnowledgeEntity dedup/update work through one process-local lane."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        with _ENTITY_UPSERT_LOCK:
+            return func(*args, **kwargs)
+
+    return wrapper
 
 
 # Admin-subdivision qualifier vocabulary (#1114 issue 2)
@@ -755,6 +769,7 @@ def _record_source_page(
     db.save(entity)
 
 
+@_serialized_entity_upsert
 def upsert_entity(
     db: Database,
     canonical_name: str,

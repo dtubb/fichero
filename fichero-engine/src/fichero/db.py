@@ -364,7 +364,7 @@ class Database(DatabaseEmbeddingMixin):
 
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
-        self.conn = duckdb.connect(str(path))
+        self.conn = self._connect()
         self.duck = self.conn  # Alias used by ActionStore and other direct SQL callers
         self._lance_path = path.parent / "vectors"
         self._lance_db = None  # Lazy init
@@ -390,6 +390,55 @@ class Database(DatabaseEmbeddingMixin):
         migrate_library_entity_types_table(self.conn)
         migrate_references_table(self.conn)
         migrate_reference_provenance_table(self.conn)
+
+    def _connect(self) -> duckdb.DuckDBPyConnection:
+        """Open a DuckDB connection for this library path."""
+        return duckdb.connect(str(self.path))
+
+    @staticmethod
+    def _is_invalidated_error(exc: Exception) -> bool:
+        message = str(exc).lower()
+        return "database has been invalidated" in message
+
+    def _reconnect_after_invalidated(self) -> None:
+        """Replace a DuckDB connection poisoned by a prior FatalException."""
+        try:
+            self.conn.close()
+        except Exception:
+            pass
+        self.conn = self._connect()
+        self.duck = self.conn
+        # Table/index setup may not have run on the fresh connection in this
+        # process. Force the next _ensure_table call to reconcile schema and
+        # drop unsafe indexes again.
+        self._tables_created.clear()
+        try:
+            from fichero.db_migrations import migrate_knowledge_indices
+
+            migrate_knowledge_indices(self.conn)
+        except Exception as exc:
+            logger.warning(
+                "Knowledge index reconciliation after reconnect failed: %s",
+                exc,
+            )
+
+    def _execute(self, sql: str, params: Any | None = None):
+        """Execute SQL, reopening once if DuckDB invalidated this connection."""
+        try:
+            if params is None:
+                return self.conn.execute(sql)
+            return self.conn.execute(sql, params)
+        except duckdb.Error as exc:
+            if not self._is_invalidated_error(exc):
+                raise
+            logger.warning(
+                "DuckDB connection for %s was invalidated; reopening and retrying",
+                self.path,
+            )
+            self._reconnect_after_invalidated()
+            if params is None:
+                return self.conn.execute(sql)
+            return self.conn.execute(sql, params)
 
     # =========================================================================
     # Core CRUD Operations
@@ -483,7 +532,7 @@ class Database(DatabaseEmbeddingMixin):
                 f"ON CONFLICT (id) DO NOTHING"
             )
 
-        self.conn.execute(sql, data)
+        self._execute(sql, data)
 
         # Auto-embed if requested and has content
         if auto_embed and hasattr(obj, "page_content") and obj.page_content:
@@ -494,7 +543,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
-        result = self.conn.execute(
+        result = self._execute(
             f"SELECT * FROM {sql_table} WHERE id = $id", {"id": id}
         ).fetchone()
 
@@ -510,7 +559,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
-        rows = self.conn.execute(f"SELECT * FROM {sql_table}").fetchall()
+        rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
 
         if not rows:
             return []
@@ -551,7 +600,7 @@ class Database(DatabaseEmbeddingMixin):
                 where_clauses.append(f"{k} = ${k}")
 
         where = " AND ".join(where_clauses)
-        rows = self.conn.execute(
+        rows = self._execute(
             f"SELECT * FROM {sql_table} WHERE {where}", query_filters
         ).fetchall()
 
@@ -569,7 +618,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(obj)
         self._ensure_table(type(obj))
 
-        self.conn.execute(f"DELETE FROM {sql_table} WHERE id = $id", {"id": obj.id})
+        self._execute(f"DELETE FROM {sql_table} WHERE id = $id", {"id": obj.id})
 
     def count(self, model: Type[T], **filters) -> int:
         """Count objects matching filters."""
@@ -577,7 +626,7 @@ class Database(DatabaseEmbeddingMixin):
         self._ensure_table(model)
 
         if not filters:
-            result = self.conn.execute(f"SELECT COUNT(*) FROM {sql_table}").fetchone()
+            result = self._execute(f"SELECT COUNT(*) FROM {sql_table}").fetchone()
         else:
             # Validate column names to prevent SQL injection
             for k in filters.keys():
@@ -585,7 +634,7 @@ class Database(DatabaseEmbeddingMixin):
                     raise ValueError(f"Invalid column name: {k}")
 
             where = " AND ".join(f"{k} = ${k}" for k in filters.keys())
-            result = self.conn.execute(
+            result = self._execute(
                 f"SELECT COUNT(*) FROM {sql_table} WHERE {where}", filters
             ).fetchone()
 
@@ -1598,7 +1647,7 @@ class Database(DatabaseEmbeddingMixin):
             col_type = self._python_to_duckdb_type(field_info.annotation)
             columns.append(f"{name} {col_type}")
 
-        self.conn.execute(f"""
+        self._execute(f"""
             CREATE TABLE IF NOT EXISTS {sql_table} (
                 {", ".join(columns)},
                 PRIMARY KEY (id)
@@ -1616,7 +1665,7 @@ class Database(DatabaseEmbeddingMixin):
         # mechanism that makes the no-migration rule hold for existing DBs too.
         existing = {
             row[0]
-            for row in self.conn.execute(
+            for row in self._execute(
                 f"SELECT column_name FROM information_schema.columns "
                 f"WHERE table_name = '{table}'"
             ).fetchall()
@@ -1624,7 +1673,7 @@ class Database(DatabaseEmbeddingMixin):
         for name, field_info in model.model_fields.items():
             if name not in existing:
                 col_type = self._python_to_duckdb_type(field_info.annotation)
-                self.conn.execute(
+                self._execute(
                     f"ALTER TABLE {sql_table} ADD COLUMN {name} {col_type}"
                 )
 
