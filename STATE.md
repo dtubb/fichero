@@ -1,4 +1,25 @@
-## 2026-06-01 — ms/library-reading-surface SwiftUI session 2 (NEXT SESSION START HERE)
+## 2026-06-02 — Design lock-in + hard-foundation kickoff (NEXT SESSION START HERE)
+
+**Branch: `main` — all work merged via PR. Tree clean.** This session: Daniel live-tested the catalogue (tubb2020shift → Global library, 80 entities / 212 claims saved), a long design conversation locked the thinking-layer model, then we started the hard foundation.
+
+### Shipped this session (merged to main, gated)
+- **#1573 / #1562** — `KnowledgeEntity.source_document_ids`: entities now carry **native per-page scope** (accumulated idempotently across every `upsert_entity` return branch; parent aggregates via descendants). Pydantic field, no migration; OpenAPI regen'd. 3739 tests pass.
+- **#1574 / #1561** — inspector crash fixed: `DocumentTabView` forwards the shared `WorkflowExecutionObserver` into `ContentView` (the `.environmentObject` re-host had broken `@Environment(_.self)` propagation).
+- **Design locked in `docs/architecture/thinking-layer.md`** (PRs #1571/#1572): 5 workspace decisions + **node-class/prototype north star** (#1570) — *everything is a typed node*; `DocType`/`EntityType`/`NoteKind` collapse into one user-extensible class registry; Workspace + ResearchProject are both first-class container **nodes** in the tree, distinguished by class. Phased: #1570 Phase 1 (workspace items) → Phase 2 (god-nodes).
+
+### Issues filed this session: #1552–#1570
+Open P1s: **#1554** (folder-ingest thread race → drops image previews), and #1562 **frontend** read-side (page table must query the page id). Design-gated: #1559 (Activity window), #1567 (viewer layout), #1568 (node-map fill+layout+page-scope), #1569 (3D→view-modes), #1570 (node-class epic).
+
+### Next session — start here
+1. `cd ~/code/fichero && git pull --ff-only origin main`.
+2. **Daniel rebuilds the Swift app (⌘R)** for the #1561 crash fix; re-run a catalogue to see per-page entities (#1562 backend).
+3. **Continue hard foundation in order:** #1554 (ingest race) → #1562 frontend → **#1570 Phase 1** (node-class registry on workspace items; reuse the #874 entity-type-registry pattern; god-nodes untouched).
+4. **Gotcha:** subagents can hit session limits mid-task — their worktree changes stay intact; salvage + gate + merge, don't re-dispatch. Always `git merge --ff-only origin/main` after each merge (local main goes stale otherwise).
+5. Read `docs/architecture/thinking-layer.md` first — canonical design-of-record for the workspace/node-class build.
+
+---
+
+## 2026-06-01 — ms/library-reading-surface SwiftUI session 2
 
 **Branch: `ms/library-reading-surface` — head at `de88e2fa` (57+ commits ahead of main)**
 

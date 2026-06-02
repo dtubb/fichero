@@ -2475,3 +2475,12 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - Fixed #1458: added fileType==.image early branch in MailStyleRow + DocumentThumbnailView to load images from disk before pageContent check (commit de88e2fa)
 - Fixed #1473: entity filter menu hidden in non-list modes where lozenges don't render (commit de88e2fa)
 - Fixed #1481: WebKit ::selection CSS now bridges NSColor.selectedTextBackgroundColor for macOS-native selection highlight (commit de88e2fa)
+
+## 2026-06-02 — Session Summary (catalogue testing + design lock-in + hard-foundation kickoff)
+
+- Daniel live-tested the catalogue: tubb2020shift → Global library, **80 entities / 212 claims** saved with page/excerpt grounding (Apple Intelligence on-device, $0; mislabel bug #1560 filed — "PAID" log on the free apple fallback).
+- Resolved the Application Support split-brain confirmed fixed (single `Fichero/` dir; removed empty `com.fichero.fichero` stub); explained `library.duckdb` is empty legacy cruft recreated by default `Database()` callers.
+- **Filed #1552–#1570** (bugs + features + epics): swipe-nav (#1552), PDF-filename-in-list (#1553), folder-ingest thread race P1 (#1554), image-toolbar height/alignment (#1555/#1556), onboarding-review (#1557), compare-square (#1558), standalone Activity window (#1559), paid-mislabel (#1560), inspector crash (#1561), per-page entity persistence (#1562), node-map nav (#1563), annotation jump+highlight (#1564), SVO→source-claim inline (#1565), debug/replay runs (#1566), doc-viewer layout (#1567), node-map fill+layout+page-scope (#1568), 3D→view-modes/retire Mind Palace (#1569), node-class epic (#1570).
+- **Locked the thinking-layer design** (`docs/architecture/thinking-layer.md`, PRs #1571/#1572): 5 workspace decisions + node-class/prototype north star (everything is a typed node; one class registry; Workspace + ResearchProject as tree nodes by class). Phased in #1570.
+- **Shipped hard foundation (gated, merged):** #1573/#1562 — `KnowledgeEntity.source_document_ids` native per-page scope (3739 tests pass); #1574/#1561 — inspector crash fixed (DocumentTabView forwards WorkflowExecutionObserver).
+- Cleaned 12 inactive agent worktrees; salvaged a session-limited subagent's #1562 work rather than re-dispatching.
