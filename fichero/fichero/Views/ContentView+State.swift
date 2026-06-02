@@ -14,19 +14,12 @@ extension ContentView {
         let viewName: String
         switch viewMode {
         case .library(let document):
-            let baseName = document?.name ?? "Library"
-            // For a PDF, append the page the user is currently reading so the
-            // window/tab title tracks scroll + page-flip. Reuses the page-focus
-            // signal from #1463 (pageFocusDocument) rather than a parallel
-            // tracker, and the page-child count for the "of M" total. (#1482)
-            if let page = pageFocusDocument, page.docType == .page, let seq = page.sequence {
-                let total = pdfDocPages.count
-                viewName = total > 0
-                    ? "\(baseName) — Page \(seq) of \(total)"
-                    : "\(baseName) — Page \(seq)"
-            } else {
-                viewName = baseName
-            }
+            // Window/tab title shows only the document or library name. The
+            // current page ("4 / 31") is document-scoped, so it lives on the
+            // document toolbar over the canvas (PDFPageWithToolbar), not on the
+            // window chrome — keeping window back/forward (navigation history)
+            // and document page-flip on separate toolbars. (#1531, was #1482)
+            viewName = document?.name ?? "Library"
         case .search(let savedSearch):
             viewName = savedSearch?.name ?? "Search"
         case .chat(let conversation):

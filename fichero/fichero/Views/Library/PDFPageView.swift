@@ -24,6 +24,27 @@ final class PDFZoomController: ObservableObject {
     }
 }
 
+// MARK: - PDF Page Controller
+
+/// Bridges the SwiftUI document toolbar's page-navigation cluster (◀ N / M ▶)
+/// with PDFKit's AppKit `PDFView`, mirroring `PDFZoomController` for zoom. The
+/// page indicator is document-scoped, so it belongs on the canvas toolbar
+/// rather than the window toolbar. (#1531)
+@MainActor
+final class PDFPageController: ObservableObject {
+    /// 0-based index of the page PDFKit is currently showing.
+    @Published var pageIndex: Int = 0
+    /// Total page count of the loaded document (0 until a document loads).
+    @Published var pageCount: Int = 0
+    weak var pdfView: PDFView?
+
+    var canGoPrevious: Bool { pageIndex > 0 }
+    var canGoNext: Bool { pageIndex < pageCount - 1 }
+
+    func goToPrevious() { pdfView?.goToPreviousPage(nil) }
+    func goToNext() { pdfView?.goToNextPage(nil) }
+}
+
 // MARK: - PDFPageView
 
 /// Interactive PDF preview using PDFKit's `PDFView`.
@@ -45,6 +66,9 @@ struct PDFPageView: NSViewRepresentable {
     var onPageIndexChange: ((Int) -> Void)?
     /// Optional zoom controller — set by PDFPageWithToolbar to sync the toolbar.
     var zoomController: PDFZoomController?
+    /// Optional page controller — set by PDFPageWithToolbar so the document
+    /// toolbar's ◀ N/M ▶ cluster can drive and reflect the current page. (#1531)
+    var pageController: PDFPageController?
     var onCursorMoved: ((CGPoint) -> Void)?
 
     // MARK: - Loupe State
@@ -80,7 +104,9 @@ struct PDFPageView: NSViewRepresentable {
         view.delegate = context.coordinator
         context.coordinator.pdfView = view
         context.coordinator.zoomController = zoomController
+        context.coordinator.pageController = pageController
         zoomController?.pdfView = view
+        pageController?.pdfView = view
         NotificationCenter.default.addObserver(
             context.coordinator,
             selector: #selector(Coordinator.pageDidChange(_:)),
@@ -128,7 +154,9 @@ struct PDFPageView: NSViewRepresentable {
     func updateNSView(_ view: PDFView, context: Context) {
         context.coordinator.owner = self
         context.coordinator.zoomController = zoomController
+        context.coordinator.pageController = pageController
         zoomController?.pdfView = view
+        pageController?.pdfView = view
         loadAndNavigate(view)
     }
 
@@ -155,6 +183,16 @@ struct PDFPageView: NSViewRepresentable {
         if view.currentPage != page {
             view.go(to: page)
         }
+        // Sync the document toolbar's page cluster. Deferred to the next
+        // runloop tick so the @Published writes land after the current SwiftUI
+        // update pass commits (same reasoning as the scale observer). (#1531)
+        if let pageController {
+            let total = doc.pageCount
+            Task { @MainActor in
+                pageController.pageCount = total
+                pageController.pageIndex = pageIndex
+            }
+        }
     }
 
     /// Bridges AppKit notifications / delegate into the SwiftUI callback.
@@ -165,6 +203,7 @@ struct PDFPageView: NSViewRepresentable {
         var owner: PDFPageView
         weak var pdfView: PDFView?
         var zoomController: PDFZoomController?
+        var pageController: PDFPageController?
         // Accumulated horizontal translation for the current pan gesture.
         private var panAccumulated: CGFloat = 0
 
@@ -232,6 +271,15 @@ struct PDFPageView: NSViewRepresentable {
                   let page = view.currentPage,
                   let doc = view.document else { return }
             let index = doc.index(for: page)
+            // Keep the document toolbar's page cluster in sync on every flip,
+            // including pan/swipe turns the parent's pageIndex doesn't drive. (#1531)
+            if let pageController {
+                let total = doc.pageCount
+                Task { @MainActor in
+                    pageController.pageCount = total
+                    pageController.pageIndex = index
+                }
+            }
             guard index != owner.pageIndex else { return }
             // PDFKit can post PDFViewPageChanged while SwiftUI is updating
             // the representable. Defer the callback so ContentView updates

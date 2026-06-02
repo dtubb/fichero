@@ -14,6 +14,7 @@ struct PDFPageWithToolbar: View {
     var onPageIndexChange: ((Int) -> Void)?
 
     @StateObject private var zoom = PDFZoomController()
+    @StateObject private var pageNav = PDFPageController()
 
     // Loupe settings — same AppStorage keys as PDFPageView.Coordinator reads,
     // so both stay in sync automatically via shared UserDefaults storage.
@@ -42,6 +43,39 @@ struct PDFPageWithToolbar: View {
             // PDF preview header is the same 44pt height as the list mode rail,
             // image preview, knowledge surface, and inspector tab strip (#1228).
             MiniToolbar {
+                // Page-within-document navigation (◀ N / M ▶). Document-scoped,
+                // so it lives here on the canvas toolbar rather than the window
+                // toolbar. Only shown for multi-page documents. (#1531)
+                if pageNav.pageCount > 1 {
+                    Button {
+                        pageNav.goToPrevious()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!pageNav.canGoPrevious)
+                    .help("Previous Page")
+                    .accessibilityIdentifier("pdfPreviousPage")
+
+                    Text("\(pageNav.pageIndex + 1) / \(pageNav.pageCount)")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 48)
+
+                    Button {
+                        pageNav.goToNext()
+                    } label: {
+                        Image(systemName: "chevron.right")
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!pageNav.canGoNext)
+                    .help("Next Page")
+                    .accessibilityIdentifier("pdfNextPage")
+
+                    Divider().frame(height: 16)
+                }
+
                 Spacer(minLength: 0)
                 Button {
                     zoom.zoomOut()
@@ -130,6 +164,7 @@ struct PDFPageWithToolbar: View {
                     pageIndex: pageIndex,
                     onPageIndexChange: onPageIndexChange,
                     zoomController: zoom,
+                    pageController: pageNav,
                     onCursorMoved: { pos in loupePosition = pos }
                 )
 
