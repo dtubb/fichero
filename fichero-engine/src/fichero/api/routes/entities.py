@@ -339,9 +339,23 @@ async def list_entities(
         for c in doc_claims:
             entity_ids.update(c.entity_ids or [])
 
-        # Fetch those entities
+        # Fetch the claim-referenced entities.
         entities = [db.get(KnowledgeEntity, eid) for eid in entity_ids]
         entities = [e for e in entities if e is not None]
+
+        # #1562 — belt-and-suspenders union: also include entities whose
+        # own per-page scope (source_document_ids, recorded at upsert by
+        # _entity_writer) intersects the requested doc scope. This covers
+        # the case where an entity's CLAIMS carry the PARENT id (legacy /
+        # non-aggregate flow) but the entity itself was scoped to a page,
+        # so per-page table views still surface it. Dedup by entity id.
+        seen_ids = {e.id for e in entities}
+        for entity in db.all(KnowledgeEntity):
+            if entity.id in seen_ids:
+                continue
+            if doc_ids.intersection(entity.source_document_ids or []):
+                entities.append(entity)
+                seen_ids.add(entity.id)
     else:
         entities = (
             db.query(KnowledgeEntity, entity_type=entity_type)

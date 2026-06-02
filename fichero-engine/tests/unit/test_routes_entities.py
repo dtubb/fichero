@@ -147,6 +147,57 @@ class TestListEntities:
             "Louise Livingstone",
         }
 
+    def test_filter_by_page_honors_entity_source_document_ids(self, client, db):
+        """#1562 read-side — an entity scoped to a page via
+        ``source_document_ids`` surfaces for that page even when its
+        CLAIMS point at the PARENT doc (legacy / non-aggregate flow)."""
+        from datetime import datetime
+
+        from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+        from fichero.models import DocType, Document
+
+        parent = Document(name="Chapter.pdf", doc_type=DocType.file)
+        page1 = Document(name="page 1", doc_type=DocType.page, parent_id=parent.id)
+        page2 = Document(name="page 2", doc_type=DocType.page, parent_id=parent.id)
+        db.save(parent)
+        db.save(page1)
+        db.save(page2)
+
+        # Entity scoped to page1 via the merged write-side field, but its
+        # claim carries the PARENT id (the exact #1562 failure mode).
+        ada = KnowledgeEntity(
+            canonical_name="Ada Lovelace",
+            entity_type=EntityType.person,
+            aliases=[],
+            source_document_ids=[page1.id],
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        db.save(ada)
+        db.save(
+            KnowledgeClaim(
+                text="Ada appears.",
+                source_document_id=parent.id,
+                entity_ids=[ada.id],
+            )
+        )
+
+        # Querying page1 returns Ada (via source_document_ids union)...
+        r = client.get(f"/api/entities?document_id={page1.id}")
+        assert r.status_code == 200
+        assert {e["canonical_name"] for e in r.json()["items"]} == {"Ada Lovelace"}
+
+        # ...but page2 does NOT — Ada was never scoped to it.
+        r = client.get(f"/api/entities?document_id={page2.id}")
+        assert r.status_code == 200
+        assert {e["canonical_name"] for e in r.json()["items"]} == set()
+
+        # The parent query still returns the compiled (union) set: the
+        # parent-scoped claim already references Ada.
+        r = client.get(f"/api/entities?document_id={parent.id}")
+        assert r.status_code == 200
+        assert {e["canonical_name"] for e in r.json()["items"]} == {"Ada Lovelace"}
+
     def test_default_list_hides_bare_dates_but_search_can_find_them(self, client, db):
         _make_entity(db, "Alice", EntityType.person)
         _make_entity(db, "1960", EntityType.other)
