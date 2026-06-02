@@ -348,7 +348,7 @@ private extension ImageEditorView {
     private var editedBinding: Binding<Bool> {
         Binding(
             get: { model.showEdited },
-            set: { newValue in if newValue != model.showEdited { model.toggleEdited() } }
+            set: { newValue in if newValue != model.showEdited { model.setShowEdited(newValue) } }
         )
     }
 
