@@ -1942,6 +1942,17 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-workspaces")
+    def documents_list_workspaces_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Workspaces (GET /api/documents/workspaces)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/documents/workspaces"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("delete")
     def documents_delete_delete(
         ctx: typer.Context,

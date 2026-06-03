@@ -312,6 +312,20 @@ async def list_roots(db: Database = Depends(get_library_database)) -> DocumentLi
     return DocumentListResponse(items=items, count=len(items))
 
 
+@router.get("/workspaces")
+async def list_workspaces(
+    db: Database = Depends(get_library_database),
+) -> DocumentListResponse:
+    """List all workspace documents (is_workspace=True).
+
+    Surfaces curated-items workspaces so the UI can show a "Workspaces" section
+    and let the user open / create them (#1617). Declared before the `/{doc_id}`
+    route so the literal path isn't captured as a document id.
+    """
+    items = _ordered_by_sort_order(list(db.query(Document, is_workspace=True)))
+    return DocumentListResponse(items=items, count=len(items))
+
+
 @router.get("/{doc_id}")
 async def get_document(
     doc_id: str, db: Database = Depends(get_library_database)

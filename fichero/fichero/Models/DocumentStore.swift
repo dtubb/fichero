@@ -60,6 +60,10 @@ class DocumentStore: ObservableObject {
     /// In-memory only; clears on app restart.
     @Published var workflowStatusOverrides: [String: Status] = [:]
 
+    /// Workspace documents (is_workspace == true) — the curated-items
+    /// workspaces surfaced in the Research sidebar's Workspaces section (#1617).
+    @Published var workspaces: [Document] = []
+
     /// File paths whose per-file fanout slot has finished (the `fileComplete`
     /// SSE event arrived) but whose enclosing workflow is still running
     /// reduce-phase nodes that further touch the page (extract_all, etc.).
