@@ -54,4 +54,3 @@ def test_system_prompt_override_can_be_enabled(monkeypatch):
     )
 
     assert prompt == "Use this validated dev profile."
-

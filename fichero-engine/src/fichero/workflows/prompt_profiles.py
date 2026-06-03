@@ -112,4 +112,3 @@ def resolve_system_prompt(tool_name: str, inputs: dict[str, Any]) -> str | None:
     if profile is None:
         profile = default_prompt_profile_for_tool(tool_name)
     return profile.render_system_prompt() if profile else None
-
