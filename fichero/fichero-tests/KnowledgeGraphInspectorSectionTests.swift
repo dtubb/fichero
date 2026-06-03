@@ -4,6 +4,15 @@ import XCTest
 @MainActor
 final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
+    private static func appSource(_ relativePath: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
     func testVisibleItemsCapsWhenCollapsed() {
         let items = (1...12).map(String.init)
 
@@ -25,6 +34,22 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertNil(
             KnowledgeGraphInspectorSection.showAllButtonTitle(itemCount: 10, showingAll: false)
         )
+    }
+
+    func testWebPaneEntitySelectionDoesNotOpenSourceDocument() throws {
+        let source = try Self.appSource("Views/Library/DocumentKGWebPane.swift")
+        guard let entityCase = source.range(of: "case \"entitySelected\":"),
+              let claimCase = source.range(of: "case \"claimSelected\":", range: entityCase.upperBound..<source.endIndex)
+        else {
+            XCTFail("DocumentKGWebPane must handle entitySelected before claimSelected")
+            return
+        }
+
+        let entityHandler = String(source[entityCase.lowerBound..<claimCase.lowerBound])
+        XCTAssertTrue(entityHandler.contains("focusEntity(entityId: entityId)"))
+        XCTAssertFalse(entityHandler.contains("focusKGSource("))
+        XCTAssertFalse(entityHandler.contains("postOpenClaimSource("))
+        XCTAssertFalse(entityHandler.contains("sourceDocumentId"))
     }
 
     // testFetchButtonHelpersExposeExpectedLabelsAndIcons removed: the

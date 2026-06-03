@@ -339,12 +339,9 @@ struct DocumentKGWebPane: NSViewRepresentable {
             switch kind {
             case "entitySelected":
                 guard let entityId = body["entityId"] as? String else { return }
-                focusKGSource(
-                    documentId: body["sourceDocumentId"] as? String,
-                    entityId: entityId,
-                    claimId: body["claimId"] as? String,
-                    body: body
-                )
+                Task { @MainActor in
+                    parent.kgFocusState.focusEntity(entityId: entityId)
+                }
             case "claimSelected":
                 guard let claimId = body["claimId"] as? String else { return }
                 focusKGSource(
