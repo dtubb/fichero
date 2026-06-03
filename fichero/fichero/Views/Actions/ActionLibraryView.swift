@@ -1,3 +1,4 @@
+import AppKit
 import OSLog
 import SwiftUI
 
@@ -8,6 +9,7 @@ struct ActionLibraryView: View {
     @State private var selectedCategory: String?
     @State private var selectedAction: ActionItem?
     @State private var showingCreateSheet = false
+    @State private var actionMessage: String?
 
     var filteredActions: [ActionItem] {
         var result = service.actions
@@ -50,6 +52,27 @@ struct ActionLibraryView: View {
             await service.loadActions()
             await service.loadCategories()
         }
+        .onChange(of: selectedCategory) { _, category in
+            guard let category else { return }
+            Task {
+                _ = await service.loadActions(category: category)
+            }
+        }
+        .alert(
+            "Action Library",
+            isPresented: Binding(
+                get: { actionMessage != nil },
+                set: { show in
+                    if !show {
+                        actionMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK") { actionMessage = nil }
+        } message: {
+            Text(actionMessage ?? "")
+        }
     }
 
     // MARK: - Sidebar
@@ -83,6 +106,12 @@ struct ActionLibraryView: View {
                     QuickAccessList(title: "Popular", fetchActions: { await service.loadPopularActions() })
                 } label: {
                     Label("Popular", systemImage: "star")
+                }
+
+                NavigationLink {
+                    QuickAccessList(title: "Recent", fetchActions: { await service.loadRecentActions() })
+                } label: {
+                    Label("Recent", systemImage: "clock")
                 }
             }
         }
@@ -119,6 +148,9 @@ struct ActionLibraryView: View {
                 List(filteredActions, selection: $selectedAction) { action in
                     ActionRowView(action: action)
                         .tag(action)
+                        .contextMenu {
+                            actionContextMenu(for: action)
+                        }
                 }
                 .listStyle(.inset)
             }
@@ -137,6 +169,138 @@ struct ActionLibraryView: View {
         case "communicate": return "envelope"
         case "logic": return "arrow.triangle.branch"
         default: return "square.stack.3d.up"
+        }
+    }
+
+    @ViewBuilder
+    private func actionContextMenu(for action: ActionItem) -> some View {
+        Button {
+            Task {
+                await service.recordUse(actionId: action.id)
+                actionMessage = "Recorded use for \(action.name)."
+            }
+        } label: {
+            Label("Use Action", systemImage: "play.fill")
+        }
+
+        Button {
+            exportAction(action)
+        } label: {
+            Label("Export JSON", systemImage: "square.and.arrow.up")
+        }
+
+        Button {
+            Task { await refreshAction(action) }
+        } label: {
+            Label("Refresh Details", systemImage: "arrow.clockwise")
+        }
+
+        if !action.isBuiltin {
+            Button {
+                Task { await updateActionMetadata(action) }
+            } label: {
+                Label("Save Metadata", systemImage: "checkmark.circle")
+            }
+        }
+
+        Divider()
+
+        Button {
+            Task { await createActionFromNode(action) }
+        } label: {
+            Label("Create From Node", systemImage: "square.and.arrow.down.on.square")
+        }
+
+        Button {
+            Task { await createCompositeAction(action) }
+        } label: {
+            Label("Create Composite", systemImage: "rectangle.connected.to.line.below")
+        }
+
+        if !action.isBuiltin {
+            Divider()
+
+            Button(role: .destructive) {
+                Task {
+                    try? await service.deleteAction(id: action.id)
+                }
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    private func exportAction(_ action: ActionItem) {
+        Task {
+            do {
+                let json = try await service.exportAction(id: action.id)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(json, forType: .string)
+                actionMessage = "Copied \(action.name) JSON to the clipboard."
+            } catch {
+                actionMessage = "Export failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func refreshAction(_ action: ActionItem) async {
+        do {
+            selectedAction = try await service.getAction(id: action.id)
+        } catch {
+            actionMessage = "Refresh failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func updateActionMetadata(_ action: ActionItem) async {
+        do {
+            selectedAction = try await service.updateAction(
+                id: action.id,
+                request: UpdateActionRequest(
+                    name: action.name,
+                    description: action.description,
+                    category: action.category,
+                    tags: action.tags,
+                    icon: action.icon
+                )
+            )
+            actionMessage = "Saved \(action.name)."
+        } catch {
+            actionMessage = "Update failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func createActionFromNode(_ action: ActionItem) async {
+        do {
+            _ = try await service.createActionFromNode(
+                CreateFromNodeActionRequest(
+                    name: "\(action.name) Node Action",
+                    node: action.nodeTemplate,
+                    description: action.description,
+                    category: action.category,
+                    tags: action.tags
+                )
+            )
+            actionMessage = "Created action from \(action.name)."
+        } catch {
+            actionMessage = "Create from node failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func createCompositeAction(_ action: ActionItem) async {
+        do {
+            _ = try await service.createCompositeAction(
+                CreateCompositeActionRequest(
+                    name: "\(action.name) Composite",
+                    nodes: action.nodes,
+                    edges: action.edges,
+                    description: action.description,
+                    category: action.category,
+                    tags: action.tags
+                )
+            )
+            actionMessage = "Created composite action from \(action.name)."
+        } catch {
+            actionMessage = "Create composite failed: \(error.localizedDescription)"
         }
     }
 }

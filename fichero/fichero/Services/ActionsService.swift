@@ -11,7 +11,24 @@ final class ActionsService: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
-    private let baseURL = "http://localhost:8765/api/actions"
+    private let engineBaseURL = "http://localhost:8765"
+
+    private enum Endpoint {
+        static let actions = "/api/actions"
+        static let builtin = "/api/actions/builtin"
+        static let categories = "/api/actions/categories"
+        static let category = "/api/actions/category/{category}"
+        static let composite = "/api/actions/composite"
+        static let custom = "/api/actions/custom"
+        static let fromNode = "/api/actions/from-node"
+        static let importAction = "/api/actions/import"
+        static let popular = "/api/actions/popular"
+        static let recent = "/api/actions/recent"
+        static let search = "/api/actions/search"
+        static let action = "/api/actions/{action_id}"
+        static let actionExport = "/api/actions/{action_id}/export"
+        static let actionUse = "/api/actions/{action_id}/use"
+    }
 
     /// Build a GET request that carries the engine Bearer token (#742).
     /// All callers used to use `URLSession.shared.data(from: url)`, which
@@ -22,6 +39,14 @@ final class ActionsService: ObservableObject {
         return request
     }
 
+    private func url(for endpoint: String, replacements: [String: String] = [:]) -> URL? {
+        var path = endpoint
+        for (placeholder, value) in replacements {
+            path = path.replacingOccurrences(of: "{\(placeholder)}", with: value)
+        }
+        return URL(string: "\(engineBaseURL)\(path)")
+    }
+
     // MARK: - List Actions
 
     func loadActions() async {
@@ -29,7 +54,7 @@ final class ActionsService: ObservableObject {
         error = nil
 
         do {
-            guard let url = URL(string: baseURL) else { throw ActionsError.invalidURL }
+            guard let url = url(for: Endpoint.actions) else { throw ActionsError.invalidURL }
             let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             actions = try JSONDecoder().decode([ActionItem].self, from: data)
             logger.info("Loaded \(self.actions.count) actions")
@@ -43,7 +68,7 @@ final class ActionsService: ObservableObject {
 
     func loadCategories() async {
         do {
-            guard let url = URL(string: "\(baseURL)/categories") else { return }
+            guard let url = url(for: Endpoint.categories) else { return }
             let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             let result = try JSONDecoder().decode(CategoriesResponse.self, from: data)
             categories = result.categories.map { $0.name }
@@ -54,7 +79,7 @@ final class ActionsService: ObservableObject {
 
     func loadBuiltinActions() async -> [ActionItem] {
         do {
-            guard let url = URL(string: "\(baseURL)/builtin") else { return [] }
+            guard let url = url(for: Endpoint.builtin) else { return [] }
             let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             return try JSONDecoder().decode([ActionItem].self, from: data)
         } catch {
@@ -64,7 +89,30 @@ final class ActionsService: ObservableObject {
 
     func loadCustomActions() async -> [ActionItem] {
         do {
-            guard let url = URL(string: "\(baseURL)/custom") else { return [] }
+            guard let url = url(for: Endpoint.custom) else { return [] }
+            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
+            return try JSONDecoder().decode([ActionItem].self, from: data)
+        } catch {
+            return []
+        }
+    }
+
+    func loadActions(category: String) async -> [ActionItem] {
+        do {
+            guard let url = url(for: Endpoint.category, replacements: ["category": category]) else { return [] }
+            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
+            return try JSONDecoder().decode([ActionItem].self, from: data)
+        } catch {
+            return []
+        }
+    }
+
+    func loadRecentActions(limit: Int = 10) async -> [ActionItem] {
+        do {
+            guard var components = url(for: Endpoint.recent).flatMap({ URLComponents(url: $0, resolvingAgainstBaseURL: false) })
+            else { return [] }
+            components.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+            guard let url = components.url else { return [] }
             let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             return try JSONDecoder().decode([ActionItem].self, from: data)
         } catch {
@@ -74,7 +122,10 @@ final class ActionsService: ObservableObject {
 
     func loadPopularActions(limit: Int = 10) async -> [ActionItem] {
         do {
-            guard let url = URL(string: "\(baseURL)/popular?limit=\(limit)") else { return [] }
+            guard var components = url(for: Endpoint.popular).flatMap({ URLComponents(url: $0, resolvingAgainstBaseURL: false) })
+            else { return [] }
+            components.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+            guard let url = components.url else { return [] }
             let (data, _) = try await URLSession.shared.data(for: authedGet(url))
             return try JSONDecoder().decode([ActionItem].self, from: data)
         } catch {
@@ -85,7 +136,7 @@ final class ActionsService: ObservableObject {
     // MARK: - Search
 
     func searchActions(query: String?, category: String? = nil, tags: [String]? = nil) async -> [ActionItem] {
-        var components = URLComponents(string: "\(baseURL)/search")
+        var components = url(for: Endpoint.search).flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
         var queryItems: [URLQueryItem] = []
 
         if let query = query, !query.isEmpty {
@@ -112,13 +163,13 @@ final class ActionsService: ObservableObject {
     // MARK: - CRUD
 
     func getAction(id: String) async throws -> ActionItem {
-        guard let url = URL(string: "\(baseURL)/\(id)") else { throw ActionsError.invalidURL }
+        guard let url = url(for: Endpoint.action, replacements: ["action_id": id]) else { throw ActionsError.invalidURL }
         let (data, _) = try await URLSession.shared.data(for: authedGet(url))
         return try JSONDecoder().decode(ActionItem.self, from: data)
     }
 
     func createAction(_ request: CreateActionRequest) async throws -> ActionItem {
-        guard let url = URL(string: baseURL) else { throw ActionsError.invalidURL }
+        guard let url = url(for: Endpoint.actions) else { throw ActionsError.invalidURL }
 
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
@@ -133,7 +184,7 @@ final class ActionsService: ObservableObject {
     }
 
     func deleteAction(id: String) async throws {
-        guard let url = URL(string: "\(baseURL)/\(id)") else { throw ActionsError.invalidURL }
+        guard let url = url(for: Endpoint.action, replacements: ["action_id": id]) else { throw ActionsError.invalidURL }
 
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
@@ -148,7 +199,7 @@ final class ActionsService: ObservableObject {
     }
 
     func recordUse(actionId: String) async {
-        guard let url = URL(string: "\(baseURL)/\(actionId)/use") else { return }
+        guard let url = url(for: Endpoint.actionUse, replacements: ["action_id": actionId]) else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -160,14 +211,16 @@ final class ActionsService: ObservableObject {
     // MARK: - Import/Export
 
     func exportAction(id: String) async throws -> String {
-        guard let url = URL(string: "\(baseURL)/\(id)/export") else { throw ActionsError.invalidURL }
+        guard let url = url(for: Endpoint.actionExport, replacements: ["action_id": id]) else {
+            throw ActionsError.invalidURL
+        }
         let (data, _) = try await URLSession.shared.data(for: authedGet(url))
         let result = try JSONDecoder().decode([String: String].self, from: data)
         return result["json"] ?? ""
     }
 
     func importAction(json: String) async throws -> ActionItem {
-        guard let url = URL(string: "\(baseURL)/import") else { throw ActionsError.invalidURL }
+        guard let url = url(for: Endpoint.importAction) else { throw ActionsError.invalidURL }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -178,6 +231,44 @@ final class ActionsService: ObservableObject {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, _) = try await URLSession.shared.data(for: request)
+        let action = try JSONDecoder().decode(ActionItem.self, from: data)
+        await loadActions()
+        return action
+    }
+
+    func updateAction(id: String, request: UpdateActionRequest) async throws -> ActionItem {
+        guard let url = url(for: Endpoint.action, replacements: ["action_id": id]) else { throw ActionsError.invalidURL }
+
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "PUT"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.addEngineAuth()
+        urlRequest.httpBody = try JSONEncoder().encode(request)
+
+        let (data, _) = try await URLSession.shared.data(for: urlRequest)
+        let action = try JSONDecoder().decode(ActionItem.self, from: data)
+        await loadActions()
+        return action
+    }
+
+    func createActionFromNode(_ request: CreateFromNodeActionRequest) async throws -> ActionItem {
+        guard let url = url(for: Endpoint.fromNode) else { throw ActionsError.invalidURL }
+        return try await postAction(url: url, body: request)
+    }
+
+    func createCompositeAction(_ request: CreateCompositeActionRequest) async throws -> ActionItem {
+        guard let url = url(for: Endpoint.composite) else { throw ActionsError.invalidURL }
+        return try await postAction(url: url, body: request)
+    }
+
+    private func postAction<B: Encodable>(url: URL, body: B) async throws -> ActionItem {
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.addEngineAuth()
+        urlRequest.httpBody = try JSONEncoder().encode(body)
+
+        let (data, _) = try await URLSession.shared.data(for: urlRequest)
         let action = try JSONDecoder().decode(ActionItem.self, from: data)
         await loadActions()
         return action
@@ -254,6 +345,35 @@ struct CreateActionRequest: Encodable {
         try container.encode(icon, forKey: .icon)
         try container.encode(author, forKey: .author)
     }
+}
+
+struct UpdateActionRequest: Encodable {
+    var name: String?
+    var description: String?
+    var category: String?
+    var tags: [String]?
+    var icon: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name, description, category, tags, icon
+    }
+}
+
+struct CreateFromNodeActionRequest: Encodable {
+    let name: String
+    let node: [String: AnyCodable]
+    var description: String = ""
+    var category: String = "custom"
+    var tags: [String] = []
+}
+
+struct CreateCompositeActionRequest: Encodable {
+    let name: String
+    let nodes: [[String: AnyCodable]]
+    let edges: [[String: AnyCodable]]
+    var description: String = ""
+    var category: String = "custom"
+    var tags: [String] = []
 }
 
 struct CategoriesResponse: Codable {
