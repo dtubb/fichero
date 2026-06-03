@@ -131,6 +131,74 @@ struct ResearchSource: Codable, Identifiable, Hashable {
     }
 }
 
+// MARK: - Steps (executable search actions within a task)
+
+enum ResearchStepStatus: String, Codable, CaseIterable {
+    case pending, completed, failed, skipped
+    var label: String { rawValue.capitalized }
+}
+
+enum ResearchStepTool: String, Codable, CaseIterable {
+    case webSearch = "web_search"
+    case browserNavigate = "browser_navigate"
+    case documentFetch = "document_fetch"
+    case localSearch = "local_search"
+
+    var label: String {
+        switch self {
+        case .webSearch: return "Web Search"
+        case .browserNavigate: return "Browser"
+        case .documentFetch: return "Document Fetch"
+        case .localSearch: return "Local Search"
+        }
+    }
+}
+
+struct ResearchStep: Codable, Identifiable, Hashable {
+    let id: String
+    var taskId: String
+    var tool: ResearchStepTool
+    var label: String
+    var description: String
+    var status: ResearchStepStatus
+    var orderIndex: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id, tool, label, description, status
+        case taskId = "task_id"
+        case orderIndex = "order_index"
+    }
+}
+
+// MARK: - Checklists (verification items linked to a task or step)
+
+struct ChecklistItem: Codable, Identifiable, Hashable {
+    let id: String
+    var label: String
+    var checked: Bool
+    var notes: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, label, checked, notes
+    }
+}
+
+struct ResearchChecklist: Codable, Identifiable, Hashable {
+    let id: String
+    var projectId: String
+    var taskId: String?
+    var title: String
+    var items: [ChecklistItem]
+    var createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, items
+        case projectId = "project_id"
+        case taskId = "task_id"
+        case createdAt = "created_at"
+    }
+}
+
 // MARK: - Request / Response types for browser-save
 
 struct BrowserSaveRequest: Codable {
