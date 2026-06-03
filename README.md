@@ -71,6 +71,20 @@ PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 **Run the SwiftUI app:**
 Open `fichero/fichero.xcodeproj` in Xcode and run.
 
+To launch an already-built `.app` from the terminal, use the helper — **not**
+a direct exec of the binary:
+```bash
+scripts/launch-release.sh            # Release build
+scripts/launch-release.sh --debug    # Debug build
+```
+> **Debugging note (#760):** direct-exec'ing the binary
+> (`./fichero/build/xcode/Products/Release/Fichero.app/Contents/MacOS/Fichero &`)
+> from a terminal does **not** draw a window on macOS 26 — AppKit's scene
+> activation runs but nothing appears, and the embedded engine never spawns.
+> This is a known macOS behavior for GUI apps exec'd by a non-Aqua parent.
+> Launch through `open` (which the helper does) or via Finder/Spotlight/Dock.
+> App logs go to the unified log: `log stream --predicate 'process == "Fichero"'`.
+
 **Use the CLI (against a running backend):**
 ```bash
 fichero --help
