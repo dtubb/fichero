@@ -102,6 +102,57 @@ final class EntityTypeMappingTests: XCTestCase {
         }
     }
 
+    func testHermeneuticsEndpointsAreWired() throws {
+        let source = try Self.appSource("Services/ArtifactServiceGenerated.swift")
+        let requiredPaths = [
+            "/api/hermeneutics/circle-state",
+            "/api/hermeneutics/circle-state/\\(stateId)",
+            "/api/hermeneutics/circle-state/\\(stateId)/backtrack",
+            "/api/hermeneutics/circle-state/\\(stateId)/navigate",
+            "/api/hermeneutics/frameworks",
+            "/api/hermeneutics/frameworks/\\(frameworkId)",
+            "/api/hermeneutics/interpretations",
+            "/api/hermeneutics/interpretations/\\(interpretationId)",
+            "/api/hermeneutics/patterns",
+            "/api/hermeneutics/patterns/\\(patternId)",
+            "/api/hermeneutics/patterns/\\(patternId)/claims/\\(claimId)",
+            "/api/hermeneutics/suggestions",
+            "/api/hermeneutics/taxonomy/methods"
+        ]
+
+        for path in requiredPaths {
+            XCTAssertTrue(source.contains(path), "Missing endpoint wiring for \(path)")
+        }
+    }
+
+    func testHermeneuticsAllowlistEntriesWereRemoved() throws {
+        let allowlist = try Self.repoSource(
+            "fichero-engine/tests/contracts/ui_wiring_allowlist_swiftui.json"
+        )
+        let removedPaths = [
+            "/api/hermeneutics/circle-state",
+            "/api/hermeneutics/circle-state/{state_id}",
+            "/api/hermeneutics/circle-state/{state_id}/backtrack",
+            "/api/hermeneutics/circle-state/{state_id}/navigate",
+            "/api/hermeneutics/frameworks",
+            "/api/hermeneutics/frameworks/{framework_id}",
+            "/api/hermeneutics/interpretations",
+            "/api/hermeneutics/interpretations/{interpretation_id}",
+            "/api/hermeneutics/patterns",
+            "/api/hermeneutics/patterns/{pattern_id}",
+            "/api/hermeneutics/patterns/{pattern_id}/claims/{claim_id}",
+            "/api/hermeneutics/suggestions",
+            "/api/hermeneutics/taxonomy/methods"
+        ]
+
+        for path in removedPaths {
+            XCTAssertFalse(
+                allowlist.contains("\"\(path)\""),
+                "Endpoint should no longer be allowlisted: \(path)"
+            )
+        }
+    }
+
     // MARK: - Standard six types
 
     func testPeopleMaps() {

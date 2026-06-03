@@ -1941,6 +1941,125 @@ final class EntityServiceGenerated: ObservableObject {
         return try JSONDecoder().decode(Components.Schemas.Interpretation.self, from: data)
     }
 
+    // MARK: - Hermeneutics endpoint wiring (#1423)
+
+    func createCircleState(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/circle-state", method: "POST", jsonBody: body)
+    }
+
+    func listCircleStates(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/circle-state",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+        )
+    }
+
+    func getCircleState(_ stateId: String) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/circle-state/\(stateId)")
+    }
+
+    func backtrackCircleState(_ stateId: String, steps: Int = 1) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/circle-state/\(stateId)/backtrack",
+            method: "POST",
+            jsonBody: ["steps": steps]
+        )
+    }
+
+    func navigateCircleState(_ stateId: String, body: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/circle-state/\(stateId)/navigate",
+            method: "POST",
+            jsonBody: body
+        )
+    }
+
+    func createFramework(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/frameworks", method: "POST", jsonBody: body)
+    }
+
+    func getFramework(_ frameworkId: String) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/frameworks/\(frameworkId)")
+    }
+
+    func patchFramework(_ frameworkId: String, patch: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/frameworks/\(frameworkId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func deleteFramework(_ frameworkId: String) async throws {
+        _ = try await endpointData(path: "/api/hermeneutics/frameworks/\(frameworkId)", method: "DELETE")
+    }
+
+    func listInterpretations(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/interpretations",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+        )
+    }
+
+    func getInterpretation(_ interpretationId: String) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/interpretations/\(interpretationId)")
+    }
+
+    func patchInterpretation(_ interpretationId: String, patch: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/interpretations/\(interpretationId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func createPattern(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/patterns", method: "POST", jsonBody: body)
+    }
+
+    func listPatterns(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/patterns",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+        )
+    }
+
+    func getPattern(_ patternId: String) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/patterns/\(patternId)")
+    }
+
+    func patchPattern(_ patternId: String, patch: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/patterns/\(patternId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func addClaimToPattern(patternId: String, claimId: String) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/patterns/\(patternId)/claims/\(claimId)",
+            method: "POST"
+        )
+    }
+
+    func suggestInterpretations(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/suggestions", method: "POST", jsonBody: body)
+    }
+
+    func hermeneuticsTaxonomyMethods() async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/taxonomy/methods")
+    }
+
     private static func decodeSimilar(
         payload: OpenAPIRuntime.OpenAPIValueContainer
     ) -> SimilarClaim? {
