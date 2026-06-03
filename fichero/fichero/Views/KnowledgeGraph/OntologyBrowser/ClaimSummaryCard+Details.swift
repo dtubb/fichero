@@ -151,6 +151,19 @@ extension ClaimSummaryCard {
     @ViewBuilder
     var expandedDetailSection: some View {
         Divider()
+        if let claimText = cleanedDisplayText(claim.text) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Source claim")
+                    .font(tertiaryTextFont)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                Text(claimText)
+                    .font(secondaryTextFont)
+                    .foregroundStyle(.primary)
+                    .lineLimit(nil)
+                    .textSelection(.enabled)
+            }
+        }
         // Verbatim source quote — moved into the expanded drawer so the
         // collapsed card stays tight. Tapping the quote runs a library
         // text-search via the existing entity-lozenge pathway. (#979)

@@ -6,6 +6,15 @@ import XCTest
 @MainActor
 final class ClaimSummaryCardTests: XCTestCase {
 
+    private static func appSource(_ relativePath: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
     func testOpenClaimSourceUserInfoIncludesProvenanceFields() {
         let info = ClaimSummaryCard.openClaimSourceUserInfo(
             documentId: "doc-9",
@@ -37,6 +46,28 @@ final class ClaimSummaryCardTests: XCTestCase {
         )
 
         XCTAssertNil(info)
+    }
+
+    func testSvoChipActionsRevealInlineSourceClaim() throws {
+        let source = try Self.appSource("Views/KnowledgeGraph/OntologyBrowser/ClaimSummaryCardView.swift")
+        guard let sentenceStart = source.range(of: "private var claimSentence: some View"),
+              let fallbackStart = source.range(of: "} else if let excerpt", range: sentenceStart.upperBound..<source.endIndex)
+        else {
+            XCTFail("ClaimSummaryCard must render SVO before the fallback excerpt")
+            return
+        }
+
+        let svoRenderer = String(source[sentenceStart.lowerBound..<fallbackStart.lowerBound])
+        XCTAssertTrue(svoRenderer.contains("revealSourceClaimInline()"))
+        XCTAssertFalse(svoRenderer.contains("focusEntityLozenge"))
+        XCTAssertFalse(svoRenderer.contains("ficheroEntitySearchRequested"))
+    }
+
+    func testExpandedDetailsShowSourceClaimText() throws {
+        let source = try Self.appSource("Views/KnowledgeGraph/OntologyBrowser/ClaimSummaryCard+Details.swift")
+
+        XCTAssertTrue(source.contains("Text(\"Source claim\")"))
+        XCTAssertTrue(source.contains("cleanedDisplayText(claim.text)"))
     }
 
     func testSvoTriplePrefersTypedFields() throws {
@@ -152,7 +183,6 @@ final class ClaimSummaryCardTests: XCTestCase {
     private func decodeClaim(_ json: String) throws -> Components.Schemas.KnowledgeClaim {
         let data = Data(json.utf8)
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decoder.decode(Components.Schemas.KnowledgeClaim.self, from: data)
     }
 }

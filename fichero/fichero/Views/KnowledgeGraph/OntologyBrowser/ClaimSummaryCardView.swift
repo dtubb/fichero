@@ -195,6 +195,12 @@ struct ClaimSummaryCard: View {
         )
     }
 
+    private func revealSourceClaimInline() {
+        isExpanded = true
+        Task { await loadDetails() }
+        focusClaim()
+    }
+
     /// The headline of the card. When SVO metadata is present, render
     /// it as three individually-tappable chips with distinct styling for
     /// subject, verb, and object. When absent, surface a "KG not generated" hint instead
@@ -204,9 +210,9 @@ struct ClaimSummaryCard: View {
     private var claimSentence: some View {
         if let svo {
             HStack(spacing: 6) {
-                // Subject chip — tappable to search for subject entity
+                // Subject chip — reveal the underlying claim in place.
                 Button(action: {
-                    Task { await focusEntityLozenge(named: svo.subject) }
+                    revealSourceClaimInline()
                 }, label: {
                     Text(svo.subject)
                         .font(bodyTextFont)
@@ -218,15 +224,11 @@ struct ClaimSummaryCard: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 })
                 .buttonStyle(.plain)
-                .help("Search for '\(svo.subject)' in library")
+                .help("Show the source claim")
 
-                // Verb chip — tappable to search for predicate/verb
+                // Verb chip — reveal the underlying claim in place.
                 Button(action: {
-                    NotificationCenter.default.post(
-                        name: .ficheroEntitySearchRequested,
-                        object: nil,
-                        userInfo: ["name": svo.verb]
-                    )
+                    revealSourceClaimInline()
                 }, label: {
                     Text(svo.verb)
                         .font(bodyTextFont)
@@ -238,11 +240,11 @@ struct ClaimSummaryCard: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 })
                 .buttonStyle(.plain)
-                .help("Search for '\(svo.verb)' predicates in library")
+                .help("Show the source claim")
 
-                // Object chip — tappable to search for object entity
+                // Object chip — reveal the underlying claim in place.
                 Button(action: {
-                    Task { await focusEntityLozenge(named: svo.object) }
+                    revealSourceClaimInline()
                 }, label: {
                     Text(svo.object)
                         .font(bodyTextFont)
@@ -254,7 +256,7 @@ struct ClaimSummaryCard: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 })
                 .buttonStyle(.plain)
-                .help("Search for '\(svo.object)' in library")
+                .help("Show the source claim")
             }
             .padding(.vertical, 4)
         } else if let excerpt = cleanedDisplayText(claim.sourceExcerpt) {

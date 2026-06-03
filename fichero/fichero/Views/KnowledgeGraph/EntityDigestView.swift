@@ -264,26 +264,10 @@ struct EntityDigestContent: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(claims, id: \.id) { claim in
-                    HStack(alignment: .top, spacing: 8) {
-                        if let page = claim.sourcePageLabel {
-                            Text(page)
-                                .font(.caption2)
-                                .fontWeight(.bold)
-                                .foregroundStyle(.secondary)
-                                .frame(width: 50, alignment: .trailing)
-                        } else {
-                            Spacer().frame(width: 50)
-                        }
-
-                        Text(claim.text)
-                            .font(.caption)
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(.vertical, 2)
+                    ClaimSummaryCard(claim: claim)
                 }
             }
-            .padding(.leading, 50)
+            .padding(.leading, 24)
         }
         .padding(.vertical, 8)
     }
