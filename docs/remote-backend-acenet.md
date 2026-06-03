@@ -13,6 +13,8 @@ On the ACENET host:
 
 ```bash
 cd ~/code/fichero
+export FICHERO_REMOTE_BACKEND=1
+export FICHERO_REMOTE_BACKEND_BIND_HOST=127.0.0.1
 PYTHONPATH=fichero-engine/src /path/to/.venv/bin/python -m fichero engine start --port 8765
 ```
 
@@ -20,6 +22,8 @@ If you want foreground logs instead of the detached engine manager:
 
 ```bash
 cd ~/code/fichero
+export FICHERO_REMOTE_BACKEND=1
+export FICHERO_REMOTE_BACKEND_BIND_HOST=127.0.0.1
 PYTHONPATH=fichero-engine/src /path/to/.venv/bin/uvicorn fichero.api.main:app \
   --host 127.0.0.1 \
   --port 8765
@@ -112,6 +116,24 @@ From the Mac, with the tunnel running:
 ```bash
 curl -s http://127.0.0.1:8765/api/health
 ```
+
+The health payload includes `remote_backend` diagnostics. In remote mode,
+expect:
+
+```json
+{
+  "remote_backend": {
+    "enabled": true,
+    "connection_model": "ssh-loopback",
+    "token_configured": true,
+    "library_path_configured": true
+  }
+}
+```
+
+If `FICHERO_REMOTE_BACKEND=1` is set with
+`FICHERO_REMOTE_BACKEND_BIND_HOST=0.0.0.0` or another non-loopback host, startup
+fails. Remote mode is intentionally SSH-loopback only.
 
 For CLI validation against an alternate local tunnel port:
 
