@@ -2588,6 +2588,16 @@
     "export": [
       {
         "method": "POST",
+        "path": "/export/json",
+        "operation_id": "export_json_route_api_export_json_post",
+        "summary": "Export Json Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "JsonExportRequest",
+        "response_model": "JsonExportResponse"
+      },
+      {
+        "method": "POST",
         "path": "/export/markdown-folder",
         "operation_id": "export_markdown_folder_route_api_export_markdown_folder_post",
         "summary": "Export Markdown Folder Route",

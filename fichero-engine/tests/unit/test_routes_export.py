@@ -1,6 +1,15 @@
 """Tests for document export routes."""
 
-from fichero.models import Artifact, DocType, Document, FileType
+import json
+
+from fichero.models import (
+    Artifact,
+    DocType,
+    Document,
+    FileType,
+    KnowledgeClaim,
+    KnowledgeEntity,
+)
 
 
 class TestMarkdownFolderExport:
@@ -146,3 +155,114 @@ class TestWordExport:
         )
 
         assert r.status_code == 409
+
+
+class TestJsonExport:
+    def test_exports_document_artifacts_and_scoped_kg(self, client, db, tmp_path):
+        folder = Document(
+            id="folder-json",
+            name="JSON Export",
+            doc_type=DocType.folder,
+        )
+        doc = Document(
+            id="doc-json",
+            name="Letter JSON",
+            parent_id=folder.id,
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="Primary transcription.",
+        )
+        other_doc = Document(
+            id="doc-other",
+            name="Other",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        artifact = Artifact(
+            id="artifact-json",
+            document_id=doc.id,
+            artifact_type="summary",
+            content="Artifact summary.",
+        )
+        entity = KnowledgeEntity(
+            id="entity-json",
+            canonical_name="Maria Perez",
+            source_document_ids=[doc.id],
+        )
+        other_entity = KnowledgeEntity(
+            id="entity-other",
+            canonical_name="Unrelated",
+            source_document_ids=[other_doc.id],
+        )
+        claim = KnowledgeClaim(
+            id="claim-json",
+            text="Maria Perez testified.",
+            source_document_id=doc.id,
+            entity_ids=[entity.id],
+            confidence=0.8,
+        )
+        other_claim = KnowledgeClaim(
+            id="claim-other",
+            text="Unrelated claim.",
+            source_document_id=other_doc.id,
+        )
+        for item in [
+            folder,
+            doc,
+            other_doc,
+            artifact,
+            entity,
+            other_entity,
+            claim,
+            other_claim,
+        ]:
+            db.save(item)
+
+        output_path = tmp_path / "export.json"
+        r = client.post(
+            "/api/export/json",
+            json={
+                "target_id": folder.id,
+                "output_path": str(output_path),
+            },
+        )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["document_count"] == 1
+        assert data["artifact_count"] == 1
+        assert data["entity_count"] == 1
+        assert data["claim_count"] == 1
+        assert data["bytes_written"] > 0
+
+        payload = json.loads(output_path.read_text(encoding="utf-8"))
+        assert payload["doc"]["id"] == folder.id
+        assert [item["id"] for item in payload["documents"]] == [doc.id]
+        assert payload["transcription"] == "Primary transcription.\n\nsummary: Artifact summary."
+        assert [item["id"] for item in payload["artifacts"]] == [artifact.id]
+        assert [item["id"] for item in payload["kg"]["entities"]] == [entity.id]
+        assert [item["id"] for item in payload["kg"]["claims"]] == [claim.id]
+
+    def test_json_export_rejects_existing_file_without_overwrite(
+        self, client, tmp_path
+    ):
+        output_path = tmp_path / "export.json"
+        output_path.write_text("{}", encoding="utf-8")
+
+        r = client.post(
+            "/api/export/json",
+            json={"output_path": str(output_path)},
+        )
+
+        assert r.status_code == 409
+
+    def test_json_export_missing_target_returns_404(self, client, tmp_path):
+        r = client.post(
+            "/api/export/json",
+            json={
+                "target_id": "no-such-doc",
+                "output_path": str(tmp_path / "export.json"),
+            },
+        )
+
+        assert r.status_code == 404

@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 from xml.sax.saxutils import escape
 
 from fichero.db import Database
-from fichero.models import Artifact, DocType, Document, FileType
+from fichero.models import (
+    Artifact,
+    DocType,
+    Document,
+    FileType,
+    KnowledgeClaim,
+    KnowledgeEntity,
+)
 from fichero.storage import get_display, resolve_source
 
 
@@ -54,6 +62,18 @@ class WordExportResult:
 
     output_path: str
     document_count: int
+    bytes_written: int
+
+
+@dataclass
+class JsonExportResult:
+    """Result metadata for a structured JSON export."""
+
+    output_path: str
+    document_count: int
+    artifact_count: int
+    entity_count: int
+    claim_count: int
     bytes_written: int
 
 
@@ -189,6 +209,54 @@ def export_word_docx(
     )
 
 
+def export_json_file(
+    db: Database,
+    output_path: str | Path,
+    target_id: str | None = None,
+    recursive: bool = True,
+    overwrite: bool = False,
+) -> JsonExportResult:
+    """Export documents, artifacts, and scoped KG data as a JSON file."""
+
+    output_file = Path(output_path).expanduser()
+    if output_file.suffix.lower() != ".json":
+        output_file = output_file.with_suffix(".json")
+    if output_file.exists() and not overwrite:
+        raise FileExistsError(f"Export file already exists: {output_file}")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    root, documents = _collect_documents(db, target_id=target_id, recursive=recursive)
+    document_ids = {doc.id for doc in documents}
+    artifacts = _collect_artifacts(db, document_ids)
+    claims = _collect_claims(db, document_ids)
+    entities = _collect_entities(db, document_ids, claims)
+
+    payload = {
+        "doc": _dump_model(root or documents[0]) if root or documents else None,
+        "documents": [_dump_model(doc) for doc in documents],
+        "transcription": _combined_transcription(db, documents),
+        "artifacts": [_dump_model(artifact) for artifact in artifacts],
+        "kg": {
+            "entities": [_dump_model(entity) for entity in entities],
+            "claims": [_dump_model(claim) for claim in claims],
+        },
+        "exported_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    output_file.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    return JsonExportResult(
+        output_path=str(output_file),
+        document_count=len(documents),
+        artifact_count=len(artifacts),
+        entity_count=len(entities),
+        claim_count=len(claims),
+        bytes_written=output_file.stat().st_size,
+    )
+
+
 @dataclass(frozen=True)
 class _AssetRef:
     path: str
@@ -236,6 +304,67 @@ def _descendants(db: Database, root_id: str) -> list[Document]:
         queue.extend(db.query(Document, parent_id=doc.id))
 
     return result
+
+
+def _collect_artifacts(db: Database, document_ids: set[str]) -> list[Artifact]:
+    artifacts = [
+        artifact
+        for artifact in db.all(Artifact)
+        if artifact.document_id in document_ids
+        or artifact.source_document_id in document_ids
+    ]
+    artifacts.sort(key=lambda artifact: (artifact.document_id, artifact.created_at))
+    return artifacts
+
+
+def _collect_claims(
+    db: Database,
+    document_ids: set[str],
+) -> list[KnowledgeClaim]:
+    claims = [
+        claim
+        for claim in db.all(KnowledgeClaim)
+        if claim.source_document_id in document_ids
+        or bool(set(claim.source_ids or []) & document_ids)
+    ]
+    claims.sort(key=lambda claim: (claim.source_document_id, claim.created_at, claim.id))
+    return claims
+
+
+def _collect_entities(
+    db: Database,
+    document_ids: set[str],
+    claims: list[KnowledgeClaim],
+) -> list[KnowledgeEntity]:
+    claim_entity_ids = {
+        entity_id
+        for claim in claims
+        for entity_id in [
+            *claim.entity_ids,
+            claim.subject_entity_id,
+            claim.speaker_entity_id,
+            claim.subject_of_inquiry_entity_id,
+            claim.scribe_entity_id,
+            claim.editor_entity_id,
+        ]
+        if entity_id
+    }
+    entities = [
+        entity
+        for entity in db.all(KnowledgeEntity)
+        if entity.id in claim_entity_ids
+        or bool(set(entity.source_document_ids or []) & document_ids)
+    ]
+    entities.sort(key=lambda entity: (entity.canonical_name.lower(), entity.id))
+    return entities
+
+
+def _combined_transcription(db: Database, documents: list[Document]) -> str:
+    return "\n\n".join(_document_text(db, doc) for doc in documents).strip()
+
+
+def _dump_model(model: Any) -> dict[str, Any]:
+    return model.model_dump(mode="json")
 
 
 def _render_document_markdown(
