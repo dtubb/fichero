@@ -183,4 +183,23 @@ extension DocumentStore {
             return doc
         }
     }
+
+    /// Re-fetch the given documents by ID from the backend and merge each fresh
+    /// record into the in-memory caches via `refreshLocalContent`. Called after a
+    /// workflow completes so backend-written content (e.g. a Transcribe
+    /// transcript) replaces the stale in-memory `pageContent` without forcing a
+    /// full folder reload. (#1445)
+    func refreshDocumentsByIds(_ ids: [String]) async {
+        for id in ids {
+            do {
+                let fresh: Document = try await api.get("/documents/\(id)")
+                refreshLocalContent(fresh)
+            } catch {
+                let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentStore")
+                logger.warning(
+                    "refreshDocumentsByIds: failed to refresh \(id, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+    }
 }

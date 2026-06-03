@@ -293,11 +293,7 @@ extension ContentView {
                     workflowId: workflowId,
                     streamCompleted: streamCompleted
                 )
-
-                let finalStatus = workflowFinalStatus(for: workflowId)
-                executionObserver.endExecution(workflowId: workflowId, status: finalStatus)
-                workflowLogger.info("Workflow \(workflowId) finished with status: \(String(describing: finalStatus))")
-
+                await finishWorkflowExecution(workflowId: workflowId, docIds: docIds, streamCompleted: streamCompleted)
             } catch {
                 importProgress = nil
                 importError = "Workflow failed to start: \(error.localizedDescription)"
@@ -305,6 +301,28 @@ extension ContentView {
                 executionObserver.endExecution(workflowId: workflowId, status: .failed)
             }
         }
+    }
+
+    /// Post-completion bookkeeping for a workflow run. A completed workflow
+    /// (e.g. Transcribe) may have written new per-page content backend-side, so
+    /// re-fetch the affected documents before ending execution — the Content/
+    /// transcript pane then shows fresh text instead of stale in-memory content,
+    /// and the inspector's `workflowCompletedCount` observers see the refreshed
+    /// data. (#1445)
+    @MainActor
+    private func finishWorkflowExecution(
+        workflowId: String,
+        docIds: [String],
+        streamCompleted: Bool
+    ) async {
+        if streamCompleted {
+            await documentStore.refreshDocumentsByIds(docIds)
+        }
+        let finalStatus = workflowFinalStatus(for: workflowId)
+        executionObserver.endExecution(workflowId: workflowId, status: finalStatus)
+        workflowLogger.info(
+            "Workflow \(workflowId) finished with status: \(String(describing: finalStatus))"
+        )
     }
 
     private func handleWorkflowStreamEvent(
