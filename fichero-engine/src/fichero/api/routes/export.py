@@ -54,6 +54,10 @@ class WordExportRequest(BaseModel):
     )
     recursive: bool = Field(default=True, description="Include descendants of folders")
     overwrite: bool = Field(default=False, description="Overwrite existing .docx")
+    include_knowledge_graph: bool = Field(
+        default=True,
+        description="Append relevant knowledge graph entities and claims",
+    )
 
 
 class WordExportResponse(BaseModel):
@@ -109,6 +113,7 @@ async def export_word_route(
             recursive=request.recursive,
             overwrite=request.overwrite,
             package_path=x_fichero_library_path,
+            include_knowledge_graph=request.include_knowledge_graph,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

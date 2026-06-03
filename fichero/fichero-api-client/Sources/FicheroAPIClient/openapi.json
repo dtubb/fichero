@@ -53899,6 +53899,12 @@
             "title": "Overwrite",
             "description": "Overwrite existing .docx",
             "default": false
+          },
+          "include_knowledge_graph": {
+            "type": "boolean",
+            "title": "Include Knowledge Graph",
+            "description": "Append relevant knowledge graph entities and claims",
+            "default": true
           }
         },
         "additionalProperties": true,

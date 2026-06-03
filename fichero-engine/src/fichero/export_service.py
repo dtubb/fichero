@@ -12,7 +12,14 @@ from typing import Iterable
 from xml.sax.saxutils import escape
 
 from fichero.db import Database
-from fichero.models import Artifact, DocType, Document, FileType
+from fichero.models import (
+    Artifact,
+    DocType,
+    Document,
+    FileType,
+    KnowledgeClaim,
+    KnowledgeEntity,
+)
 from fichero.storage import get_display, resolve_source
 
 
@@ -130,6 +137,7 @@ def export_word_docx(
     recursive: bool = True,
     overwrite: bool = False,
     package_path: str | Path | None = None,
+    include_knowledge_graph: bool = True,
 ) -> WordExportResult:
     """Export documents as a minimal Word .docx file.
 
@@ -162,6 +170,11 @@ def export_word_docx(
         else:
             body_parts.append(_docx_heading(doc.name, 2))
             body_parts.extend(_docx_paragraph(part) for part in _paragraphs(text))
+
+    if include_knowledge_graph:
+        appendix = _docx_knowledge_graph_appendix(db, documents)
+        if appendix:
+            body_parts.extend(appendix)
 
     document_xml = _docx_document(body_parts)
     rels_xml = _docx_document_rels(media)
@@ -283,6 +296,67 @@ def _document_text(db: Database, doc: Document) -> str:
     for artifact in _text_artifacts(db, doc.id):
         parts.append(f"{artifact.artifact_type}: {artifact.content.strip()}")
     return "\n\n".join(parts).strip() or "No text content available."
+
+
+def _docx_knowledge_graph_appendix(
+    db: Database,
+    documents: list[Document],
+) -> list[str]:
+    doc_ids = {doc.id for doc in documents}
+    if not doc_ids:
+        return []
+
+    claims = [
+        claim
+        for claim in db.all(KnowledgeClaim)
+        if claim.source_document_id in doc_ids or doc_ids.intersection(claim.source_ids)
+    ]
+    claims.sort(key=lambda claim: (claim.source_document_id, claim.text.lower()))
+
+    claim_entity_ids: set[str] = set()
+    for claim in claims:
+        claim_entity_ids.update(claim.entity_ids)
+        for entity_id in (
+            claim.subject_entity_id,
+            claim.speaker_entity_id,
+            claim.subject_of_inquiry_entity_id,
+            claim.scribe_entity_id,
+            claim.editor_entity_id,
+        ):
+            if entity_id:
+                claim_entity_ids.add(entity_id)
+
+    entities = [
+        entity
+        for entity in db.all(KnowledgeEntity)
+        if entity.id in claim_entity_ids
+        or doc_ids.intersection(entity.source_document_ids)
+    ]
+    entities.sort(key=lambda entity: entity.canonical_name.lower())
+
+    if not claims and not entities:
+        return []
+
+    parts = [_docx_heading("Knowledge Graph Appendix", 2)]
+
+    if entities:
+        parts.append(_docx_heading("Entities", 2))
+        for entity in entities:
+            label = f"{entity.canonical_name} ({entity.entity_type.value})"
+            if entity.description:
+                label = f"{label}: {entity.description}"
+            parts.append(_docx_paragraph(label))
+
+    if claims:
+        parts.append(_docx_heading("Claims", 2))
+        for claim in claims:
+            source = claim.source_page_label or claim.source_document_id
+            label = f"{claim.text} [source: {source}]"
+            parts.append(_docx_paragraph(label))
+            if claim.source_excerpt:
+                parts.append(_docx_paragraph(f"Excerpt: {claim.source_excerpt}"))
+
+    return parts
 
 
 def _text_artifacts(db: Database, document_id: str) -> list[Artifact]:

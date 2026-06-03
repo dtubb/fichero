@@ -1,6 +1,8 @@
 """Tests for document export routes."""
 
+from fichero.knowledge_models import ClaimType, EntityType
 from fichero.models import Artifact, DocType, Document, FileType
+from fichero.models import KnowledgeClaim, KnowledgeEntity
 
 
 class TestMarkdownFolderExport:
@@ -133,6 +135,91 @@ class TestWordExport:
         assert "word/media/image1.jpg" in names
         assert "Image transcription." in document_xml
         assert "<w:tbl>" in document_xml
+
+    def test_exports_docx_with_knowledge_graph_appendix(self, client, db, tmp_path):
+        import zipfile
+
+        doc = Document(
+            id="word-kg-doc",
+            name="KG Source",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="Source text.",
+        )
+        entity = KnowledgeEntity(
+            id="entity-pedro",
+            canonical_name="Pedro",
+            entity_type=EntityType.person,
+            description="Witness",
+            source_document_ids=[doc.id],
+        )
+        claim = KnowledgeClaim(
+            id="claim-pedro",
+            text="Pedro testified in 1933.",
+            source_document_id=doc.id,
+            source_page_label="4",
+            source_excerpt="Pedro testified",
+            entity_ids=[entity.id],
+            claim_type=ClaimType.fact,
+        )
+        db.save(doc)
+        db.save(entity)
+        db.save(claim)
+
+        output_path = tmp_path / "kg.docx"
+        r = client.post(
+            "/api/export/word",
+            json={
+                "target_id": doc.id,
+                "output_path": str(output_path),
+            },
+        )
+
+        assert r.status_code == 200
+        with zipfile.ZipFile(output_path) as docx:
+            document_xml = docx.read("word/document.xml").decode()
+
+        assert "Knowledge Graph Appendix" in document_xml
+        assert "Pedro (person): Witness" in document_xml
+        assert "Pedro testified in 1933. [source: 4]" in document_xml
+        assert "Excerpt: Pedro testified" in document_xml
+
+    def test_word_export_can_omit_knowledge_graph_appendix(
+        self, client, db, tmp_path
+    ):
+        import zipfile
+
+        doc = Document(
+            id="word-no-kg-doc",
+            name="No KG Source",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="Source text.",
+        )
+        entity = KnowledgeEntity(
+            id="entity-hidden",
+            canonical_name="Hidden",
+            source_document_ids=[doc.id],
+        )
+        db.save(doc)
+        db.save(entity)
+
+        output_path = tmp_path / "no-kg.docx"
+        r = client.post(
+            "/api/export/word",
+            json={
+                "target_id": doc.id,
+                "output_path": str(output_path),
+                "include_knowledge_graph": False,
+            },
+        )
+
+        assert r.status_code == 200
+        with zipfile.ZipFile(output_path) as docx:
+            document_xml = docx.read("word/document.xml").decode()
+
+        assert "Knowledge Graph Appendix" not in document_xml
+        assert "Hidden" not in document_xml
 
     def test_word_export_rejects_existing_file_without_overwrite(
         self, client, tmp_path
