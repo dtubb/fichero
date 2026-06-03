@@ -11,7 +11,7 @@ final class FeatureManagerTests: XCTestCase {
         XCTAssertTrue(featureManager.isLibraryEnabled)
         XCTAssertTrue(featureManager.isSearchEnabled)
         XCTAssertTrue(featureManager.isWorkflowsEnabled)
-        XCTAssertTrue(featureManager.isWorkflowEditorAdvancedViewsEnabled)
+        XCTAssertFalse(featureManager.isWorkflowEditorAdvancedViewsEnabled)
         XCTAssertTrue(featureManager.isActivityEnabled)
         XCTAssertTrue(featureManager.isSettingsGeneralTabEnabled)
         // Mind Palace ships ON during dev (Daniel-facing); revisit before release.
@@ -21,10 +21,10 @@ final class FeatureManagerTests: XCTestCase {
         XCTAssertTrue(featureManager.isWorkflowLangGraphPreviewEnabled)
         XCTAssertTrue(featureManager.isWorkflowFilesToolbarButtonEnabled)
         XCTAssertTrue(featureManager.isWorkflowRunOnSelectionEnabled)
+        XCTAssertTrue(featureManager.isBatchesEnabled)
 
         // Disabled in v0.0.1
         XCTAssertFalse(featureManager.isChatEnabled)
-        XCTAssertFalse(featureManager.isBatchesEnabled)
         XCTAssertFalse(featureManager.isAutomationEnabled)
     }
 }

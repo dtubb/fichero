@@ -31,8 +31,8 @@ Backend observables:
 3. Execute workflow and observe live status.
 4. Duplicate/rename/export/import workflow.
 5. Display modes:
-   - With `workflow_editor_advanced_views` OFF: only Icon + List are available.
-   - With `workflow_editor_advanced_views` ON: Table mode appears in addition to Icon + List.
+   - With `workflow_editor_advanced_views` OFF: the editor is canvas-only.
+   - With `workflow_editor_advanced_views` ON: Icon, List, and Table modes are available.
 
 Backend observables:
 - `/api/workflows/*`

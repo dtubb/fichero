@@ -194,10 +194,10 @@ extension ContentView {
             }
             return [.icon, .list, .table, .map]
         case .workflows:
-            // Keep workflow editor simple by default; only expose table mode
-            // when advanced views are explicitly enabled.
+            // Keep workflow editor canvas-only by default; expose alternate
+            // editor modes only when advanced views are explicitly enabled.
             if !featureManager.isWorkflowEditorAdvancedViewsEnabled {
-                return [.icon, .list]
+                return [.icon]
             }
             return [.icon, .list, .table]
         case .chat, .automation, .activity, .mindPalace, .research, .knowledgeGraph:

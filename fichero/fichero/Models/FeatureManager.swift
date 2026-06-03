@@ -8,7 +8,7 @@ class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
     // Bumped to re-apply workflow execution release defaults on existing
     // installs (langgraph preview, run-on-selection, files toolbar, import/export).
-    private static let releaseProfileVersion = 29
+    private static let releaseProfileVersion = 30
     private static let workflowV001EnabledTools =
         "files,collection,folder,aggregate,transcribe,catalogue,"
         + "extract_entities,key_people,timeline,keywords,summarize_file,"
@@ -193,7 +193,7 @@ class FeatureManager: ObservableObject {
         libraryFilterToolbarEnabledInternal = false
         libraryIconZoomControlsEnabledInternal = true // 0.0.3 #517: zoom controls re-enabled
         workflowsEnabledInternal = true
-        workflowEditorAdvancedViewsEnabled = true
+        workflowEditorAdvancedViewsEnabled = false
         workflowChainsEnabledInternal = true
         batchesEnabledInternal = true
         chatEnabledInternal = false
