@@ -1,4 +1,4 @@
-// swiftlint:disable file_length type_body_length
+// swiftlint:disable file_length
 // This file hosts both ArtifactServiceGenerated AND EntityServiceGenerated
 // because Services is a non-synchronized PBXGroup (per MEMORY note
 // [[feedback_swift_file_sync]]). Splitting would require pbxproj
@@ -115,7 +115,7 @@ class ArtifactServiceGenerated: ObservableObject {
 
     /// Get all artifacts in the library (uses direct HTTP call since generated client may not have this endpoint)
     func getAllArtifacts(type: String? = nil, limit: Int = 100, offset: Int = 0) async throws -> [Artifact] {
-        var urlString = "http://localhost:8765/api/artifacts?limit=\(limit)&offset=\(offset)"
+        var urlString = "http://localhost:8765/api/artifacts/?limit=\(limit)&offset=\(offset)"
         if let type = type {
             urlString += "&artifact_type=\(type.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? type)"
         }
@@ -411,6 +411,7 @@ private let entityServiceLogger = Logger(
 /// shape used by the merge/split UI. This service is for the simpler
 /// per-document entity/claim views in the Inspector.
 @MainActor
+// swiftlint:disable:next type_body_length
 final class EntityServiceGenerated: ObservableObject {
     private let client: FicheroClient
 

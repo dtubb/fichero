@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 import OSLog
 
@@ -182,10 +183,26 @@ final class AnnotationService: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
-    private let baseURL = "http://localhost:8765/api/annotations"
+    private let engineBaseURL = "http://localhost:8765"
     private let session = URLSession.shared
 
     private func decoder() -> JSONDecoder { JSONDecoder() }
+
+    private func annotationsURL() -> URL? {
+        URL(string: "\(engineBaseURL)/api/annotations")
+    }
+
+    private func annotationURL(id: String) -> URL? {
+        URL(string: "\(engineBaseURL)/api/annotations/\(id)")
+    }
+
+    private func annotationCropURL(id: String) -> URL? {
+        URL(string: "\(engineBaseURL)/api/annotations/\(id)/crop")
+    }
+
+    private func annotationPromoteURL(id: String) -> URL? {
+        URL(string: "\(engineBaseURL)/api/annotations/\(id)/promote-to-claim")
+    }
 
     private func authedGet(_ url: URL) -> URLRequest {
         var request = URLRequest(url: url)
@@ -213,7 +230,8 @@ final class AnnotationService: ObservableObject {
         error = nil
         defer { isLoading = false }
 
-        guard var components = URLComponents(string: baseURL) else {
+        guard let annotationsURL = annotationsURL(),
+              var components = URLComponents(url: annotationsURL, resolvingAgainstBaseURL: false) else {
             error = "Invalid annotations URL"
             return
         }
@@ -243,6 +261,38 @@ final class AnnotationService: ObservableObject {
         }
     }
 
+    // MARK: - Detail
+
+    /// Fetch the latest server copy for one annotation and merge it into the list.
+    @discardableResult
+    func getAnnotation(id: String) async -> DocumentAnnotation? {
+        guard let url = annotationURL(id: id) else {
+            error = "Invalid annotations URL"
+            return nil
+        }
+
+        do {
+            let (data, response) = try await session.data(for: authedGet(url))
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+                error = "Could not load annotation (HTTP \(code))"
+                return nil
+            }
+            let annotation = try decoder().decode(DocumentAnnotation.self, from: data)
+            if let index = annotations.firstIndex(where: { $0.id == annotation.id }) {
+                annotations[index] = annotation
+            } else {
+                annotations.insert(annotation, at: 0)
+            }
+            error = nil
+            return annotation
+        } catch {
+            logger.warning("Failed to fetch annotation: \(error.localizedDescription, privacy: .public)")
+            self.error = "Could not load annotation"
+            return nil
+        }
+    }
+
     // MARK: - Create
 
     /// Create a note annotation (`kind: note`) and prepend it to `annotations`.
@@ -258,7 +308,7 @@ final class AnnotationService: ObservableObject {
         tags: [String] = [],
         linkedClaimIds: [String] = []
     ) async -> DocumentAnnotation? {
-        guard let url = URL(string: baseURL) else {
+        guard let url = annotationsURL() else {
             error = "Invalid annotations URL"
             return nil
         }
@@ -299,7 +349,7 @@ final class AnnotationService: ObservableObject {
     /// in-memory copy on success. Returns `nil` on failure.
     @discardableResult
     func updateText(id: String, text: String) async -> DocumentAnnotation? {
-        guard let url = URL(string: "\(baseURL)/\(id)") else {
+        guard let url = annotationURL(id: id) else {
             error = "Invalid annotations URL"
             return nil
         }
@@ -324,12 +374,64 @@ final class AnnotationService: ObservableObject {
         }
     }
 
+    // MARK: - Crop
+
+    /// Fetch cropped text/image bytes for an annotation's source span or region.
+    @discardableResult
+    func cropAnnotation(id: String) async -> Data? {
+        guard let url = annotationCropURL(id: id) else {
+            error = "Invalid annotations URL"
+            return nil
+        }
+
+        do {
+            let (data, response) = try await session.data(for: authedGet(url))
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+                error = "Could not crop annotation (HTTP \(code))"
+                return nil
+            }
+            error = nil
+            return data
+        } catch {
+            logger.warning("Failed to crop annotation: \(error.localizedDescription, privacy: .public)")
+            self.error = "Could not crop annotation"
+            return nil
+        }
+    }
+
+    // MARK: - Promote
+
+    /// Promote a highlight/note annotation into a KnowledgeClaim.
+    @discardableResult
+    func promoteToClaim(id: String) async -> Bool {
+        guard let url = annotationPromoteURL(id: id) else {
+            error = "Invalid annotations URL"
+            return false
+        }
+
+        do {
+            let (_, response) = try await session.data(for: authedRequest(url, method: "POST"))
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+                error = "Could not promote annotation (HTTP \(code))"
+                return false
+            }
+            error = nil
+            return true
+        } catch {
+            logger.warning("Failed to promote annotation: \(error.localizedDescription, privacy: .public)")
+            self.error = "Could not promote annotation"
+            return false
+        }
+    }
+
     // MARK: - Delete
 
     /// Delete an annotation and remove it from `annotations`. Returns `true` on success.
     @discardableResult
     func delete(id: String) async -> Bool {
-        guard let url = URL(string: "\(baseURL)/\(id)") else {
+        guard let url = annotationURL(id: id) else {
             error = "Invalid annotations URL"
             return false
         }

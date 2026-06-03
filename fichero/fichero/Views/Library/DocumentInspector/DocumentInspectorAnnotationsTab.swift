@@ -22,6 +22,9 @@ struct DocumentInspectorAnnotationsTab: View {
     @State private var newNoteText: String = ""
     @State private var searchText: String = ""
     @State private var isAdding = false
+    @State private var editingAnnotation: DocumentAnnotation?
+    @State private var editText = ""
+    @State private var isSavingEdit = false
     @FocusState private var noteFieldFocused: Bool
 
     var body: some View {
@@ -33,6 +36,9 @@ struct DocumentInspectorAnnotationsTab: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: document.id) {
             await service.load(documentId: document.id)
+        }
+        .sheet(item: $editingAnnotation) { annotation in
+            annotationEditSheet(annotation)
         }
         .accessibilityIdentifier("annotationsTab")
     }
@@ -101,6 +107,29 @@ struct DocumentInspectorAnnotationsTab: View {
                         reveal(annotation)
                     }
                     .contextMenu {
+                        Button {
+                            Task { await service.getAnnotation(id: annotation.id) }
+                        } label: {
+                            Label("Refresh Details", systemImage: "arrow.clockwise")
+                        }
+                        Button {
+                            beginEditing(annotation)
+                        } label: {
+                            Label("Edit Text", systemImage: "pencil")
+                        }
+                        if annotation.hasRegion || annotation.hasSpan {
+                            Button {
+                                Task { await copyCrop(annotation) }
+                            } label: {
+                                Label("Copy Cropped Content", systemImage: "crop")
+                            }
+                        }
+                        Button {
+                            Task { await promoteToClaim(annotation) }
+                        } label: {
+                            Label("Promote to Claim", systemImage: "arrow.up.doc")
+                        }
+                        Divider()
                         Button(role: .destructive) {
                             delete(annotation)
                         } label: {
@@ -152,6 +181,38 @@ struct DocumentInspectorAnnotationsTab: View {
         Task { await service.delete(id: annotation.id) }
     }
 
+    private func beginEditing(_ annotation: DocumentAnnotation) {
+        editText = annotation.text ?? ""
+        editingAnnotation = annotation
+    }
+
+    private func saveEdit(_ annotation: DocumentAnnotation) {
+        guard !isSavingEdit else { return }
+        isSavingEdit = true
+        Task {
+            let updated = await service.updateText(id: annotation.id, text: editText)
+            isSavingEdit = false
+            if updated != nil {
+                editingAnnotation = nil
+            }
+        }
+    }
+
+    private func copyCrop(_ annotation: DocumentAnnotation) async {
+        guard let data = await service.cropAnnotation(id: annotation.id),
+              let text = String(data: data, encoding: .utf8),
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func promoteToClaim(_ annotation: DocumentAnnotation) async {
+        guard await service.promoteToClaim(id: annotation.id) else { return }
+        await service.getAnnotation(id: annotation.id)
+    }
+
     /// Reveal the annotation's source page/region by posting a notification the
     /// reading surface can observe. Decoupled so the inspector doesn't need a
     /// direct reference to the viewer (#1276).
@@ -178,6 +239,37 @@ struct DocumentInspectorAnnotationsTab: View {
             return nil
         }
         return claimFocusState.selectedClaimId
+    }
+
+    private func annotationEditSheet(_ annotation: DocumentAnnotation) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Edit Annotation")
+                .font(.headline)
+            TextEditor(text: $editText)
+                .font(.body)
+                .frame(minWidth: 360, minHeight: 160)
+                .border(Color.secondary.opacity(0.25))
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    editingAnnotation = nil
+                }
+                .keyboardShortcut(.cancelAction)
+                .disabled(isSavingEdit)
+                Button {
+                    saveEdit(annotation)
+                } label: {
+                    if isSavingEdit {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("Save")
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(isSavingEdit)
+            }
+        }
+        .padding()
     }
 }
 
