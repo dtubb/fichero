@@ -1,6 +1,17 @@
 import Foundation
 import OSLog
 
+/// Empty body for the workspace PATCH — only flips `is_workspace` true,
+/// leaving curated_items untouched (#1617).
+private struct EmptyWorkspacePatch: Encodable {}
+
+/// Minimal decode of the workspace PATCH response (we only need it to type the
+/// call; the refreshed list comes from loadWorkspaces).
+private struct WorkspaceMarkResponse: Decodable {
+    let documentId: String
+    enum CodingKeys: String, CodingKey { case documentId = "document_id" }
+}
+
 // MARK: - CRUD Operations
 
 extension DocumentStore {
@@ -24,6 +35,30 @@ extension DocumentStore {
         await loadCollections()
         publish(.collectionsUpdated(collections))
 
+        return folder
+    }
+
+    /// Load all workspace documents (is_workspace == true) for the Workspaces
+    /// section (#1617).
+    func loadWorkspaces() async {
+        do {
+            let response: DocumentListResponse = try await api.get("/documents/workspaces")
+            workspaces = response.items
+        } catch {
+            logger.error("Failed to load workspaces: \(error.localizedDescription)")
+        }
+    }
+
+    /// Create a new workspace: make a folder, then flag it `is_workspace` via
+    /// the workspace PATCH. An empty body only sets the flag — curated_items
+    /// stay empty until the user adds aliases (#1617).
+    @discardableResult
+    func createWorkspace(name: String) async throws -> Document {
+        let folder = try await createFolder(name: name)
+        let _: WorkspaceMarkResponse = try await api.patch(
+            "/documents/\(folder.id)/workspace", body: EmptyWorkspacePatch()
+        )
+        await loadWorkspaces()
         return folder
     }
 

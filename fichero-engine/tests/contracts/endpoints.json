@@ -2021,6 +2021,16 @@
         "response_model": "fichero__models__DocumentListResponse"
       },
       {
+        "method": "GET",
+        "path": "/documents/workspaces",
+        "operation_id": "list_workspaces_api_documents_workspaces_get",
+        "summary": "List Workspaces",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "fichero__models__DocumentListResponse"
+      },
+      {
         "method": "DELETE",
         "path": "/documents/{doc_id}",
         "operation_id": "delete_document_api_documents__doc_id__delete",

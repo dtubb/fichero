@@ -55,3 +55,21 @@ def test_workspace_items_resolve_document_alias_targets(client, db):
     assert item["id"] == "item-doc"
     assert item["target"]["id"] == "doc-1"
     assert item["target"]["name"] == "Source Doc"
+
+
+def test_list_workspaces_returns_only_workspace_docs(client, db):
+    """GET /api/documents/workspaces lists is_workspace docs and ignores the
+    literal path being mistaken for a document id (#1617)."""
+    ws_a = Document(id="ws-a", name="Workspace A", doc_type=DocType.folder, is_workspace=True)
+    ws_b = Document(id="ws-b", name="Workspace B", doc_type=DocType.folder, is_workspace=True)
+    plain = Document(id="folder-x", name="Plain Folder", doc_type=DocType.folder)
+    db.save(ws_a)
+    db.save(ws_b)
+    db.save(plain)
+
+    response = client.get("/api/documents/workspaces")
+    assert response.status_code == 200
+    payload = response.json()
+    ids = {item["id"] for item in payload["items"]}
+    assert ids == {"ws-a", "ws-b"}
+    assert payload["count"] == 2
