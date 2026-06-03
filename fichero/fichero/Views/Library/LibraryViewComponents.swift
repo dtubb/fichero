@@ -16,8 +16,10 @@ struct MailStyleRow: View {
 
     @EnvironmentObject private var documentStore: DocumentStore
 
-    private static let thumbWidth: CGFloat = 40
-    private static let thumbHeight: CGFloat = 50
+    // Compact leading thumbnail so the title/text gets the row's width
+    // (Mail-style — the icon was previously 40×50 and crowded the title). (#1459)
+    private static let thumbWidth: CGFloat = 28
+    private static let thumbHeight: CGFloat = 36
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -168,7 +170,7 @@ struct MailStyleRow: View {
 
             if document.docType == .folder {
                 Image(systemName: "folder.fill")
-                    .font(.system(size: 28))
+                    .font(.system(size: 20))
                     .foregroundColor(.accentColor)
             } else if document.fileType == .pdf,
                       let path = document.path,
