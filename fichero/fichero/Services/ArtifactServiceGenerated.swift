@@ -366,6 +366,32 @@ private struct EntityTypeListPayload: Decodable {
     let items: [LibraryEntityTypeItem]
 }
 
+struct EntityCitationUsage: Decodable, Identifiable {
+    let citation: Components.Schemas.DocumentCitation
+    let claim: Components.Schemas.KnowledgeClaim?
+    let referenceId: String?
+    let stance: String?
+
+    var id: String {
+        citation.id ?? [
+            citation.sourceDocumentId,
+            citation.targetCitationText,
+            citation.pageLabel ?? ""
+        ].joined(separator: "|")
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case citation
+        case claim
+        case referenceId = "reference_id"
+        case stance
+    }
+}
+
+private struct CitationUsageListPayload: Decodable {
+    let items: [EntityCitationUsage]
+}
+
 // EntityServiceGenerated lives in this file (instead of its own) because the
 // Xcode project's main target uses traditional file references; new .swift
 // files would need pbxproj edits. See MEMORY: feedback_swift_file_sync.md.
@@ -999,6 +1025,44 @@ final class EntityServiceGenerated: ObservableObject {
         case .undocumented(let code, _):
             throw ServiceError.unexpectedResponse(code)
         }
+    }
+
+    /// Body-pass citation usages for a document. These rows join an extracted
+    /// citation marker to the KG claim it supports.
+    func citationUsages(
+        sourceDocumentId: String
+    ) async throws -> [EntityCitationUsage] {
+        guard var components = URLComponents(
+            url: client.baseURL.appending(path: "/api/citation-usages"),
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw ServiceError.unexpectedResponse(0)
+        }
+        components.queryItems = [
+            URLQueryItem(name: "source_document_id", value: sourceDocumentId)
+        ]
+        guard let url = components.url else {
+            throw ServiceError.unexpectedResponse(0)
+        }
+        var request = URLRequest(url: url)
+        request.addEngineAuth(libraryPath: client.currentLibraryPath)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+            throw ServiceError.unexpectedResponse(http.statusCode)
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            if let date = parseEngineDate(raw) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Cannot decode date: \(raw)"
+            )
+        }
+        return try decoder.decode(CitationUsageListPayload.self, from: data).items
     }
 
     // MARK: - KG-RAG: focus-neighborhood graph (#976/#977/#983 Phase 5)

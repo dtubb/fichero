@@ -262,6 +262,7 @@ struct CitationGraphPanel: View {
 
     @State private var inbound: [Components.Schemas.DocumentCitation] = []
     @State private var outbound: [Components.Schemas.DocumentCitation] = []
+    @State private var citationUsages: [EntityCitationUsage] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
 
@@ -318,6 +319,7 @@ struct CitationGraphPanel: View {
 
     @ViewBuilder
     private func citationRow(_ item: Components.Schemas.DocumentCitation) -> some View {
+        let usages = usageItems(for: item)
         VStack(alignment: .leading, spacing: 2) {
             Text(item.targetCitationText)
                 .font(.caption)
@@ -343,8 +345,27 @@ struct CitationGraphPanel: View {
                         .foregroundStyle(.tertiary)
                 }
             }
+            if !usages.isEmpty {
+                Text("\(usages.count) supported claim\(usages.count == 1 ? "" : "s")")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                if let claimText = usages.first?.claim?.text, !claimText.isEmpty {
+                    Text(claimText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
         .padding(.vertical, 2)
+    }
+
+    private func usageItems(
+        for citation: Components.Schemas.DocumentCitation
+    ) -> [EntityCitationUsage] {
+        guard let citationId = citation.id else { return [] }
+        return citationUsages.filter { $0.citation.id == citationId }
     }
 
     @MainActor
@@ -356,14 +377,19 @@ struct CitationGraphPanel: View {
         do {
             async let inboundTask = library.entityService.inboundCitations(forDocumentId: documentId)
             async let outboundTask = library.entityService.outboundCitations(forDocumentId: documentId)
-            let (inb, out) = try await (inboundTask, outboundTask)
+            async let usageTask = library.entityService.citationUsages(
+                sourceDocumentId: documentId
+            )
+            let (inb, out, usages) = try await (inboundTask, outboundTask, usageTask)
             inbound = inb
             outbound = out
+            citationUsages = usages
         } catch {
             relatedClaimsLogger.error("Citations fetch failed: \(error.localizedDescription)")
             errorMessage = "Couldn't load citations."
             inbound = []
             outbound = []
+            citationUsages = []
         }
     }
 }
