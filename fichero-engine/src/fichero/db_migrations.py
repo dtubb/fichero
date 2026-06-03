@@ -315,34 +315,42 @@ def migrate_knowledge_indices(conn) -> None:
     """
     # DuckDB ART secondary indexes can become desynchronised from the table
     # heap after sustained update/delete churn and then raise a FATAL
-    # "Failed to delete all rows from index" error. KnowledgeEntity rows churn
-    # heavily during catalogue dedup/alias/source-page accumulation, so keep
-    # canonical-name lookup on a table scan until DuckDB's ART delete path is
-    # safe for this workload. Dropping this index is data-safe.
-    try:
-        conn.execute("DROP INDEX IF EXISTS idx_entities_name")
-    except Exception as exc:
-        logger.warning("Knowledge entity name index drop skipped: %s", exc)
-
-    statements = [
-        # Claims by source document — drives every per-doc inspector
-        # section + the "open source" navigation path.
-        ("idx_claims_source_doc", "CREATE INDEX IF NOT EXISTS idx_claims_source_doc "
-            "ON knowledgeclaims(source_document_id)"),
-        # Claims by (doc, page) — drives the "On this page" sidecar on
-        # source preview (View 4).
-        ("idx_claims_page", "CREATE INDEX IF NOT EXISTS idx_claims_page "
-            "ON knowledgeclaims(source_document_id, source_page_label)"),
-        # Claim filtering by type / status — claim card status+kind
-        # filter bar in the inspector.
-        ("idx_claims_type", "CREATE INDEX IF NOT EXISTS idx_claims_type "
-            "ON knowledgeclaims(claim_type)"),
-        ("idx_claims_status", "CREATE INDEX IF NOT EXISTS idx_claims_status "
-            "ON knowledgeclaims(epistemic_status)"),
-        # Claim by creation time — recency sort + activity timeline.
-        ("idx_claims_created", "CREATE INDEX IF NOT EXISTS idx_claims_created "
-            "ON knowledgeclaims(created_at)"),
+    # "Failed to delete all rows from index" error. Both KnowledgeEntity AND
+    # KnowledgeClaim rows churn heavily during catalogue dedup/rewrite (the
+    # catalogue churns claims hardest of all), so keep their lookups on a table
+    # scan until DuckDB's ART delete path is safe for this workload. Dropping
+    # these indexes is data-safe — they only bought lookup speed, and at
+    # Fichero's single-library scale a plain table scan is fine; correctness is
+    # unaffected. The PRIMARY KEY index on ``id`` stays on each table: ``id`` is
+    # a stable UUID that is never UPDATEd, so its ART delete path isn't churned
+    # the same way, and dropping a PK is not safe.
+    #
+    # #1596 dropped ``idx_entities_name`` for exactly this reason. The claims
+    # ART indexes (``idx_claims_*``) hit the same corruption on the
+    # ``knowledgeclaims`` table during real-data catalogue use (#1611), so they
+    # are dropped here too. Existing libraries that already created any of these
+    # (and are therefore one bad catalogue away from the crash) shed them here
+    # — DROP INDEX IF EXISTS is idempotent and a no-op on fresh DBs.
+    drop_indexes = [
+        "idx_entities_name",
+        "idx_claims_source_doc",
+        "idx_claims_page",
+        "idx_claims_type",
+        "idx_claims_status",
+        "idx_claims_created",
     ]
+    for index_name in drop_indexes:
+        try:
+            conn.execute(f"DROP INDEX IF EXISTS {index_name}")
+        except Exception as exc:
+            logger.warning("Knowledge index %s drop skipped: %s", index_name, exc)
+
+    # All knowledgeclaims/knowledgeentitys secondary ART indexes are now
+    # dropped above (corruption risk). No CREATE INDEX statements remain for
+    # these tables — queries fall back to table scans, which is correct and
+    # fine at single-user scale. Keep this list empty rather than re-adding any
+    # claims/entity index until DuckDB's ART delete path is safe for the churn.
+    statements: list[tuple[str, str]] = []
     created = 0
     for name, ddl in statements:
         try:
