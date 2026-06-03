@@ -60,6 +60,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from fichero.db import Database, db_manager
 from fichero.paths import migrate_legacy_engine_state
+from fichero.remote_backend import build_remote_backend_status
 
 logger = logging.getLogger(__name__)
 
@@ -533,6 +534,18 @@ async def lifespan(app: FastAPI):
     logger.info("Fichero API starting up...")
     logger.info("Engine binary: %s", sys.executable)
     logger.info("DatabaseManager initialized")
+    remote_backend_status = build_remote_backend_status()
+    app.state.remote_backend = remote_backend_status
+    if remote_backend_status.enabled:
+        logger.info(
+            "Remote backend mode enabled via %s; token_configured=%s; "
+            "library_path_configured=%s",
+            remote_backend_status.connection_model,
+            remote_backend_status.token_configured,
+            remote_backend_status.library_path_configured,
+        )
+        for warning in remote_backend_status.warnings:
+            logger.warning("Remote backend setup: %s", warning)
     migrated_entries = migrate_legacy_engine_state()
     if migrated_entries:
         logger.info(
@@ -784,6 +797,7 @@ async def health_check(
             "status": "healthy",
             "backend_version": "0.1.0",
             "active_libraries": db_manager.active_count,
+            "remote_backend": build_remote_backend_status().as_dict(),
         }
 
 
