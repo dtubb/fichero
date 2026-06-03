@@ -506,13 +506,13 @@ extension ContentView {
                 if showViewModePicker && availableViewDisplayModes.count > 1 && !showModeRail {
                     Picker("View", selection: $viewDisplayMode) {
                         ForEach(availableViewDisplayModes) { mode in
-                            Label(mode.rawValue, systemImage: mode.icon)
+                            Label(mode.label, systemImage: mode.icon)
                                 .labelStyle(.iconOnly)
                                 .tag(mode)
                         }
                     }
                     .pickerStyle(.segmented)
-                    .help("View: \(viewDisplayMode.rawValue)")
+                    .help("View: \(viewDisplayMode.label)")
                 }
 
                 // Add menu (Plus button)

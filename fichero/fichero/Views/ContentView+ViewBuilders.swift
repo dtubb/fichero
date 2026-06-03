@@ -173,8 +173,9 @@ extension ContentView {
                 .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
         )
         .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-        .help("\(mode.rawValue) view — \(mode.description.lowercased())")
-        // Stable per-mode XCUITest hook, e.g. "viewMode-List" (#1230).
+        .help("\(mode.label) view — \(mode.description.lowercased())")
+        // Stable per-mode XCUITest hook, e.g. "viewMode-Table" (#1230) — keeps
+        // rawValue so the renamed "Column" label doesn't break the test hook.
         .accessibilityIdentifier("viewMode-\(mode.rawValue)")
     }
 

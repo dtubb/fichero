@@ -68,10 +68,10 @@ struct MainToolbar: View {
                 // View mode picker (Icon/List/Table/Map)
                 Picker("View mode", selection: $viewMode) {
                     ForEach(ViewDisplayMode.allCases) { mode in
-                        Label(mode.rawValue, systemImage: mode.icon)
+                        Label(mode.label, systemImage: mode.icon)
                             .labelStyle(.iconOnly)
                             .tag(mode)
-                            .accessibilityLabel(mode.rawValue + " — " + mode.description)
+                            .accessibilityLabel(mode.label + " — " + mode.description)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -94,6 +94,16 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Mail-style display label shown in pickers/menus. `table` → "Column"
+    /// (#1613). `rawValue` deliberately stays "Table" so persisted per-folder
+    /// modes and the XCUITest hooks (`viewMode-Table`) don't churn.
+    var label: String {
+        switch self {
+        case .table: "Column"
+        default: rawValue
+        }
+    }
+
     var icon: String {
         switch self {
         case .icon: "square.grid.2x2"
@@ -108,12 +118,16 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         switch self {
         case .icon: "Grid of icons"
         case .list: "Linear list"
-        case .table: "Table view"
+        case .table: "Column view"
         case .map: "Visual map"
         case .realitykit: "Spatial 3D view"
         }
     }
 }
+
+// `.table` renders as the multi-column table view (`LibraryView.tableView`);
+// its user-facing name is "Column" (Mail-style, #1613) while the enum case and
+// rawValue stay `.table`/"Table".
 
 #Preview {
     @Previewable @State var viewMode: ViewDisplayMode = .icon
