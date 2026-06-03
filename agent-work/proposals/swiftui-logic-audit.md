@@ -89,3 +89,87 @@ issue in the cluster traces back to this: there is no single canonical
 Each step is backend-first (pytest-verifiable); SwiftUI changes are render-only
 follow-ups (Phase C). ~6 files / ~1500 lines of client-side logic retire as the
 endpoints land.
+
+---
+
+# Whole-app broadening (#1072)
+
+**Date:** 2026-06-03 · **Author:** milestone worker (Library & Reading Surface)
+**Scope:** the broadening #1072 asks for — sweep the **whole** app
+(`Views/`, `Models/`, `Services/`), not just KG/inspector. The KG findings above
+(2026-05-14) still stand; the items below add the Library / Sidebar / Search /
+Services / Models surfaces and the cross-view *duplicate computations*. Where a
+finding overlaps the KG audit it is noted (e.g. artifact-JSON extraction = old
+finding 2; biography = old finding 3).
+
+## Findings ranked by severity
+
+| # | Finding | File:line | Sev | Owning endpoint (existing / **NEW**) | Bug |
+|---|---|---|---|---|---|
+| 27 | Load ALL docs (no limit) to build sidebar tree | `Models/DocumentStore.swift:111` | HIGH | `GET /api/documents?tree=true` (**NEW** mode) | #1047 |
+| 19 | Inbox identified by `name == "Inbox"` in tree build | `Models/SidebarItemBuilder.swift:93` | HIGH | sidebar-tree endpoint + `is_inbox` flag (**NEW**) | #1047 |
+| 3 | Workflow submenu grouped by `folderPath` in **2 places** | `Views/Library/LibraryView+FilterAndBatch.swift:296` + `SidebarItemRow.swift` | HIGH | `GET /api/workflows?grouped=true` (**NEW**) | — |
+| 4 | `runWorkflowOnCollection` scopes by client `.file` filter | `Views/ContentView+WorkflowActions.swift:221` | HIGH | accept `folder_id` workflow input (**NEW**) | #1047 |
+| 2 | `pdfDocPages` parent-PDF→page rollup (filter+sort) | `Views/ContentView+ReadingLayout.swift:87` | HIGH | consume `GET /api/documents/{id}/children` directly | #1069 |
+| 17/18 | Artifact-JSON entity extraction **duplicated** in 2 structs | `Views/Library/ArtifactEntityViews.swift:188` & `:289` | HIGH | typed `entities` on `GET /api/artifacts/{id}` (= old #2) | #1068 |
+| 9 | `RelatedClaimsPanel` N+1 similarity + dedup + top-K | `…/DocumentInspector/DocumentInspectorInfoTab.swift:186` | HIGH | `POST /api/kg/claims/similar-to-document` (**NEW**) | #1050,#1068 |
+| 10 | Source-doc name resolved from current-folder cache only | `…/DocumentInspectorInfoTab.swift:239` | HIGH | return `source_document_name` inline | #1055 |
+| 11 | `biographyComposedText` prose synth + cache name lookup | `…/OntologyBrowser/EntityDetailView+Biography.swift:34` | HIGH | `GET /api/entities/{id}/biography` (= old #3) | #1050 |
+| 6 | `ArtifactsBrowserView` facets/filters/sorts/groups (500 cap) | `Views/Library/ArtifactsBrowserView.swift:26` | HIGH | `GET /api/artifacts` + `groupBy`/`facets`/paging | #1068 |
+| 15 | `KGTimelineView.datedClaims` parse+join+filter+sort | `Views/KnowledgeGraph/KGTimelineView.swift:211` | HIGH | `GET /api/documents/{id}/timeline` (**NEW**) | #1069 |
+| 25 | Client-side status shadow layer (`applyStatusOverrides`) | `Models/DocumentStore+Helpers.swift:175` | MED | status push via SSE / `/status` | #1055 |
+| 1 | `filteredDocuments` filters by truncated `pageContent` | `Views/Library/LibraryView+FilterAndBatch.swift:18` | MED | `GET /api/search` (or scope filter to name) | #1055 |
+| 7 | `KGInspectorSection.grouped` context-fallback assembly | `…/DocumentInspectorArtifactsTab.swift:183` | MED | resolved `displayContext` on group items (= old #1) | — |
+| 8 | Grouped items confidence-sorted in inspector | `…/DocumentInspectorArtifactsTab.swift:226` | MED | return items pre-ranked | #1068 |
+| 12 | Epistemic/claim-type filter applied before curation sheets | `…/OntologyBrowser/EntityDetailView.swift:48` | MED | `GET /api/claims?entity_id&epistemic_status&claim_type` | — |
+| 13/14 | `DisplayAttributesStrip` artifact rollup + type dedup | `Views/Library/DocumentInspector.swift:784` & `:542` | MED | artifact `summary[]` (type/count/latest_at) | — |
+| 20 | `childOrder` 3-key sibling sort policy in client | `Models/SidebarItemBuilder.swift:54` | MED | children endpoint returns canonical order | — |
+| 21 | Folder hierarchy re-derived from `folderPath` (4 types) | `Models/SidebarItemBuilder.swift:191` | MED | include `parent_folder_id` / tree endpoints | — |
+| 5 | `hasProcessingDocuments` full-list scan per poll | `Views/Library/LibraryView.swift:165` | LOW | `has_pending` in children response | — |
+| 16 | `undatedInScopeCount` re-parses dates | `Views/KnowledgeGraph/KGTimelineView.swift:234` | LOW | `undated_count` in timeline response | — |
+| 22 | `collectDescendantIds` client BFS (optimistic delete) | `Models/DocumentStore+CRUD.swift:66` | LOW | (backend cascade already canonical) | — |
+| 23 | RealityKit layout sort duplicates `childOrder` | `Views/Library/DocumentKGSurface.swift:249` | LOW | consume pre-sorted children | — |
+| 24 | `cachedScope` parent-child filter fallback | `Views/Library/DocumentKGSurface.swift:314` | LOW | children endpoint | — |
+| 26 | `matchSourceLabel` parses untyped `metadata` array | `Views/Search/SearchResultRowFromAPI.swift:93` | LOW | `match_source_label` on search schema | — |
+
+(Spot-checked: F27 `loadCollections` "Loading all documents", F2 `pdfDocPages`
+filter+sort, F19 Inbox name-match at line 93, F17/18 duplicate `extractNames` at
+188 & 289 — all confirmed against current source.)
+
+## Cross-view duplicate computations (fix first — these can silently disagree)
+
+- **Dup A — artifact-JSON entity extraction.** `extractNames/Keywords/Dates`
+  line-for-line duplicated in `ArtifactEntitiesView` (`ArtifactEntityViews.swift:188`)
+  and `ArtifactEntityCell` (`:289`). (F17/18; old KG-audit #2.)
+- **Dup B — workflow submenu grouping.** `LibraryView.workflowSubmenuItems`
+  (`LibraryView+FilterAndBatch.swift:296`) + a copy in `SidebarItemRow.swift`; the
+  source even comments on the duplication. (F3.)
+- **Dup C — child sort policy.** `SidebarItemBuilder.childOrder` (`:54`) re-implemented
+  in `FolderRealityKitSurface.nodes` (`DocumentKGSurface.swift:251`). (F20/23.)
+- **Dup D — parent-PDF path resolution.** `ContentView.resolvedParentPDFPath`
+  (`ContentView+ReadingLayout.swift:46`) + `MailStyleRow.resolvedParentPDFPath`
+  (`LibraryViewComponents.swift:134`) — same fallback chain. (F2 area.)
+
+## Root cause
+
+Findings 19/20/21/27 stem from one decision: `DocumentStore.loadCollections()` fetches
+*every* document with no limit and `SidebarItemBuilder` builds the whole tree
+client-side (incl. the `"Inbox"` name-match). A `GET /api/documents?tree=true` mode
+returning navigable containers with pre-built nesting + `is_inbox` collapses four
+findings and removes the 50k-doc scalability cliff.
+
+## Recommended migration (split into follow-up issues — backend-first, NOT big-bang)
+
+1. **Sidebar tree endpoint** (F19/20/21/27; Dup C) — `GET /api/documents?tree=true`,
+   `is_inbox` + canonical child order. Highest leverage; unblocks scalability.
+2. **Artifact entity/facet API** (F6/13/14/17/18; Dup A) — typed `entities` + `summary[]`.
+3. **KG derivation endpoints** (F9/10/11/15/16; old audit's keystone) —
+   `similar-to-document`, `entities/{id}/biography`, `documents/{id}/timeline`.
+4. **Per-page / collection scoping** (F2/4; Dup D) — consume `children` directly;
+   add `folder_id` workflow input.
+5. **Status & search polish** (F1/5/8/25/26).
+
+Each cluster is its own GitHub issue: backend endpoint (pytest-verifiable) + a thin
+SwiftUI render-only follow-up. The audit itself (this doc) is the deliverable of
+#1072 step 1; the moves are steps 2–3 and should be tracked as the issues above.
+
