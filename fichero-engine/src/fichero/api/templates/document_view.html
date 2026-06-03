@@ -92,6 +92,7 @@
         .content {
             overflow: auto;
             padding: 12px;
+            min-height: 0;
         }
 
         .panel {
@@ -198,26 +199,46 @@
         .claim-row.source-open .claim-source { display: block; }
 
         /* Let the graph fill the whole pane instead of a tiny fixed box (#1465).
-           #graph-panel is a child of `.content` which has a definite height
-           (`.shell` is 100vh), so height:100% resolves; the flex column lets the
-           svg stretch to whatever space is left. */
+           The WebKit pane itself owns the viewport height; give the graph a
+           real, definite drawing area and compute the SVG viewBox from that
+           size so it does not sit in a small fixed 440x340 square. */
         #graph-panel:not(.hidden) {
             display: flex;
             flex-direction: column;
-            height: 100%;
+            min-height: calc(100vh - 24px);
         }
 
         .graph-wrap {
             flex: 1 1 auto;
-            min-height: 340px;
+            min-height: 0;
             position: relative;
         }
 
         svg {
             width: 100%;
             height: 100%;
-            min-height: 340px;
+            min-height: calc(100vh - 96px);
             display: block;
+        }
+
+        .graph-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+            color: var(--muted);
+            font: 500 12px/1.5 var(--font-system);
+        }
+
+        .graph-scope-toggle {
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel);
+            color: var(--text);
+            font: 600 12px/1.2 var(--font-system);
+            padding: 5px 8px;
+            cursor: pointer;
         }
 
         .node {
@@ -275,6 +296,7 @@ const state = {
     activeClaimId: null,
     activeEntityId: null,
     activePage: null,
+    showAllClaims: false,
 };
 
 function sourceHeaders() {
@@ -473,9 +495,24 @@ function renderDigest() {
     });
 }
 
+function graphPageMatches(claim) {
+    if (state.activePage == null || state.showAllClaims) return true;
+    return Number(claim.page_number) === Number(state.activePage);
+}
+
+function graphClaims() {
+    return claims.filter(graphPageMatches);
+}
+
 function graphData() {
-    const nodes = entities.map((entity) => {
-        const entityClaims = claims.filter((claim) => (claim.entity_ids || []).includes(entity.id));
+    const scopedClaims = graphClaims();
+    const scopedEntityIds = new Set();
+    scopedClaims.forEach((claim) => {
+        (claim.entity_ids || []).forEach((id) => scopedEntityIds.add(id));
+    });
+    const visibleEntities = entities.filter((entity) => scopedEntityIds.has(entity.id));
+    const nodes = visibleEntities.map((entity) => {
+        const entityClaims = scopedClaims.filter((claim) => (claim.entity_ids || []).includes(entity.id));
         return {
             ...entity,
             claimCount: entityClaims.length,
@@ -489,7 +526,7 @@ function graphData() {
     });
     const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
     const edgeMap = new Map();
-    claims.forEach((claim) => {
+    scopedClaims.forEach((claim) => {
         const ids = [...new Set(claim.entity_ids || [])].filter((id) => nodeLookup.has(id));
         for (let idx = 0; idx < ids.length; idx += 1) {
             for (let other = idx + 1; other < ids.length; other += 1) {
@@ -564,16 +601,41 @@ function forceLayout(nodes, edges, width = 440, height = 340) {
 
 function renderGraph() {
     const panel = document.getElementById("graph-panel");
-    if (entities.length === 0) {
-        panel.innerHTML = `<div class="empty">No entities yet for this document.</div>`;
+    const { nodes, edges } = graphData();
+    const panelRect = panel.getBoundingClientRect();
+    const width = Math.max(440, Math.floor(panelRect.width - 24));
+    const height = Math.max(340, Math.floor(panelRect.height - 56));
+    const pageScoped = state.activePage != null && !state.showAllClaims;
+    const scopeLabel = state.activePage == null
+        ? "Showing all claims in this document."
+        : (pageScoped
+            ? `Showing page ${state.activePage} claims.`
+            : `Showing all claims in this document.`);
+    const toggle = state.activePage == null ? "" : `
+        <button type="button" class="graph-scope-toggle" data-graph-scope-toggle="true">
+            ${state.showAllClaims ? "Show current page only" : "Show all claims"}
+        </button>
+    `;
+    if (nodes.length === 0) {
+        panel.innerHTML = `
+            <div class="graph-toolbar">
+                <span>${escapeHtml(scopeLabel)}</span>
+                ${toggle}
+            </div>
+            <div class="empty">No entities yet for this ${pageScoped ? "page" : "document"}.</div>
+        `;
+        bindGraphScopeToggle(panel);
         return;
     }
-    const { nodes, edges } = graphData();
-    forceLayout(nodes, edges);
+    forceLayout(nodes, edges, width, height);
     const nodeLookup = new Map(nodes.map((node) => [node.id, node]));
     panel.innerHTML = `
+        <div class="graph-toolbar">
+            <span>${escapeHtml(scopeLabel)} ${nodes.length} node${nodes.length === 1 ? "" : "s"}.</span>
+            ${toggle}
+        </div>
         <div class="graph-wrap">
-            <svg viewBox="0 0 440 340" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Knowledge graph: entities for this document. Active-page filtering dims off-page entities.">
+            <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Knowledge graph: entities for this document. Page scope filters claims unless all claims are shown.">
                 ${edges.map((edge) => {
                     const source = nodeLookup.get(edge.from);
                     const target = nodeLookup.get(edge.to);
@@ -583,9 +645,8 @@ function renderGraph() {
                 }).join("")}
                 ${nodes.map((node) => {
                     const active = state.activeEntityId === node.id;
-                    const dimmed = state.activePage && !node.pages.has(state.activePage);
                     return `
-                        <g class="node ${active ? "active" : ""} ${dimmed ? "dimmed" : ""}" data-entity-id="${node.id}" transform="translate(${node.x.toFixed(1)}, ${node.y.toFixed(1)})">
+                        <g class="node ${active ? "active" : ""}" data-entity-id="${node.id}" transform="translate(${node.x.toFixed(1)}, ${node.y.toFixed(1)})">
                             <circle r="${node.radius.toFixed(1)}"></circle>
                             <text text-anchor="middle" y="4">${escapeHtml(node.canonical_name.slice(0, 14))}</text>
                             <text text-anchor="middle" y="20" font-size="10">${node.claimCount} claim${node.claimCount === 1 ? "" : "s"}</text>
@@ -596,10 +657,12 @@ function renderGraph() {
         </div>
     `;
 
+    bindGraphScopeToggle(panel);
+
     panel.querySelectorAll(".node").forEach((nodeEl) => {
         nodeEl.addEventListener("click", async () => {
             const entityId = nodeEl.dataset.entityId;
-            const entityClaims = claims.filter((claim) => (claim.entity_ids || []).includes(entityId));
+            const entityClaims = graphClaims().filter((claim) => (claim.entity_ids || []).includes(entityId));
             const sourceDocumentId = entityClaims[0]?.source_document_id || null;
             state.activeEntityId = entityId;
             state.activeClaimId = entityClaims[0]?.id || null;
@@ -624,6 +687,15 @@ function renderGraph() {
     });
 }
 
+function bindGraphScopeToggle(panel) {
+    const toggle = panel.querySelector("[data-graph-scope-toggle='true']");
+    if (!toggle) return;
+    toggle.addEventListener("click", () => {
+        state.showAllClaims = !state.showAllClaims;
+        renderGraph();
+    });
+}
+
 function renderAll() {
     renderTranscript();
     renderDigest();
@@ -642,10 +714,7 @@ function updateGraphActiveNode() {
     panel.querySelectorAll(".node").forEach((nodeEl) => {
         const id = nodeEl.dataset.entityId;
         const active = state.activeEntityId === id;
-        const dimmed = state.activePage != null &&
-            !claims.some((c) => (c.entity_ids || []).includes(id) && c.page_number === state.activePage);
         nodeEl.classList.toggle("active", active);
-        nodeEl.classList.toggle("dimmed", dimmed);
     });
 }
 
@@ -722,7 +791,17 @@ document.querySelectorAll(".tabs button").forEach((button) => {
     button.addEventListener("click", () => {
         state.tab = button.dataset.tab;
         applyTabVisibility();
+        if (state.tab === "graph") {
+            requestAnimationFrame(renderGraph);
+        }
     });
+});
+
+let graphResizeTimer = null;
+window.addEventListener("resize", () => {
+    if (state.tab !== "graph") return;
+    window.clearTimeout(graphResizeTimer);
+    graphResizeTimer = window.setTimeout(renderGraph, 80);
 });
 
 window.fichero = {
@@ -731,6 +810,9 @@ window.fichero = {
         if (!["transcript", "digest", "graph"].includes(tab)) return;
         state.tab = tab;
         applyTabVisibility();
+        if (tab === "graph") {
+            requestAnimationFrame(renderGraph);
+        }
     },
 
     // Highlight a graph node in-place; no innerHTML swap, no scrollTop loss.
@@ -755,10 +837,13 @@ window.fichero = {
         updateGraphActiveNode();
     },
 
-    // Update page-based graph dimming in-place; no scroll disruption.
+    // Re-scope the graph to the active page unless the user asks for all claims.
     setActivePage(pageNumber) {
+        if (Number(state.activePage) !== Number(pageNumber)) {
+            state.showAllClaims = false;
+        }
         state.activePage = pageNumber;
-        updateGraphActiveNode();
+        renderGraph();
     },
 
     // Scroll the transcript to a character span and highlight it.
