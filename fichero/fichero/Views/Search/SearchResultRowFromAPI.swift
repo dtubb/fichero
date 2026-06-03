@@ -38,13 +38,16 @@ struct SearchResultRowFromAPI: View {
 
                 // Score badge + match-source pill
                 HStack(spacing: 6) {
-                    Text(String(format: "%.0f%%", result.score * 100))
+                    // Label the bare percentage so it reads as a relevance
+                    // score, not e.g. a completion percentage (#1476).
+                    Text(String(format: "relevance %.0f%%", result.score * 100))
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Color.accentColor.opacity(0.15))
                         .cornerRadius(4)
+                        .help("How closely this result matches your search (higher is closer).")
 
                     if let label = matchSourceLabel {
                         Text(label)
