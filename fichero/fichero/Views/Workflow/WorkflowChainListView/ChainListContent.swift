@@ -7,8 +7,11 @@ struct ChainListContent: View {
     let searchText: String
     let executingChainId: String?
     let onNewChain: () -> Void
+    let onPreviewPaleographyPreset: () -> Void
+    let onCreatePaleographyPreset: () -> Void
     let onSelectChain: (String) -> Void
     let onExecuteChain: (WorkflowChain) -> Void
+    let onCancelChainExecution: (WorkflowChain) -> Void
     let onConfirmDelete: (WorkflowChain) -> Void
     let onRefresh: () -> Void
 
@@ -57,6 +60,14 @@ struct ChainListContent: View {
                             Label("Execute", systemImage: "play.fill")
                         }
 
+                        if executingChainId == chain.id {
+                            Button {
+                                onCancelChainExecution(chain)
+                            } label: {
+                                Label("Cancel Execution", systemImage: "stop.fill")
+                            }
+                        }
+
                         Divider()
 
                         Button(role: .destructive) {
@@ -74,6 +85,24 @@ struct ChainListContent: View {
                     onNewChain()
                 } label: {
                     Label("New Chain", systemImage: "plus")
+                }
+            }
+
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button {
+                        onPreviewPaleographyPreset()
+                    } label: {
+                        Label("Preview Paleography Preset", systemImage: "eye")
+                    }
+
+                    Button {
+                        onCreatePaleographyPreset()
+                    } label: {
+                        Label("Create Paleography Preset", systemImage: "wand.and.stars")
+                    }
+                } label: {
+                    Label("Presets", systemImage: "sparkles")
                 }
             }
 

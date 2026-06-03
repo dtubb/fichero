@@ -13,6 +13,7 @@ struct WorkflowChainListView: View {
     @State private var showDeleteConfirmation = false
     @State private var chainToDelete: WorkflowChain?
     @State private var executingChainId: String?
+    @State private var activeExecutionIdByChain: [String: String] = [:]
 
     init(apiClient: APIClient) {
         _chainService = StateObject(wrappedValue: ChainService(apiClient: apiClient))
@@ -26,8 +27,11 @@ struct WorkflowChainListView: View {
             searchText: searchText,
             executingChainId: executingChainId,
             onNewChain: { showNewChainSheet = true },
+            onPreviewPaleographyPreset: { previewPaleographyPreset() },
+            onCreatePaleographyPreset: { createPaleographyPreset() },
             onSelectChain: { selectedChainId = $0 },
             onExecuteChain: { executeChain($0) },
+            onCancelChainExecution: { cancelChainExecution($0) },
             onConfirmDelete: { confirmDelete($0) },
             onRefresh: {
                 Task {
@@ -139,6 +143,7 @@ struct WorkflowChainListView: View {
         Task {
             do {
                 let response = try await chainService.executeChain(chainId: chain.id)
+                activeExecutionIdByChain[chain.id] = response.executionId
                 logger.info("Started chain execution: \(response.executionId)")
 
                 let result = try await chainService.waitForExecution(response.executionId) { status in
@@ -149,7 +154,46 @@ struct WorkflowChainListView: View {
             } catch {
                 logger.error("Chain execution failed: \(error.localizedDescription)")
             }
+            activeExecutionIdByChain[chain.id] = nil
             executingChainId = nil
+        }
+    }
+
+    private func cancelChainExecution(_ chain: WorkflowChain) {
+        guard let executionId = activeExecutionIdByChain[chain.id] else { return }
+        Task {
+            do {
+                try await chainService.cancelExecution(executionId)
+                activeExecutionIdByChain[chain.id] = nil
+                if executingChainId == chain.id {
+                    executingChainId = nil
+                }
+            } catch {
+                logger.error("Failed to cancel chain execution: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func previewPaleographyPreset() {
+        Task {
+            do {
+                _ = try await chainService.previewPaleographyPreset()
+                logger.info("Loaded paleography preset preview")
+            } catch {
+                logger.error("Failed to load paleography preset preview: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func createPaleographyPreset() {
+        Task {
+            do {
+                _ = try await chainService.createPaleographyPreset()
+                await chainService.loadChains()
+                logger.info("Created paleography preset chain")
+            } catch {
+                logger.error("Failed to create paleography preset chain: \(error.localizedDescription)")
+            }
         }
     }
 }

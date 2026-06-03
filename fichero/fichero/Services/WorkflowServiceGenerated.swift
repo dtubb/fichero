@@ -12,6 +12,20 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 class WorkflowServiceGenerated: ObservableObject {
     private let client: FicheroClient
 
+    private enum Endpoint {
+        static let importWorkflow = "/api/workflows/import"
+        static let modes = "/api/workflows/modes"
+        static let reorder = "/api/workflows/reorder"
+        static let tools = "/api/workflows/tools"
+        static let toolsGrouped = "/api/workflows/tools/grouped"
+        static let tool = "/api/workflows/tools/{tool_name}"
+        static let createNode = "/api/workflows/tools/{tool_name}/create-node"
+        static let toolPrompt = "/api/workflows/tools/{tool_name}/prompt"
+        static let duplicate = "/api/workflows/{workflow_id}/duplicate"
+        static let estimateCost = "/api/workflows/{workflow_id}/estimate-cost"
+        static let export = "/api/workflows/{workflow_id}/export"
+    }
+
     /// Cached tools by name for quick lookup (populated when tools are loaded)
     @Published private(set) var toolsByName: [String: ToolInfo] = [:]
 
@@ -119,6 +133,23 @@ class WorkflowServiceGenerated: ObservableObject {
         switch response {
         case .ok(let okResponse):
             return try convertToNodeResponse(okResponse.body.json)
+        default:
+            throw WorkflowServiceError.unexpectedResponse
+        }
+    }
+
+    // MARK: - Modes
+
+    func listWorkflowModes() async throws -> [WorkflowModeInfo] {
+        let response = try await client.api.listWorkflowModesApiWorkflowsModesGet(.init(
+            headers: .init()
+        ))
+        switch response {
+        case .ok(let okResponse):
+            let modes = try okResponse.body.json
+            return modes.items.map {
+                WorkflowModeInfo(id: $0.id, label: $0.label, description: $0.description)
+            }
         default:
             throw WorkflowServiceError.unexpectedResponse
         }
@@ -298,6 +329,44 @@ class WorkflowServiceGenerated: ObservableObject {
         switch response {
         case .ok:
             return
+        default:
+            throw WorkflowServiceError.unexpectedResponse
+        }
+    }
+
+    /// Estimate workflow run cost for the execute button.
+    func estimateWorkflowCost(
+        _ id: String,
+        fileCount: Int = 1,
+        estimatedInputTokensPerFile: Int = 1_200,
+        estimatedOutputTokensPerFile: Int = 300,
+        provider: String? = nil,
+        model: String? = nil
+    ) async throws -> WorkflowCostEstimateInfo {
+        let body = Components.Schemas.WorkflowCostEstimateRequest(
+            fileCount: fileCount,
+            estimatedInputTokensPerFile: estimatedInputTokensPerFile,
+            estimatedOutputTokensPerFile: estimatedOutputTokensPerFile,
+            provider: provider,
+            model: model
+        )
+        let response = try await client.api.estimateWorkflowCostApiWorkflowsWorkflowIdEstimateCostPost(.init(
+            path: .init(workflowId: id),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        ))
+        switch response {
+        case .ok(let okResponse):
+            let estimate = try okResponse.body.json
+            return WorkflowCostEstimateInfo(
+                workflowId: estimate.workflowId,
+                provider: estimate.provider,
+                model: estimate.model,
+                fileCount: estimate.fileCount,
+                estimatedTotalTokens: estimate.estimatedTotalTokens,
+                estimatedCostUsd: estimate.estimatedCostUsd,
+                pricingAvailable: estimate.pricingAvailable
+            )
         default:
             throw WorkflowServiceError.unexpectedResponse
         }
@@ -847,6 +916,24 @@ extension WorkflowServiceGenerated {
             return .string(String(describing: value))
         }
     }
+}
+
+// MARK: - Lightweight Response Models
+
+struct WorkflowModeInfo: Hashable {
+    let id: String
+    let label: String
+    let description: String
+}
+
+struct WorkflowCostEstimateInfo: Hashable {
+    let workflowId: String
+    let provider: String
+    let model: String
+    let fileCount: Int
+    let estimatedTotalTokens: Int
+    let estimatedCostUsd: Double
+    let pricingAvailable: Bool
 }
 
 // MARK: - Errors

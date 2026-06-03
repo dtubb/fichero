@@ -63,6 +63,7 @@ struct WorkflowListView: View {
     @State private var isManagingDefaults = false
     @State private var showResetDefaultsConfirmation = false
     @State private var templateOperationMessage: String?
+    @State private var workflowModes: [WorkflowModeInfo] = []
     @State private var workflowToRename: WorkflowSidebarItem?
     @State private var renameDraft: String = ""
     @ObservedObject var featureManager = FeatureManager.shared
@@ -187,7 +188,7 @@ struct WorkflowListView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
-                .help("Create new workflow")
+                .help("Create new workflow (\(workflowModes.count) modes available)")
 
                 // #930 — collapsed Install + Reset into one Reset
                 // action. Reset is a superset of Install (ensures all
@@ -405,6 +406,12 @@ struct WorkflowListView: View {
                 Label("Duplicate", systemImage: "doc.on.doc")
             }
 
+            Button {
+                estimateWorkflowCost(workflow)
+            } label: {
+                Label("Estimate Cost", systemImage: "dollarsign.circle")
+            }
+
             if featureManager.isWorkflowImportExportEnabled {
                 Button {
                     exportWorkflow(workflow)
@@ -437,6 +444,11 @@ struct WorkflowListView: View {
         isLoading = true
         defer { isLoading = false }
         await workflowStore.loadWorkflows()
+        do {
+            workflowModes = try await workflowServiceGenerated.listWorkflowModes()
+        } catch {
+            logger.error("Failed to load workflow modes: \(error.localizedDescription)")
+        }
     }
 
     private func createWorkflow(name: String, description: String) async {
@@ -513,6 +525,18 @@ struct WorkflowListView: View {
                 name: workflow.name,
                 using: workflowServiceGenerated
             )
+        }
+    }
+
+    private func estimateWorkflowCost(_ workflow: WorkflowSidebarItem) {
+        Task {
+            do {
+                let estimate = try await workflowServiceGenerated.estimateWorkflowCost(workflow.id)
+                templateOperationMessage = "\(workflow.name): \(estimate.estimatedTotalTokens) estimated tokens, $" +
+                    String(format: "%.4f", estimate.estimatedCostUsd)
+            } catch {
+                templateOperationMessage = "Estimate failed: \(error.localizedDescription)"
+            }
         }
     }
 
