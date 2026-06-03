@@ -527,6 +527,79 @@ def import_istmina_mineria_command(
     typer.echo(f"skipped: {summary.skipped}")
 
 
+@app.command(name="import-manifest")
+def import_manifest_command(
+    manifest: Path = typer.Option(
+        ...,
+        "--manifest",
+        help="Path to a fichero-corpus-import-v1 manifest.jsonl.",
+    ),
+    library: Path = typer.Option(
+        ...,
+        "--library",
+        help="Target .fichero package to create/populate.",
+    ),
+    api: str = typer.Option(
+        None,
+        "--api",
+        help="Engine API base URL (default http://127.0.0.1:8765/api).",
+    ),
+    token_file: Path = typer.Option(
+        None,
+        "--token-file",
+        help="Path to the engine API key (default the app's .api-key).",
+    ),
+    no_create_library: bool = typer.Option(
+        False,
+        "--no-create-library",
+        help="Do not POST /api/library first; assume the library exists.",
+    ),
+) -> None:
+    """Import a canonical corpus manifest into a library via the engine API.
+
+    Reads a general ``fichero-corpus-import-v1`` manifest (any corpus) and
+    creates folders, documents, image renditions (referenced, not copied),
+    entities, and claims through the engine's HTTP API. Idempotent — safe to
+    re-run.
+    """
+    from fichero.manifest_import import (
+        DEFAULT_API_BASE,
+        DEFAULT_TOKEN_FILE,
+        import_manifest_via_http,
+    )
+
+    try:
+        summary = import_manifest_via_http(
+            manifest_path=manifest,
+            library_path=library,
+            api_base=api or DEFAULT_API_BASE,
+            token_file=token_file or DEFAULT_TOKEN_FILE,
+            create_library=not no_create_library,
+        )
+    except Exception as exc:
+        typer.secho(f"Manifest import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    if summary.warnings:
+        typer.secho(
+            f"Imported with {len(summary.warnings)} warning(s).",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        for warning in summary.warnings[:10]:
+            typer.echo(f"  {warning}", err=True)
+
+    typer.echo(f"library: {summary.library_path}")
+    typer.echo(f"nodes_seen: {summary.nodes_seen}")
+    typer.echo(f"pages_seen: {summary.pages_seen}")
+    typer.echo(f"documents_created: {summary.documents_created}")
+    typer.echo(f"documents_skipped: {summary.documents_skipped}")
+    typer.echo(f"entities_created: {summary.entities_created}")
+    typer.echo(f"entities_reused: {summary.entities_reused}")
+    typer.echo(f"claims_created: {summary.claims_created}")
+    typer.echo(f"claims_skipped: {summary.claims_skipped}")
+
+
 @app.command(name="import-archivo-judicial-medellin")
 def import_archivo_judicial_medellin_command(
     library_path: Path = typer.Option(
