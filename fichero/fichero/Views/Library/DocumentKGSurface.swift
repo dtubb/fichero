@@ -51,7 +51,6 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
     case claims
     case timeline
     case map
-    case realitykit
 
     var id: String { rawValue }
 
@@ -64,7 +63,6 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .claims: return "Claims"
         case .timeline: return "Timeline"
         case .map: return "Map"
-        case .realitykit: return "RealityKit"
         }
     }
 
@@ -77,7 +75,6 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .claims: return "quote.bubble"
         case .timeline: return "calendar.badge.clock"
         case .map: return "map"
-        case .realitykit: return "cube.transparent"
         }
     }
 
@@ -90,7 +87,6 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .claims: return "Claims — statements extracted from the document, grouped by source"
         case .timeline: return "Timeline — dated entities and events in chronological order"
         case .map: return "Map — entities laid out on a visual canvas"
-        case .realitykit: return "Spatial view — documents arranged in a 3D scene"
         }
     }
 
@@ -98,7 +94,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
     var usesWebKit: Bool {
         switch self {
         case .transcript, .digest, .graph: return true
-        case .claims, .timeline, .map, .realitykit: return false
+        case .claims, .timeline, .map: return false
         }
     }
 }
@@ -116,11 +112,10 @@ struct DocumentKGSurface: View {
     @ObservedObject var scrollSync: DocumentScrollSyncState
 
     @State private var activeTab: KGSurfaceTab = .transcript
-    // Local state for tabs that bind to it (Map/RealityKit). Initialised from
-    // the parameter on appear; thereafter the view owns it. Distinct from the
+    // Local state for tabs that bind to it (Map). Initialised from the
+    // parameter on appear; thereafter the view owns it. Distinct from the
     // `selectedEntityId` parameter above (which is read-only from the parent).
     @State private var internalSelectedEntityId: String?
-    @State private var selectedSpatialNodeId: String?
     /// Entities for this document, loaded lazily when Timeline or Map tab activates.
     @State private var documentEntities: [Components.Schemas.KnowledgeEntity] = []
     @Environment(KGFocusState.self) private var kgFocusState
@@ -206,11 +201,6 @@ struct DocumentKGSurface: View {
                 entities: documentEntities,
                 selectedEntityId: $internalSelectedEntityId,
                 sourceDocumentId: documentId
-            )
-        case .realitykit:
-            FolderRealityKitSurface(
-                documentId: documentId,
-                selectedNodeId: $selectedSpatialNodeId
             )
         }
     }
