@@ -77,6 +77,16 @@ class JsonExportResult:
     bytes_written: int
 
 
+@dataclass
+class HtmlWebsiteExportResult:
+    """Result metadata for a static HTML website export."""
+
+    output_path: str
+    files: list[ExportedFile] = field(default_factory=list)
+    assets: list[ExportedFile] = field(default_factory=list)
+    document_count: int = 0
+
+
 def export_markdown_folder(
     db: Database,
     output_path: str | Path,
@@ -257,6 +267,92 @@ def export_json_file(
     )
 
 
+def export_html_site(
+    db: Database,
+    output_path: str | Path,
+    target_id: str | None = None,
+    recursive: bool = True,
+    include_assets: bool = True,
+    overwrite: bool = False,
+    package_path: str | Path | None = None,
+) -> HtmlWebsiteExportResult:
+    """Export a library, folder, or document as a static HTML website."""
+
+    output_dir = Path(output_path).expanduser()
+    if output_dir.exists() and any(output_dir.iterdir()) and not overwrite:
+        raise FileExistsError(
+            f"Export folder already exists and is not empty: {output_dir}"
+        )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    docs_dir = output_dir / "docs"
+    assets_dir = output_dir / "assets"
+    js_dir = output_dir / "js"
+    docs_dir.mkdir(exist_ok=True)
+    if include_assets:
+        assets_dir.mkdir(exist_ok=True)
+    js_dir.mkdir(exist_ok=True)
+
+    root, documents = _collect_documents(db, target_id=target_id, recursive=recursive)
+    document_ids = {doc.id for doc in documents}
+    claims = _collect_claims(db, document_ids)
+    entities = _collect_entities(db, document_ids, claims)
+    package = Path(package_path).expanduser() if package_path else None
+
+    result = HtmlWebsiteExportResult(
+        output_path=str(output_dir),
+        document_count=len(documents),
+    )
+    used_slugs: set[str] = set()
+    pages: list[tuple[Document, str, str]] = []
+    search_items: list[dict[str, str]] = []
+
+    for doc in documents:
+        slug = _unique_slug(_slugify(doc.name).lower(), used_slugs)
+        relative_url = f"docs/{slug}/index.html"
+        page_dir = docs_dir / slug
+        page_dir.mkdir(parents=True, exist_ok=True)
+        asset_refs = (
+            _copy_document_assets(doc, assets_dir, package) if include_assets else []
+        )
+        page_html = _render_html_document_page(
+            db=db,
+            doc=doc,
+            assets=asset_refs,
+            entities=_entities_for_document(doc.id, entities, claims),
+            claims=_claims_for_document(doc.id, claims),
+        )
+        page_path = page_dir / "index.html"
+        page_path.write_text(page_html, encoding="utf-8")
+        result.files.append(
+            ExportedFile(path=str(page_path), kind="html", document_id=doc.id)
+        )
+        result.assets.extend(
+            ExportedFile(path=str(asset.path), kind="asset", document_id=doc.id)
+            for asset in asset_refs
+        )
+        pages.append((doc, slug, relative_url))
+        search_items.append(
+            {
+                "title": doc.name,
+                "url": relative_url,
+                "text": _document_text(db, doc),
+            }
+        )
+
+    search_path = js_dir / "search.js"
+    search_path.write_text(_render_search_js(search_items), encoding="utf-8")
+    result.files.append(ExportedFile(path=str(search_path), kind="search-index"))
+
+    index_path = output_dir / "index.html"
+    index_path.write_text(
+        _render_html_index(root=root, pages=pages),
+        encoding="utf-8",
+    )
+    result.files.insert(0, ExportedFile(path=str(index_path), kind="index"))
+
+    return result
+
+
 @dataclass(frozen=True)
 class _AssetRef:
     path: str
@@ -365,6 +461,243 @@ def _combined_transcription(db: Database, documents: list[Document]) -> str:
 
 def _dump_model(model: Any) -> dict[str, Any]:
     return model.model_dump(mode="json")
+
+
+def _claims_for_document(
+    document_id: str,
+    claims: list[KnowledgeClaim],
+) -> list[KnowledgeClaim]:
+    return [
+        claim
+        for claim in claims
+        if claim.source_document_id == document_id
+        or document_id in (claim.source_ids or [])
+    ]
+
+
+def _entities_for_document(
+    document_id: str,
+    entities: list[KnowledgeEntity],
+    claims: list[KnowledgeClaim],
+) -> list[KnowledgeEntity]:
+    doc_claims = _claims_for_document(document_id, claims)
+    claim_entity_ids = {
+        entity_id
+        for claim in doc_claims
+        for entity_id in [
+            *claim.entity_ids,
+            claim.subject_entity_id,
+            claim.speaker_entity_id,
+            claim.subject_of_inquiry_entity_id,
+            claim.scribe_entity_id,
+            claim.editor_entity_id,
+        ]
+        if entity_id
+    }
+    return [
+        entity
+        for entity in entities
+        if entity.id in claim_entity_ids
+        or document_id in (entity.source_document_ids or [])
+    ]
+
+
+def _render_html_index(
+    root: Document | None,
+    pages: list[tuple[Document, str, str]],
+) -> str:
+    title = root.name if root else "Library Export"
+    links = "\n".join(
+        (
+            f'<li><a href="{_html_attr(url)}">{_html(doc.name)}</a></li>'
+            for doc, _, url in pages
+        )
+    )
+    if not links:
+        links = "<li>No documents exported.</li>"
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{_html(title)}</title>
+  <style>{_html_css()}</style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">Fichero static export</p>
+      <h1>{_html(title)}</h1>
+      <p>{len(pages)} documents exported.</p>
+    </header>
+    <section>
+      <h2>Search</h2>
+      <input id="search" type="search" placeholder="Search documents" autocomplete="off">
+      <ul id="search-results"></ul>
+    </section>
+    <section>
+      <h2>Documents</h2>
+      <ul class="doc-list">
+        {links}
+      </ul>
+    </section>
+  </main>
+  <script src="js/search.js"></script>
+</body>
+</html>
+"""
+
+
+def _render_html_document_page(
+    db: Database,
+    doc: Document,
+    assets: Iterable[_AssetRef],
+    entities: list[KnowledgeEntity],
+    claims: list[KnowledgeClaim],
+) -> str:
+    text = _document_text(db, doc)
+    gallery = _render_html_gallery(doc, assets)
+    entity_list = _render_html_entities(entities)
+    claim_list = _render_html_claims(claims)
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{_html(doc.name)}</title>
+  <style>{_html_css()}</style>
+</head>
+<body>
+  <main>
+    <nav><a href="../../index.html">Index</a></nav>
+    <article>
+      <header>
+        <p class="eyebrow">{_html(doc.doc_type.value)}</p>
+        <h1>{_html(doc.name)}</h1>
+      </header>
+      {gallery}
+      <section>
+        <h2>Transcription</h2>
+        {_html_paragraphs(text)}
+      </section>
+      <section>
+        <h2>Knowledge Graph Entities</h2>
+        {entity_list}
+      </section>
+      <section>
+        <h2>Claims</h2>
+        {claim_list}
+      </section>
+    </article>
+  </main>
+</body>
+</html>
+"""
+
+
+def _render_html_gallery(doc: Document, assets: Iterable[_AssetRef]) -> str:
+    images = "\n".join(
+        (
+            '<figure>'
+            f'<img src="../../assets/{_html_attr(Path(asset.path).name)}" '
+            f'alt="{_html_attr(doc.name)}">'
+            f"<figcaption>{_html(doc.name)}</figcaption>"
+            "</figure>"
+            for asset in assets
+        )
+    )
+    if not images:
+        return ""
+    return f"<section><h2>Images</h2><div class=\"gallery\">{images}</div></section>"
+
+
+def _render_html_entities(entities: list[KnowledgeEntity]) -> str:
+    if not entities:
+        return "<p>No linked entities.</p>"
+    items = "\n".join(
+        (
+            f'<li id="entity-{_html_attr(entity.id)}">'
+            f"<strong>{_html(entity.canonical_name)}</strong>"
+            f" <span>{_html(entity.entity_type.value)}</span>"
+            "</li>"
+            for entity in entities
+        )
+    )
+    return f"<ul>{items}</ul>"
+
+
+def _render_html_claims(claims: list[KnowledgeClaim]) -> str:
+    if not claims:
+        return "<p>No linked claims.</p>"
+    items = "\n".join(
+        (
+            f'<li id="claim-{_html_attr(claim.id)}">'
+            f"{_html(claim.text)}"
+            f" <span>{claim.confidence:.2f}</span>"
+            "</li>"
+            for claim in claims
+        )
+    )
+    return f"<ul>{items}</ul>"
+
+
+def _render_search_js(items: list[dict[str, str]]) -> str:
+    payload = json.dumps(items, ensure_ascii=False, sort_keys=True)
+    return f"""const FICHERO_SEARCH_INDEX = {payload};
+
+const input = document.getElementById("search");
+const results = document.getElementById("search-results");
+
+function renderSearch(query) {{
+  if (!results) return;
+  const terms = query.trim().toLowerCase().split(/\\s+/).filter(Boolean);
+  const matches = FICHERO_SEARCH_INDEX.filter((item) => {{
+    const haystack = `${{item.title}} ${{item.text}}`.toLowerCase();
+    return terms.length === 0 || terms.every((term) => haystack.includes(term));
+  }}).slice(0, 50);
+  results.innerHTML = matches.map((item) =>
+    `<li><a href="${{item.url}}">${{item.title}}</a></li>`
+  ).join("");
+}}
+
+if (input) {{
+  input.addEventListener("input", () => renderSearch(input.value));
+  renderSearch("");
+}}
+"""
+
+
+def _html_css() -> str:
+    return """
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f8f8f6;color:#202020;line-height:1.55}
+main{max-width:960px;margin:0 auto;padding:32px 20px}
+header{border-bottom:1px solid #d8d5cf;margin-bottom:24px}
+h1{font-size:32px;line-height:1.2;margin:4px 0 16px}
+h2{font-size:20px;margin-top:28px}
+a{color:#075a8f}
+input[type=search]{box-sizing:border-box;width:100%;max-width:560px;padding:10px 12px;border:1px solid #aaa;border-radius:6px;font:inherit;background:white}
+.eyebrow{color:#666;text-transform:uppercase;font-size:12px;letter-spacing:.08em}
+.doc-list li,#search-results li{margin:8px 0}
+.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+figure{margin:0}
+img{max-width:100%;height:auto;border:1px solid #d8d5cf;background:white}
+figcaption,span{color:#666;font-size:13px}
+pre{white-space:pre-wrap;background:white;border:1px solid #d8d5cf;padding:16px;overflow:auto}
+"""
+
+
+def _html_paragraphs(text: str) -> str:
+    if not text.strip():
+        return "<p>No text content available.</p>"
+    return f"<pre>{_html(text)}</pre>"
+
+
+def _html(value: object) -> str:
+    return escape(str(value))
+
+
+def _html_attr(value: object) -> str:
+    return escape(str(value), {'"': "&quot;"})
 
 
 def _render_document_markdown(
@@ -500,6 +833,16 @@ def _unique_filename(stem: str, used_names: set[str], suffix: str) -> str:
         candidate = f"{stem}-{index}{suffix}"
         index += 1
     used_names.add(candidate)
+    return candidate
+
+
+def _unique_slug(stem: str, used_slugs: set[str]) -> str:
+    candidate = stem or "document"
+    index = 2
+    while candidate in used_slugs:
+        candidate = f"{stem}-{index}"
+        index += 1
+    used_slugs.add(candidate)
     return candidate
 
 

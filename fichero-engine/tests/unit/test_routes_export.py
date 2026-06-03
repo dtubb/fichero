@@ -266,3 +266,100 @@ class TestJsonExport:
         )
 
         assert r.status_code == 404
+
+
+class TestHtmlExport:
+    def test_exports_static_site_with_search_assets_and_kg(
+        self, client, db, tmp_path
+    ):
+        folder = Document(
+            id="folder-html",
+            name="HTML Export",
+            doc_type=DocType.folder,
+        )
+        image_path = tmp_path / "source.jpg"
+        image_path.write_bytes(b"image bytes")
+        doc = Document(
+            id="doc-html",
+            name="Photo Letter",
+            parent_id=folder.id,
+            doc_type=DocType.file,
+            file_type=FileType.image,
+            path=str(image_path),
+            page_content="Searchable transcription.",
+        )
+        artifact = Artifact(
+            id="artifact-html",
+            document_id=doc.id,
+            artifact_type="summary",
+            content="HTML summary.",
+        )
+        entity = KnowledgeEntity(
+            id="entity-html",
+            canonical_name="Juan Perez",
+            source_document_ids=[doc.id],
+        )
+        claim = KnowledgeClaim(
+            id="claim-html",
+            text="Juan Perez appears in the letter.",
+            source_document_id=doc.id,
+            entity_ids=[entity.id],
+        )
+        for item in [folder, doc, artifact, entity, claim]:
+            db.save(item)
+
+        output_path = tmp_path / "site"
+        r = client.post(
+            "/api/export/html",
+            json={
+                "target_id": folder.id,
+                "output_path": str(output_path),
+            },
+        )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["document_count"] == 1
+        assert data["assets"][0]["document_id"] == doc.id
+
+        assert (output_path / "index.html").exists()
+        assert (output_path / "js" / "search.js").exists()
+        assert (output_path / "assets" / "Photo-Letter.jpg").read_bytes() == b"image bytes"
+
+        index_html = (output_path / "index.html").read_text(encoding="utf-8")
+        page_html = (
+            output_path / "docs" / "photo-letter" / "index.html"
+        ).read_text(encoding="utf-8")
+        search_js = (output_path / "js" / "search.js").read_text(encoding="utf-8")
+
+        assert "Photo Letter" in index_html
+        assert "Searchable transcription." in page_html
+        assert "../../assets/Photo-Letter.jpg" in page_html
+        assert "Juan Perez" in page_html
+        assert "Juan Perez appears in the letter." in page_html
+        assert "Searchable transcription." in search_js
+
+    def test_html_export_rejects_non_empty_output_without_overwrite(
+        self, client, tmp_path
+    ):
+        output_path = tmp_path / "site"
+        output_path.mkdir()
+        (output_path / "index.html").write_text("existing", encoding="utf-8")
+
+        r = client.post(
+            "/api/export/html",
+            json={"output_path": str(output_path)},
+        )
+
+        assert r.status_code == 409
+
+    def test_html_export_missing_target_returns_404(self, client, tmp_path):
+        r = client.post(
+            "/api/export/html",
+            json={
+                "target_id": "no-such-doc",
+                "output_path": str(tmp_path / "site"),
+            },
+        )
+
+        assert r.status_code == 404

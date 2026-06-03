@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.export_service import (
+    export_html_site,
     export_json_file,
     export_markdown_folder,
     export_word_docx,
@@ -87,6 +88,30 @@ class JsonExportResponse(BaseModel):
     entity_count: int
     claim_count: int
     bytes_written: int
+
+
+class HtmlExportRequest(BaseModel):
+    """Request body for static HTML website export."""
+
+    model_config = ConfigDict(extra="allow")
+
+    output_path: str = Field(..., description="Destination folder for site files")
+    target_id: str | None = Field(
+        default=None,
+        description="Optional document/folder id to export; omitted exports library",
+    )
+    recursive: bool = Field(default=True, description="Include descendants of folders")
+    include_assets: bool = Field(default=True, description="Copy image assets")
+    overwrite: bool = Field(
+        default=False, description="Allow writing into non-empty folder"
+    )
+
+
+class HtmlExportResponse(BaseModel):
+    output_path: str
+    files: list[ExportedFileResponse]
+    assets: list[ExportedFileResponse]
+    document_count: int
 
 
 @router.post("/markdown-folder", response_model=MarkdownFolderExportResponse)
@@ -169,3 +194,35 @@ async def export_json_route(
         raise HTTPException(status_code=400, detail=str(e))
 
     return JsonExportResponse(**result.__dict__)
+
+
+@router.post("/html", response_model=HtmlExportResponse)
+async def export_html_route(
+    request: HtmlExportRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(None, alias="X-Fichero-Library-Path"),
+) -> HtmlExportResponse:
+    """Export a library, folder, or document as a static HTML website."""
+    try:
+        result = export_html_site(
+            db=db,
+            output_path=Path(request.output_path),
+            target_id=request.target_id,
+            recursive=request.recursive,
+            include_assets=request.include_assets,
+            overwrite=request.overwrite,
+            package_path=x_fichero_library_path,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return HtmlExportResponse(
+        output_path=result.output_path,
+        files=[ExportedFileResponse(**file.__dict__) for file in result.files],
+        assets=[ExportedFileResponse(**asset.__dict__) for asset in result.assets],
+        document_count=result.document_count,
+    )

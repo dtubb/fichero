@@ -8770,6 +8770,60 @@
         }
       }
     },
+    "/api/export/html": {
+      "post": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "Export Html Route",
+        "description": "Export a library, folder, or document as a static HTML website.",
+        "operationId": "export_html_route_api_export_html_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HtmlExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HtmlExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/folders/{folder_id}/views": {
       "get": {
         "tags": [
@@ -41244,6 +41298,80 @@
         },
         "type": "object",
         "title": "HeuristicRequest"
+      },
+      "HtmlExportRequest": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path",
+            "description": "Destination folder for site files"
+          },
+          "target_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Id",
+            "description": "Optional document/folder id to export; omitted exports library"
+          },
+          "recursive": {
+            "type": "boolean",
+            "title": "Recursive",
+            "description": "Include descendants of folders",
+            "default": true
+          },
+          "include_assets": {
+            "type": "boolean",
+            "title": "Include Assets",
+            "description": "Copy image assets",
+            "default": true
+          },
+          "overwrite": {
+            "type": "boolean",
+            "title": "Overwrite",
+            "description": "Allow writing into non-empty folder",
+            "default": false
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "output_path"
+        ],
+        "title": "HtmlExportRequest",
+        "description": "Request body for static HTML website export."
+      },
+      "HtmlExportResponse": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedFileResponse"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedFileResponse"
+            },
+            "type": "array",
+            "title": "Assets"
+          },
+          "document_count": {
+            "type": "integer",
+            "title": "Document Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "output_path",
+          "files",
+          "assets",
+          "document_count"
+        ],
+        "title": "HtmlExportResponse"
       },
       "IIIFManifest": {
         "properties": {
