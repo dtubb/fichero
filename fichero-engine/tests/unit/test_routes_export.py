@@ -1,6 +1,9 @@
 """Tests for document export routes."""
 
+from fichero.knowledge_models import ClaimType, EntityType
+from fichero.loaders.xlsx_reader import read_xlsx_records
 from fichero.models import Artifact, DocType, Document, FileType
+from fichero.models import KnowledgeClaim, KnowledgeEntity
 
 
 class TestMarkdownFolderExport:
@@ -134,6 +137,91 @@ class TestWordExport:
         assert "Image transcription." in document_xml
         assert "<w:tbl>" in document_xml
 
+    def test_exports_docx_with_knowledge_graph_appendix(self, client, db, tmp_path):
+        import zipfile
+
+        doc = Document(
+            id="word-kg-doc",
+            name="KG Source",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="Source text.",
+        )
+        entity = KnowledgeEntity(
+            id="entity-pedro",
+            canonical_name="Pedro",
+            entity_type=EntityType.person,
+            description="Witness",
+            source_document_ids=[doc.id],
+        )
+        claim = KnowledgeClaim(
+            id="claim-pedro",
+            text="Pedro testified in 1933.",
+            source_document_id=doc.id,
+            source_page_label="4",
+            source_excerpt="Pedro testified",
+            entity_ids=[entity.id],
+            claim_type=ClaimType.fact,
+        )
+        db.save(doc)
+        db.save(entity)
+        db.save(claim)
+
+        output_path = tmp_path / "kg.docx"
+        r = client.post(
+            "/api/export/word",
+            json={
+                "target_id": doc.id,
+                "output_path": str(output_path),
+            },
+        )
+
+        assert r.status_code == 200
+        with zipfile.ZipFile(output_path) as docx:
+            document_xml = docx.read("word/document.xml").decode()
+
+        assert "Knowledge Graph Appendix" in document_xml
+        assert "Pedro (person): Witness" in document_xml
+        assert "Pedro testified in 1933. [source: 4]" in document_xml
+        assert "Excerpt: Pedro testified" in document_xml
+
+    def test_word_export_can_omit_knowledge_graph_appendix(
+        self, client, db, tmp_path
+    ):
+        import zipfile
+
+        doc = Document(
+            id="word-no-kg-doc",
+            name="No KG Source",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="Source text.",
+        )
+        entity = KnowledgeEntity(
+            id="entity-hidden",
+            canonical_name="Hidden",
+            source_document_ids=[doc.id],
+        )
+        db.save(doc)
+        db.save(entity)
+
+        output_path = tmp_path / "no-kg.docx"
+        r = client.post(
+            "/api/export/word",
+            json={
+                "target_id": doc.id,
+                "output_path": str(output_path),
+                "include_knowledge_graph": False,
+            },
+        )
+
+        assert r.status_code == 200
+        with zipfile.ZipFile(output_path) as docx:
+            document_xml = docx.read("word/document.xml").decode()
+
+        assert "Knowledge Graph Appendix" not in document_xml
+        assert "Hidden" not in document_xml
+
     def test_word_export_rejects_existing_file_without_overwrite(
         self, client, tmp_path
     ):
@@ -142,6 +230,86 @@ class TestWordExport:
 
         r = client.post(
             "/api/export/word",
+            json={"output_path": str(output_path)},
+        )
+
+        assert r.status_code == 409
+
+
+class TestExcelExport:
+    def test_exports_xlsx_documents_entities_and_claims(self, client, db, tmp_path):
+        folder = Document(
+            id="folder-excel",
+            name="Excel Export",
+            doc_type=DocType.folder,
+        )
+        doc = Document(
+            id="excel-doc",
+            name="Excel Source",
+            parent_id=folder.id,
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="Transcript text.",
+            metadata={"box": "A1"},
+        )
+        entity = KnowledgeEntity(
+            id="excel-entity",
+            canonical_name="Maria",
+            entity_type=EntityType.person,
+            aliases=["María"],
+            source_document_ids=[doc.id],
+        )
+        claim = KnowledgeClaim(
+            id="excel-claim",
+            text="Maria signed the letter.",
+            source_document_id=doc.id,
+            source_page_label="7",
+            source_excerpt="Maria signed",
+            entity_ids=[entity.id],
+            claim_type=ClaimType.fact,
+        )
+        db.save(folder)
+        db.save(doc)
+        db.save(entity)
+        db.save(claim)
+
+        output_path = tmp_path / "export.xlsx"
+        r = client.post(
+            "/api/export/excel",
+            json={
+                "target_id": folder.id,
+                "output_path": str(output_path),
+            },
+        )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["document_count"] == 1
+        assert data["entity_count"] == 1
+        assert data["claim_count"] == 1
+        assert data["bytes_written"] > 0
+
+        documents = read_xlsx_records(output_path, sheet_index=0)
+        entities = read_xlsx_records(output_path, sheet_index=1)
+        claims = read_xlsx_records(output_path, sheet_index=2)
+
+        assert documents[0]["id"] == doc.id
+        assert documents[0]["transcription"] == "Transcript text."
+        assert documents[0]["metadata"] == '{"box": "A1"}'
+        assert entities[0]["canonical_name"] == "Maria"
+        assert entities[0]["entity_type"] == "person"
+        assert claims[0]["text"] == "Maria signed the letter."
+        assert claims[0]["source_page_label"] == "7"
+        assert claims[0]["entity_ids"] == '["excel-entity"]'
+
+    def test_excel_export_rejects_existing_file_without_overwrite(
+        self, client, tmp_path
+    ):
+        output_path = tmp_path / "export.xlsx"
+        output_path.write_bytes(b"existing")
+
+        r = client.post(
+            "/api/export/excel",
             json={"output_path": str(output_path)},
         )
 
