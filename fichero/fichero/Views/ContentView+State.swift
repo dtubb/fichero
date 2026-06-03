@@ -182,7 +182,7 @@ extension ContentView {
         switch sidebarMode {
         case .library:
             if let doc = libraryViewDocument, doc.docType == .folder || doc.isWorkspace {
-                return [.icon, .list, .map, .realitykit]
+                return [.icon, .list, .table, .map, .realitykit]
             }
             if !featureManager.isLibraryAdvancedViewsEnabled {
                 return [.icon]

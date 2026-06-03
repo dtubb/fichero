@@ -274,7 +274,7 @@ struct LibraryLayoutSection: View {
                 if availableLayouts.contains(.table) {
                     LibraryLayoutButton(
                         layout: .table,
-                        label: "as Table",
+                        label: "as Column",
                         icon: "tablecells",
                         shortcut: "3",
                         current: viewSettings.libraryLayout
