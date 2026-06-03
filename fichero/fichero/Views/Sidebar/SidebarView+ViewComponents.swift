@@ -495,6 +495,17 @@ extension SidebarView {
             .listRowBackground(Color.clear)
     }
 
+    private func entitiesNavigationRow() -> some View {
+        Label("Entities", systemImage: SidebarMode.knowledgeGraph.icon)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .tag("entities-browser")
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .help("Browse the library by entity and knowledge graph")
+    }
+
     /// Workflows / Batches / Activity pinned once at the bottom of the sidebar.
     /// These are app-level destinations with fixed selection tags, so they must
     /// appear exactly once — not repeated under every library, which both
@@ -503,6 +514,7 @@ extension SidebarView {
     private func pinnedGlobalNavigationRows() -> some View {
         if FeatureManager.shared.isWorkflowsEnabled
             || FeatureManager.shared.isBatchesEnabled
+            || FeatureManager.shared.isKnowledgeGraphEnabled
             || FeatureManager.shared.isActivityEnabled {
             Divider()
                 .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
@@ -516,6 +528,10 @@ extension SidebarView {
 
         if FeatureManager.shared.isBatchesEnabled {
             batchesNavigationRow()
+        }
+
+        if FeatureManager.shared.isKnowledgeGraphEnabled {
+            entitiesNavigationRow()
         }
 
         if FeatureManager.shared.isActivityEnabled {

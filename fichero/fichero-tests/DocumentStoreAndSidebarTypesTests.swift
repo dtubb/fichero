@@ -7,6 +7,15 @@ import XCTest
 /// label/icon table + SelectedActivityRun.with helper).
 final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
+    private static func appSource(_ relativePath: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
     // MARK: - DocumentCreateRequest
 
     func testDocumentCreateRequestSnakeCase() throws {
@@ -61,21 +70,21 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let root = makeDoc(id: "root", name: "Root")
         let mid = makeDoc(id: "mid", name: "Mid")
         let leaf = makeDoc(id: "leaf", name: "Leaf")
-        let h = DocumentHierarchy(ancestors: [root, mid], document: leaf, children: [])
-        XCTAssertEqual(h.parent?.id, "mid")
+        let hierarchy = DocumentHierarchy(ancestors: [root, mid], document: leaf, children: [])
+        XCTAssertEqual(hierarchy.parent?.id, "mid")
     }
 
     func testHierarchyParentNilForRoot() {
         let root = makeDoc(id: "root", name: "Root")
-        let h = DocumentHierarchy(ancestors: [], document: root, children: [])
-        XCTAssertNil(h.parent)
+        let hierarchy = DocumentHierarchy(ancestors: [], document: root, children: [])
+        XCTAssertNil(hierarchy.parent)
     }
 
     func testHierarchyBreadcrumbAppendsDocument() {
         let root = makeDoc(id: "root", name: "Root")
         let leaf = makeDoc(id: "leaf", name: "Leaf")
-        let h = DocumentHierarchy(ancestors: [root], document: leaf, children: [])
-        XCTAssertEqual(h.breadcrumb.map(\.id), ["root", "leaf"])
+        let hierarchy = DocumentHierarchy(ancestors: [root], document: leaf, children: [])
+        XCTAssertEqual(hierarchy.breadcrumb.map(\.id), ["root", "leaf"])
     }
 
     // MARK: - DocumentStoreError
@@ -111,6 +120,22 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertEqual(AppViewMode.trigger(nil).category, .workflow)
         XCTAssertEqual(AppViewMode.activity(nil).category, .workflow)
         XCTAssertEqual(AppViewMode.mindPalace.category, .folder)
+    }
+
+    func testEntitiesSidebarEntryPointRoutesToKnowledgeGraph() throws {
+        let source = try Self.appSource("Views/Sidebar/SidebarView.swift")
+
+        XCTAssertTrue(source.contains("id == \"entities-browser\""))
+        XCTAssertTrue(source.contains("sidebarMode = .knowledgeGraph"))
+    }
+
+    func testEntitiesSidebarEntryPointIsPinnedAndFeatureGated() throws {
+        let source = try Self.appSource("Views/Sidebar/SidebarView+ViewComponents.swift")
+
+        XCTAssertTrue(source.contains("Label(\"Entities\", systemImage: SidebarMode.knowledgeGraph.icon)"))
+        XCTAssertTrue(source.contains(".tag(\"entities-browser\")"))
+        XCTAssertTrue(source.contains("FeatureManager.shared.isKnowledgeGraphEnabled"))
+        XCTAssertTrue(source.contains("entitiesNavigationRow()"))
     }
 
     // MARK: - ActivityChildType

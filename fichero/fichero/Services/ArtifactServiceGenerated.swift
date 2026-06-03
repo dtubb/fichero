@@ -1,4 +1,4 @@
-// swiftlint:disable file_length type_body_length
+// swiftlint:disable file_length
 // This file hosts both ArtifactServiceGenerated AND EntityServiceGenerated
 // because Services is a non-synchronized PBXGroup (per MEMORY note
 // [[feedback_swift_file_sync]]). Splitting would require pbxproj
@@ -115,7 +115,7 @@ class ArtifactServiceGenerated: ObservableObject {
 
     /// Get all artifacts in the library (uses direct HTTP call since generated client may not have this endpoint)
     func getAllArtifacts(type: String? = nil, limit: Int = 100, offset: Int = 0) async throws -> [Artifact] {
-        var urlString = "http://localhost:8765/api/artifacts?limit=\(limit)&offset=\(offset)"
+        var urlString = "http://localhost:8765/api/artifacts/?limit=\(limit)&offset=\(offset)"
         if let type = type {
             urlString += "&artifact_type=\(type.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? type)"
         }
@@ -411,6 +411,7 @@ private let entityServiceLogger = Logger(
 /// shape used by the merge/split UI. This service is for the simpler
 /// per-document entity/claim views in the Inspector.
 @MainActor
+// swiftlint:disable:next type_body_length
 final class EntityServiceGenerated: ObservableObject {
     private let client: FicheroClient
 
@@ -960,6 +961,285 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    // MARK: - Claims, entities, registries, and multilingual wiring (#1424)
+
+    func getClaimLink(_ linkId: String) async throws -> Data {
+        try await endpointData(path: "/api/claim-links/\(linkId)")
+    }
+
+    func updateClaimLink(
+        _ linkId: String,
+        patch: [String: Any]
+    ) async throws -> Data {
+        try await endpointData(
+            path: "/api/claim-links/\(linkId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func deleteClaimLink(_ linkId: String) async throws {
+        _ = try await endpointData(path: "/api/claim-links/\(linkId)", method: "DELETE")
+    }
+
+    func assignClaimTimePeriod(
+        claimId: String,
+        timePeriodId: String
+    ) async throws -> Data {
+        try await endpointData(
+            path: "/api/claims/assign-time-period",
+            method: "POST",
+            jsonBody: ["claim_id": claimId, "time_period_id": timePeriodId]
+        )
+    }
+
+    func batchTransitionClaims(
+        claimIds: [String],
+        state: String
+    ) async throws -> Data {
+        try await endpointData(
+            path: "/api/claims/batch/transition",
+            method: "POST",
+            jsonBody: ["claim_ids": claimIds, "state": state]
+        )
+    }
+
+    func unreviewedClaimsQueue(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await claimsQueue(path: "/api/claims/queues/unreviewed", limit: limit, offset: offset)
+    }
+
+    func shortlistedClaimsQueue(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await claimsQueue(path: "/api/claims/queues/shortlisted", limit: limit, offset: offset)
+    }
+
+    func curatedClaimsQueue(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await claimsQueue(path: "/api/claims/queues/curated", limit: limit, offset: offset)
+    }
+
+    func rejectedClaimsQueue(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await claimsQueue(path: "/api/claims/queues/rejected", limit: limit, offset: offset)
+    }
+
+    func resolveClaimSource(claimId: String) async throws -> Data {
+        try await endpointData(
+            path: "/api/claims/resolve-source",
+            method: "POST",
+            jsonBody: ["claim_id": claimId]
+        )
+    }
+
+    func relatedClaims(claimId: String, limit: Int = 10) async throws -> Data {
+        try await endpointData(
+            path: "/api/claims/\(claimId)/related",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func transitionClaim(_ claimId: String, state: String) async throws -> Data {
+        try await endpointData(
+            path: "/api/claims/\(claimId)/transition",
+            method: "PATCH",
+            jsonBody: ["state": state]
+        )
+    }
+
+    func listClassifications(dimension: String? = nil) async throws -> Data {
+        try await endpointData(
+            path: "/api/classifications",
+            queryItems: dimension.map { [URLQueryItem(name: "dimension", value: $0)] } ?? []
+        )
+    }
+
+    func createClassification(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/classifications", method: "POST", jsonBody: body)
+    }
+
+    func patchClassification(_ valueId: String, patch: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/classifications/\(valueId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func deleteClassification(_ valueId: String) async throws {
+        _ = try await endpointData(path: "/api/classifications/\(valueId)", method: "DELETE")
+    }
+
+    func entityAliasMap() async throws -> Data {
+        try await endpointData(path: "/api/entities/alias-map")
+    }
+
+    func entityClaimCountsData() async throws -> Data {
+        try await endpointData(path: "/api/entities/claim-counts")
+    }
+
+    func entityDigest(limit: Int = 50) async throws -> Data {
+        try await endpointData(
+            path: "/api/entities/digest",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func resolveEntityValue(_ value: String) async throws -> Data {
+        let encoded = value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
+        return try await endpointData(path: "/api/entities/resolve/\(encoded)")
+    }
+
+    func topEntities(limit: Int = 25) async throws -> Data {
+        try await endpointData(
+            path: "/api/entities/top",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func addEntityAliases(_ entityId: String, aliases: [String]) async throws -> Data {
+        try await endpointData(
+            path: "/api/entities/\(entityId)/aliases",
+            method: "POST",
+            jsonBody: ["aliases": aliases]
+        )
+    }
+
+    func entityBiography(_ entityId: String) async throws -> Data {
+        try await endpointData(path: "/api/entities/\(entityId)/biography")
+    }
+
+    func entityCoOccurrence(_ entityId: String, limit: Int = 25) async throws -> Data {
+        try await endpointData(
+            path: "/api/entities/\(entityId)/co-occurrence",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func entityDocuments(_ entityId: String, limit: Int = 50) async throws -> Data {
+        try await endpointData(
+            path: "/api/entities/\(entityId)/documents",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func entityDrillDown(_ entityId: String) async throws -> Data {
+        try await endpointData(path: "/api/entities/\(entityId)/drill-down")
+    }
+
+    func multilingualClaims(language: String, limit: Int = 100) async throws -> Data {
+        try await endpointData(
+            path: "/api/multilingual/claims",
+            queryItems: [
+                URLQueryItem(name: "language", value: language),
+                URLQueryItem(name: "limit", value: "\(limit)")
+            ]
+        )
+    }
+
+    func detectLanguage(text: String) async throws -> Data {
+        try await endpointData(
+            path: "/api/multilingual/detect",
+            method: "POST",
+            jsonBody: ["text": text]
+        )
+    }
+
+    func multilingualEntities(language: String, limit: Int = 100) async throws -> Data {
+        try await endpointData(
+            path: "/api/multilingual/entities",
+            queryItems: [
+                URLQueryItem(name: "language", value: language),
+                URLQueryItem(name: "limit", value: "\(limit)")
+            ]
+        )
+    }
+
+    func searchMultilingualEntities(query: String, languages: [String] = []) async throws -> Data {
+        var body: [String: Any] = ["query": query]
+        if !languages.isEmpty {
+            body["languages"] = languages
+        }
+        return try await endpointData(
+            path: "/api/multilingual/entities/search",
+            method: "POST",
+            jsonBody: body
+        )
+    }
+
+    func normalizeMultilingualText(_ text: String, language: String? = nil) async throws -> Data {
+        var body: [String: Any] = ["text": text]
+        if let language {
+            body["language"] = language
+        }
+        return try await endpointData(
+            path: "/api/multilingual/normalize",
+            method: "POST",
+            jsonBody: body
+        )
+    }
+
+    func transliterateMultilingualText(_ text: String, language: String? = nil) async throws -> Data {
+        var body: [String: Any] = ["text": text]
+        if let language {
+            body["language"] = language
+        }
+        return try await endpointData(
+            path: "/api/multilingual/transliterate",
+            method: "POST",
+            jsonBody: body
+        )
+    }
+
+    func listClaimKinds() async throws -> Data {
+        try await endpointData(path: "/api/registries/claim-kinds")
+    }
+
+    func createClaimKind(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/registries/claim-kinds", method: "POST", jsonBody: body)
+    }
+
+    func patchClaimKind(_ valueId: String, patch: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/registries/claim-kinds/\(valueId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func deleteClaimKind(_ valueId: String) async throws {
+        _ = try await endpointData(path: "/api/registries/claim-kinds/\(valueId)", method: "DELETE")
+    }
+
+    func listEpistemicStatuses() async throws -> Data {
+        try await endpointData(path: "/api/registries/epistemic-statuses")
+    }
+
+    func createEpistemicStatus(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/registries/epistemic-statuses", method: "POST", jsonBody: body)
+    }
+
+    func patchEpistemicStatus(_ valueId: String, patch: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/registries/epistemic-statuses/\(valueId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func deleteEpistemicStatus(_ valueId: String) async throws {
+        _ = try await endpointData(
+            path: "/api/registries/epistemic-statuses/\(valueId)",
+            method: "DELETE"
+        )
+    }
+
+    private func claimsQueue(path: String, limit: Int, offset: Int) async throws -> Data {
+        try await endpointData(
+            path: path,
+            queryItems: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+        )
+    }
+
     /// Generate cheap candidate links via embedding similarity. Requires
     /// claims to have been embedded first via the claim-search embed
     /// endpoint. Backed by `/api/kg/predictions/heuristic`.
@@ -1300,7 +1580,7 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
-    private func bibliographyData(
+    private func endpointData(
         path: String,
         method: String = "GET",
         queryItems: [URLQueryItem] = [],
@@ -1331,6 +1611,20 @@ final class EntityServiceGenerated: ObservableObject {
             throw ServiceError.unexpectedResponse(http.statusCode)
         }
         return data
+    }
+
+    private func bibliographyData(
+        path: String,
+        method: String = "GET",
+        queryItems: [URLQueryItem] = [],
+        jsonBody: [String: Any]? = nil
+    ) async throws -> Data {
+        try await endpointData(
+            path: path,
+            method: method,
+            queryItems: queryItems,
+            jsonBody: jsonBody
+        )
     }
 
     private func bibliographyText(
@@ -1645,6 +1939,465 @@ final class EntityServiceGenerated: ObservableObject {
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, _) = try await URLSession.shared.data(for: req)
         return try JSONDecoder().decode(Components.Schemas.Interpretation.self, from: data)
+    }
+
+    // MARK: - Hermeneutics endpoint wiring (#1423)
+
+    func createCircleState(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/circle-state", method: "POST", jsonBody: body)
+    }
+
+    func listCircleStates(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/circle-state",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+        )
+    }
+
+    func getCircleState(_ stateId: String) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/circle-state/\(stateId)")
+    }
+
+    func backtrackCircleState(_ stateId: String, steps: Int = 1) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/circle-state/\(stateId)/backtrack",
+            method: "POST",
+            jsonBody: ["steps": steps]
+        )
+    }
+
+    func navigateCircleState(_ stateId: String, body: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/circle-state/\(stateId)/navigate",
+            method: "POST",
+            jsonBody: body
+        )
+    }
+
+    func createFramework(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/frameworks", method: "POST", jsonBody: body)
+    }
+
+    func getFramework(_ frameworkId: String) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/frameworks/\(frameworkId)")
+    }
+
+    func patchFramework(_ frameworkId: String, patch: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/frameworks/\(frameworkId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func deleteFramework(_ frameworkId: String) async throws {
+        _ = try await endpointData(path: "/api/hermeneutics/frameworks/\(frameworkId)", method: "DELETE")
+    }
+
+    func listInterpretations(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/interpretations",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+        )
+    }
+
+    func getInterpretation(_ interpretationId: String) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/interpretations/\(interpretationId)")
+    }
+
+    func patchInterpretation(_ interpretationId: String, patch: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/interpretations/\(interpretationId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func createPattern(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/patterns", method: "POST", jsonBody: body)
+    }
+
+    func listPatterns(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/patterns",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+        )
+    }
+
+    func getPattern(_ patternId: String) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/patterns/\(patternId)")
+    }
+
+    func patchPattern(_ patternId: String, patch: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/patterns/\(patternId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func addClaimToPattern(patternId: String, claimId: String) async throws -> Data {
+        try await endpointData(
+            path: "/api/hermeneutics/patterns/\(patternId)/claims/\(claimId)",
+            method: "POST"
+        )
+    }
+
+    func suggestInterpretations(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/suggestions", method: "POST", jsonBody: body)
+    }
+
+    func hermeneuticsTaxonomyMethods() async throws -> Data {
+        try await endpointData(path: "/api/hermeneutics/taxonomy/methods")
+    }
+
+    // MARK: - Knowledge Graph endpoint wiring (#1422)
+
+    func generateKGEntityBiography(_ entityId: String) async throws -> Data {
+        try await endpointData(path: "/api/kg/entities/\(entityId)/bio", method: "POST")
+    }
+
+    func kgEntityCurationCandidates(limit: Int = 50) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/entity-curation/candidates",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func kgGraphCentrality(limit: Int = 25) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/graph/centrality",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func kgGraphClustering() async throws -> Data {
+        try await endpointData(path: "/api/kg/graph/clustering")
+    }
+
+    func kgGraphCommunities() async throws -> Data {
+        try await endpointData(path: "/api/kg/graph/communities")
+    }
+
+    func kgGraphComponents() async throws -> Data {
+        try await endpointData(path: "/api/kg/graph/components")
+    }
+
+    func kgGraphCooccurrence(_ entityId: String, limit: Int = 25) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/graph/cooccurrence/\(entityId)",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func kgGraphMetrics() async throws -> Data {
+        try await endpointData(path: "/api/kg/graph/metrics")
+    }
+
+    func kgGraphPagerank(limit: Int = 25) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/graph/pagerank",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func kgGraphPath(from sourceEntityId: String, to targetEntityId: String) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/graph/path",
+            queryItems: [
+                URLQueryItem(name: "source_entity_id", value: sourceEntityId),
+                URLQueryItem(name: "target_entity_id", value: targetEntityId)
+            ]
+        )
+    }
+
+    func kgGraphSimilar(_ entityId: String, limit: Int = 25) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/graph/similar/\(entityId)",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func kgGraphTraverse(_ entityId: String, depth: Int = 2) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/graph/traverse/\(entityId)",
+            queryItems: [URLQueryItem(name: "depth", value: "\(depth)")]
+        )
+    }
+
+    func kgGraphTriangles(_ entityId: String) async throws -> Data {
+        try await endpointData(path: "/api/kg/graph/triangles/\(entityId)")
+    }
+
+    func upsertKGInclusion(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/kg/inclusion", method: "POST", jsonBody: body)
+    }
+
+    func listKGInclusions() async throws -> Data {
+        try await endpointData(path: "/api/kg/inclusion")
+    }
+
+    func createKGCircleState(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/kg/interpretations/circle-state", method: "POST", jsonBody: body)
+    }
+
+    func listKGCircleStates(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/interpretations/circle-state",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+        )
+    }
+
+    func getKGCircleState(_ stateId: String) async throws -> Data {
+        try await endpointData(path: "/api/kg/interpretations/circle-state/\(stateId)")
+    }
+
+    func backtrackKGCircleState(_ stateId: String, steps: Int = 1) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/interpretations/circle-state/\(stateId)/backtrack",
+            method: "POST",
+            jsonBody: ["steps": steps]
+        )
+    }
+
+    func navigateKGCircleState(_ stateId: String, body: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/interpretations/circle-state/\(stateId)/navigate",
+            method: "POST",
+            jsonBody: body
+        )
+    }
+
+    func createKGFramework(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/kg/interpretations/frameworks", method: "POST", jsonBody: body)
+    }
+
+    func listKGFrameworks() async throws -> Data {
+        try await endpointData(path: "/api/kg/interpretations/frameworks")
+    }
+
+    func getKGFramework(_ frameworkId: String) async throws -> Data {
+        try await endpointData(path: "/api/kg/interpretations/frameworks/\(frameworkId)")
+    }
+
+    func patchKGFramework(_ frameworkId: String, patch: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/interpretations/frameworks/\(frameworkId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func deleteKGFramework(_ frameworkId: String) async throws {
+        _ = try await endpointData(path: "/api/kg/interpretations/frameworks/\(frameworkId)", method: "DELETE")
+    }
+
+    func createKGInterpretation(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/kg/interpretations/interpretations", method: "POST", jsonBody: body)
+    }
+
+    func listKGInterpretations(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/interpretations/interpretations",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+        )
+    }
+
+    func getKGInterpretation(_ interpretationId: String) async throws -> Data {
+        try await endpointData(path: "/api/kg/interpretations/interpretations/\(interpretationId)")
+    }
+
+    func patchKGInterpretation(_ interpretationId: String, patch: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/interpretations/interpretations/\(interpretationId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func createKGPattern(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/kg/interpretations/patterns", method: "POST", jsonBody: body)
+    }
+
+    func listKGPatterns(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/interpretations/patterns",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+        )
+    }
+
+    func getKGPattern(_ patternId: String) async throws -> Data {
+        try await endpointData(path: "/api/kg/interpretations/patterns/\(patternId)")
+    }
+
+    func patchKGPattern(_ patternId: String, patch: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/interpretations/patterns/\(patternId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func addClaimToKGPattern(patternId: String, claimId: String) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/interpretations/patterns/\(patternId)/claims/\(claimId)",
+            method: "POST"
+        )
+    }
+
+    func suggestKGInterpretations(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/kg/interpretations/suggestions", method: "POST", jsonBody: body)
+    }
+
+    func kgInterpretationTaxonomyMethods() async throws -> Data {
+        try await endpointData(path: "/api/kg/interpretations/taxonomy/methods")
+    }
+
+    func kgMutations(limit: Int = 50) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/mutations",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func undoKGMutation(_ mutationId: String) async throws -> Data {
+        try await endpointData(path: "/api/kg/mutations/\(mutationId)/undo", method: "POST")
+    }
+
+    func applyKGPredictionRun(_ runId: String, body: [String: Any] = [:]) async throws -> Data {
+        try await endpointData(path: "/api/kg/predictions/\(runId)/apply", method: "POST", jsonBody: body)
+    }
+
+    func deletePyKEENModel(_ modelId: String) async throws {
+        _ = try await endpointData(path: "/api/kg/pykeen/models/\(modelId)", method: "DELETE")
+    }
+
+    func pyKEENPredictions(entityId: String, limit: Int = 25) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/pykeen/predict/\(entityId)",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func storedPyKEENPredictions() async throws -> Data {
+        try await endpointData(path: "/api/kg/pykeen/stored")
+    }
+
+    func storedPyKEENPrediction(_ predictionId: String) async throws -> Data {
+        try await endpointData(path: "/api/kg/pykeen/stored/\(predictionId)")
+    }
+
+    func verifyStoredPyKEENPrediction(_ predictionId: String, body: [String: Any]) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/pykeen/stored/\(predictionId)/verify",
+            method: "PATCH",
+            jsonBody: body
+        )
+    }
+
+    func trainPyKEEN(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/kg/pykeen/train", method: "POST", jsonBody: body)
+    }
+
+    func pyKEENTrainingJobs() async throws -> Data {
+        try await endpointData(path: "/api/kg/pykeen/training-jobs")
+    }
+
+    func pyKEENTrainingJob(_ modelId: String) async throws -> Data {
+        try await endpointData(path: "/api/kg/pykeen/training-jobs/\(modelId)")
+    }
+
+    func rebuildKnowledgeGraph(_ body: [String: Any] = [:]) async throws -> Data {
+        try await endpointData(path: "/api/kg/rebuild", method: "POST", jsonBody: body)
+    }
+
+    func renderKGParagraph(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/kg/render/paragraph", method: "POST", jsonBody: body)
+    }
+
+    func resetKnowledgeGraph(_ body: [String: Any] = [:]) async throws -> Data {
+        try await endpointData(path: "/api/kg/reset", method: "POST", jsonBody: body)
+    }
+
+    func kgReviewGraphCandidates(limit: Int = 50) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/review/graph-candidates",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func kgReviewLabels() async throws -> Data {
+        try await endpointData(path: "/api/kg/review/labels")
+    }
+
+    func kgReviewPairs(limit: Int = 50) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/review/pairs",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func queueKGReviewPair(_ body: [String: Any]) async throws -> Data {
+        try await endpointData(path: "/api/kg/review/pairs", method: "POST", jsonBody: body)
+    }
+
+    func acceptKGReviewPair(_ pairId: String) async throws -> Data {
+        try await endpointData(path: "/api/kg/review/pairs/\(pairId)/accept", method: "POST")
+    }
+
+    func rejectKGReviewPair(_ pairId: String) async throws -> Data {
+        try await endpointData(path: "/api/kg/review/pairs/\(pairId)/reject", method: "POST")
+    }
+
+    func searchKnowledgeGraph(_ query: String, limit: Int = 25) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/search",
+            queryItems: [
+                URLQueryItem(name: "q", value: query),
+                URLQueryItem(name: "limit", value: "\(limit)")
+            ]
+        )
+    }
+
+    func runKnowledgeGraphSPARQL(_ query: String) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/sparql",
+            method: "POST",
+            jsonBody: ["query": query]
+        )
+    }
+
+    func kgTriangulation(limit: Int = 50) async throws -> Data {
+        try await endpointData(
+            path: "/api/kg/triangulation",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    func kgEntityTriangulation(_ entityId: String) async throws -> Data {
+        try await endpointData(path: "/api/kg/triangulation/entity/\(entityId)")
+    }
+
+    func recomputeKGTriangulation(_ body: [String: Any] = [:]) async throws -> Data {
+        try await endpointData(path: "/api/kg/triangulation/recompute", method: "POST", jsonBody: body)
     }
 
     private static func decodeSimilar(

@@ -48,6 +48,48 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertNil(info)
     }
 
+    func testPageContentClaimSourceHighlightMatchesCharRange() {
+        let highlight = PageContentClaimSourceHighlight.match(
+            content: "alpha claim omega",
+            documentId: "page-1",
+            info: [
+                "documentId": "page-1",
+                "charStart": 6,
+                "charEnd": 11
+            ]
+        )
+
+        XCTAssertEqual(highlight?.before, "alpha ")
+        XCTAssertEqual(highlight?.highlighted, "claim")
+        XCTAssertEqual(highlight?.after, " omega")
+    }
+
+    func testPageContentClaimSourceHighlightMatchesExcerpt() {
+        let highlight = PageContentClaimSourceHighlight.match(
+            content: "Alpha Claim Omega",
+            documentId: "page-1",
+            info: [
+                "documentId": "page-1",
+                "excerpt": "claim"
+            ]
+        )
+
+        XCTAssertEqual(highlight?.highlighted, "Claim")
+    }
+
+    func testPageContentClaimSourceHighlightRejectsDifferentDocument() {
+        let highlight = PageContentClaimSourceHighlight.match(
+            content: "alpha claim omega",
+            documentId: "page-1",
+            info: [
+                "documentId": "page-2",
+                "excerpt": "claim"
+            ]
+        )
+
+        XCTAssertNil(highlight)
+    }
+
     func testSvoChipActionsRevealInlineSourceClaim() throws {
         let source = try Self.appSource("Views/KnowledgeGraph/OntologyBrowser/ClaimSummaryCardView.swift")
         guard let sentenceStart = source.range(of: "private var claimSentence: some View"),
