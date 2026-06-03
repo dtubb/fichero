@@ -41,7 +41,8 @@ _CLI_INTENTIONAL_ALLOWLIST = {
 @pytest.mark.parametrize("surface_name", list(_mod.SURFACES.keys()))
 def test_no_unwired_unallowlisted_endpoints(surface_name: str) -> None:
     surface = _mod.SURFACES[surface_name]
-    miss = set(_mod.unwired(surface))
+    openapi_data = _mod.json.loads(_mod.OPENAPI.read_text())
+    miss = set(_mod.unwired(surface, openapi_data))
     allow = _mod.load_allowlist(surface, surface_name)
     allowed = set(allow.get("paths", {}).keys())
     drift = sorted(miss - allowed)

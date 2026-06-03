@@ -1300,6 +1300,207 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    private func bibliographyData(
+        path: String,
+        method: String = "GET",
+        queryItems: [URLQueryItem] = [],
+        jsonBody: [String: Any]? = nil
+    ) async throws -> Data {
+        guard var components = URLComponents(
+            url: client.baseURL.appending(path: path),
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw ServiceError.unexpectedResponse(0)
+        }
+        if !queryItems.isEmpty {
+            components.queryItems = queryItems
+        }
+        guard let url = components.url else {
+            throw ServiceError.unexpectedResponse(0)
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.addEngineAuth(libraryPath: client.currentLibraryPath)
+        if let jsonBody {
+            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: jsonBody)
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse,
+           !(200...299).contains(http.statusCode) {
+            throw ServiceError.unexpectedResponse(http.statusCode)
+        }
+        return data
+    }
+
+    private func bibliographyText(
+        path: String,
+        method: String = "GET",
+        queryItems: [URLQueryItem] = [],
+        jsonBody: [String: Any]? = nil
+    ) async throws -> String {
+        let data = try await bibliographyData(
+            path: path,
+            method: method,
+            queryItems: queryItems,
+            jsonBody: jsonBody
+        )
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    func exportBibliographyBib(documentIds: [String]) async throws -> String {
+        try await bibliographyText(
+            path: "/api/bibliography/export.bib",
+            method: "POST",
+            jsonBody: ["document_ids": documentIds]
+        )
+    }
+
+    func importBibliography(text: String, format: String? = nil) async throws -> Data {
+        var body: [String: Any] = ["text": text]
+        if let format {
+            body["format"] = format
+        }
+        return try await bibliographyData(
+            path: "/api/bibliography/import",
+            method: "POST",
+            jsonBody: body
+        )
+    }
+
+    func resolveBibliography(
+        doi: String? = nil,
+        isbn: String? = nil,
+        documentId: String? = nil
+    ) async throws -> Data {
+        var body: [String: Any] = [:]
+        if let doi {
+            body["doi"] = doi
+        }
+        if let isbn {
+            body["isbn"] = isbn
+        }
+        let queryItems = documentId.map {
+            [URLQueryItem(name: "document_id", value: $0)]
+        } ?? []
+        return try await bibliographyData(
+            path: "/api/bibliography/resolve",
+            method: "POST",
+            queryItems: queryItems,
+            jsonBody: body
+        )
+    }
+
+    func renderDocumentCitation(
+        documentId: String,
+        style: String = "bibtex"
+    ) async throws -> Data {
+        try await bibliographyData(
+            path: "/api/citations/document/\(documentId)",
+            queryItems: [URLQueryItem(name: "style", value: style)]
+        )
+    }
+
+    func documentBibtexCitation(documentId: String) async throws -> String {
+        try await bibliographyText(path: "/api/citations/document/\(documentId).bib")
+    }
+
+    func exportCitationsBibtex(documentIds: [String]) async throws -> String {
+        try await bibliographyText(
+            path: "/api/citations/export",
+            queryItems: documentIds.map {
+                URLQueryItem(name: "document_ids", value: $0)
+            }
+        )
+    }
+
+    func listReferences(limit: Int = 100, offset: Int = 0) async throws -> Data {
+        try await bibliographyData(
+            path: "/api/references",
+            queryItems: [
+                URLQueryItem(name: "limit", value: "\(limit)"),
+                URLQueryItem(name: "offset", value: "\(offset)")
+            ]
+        )
+    }
+
+    func getReference(_ referenceId: String) async throws -> Data {
+        try await bibliographyData(path: "/api/references/\(referenceId)")
+    }
+
+    func patchReference(
+        _ referenceId: String,
+        patch: [String: Any]
+    ) async throws -> Data {
+        try await bibliographyData(
+            path: "/api/references/\(referenceId)",
+            method: "PATCH",
+            jsonBody: patch
+        )
+    }
+
+    func deleteReference(_ referenceId: String) async throws {
+        _ = try await bibliographyData(
+            path: "/api/references/\(referenceId)",
+            method: "DELETE"
+        )
+    }
+
+    func listSources() async throws -> Data {
+        try await bibliographyData(path: "/api/sources")
+    }
+
+    func upsertSource(
+        title: String,
+        filePath: String,
+        id: String? = nil,
+        metadata: [String: Any] = [:]
+    ) async throws -> Data {
+        var body: [String: Any] = [
+            "title": title,
+            "file_path": filePath,
+            "document_type": "source",
+            "metadata": metadata
+        ]
+        if let id {
+            body["id"] = id
+        }
+        return try await bibliographyData(
+            path: "/api/sources",
+            method: "POST",
+            jsonBody: body
+        )
+    }
+
+    func getSource(_ sourceId: String) async throws -> Data {
+        try await bibliographyData(path: "/api/sources/\(sourceId)")
+    }
+
+    func updateSource(
+        _ sourceId: String,
+        title: String,
+        filePath: String,
+        metadata: [String: Any] = [:]
+    ) async throws -> Data {
+        try await bibliographyData(
+            path: "/api/sources/\(sourceId)",
+            method: "PUT",
+            jsonBody: [
+                "title": title,
+                "file_path": filePath,
+                "document_type": "source",
+                "metadata": metadata
+            ]
+        )
+    }
+
+    func deleteSource(_ sourceId: String) async throws {
+        _ = try await bibliographyData(
+            path: "/api/sources/\(sourceId)",
+            method: "DELETE"
+        )
+    }
+
     // MARK: - Document prototype / class registry (#1377)
 
     /// Fetch all classification values for the document_prototype dimension.
