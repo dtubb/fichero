@@ -13,6 +13,7 @@ from typing import Any
 
 from fichero.workflows.types import State, PortDef, DataType
 from fichero.workflows.registry import register_tool
+from fichero.workflows.prompt_profiles import resolve_system_prompt
 from fichero.workflows.tools.llm_base import (
     BASE_INPUT_PORTS,
     BASE_OUTPUT_PORTS,
@@ -238,6 +239,7 @@ async def extract_entities(
         match_mode=inputs.get("match_mode", "prefer"),
         context=context,
         input_metadata=input_metadata,
+        system_prompt=resolve_system_prompt("extract_entities", inputs),
         save_to_db=inputs.get("save_to_db", True),
         save_to_file_flag=inputs.get("save_to_file", False),
         metadata_field=inputs.get("metadata_field") or "entities",

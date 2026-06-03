@@ -26,6 +26,7 @@ from typing import Any
 
 from fichero.workflows.types import State, PortDef, DataType
 from fichero.workflows.registry import register_tool
+from fichero.workflows.prompt_profiles import resolve_system_prompt
 from fichero.workflows.tools.llm_base import (
     BASE_INPUT_PORTS,
     BASE_OUTPUT_PORTS,
@@ -473,6 +474,7 @@ async def catalogue(
        that fills every section.
     """
     text = inputs.get("text", "")
+    system_prompt = resolve_system_prompt("catalogue", inputs)
     # Catalogue only declares one wired input now (`data` from
     # merge_extracts). When `text` isn't on the input port, pull the
     # transcript out of state.outputs so the node fires once — when
@@ -580,6 +582,7 @@ async def catalogue(
             paragraph, chunk_summaries = await _generate_resumen(
                 text, output_language, llm_config,
                 claim_context=claim_context, error_sink=catalogue_errors,
+                system_prompt=system_prompt,
             )
             data["summary"] = paragraph
             data["chunk_summaries"] = chunk_summaries
@@ -609,7 +612,7 @@ async def catalogue(
         try:
             paragraph, chunk_summaries = await _generate_resumen(
                 text, output_language, llm_config, claim_context="",
-                error_sink=catalogue_errors,
+                error_sink=catalogue_errors, system_prompt=system_prompt,
             )
         except Exception as exc:
             logger.error(f"Catalogue LLM call failed: {exc}")
@@ -1195,6 +1198,7 @@ async def _generate_resumen(
     llm_config: LLMConfig,
     claim_context: str = "",
     error_sink: list[str] | None = None,
+    system_prompt: str | None = None,
 ) -> tuple[str, list[str]]:
     """Generate the catalogue narrative paragraph from the merged transcript
     plus optional typed-entity context surfaced from the Extract* nodes.
@@ -1243,13 +1247,16 @@ async def _generate_resumen(
     # folder-scale transcript runs in one call instead of fan-out (#835).
     chunk_threshold = _effective_chunk_size(llm_config)
     if len(text) <= chunk_threshold:
-        instructions = (
+        task_instructions = (
             f"You are an expert archivist. Write a 150-300 word "
             f"narrative catalogue entry in {output_language} summarizing "
             f"the document the user supplies. Plain prose, no headers, "
             f"no bullets, no JSON. Ground the narrative in concrete "
             f"names, places, and dates from the entities below."
             f"{context_block}"
+        )
+        instructions = "\n\n".join(
+            part for part in [system_prompt, task_instructions] if part
         )
         try:
             response = await chat_with_fallback(
@@ -1275,11 +1282,14 @@ async def _generate_resumen(
         f"map-reducing across {len(chunks)} chunks"
     )
 
-    chunk_instructions = (
+    chunk_task_instructions = (
         f"You are an expert archivist. Summarize the section the user "
         f"supplies in 3-5 sentences in {output_language}. Focus on "
         f"concrete names, dates, places, and events. Plain prose, no "
         f"headers, no bullets."
+    )
+    chunk_instructions = "\n\n".join(
+        part for part in [system_prompt, chunk_task_instructions] if part
     )
     chunk_summaries: list[str] = []
     for index, chunk in enumerate(chunks):

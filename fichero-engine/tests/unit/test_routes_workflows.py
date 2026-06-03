@@ -294,6 +294,22 @@ class TestListWorkflowTools:
         assert r.status_code == 200
         assert isinstance(r.json()["items"], list)
 
+    def test_transcribe_tool_exposes_prompt_profile(self, client):
+        r = client.get("/api/workflows/tools")
+        assert r.status_code == 200
+        transcribe = next(
+            tool for tool in r.json()["items"] if tool["name"] == "transcribe"
+        )
+
+        assert transcribe["prompt_profile"]["id"] == "transcribe.strict_fidelity"
+        assert transcribe["prompt_profile"]["version"] == 1
+        assert "Do not invent" in " ".join(
+            transcribe["prompt_profile"]["constraints"]
+        )
+        assert transcribe["config_schema"]["system_prompt_override"][
+            "x-feature-flag"
+        ] == "workflow_tool_prompt_overrides"
+
     def test_tools_grouped(self, client):
         r = client.get("/api/workflows/tools/grouped")
         assert r.status_code == 200

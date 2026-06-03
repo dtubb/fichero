@@ -262,6 +262,18 @@ BASE_CONFIG_SCHEMA = {
         "description": "Custom prompt",
         "x-group": "primary",
     },
+    "system_prompt_profile": {
+        "type": "string",
+        "description": "Versioned system prompt profile",
+        "x-hidden": True,
+        "x-feature-flag": "workflow_tool_prompt_overrides",
+    },
+    "system_prompt_override": {
+        "type": "string",
+        "description": "Custom system prompt override",
+        "x-hidden": True,
+        "x-feature-flag": "workflow_tool_prompt_overrides",
+    },
     # Long-input handling (#801): split large merged text into chunks,
     # summarize each chunk, then synthesize once.
     "chunk_size_chars": {
@@ -321,6 +333,7 @@ def extract_base_config(inputs: dict[str, Any]) -> dict[str, Any]:
         "match_mode": inputs.get("match_mode", "prefer"),
         "context": inputs.get("context"),
         "input_metadata": inputs.get("metadata"),
+        "system_prompt": inputs.get("system_prompt"),
         "save_to_db": inputs.get("save_to_db", True),
         "metadata_field": inputs.get("metadata_field"),
         "chunk_size_chars": inputs.get("chunk_size_chars"),
@@ -780,6 +793,8 @@ async def process_text(
     input_metadata: dict | None = None,
     # Thinking mode (from BASE_CONFIG_SCHEMA)
     thinking_mode: str = "off",
+    # System profile (from BASE_CONFIG_SCHEMA / tool prompt profile)
+    system_prompt: str | None = None,
     # Storage (from BASE_CONFIG_SCHEMA)
     save_to_db: bool = True,
     save_to_file_flag: bool = False,
@@ -833,9 +848,16 @@ async def process_text(
     # proper system message. This shared site cascades to summarize,
     # entities, timeline, key_people, rewrite, sentiment, keywords,
     # questions, classify_text — every simple LLM tool.
-    instructions = (
-        f"{thinking_preamble}{context_section}{prompt}"
-        f"{ref_section}{output_constraint}"
+    task_instructions = (
+        f"{thinking_preamble}{context_section}{prompt}{ref_section}{output_constraint}"
+    ).strip()
+    instructions = "\n\n".join(
+        part
+        for part in [
+            system_prompt,
+            task_instructions,
+        ]
+        if part
     ).strip()
 
     try:

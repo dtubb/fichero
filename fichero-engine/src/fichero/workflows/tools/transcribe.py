@@ -20,6 +20,7 @@ from fichero.workflows.tools.vision_base import (
     normalize_vision_language,
     process_vision,
 )
+from fichero.workflows.prompt_profiles import resolve_system_prompt
 from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
@@ -214,6 +215,7 @@ async def transcribe(
         match_mode=inputs.get("match_mode", "prefer"),
         context=context,
         input_metadata=input_metadata,
+        system_prompt=resolve_system_prompt("transcribe", inputs),
         save_to_db=inputs.get("save_to_db", True),
         save_to_file_flag=inputs.get("save_to_file", False),
         metadata_field=inputs.get("metadata_field"),

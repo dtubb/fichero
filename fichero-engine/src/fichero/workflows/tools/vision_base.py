@@ -1020,6 +1020,8 @@ async def process_vision(
     input_metadata: dict | None = None,
     # Thinking mode (from BASE_CONFIG_SCHEMA)
     thinking_mode: str = "off",
+    # System profile (from BASE_CONFIG_SCHEMA / tool prompt profile)
+    system_prompt: str | None = None,
     # Storage (from BASE_CONFIG_SCHEMA)
     save_to_db: bool = True,
     save_to_file_flag: bool = False,
@@ -1206,9 +1208,13 @@ async def process_vision(
     # Build thinking preamble
     thinking_preamble = build_thinking_preamble(thinking_mode)
 
-    # Combine prompt
-    final_prompt = (
+    # Combine prompt. Vision providers do not consistently expose a
+    # separate system channel, so profile instructions are prepended.
+    task_prompt = (
         f"{thinking_preamble}{context_section}{prompt}{ref_section}{output_constraint}"
+    )
+    final_prompt = "\n\n".join(
+        part for part in [system_prompt, task_prompt] if part
     )
 
     results = []

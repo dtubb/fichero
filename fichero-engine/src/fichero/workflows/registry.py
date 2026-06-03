@@ -23,6 +23,7 @@ from fichero.workflows.types import (
     NodeDef,
     DataType,
 )
+from fichero.workflows.prompt_profiles import default_prompt_profile_for_tool
 from fichero.workflows.registry_builtins import _register_builtin_tools
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ def register_tool(
     default_output_schema: dict[str, Any] | None = None,
     default_prompt: str | None = None,
     prompt_builder: Callable[[dict[str, Any]], str] | None = None,
+    prompt_profile: Any | None = None,
     uses_llm: bool = False,
     supports_batch: bool = False,
     supports_streaming: bool = False,
@@ -106,6 +108,7 @@ def register_tool(
             default_output_schema=default_output_schema,
             default_prompt=default_prompt,
             prompt_builder=prompt_builder,
+            prompt_profile=prompt_profile or default_prompt_profile_for_tool(name),
             uses_llm=uses_llm,
             supports_batch=supports_batch,
             supports_streaming=supports_streaming,

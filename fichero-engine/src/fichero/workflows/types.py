@@ -512,6 +512,43 @@ class WorkflowDef(BaseModel):
 # =============================================================================
 
 
+class ToolPromptProfile(BaseModel):
+    """Versioned system-prompt contract for an LLM workflow tool."""
+
+    id: str = Field(..., description="Stable profile identifier")
+    version: int = Field(..., ge=1, description="Profile version")
+    role: str = Field(..., description="Tool role instruction")
+    constraints: list[str] = Field(
+        default_factory=list,
+        description="Safety, fidelity, and scope constraints for this tool",
+    )
+    output_expectations: list[str] = Field(
+        default_factory=list,
+        description="Expected output shape and uncertainty behavior",
+    )
+    source: str = Field(
+        default="fichero.workflows.prompt_profiles",
+        description="Versioned source of truth for this profile",
+    )
+
+    def render_system_prompt(self) -> str:
+        """Render the profile as a system prompt."""
+        sections = [f"Role: {self.role}"]
+        if self.constraints:
+            sections.append(
+                "Constraints:\n"
+                + "\n".join(f"- {constraint}" for constraint in self.constraints)
+            )
+        if self.output_expectations:
+            sections.append(
+                "Output expectations:\n"
+                + "\n".join(
+                    f"- {expectation}" for expectation in self.output_expectations
+                )
+            )
+        return "\n\n".join(sections)
+
+
 class ToolDef(BaseModel):
     """Metadata about a registered tool.
 
@@ -566,6 +603,12 @@ class ToolDef(BaseModel):
         default=None,
         exclude=True,
         description="Function to build prompt from config: (config: dict) -> str",
+    )
+
+    # Versioned system prompt profile for alignment and guardrail behavior.
+    prompt_profile: ToolPromptProfile | None = Field(
+        default=None,
+        description="Default system-prompt profile for this tool",
     )
 
     # Capabilities

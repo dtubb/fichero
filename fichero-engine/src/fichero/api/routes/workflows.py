@@ -71,6 +71,7 @@ class ToolResponse(BaseModel):
     default_prompt: str = (
         ""  # Default prompt for LLM tools (shown in UI, empty if none)
     )
+    prompt_profile: dict[str, Any] | None = None
     uses_llm: bool
     supports_batch: bool
     supports_streaming: bool
@@ -270,6 +271,7 @@ def _tool_to_response(tool: ToolDef) -> ToolResponse:
         config_defaults=tool.config_defaults or {},
         default_output_schema=tool.default_output_schema or {},
         default_prompt=tool.default_prompt or "",
+        prompt_profile=tool.prompt_profile.model_dump() if tool.prompt_profile else None,
         uses_llm=tool.uses_llm,
         supports_batch=tool.supports_batch,
         supports_streaming=tool.supports_streaming,
