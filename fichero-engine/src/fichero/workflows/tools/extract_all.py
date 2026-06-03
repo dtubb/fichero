@@ -272,20 +272,27 @@ class _EntityOnly(BaseModel):
     """Compact entity representation for Stage 1 (NER-only pass)."""
     name: str
     aliases: list[str] = Field(default_factory=list)
-    entity_type: str  # "person", "place", "organization", etc.
+    # Optional with a sensible default so the Apple grammar stays permissive
+    # per element. Making entity_type required (#1272) forced fm-bridge to
+    # satisfy a nested all-required grammar on every chunk; on-device
+    # FoundationModels can't, so the constrained decoder collapsed to `{}`.
+    entity_type: str = "other"  # "person", "place", "organization", etc.
 
 
 class _EntitiesOnly(BaseModel):
     """Stage 1 result: all entity names extracted."""
-    # Required (no defaults) so _pydantic_to_apple_schema marks them as
-    # required in the Apple grammar schema, forcing fm-bridge to emit all
-    # category keys. With default_factory=list the grammar allowed `{}`,
-    # causing a silent 0-entity result (#1272).
-    people: list[_EntityOnly]
-    places: list[_EntityOnly]
-    organizations: list[_EntityOnly]
-    dates: list[_EntityOnly]
-    events: list[_EntityOnly]
+    # All fields optional (default_factory=list) so _pydantic_to_apple_schema
+    # marks them `optional` in the Apple grammar. #1272 made them required to
+    # stop a silent `{}` result, but an all-required nested grammar is
+    # unsatisfiable for on-device FoundationModels and made the decoder
+    # collapse to empty on EVERY chunk. We keep the grammar permissive and
+    # detect a genuinely-empty Stage 1 result explicitly via
+    # `_entities_only_is_empty` (soft failure), not by forcing the grammar.
+    people: list[_EntityOnly] = Field(default_factory=list)
+    places: list[_EntityOnly] = Field(default_factory=list)
+    organizations: list[_EntityOnly] = Field(default_factory=list)
+    dates: list[_EntityOnly] = Field(default_factory=list)
+    events: list[_EntityOnly] = Field(default_factory=list)
 
 
 class _SVOClaim(BaseModel):
@@ -994,6 +1001,23 @@ def _extraction_is_empty(extraction: _Extraction) -> bool:
     ))
 
 
+def _entities_only_is_empty(entities: _EntitiesOnly) -> bool:
+    """True when a Stage 1 result has no entities in any category.
+
+    The Apple grammar is permissive (all categories optional), so an empty
+    object is a valid decode. Detect that explicitly here and treat it as a
+    soft failure (log / route to fallback) instead of relying on required
+    grammar fields to raise — which collapsed the on-device decoder (#1272).
+    """
+    return not any((
+        entities.people,
+        entities.places,
+        entities.organizations,
+        entities.dates,
+        entities.events,
+    ))
+
+
 def _extraction_is_thin(extraction: _Extraction, source_text: str = "") -> bool:
     """Reject name-list outputs that would become generic type claims."""
     if _extraction_is_empty(extraction) and len(source_text.strip()) > 200:
@@ -1213,6 +1237,19 @@ async def _run_two_stage(
             entity_count,
             elapsed,
         )
+        # Explicit soft-fail detection: the Apple grammar is permissive, so an
+        # all-empty decode is valid (not an exception). Log it so a genuinely
+        # empty page is visible and a non-trivial page returning nothing is a
+        # detectable signal rather than a silent zero-entity result (#1272).
+        if _entities_only_is_empty(extraction) and len(chunk_text.strip()) > 200:
+            logger.warning(
+                "Stage 1 chunk %s: empty entity result on a %d-char chunk "
+                "(provider=%s/%s) — treating as soft failure.",
+                idx,
+                len(chunk_text.strip()),
+                llm_config.provider,
+                llm_config.model,
+            )
         await emit_progress_event(
             progress_callback,
             "file_complete",
