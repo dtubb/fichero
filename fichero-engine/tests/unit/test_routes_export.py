@@ -1,6 +1,7 @@
 """Tests for document export routes."""
 
 from fichero.knowledge_models import ClaimType, EntityType
+from fichero.loaders.xlsx_reader import read_xlsx_records
 from fichero.models import Artifact, DocType, Document, FileType
 from fichero.models import KnowledgeClaim, KnowledgeEntity
 
@@ -229,6 +230,86 @@ class TestWordExport:
 
         r = client.post(
             "/api/export/word",
+            json={"output_path": str(output_path)},
+        )
+
+        assert r.status_code == 409
+
+
+class TestExcelExport:
+    def test_exports_xlsx_documents_entities_and_claims(self, client, db, tmp_path):
+        folder = Document(
+            id="folder-excel",
+            name="Excel Export",
+            doc_type=DocType.folder,
+        )
+        doc = Document(
+            id="excel-doc",
+            name="Excel Source",
+            parent_id=folder.id,
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="Transcript text.",
+            metadata={"box": "A1"},
+        )
+        entity = KnowledgeEntity(
+            id="excel-entity",
+            canonical_name="Maria",
+            entity_type=EntityType.person,
+            aliases=["María"],
+            source_document_ids=[doc.id],
+        )
+        claim = KnowledgeClaim(
+            id="excel-claim",
+            text="Maria signed the letter.",
+            source_document_id=doc.id,
+            source_page_label="7",
+            source_excerpt="Maria signed",
+            entity_ids=[entity.id],
+            claim_type=ClaimType.fact,
+        )
+        db.save(folder)
+        db.save(doc)
+        db.save(entity)
+        db.save(claim)
+
+        output_path = tmp_path / "export.xlsx"
+        r = client.post(
+            "/api/export/excel",
+            json={
+                "target_id": folder.id,
+                "output_path": str(output_path),
+            },
+        )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["document_count"] == 1
+        assert data["entity_count"] == 1
+        assert data["claim_count"] == 1
+        assert data["bytes_written"] > 0
+
+        documents = read_xlsx_records(output_path, sheet_index=0)
+        entities = read_xlsx_records(output_path, sheet_index=1)
+        claims = read_xlsx_records(output_path, sheet_index=2)
+
+        assert documents[0]["id"] == doc.id
+        assert documents[0]["transcription"] == "Transcript text."
+        assert documents[0]["metadata"] == '{"box": "A1"}'
+        assert entities[0]["canonical_name"] == "Maria"
+        assert entities[0]["entity_type"] == "person"
+        assert claims[0]["text"] == "Maria signed the letter."
+        assert claims[0]["source_page_label"] == "7"
+        assert claims[0]["entity_ids"] == '["excel-entity"]'
+
+    def test_excel_export_rejects_existing_file_without_overwrite(
+        self, client, tmp_path
+    ):
+        output_path = tmp_path / "export.xlsx"
+        output_path.write_bytes(b"existing")
+
+        r = client.post(
+            "/api/export/excel",
             json={"output_path": str(output_path)},
         )
 

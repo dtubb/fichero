@@ -7,7 +7,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
-from fichero.export_service import export_markdown_folder, export_word_docx
+from fichero.export_service import (
+    export_excel_xlsx,
+    export_markdown_folder,
+    export_word_docx,
+)
 
 router = APIRouter(prefix="/export", tags=["export"])
 
@@ -63,6 +67,28 @@ class WordExportRequest(BaseModel):
 class WordExportResponse(BaseModel):
     output_path: str
     document_count: int
+    bytes_written: int
+
+
+class ExcelExportRequest(BaseModel):
+    """Request body for Excel export."""
+
+    model_config = ConfigDict(extra="allow")
+
+    output_path: str = Field(..., description="Destination .xlsx path")
+    target_id: str | None = Field(
+        default=None,
+        description="Optional document/folder id to export; omitted exports library",
+    )
+    recursive: bool = Field(default=True, description="Include descendants of folders")
+    overwrite: bool = Field(default=False, description="Overwrite existing .xlsx")
+
+
+class ExcelExportResponse(BaseModel):
+    output_path: str
+    document_count: int
+    entity_count: int
+    claim_count: int
     bytes_written: int
 
 
@@ -123,3 +149,27 @@ async def export_word_route(
         raise HTTPException(status_code=400, detail=str(e))
 
     return WordExportResponse(**result.__dict__)
+
+
+@router.post("/excel", response_model=ExcelExportResponse)
+async def export_excel_route(
+    request: ExcelExportRequest,
+    db: Database = Depends(get_library_database),
+) -> ExcelExportResponse:
+    """Export a library, folder, or document as an Excel .xlsx workbook."""
+    try:
+        result = export_excel_xlsx(
+            db=db,
+            output_path=Path(request.output_path),
+            target_id=request.target_id,
+            recursive=request.recursive,
+            overwrite=request.overwrite,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return ExcelExportResponse(**result.__dict__)

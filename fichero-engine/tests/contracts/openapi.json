@@ -8716,6 +8716,60 @@
         }
       }
     },
+    "/api/export/excel": {
+      "post": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "Export Excel Route",
+        "description": "Export a library, folder, or document as an Excel .xlsx workbook.",
+        "operationId": "export_excel_route_api_export_excel_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExcelExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExcelExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/folders/{folder_id}/views": {
       "get": {
         "tags": [
@@ -40097,6 +40151,73 @@
         ],
         "title": "EvidentialPlace",
         "description": "Spatial evidence for a claim/entity, from points through named sets."
+      },
+      "ExcelExportRequest": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path",
+            "description": "Destination .xlsx path"
+          },
+          "target_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Id",
+            "description": "Optional document/folder id to export; omitted exports library"
+          },
+          "recursive": {
+            "type": "boolean",
+            "title": "Recursive",
+            "description": "Include descendants of folders",
+            "default": true
+          },
+          "overwrite": {
+            "type": "boolean",
+            "title": "Overwrite",
+            "description": "Overwrite existing .xlsx",
+            "default": false
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "output_path"
+        ],
+        "title": "ExcelExportRequest",
+        "description": "Request body for Excel export."
+      },
+      "ExcelExportResponse": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path"
+          },
+          "document_count": {
+            "type": "integer",
+            "title": "Document Count"
+          },
+          "entity_count": {
+            "type": "integer",
+            "title": "Entity Count"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          },
+          "bytes_written": {
+            "type": "integer",
+            "title": "Bytes Written"
+          }
+        },
+        "type": "object",
+        "required": [
+          "output_path",
+          "document_count",
+          "entity_count",
+          "claim_count",
+          "bytes_written"
+        ],
+        "title": "ExcelExportResponse"
       },
       "ExecuteAcceptedResponse": {
         "properties": {

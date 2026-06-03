@@ -5,10 +5,11 @@ from __future__ import annotations
 import re
 import shutil
 import zipfile
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 from xml.sax.saxutils import escape
 
 from fichero.db import Database
@@ -61,6 +62,17 @@ class WordExportResult:
 
     output_path: str
     document_count: int
+    bytes_written: int
+
+
+@dataclass
+class ExcelExportResult:
+    """Result metadata for an Excel export."""
+
+    output_path: str
+    document_count: int
+    entity_count: int
+    claim_count: int
     bytes_written: int
 
 
@@ -202,6 +214,96 @@ def export_word_docx(
     )
 
 
+def export_excel_xlsx(
+    db: Database,
+    output_path: str | Path,
+    target_id: str | None = None,
+    recursive: bool = True,
+    overwrite: bool = False,
+) -> ExcelExportResult:
+    """Export documents, entities, and claims as an .xlsx workbook."""
+
+    output_file = Path(output_path).expanduser()
+    if output_file.suffix.lower() != ".xlsx":
+        output_file = output_file.with_suffix(".xlsx")
+    if output_file.exists() and not overwrite:
+        raise FileExistsError(f"Export file already exists: {output_file}")
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    _, documents = _collect_documents(db, target_id=target_id, recursive=recursive)
+    entities, claims = _knowledge_graph_rows(db, documents)
+
+    document_rows = [
+        {
+            "id": doc.id,
+            "name": doc.name,
+            "parent_id": doc.parent_id,
+            "doc_type": doc.doc_type.value,
+            "file_type": doc.file_type.value if doc.file_type else "",
+            "path": doc.path,
+            "sequence": doc.sequence,
+            "transcription": _document_text(db, doc),
+            "metadata": doc.metadata,
+            "created_at": doc.created_at,
+            "updated_at": doc.updated_at,
+        }
+        for doc in documents
+    ]
+    entity_rows = [
+        {
+            "id": entity.id,
+            "canonical_name": entity.canonical_name,
+            "entity_type": entity.entity_type.value,
+            "aliases": entity.aliases,
+            "description": entity.description,
+            "source_document_ids": entity.source_document_ids,
+            "metadata": entity.metadata,
+            "created_at": entity.created_at,
+            "updated_at": entity.updated_at,
+        }
+        for entity in entities
+    ]
+    claim_rows = [
+        {
+            "id": claim.id,
+            "text": claim.text,
+            "source_document_id": claim.source_document_id,
+            "source_page_label": claim.source_page_label,
+            "source_excerpt": claim.source_excerpt,
+            "claim_type": claim.claim_type.value if claim.claim_type else "",
+            "epistemic_status": (
+                claim.epistemic_status.value if claim.epistemic_status else ""
+            ),
+            "subject_canonical": claim.subject_canonical,
+            "predicate_verb": claim.predicate_verb,
+            "object_phrase": claim.object_phrase,
+            "entity_ids": claim.entity_ids,
+            "confidence": claim.confidence,
+            "metadata": claim.metadata,
+            "created_at": claim.created_at,
+            "updated_at": claim.updated_at,
+        }
+        for claim in claims
+    ]
+
+    _write_xlsx(
+        output_file,
+        {
+            "Documents": document_rows,
+            "Entities": entity_rows,
+            "Claims": claim_rows,
+        },
+    )
+
+    return ExcelExportResult(
+        output_path=str(output_file),
+        document_count=len(document_rows),
+        entity_count=len(entity_rows),
+        claim_count=len(claim_rows),
+        bytes_written=output_file.stat().st_size,
+    )
+
+
 @dataclass(frozen=True)
 class _AssetRef:
     path: str
@@ -302,9 +404,39 @@ def _docx_knowledge_graph_appendix(
     db: Database,
     documents: list[Document],
 ) -> list[str]:
+    entities, claims = _knowledge_graph_rows(db, documents)
+    if not claims and not entities:
+        return []
+
+    parts = [_docx_heading("Knowledge Graph Appendix", 2)]
+
+    if entities:
+        parts.append(_docx_heading("Entities", 2))
+        for entity in entities:
+            label = f"{entity.canonical_name} ({entity.entity_type.value})"
+            if entity.description:
+                label = f"{label}: {entity.description}"
+            parts.append(_docx_paragraph(label))
+
+    if claims:
+        parts.append(_docx_heading("Claims", 2))
+        for claim in claims:
+            source = claim.source_page_label or claim.source_document_id
+            label = f"{claim.text} [source: {source}]"
+            parts.append(_docx_paragraph(label))
+            if claim.source_excerpt:
+                parts.append(_docx_paragraph(f"Excerpt: {claim.source_excerpt}"))
+
+    return parts
+
+
+def _knowledge_graph_rows(
+    db: Database,
+    documents: list[Document],
+) -> tuple[list[KnowledgeEntity], list[KnowledgeClaim]]:
     doc_ids = {doc.id for doc in documents}
     if not doc_ids:
-        return []
+        return [], []
 
     claims = [
         claim
@@ -333,30 +465,7 @@ def _docx_knowledge_graph_appendix(
         or doc_ids.intersection(entity.source_document_ids)
     ]
     entities.sort(key=lambda entity: entity.canonical_name.lower())
-
-    if not claims and not entities:
-        return []
-
-    parts = [_docx_heading("Knowledge Graph Appendix", 2)]
-
-    if entities:
-        parts.append(_docx_heading("Entities", 2))
-        for entity in entities:
-            label = f"{entity.canonical_name} ({entity.entity_type.value})"
-            if entity.description:
-                label = f"{label}: {entity.description}"
-            parts.append(_docx_paragraph(label))
-
-    if claims:
-        parts.append(_docx_heading("Claims", 2))
-        for claim in claims:
-            source = claim.source_page_label or claim.source_document_id
-            label = f"{claim.text} [source: {source}]"
-            parts.append(_docx_paragraph(label))
-            if claim.source_excerpt:
-                parts.append(_docx_paragraph(f"Excerpt: {claim.source_excerpt}"))
-
-    return parts
+    return entities, claims
 
 
 def _text_artifacts(db: Database, document_id: str) -> list[Artifact]:
@@ -446,6 +555,126 @@ def _unique_filename(stem: str, used_names: set[str], suffix: str) -> str:
         index += 1
     used_names.add(candidate)
     return candidate
+
+
+def _write_xlsx(output_file: Path, sheets: dict[str, list[dict[str, Any]]]) -> None:
+    sheet_items = list(sheets.items())
+    with zipfile.ZipFile(output_file, "w", compression=zipfile.ZIP_DEFLATED) as xlsx:
+        xlsx.writestr("[Content_Types].xml", _xlsx_content_types(len(sheet_items)))
+        xlsx.writestr("_rels/.rels", _xlsx_package_rels())
+        xlsx.writestr("xl/workbook.xml", _xlsx_workbook(sheet_items))
+        xlsx.writestr("xl/_rels/workbook.xml.rels", _xlsx_workbook_rels(sheet_items))
+        for index, (_, rows) in enumerate(sheet_items, start=1):
+            xlsx.writestr(
+                f"xl/worksheets/sheet{index}.xml",
+                _xlsx_sheet(rows),
+            )
+
+
+def _xlsx_sheet(rows: list[dict[str, Any]]) -> str:
+    headers = _xlsx_headers(rows)
+    values = [headers] + [
+        [_xlsx_cell_value(row.get(header)) for header in headers]
+        for row in rows
+    ]
+    row_xml = []
+    for row_index, row in enumerate(values, start=1):
+        cells = []
+        for col_index, value in enumerate(row, start=1):
+            if value == "":
+                continue
+            ref = f"{_xlsx_col_letter(col_index)}{row_index}"
+            cells.append(
+                f'<c r="{ref}" t="inlineStr"><is><t>{escape(value)}</t></is></c>'
+            )
+        row_xml.append(f'<row r="{row_index}">{"".join(cells)}</row>')
+
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f'<sheetData>{"".join(row_xml)}</sheetData>'
+        "</worksheet>"
+    )
+
+
+def _xlsx_headers(rows: list[dict[str, Any]]) -> list[str]:
+    headers: list[str] = []
+    for row in rows:
+        for key in row:
+            if key not in headers:
+                headers.append(key)
+    return headers or ["id"]
+
+
+def _xlsx_cell_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.isoformat(timespec="seconds")
+    if hasattr(value, "value") and not isinstance(value, str):
+        return str(value.value)
+    if isinstance(value, (dict, list, tuple)):
+        return json.dumps(value, ensure_ascii=False, default=str)
+    return str(value)
+
+
+def _xlsx_col_letter(index: int) -> str:
+    letters = ""
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        letters = chr(ord("A") + remainder) + letters
+    return letters
+
+
+def _xlsx_content_types(sheet_count: int) -> str:
+    sheets = "".join(
+        f'<Override PartName="/xl/worksheets/sheet{index}.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        for index in range(1, sheet_count + 1)
+    )
+    return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  {sheets}
+</Types>
+"""
+
+
+def _xlsx_package_rels() -> str:
+    return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>
+"""
+
+
+def _xlsx_workbook(sheet_items: list[tuple[str, list[dict[str, Any]]]]) -> str:
+    sheets = "".join(
+        f'<sheet name="{escape(name, {"\"": "&quot;"})}" sheetId="{index}" r:id="rId{index}"/>'
+        for index, (name, _) in enumerate(sheet_items, start=1)
+    )
+    return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>{sheets}</sheets>
+</workbook>
+"""
+
+
+def _xlsx_workbook_rels(sheet_items: list[tuple[str, list[dict[str, Any]]]]) -> str:
+    relationships = "".join(
+        f'<Relationship Id="rId{index}" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+        f'Target="worksheets/sheet{index}.xml"/>'
+        for index, _ in enumerate(sheet_items, start=1)
+    )
+    return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  {relationships}
+</Relationships>
+"""
 
 
 def _escape_frontmatter(value: str) -> str:

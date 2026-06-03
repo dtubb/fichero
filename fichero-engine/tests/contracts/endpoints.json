@@ -2588,6 +2588,16 @@
     "export": [
       {
         "method": "POST",
+        "path": "/export/excel",
+        "operation_id": "export_excel_route_api_export_excel_post",
+        "summary": "Export Excel Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ExcelExportRequest",
+        "response_model": "ExcelExportResponse"
+      },
+      {
+        "method": "POST",
         "path": "/export/markdown-folder",
         "operation_id": "export_markdown_folder_route_api_export_markdown_folder_post",
         "summary": "Export Markdown Folder Route",
