@@ -32,6 +32,21 @@ class StorageServiceGenerated: ObservableObject {
     private var thumbnailCache: [String: Image] = [:]
     private var displayCache: [String: Image] = [:]
 
+    /// Upper bound on the thumbnail cache so opening a folder with thousands
+    /// of images can't grow it without limit (#719). When exceeded, the
+    /// oldest-inserted entries are evicted first (FIFO) — by the time the
+    /// cache is this full the user has scrolled well past those rows.
+    static let thumbnailCacheLimit = 1000
+    /// Insertion order of thumbnail-cache keys, oldest first. Drives FIFO
+    /// eviction in `cacheThumbnail`.
+    private var thumbnailCacheOrder: [String] = []
+
+    /// Number of cached thumbnails. Exposed for tests (#719 eviction).
+    var thumbnailCacheCount: Int { thumbnailCache.count }
+
+    /// Cached thumbnail for `docId`, if present. Exposed for tests (#719).
+    func cachedThumbnail(for docId: String) -> Image? { thumbnailCache[docId] }
+
     init(ficheroClient: FicheroClient, baseURL: URL = URL(string: "http://127.0.0.1:8765/api")!) {
         self.client = ficheroClient
         self.baseURL = baseURL
@@ -53,8 +68,22 @@ class StorageServiceGenerated: ObservableObject {
         logger.info("Loading thumbnail for document: \(docId)")
         let data = try await fetchImageData(from: thumbnailURL(for: docId))
         let image = try await Self.decodeImage(from: data)
-        thumbnailCache[docId] = image
+        cacheThumbnail(image, for: docId)
         return image
+    }
+
+    /// Insert a thumbnail into the cache, evicting the oldest entries (FIFO)
+    /// once the cache exceeds `thumbnailCacheLimit`. Internal so the eviction
+    /// bound can be unit-tested without a live backend. (#719)
+    func cacheThumbnail(_ image: Image, for docId: String) {
+        if thumbnailCache[docId] == nil {
+            thumbnailCacheOrder.append(docId)
+        }
+        thumbnailCache[docId] = image
+        while thumbnailCacheOrder.count > Self.thumbnailCacheLimit {
+            let oldest = thumbnailCacheOrder.removeFirst()
+            thumbnailCache.removeValue(forKey: oldest)
+        }
     }
 
     /// Get display-quality image for a document. Memoised per-service-instance.
@@ -96,6 +125,7 @@ class StorageServiceGenerated: ObservableObject {
     func invalidateImageCache(for docId: String) {
         thumbnailCache.removeValue(forKey: docId)
         displayCache.removeValue(forKey: docId)
+        thumbnailCacheOrder.removeAll { $0 == docId }
     }
 
     /// Fetch raw image bytes from the backend. Suspends during the
