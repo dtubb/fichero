@@ -165,16 +165,12 @@ extension ClaimSummaryCard {
             }
         }
         // Verbatim source quote — moved into the expanded drawer so the
-        // collapsed card stays tight. Tapping the quote runs a library
-        // text-search via the existing entity-lozenge pathway. (#979)
+        // collapsed card stays tight. Tapping the quote opens the source
+        // page and highlights the annotation span.
         if let excerpt = cleanedDisplayText(claim.sourceExcerpt),
            excerpt != claim.text {
             Button {
-                NotificationCenter.default.post(
-                    name: .ficheroEntitySearchRequested,
-                    object: nil,
-                    userInfo: ["name": excerpt]
-                )
+                openClaimSource()
             } label: {
                 Text("\"\(excerpt)\"")
                     .font(secondaryTextFont)
@@ -184,7 +180,7 @@ extension ClaimSummaryCard {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
-            .help("Search the library for this quote")
+            .help("Open the source page and highlight this annotation")
         }
         if isLoadingDetails {
             HStack {

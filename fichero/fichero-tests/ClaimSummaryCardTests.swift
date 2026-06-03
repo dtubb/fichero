@@ -70,6 +70,34 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertTrue(source.contains("cleanedDisplayText(claim.text)"))
     }
 
+    func testCollapsedSourceExcerptOpensClaimSource() throws {
+        let source = try Self.appSource("Views/KnowledgeGraph/OntologyBrowser/ClaimSummaryCardView.swift")
+        guard let excerptStart = source.range(of: "} else if let excerpt = cleanedDisplayText(claim.sourceExcerpt)"),
+              let noSvoStart = source.range(of: "No subject-verb-object", range: excerptStart.upperBound..<source.endIndex)
+        else {
+            XCTFail("ClaimSummaryCard must render source excerpts in the collapsed sentence area")
+            return
+        }
+
+        let excerptRenderer = String(source[excerptStart.lowerBound..<noSvoStart.lowerBound])
+        XCTAssertTrue(excerptRenderer.contains("openClaimSource()"))
+        XCTAssertFalse(excerptRenderer.contains("ficheroEntitySearchRequested"))
+    }
+
+    func testExpandedSourceExcerptOpensClaimSource() throws {
+        let source = try Self.appSource("Views/KnowledgeGraph/OntologyBrowser/ClaimSummaryCard+Details.swift")
+        guard let excerptStart = source.range(of: "if let excerpt = cleanedDisplayText(claim.sourceExcerpt)"),
+              let loadingStart = source.range(of: "if isLoadingDetails", range: excerptStart.upperBound..<source.endIndex)
+        else {
+            XCTFail("ClaimSummaryCard details must render the source excerpt before loading details")
+            return
+        }
+
+        let excerptRenderer = String(source[excerptStart.lowerBound..<loadingStart.lowerBound])
+        XCTAssertTrue(excerptRenderer.contains("openClaimSource()"))
+        XCTAssertFalse(excerptRenderer.contains("ficheroEntitySearchRequested"))
+    }
+
     func testSvoTriplePrefersTypedFields() throws {
         let claim = try decodeClaim("""
         {

@@ -265,10 +265,17 @@ struct ClaimSummaryCard: View {
             // hint moves to a small footer line so the user still
             // knows the SVO is absent. (#1006)
             VStack(alignment: .leading, spacing: 4) {
-                Text(excerpt)
-                    .font(bodyTextFont)
-                    .lineLimit(isExpanded ? nil : 3)
-                    .foregroundStyle(.primary)
+                Button {
+                    openClaimSource()
+                } label: {
+                    Text(excerpt)
+                        .font(bodyTextFont)
+                        .lineLimit(isExpanded ? nil : 3)
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .help("Open the source page and highlight this annotation")
                 HStack(spacing: 4) {
                     Image(systemName: "questionmark.circle")
                         .font(tertiaryTextFont)
