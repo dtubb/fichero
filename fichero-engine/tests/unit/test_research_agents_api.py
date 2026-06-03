@@ -5,12 +5,19 @@ from unittest.mock import patch, AsyncMock
 import pytest
 
 
+def _assert_nonempty_list_response(response):
+    """Assert the standard research list response envelope."""
+    body = response.json()
+    assert body["count"] >= 1
+    assert len(body["items"]) >= 1
+    return body["items"]
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Project CRUD
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.xfail(reason="dev-tier feature gated; re-enable tracked in #1151", strict=False)
 def test_project_crud(client, db):
     """Create, read, update, delete research projects."""
     # Create
@@ -31,7 +38,7 @@ def test_project_crud(client, db):
     # List
     list_resp = client.get("/api/research/projects")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    _assert_nonempty_list_response(list_resp)
 
     # Get
     get_resp = client.get(f"/api/research/projects/{project_id}")
@@ -41,7 +48,8 @@ def test_project_crud(client, db):
     # Filter by status
     filter_resp = client.get("/api/research/projects?status=active")
     assert filter_resp.status_code == 200
-    assert all(p["status"] == "active" for p in filter_resp.json())
+    active_projects = _assert_nonempty_list_response(filter_resp)
+    assert all(p["status"] == "active" for p in active_projects)
 
     # Update
     patch_resp = client.patch(
@@ -96,7 +104,7 @@ def test_plan_crud(client, db):
     # List plans for project
     list_resp = client.get(f"/api/research/projects/{project_id}/plans")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    _assert_nonempty_list_response(list_resp)
 
     # Get single plan
     get_resp = client.get(f"/api/research/plans/{plan_id}")
@@ -199,7 +207,7 @@ def test_task_crud(client, db):
     # List tasks
     list_resp = client.get(f"/api/research/plans/{plan_id}/tasks")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    _assert_nonempty_list_response(list_resp)
 
     # Update task
     patch_resp = client.patch(
@@ -258,7 +266,7 @@ def test_step_crud(client, db):
     # List steps
     list_resp = client.get(f"/api/research/tasks/{task_id}/steps")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    _assert_nonempty_list_response(list_resp)
 
     # Update step result
     patch_resp = client.patch(
@@ -303,7 +311,7 @@ def test_search_source_crud(client, db):
     # List sources
     list_resp = client.get(f"/api/research/projects/{project_id}/sources")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    _assert_nonempty_list_response(list_resp)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -334,7 +342,7 @@ def test_note_crud(client, db):
     # List notes
     list_resp = client.get(f"/api/research/projects/{project_id}/notes")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) >= 1
+    _assert_nonempty_list_response(list_resp)
 
     # Update note
     patch_resp = client.patch(
