@@ -32,6 +32,35 @@ struct SpatialScene3D: View {
     var onViewportChanged: (SIMD3<Double>, Double) -> Void = { _, _ in }
     @Binding var selectedNodeId: String?
 
+    /// Upper bound on entities the RealityKit scene will build at once (#1400).
+    /// A folder projection (`FolderRealityKitSurface`) can scope hundreds of
+    /// documents; each rendered node also spawns a concurrent texture
+    /// download+decode Task. Unbounded, that storm of `ModelEntity`s + image
+    /// I/O sustains GPU/CPU load and was the prime suspect for the macOS
+    /// WindowServer watchdog crashes. Beyond the cap we render a bounded prefix
+    /// and surface a banner — never a runaway scene.
+    private let maxRenderedNodes = 250
+
+    /// The bounded set actually placed in the scene. Backend order is
+    /// preserved; relative geometry of the rendered subset is untouched
+    /// (`feedback_kg_logic_in_backend`).
+    private var renderedNodes: [MindPalaceNode] {
+        nodes.count > maxRenderedNodes ? Array(nodes.prefix(maxRenderedNodes)) : nodes
+    }
+
+    private var isTruncated: Bool { nodes.count > maxRenderedNodes }
+
+    /// Honest, non-blocking notice when the scene is bounded (#1400) so a large
+    /// scope reads as "showing a subset" rather than silently dropping nodes.
+    private var truncationBanner: some View {
+        Text("Showing first \(maxRenderedNodes) of \(nodes.count) items")
+            .font(.caption)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(.regularMaterial, in: Capsule())
+            .padding(.top, 8)
+    }
+
     #if canImport(RealityKit)
     @State private var cameraDistance = 5.5
     @State private var orbitYaw = 0.0
@@ -94,6 +123,9 @@ struct SpatialScene3D: View {
             focusCamera(onNodeId: newValue)
         }
         .background(MindPalaceTheme.canvasBackground)
+        .overlay(alignment: .top) {
+            if isTruncated { truncationBanner }
+        }
         #else
         Spatial2DCanvas(nodes: nodes, connections: connections, selectedNodeId: $selectedNodeId)
         #endif
@@ -240,10 +272,11 @@ struct SpatialScene3D: View {
     /// Normalize backend positions into a bounded cube (~[-1.5, 1.5]) so the
     /// fixed camera frames any room. Uniform scale preserves relative layout.
     private func normalize() -> (scale: Float, center: SIMD3<Float>) {
-        guard !nodes.isEmpty else { return (1, .zero) }
-        let xValues = nodes.map { Float($0.positionX) }
-        let yValues = nodes.map { Float($0.positionY) }
-        let zValues = nodes.map { Float($0.positionZ) }
+        let scope = renderedNodes
+        guard !scope.isEmpty else { return (1, .zero) }
+        let xValues = scope.map { Float($0.positionX) }
+        let yValues = scope.map { Float($0.positionY) }
+        let zValues = scope.map { Float($0.positionZ) }
         let center = SIMD3<Float>(
             (xValues.min()! + xValues.max()!) / 2,
             (yValues.min()! + yValues.max()!) / 2,
@@ -268,7 +301,7 @@ struct SpatialScene3D: View {
         let root = Entity()
 
         var positions: [String: SIMD3<Float>] = [:]
-        for node in nodes {
+        for node in renderedNodes {
             let pos = position(for: node, scale: scale, center: center)
             positions[node.id] = pos
             root.addChild(makeNodeEntity(node, at: pos))
