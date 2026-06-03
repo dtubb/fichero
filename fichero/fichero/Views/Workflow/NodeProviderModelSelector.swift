@@ -13,6 +13,89 @@ let appleVisionProviderId = "apple_vision"
 let smallAliasProviderId = "$small"
 let largeAliasProviderId = "$large"
 
+extension WorkflowNode {
+    mutating func applyProviderSelection(
+        providerId: String,
+        providers: [NodeProviderModelSelector.ProviderOption],
+        toolRequiresVision: Bool,
+        toolSupportsAppleVision: Bool
+    ) -> String {
+        let isVisionTool = toolRequiresVision || toolSupportsAppleVision
+        if providerId.isEmpty {
+            applyDefaultProviderSelection(clearVisionMode: toolSupportsAppleVision)
+            return ""
+        }
+
+        if providerId == appleVisionProviderId {
+            applyAppleVisionProviderSelection()
+            return ""
+        }
+
+        if providerId == smallAliasProviderId || providerId == largeAliasProviderId {
+            applyAliasProviderSelection(providerId, isVisionTool: isVisionTool)
+            return ""
+        }
+
+        return applyLLMProviderSelection(
+            providerId,
+            providers: providers,
+            isVisionTool: isVisionTool
+        )
+    }
+
+    private mutating func applyDefaultProviderSelection(clearVisionMode: Bool) {
+        providerName = nil
+        modelName = nil
+        usesLLM = false
+        if clearVisionMode {
+            config?.removeValue(forKey: "vision_mode")
+            if config?.isEmpty == true {
+                config = nil
+            }
+        }
+    }
+
+    private mutating func applyAppleVisionProviderSelection() {
+        if config == nil { config = [:] }
+        config?["vision_mode"] = .string("apple")
+        providerName = nil
+        modelName = nil
+        usesLLM = false
+    }
+
+    private mutating func applyAliasProviderSelection(
+        _ providerId: String,
+        isVisionTool: Bool
+    ) {
+        if isVisionTool {
+            if config == nil { config = [:] }
+            config?["vision_mode"] = .string("llm")
+        }
+        providerName = providerId
+        modelName = nil
+        usesLLM = true
+    }
+
+    private mutating func applyLLMProviderSelection(
+        _ providerId: String,
+        providers: [NodeProviderModelSelector.ProviderOption],
+        isVisionTool: Bool
+    ) -> String {
+        if isVisionTool {
+            if config == nil { config = [:] }
+            config?["vision_mode"] = .string("llm")
+        }
+        providerName = providerId
+        usesLLM = true
+        guard let provider = providers.first(where: { $0.id == providerId }),
+              let firstModel = provider.models.first else {
+            return ""
+        }
+        modelName = firstModel
+        return firstModel
+    }
+}
+
 /// Provider and model selection component for workflow nodes
 struct NodeProviderModelSelector: View {
     struct ProviderOption: Identifiable, Hashable {
@@ -139,47 +222,22 @@ struct NodeProviderModelSelector: View {
                 }
                 .pickerStyle(.menu)
                 .onChange(of: selectedProviderId) { _, newValue in
-                    if newValue.isEmpty {
-                        // Default selected — clear explicit provider/model so the runtime uses its default
-                        node.providerName = nil
-                        node.modelName = nil
-                        node.usesLLM = false
-                        selectedModelId = ""
-                        return
-                    }
+                    selectedModelId = node.applyProviderSelection(
+                        providerId: newValue,
+                        providers: providers,
+                        toolRequiresVision: toolRequiresVision,
+                        toolSupportsAppleVision: toolSupportsAppleVision
+                    )
 
                     if newValue == appleVisionProviderId {
-                        // Apple Vision selected — set vision_mode, clear LLM provider/model
-                        if node.config == nil { node.config = [:] }
-                        node.config?["vision_mode"] = .string("apple")
-                        node.providerName = nil
-                        node.modelName = nil
-                        node.usesLLM = false
-                        selectedModelId = ""
                         logger.info("Apple Vision selected for node \(node.id)")
                     } else if newValue == smallAliasProviderId
                                 || newValue == largeAliasProviderId {
-                        // Tier alias — runtime fills provider+model. Model
-                        // picker is hidden via isAliasSelected.
-                        node.providerName = newValue
-                        node.modelName = nil
-                        node.usesLLM = true
-                        selectedModelId = ""
                         logger.info(
                             "Alias \(newValue) selected for node \(node.id)"
                         )
-                    } else {
-                        // LLM provider selected
-                        if node.config == nil { node.config = [:] }
-                        node.config?["vision_mode"] = .string("llm")
-                        node.providerName = newValue
-                        node.usesLLM = true
+                    } else if !newValue.isEmpty {
                         logger.info("Provider selected: id=\(newValue)")
-                        if let provider = providers.first(where: { $0.id == newValue }),
-                           let firstModel = provider.models.first {
-                            selectedModelId = firstModel
-                            node.modelName = firstModel
-                        }
                     }
                 }
             }

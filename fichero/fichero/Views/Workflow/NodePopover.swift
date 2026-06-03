@@ -56,13 +56,17 @@ struct NodePopover: View {
                 VStack(alignment: .leading, spacing: 16) {
                     labelField
 
+                    if shouldShowProviderSection, shouldShowProviderSectionFirst {
+                        providerModelSection
+                    }
+
                     // Tool-specific configuration
                     toolConfigSection
 
                     // Prompt preview (LLM tools only)
                     PromptPreviewPanel(node: node)
 
-                    if shouldShowProviderSection {
+                    if shouldShowProviderSection, !shouldShowProviderSectionFirst {
                         providerModelSection
                     }
 
@@ -310,6 +314,10 @@ struct NodePopover: View {
         }
         // For non-vision tools, show if tool uses LLM
         return toolUsesLLM
+    }
+
+    private var shouldShowProviderSectionFirst: Bool {
+        toolRequiresVision || toolSupportsAppleVision
     }
 
 }
