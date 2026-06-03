@@ -15,6 +15,10 @@ struct ResearchProjectListView: View {
             Divider()
             bottomToolbar
         }
+        // Load existing projects when the Research surface appears. Without
+        // this the list was always empty and previously-created projects were
+        // invisible — which read as "can't add a research project" (#1614).
+        .task { await researchService.loadProjects() }
     }
 
     @ViewBuilder
@@ -23,11 +27,14 @@ struct ResearchProjectListView: View {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if researchService.projects.isEmpty {
-            ContentUnavailableView(
-                "No Projects",
-                systemImage: "flask",
-                description: Text("Create a research project to get started.")
-            )
+            ContentUnavailableView {
+                Label("No Projects", systemImage: "flask")
+            } description: {
+                Text("Create a research project to get started.")
+            } actions: {
+                Button("New Project") { showingNewProject = true }
+                    .buttonStyle(.borderedProminent)
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List(selection: $researchService.selectedProjectId) {
@@ -74,7 +81,7 @@ struct ResearchProjectListView: View {
             Button {
                 showingNewProject = true
             } label: {
-                Image(systemName: "plus")
+                Label("New Project", systemImage: "plus")
             }
             .buttonStyle(.plain)
             .help("New Research Project")
@@ -111,8 +118,14 @@ struct ResearchProjectListView: View {
                     let name = newProjectName.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !name.isEmpty else { return }
                     Task {
-                        let project = try? await researchService.createProject(name: name)
-                        if let project { researchService.selectedProjectId = project.id }
+                        do {
+                            let project = try await researchService.createProject(name: name)
+                            researchService.selectedProjectId = project.id
+                        } catch {
+                            // Surface the failure instead of silently swallowing it,
+                            // so a broken create is visible rather than a no-op (#1614).
+                            researchService.error = error.localizedDescription
+                        }
                     }
                     newProjectName = ""
                     showingNewProject = false
