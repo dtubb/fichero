@@ -7,9 +7,6 @@ from pathlib import Path
 
 _LEGACY_APP_SUPPORT_DIRS = (
     ("com.fichero.fichero",),
-    # Original development bundle id from before the app/engine converged on
-    # the canonical Fichero support directory (#320).
-    ("ca.tubb.fichero",),
     ("ca.tubb.fichero", "global.fichero"),
     # The SwiftUI app historically wrote the global library under its bundle id
     # (~/Library/Application Support/app.fichero.fichero/) — migrate it into the
@@ -42,3 +39,4 @@ def migrate_legacy_engine_state(home: Path | None = None) -> int:
             shutil.move(str(entry), str(dest))
             migrated_entries += 1
     return migrated_entries
+
