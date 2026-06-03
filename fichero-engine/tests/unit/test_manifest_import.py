@@ -203,6 +203,91 @@ def test_import_creates_documents_entities_claims(client, db, tmp_path):
     assert claim["source_document_id"] == page["id"]
 
 
+class _RecordingClient:
+    """Mock ``ManifestApiClient`` that records every request.
+
+    Returns synthetic ids for POST /documents and POST /ingest/file so the
+    importer can wire parents and continue. Used to assert copy-image
+    behaviour without a live engine.
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, dict | None]] = []
+        self._counter = 0
+
+    def request(self, method, path, body=None):
+        self.calls.append((method, path, body))
+        if method == "GET":
+            return {"items": []}
+        if method == "POST" and path in ("/documents", "/ingest/file"):
+            self._counter += 1
+            return {"id": f"doc-{self._counter}"}
+        if method == "POST" and path in ("/entities", "/claims"):
+            self._counter += 1
+            return {"id": f"obj-{self._counter}"}
+        if method == "PUT":
+            return {"id": path.rsplit("/", 1)[-1]}
+        return None
+
+
+def test_copy_images_triggers_ingest_copy_and_keeps_page_content(tmp_path):
+    """copy_images=True copies the image via the native ingest path AND still
+    sets the manifest transcript as page_content (provenance import)."""
+    from fichero.manifest_import import import_manifest
+
+    manifest = _fixture_manifest(tmp_path)
+    rec = _RecordingClient()
+
+    summary = import_manifest(
+        rec, manifest, str(tmp_path / "lib.fichero"), copy_images=True
+    )
+
+    assert summary.documents_created == 2
+
+    # The page image was copied INTO the library via the native ingest path
+    # (copy_mode=True), NOT referenced via POST /documents.
+    ingest_calls = [c for c in rec.calls if c[1] == "/ingest/file"]
+    assert len(ingest_calls) == 1
+    ingest_body = ingest_calls[0][2]
+    assert ingest_body["copy_mode"] is True
+    assert ingest_body["path"] == str(tmp_path / "page_001_enhanced.jpg")
+    # No OCR / text-extraction on ingest — transcript comes from the manifest.
+    assert ingest_body["extract_text"] is False
+
+    # The page document is then updated with the clean manifest transcript and
+    # provenance=import (NOT Apple Vision OCR).
+    put_calls = [c for c in rec.calls if c[0] == "PUT"]
+    assert len(put_calls) == 1
+    put_body = put_calls[0][2]
+    assert put_body["page_content"] == "Marshall went to Istmina this afternoon."
+    assert put_body["metadata"]["provenance"] == "import"
+    assert put_body["metadata"]["canonical_external_id"] == "tiny_corpus__page_001"
+
+    # The group (no image) still goes through the plain reference create path.
+    doc_posts = [c for c in rec.calls if c[1] == "/documents"]
+    assert len(doc_posts) == 1
+    assert doc_posts[0][2]["name"] == "Tiny Corpus"
+
+
+def test_no_copy_images_preserves_reference_behaviour(tmp_path):
+    """Default (copy_images=False) keeps the original reference behaviour:
+    POST /documents with path pointing at the on-disk source, no ingest copy."""
+    from fichero.manifest_import import import_manifest
+
+    manifest = _fixture_manifest(tmp_path)
+    rec = _RecordingClient()
+
+    import_manifest(rec, manifest, str(tmp_path / "lib.fichero"))
+
+    assert not [c for c in rec.calls if c[1] == "/ingest/file"]
+    assert not [c for c in rec.calls if c[0] == "PUT"]
+    page_post = next(
+        c for c in rec.calls if c[1] == "/documents" and c[2]["name"] == "page_001"
+    )
+    assert page_post[2]["path"] == str(tmp_path / "page_001_enhanced.jpg")
+    assert page_post[2]["page_content"] == "Marshall went to Istmina this afternoon."
+
+
 def test_import_is_idempotent(client, db, tmp_path):
     manifest = _fixture_manifest(tmp_path)
     adapter = _TestClientAdapter(client)
