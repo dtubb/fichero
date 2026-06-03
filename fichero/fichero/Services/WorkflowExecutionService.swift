@@ -8,6 +8,24 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 class WorkflowExecutionService: ObservableObject {
     private let baseURL: URL
     private var libraryPath: String?
+    private let decoder = JSONDecoder()
+
+    private enum Endpoint {
+        static let execute = "/api/workflow-execution/execute"
+        static let threads = "/api/workflow-execution/threads"
+        static let thread = "/api/workflow-execution/threads/{thread_id}"
+        static let threadCancel = "/api/workflow-execution/threads/{thread_id}/cancel"
+        static let threadDiagramPNG = "/api/workflow-execution/threads/{thread_id}/diagram.png"
+        static let threadHistory = "/api/workflow-execution/threads/{thread_id}/history"
+        static let threadPause = "/api/workflow-execution/threads/{thread_id}/pause"
+        static let threadResume = "/api/workflow-execution/threads/{thread_id}/resume"
+        static let threadRun = "/api/workflow-execution/threads/{thread_id}/run"
+        static let threadStatus = "/api/workflow-execution/threads/{thread_id}/status"
+        static let allCache = "/api/workflow-execution/cache"
+        static let allCacheStats = "/api/workflow-execution/cache/stats"
+        static let workflowCache = "/api/workflow-execution/workflows/{workflow_id}/cache"
+        static let workflowCacheStats = "/api/workflow-execution/workflows/{workflow_id}/cache/stats"
+    }
 
     @Published var isExecuting: Bool = false
     @Published var threads: [ExecutionThread] = []
@@ -33,6 +51,17 @@ class WorkflowExecutionService: ObservableObject {
         return request
     }
 
+    private func url(for endpoint: String, replacements: [String: String] = [:]) -> URL {
+        var path = endpoint
+        for (placeholder, value) in replacements {
+            path = path.replacingOccurrences(of: "{\(placeholder)}", with: value)
+        }
+        let relativePath = path.hasPrefix("/api/")
+            ? String(path.dropFirst("/api/".count))
+            : path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return baseURL.appendingPathComponent(relativePath)
+    }
+
     // MARK: - Execute Workflow
 
     /// Execute a workflow with optional interrupt points
@@ -43,7 +72,7 @@ class WorkflowExecutionService: ObservableObject {
         interruptBefore: [String] = [],
         interruptAfter: [String] = []
     ) async throws -> ExecutionThread {
-        let url = baseURL.appendingPathComponent("workflow-execution/execute")
+        let url = url(for: Endpoint.execute)
 
         var body: [String: Any] = [
             "workflow_id": workflowId,
@@ -83,7 +112,7 @@ class WorkflowExecutionService: ObservableObject {
 
     /// Resume a paused workflow
     func resumeWorkflow(threadId: String, inputs: [String: Any]? = nil) async throws -> ExecutionThread {
-        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/resume")
+        let url = url(for: Endpoint.threadResume, replacements: ["thread_id": threadId])
 
         var request = createRequest(url: url, method: "POST")
 
@@ -117,7 +146,7 @@ class WorkflowExecutionService: ObservableObject {
 
     /// Get the current status of an execution thread
     func getThreadStatus(threadId: String) async throws -> ExecutionThread {
-        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/status")
+        let url = url(for: Endpoint.threadStatus, replacements: ["thread_id": threadId])
 
         let request = createRequest(url: url, method: "GET")
 
@@ -142,7 +171,7 @@ class WorkflowExecutionService: ObservableObject {
 
     /// List all execution threads
     func listThreads(limit: Int = 100) async throws -> [ExecutionThread] {
-        let url = baseURL.appendingPathComponent("workflow-execution/threads")
+        let url = url(for: Endpoint.threads)
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
 
@@ -170,7 +199,7 @@ class WorkflowExecutionService: ObservableObject {
 
     /// Delete an execution thread and its checkpoints
     func deleteThread(threadId: String) async throws {
-        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)")
+        let url = url(for: Endpoint.thread, replacements: ["thread_id": threadId])
 
         let request = createRequest(url: url, method: "DELETE")
 
@@ -194,10 +223,59 @@ class WorkflowExecutionService: ObservableObject {
         logger.info("Deleted thread: \(threadId)")
     }
 
+    // MARK: - Thread Artifacts
+
+    func getThreadHistory(threadId: String, limit: Int = 100) async throws -> WorkflowExecutionPayload {
+        let url = url(for: Endpoint.threadHistory, replacements: ["thread_id": threadId])
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+
+        let request = createRequest(url: components.url!, method: "GET")
+        return try await sendJSONRequest(request)
+    }
+
+    func getWorkflowRun(threadId: String) async throws -> WorkflowExecutionPayload {
+        let url = url(for: Endpoint.threadRun, replacements: ["thread_id": threadId])
+        let request = createRequest(url: url, method: "GET")
+        return try await sendJSONRequest(request)
+    }
+
+    func getThreadDiagramPNG(threadId: String) async throws -> Data {
+        let url = url(for: Endpoint.threadDiagramPNG, replacements: ["thread_id": threadId])
+        let request = createRequest(url: url, method: "GET")
+        return try await sendDataRequest(request)
+    }
+
+    // MARK: - Cache
+
+    func getAllCacheStats() async throws -> WorkflowExecutionPayload {
+        let url = url(for: Endpoint.allCacheStats)
+        let request = createRequest(url: url, method: "GET")
+        return try await sendJSONRequest(request)
+    }
+
+    func clearAllCache() async throws {
+        let url = url(for: Endpoint.allCache)
+        let request = createRequest(url: url, method: "DELETE")
+        _ = try await sendDataRequest(request)
+    }
+
+    func getWorkflowCacheStats(workflowId: String) async throws -> WorkflowExecutionPayload {
+        let url = url(for: Endpoint.workflowCacheStats, replacements: ["workflow_id": workflowId])
+        let request = createRequest(url: url, method: "GET")
+        return try await sendJSONRequest(request)
+    }
+
+    func clearWorkflowCache(workflowId: String) async throws {
+        let url = url(for: Endpoint.workflowCache, replacements: ["workflow_id": workflowId])
+        let request = createRequest(url: url, method: "DELETE")
+        _ = try await sendDataRequest(request)
+    }
+
     // MARK: - Pause / Cancel
 
     func pauseWorkflow(threadId: String) async throws {
-        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/pause")
+        let url = url(for: Endpoint.threadPause, replacements: ["thread_id": threadId])
         let request = createRequest(url: url, method: "POST")
         let (_, response) = try await URLSession.shared.data(for: request)
 
@@ -211,7 +289,7 @@ class WorkflowExecutionService: ObservableObject {
     }
 
     func cancelWorkflow(threadId: String) async throws {
-        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/cancel")
+        let url = url(for: Endpoint.threadCancel, replacements: ["thread_id": threadId])
         let request = createRequest(url: url, method: "POST")
         let (_, response) = try await URLSession.shared.data(for: request)
 
@@ -222,6 +300,26 @@ class WorkflowExecutionService: ObservableObject {
             throw WorkflowExecutionError.serverError(httpResponse.statusCode, "Cancel workflow failed")
         }
         logger.info("Cancel requested for workflow thread: \(threadId)")
+    }
+
+    private func sendJSONRequest(_ request: URLRequest) async throws -> WorkflowExecutionPayload {
+        let data = try await sendDataRequest(request)
+        return try decoder.decode(WorkflowExecutionPayload.self, from: data)
+    }
+
+    private func sendDataRequest(_ request: URLRequest) async throws -> Data {
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw WorkflowExecutionError.invalidResponse
+        }
+
+        if httpResponse.statusCode >= 400 {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw WorkflowExecutionError.serverError(httpResponse.statusCode, errorMessage)
+        }
+
+        return data
     }
 }
 
@@ -261,6 +359,20 @@ enum ExecutionStatus: String, Codable {
 /// Response containing list of threads
 struct ThreadListResponse: Codable {
     let threads: [ExecutionThread]
+}
+
+struct WorkflowExecutionPayload: Codable, Hashable {
+    let values: [String: AnyCodable]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        values = try container.decode([String: AnyCodable].self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(values)
+    }
 }
 
 // Note: AnyCodable is defined in Document.swift

@@ -14,10 +14,17 @@ struct WorkflowDiagramPreview: View {
     let workflowName: String
     @Binding var isPresented: Bool
 
+    private enum Endpoint {
+        static let workflowCode = "/api/workflow-execution/workflows/{workflow_id}/code"
+        static let workflowVisualization = "/api/workflow-execution/workflows/{workflow_id}/visualization"
+        static let workflowVisualizationPNG = "/api/workflow-execution/workflows/{workflow_id}/visualization.png"
+    }
+
     @EnvironmentObject var apiClient: APIClient
 
     @State private var diagramImage: NSImage?
     @State private var pythonCode: String?
+    @State private var visualization: WorkflowExecutionPayload?
     @State private var isLoading: Bool = true
     @State private var error: String?
 
@@ -96,6 +103,15 @@ struct WorkflowDiagramPreview: View {
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
+
+                        if let visualization {
+                            Text("\(visualization.values.count) visualization fields loaded")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                        }
                     }
                     .frame(minWidth: 300)
 
@@ -163,20 +179,18 @@ struct WorkflowDiagramPreview: View {
         // Load diagram and code in parallel
         async let diagramTask: Void = loadDiagram()
         async let codeTask: Void = loadCode()
+        async let visualizationTask: Void = loadVisualization()
 
         await diagramTask
         await codeTask
+        await visualizationTask
 
         isLoading = false
     }
 
     private func loadDiagram() async {
         do {
-            let url = apiClient.baseURL
-                .appendingPathComponent("workflow-execution")
-                .appendingPathComponent("workflows")
-                .appendingPathComponent(workflowId)
-                .appendingPathComponent("visualization.png")
+            let url = url(for: Endpoint.workflowVisualizationPNG)
 
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
@@ -194,11 +208,7 @@ struct WorkflowDiagramPreview: View {
 
     private func loadCode() async {
         do {
-            let url = apiClient.baseURL
-                .appendingPathComponent("workflow-execution")
-                .appendingPathComponent("workflows")
-                .appendingPathComponent(workflowId)
-                .appendingPathComponent("code")
+            let url = url(for: Endpoint.workflowCode)
 
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
@@ -222,5 +232,31 @@ struct WorkflowDiagramPreview: View {
                 self.error = error.localizedDescription
             }
         }
+    }
+
+    private func loadVisualization() async {
+        do {
+            let url = url(for: Endpoint.workflowVisualization)
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.addEngineAuth(libraryPath: apiClient.currentLibraryPath)
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                return
+            }
+            visualization = try? JSONDecoder().decode(WorkflowExecutionPayload.self, from: data)
+        } catch {
+            // The PNG diagram remains the primary UI; JSON visualization is supplemental.
+        }
+    }
+
+    private func url(for endpoint: String) -> URL {
+        let path = endpoint.replacingOccurrences(of: "{workflow_id}", with: workflowId)
+        let relativePath = path.hasPrefix("/api/")
+            ? String(path.dropFirst("/api/".count))
+            : path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return apiClient.baseURL.appendingPathComponent(relativePath)
     }
 }

@@ -9,6 +9,7 @@ struct WorkflowExecutionView: View {
     @StateObject private var executionService = WorkflowExecutionService()
     @State private var selectedThread: ExecutionThread?
     @State private var isLoading = false
+    @State private var cacheStats: WorkflowExecutionPayload?
 
     var body: some View {
         threadList
@@ -82,6 +83,26 @@ struct WorkflowExecutionView: View {
                 }
                 .disabled(isLoading)
             }
+
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    Task { await loadCacheStats() }
+                } label: {
+                    Image(systemName: "externaldrive.badge.icloud")
+                }
+                .disabled(isLoading)
+                .help("Load workflow execution cache stats")
+            }
+
+            ToolbarItem(placement: .primaryAction) {
+                Button(role: .destructive) {
+                    Task { await clearAllCache() }
+                } label: {
+                    Image(systemName: "externaldrive.badge.xmark")
+                }
+                .disabled(isLoading)
+                .help("Clear all workflow execution cache")
+            }
         }
     }
 
@@ -123,6 +144,25 @@ struct WorkflowExecutionView: View {
             }
         } catch {
             logger.error("Failed to delete thread: \(String(describing: error))")
+        }
+    }
+
+    private func loadCacheStats() async {
+        do {
+            cacheStats = try await executionService.getAllCacheStats()
+            logger.info("Loaded workflow execution cache stats")
+        } catch {
+            logger.error("Failed to load workflow execution cache stats: \(String(describing: error))")
+        }
+    }
+
+    private func clearAllCache() async {
+        do {
+            try await executionService.clearAllCache()
+            cacheStats = nil
+            logger.info("Cleared workflow execution cache")
+        } catch {
+            logger.error("Failed to clear workflow execution cache: \(String(describing: error))")
         }
     }
 }
@@ -214,6 +254,11 @@ struct ThreadDetailContent: View {
     let thread: ExecutionThread
     let executionService: WorkflowExecutionService
     let onRefresh: () async -> Void
+    @State private var history: WorkflowExecutionPayload?
+    @State private var run: WorkflowExecutionPayload?
+    @State private var cacheStats: WorkflowExecutionPayload?
+    @State private var diagramImage: NSImage?
+    @State private var supplementalError: String?
 
     var body: some View {
         ScrollView {
@@ -250,8 +295,41 @@ struct ThreadDetailContent: View {
                 }
                 .padding(.horizontal)
 
+                Divider()
+
+                if let supplementalError {
+                    DetailRow(label: "Supplemental Data Error", value: supplementalError, isError: true)
+                        .padding(.horizontal)
+                }
+
+                if let cacheStats {
+                    PayloadSummary(label: "Workflow Cache", payload: cacheStats)
+                        .padding(.horizontal)
+                }
+
+                if let run {
+                    PayloadSummary(label: "Run", payload: run)
+                        .padding(.horizontal)
+                }
+
+                if let history {
+                    PayloadSummary(label: "History", payload: history)
+                        .padding(.horizontal)
+                }
+
+                if let diagramImage {
+                    Image(nsImage: diagramImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxHeight: 220)
+                        .padding(.horizontal)
+                }
+
                 Spacer()
             }
+        }
+        .task(id: thread.threadId) {
+            await loadSupplementalData()
         }
         .navigationTitle(thread.workflowName)
         .toolbar {
@@ -272,7 +350,69 @@ struct ThreadDetailContent: View {
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
+
+                Button {
+                    Task { await clearWorkflowCache() }
+                } label: {
+                    Label("Clear Cache", systemImage: "externaldrive.badge.xmark")
+                }
             }
+        }
+    }
+
+    private func loadSupplementalData() async {
+        supplementalError = nil
+
+        async let runTask = loadRun()
+        async let historyTask = loadHistory()
+        async let cacheTask = loadCacheStats()
+        async let diagramTask = loadDiagram()
+
+        await runTask
+        await historyTask
+        await cacheTask
+        await diagramTask
+    }
+
+    private func loadRun() async {
+        do {
+            run = try await executionService.getWorkflowRun(threadId: thread.threadId)
+        } catch {
+            supplementalError = error.localizedDescription
+        }
+    }
+
+    private func loadHistory() async {
+        do {
+            history = try await executionService.getThreadHistory(threadId: thread.threadId)
+        } catch {
+            supplementalError = error.localizedDescription
+        }
+    }
+
+    private func loadCacheStats() async {
+        do {
+            cacheStats = try await executionService.getWorkflowCacheStats(workflowId: thread.workflowId)
+        } catch {
+            supplementalError = error.localizedDescription
+        }
+    }
+
+    private func loadDiagram() async {
+        do {
+            let data = try await executionService.getThreadDiagramPNG(threadId: thread.threadId)
+            diagramImage = NSImage(data: data)
+        } catch {
+            supplementalError = error.localizedDescription
+        }
+    }
+
+    private func clearWorkflowCache() async {
+        do {
+            try await executionService.clearWorkflowCache(workflowId: thread.workflowId)
+            cacheStats = nil
+        } catch {
+            supplementalError = error.localizedDescription
         }
     }
 
@@ -303,6 +443,18 @@ struct ThreadDetailContent: View {
         case .failed:
             return (.red, "exclamationmark.circle.fill")
         }
+    }
+}
+
+private struct PayloadSummary: View {
+    let label: String
+    let payload: WorkflowExecutionPayload
+
+    var body: some View {
+        DetailRow(
+            label: label,
+            value: "\(payload.values.count) field\(payload.values.count == 1 ? "" : "s")"
+        )
     }
 }
 

@@ -14,6 +14,13 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 class WorkflowStreamService: ObservableObject {
     private let api: APIClient
 
+    private enum Endpoint {
+        static let execute = "/api/workflow-execution/execute"
+        static let stream = "/api/workflow-execution/stream/{thread_id}"
+        static let thread = "/api/workflow-execution/threads/{thread_id}"
+        static let threadResume = "/api/workflow-execution/threads/{thread_id}/resume"
+    }
+
     /// Current streaming status
     @Published var isStreaming = false
 
@@ -78,7 +85,7 @@ class WorkflowStreamService: ObservableObject {
             requestBody["model_override"] = modelOverride
         }
 
-        guard let executeUrl = URL(string: "\(api.baseURL)/workflow-execution/execute") else {
+        guard let executeUrl = url(for: Endpoint.execute) else {
             throw WorkflowStreamError.invalidURL
         }
 
@@ -127,7 +134,7 @@ class WorkflowStreamService: ObservableObject {
         threadId: String,
         onEvent: ((WorkflowStreamEvent) -> Void)?
     ) async {
-        guard let streamUrl = URL(string: "\(api.baseURL)/workflow-execution/stream/\(threadId)") else {
+        guard let streamUrl = url(for: Endpoint.stream, threadId: threadId) else {
             await MainActor.run {
                 self.error = "Invalid stream URL"
                 self.isStreaming = false
@@ -225,7 +232,7 @@ class WorkflowStreamService: ObservableObject {
         cancelStream()
 
         // Then delete the thread on the backend
-        guard let url = URL(string: "\(api.baseURL)/workflow-execution/threads/\(threadId)") else {
+        guard let url = url(for: Endpoint.thread, threadId: threadId) else {
             throw WorkflowStreamError.invalidURL
         }
 
@@ -252,7 +259,7 @@ class WorkflowStreamService: ObservableObject {
     /// Resume a paused workflow
     /// - Parameter threadId: The thread ID to resume
     func resumeWorkflow(threadId: String, onEvent: ((WorkflowStreamEvent) -> Void)? = nil) async throws {
-        guard let url = URL(string: "\(api.baseURL)/workflow-execution/threads/\(threadId)/resume") else {
+        guard let url = url(for: Endpoint.threadResume, threadId: threadId) else {
             throw WorkflowStreamError.invalidURL
         }
 
@@ -282,6 +289,17 @@ class WorkflowStreamService: ObservableObject {
         }
 
         logger.info("Workflow thread resumed: \(threadId)")
+    }
+
+    private func url(for endpoint: String, threadId: String? = nil) -> URL? {
+        var path = endpoint
+        if let threadId {
+            path = path.replacingOccurrences(of: "{thread_id}", with: threadId)
+        }
+        let relativePath = path.hasPrefix("/api/")
+            ? String(path.dropFirst("/api/".count))
+            : path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return api.baseURL.appendingPathComponent(relativePath)
     }
 
 }
