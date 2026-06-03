@@ -206,6 +206,27 @@ def preferred_image(node: dict[str, Any]) -> dict[str, Any] | None:
     return images[0] if images else None
 
 
+def _canonical_metadata(node: dict[str, Any]) -> dict[str, Any]:
+    """Build the canonical metadata block shared by reference and copy modes."""
+    image = preferred_image(node)
+    metadata = dict(node.get("metadata") or {})
+    metadata.update(
+        {
+            "canonical_version": node.get("canonical_version"),
+            "canonical_external_id": node.get("external_id"),
+            "canonical_parent_external_id": node.get("parent_external_id"),
+            "canonical_node_type": node.get("node_type"),
+            "corpus": node.get("corpus"),
+            "page_label": node.get("page_label"),
+            "date": node.get("date"),
+            "sequence": node.get("sequence"),
+            "images": node.get("images") or [],
+            "preferred_image_role": image.get("role") if image else None,
+        }
+    )
+    return metadata
+
+
 def document_payload(
     node: dict[str, Any], parent_id: str | None
 ) -> dict[str, Any]:
@@ -347,12 +368,77 @@ def _existing_doc_id_by_external(
 # ---------------------------------------------------------------------------
 
 
+def _copy_image_into_library(
+    client: ManifestApiClient,
+    node: dict[str, Any],
+    parent_id: str | None,
+) -> str:
+    """Copy a page's preferred image INTO the library and wire its document.
+
+    Reuses the engine's native ingest path (``POST /api/ingest/file`` with
+    ``copy_mode=True``) so the image bytes land in ``{library}/files/`` and
+    storage/thumbnail + storage/display work exactly like ``fichero import``.
+
+    ``extract_text=False`` is critical: the manifest already carries the clean
+    transcript, so we must NOT let ingest run any image text-extraction /
+    Apple Vision OCR that would compete with it. After the bytes are in place
+    we ``PUT`` the manifest fields (clean transcript as ``page_content``,
+    canonical name/metadata, ``provenance=import``) onto the freshly-created
+    document.
+
+    Returns the created document id.
+    """
+    image = preferred_image(node)
+    source_path = image.get("source_path") if image else None
+    if not source_path:
+        # No image to copy — fall back to the reference document payload.
+        created = client.request(
+            "POST", "/documents", document_payload(node, parent_id)
+        )
+        return str(created["id"])
+
+    ingested = client.request(
+        "POST",
+        "/ingest/file",
+        {
+            "path": source_path,
+            "parent_id": parent_id,
+            "copy_mode": True,
+            # Do NOT extract text on ingest — page_content comes from the
+            # manifest transcript (provenance import, not Apple Vision OCR).
+            "extract_text": False,
+            "auto_embed": False,
+        },
+    )
+    doc_id = str(ingested["id"])
+
+    metadata = _canonical_metadata(node)
+    metadata["provenance"] = "import"
+    update_body: dict[str, Any] = {
+        "name": node.get("name") or node.get("external_id"),
+        "doc_type": _NODE_TYPE_TO_DOC_TYPE[node["node_type"]],
+        "page_content": node.get("text"),
+        "metadata": metadata,
+    }
+    client.request("PUT", f"/documents/{doc_id}", update_body)
+    return doc_id
+
+
 def import_manifest(
     client: ManifestApiClient,
     manifest_path: Path,
     library_path: str,
+    *,
+    copy_images: bool = False,
 ) -> ImportSummary:
-    """Import a canonical manifest into a library through the API client."""
+    """Import a canonical manifest into a library through the API client.
+
+    When ``copy_images`` is True, each page's preferred image is copied INTO
+    the library package (so thumbnails/display work) via the engine's native
+    ingest path, while ``page_content`` is still the manifest transcript. When
+    False (the default), images are merely *referenced* by on-disk path —
+    preserving the original behaviour.
+    """
     nodes = read_manifest(manifest_path)
     validate_nodes(nodes)
 
@@ -378,10 +464,14 @@ def import_manifest(
             raise RuntimeError(
                 f"Missing parent for {external_id}: {parent_external}"
             )
-        created = client.request(
-            "POST", "/documents", document_payload(node, parent_id)
-        )
-        doc_id_by_external[external_id] = str(created["id"])
+        if copy_images and node.get("node_type") == "page" and preferred_image(node):
+            new_id = _copy_image_into_library(client, node, parent_id)
+        else:
+            created = client.request(
+                "POST", "/documents", document_payload(node, parent_id)
+            )
+            new_id = str(created["id"])
+        doc_id_by_external[external_id] = new_id
         summary.documents_created += 1
 
     # --- entities (deduped by canonical name across the whole manifest) ---
@@ -450,16 +540,25 @@ def import_manifest_via_http(
     api_base: str = DEFAULT_API_BASE,
     token_file: Path = DEFAULT_TOKEN_FILE,
     create_library: bool = True,
+    copy_images: bool = False,
 ) -> ImportSummary:
     """Convenience entry point: import a manifest into a live engine over HTTP.
 
     Reads the Bearer key from ``token_file`` and (optionally) creates the
     target ``.fichero`` library first via ``POST /api/library`` so a single
     command can bootstrap and populate a fresh library.
+
+    When ``copy_images`` is True, each page's preferred image is copied into
+    the library package (thumbnail/display work) rather than merely referenced.
     """
     token = token_file.read_text(encoding="utf-8").strip()
     library_str = str(library_path.expanduser())
     client = HttpManifestClient(api_base, token, library_str)
     if create_library:
         client.request("POST", "/library", {"path": library_str})
-    return import_manifest(client, manifest_path.expanduser(), library_str)
+    return import_manifest(
+        client,
+        manifest_path.expanduser(),
+        library_str,
+        copy_images=copy_images,
+    )
