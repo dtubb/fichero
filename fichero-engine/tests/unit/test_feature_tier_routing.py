@@ -30,6 +30,14 @@ def test_release_tier_exposes_001_routes():
     )
     assert "/api/workflows" in prefixes
     assert "/api/workflow-execution" in prefixes
+    assert any(
+        prefix == "/api" and "triggers" in tags
+        for _, prefix, tags in get_route_specs_for_tier("release")
+    )
+    assert any(
+        prefix == "/api" and "schedules" in tags
+        for _, prefix, tags in get_route_specs_for_tier("release")
+    )
     # Chains promoted from dev to core for 0.0.2 (#1151)
     chain_tags = [
         tags for _, _, tags in get_route_specs_for_tier("release") if "chains" in tags
