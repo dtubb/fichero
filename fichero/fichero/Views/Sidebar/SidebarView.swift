@@ -159,6 +159,10 @@ struct SidebarView: View {
                         viewMode = .batches
                         return
                     }
+                    if id == "entities-browser" {
+                        sidebarMode = .knowledgeGraph
+                        return
+                    }
                     if id.hasPrefix("run:"),
                        let selectedRun = unifiedSelectedRun(forSidebarId: id) {
                         viewMode = .activity(selectedRun.toSelectedRun())
