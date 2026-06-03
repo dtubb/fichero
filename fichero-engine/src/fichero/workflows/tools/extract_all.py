@@ -338,6 +338,21 @@ def _annotate_pronoun_source(source_text: str, entity_name: str) -> str:
         return f"[{entity_name}] {source_text}"
     return source_text
 
+def _entity_schema_in_prompt(llm_config: LLMConfig) -> bool:
+    """Whether to inject the entity schema into the prompt for Stage 1.
+
+    Apple on-device FoundationModels needs the schema in the prompt to
+    actually populate a nested structured result: with
+    ``include_schema_in_prompt=False`` the constrained decoder returns a
+    grammar-valid but ALL-EMPTY object even on clean prose (#1633/#1634).
+    Injecting the schema gives the model the field signal it needs and it
+    extracts entities reliably. Other providers describe the shape via the
+    system instructions and keep the flag ``False`` for token economy in
+    cloud calls; only Apple flips to ``True``.
+    """
+    return llm_config.provider.lower() == "apple"
+
+
 def _build_entity_only_instructions(output_language: str) -> str:
     """Stage 1 instructions - extract entity names only, no SVO pressure."""
     return (
@@ -1197,7 +1212,11 @@ async def _run_two_stage(
                     schema=_EntitiesOnly,
                     config=llm_config,
                     system=entity_instructions,
-                    include_schema_in_prompt=False,
+                    # Apple needs the schema in-prompt to populate the
+                    # nested result; without it the on-device decoder
+                    # returns an all-empty object even on clean prose
+                    # (#1633/#1634). Other providers keep it off.
+                    include_schema_in_prompt=_entity_schema_in_prompt(llm_config),
                     permissive_guardrails=True,
                 )
         except Exception as exc:

@@ -151,3 +151,113 @@ class TestEntitiesOnlyGrammarPermissive:
             places=[extract_all_module._EntityOnly(name="Condoto", entity_type="place")],
         )
         assert extract_all_module._entities_only_is_empty(result) is False
+
+
+# ---------------------------------------------------------------------------
+# Regression: Apple Stage 1 must inject the schema into the prompt (#1633/#1634).
+#
+# With include_schema_in_prompt=False the Apple on-device FoundationModels
+# decoder returns a grammar-VALID but ALL-EMPTY _EntitiesOnly object even on
+# clean prose, so NER entities were never extracted (and therefore never saved).
+# Injecting the schema gives the model the field signal it needs and it extracts
+# entities reliably. Other providers describe the shape via system instructions
+# and keep the flag False for cloud-prompt token economy.
+# ---------------------------------------------------------------------------
+
+
+class TestEntitySchemaInPrompt:
+    def test_apple_provider_injects_schema(self):
+        cfg = LLMConfig(provider="apple", model="apple")
+        assert extract_all_module._entity_schema_in_prompt(cfg) is True
+
+    def test_apple_provider_case_insensitive(self):
+        cfg = LLMConfig(provider="Apple", model="apple")
+        assert extract_all_module._entity_schema_in_prompt(cfg) is True
+
+    def test_cloud_provider_does_not_inject_schema(self):
+        cfg = LLMConfig(provider="openai", model="gpt-4o")
+        assert extract_all_module._entity_schema_in_prompt(cfg) is False
+
+    @pytest.mark.asyncio
+    async def test_stage1_passes_include_schema_in_prompt_for_apple(
+        self, db, test_package, monkeypatch
+    ):
+        """The live Stage 1 path must pass include_schema_in_prompt=True when the
+        configured provider is Apple, so the on-device decoder populates the
+        nested result instead of collapsing to empty."""
+        page = Document(name="p", path="/tmp/p.png", doc_type=DocType.page)
+        db.save(page)
+
+        captured: dict[str, object] = {}
+
+        async def fake_stage1(**kwargs):
+            captured["include_schema_in_prompt"] = kwargs.get(
+                "include_schema_in_prompt"
+            )
+            return extract_all_module._EntitiesOnly(
+                people=[extract_all_module._EntityOnly(name="Ada", entity_type="person")],
+            )
+
+        async def fake_claims_for_entity(*args, **kwargs):
+            return []
+
+        monkeypatch.setattr(
+            "fichero.workflows.tools.extract_all.chat_structured_with_fallback",
+            fake_stage1,
+        )
+        monkeypatch.setattr(
+            "fichero.workflows.tools.extract_all._extract_claims_for_entity",
+            fake_claims_for_entity,
+        )
+
+        await extract_all_module._run_two_stage(
+            text="Ada signed the ledger.",
+            recovered_records=[{"doc_id": page.id, "text": "Ada signed the ledger."}],
+            state={"library_path": str(test_package), "selected_doc_ids": [page.id]},
+            llm_config=LLMConfig(provider="apple", model="apple"),
+            output_language="English",
+            inputs={"persist_kg": False},
+        )
+
+        assert captured["include_schema_in_prompt"] is True
+
+    @pytest.mark.asyncio
+    async def test_stage1_no_schema_in_prompt_for_cloud(
+        self, db, test_package, monkeypatch
+    ):
+        """Cloud providers keep include_schema_in_prompt=False (token economy)."""
+        page = Document(name="p", path="/tmp/p.png", doc_type=DocType.page)
+        db.save(page)
+
+        captured: dict[str, object] = {}
+
+        async def fake_stage1(**kwargs):
+            captured["include_schema_in_prompt"] = kwargs.get(
+                "include_schema_in_prompt"
+            )
+            return extract_all_module._EntitiesOnly(
+                people=[extract_all_module._EntityOnly(name="Ada", entity_type="person")],
+            )
+
+        async def fake_claims_for_entity(*args, **kwargs):
+            return []
+
+        monkeypatch.setattr(
+            "fichero.workflows.tools.extract_all.chat_structured_with_fallback",
+            fake_stage1,
+        )
+        monkeypatch.setattr(
+            "fichero.workflows.tools.extract_all._extract_claims_for_entity",
+            fake_claims_for_entity,
+        )
+
+        await extract_all_module._run_two_stage(
+            text="Ada signed the ledger.",
+            recovered_records=[{"doc_id": page.id, "text": "Ada signed the ledger."}],
+            state={"library_path": str(test_package), "selected_doc_ids": [page.id]},
+            llm_config=LLMConfig(provider="openai", model="gpt-4o-mini"),
+            output_language="English",
+            inputs={"persist_kg": False},
+        )
+
+        assert captured["include_schema_in_prompt"] is False
