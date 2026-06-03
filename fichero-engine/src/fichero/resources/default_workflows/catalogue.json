@@ -135,7 +135,7 @@
     {
       "id": "merge_extracts",
       "tool": "aggregate",
-      "label": "Combine all per-section outputs",
+      "label": "Collect catalogue evidence",
       "position_x": 720,
       "position_y": 400,
       "inputs": {},
@@ -300,6 +300,6 @@
     }
   ],
   "config": {
-    "preset_version": 5
+    "preset_version": 6
   }
 }

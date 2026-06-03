@@ -249,6 +249,7 @@ struct WorkflowNodeView: View {
         "switch": "arrow.triangle.swap",
         "loop": "repeat",
         "filter": "line.3.horizontal.decrease.circle",
+        "aggregate": "arrow.triangle.merge",
         "merge": "arrow.triangle.merge",
         "to_pdf": "doc.richtext",
         "to_word": "doc.text",
@@ -283,6 +284,7 @@ struct WorkflowNodeView: View {
         "switch": .yellow,
         "loop": .yellow,
         "filter": .yellow,
+        "aggregate": .teal,
         "merge": .yellow,
         // Convert (orange)
         "to_pdf": .orange,

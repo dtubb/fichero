@@ -118,8 +118,22 @@ def _resolve_node_llm_config(
 # Default concurrency limit for parallel file processing
 DEFAULT_MAX_CONCURRENT = 10
 
-# Tools that support parallel file processing
-PARALLEL_TOOLS = {"transcribe", "describe", "summarize", "entities"}
+# Tools that support parallel file processing.
+#
+# Keep these names in sync with registered tool ids, not display names. The
+# legacy "entities" id is retained for old workflow JSON, while the shipped
+# editor/tool registry exposes "extract_entities".
+PARALLEL_TOOLS = {
+    "transcribe",
+    "describe",
+    "summarize",
+    "summarize_file",
+    "entities",
+    "extract_entities",
+    "key_people",
+    "timeline",
+    "keywords",
+}
 
 
 def _result_worth_caching(result: Any) -> bool:

@@ -29,9 +29,13 @@ enum EdgeFanRole: Equatable {
     }
 }
 
-/// Tools whose invocation fans out across files (one call per file).
+/// Tools whose invocation fans out across files (one call per file) when fed
+/// by a file source, plus tools whose output remains per-file until a later
+/// collect node collapses it.
 private let fanOutTools: Set<String> = [
-    "transcribe", "describe", "classify", "caption", "analyze", "tags",
+    "transcribe", "describe", "summarize", "summarize_file",
+    "extract_entities", "key_people", "timeline", "keywords",
+    "classify", "caption", "analyze", "tags",
     "colors", "faces", "layout", "compare", "convert", "extract", "objects",
     "scene", "quality", "safety", "diagram", "table_extract", "handwriting",
     "style", "similarity",
@@ -52,6 +56,9 @@ enum EdgeFanRoleResolver {
     static func role(sourceTool: String?, targetTool: String?) -> EdgeFanRole {
         if let target = targetTool, fanInTools.contains(target) {
             return .fanIn
+        }
+        if let target = targetTool, fanOutTools.contains(target) {
+            return .fanOut
         }
         if let source = sourceTool, fanOutTools.contains(source) {
             return .fanOut

@@ -46,31 +46,11 @@ struct WorkflowNodeCard: View {
     }
 
     private func iconForTool(_ tool: String) -> String {
-        switch tool.lowercased() {
-        case "files", "collection", "search": return "doc.on.doc"
-        case "describe", "analyze": return "eye"
-        case "transcribe": return "waveform"
-        case "summarize", "translate", "classify": return "text.bubble"
-        case "enhance", "crop", "rotate", "segment": return "wand.and.stars"
-        case "to_pdf", "to_word", "to_excel", "to_json": return "arrow.triangle.2.circlepath"
-        case "if", "switch": return "questionmark.diamond"
-        case "loop", "merge": return "arrow.triangle.branch"
-        case "agent": return "brain"
-        default: return "gearshape"
-        }
+        Self.toolIcons[tool.lowercased()] ?? "gearshape"
     }
 
     private func colorForTool(_ tool: String) -> Color {
-        switch tool.lowercased() {
-        case "files", "collection", "search": return .green
-        case "describe", "analyze", "transcribe": return .blue
-        case "summarize", "translate", "classify": return .purple
-        case "enhance", "crop", "rotate", "segment": return .orange
-        case "to_pdf", "to_word", "to_excel", "to_json": return .cyan
-        case "if", "switch", "loop", "merge": return .yellow
-        case "agent": return .pink
-        default: return .gray
-        }
+        Self.toolColors[tool.lowercased()] ?? .gray
     }
 
     @ViewBuilder
@@ -105,4 +85,31 @@ struct WorkflowNodeCard: View {
             }
         }
     }
+
+    private static let toolIcons: [String: String] = [
+        "files": "doc.on.doc", "collection": "doc.on.doc", "search": "doc.on.doc",
+        "describe": "eye", "analyze": "eye", "transcribe": "waveform",
+        "summarize": "text.bubble", "translate": "text.bubble", "classify": "text.bubble",
+        "enhance": "wand.and.stars", "crop": "wand.and.stars",
+        "rotate": "wand.and.stars", "segment": "wand.and.stars",
+        "to_pdf": "arrow.triangle.2.circlepath",
+        "to_word": "arrow.triangle.2.circlepath",
+        "to_excel": "arrow.triangle.2.circlepath",
+        "to_json": "arrow.triangle.2.circlepath",
+        "if": "questionmark.diamond", "switch": "questionmark.diamond",
+        "loop": "arrow.triangle.branch",
+        "aggregate": "arrow.triangle.merge", "merge": "arrow.triangle.merge",
+        "agent": "brain"
+    ]
+
+    private static let toolColors: [String: Color] = [
+        "files": .green, "collection": .green, "search": .green,
+        "describe": .blue, "analyze": .blue, "transcribe": .blue,
+        "summarize": .purple, "translate": .purple, "classify": .purple,
+        "enhance": .orange, "crop": .orange, "rotate": .orange, "segment": .orange,
+        "to_pdf": .cyan, "to_word": .cyan, "to_excel": .cyan, "to_json": .cyan,
+        "if": .yellow, "switch": .yellow, "loop": .yellow,
+        "aggregate": .teal, "merge": .teal,
+        "agent": .pink
+    ]
 }

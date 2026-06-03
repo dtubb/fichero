@@ -50,14 +50,17 @@ class TestLoadPresetFiles:
                 assert key in edge, f"edge missing {key!r}: {edge}"
 
         # Transcribe → extract_all (per-page text flows downstream via the
-        # auto-aggregator; the user-aggregate Marshal node was removed
-        # in the #837 fix because it created a super-step race).
+        # auto-aggregator; the user-facing Aggregate remains downstream as
+        # the explicit Collect/reduce step for catalogue evidence).
         transcribe_id = _node_id(catalogue, "transcribe")
         extract_id = _node_id(catalogue, "extract_all")
         assert any(
             e["source"] == transcribe_id and e["target"] == extract_id
             for e in catalogue["edges"]
         ), "transcribe must flow into extract_all"
+        collect_node = next(n for n in catalogue["nodes"] if n["id"] == "merge_extracts")
+        assert collect_node["tool"] == "aggregate"
+        assert collect_node["label"] == "Collect catalogue evidence"
 
     def test_catalogue_has_final_catalogue_node_fed_by_merge(self):
         """The preset must end with a catalogue node so the workflow produces
@@ -80,6 +83,18 @@ class TestLoadPresetFiles:
         ]
         assert data_feeders, "no edge feeds catalogue.data"
         assert {e["source"] for e in data_feeders} == {"merge_extracts"}
+
+    def test_catalogue_relevant_extractors_are_parallel_targets(self):
+        """Catalogue map steps can run per file before a visible Collect node."""
+        from fichero.workflows.builder import PARALLEL_TOOLS
+
+        expected = {
+            "extract_entities",
+            "key_people",
+            "timeline",
+            "keywords",
+        }
+        assert expected <= PARALLEL_TOOLS
 
     def test_catalogue_each_preset_is_configured_for_folder_fan_out(self):
         """Catalogue Each should stay wired as the bulk fan-out preset."""
