@@ -102,6 +102,18 @@ async def inspector(
         e for e in (db.get(KnowledgeEntity, eid) for eid in entity_ids)
         if e is not None
     ]
+    # #1562 union: also include entities whose own per-page scope
+    # (source_document_ids, recorded at upsert) intersects this doc — so
+    # entities imported WITHOUT claims (e.g. IIIF/W3C tagging annotations,
+    # which carry no SVO) still surface in the inspector. Mirrors the
+    # /entities?document_id= list endpoint. Dedup by id.
+    seen_ids = {e.id for e in entities}
+    for entity in db.all(KnowledgeEntity):
+        if entity.id in seen_ids:
+            continue
+        if doc_ids.intersection(entity.source_document_ids or []):
+            entities.append(entity)
+            seen_ids.add(entity.id)
     entities.sort(key=lambda e: e.canonical_name)
 
     # Annotations on this document.
