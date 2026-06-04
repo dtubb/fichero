@@ -225,7 +225,28 @@ extension SidebarView {
                     pendingLibraryName = library.displayName
                     showingRenameLibraryPrompt = true
                 }
+                Divider()
+                // Close removes the library from the sidebar + the global
+                // registry WITHOUT deleting the .fichero package on disk (#1661).
+                Button("Close Library") {
+                    closeLibraryFromSidebar(library)
+                }
             }
+        }
+    }
+
+    /// Close a library from the sidebar context menu (#1661): unregister it
+    /// from the global registry and drop it from the open set. The .fichero
+    /// package on disk is NOT deleted. If the closed library was the current
+    /// one, fall back to the Global library so the window isn't left pointing
+    /// at a closed library.
+    private func closeLibraryFromSidebar(_ library: LibraryManager.LibraryReference) {
+        let wasCurrent = windowState.libraryId == library.id
+        libraryManager.closeAndUnregisterLibrary(library.id)
+        if wasCurrent {
+            windowState.libraryId = LibraryManager.globalLibraryId
+            sidebarMode = .library
+            viewMode = .library(nil)
         }
     }
 
