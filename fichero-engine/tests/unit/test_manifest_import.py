@@ -34,11 +34,22 @@ class _TestClientAdapter:
             resp = self._client.get(url)
         elif method == "POST":
             resp = self._client.post(url, json=body)
-        else:  # pragma: no cover - importer only uses GET/POST
+        elif method == "PUT":
+            resp = self._client.put(url, json=body)
+        else:  # pragma: no cover - importer only uses GET/POST/PUT
             raise AssertionError(f"unexpected method {method}")
+        # Preview-warm GETs (/storage/thumbnail|display/<id>) are best-effort:
+        # a 404 (e.g. unrenderable test bytes) is not an importer failure —
+        # mirror the real client's tolerance by returning None instead of
+        # raising, so warnings stay empty for the happy-path assertions.
+        if method == "GET" and path.startswith("/storage/") and resp.status_code >= 400:
+            return None
         assert resp.status_code < 400, (method, url, resp.status_code, resp.text)
         if resp.content:
-            return resp.json()
+            try:
+                return resp.json()
+            except ValueError:
+                return None
         return None
 
 
@@ -218,8 +229,19 @@ class _RecordingClient:
     def request(self, method, path, body=None):
         self.calls.append((method, path, body))
         if method == "GET":
+            # /storage/thumbnail|display/<id> preview-warm GETs return nothing.
+            if path.startswith("/storage/"):
+                return None
             return {"items": []}
-        if method == "POST" and path in ("/documents", "/ingest/file"):
+        if method == "POST" and path == "/ingest/file":
+            self._counter += 1
+            # Real ingest returns the COPIED in-library path so the importer can
+            # rewrite the active image path to local.
+            return {
+                "id": f"doc-{self._counter}",
+                "path": f"/lib/files/copied_{self._counter}.jpg",
+            }
+        if method == "POST" and path == "/documents":
             self._counter += 1
             return {"id": f"doc-{self._counter}"}
         if method == "POST" and path in ("/entities", "/claims"):
@@ -262,16 +284,32 @@ def test_copy_images_triggers_ingest_copy_and_keeps_page_content(tmp_path):
     assert put_body["page_content"] == "Marshall went to Istmina this afternoon."
     assert put_body["metadata"]["provenance"] == "import"
     assert put_body["metadata"]["canonical_external_id"] == "tiny_corpus__page_001"
+    assert put_body["metadata"]["ingest_mode"] == "copy"
 
-    # The group (no image) still goes through the plain reference create path.
+    # Copy mode rewrites the active image path to the LOCAL in-library file so
+    # the app never reaches over the network; the original is preserved.
+    img = put_body["metadata"]["images"][0]
+    assert img["source_path"].startswith("/lib/files/copied_")
+    assert img["original_source_path"] == str(tmp_path / "page_001_enhanced.jpg")
+
+    # The group container (no image) still goes through the reference create
+    # path — and is imported as a navigable FOLDER (not doc_type "group").
     doc_posts = [c for c in rec.calls if c[1] == "/documents"]
     assert len(doc_posts) == 1
     assert doc_posts[0][2]["name"] == "Tiny Corpus"
+    assert doc_posts[0][2]["doc_type"] == "folder"
+
+    # A local preview is warmed for the page (thumbnail + display).
+    storage_gets = [c for c in rec.calls if c[0] == "GET" and c[1].startswith("/storage/")]
+    assert any("/storage/thumbnail/" in c[1] for c in storage_gets)
+    assert any("/storage/display/" in c[1] for c in storage_gets)
 
 
-def test_no_copy_images_preserves_reference_behaviour(tmp_path):
-    """Default (copy_images=False) keeps the original reference behaviour:
-    POST /documents with path pointing at the on-disk source, no ingest copy."""
+def test_link_mode_references_source_and_warms_local_preview(tmp_path):
+    """Default (link) keeps the original reference behaviour — POST /documents
+    with path pointing at the on-disk source, no ingest copy, path NOT rewritten
+    to local — BUT still warms a LOCAL preview cache so the app never reaches
+    over the network to render a thumbnail/display."""
     from fichero.manifest_import import import_manifest
 
     manifest = _fixture_manifest(tmp_path)
@@ -279,13 +317,126 @@ def test_no_copy_images_preserves_reference_behaviour(tmp_path):
 
     import_manifest(rec, manifest, str(tmp_path / "lib.fichero"))
 
+    # No bytes copied, no PUT rewrite of the page.
     assert not [c for c in rec.calls if c[1] == "/ingest/file"]
     assert not [c for c in rec.calls if c[0] == "PUT"]
     page_post = next(
         c for c in rec.calls if c[1] == "/documents" and c[2]["name"] == "page_001"
     )
+    # The active path stays the (possibly remote) source — link does NOT
+    # rewrite to local.
     assert page_post[2]["path"] == str(tmp_path / "page_001_enhanced.jpg")
+    assert page_post[2]["metadata"]["images"][0]["source_path"] == str(
+        tmp_path / "page_001_enhanced.jpg"
+    )
+    assert "original_source_path" not in page_post[2]["metadata"]["images"][0]
     assert page_post[2]["page_content"] == "Marshall went to Istmina this afternoon."
+
+    # Even in link mode, a local thumbnail + display preview is warmed.
+    storage_gets = [c for c in rec.calls if c[0] == "GET" and c[1].startswith("/storage/")]
+    assert any("/storage/thumbnail/" in c[1] for c in storage_gets)
+    assert any("/storage/display/" in c[1] for c in storage_gets)
+
+
+def test_resolve_ingest_mode_and_legacy_alias():
+    """ingest_mode wins; copy_images is the legacy alias for 'copy'."""
+    from fichero.manifest_import import resolve_ingest_mode
+
+    assert resolve_ingest_mode(None, False) == "link"  # default
+    assert resolve_ingest_mode(None, True) == "copy"  # legacy alias
+    assert resolve_ingest_mode("link", False) == "link"
+    assert resolve_ingest_mode("COPY", False) == "copy"  # case-insensitive
+    assert resolve_ingest_mode("move", False) == "move"
+    # Explicit ingest_mode overrides the legacy copy_images flag.
+    assert resolve_ingest_mode("link", True) == "link"
+    try:
+        resolve_ingest_mode("teleport", False)
+    except ValueError as exc:
+        assert "Unknown ingest mode" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("expected ValueError for unknown ingest mode")
+
+
+def test_group_node_maps_to_folder_doc_type():
+    """A manifest 'group' container imports as a navigable FOLDER (not a leaf
+    doc_type 'group') so its child pages render in the app grid."""
+    from fichero.manifest_import import _NODE_TYPE_TO_DOC_TYPE, document_payload
+
+    assert _NODE_TYPE_TO_DOC_TYPE["group"] == "folder"
+    node = {
+        "canonical_version": CANONICAL_VERSION,
+        "node_type": "group",
+        "external_id": "container",
+        "name": "Container",
+        "images": [],
+        "metadata": {},
+    }
+    payload = document_payload(node, parent_id="parent-1")
+    assert payload["doc_type"] == "folder"
+
+
+def test_move_refuses_to_delete_network_source(tmp_path, monkeypatch):
+    """Move mode copies the bytes in, but a source on a network/removable
+    volume (e.g. /Volumes/...) is NEVER deleted — fall back to copy-and-warn."""
+    import fichero.manifest_import as mi
+
+    deleted: list[str] = []
+
+    real_unlink = Path.unlink
+
+    def _spy_unlink(self, *a, **k):  # pragma: no cover - should not be hit
+        deleted.append(str(self))
+        return real_unlink(self, *a, **k)
+
+    monkeypatch.setattr(Path, "unlink", _spy_unlink)
+
+    # Build a manifest whose page image source_path is on a /Volumes mount.
+    network_src = "/Volumes/Files/corpus/page_001.jpg"
+    nodes = [
+        {
+            "canonical_version": CANONICAL_VERSION,
+            "node_type": "page",
+            "external_id": "vol__page_001",
+            "parent_external_id": None,
+            "name": "page_001",
+            "text": "remote page",
+            "images": [
+                {"role": "enhanced", "source_path": network_src, "metadata": {}}
+            ],
+            "entities": [],
+            "claims": [],
+            "metadata": {},
+        }
+    ]
+    manifest = tmp_path / "vol.jsonl"
+    with manifest.open("w", encoding="utf-8") as handle:
+        for node in nodes:
+            handle.write(json.dumps(node) + "\n")
+
+    rec = _RecordingClient()
+    summary = mi.import_manifest(
+        rec, manifest, str(tmp_path / "lib.fichero"), ingest_mode="move"
+    )
+
+    # Bytes were copied in (ingest/file called), but the network source was
+    # NOT deleted, and a warning records the refusal.
+    assert [c for c in rec.calls if c[1] == "/ingest/file"]
+    assert deleted == []
+    assert any("refusing to delete" in w for w in summary.warnings)
+
+
+def test_is_safe_to_delete_source_rules():
+    """Local boot-volume paths under $HOME are safe; /Volumes and outside-home
+    are not."""
+    import os
+
+    from fichero.manifest_import import _is_safe_to_delete_source
+
+    assert _is_safe_to_delete_source(Path("/Volumes/Files/x.jpg")) is False
+    home_file = Path(os.path.expanduser("~")) / "Documents" / "x.jpg"
+    assert _is_safe_to_delete_source(home_file) is True
+    # Outside $HOME and not /Volumes — still refuse (conservative).
+    assert _is_safe_to_delete_source(Path("/etc/hosts")) is False
 
 
 def test_import_is_idempotent(client, db, tmp_path):

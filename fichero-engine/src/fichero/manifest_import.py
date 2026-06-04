@@ -31,6 +31,7 @@ Design notes
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -39,6 +40,17 @@ from pathlib import Path
 from typing import Any, Protocol
 
 CANONICAL_VERSION = "fichero-corpus-import-v1"
+
+# How a page's source image is brought into the library.
+#   link  — reference the file in place (bytes stay where they are); the local
+#           preview cache is still warmed so the app never reaches over the
+#           network to render a thumbnail/display.
+#   copy  — copy the bytes into {library}/files/ (the app renders locally).
+#   move  — copy the bytes in, then delete the SOURCE *only when it is safe*
+#           (a normal local disk). NEVER delete off a network/removable volume
+#           (e.g. under /Volumes/): we fall back to copy-and-keep and warn.
+INGEST_MODES = ("link", "copy", "move")
+DEFAULT_INGEST_MODE = "link"
 DEFAULT_API_BASE = "http://127.0.0.1:8765/api"
 DEFAULT_TOKEN_FILE = Path(
     "~/Library/Application Support/Fichero/.api-key"
@@ -62,7 +74,59 @@ _VALID_ENTITY_TYPES = {
     "citation",
     "other",
 }
-_NODE_TYPE_TO_DOC_TYPE = {"folder": "folder", "group": "group", "page": "page"}
+# A manifest "group" is a *container* node (e.g. a diary holding its pages). We
+# import it as a navigable **folder** so its child pages render in the app's
+# document grid; importing it as doc_type "group" made the grid draw it as an
+# empty leaf ("Empty Folder") and hid the children. The container carries no
+# image bytes, so nothing downstream depends on it being doc_type "group" for
+# these corpus imports — only `_NODE_TYPE_TO_DOC_TYPE` ever produced that value.
+_NODE_TYPE_TO_DOC_TYPE = {"folder": "folder", "group": "folder", "page": "page"}
+
+
+def resolve_ingest_mode(ingest_mode: str | None, copy_images: bool) -> str:
+    """Resolve the effective ingest mode from the new flag + legacy alias.
+
+    ``ingest_mode`` (``link``/``copy``/``move``) wins when given. The legacy
+    ``copy_images`` boolean maps to ``copy`` for back-compat. Default ``link``.
+    """
+    if ingest_mode is not None:
+        mode = str(ingest_mode).strip().lower()
+        if mode not in INGEST_MODES:
+            raise ValueError(
+                f"Unknown ingest mode {ingest_mode!r}; "
+                f"expected one of {INGEST_MODES}"
+            )
+        return mode
+    return "copy" if copy_images else DEFAULT_INGEST_MODE
+
+
+def _is_safe_to_delete_source(source: Path) -> bool:
+    """Conservatively decide whether ``source`` may be deleted after a move.
+
+    Deleting off a network or removable volume is dangerous and forbidden, so
+    we only return True for paths that clearly live on the local boot volume:
+    under ``$HOME`` (and NOT under ``/Volumes``). Anything mounted under
+    ``/Volumes/`` (external disks, SMB/AFP/NFS network shares) is treated as
+    unsafe. When in any doubt, return False (caller falls back to copy-and-keep).
+    """
+    try:
+        resolved = Path(source).expanduser().resolve()
+    except (OSError, RuntimeError, ValueError):
+        return False
+    parts = resolved.parts
+    # Anything mounted under /Volumes is external/network — never delete.
+    if len(parts) >= 2 and parts[1] == "Volumes":
+        return False
+    try:
+        home = Path(os.path.expanduser("~")).resolve()
+    except (OSError, RuntimeError, ValueError):
+        return False
+    try:
+        resolved.relative_to(home)
+    except ValueError:
+        # Not under $HOME — too risky to delete automatically.
+        return False
+    return True
 
 
 class ManifestApiClient(Protocol):
@@ -101,8 +165,17 @@ class HttpManifestClient:
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                payload = resp.read().decode("utf-8")
-                return json.loads(payload) if payload else None
+                raw = resp.read()
+                if not raw:
+                    return None
+                content_type = resp.headers.get("Content-Type", "")
+                # Storage preview endpoints return binary image bytes, not JSON.
+                # Warming the cache only needs the request to succeed (the
+                # thumbnail/display is rendered + written server-side); don't try
+                # to JSON-decode the JPEG body.
+                if "application/json" not in content_type:
+                    return None
+                return json.loads(raw.decode("utf-8"))
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(
@@ -209,6 +282,10 @@ def preferred_image(node: dict[str, Any]) -> dict[str, Any] | None:
 def _canonical_metadata(node: dict[str, Any]) -> dict[str, Any]:
     """Build the canonical metadata block shared by reference and copy modes."""
     image = preferred_image(node)
+    # Start from the node's full per-file metadata dict, then layer the
+    # canonical fields on top so every document carries BOTH the raw manifest
+    # metadata AND the canonical fields (date/page_label/sequence/language/
+    # node_type/corpus/external ids/image roles).
     metadata = dict(node.get("metadata") or {})
     metadata.update(
         {
@@ -220,6 +297,7 @@ def _canonical_metadata(node: dict[str, Any]) -> dict[str, Any]:
             "page_label": node.get("page_label"),
             "date": node.get("date"),
             "sequence": node.get("sequence"),
+            "language": node.get("language"),
             "images": node.get("images") or [],
             "preferred_image_role": image.get("role") if image else None,
         }
@@ -238,21 +316,7 @@ def document_payload(
     trip without any file being copied.
     """
     image = preferred_image(node)
-    metadata = dict(node.get("metadata") or {})
-    metadata.update(
-        {
-            "canonical_version": node.get("canonical_version"),
-            "canonical_external_id": node.get("external_id"),
-            "canonical_parent_external_id": node.get("parent_external_id"),
-            "canonical_node_type": node.get("node_type"),
-            "corpus": node.get("corpus"),
-            "page_label": node.get("page_label"),
-            "date": node.get("date"),
-            "sequence": node.get("sequence"),
-            "images": node.get("images") or [],
-            "preferred_image_role": image.get("role") if image else None,
-        }
-    )
+    metadata = _canonical_metadata(node)
     payload: dict[str, Any] = {
         "name": node.get("name") or node.get("external_id"),
         "parent_id": parent_id,
@@ -368,35 +432,91 @@ def _existing_doc_id_by_external(
 # ---------------------------------------------------------------------------
 
 
-def _copy_image_into_library(
+def _rewrite_images_to_local(
+    metadata: dict[str, Any], original_source: str, local_path: str
+) -> None:
+    """Point every active image path at the local in-library file (copy/move).
+
+    After the bytes are copied into the library, NOTHING the app loads should
+    reference the original (possibly network) ``source_path``. We rewrite each
+    ``images[]`` entry whose ``source_path`` matched the rendition we copied to
+    the local path, preserving the original under ``original_source_path`` for
+    provenance. ``source_path`` (top-level fallback) is rewritten too.
+    """
+    for image in metadata.get("images") or []:
+        if not isinstance(image, dict):
+            continue
+        if image.get("source_path") == original_source:
+            image["original_source_path"] = original_source
+            image["source_path"] = local_path
+    if metadata.get("source_path") == original_source:
+        metadata["original_source_path"] = original_source
+        metadata["source_path"] = local_path
+
+
+def _warm_preview_cache(
+    client: ManifestApiClient, doc_id: str, summary: "ImportSummary"
+) -> None:
+    """Force the engine to render + cache a LOCAL thumbnail and display image.
+
+    GETting the storage endpoints triggers ``ensure_thumbnail`` /
+    ``ensure_display``, which render from the document's source and write JPEGs
+    into ``{library}/storage/thumbnails/`` — local files. This is what stops the
+    app's viewer from spinning on a referenced (network) import: even in LINK
+    mode the real bytes stay remote but the preview the app shows is local and
+    fast. Failures are non-fatal (warn and continue).
+    """
+    for kind in ("thumbnail", "display"):
+        try:
+            client.request("GET", f"/storage/{kind}/{doc_id}")
+        except Exception as exc:  # noqa: BLE001 - preview is best-effort
+            summary.warnings.append(
+                f"Could not warm {kind} preview for {doc_id}: {exc}"
+            )
+
+
+def _ingest_page_image(
     client: ManifestApiClient,
     node: dict[str, Any],
     parent_id: str | None,
+    ingest_mode: str,
+    summary: "ImportSummary",
 ) -> str:
-    """Copy a page's preferred image INTO the library and wire its document.
+    """Bring a page's preferred image into the library under ``ingest_mode``.
 
-    Reuses the engine's native ingest path (``POST /api/ingest/file`` with
-    ``copy_mode=True``) so the image bytes land in ``{library}/files/`` and
-    storage/thumbnail + storage/display work exactly like ``fichero import``.
+    * ``link`` — reference the source path in place (no byte copy); the local
+      preview cache is still warmed so the app never loads over the network.
+    * ``copy`` — copy the bytes into ``{library}/files/`` via the engine's
+      native ingest path; the active image path is rewritten to the local file.
+    * ``move`` — copy the bytes in, then delete the SOURCE only when it is safe
+      to do so (local boot volume). Network/removable sources (``/Volumes/...``)
+      are NEVER deleted: we fall back to copy-and-keep and warn.
 
-    ``extract_text=False`` is critical: the manifest already carries the clean
-    transcript, so we must NOT let ingest run any image text-extraction /
-    Apple Vision OCR that would compete with it. After the bytes are in place
-    we ``PUT`` the manifest fields (clean transcript as ``page_content``,
-    canonical name/metadata, ``provenance=import``) onto the freshly-created
-    document.
-
-    Returns the created document id.
+    ``extract_text=False`` is critical in every copying mode: the manifest
+    already carries the clean transcript, so ingest must NOT run Apple Vision
+    OCR that would compete with it. Returns the created document id.
     """
     image = preferred_image(node)
     source_path = image.get("source_path") if image else None
     if not source_path:
-        # No image to copy — fall back to the reference document payload.
+        # No image — plain reference document, but still try to warm a preview.
         created = client.request(
             "POST", "/documents", document_payload(node, parent_id)
         )
-        return str(created["id"])
+        doc_id = str(created["id"])
+        _warm_preview_cache(client, doc_id, summary)
+        return doc_id
 
+    # LINK: reference the source in place; just warm the local preview cache.
+    if ingest_mode == "link":
+        created = client.request(
+            "POST", "/documents", document_payload(node, parent_id)
+        )
+        doc_id = str(created["id"])
+        _warm_preview_cache(client, doc_id, summary)
+        return doc_id
+
+    # COPY / MOVE: copy bytes into the library via the native ingest path.
     ingested = client.request(
         "POST",
         "/ingest/file",
@@ -411,9 +531,16 @@ def _copy_image_into_library(
         },
     )
     doc_id = str(ingested["id"])
+    local_path = ingested.get("path") if isinstance(ingested, dict) else None
 
     metadata = _canonical_metadata(node)
     metadata["provenance"] = "import"
+    metadata["ingest_mode"] = ingest_mode
+    # Rewrite the active image path to the local in-library file so the app
+    # never reaches over the network for this rendition.
+    if local_path:
+        _rewrite_images_to_local(metadata, str(source_path), str(local_path))
+
     update_body: dict[str, Any] = {
         "name": node.get("name") or node.get("external_id"),
         "doc_type": _NODE_TYPE_TO_DOC_TYPE[node["node_type"]],
@@ -421,6 +548,29 @@ def _copy_image_into_library(
         "metadata": metadata,
     }
     client.request("PUT", f"/documents/{doc_id}", update_body)
+
+    # MOVE: delete the source only when it is safe (never off a network/
+    # removable volume). The engine's own ingest MOVE would delete blindly, so
+    # we deliberately ingest with copy_mode and handle deletion here.
+    if ingest_mode == "move":
+        if _is_safe_to_delete_source(Path(str(source_path))):
+            try:
+                Path(str(source_path)).expanduser().resolve().unlink()
+            except OSError as exc:
+                summary.warnings.append(
+                    f"Move requested but could not delete source {source_path}: "
+                    f"{exc} (bytes are safely copied into the library)"
+                )
+        else:
+            summary.warnings.append(
+                f"Move requested but source {source_path} is on a network/"
+                "removable volume — refusing to delete (copied into library, "
+                "original left in place)."
+            )
+
+    # Warm the local preview cache (bytes are local now, but force it so the
+    # app has a ready thumbnail/display without a first-render stall).
+    _warm_preview_cache(client, doc_id, summary)
     return doc_id
 
 
@@ -430,15 +580,23 @@ def import_manifest(
     library_path: str,
     *,
     copy_images: bool = False,
+    ingest_mode: str | None = None,
 ) -> ImportSummary:
     """Import a canonical manifest into a library through the API client.
 
-    When ``copy_images`` is True, each page's preferred image is copied INTO
-    the library package (so thumbnails/display work) via the engine's native
-    ingest path, while ``page_content`` is still the manifest transcript. When
-    False (the default), images are merely *referenced* by on-disk path —
-    preserving the original behaviour.
+    ``ingest_mode`` controls how each page's image is brought into the library:
+
+    * ``link`` (default) — reference the source path in place; the local
+      preview cache is still warmed so the app renders locally (no network spin).
+    * ``copy`` — copy the bytes into the library; the active image path is
+      rewritten to the local file.
+    * ``move`` — copy the bytes in, then delete the source *only when safe*
+      (local boot volume). Network/removable sources are never deleted.
+
+    ``copy_images`` is the legacy alias: True ⇒ ``copy``. ``ingest_mode`` wins
+    when both are supplied.
     """
+    mode = resolve_ingest_mode(ingest_mode, copy_images)
     nodes = read_manifest(manifest_path)
     validate_nodes(nodes)
 
@@ -464,8 +622,10 @@ def import_manifest(
             raise RuntimeError(
                 f"Missing parent for {external_id}: {parent_external}"
             )
-        if copy_images and node.get("node_type") == "page" and preferred_image(node):
-            new_id = _copy_image_into_library(client, node, parent_id)
+        if node.get("node_type") == "page" and preferred_image(node):
+            # Pages with an image always go through the mode-aware path (link
+            # references + warms a local preview; copy/move bring bytes local).
+            new_id = _ingest_page_image(client, node, parent_id, mode, summary)
         else:
             created = client.request(
                 "POST", "/documents", document_payload(node, parent_id)
@@ -541,6 +701,7 @@ def import_manifest_via_http(
     token_file: Path = DEFAULT_TOKEN_FILE,
     create_library: bool = True,
     copy_images: bool = False,
+    ingest_mode: str | None = None,
 ) -> ImportSummary:
     """Convenience entry point: import a manifest into a live engine over HTTP.
 
@@ -548,8 +709,9 @@ def import_manifest_via_http(
     target ``.fichero`` library first via ``POST /api/library`` so a single
     command can bootstrap and populate a fresh library.
 
-    When ``copy_images`` is True, each page's preferred image is copied into
-    the library package (thumbnail/display work) rather than merely referenced.
+    ``ingest_mode`` (``link``/``copy``/``move``) controls how page images are
+    brought into the library; a local preview is always cached. ``copy_images``
+    is the legacy alias for ``copy``.
     """
     token = token_file.read_text(encoding="utf-8").strip()
     library_str = str(library_path.expanduser())
@@ -561,4 +723,5 @@ def import_manifest_via_http(
         manifest_path.expanduser(),
         library_str,
         copy_images=copy_images,
+        ingest_mode=ingest_mode,
     )
