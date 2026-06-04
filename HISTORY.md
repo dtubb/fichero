@@ -2484,3 +2484,12 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - **Locked the thinking-layer design** (`docs/architecture/thinking-layer.md`, PRs #1571/#1572): 5 workspace decisions + node-class/prototype north star (everything is a typed node; one class registry; Workspace + ResearchProject as tree nodes by class). Phased in #1570.
 - **Shipped hard foundation (gated, merged):** #1573/#1562 — `KnowledgeEntity.source_document_ids` native per-page scope (3739 tests pass); #1574/#1561 — inspector crash fixed (DocumentTabView forwards WorkflowExecutionObserver).
 - Cleaned 12 inactive agent worktrees; salvaged a session-limited subagent's #1562 work rather than re-dispatching.
+
+## 2026-06-04 — Session Summary (import architecture + corpus pipeline)
+
+- Merged: #1637/#1638 (import --copy-images + Apple Stage-1 schema-in-prompt NER fix), #1639 (folder + ingest copy/move/link + per-file metadata), #1641 WebKit reading-surface frame-clamp, #1649 design doc.
+- Proved end-to-end: copy-mode import (local images + clean text) + per-page Apple NER → 10 entities/51 claims on Marshall sample. NER on a FOLDER does NOT fan out — must iterate pages.
+- Designed canonical interchange = IIIF (source) + W3C annotations (anchoring) + RDF (KG). Doc: docs/architecture/portable-workflows-and-archival-format.md.
+- Filed issues #1643–#1648, #1650–#1652 (UI reveal, Apple boxes, KG export, IIIF importer, derived_from/bbox two-page scans, portable LangGraph project, old→IIIF converter [standalone], cluster-output importer, extensibility).
+- Running: background raw-asset copy of all 44 Marshall collections → ~/code/marshall_diaries (overnight.sh; ~3.1G/44 collections done). ~/code/ghc scaffolded, awaiting source path.
+- Gotchas: macOS ships openrsync (no --log-file; use -v); setsid absent (don't use in launchers); Mac idle-sleep kills detached jobs (caffeinate -ims, keep lid open).

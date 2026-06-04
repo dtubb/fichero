@@ -1,4 +1,20 @@
-## 2026-06-02 (PM) — Manager loop: foundation + bug sweep (NEXT SESSION START HERE)
+## 2026-06-04 — Import architecture + corpus pipeline (NEXT SESSION START HERE)
+
+**Branch: `main` @ `696c6f98` — all merged via PR, tree clean (only `fichero/.claude/` worktrees untracked).**
+
+**Design locked:** canonical interchange = **IIIF** (source: image+transcription+metadata) + **W3C annotations** (anchoring/boxes) + **RDF** (KG: entities/claims/quotes — already in `kg/triples.py`). Workflows are portable LangGraph → export as runnable projects (Qwen2-VL on a cluster, writes DuckDB/IIIF+W3C, re-imports). Doc: `docs/architecture/portable-workflows-and-archival-format.md` (#1649).
+
+**Hard boundary:** corpus-specific old→IIIF conversion = **standalone** (per-corpus scripts in `~/code/marshall_diaries` / `~/code/ghc`), NOT in the app. Only the general IIIF importer (#1646) lives in Fichero.
+
+### Next session — start here
+- **Running in background:** `~/code/marshall_diaries/overnight.sh` (raw-asset copy of 44 Marshall collections → local; ~3.1G/44 done). Resumable. Check `~/code/marshall_diaries/overnight.log`. `~/code/ghc` scaffolded, awaiting GHC source path.
+- **Build next (two steps, per Daniel):** (1) STANDALONE converter old-fichero `transcription_manifest`+`llm_catalogue`+`background_removed` → IIIF+W3C (issue #1650, reuse precomputed extraction, verify on NCM_Diary_1923); (2) general IIIF+W3C importer IN Fichero (#1646).
+- **Issue set:** #1643–#1648, #1650–#1652. Quick wins: #1644 (Apple Vision keep boundingBox), #1645 (KG export over existing rdflib graph).
+- **Gotchas:** macOS = openrsync (no `--log-file`; use `-v`) + no `setsid`; `caffeinate -ims` + keep lid open or detached jobs die on sleep. NER on a folder does NOT fan out (iterate pages).
+
+---
+
+## 2026-06-02 (PM) — Manager loop: foundation + bug sweep
 
 **Branch: `main` @ `8175fa29` — all work merged via PR, integrator-verified GREEN (backend 3746 pass, Swift BUILD SUCCEEDED). Tree clean.** Ran as `/session-start-manager` with parallel backend/frontend Agent-tool worker lanes (isolated worktrees), each claim→gate→review→merge.
 
