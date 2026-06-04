@@ -192,6 +192,7 @@ def parse_iiif_directory(iiif_path: Path) -> _ParsedIIIF:
     nodes = [_collection_node(root_collection, collection_external, base_dir)]
     annotation_jobs: list[dict[str, Any]] = []
     seen_manifests: set[str] = set()
+    seq = 0
 
     for manifest_ref in root_collection.get("items") or manifests:
         manifest = _resolve_ref(manifest_ref, by_id, base_dir)
@@ -201,37 +202,18 @@ def parse_iiif_directory(iiif_path: Path) -> _ParsedIIIF:
         if manifest_id in seen_manifests:
             continue
         seen_manifests.add(manifest_id)
-        manifest_external = _safe_external_id(manifest_id)
-        metadata = _metadata_dict(manifest)
-        nodes.append(
-            {
-                "canonical_version": CANONICAL_VERSION,
-                "node_type": "group",
-                "external_id": manifest_external,
-                "parent_external_id": collection_external,
-                "corpus": collection_external,
-                "name": _label_text(manifest) or manifest_external,
-                "page_label": None,
-                "date": _nav_date(manifest, metadata),
-                "language": _language(manifest),
-                "text": None,
-                "images": [],
-                "entities": [],
-                "claims": [],
-                "metadata": {
-                    "iiif_type": "Manifest",
-                    "iiif_id": manifest_id,
-                    "iiif_metadata": metadata,
-                },
-            }
-        )
-        for index, canvas in enumerate(manifest.get("items") or [], 1):
+        # A IIIF Manifest = one document. Each Canvas is a page that attaches
+        # directly to the Collection folder — we do NOT emit a per-manifest
+        # ``group`` folder (that produced one redundant single-page folder per
+        # manifest). Manifest-level date/language fall through to the canvas.
+        for canvas in manifest.get("items") or []:
+            seq += 1
             canvas_node, jobs = _canvas_node(
                 canvas,
                 manifest=manifest,
-                parent_external=manifest_external,
+                parent_external=collection_external,
                 corpus=collection_external,
-                sequence=index,
+                sequence=seq,
                 base_dir=base_dir,
                 docs_by_id=by_id,
             )
@@ -316,7 +298,7 @@ def _canvas_node(
             "page_label": _label_text(canvas) or str(sequence),
             "date": _nav_date(canvas, metadata) or _nav_date(manifest, _metadata_dict(manifest)),
             "language": _language(canvas) or _language(manifest),
-            "text": _canvas_text(canvas),
+            "text": _canvas_text(canvas) or _text_from_pages(annotation_pages),
             "images": _canvas_images(canvas, base_dir),
             "entities": _entities_from_annotation_pages(annotation_pages, external_id),
             "claims": [],
@@ -469,6 +451,19 @@ def _list_items(client: ManifestApiClient, path: str) -> list[dict[str, Any]]:
 
 def _canvas_text(canvas: dict[str, Any]) -> str | None:
     for page in list(canvas.get("annotations") or []) + list(canvas.get("items") or []):
+        for ann in page.get("items") or []:
+            if "supplementing" in _motivations(ann):
+                text = _body_text(ann.get("body"))
+                if text:
+                    return text
+    return None
+
+
+def _text_from_pages(pages: list[dict[str, Any]]) -> str | None:
+    """Full transcript from the (already resolved) W3C AnnotationPages — the
+    ``supplementing`` TextualBody. The converter writes it to the external
+    annotation page, not inline on the Canvas, so ``_canvas_text`` misses it."""
+    for page in pages:
         for ann in page.get("items") or []:
             if "supplementing" in _motivations(ann):
                 text = _body_text(ann.get("body"))
