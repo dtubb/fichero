@@ -149,6 +149,23 @@ enum DocumentKGPaneRoute {
     }
 }
 
+/// A `WKWebView` that refuses to be sized with a non-finite or negative frame.
+///
+/// SwiftUI hosts this pane inside a `ZStack` that keeps it alive (at
+/// `.opacity(0)`) across tab switches, and AppKit can transiently hand the view
+/// a `NaN`/negative/zero size during layout. Passing such a size through to the
+/// WebContent helper triggers WebKit's "Invalid frame dimension (negative or
+/// non-finite)" warning and can crash/wedge the WebContent process so the
+/// reading surface renders nothing (#1641). Clamping every incoming size to a
+/// finite, non-negative value keeps WebContent alive without changing layout.
+final class GuardedWKWebView: WKWebView {
+    override func setFrameSize(_ newSize: NSSize) {
+        let width = (newSize.width.isFinite && newSize.width > 0) ? newSize.width : 0
+        let height = (newSize.height.isFinite && newSize.height > 0) ? newSize.height : 0
+        super.setFrameSize(NSSize(width: width, height: height))
+    }
+}
+
 struct DocumentKGWebPane: NSViewRepresentable {
     let documentId: String
     let libraryPath: String
@@ -168,7 +185,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
         Coordinator(parent: self)
     }
 
-    func makeNSView(context: Context) -> WKWebView {
+    func makeNSView(context: Context) -> GuardedWKWebView {
         let config = WKWebViewConfiguration()
         let controller = config.userContentController
         controller.add(context.coordinator, name: "ficheroBridge")
@@ -199,14 +216,14 @@ struct DocumentKGWebPane: NSViewRepresentable {
             )
         )
 
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = GuardedWKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
         context.coordinator.loadIfNeeded(webView)
         return webView
     }
 
-    func updateNSView(_ webView: WKWebView, context: Context) {
+    func updateNSView(_ webView: GuardedWKWebView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.injectContext(into: webView)
         context.coordinator.loadIfNeeded(webView)
