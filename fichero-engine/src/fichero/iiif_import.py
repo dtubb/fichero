@@ -510,16 +510,26 @@ def _entity_from_annotation(
     for item in bodies:
         if not isinstance(item, dict):
             continue
-        text = _body_text(item)
-        entity_id = _json_id(item)
-        if not text and not entity_id:
+        # The converter wraps each entity body as a W3C SpecificResource whose
+        # ``source`` (a TextualBody) carries the real name (``value``) + type
+        # (``dc:type``). Descend into it so we get "San Pablo"/"Location", not
+        # the slugified id ("san-pablo") or a quote fragment.
+        value_body = item
+        src = item.get("source")
+        if isinstance(src, dict):
+            value_body = src
+        text = _body_text(value_body) or _body_text(item)
+        entity_id = _json_id(value_body) or _json_id(item)
+        if not text:
+            # Without a real name this isn't an entity (e.g. a plain text-quote
+            # highlight) — skip rather than inventing a slug entity.
             continue
-        canonical_name = text or str(entity_id).rsplit("/", 1)[-1]
+        canonical_name = text
         selector = _selector(ann.get("target"))
         return {
             "external_id": entity_id or _json_id(ann) or canonical_name,
             "canonical_name": canonical_name,
-            "entity_type": _entity_type(item),
+            "entity_type": _entity_type(value_body),
             "aliases": [text] if text and text != canonical_name else [],
             "language": _language(item),
             "metadata": {
@@ -535,10 +545,10 @@ def _entity_from_annotation(
 
 def _entity_type(body: dict[str, Any]) -> str:
     raw = (
-        body.get("entity_type")
+        body.get("dc:type")
+        or body.get("entity_type")
         or body.get("classification")
         or body.get("category")
-        or body.get("purpose")
         or "other"
     )
     if isinstance(raw, list):
