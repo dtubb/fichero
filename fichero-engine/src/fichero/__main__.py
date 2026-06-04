@@ -554,23 +554,33 @@ def import_manifest_command(
         "--no-create-library",
         help="Do not POST /api/library first; assume the library exists.",
     ),
+    ingest: str = typer.Option(
+        None,
+        "--ingest",
+        help=(
+            "How each page's image is brought into the library: "
+            "'link' (default — reference in place, but a local preview is "
+            "always cached so the app never loads over the network), "
+            "'copy' (copy bytes into the library), or "
+            "'move' (copy bytes in, then delete the source ONLY if it is on a "
+            "local disk — sources on network/removable volumes are never "
+            "deleted). page_content always stays the manifest transcript "
+            "(provenance import — no Apple Vision OCR)."
+        ),
+    ),
     copy_images: bool = typer.Option(
         False,
         "--copy-images/--no-copy-images",
-        help=(
-            "Copy each page's preferred image INTO the library package "
-            "(thumbnails/display work) instead of merely referencing the "
-            "on-disk source path. page_content stays the manifest transcript "
-            "(provenance import — no Apple Vision OCR). Default: reference."
-        ),
+        help="Legacy alias for '--ingest copy'. Prefer --ingest.",
     ),
 ) -> None:
     """Import a canonical corpus manifest into a library via the engine API.
 
     Reads a general ``fichero-corpus-import-v1`` manifest (any corpus) and
-    creates folders, documents, image renditions (referenced by default, or
-    copied into the library with ``--copy-images``), entities, and claims
-    through the engine's HTTP API. Idempotent — safe to re-run.
+    creates folders, documents, image renditions (linked by default, or copied/
+    moved into the library with ``--ingest``), entities, and claims through the
+    engine's HTTP API. A local preview is always cached. Idempotent — safe to
+    re-run.
     """
     from fichero.manifest_import import (
         DEFAULT_API_BASE,
@@ -586,6 +596,7 @@ def import_manifest_command(
             token_file=token_file or DEFAULT_TOKEN_FILE,
             create_library=not no_create_library,
             copy_images=copy_images,
+            ingest_mode=ingest,
         )
     except Exception as exc:
         typer.secho(f"Manifest import failed: {exc}", fg=typer.colors.RED, err=True)
