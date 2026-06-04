@@ -33177,6 +33177,11 @@
             "type": "array",
             "title": "Tags"
           },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
           "linked_claim_ids": {
             "items": {
               "type": "string"
@@ -33306,6 +33311,12 @@
             "type": "array",
             "title": "Linked Note Ids",
             "default": []
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "default": {}
           }
         },
         "type": "object",
@@ -33413,6 +33424,12 @@
             "type": "array",
             "nullable": true,
             "title": "Bbox"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Metadata"
           }
         },
         "type": "object",
@@ -39887,6 +39904,13 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
+          },
+          "source_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Document Ids"
           }
         },
         "type": "object",

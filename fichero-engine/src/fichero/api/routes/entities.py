@@ -58,6 +58,7 @@ class EntityUpsertRequest(BaseModel):
     description: str | None = None
     language: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    source_document_ids: list[str] = Field(default_factory=list)
 
 
 class EntityAliasRequest(BaseModel):
@@ -297,6 +298,9 @@ async def upsert_entity(
             description=request.description,
             language=request.language,
             metadata=request.metadata,
+            source_document_ids=sorted(
+                set(doc_id for doc_id in request.source_document_ids if doc_id)
+            ),
             created_at=now,
             updated_at=now,
         )
@@ -307,6 +311,12 @@ async def upsert_entity(
         entity.description = request.description
         entity.language = request.language
         entity.metadata = request.metadata
+        entity.source_document_ids = sorted(
+            set(
+                list(entity.source_document_ids or [])
+                + [doc_id for doc_id in request.source_document_ids if doc_id]
+            )
+        )
         entity.updated_at = now
     db.save(entity)
     return entity

@@ -330,20 +330,29 @@ def document_payload(
     return payload
 
 
-def entity_payload(entity: dict[str, Any], node: dict[str, Any]) -> dict[str, Any]:
+def entity_payload(
+    entity: dict[str, Any],
+    node: dict[str, Any],
+    source_document_id: str | None = None,
+) -> dict[str, Any]:
     entity_type = entity.get("entity_type") or "other"
     if entity_type not in _VALID_ENTITY_TYPES:
         entity_type = "other"
     metadata = dict(entity.get("metadata") or {})
     if entity.get("external_id"):
         metadata.setdefault("canonical_entity_external_id", entity["external_id"])
+    source_document_ids = list(entity.get("source_document_ids") or [])
+    if source_document_id:
+        source_document_ids.append(source_document_id)
     return {
+        "id": entity.get("id"),
         "canonical_name": entity["canonical_name"],
         "entity_type": entity_type,
         "aliases": entity.get("aliases") or [],
         "description": entity.get("description"),
         "language": entity.get("language") or node.get("language"),
         "metadata": metadata,
+        "source_document_ids": sorted(set(source_document_ids)),
     }
 
 
@@ -636,12 +645,15 @@ def import_manifest(
 
     # --- entities (deduped by canonical name across the whole manifest) ---
     entity_id_by_key: dict[str, str] = {}
+    existing_entity_by_name: dict[str, dict[str, Any]] = {}
     for existing in _list_entities(client):
         name = existing.get("canonical_name")
         if name and existing.get("id"):
             entity_id_by_key[str(name)] = str(existing["id"])
+            existing_entity_by_name[str(name)] = existing
 
     for node in nodes:
+        source_document_id = doc_id_by_external.get(node["external_id"])
         for entity in node.get("entities") or []:
             name = entity.get("canonical_name")
             if not name:
@@ -651,13 +663,33 @@ def import_manifest(
                 # Reuse — register the external_id alias for claim refs.
                 if ext:
                     entity_id_by_key[ext] = entity_id_by_key[name]
+                if source_document_id:
+                    existing = existing_entity_by_name.get(name, {})
+                    existing_sources = set(existing.get("source_document_ids") or [])
+                    if source_document_id not in existing_sources:
+                        merged = dict(entity)
+                        merged["id"] = entity_id_by_key[name]
+                        merged["source_document_ids"] = sorted(
+                            existing_sources | {source_document_id}
+                        )
+                        updated = client.request(
+                            "POST",
+                            "/entities",
+                            entity_payload(merged, node, source_document_id),
+                        )
+                        if isinstance(updated, dict):
+                            existing_entity_by_name[name] = updated
                 summary.entities_reused += 1
                 continue
             created = client.request(
-                "POST", "/entities", entity_payload(entity, node)
+                "POST",
+                "/entities",
+                entity_payload(entity, node, source_document_id),
             )
             new_id = str(created["id"])
             entity_id_by_key[name] = new_id
+            if isinstance(created, dict):
+                existing_entity_by_name[name] = created
             if ext:
                 entity_id_by_key[ext] = new_id
             summary.entities_created += 1
