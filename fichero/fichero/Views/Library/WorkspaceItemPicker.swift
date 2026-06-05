@@ -1,41 +1,31 @@
+import FicheroAPIClient
 import Foundation
 import OSLog
 import SwiftUI
 
 // MARK: - Service
 
-/// Lightweight, self-contained service backing the Add-to-Workspace picker.
-/// Mirrors the `NoteService` convention (raw `URLSession` + `addEngineAuth`)
-/// so the picker needs no `APIClient`/library plumbing. (#1494)
-///
-/// Two calls only:
-///   * `loadWorkspaceFolders()` — GET /api/documents?doc_type=folder, kept to
-///     the `is_workspace` ones (Thing 2 surfaces, per #1487).
-///   * `addToWorkspace(folderId:targetId:)` — PATCH /api/documents/{id}/workspace
-///     appending one `curated_item` alias. The source document is never moved.
+/// Lightweight state holder backing the Add-to-Workspace picker.
+/// Transport flows through `DocumentServiceGenerated` so every request uses the
+/// generated OpenAPI client and the active library path from the window's
+/// `LibraryReference`.
 @MainActor
 final class WorkspacePickerService: ObservableObject {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkspacePickerService")
-    private let documentsBase = "http://127.0.0.1:8765/api/documents"
 
     @Published var folders: [WorkspaceFolderItem] = []
     @Published var isLoading = false
     @Published var error: String?
 
-    func loadWorkspaceFolders() async {
+    func loadWorkspaceFolders(documentService: DocumentServiceGenerated) async {
         isLoading = true
         error = nil
         defer { isLoading = false }
         do {
-            guard var comps = URLComponents(string: documentsBase) else { return }
-            comps.queryItems = [URLQueryItem(name: "doc_type", value: "folder")]
-            guard let url = comps.url else { return }
-            var req = URLRequest(url: url)
-            req.addEngineAuth()
-            let (data, _) = try await URLSession.shared.data(for: req)
-            let resp = try JSONDecoder().decode(WorkspaceFolderListResponse.self, from: data)
-            folders = resp.items
-                .filter { $0.isWorkspace && ($0.docType == "folder") }
+            let workspaces = try await documentService.getWorkspaces()
+            folders = workspaces
+                .filter { $0.docType == .folder }
+                .map(WorkspaceFolderItem.init(document:))
                 .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         } catch {
             self.error = error.localizedDescription
@@ -46,43 +36,29 @@ final class WorkspacePickerService: ObservableObject {
     /// Append `targetId` to `folderId`'s curated items as an alias. Returns
     /// the new curated-item count on success.
     @discardableResult
-    func addToWorkspace(folderId: String, targetId: String) async throws -> Int {
-        guard let url = URL(string: "\(documentsBase)/\(folderId)/workspace") else {
-            throw WorkspacePickerError.invalidURL
-        }
-        var req = URLRequest(url: url)
-        req.httpMethod = "PATCH"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.addEngineAuth()
-        let item = WorkspaceCuratedItemAdd(
+    func addToWorkspace(
+        folderId: String,
+        targetId: String,
+        documentService: DocumentServiceGenerated
+    ) async throws -> Int {
+        let item = Components.Schemas.WorkspaceCuratedItem(
             id: UUID().uuidString,
             targetType: "Document",
             targetId: targetId,
             role: "curated_item"
         )
-        req.httpBody = try JSONEncoder().encode(WorkspacePatchBody(add: [item]))
-        let (data, response) = try await URLSession.shared.data(for: req)
-        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            throw WorkspacePickerError.server(http.statusCode)
-        }
-        let resp = try JSONDecoder().decode(WorkspaceItemsCountResponse.self, from: data)
+        let resp = try await documentService.patchWorkspaceItems(folderId: folderId, itemsToAdd: [item])
         return resp.count
     }
 
     /// Load the curated items for a workspace folder, resolving each alias.
     /// First caller of `GET /api/documents/{id}/workspace/items` (#1570).
-    func loadCuratedItems(folderId: String) async throws -> [WorkspaceCuratedItem] {
-        guard let url = URL(string: "\(documentsBase)/\(folderId)/workspace/items") else {
-            throw WorkspacePickerError.invalidURL
-        }
-        var req = URLRequest(url: url)
-        req.addEngineAuth()
-        let (data, response) = try await URLSession.shared.data(for: req)
-        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            throw WorkspacePickerError.server(http.statusCode)
-        }
-        let resp = try JSONDecoder().decode(WorkspaceItemsResponse.self, from: data)
-        return resp.items
+    func loadCuratedItems(
+        folderId: String,
+        documentService: DocumentServiceGenerated
+    ) async throws -> [WorkspaceCuratedItem] {
+        let resp = try await documentService.getWorkspaceItems(folderId: folderId)
+        return resp.items.map(WorkspaceCuratedItem.init(payload:))
     }
 
     /// Set (or clear) the Tinderbox-style `node_class` on one curated item
@@ -93,16 +69,10 @@ final class WorkspacePickerService: ObservableObject {
     func setNodeClass(
         folderId: String,
         item: WorkspaceCuratedItem,
-        nodeClass: String?
+        nodeClass: String?,
+        documentService: DocumentServiceGenerated
     ) async throws -> Int {
-        guard let url = URL(string: "\(documentsBase)/\(folderId)/workspace") else {
-            throw WorkspacePickerError.invalidURL
-        }
-        var req = URLRequest(url: url)
-        req.httpMethod = "PATCH"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.addEngineAuth()
-        let add = WorkspaceCuratedItemAdd(
+        let add = Components.Schemas.WorkspaceCuratedItem(
             id: item.id,
             targetType: item.targetType,
             targetId: item.targetId,
@@ -110,12 +80,7 @@ final class WorkspacePickerService: ObservableObject {
             notes: item.notes,
             nodeClass: nodeClass
         )
-        req.httpBody = try JSONEncoder().encode(WorkspacePatchBody(add: [add]))
-        let (data, response) = try await URLSession.shared.data(for: req)
-        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            throw WorkspacePickerError.server(http.statusCode)
-        }
-        let resp = try JSONDecoder().decode(WorkspaceItemsCountResponse.self, from: data)
+        let resp = try await documentService.patchWorkspaceItems(folderId: folderId, itemsToAdd: [add])
         return resp.count
     }
 }
@@ -135,55 +100,18 @@ enum WorkspacePickerError: LocalizedError {
 // MARK: - Wire models
 
 /// Minimal projection of a document row — only the fields the picker needs.
-struct WorkspaceFolderItem: Codable, Identifiable, Hashable {
+struct WorkspaceFolderItem: Identifiable, Hashable {
     let id: String
     let name: String
     let docType: String
     let isWorkspace: Bool
 
-    enum CodingKeys: String, CodingKey {
-        case id, name
-        case docType = "doc_type"
-        case isWorkspace = "is_workspace"
+    init(document: Document) {
+        id = document.id
+        name = document.name
+        docType = document.docType.rawValue
+        isWorkspace = true
     }
-
-    // Tolerate older rows that predate the is_workspace column.
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        name = (try? container.decode(String.self, forKey: .name)) ?? "Untitled"
-        docType = (try? container.decode(String.self, forKey: .docType)) ?? "folder"
-        isWorkspace = (try? container.decode(Bool.self, forKey: .isWorkspace)) ?? false
-    }
-}
-
-private struct WorkspaceFolderListResponse: Codable {
-    let items: [WorkspaceFolderItem]
-    let count: Int
-}
-
-private struct WorkspaceCuratedItemAdd: Encodable {
-    let id: String
-    let targetType: String
-    let targetId: String
-    let role: String
-    var notes: String?
-    var nodeClass: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, role, notes
-        case targetType = "target_type"
-        case targetId = "target_id"
-        case nodeClass = "node_class"
-    }
-}
-
-private struct WorkspacePatchBody: Encodable {
-    let add: [WorkspaceCuratedItemAdd]
-}
-
-private struct WorkspaceItemsCountResponse: Codable {
-    let count: Int
 }
 
 /// Typed projection of a curated workspace item (#1570). Mirrors the backend
@@ -227,6 +155,18 @@ struct WorkspaceCuratedItem: Decodable, Identifiable, Hashable {
         self.nodeClass = nodeClass
     }
 
+    init(payload: Components.Schemas.WorkspaceItemsResponse.ItemsPayloadPayload) {
+        let values = payload.additionalProperties.value
+        self.init(
+            id: (values["id"] as? String) ?? UUID().uuidString,
+            targetType: (values["target_type"] as? String) ?? "",
+            targetId: (values["target_id"] as? String) ?? "",
+            role: values["role"] as? String,
+            notes: values["notes"] as? String,
+            nodeClass: values["node_class"] as? String
+        )
+    }
+
     /// Returns a copy with `node_class` replaced — lets the picker update a row
     /// in place after a successful PATCH without a full reload.
     func withNodeClass(_ newValue: String?) -> WorkspaceCuratedItem {
@@ -234,17 +174,6 @@ struct WorkspaceCuratedItem: Decodable, Identifiable, Hashable {
             id: id, targetType: targetType, targetId: targetId,
             role: role, notes: notes, nodeClass: newValue
         )
-    }
-}
-
-private struct WorkspaceItemsResponse: Decodable {
-    let documentId: String
-    let items: [WorkspaceCuratedItem]
-    let count: Int
-
-    enum CodingKeys: String, CodingKey {
-        case items, count
-        case documentId = "document_id"
     }
 }
 
@@ -258,6 +187,7 @@ struct WorkspaceItemPicker: View {
     let document: Document
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var documentService: DocumentServiceGenerated
     @StateObject private var service = WorkspacePickerService()
     @State private var addingFolderId: String?
 
@@ -268,7 +198,7 @@ struct WorkspaceItemPicker: View {
             content
         }
         .frame(width: 420, height: 460)
-        .task { await service.loadWorkspaceFolders() }
+        .task { await service.loadWorkspaceFolders(documentService: documentService) }
     }
 
     private var header: some View {
@@ -369,7 +299,7 @@ struct WorkspaceItemPicker: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             Button("Retry") {
-                Task { await service.loadWorkspaceFolders() }
+                Task { await service.loadWorkspaceFolders(documentService: documentService) }
             }
         }
         .padding()
@@ -380,7 +310,11 @@ struct WorkspaceItemPicker: View {
         addingFolderId = folder.id
         defer { addingFolderId = nil }
         do {
-            _ = try await service.addToWorkspace(folderId: folder.id, targetId: document.id)
+            _ = try await service.addToWorkspace(
+                folderId: folder.id,
+                targetId: document.id,
+                documentService: documentService
+            )
             dismiss()
         } catch {
             service.error = error.localizedDescription

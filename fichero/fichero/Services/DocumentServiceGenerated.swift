@@ -227,6 +227,82 @@ class DocumentServiceGenerated: ObservableObject {
         }
     }
 
+    /// Get all workspace folders from the active library.
+    /// - Returns: Array of workspace folder documents
+    func getWorkspaces() async throws -> [Document] {
+        logger.info("Fetching all workspaces")
+
+        let response = try await client.api.listWorkspacesApiDocumentsWorkspacesGet(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+
+        switch response {
+        case .ok(let ok):
+            let docs = try ok.body.json
+            logger.info("Found \(docs.items.count) workspaces")
+            return try docs.items.map { generated in
+                var document = try convertToDocument(generated)
+                document.isWorkspace = generated.isWorkspace ?? true
+                return document
+            }
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
+    /// Patch workspace curated items for a folder in the active library.
+    /// - Parameters:
+    ///   - folderId: Workspace folder document ID
+    ///   - itemsToAdd: Curated items to add or replace
+    /// - Returns: Updated workspace items response
+    func patchWorkspaceItems(
+        folderId: String,
+        itemsToAdd: [Components.Schemas.WorkspaceCuratedItem]
+    ) async throws -> Components.Schemas.WorkspaceItemsResponse {
+        logger.info("Patching workspace items for: \(folderId)")
+
+        let response = try await client.api.patchWorkspaceItemsApiDocumentsDocIdWorkspacePatch(
+            path: .init(docId: folderId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(.init(add: itemsToAdd))
+        )
+
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
+    /// Get resolved curated items for a workspace folder in the active library.
+    /// - Parameter folderId: Workspace folder document ID
+    /// - Returns: Workspace items response
+    func getWorkspaceItems(folderId: String) async throws -> Components.Schemas.WorkspaceItemsResponse {
+        logger.info("Fetching workspace items for: \(folderId)")
+
+        let response = try await client.api.getWorkspaceItemsApiDocumentsDocIdWorkspaceItemsGet(
+            path: .init(docId: folderId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+
+        switch response {
+        case .ok(let ok):
+            return try ok.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
     // MARK: - Update
 
     /// Update document metadata

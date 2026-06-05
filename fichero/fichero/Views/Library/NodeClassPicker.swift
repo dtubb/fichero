@@ -13,6 +13,7 @@ import SwiftUI
 struct WorkspaceCuratedItemsSection: View {
     let folderId: String
 
+    @EnvironmentObject private var documentService: DocumentServiceGenerated
     @StateObject private var service = WorkspacePickerService()
     @State private var items: [WorkspaceCuratedItem] = []
     @State private var nodeClasses: [Components.Schemas.ClassificationValue] = []
@@ -81,7 +82,10 @@ struct WorkspaceCuratedItemsSection: View {
             nodeClasses = (try? await svc.listNodeClasses()) ?? []
         }
         do {
-            items = try await service.loadCuratedItems(folderId: folderId)
+            items = try await service.loadCuratedItems(
+                folderId: folderId,
+                documentService: documentService
+            )
         } catch {
             loadError = error.localizedDescription
             logger.error("loadCuratedItems failed: \(error.localizedDescription)")
@@ -106,6 +110,7 @@ struct NodeClassPicker: View {
 
     @State private var selectedKey: String?
     @State private var isAssigning = false
+    @EnvironmentObject private var documentService: DocumentServiceGenerated
     @StateObject private var service = WorkspacePickerService()
 
     var body: some View {
@@ -161,7 +166,12 @@ struct NodeClassPicker: View {
         isAssigning = true
         defer { isAssigning = false }
         do {
-            _ = try await service.setNodeClass(folderId: folderId, item: item, nodeClass: key)
+            _ = try await service.setNodeClass(
+                folderId: folderId,
+                item: item,
+                nodeClass: key,
+                documentService: documentService
+            )
             selectedKey = key
             onAssign(key)
         } catch {
