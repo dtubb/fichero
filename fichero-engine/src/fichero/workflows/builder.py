@@ -442,6 +442,7 @@ def build_graph(
         waiting_edge_targets.add(target_id)
 
     # Add non-parallel edges
+    added_simple_edges: set[tuple[str, str]] = set()
     for edge in workflow.edges:
         source_name = node_names[edge.source]
 
@@ -465,7 +466,12 @@ def build_graph(
                 source_name, condition_fn, {True: target_name, False: END}
             )
         else:
-            graph.add_edge(_source_graph_name(edge.source), target_name)
+            graph_source_name = _source_graph_name(edge.source)
+            edge_key = (graph_source_name, target_name)
+            if edge_key in added_simple_edges:
+                continue
+            graph.add_edge(graph_source_name, target_name)
+            added_simple_edges.add(edge_key)
 
     # Connect START to entry nodes
     entry_nodes = workflow.get_entry_nodes()
