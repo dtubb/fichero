@@ -301,8 +301,13 @@ extension ContentView {
             .overlay { paneFocusIndicator(for: .preview) }
             .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
         } else {
+            let canvasDocument = {
+                guard let doc = inspectorDocument else { return nil as Document? }
+                if doc.docType == .folder && doc.fileType == nil { return nil }
+                return doc
+            }()
             EditorView(
-                document: detailDocument,
+                document: canvasDocument,
                 showHeader: false,
                 onPDFPageIndexChange: { index in
                     syncGridSelectionToPDFPage(index: index)
@@ -362,8 +367,13 @@ extension ContentView {
                     Spacer(minLength: 0)
                 }
 
+                let previewDocument = {
+                    guard let doc = inspectorDocument else { return nil as Document? }
+                    if doc.docType == .folder && doc.fileType == nil { return nil }
+                    return doc
+                }()
                 EditorView(
-                    document: detailDocument,
+                    document: previewDocument,
                     onPDFPageIndexChange: { index in
                         syncGridSelectionToPDFPage(index: index)
                     }

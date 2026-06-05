@@ -35,7 +35,6 @@ struct DocumentCanvas: View {
             StorageDisplayImageCanvas(documentId: docId)
         case .imageRendered(let nsImage, let docId):
             ZoomableImagePreview(
-                url: URL(fileURLWithPath: "/dev/null"),
                 documentId: docId,
                 renderedImage: nsImage
             )

@@ -20,6 +20,73 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
         XCTAssertFalse(route.usesImageEditingPreviewForViewing)
     }
 
+    func testImageBackedPageWithSequenceStillRoutesToStorageDisplay() {
+        let doc = Document(
+            id: "image-page-1",
+            parentId: "image-folder-1",
+            docType: .page,
+            fileType: .image,
+            name: "Image Page 1",
+            path: "files/marshall/page-1.jpg",
+            sequence: 7
+        )
+
+        let route = EditorView.previewRoute(
+            for: doc,
+            parentPDFPath: "/tmp/source.pdf",
+            isEditing: false
+        )
+
+        XCTAssertEqual(route, .storageDisplay(documentId: "image-page-1"))
+    }
+
+    func testPDFBackedPageRoutesToPDFPageWhenParentPDFExists() {
+        let doc = Document(
+            id: "pdf-page-1",
+            parentId: "pdf-1",
+            docType: .page,
+            fileType: nil,
+            name: "PDF Page 7",
+            path: nil,
+            sequence: 7
+        )
+
+        let route = EditorView.previewRoute(
+            for: doc,
+            parentPDFPath: "/tmp/source.pdf",
+            isEditing: false
+        )
+
+        XCTAssertEqual(route, .pagePDF(path: "/tmp/source.pdf", pageIndex: 6))
+    }
+
+    func testPlainFolderRoutesToContainerPlaceholder() {
+        let doc = Document(
+            id: "folder-1",
+            docType: .folder,
+            fileType: nil,
+            name: "Folder"
+        )
+
+        let route = EditorView.previewRoute(for: doc, parentPDFPath: nil, isEditing: false)
+
+        XCTAssertEqual(route, .container)
+    }
+
+    func testMediaBackedFolderCanPreviewItsRepresentativeImage() {
+        let doc = Document(
+            id: "split-source-1",
+            docType: .folder,
+            fileType: .image,
+            name: "Split Source",
+            path: "files/source.jpg"
+        )
+
+        let route = EditorView.previewRoute(for: doc, parentPDFPath: nil, isEditing: false)
+
+        XCTAssertEqual(route, .storageDisplay(documentId: "split-source-1"))
+    }
+
     func testNoPathImageRoutesToStorageDisplayForViewing() {
         let doc = Document(
             id: "image-1",

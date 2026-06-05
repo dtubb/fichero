@@ -183,6 +183,7 @@ struct MailStyleRow: View {
                 PDFThumbnailView(path: path, size: size)
                     .clipped()
             } else if document.docType == .page,
+                      document.fileType != .image,
                       let pdfPath = resolvedParentPDFPath(for: document),
                       !pdfPath.isEmpty {
                 let pageIndex = max(0, (document.sequence ?? 1) - 1)
@@ -326,6 +327,7 @@ struct DocumentThumbnailView: View {
                     PDFThumbnailView(path: path, size: CGSize(width: 240, height: 320))
                         .clipped()
                 } else if document.docType == .page,
+                          document.fileType != .image,
                           let pdfPath = resolvedParentPDFPath(for: document),
                           !pdfPath.isEmpty {
                     let pageIndex = max(0, (document.sequence ?? 1) - 1)

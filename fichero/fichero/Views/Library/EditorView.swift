@@ -122,7 +122,7 @@ struct EditorView: View {
     }
 
     enum PreviewRoute: Equatable {
-        case folder
+        case container
         case pagePDF(path: String, pageIndex: Int)
         case storageDisplay(documentId: String)
         case pdf(path: String)
@@ -145,16 +145,10 @@ struct EditorView: View {
 
     static func previewRoute(for doc: Document, parentPDFPath: String?, isEditing: Bool) -> PreviewRoute {
         if doc.docType == .folder {
-            return .folder
+            return folderPreviewRoute(for: doc, isEditing: isEditing)
         }
         if doc.docType == .page {
-            if isEditing {
-                return .imageEditor(documentId: doc.id)
-            }
-            if let parentPDFPath, let pageIndex = doc.sequence, !parentPDFPath.isEmpty {
-                return .pagePDF(path: parentPDFPath, pageIndex: max(0, pageIndex - 1))
-            }
-            return .storageDisplay(documentId: doc.id)
+            return pagePreviewRoute(for: doc, parentPDFPath: parentPDFPath, isEditing: isEditing)
         }
         if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
             return .pdf(path: path)
@@ -174,11 +168,38 @@ struct EditorView: View {
         return .quickLook
     }
 
+    private static func folderPreviewRoute(for doc: Document, isEditing: Bool) -> PreviewRoute {
+        if doc.fileType == .image {
+            return isEditing ? .imageEditor(documentId: doc.id) : .storageDisplay(documentId: doc.id)
+        }
+        if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
+            return .pdf(path: path)
+        }
+        return .container
+    }
+
+    private static func pagePreviewRoute(
+        for doc: Document,
+        parentPDFPath: String?,
+        isEditing: Bool
+    ) -> PreviewRoute {
+        if isEditing {
+            return .imageEditor(documentId: doc.id)
+        }
+        if doc.fileType != .image,
+           let parentPDFPath,
+           let pageIndex = doc.sequence,
+           !parentPDFPath.isEmpty {
+            return .pagePDF(path: parentPDFPath, pageIndex: max(0, pageIndex - 1))
+        }
+        return .storageDisplay(documentId: doc.id)
+    }
+
     @ViewBuilder
     private func previewContent(_ doc: Document) -> some View {
         switch Self.previewRoute(for: doc, parentPDFPath: resolvedParentPDFPath(for: doc), isEditing: isEditing) {
-        case .folder:
-            FolderContentsGrid(folder: doc)
+        case .container:
+            containerPlaceholder(doc)
         case .pagePDF(let path, let pageIndex):
             DocumentCanvas(
                 content: .pdf(path: path, pageIndex: pageIndex),
@@ -212,6 +233,14 @@ struct EditorView: View {
         case .quickLook:
             QuickLookDownloadView(document: doc)
         }
+    }
+
+    private func containerPlaceholder(_ doc: Document) -> some View {
+        ContentUnavailableView(
+            doc.name,
+            systemImage: doc.docType.icon,
+            description: Text("Select an image or PDF page to preview it here.")
+        )
     }
 
     // MARK: - Edit-mode Toggle
