@@ -63,6 +63,16 @@ def create_library(request: LibraryCreateRequest) -> LibraryCreateResponse:
 
     already_existed = package.exists() and duckdb_path.exists()
 
+    # A user/test can delete and recreate a .fichero package while the
+    # backend is still alive. DuckDB keeps the old file handle valid inside
+    # the process, so without closing cached connections here the API can
+    # appear to import documents successfully while a fresh process sees an
+    # empty newly-created fichero.duckdb on disk (#1668).
+    try:
+        db_manager.close_database(package)
+    except Exception as exc:
+        logger.warning("Failed to close cached DB before library init: %s", exc)
+
     if not already_existed:
         try:
             package.mkdir(parents=True, exist_ok=True)

@@ -9,6 +9,7 @@ the conftest ``test_package`` fixture (which pre-creates the package).
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 
 from fastapi.testclient import TestClient
 
@@ -94,3 +95,47 @@ def test_create_library_initializes_schema_for_immediate_query(
 
     db = db_manager.get_database(target)
     assert db.count(Document) == 0  # empty, but the table exists
+
+
+def test_create_library_closes_stale_cached_connection_after_recreate(
+    tmp_path: Path,
+) -> None:
+    """Recreating a package path must not keep a stale deleted DB handle.
+
+    This mirrors the Finder-delete/import smoke trap: the backend can have
+    an open DuckDB connection for ``target``; the package is deleted on disk;
+    then ``POST /api/library`` recreates the same path. The route must close
+    cached connections before initializing the new package so later writes
+    hit the new on-disk fichero.duckdb.
+    """
+    from fichero.db import Database, db_manager
+    from fichero.models import Document
+
+    target = tmp_path / "recreated.fichero"
+    client = _client()
+
+    response = client.post("/api/library", json={"path": str(target)})
+    assert response.status_code == 200
+
+    stale_db = db_manager.get_database(target)
+    stale_doc = Document(name="stale", path="/stale")
+    stale_db.save(stale_doc)
+    assert stale_db.count(Document) == 1
+
+    shutil.rmtree(target)
+    response = client.post("/api/library", json={"path": str(target)})
+    assert response.status_code == 200
+    assert response.json()["created"] is True
+
+    current_db = db_manager.get_database(target)
+    current_doc = Document(name="current", path="/current")
+    current_db.save(current_doc)
+    assert current_db.count(Document) == 1
+    assert current_db.get(Document, stale_doc.id) is None
+
+    fresh_db = Database(target / "fichero.duckdb")
+    try:
+        assert fresh_db.get(Document, current_doc.id) is not None
+        assert fresh_db.get(Document, stale_doc.id) is None
+    finally:
+        fresh_db.close()
