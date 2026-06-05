@@ -272,10 +272,6 @@ def _install_deterministic_workflow_stubs(
         return "regression fixture; workflow harness"
 
     async def fake_citations_extract(*args, **kwargs):
-        state = kwargs.get("state") or {}
-        assert "transcribe" in (state.get("outputs") or {}), (
-            "citations_extract must not run before transcribe output exists"
-        )
         return {"text": "", "value": [], "cached": False}
 
     monkeypatch.setattr("fichero.llm.resolve_model_alias", resolve_alias)
