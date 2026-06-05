@@ -19,6 +19,8 @@ struct DocumentCanvas: View {
     enum Content {
         /// A local file image (ZoomableImagePreview URL path).
         case imageFile(url: URL, documentId: String?)
+        /// A backend storage display image, resolved by document id.
+        case imageStorageDisplay(documentId: String)
         /// A backend-rendered NSImage (editor mode — may be nil while loading).
         case imageRendered(image: NSImage?, documentId: String)
         /// A PDF document at a given page index.
@@ -29,6 +31,8 @@ struct DocumentCanvas: View {
         switch content {
         case .imageFile(let url, let docId):
             ZoomableImagePreview(url: url, documentId: docId)
+        case .imageStorageDisplay(let docId):
+            StorageDisplayImageCanvas(documentId: docId)
         case .imageRendered(let nsImage, let docId):
             ZoomableImagePreview(
                 url: URL(fileURLWithPath: "/dev/null"),
@@ -41,6 +45,40 @@ struct DocumentCanvas: View {
                 pageIndex: pageIndex,
                 onPageIndexChange: onPageIndexChange
             )
+        }
+    }
+}
+
+private struct StorageDisplayImageCanvas: View {
+    let documentId: String
+
+    @EnvironmentObject private var storageService: StorageServiceGenerated
+    @State private var image: NSImage?
+    @State private var loadError: Error?
+
+    var body: some View {
+        ZStack {
+            if image != nil {
+                DocumentCanvas(
+                    content: .imageRendered(image: image, documentId: documentId)
+                )
+            } else if loadError != nil {
+                Image(systemName: "photo")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.secondary)
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+        .task(id: documentId) {
+            image = nil
+            loadError = nil
+            do {
+                image = try await storageService.getDisplayNSImage(documentId)
+            } catch {
+                loadError = error
+            }
         }
     }
 }

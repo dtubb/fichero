@@ -88,7 +88,7 @@ struct ImageEditorView: View {
                 page: currentPage(for: document)
             )
         }
-        .onChange(of: model.chain.operations.count) { _ in
+        .onChange(of: model.chain.operations.count) { _, _ in
             // An op changed the rendered image — a stale region would mismap.
             marqueeSelection = nil
         }

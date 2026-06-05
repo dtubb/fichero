@@ -9,6 +9,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Documen
 struct DocumentNotesTab: View {
     let document: Document
 
+    @EnvironmentObject private var apiClient: APIClient
     @StateObject private var service = NoteService()
     @State private var newText = ""
     @State private var editingId: String?
@@ -23,6 +24,7 @@ struct DocumentNotesTab: View {
             notesList
         }
         .task(id: document.id) {
+            service.libraryPath = apiClient.currentLibraryPath
             await service.load(linkedDocumentId: document.id)
         }
     }

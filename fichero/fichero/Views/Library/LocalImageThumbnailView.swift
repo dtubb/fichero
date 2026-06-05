@@ -18,6 +18,12 @@ struct LocalImageThumbnailView: View {
     @State private var image: NSImage?
     @State private var didFail = false
 
+    private var canDecodeLocalFile: Bool {
+        URL(fileURLWithPath: path).isFileURL
+            && (path as NSString).isAbsolutePath
+            && FileManager.default.fileExists(atPath: path)
+    }
+
     var body: some View {
         Group {
             if let image {
@@ -25,7 +31,10 @@ struct LocalImageThumbnailView: View {
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
             } else if didFail {
-                // Local file gone — use the backend-generated thumbnail.
+                // Missing or package-relative path — use the backend-generated
+                // thumbnail. IIIF imports store package-relative paths such as
+                // files/nc/foo.jpg; SwiftUI cannot decode those directly, but
+                // the engine can resolve them from the active library.
                 LibraryImageView(documentId: documentId, imageType: .thumbnail)
                     .aspectRatio(contentMode: contentMode)
             } else {
@@ -34,6 +43,12 @@ struct LocalImageThumbnailView: View {
             }
         }
         .task(id: path) {
+            image = nil
+            didFail = false
+            guard canDecodeLocalFile else {
+                didFail = true
+                return
+            }
             if let cached = LocalImageThumbnailCache.shared.image(forKey: path) {
                 image = cached
                 return

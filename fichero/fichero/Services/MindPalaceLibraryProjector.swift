@@ -208,7 +208,7 @@ enum MindPalaceLibraryProjector {
                 guard let id = doc.id else { return nil }
                 return MindPalaceLibraryInput.Document(
                     id: id,
-                    name: doc.name ?? id,
+                    name: doc.name,
                     parentId: doc.parentId
                 )
             },
@@ -216,7 +216,7 @@ enum MindPalaceLibraryProjector {
                 guard let id = entity.id else { return nil }
                 return MindPalaceLibraryInput.Entity(
                     id: id,
-                    canonicalName: entity.canonicalName ?? id,
+                    canonicalName: entity.canonicalName,
                     entityType: entity.entityType?.rawValue
                 )
             },
