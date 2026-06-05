@@ -705,6 +705,7 @@ def _is_allowed_library_path(library_path: str) -> bool:
         home / "Desktop",
         home / "Fichero",
         home / "Dropbox",
+        home / "code",  # corpus libraries (e.g. ~/code/marshall_diaries/*.fichero)
         home / "Library" / "Application Support",
         home / "Library" / "CloudStorage",
         icloud,

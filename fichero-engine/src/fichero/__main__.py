@@ -1657,6 +1657,7 @@ def kg_reset(
 _LIBRARY_LIST_ROOTS = (
     Path.home() / "Documents",
     Path.home() / "Dropbox",
+    Path.home() / "code",
     Path.home() / "Library" / "Application Support",
 )
 

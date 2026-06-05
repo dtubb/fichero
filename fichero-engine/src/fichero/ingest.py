@@ -267,9 +267,23 @@ def ingest_file(
             if package_path is None
             else _copy_to_library(path, package_path)
         )
+        # Store the path RELATIVE to the library package root (e.g.
+        # "files/nc/<id>_<name>.jpg") whenever the bytes land inside the
+        # package. An absolute path bakes in the package's current name, so it
+        # breaks the moment the user renames or moves the .fichero bundle
+        # (#1663). A relative path is re-rooted against the live library root at
+        # serve time by storage.resolve_source(). When there is no package
+        # (legacy global storage), keep the absolute path.
+        stored_path = str(dest)
+        if package_path is not None:
+            try:
+                stored_path = str(dest.relative_to(Path(package_path)))
+            except ValueError:
+                # dest somehow landed outside the package — keep absolute.
+                stored_path = str(dest)
         doc = Document(
             name=path.name,
-            path=str(dest),
+            path=stored_path,
             doc_type=DocType.file,
             file_type=file_type,
             parent_id=parent_id,
