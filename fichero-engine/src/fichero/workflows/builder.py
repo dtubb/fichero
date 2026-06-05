@@ -417,6 +417,30 @@ def build_graph(
             target_name = node_names[target_id]
             graph.add_edge(f"{target_name}_process", f"{target_name}_aggregate")
 
+    def _source_graph_name(source_id: str) -> str:
+        source_name = node_names[source_id]
+        source_is_parallel = any(
+            (e.source, e.target) in parallel_edges and e.target == source_id
+            for e in workflow.edges
+        )
+        if source_is_parallel:
+            return f"{source_name}_aggregate"
+        return source_name
+
+    unconditional_by_target: dict[str, list[Any]] = {}
+    for edge in workflow.edges:
+        if edge.route_map or edge.condition or (edge.source, edge.target) in parallel_edges:
+            continue
+        unconditional_by_target.setdefault(edge.target, []).append(edge)
+
+    waiting_edge_targets: set[str] = set()
+    for target_id, incoming in unconditional_by_target.items():
+        source_names = list(dict.fromkeys(_source_graph_name(edge.source) for edge in incoming))
+        if len(source_names) <= 1:
+            continue
+        graph.add_edge(source_names, node_names[target_id])
+        waiting_edge_targets.add(target_id)
+
     # Add non-parallel edges
     for edge in workflow.edges:
         source_name = node_names[edge.source]
@@ -432,6 +456,8 @@ def build_graph(
 
         if (edge.source, edge.target) in parallel_edges:
             continue  # Already handled above
+        elif edge.target in waiting_edge_targets and not edge.condition:
+            continue  # Already handled as a fan-in waiting edge above
         elif edge.condition:
             # Conditional edge (for branching)
             condition_fn = _make_condition_function(edge.condition, workflow_config)
@@ -439,15 +465,7 @@ def build_graph(
                 source_name, condition_fn, {True: target_name, False: END}
             )
         else:
-            # Check if source was parallelized - connect from aggregate
-            source_is_parallel = any(
-                (e.source, e.target) in parallel_edges and e.target == edge.source
-                for e in workflow.edges
-            )
-            if source_is_parallel:
-                graph.add_edge(f"{source_name}_aggregate", target_name)
-            else:
-                graph.add_edge(source_name, target_name)
+            graph.add_edge(_source_graph_name(edge.source), target_name)
 
     # Connect START to entry nodes
     entry_nodes = workflow.get_entry_nodes()
@@ -507,6 +525,29 @@ def _make_node_function(
         """Execute the tool and update state."""
         node_id = node_def.id
         node_label = node_def.label or node_def.tool
+
+        completed_nodes = state.get("completed_nodes") or []
+        if node_id in completed_nodes:
+            logger.info("Skipping already-completed node: %s", node_id)
+            return {}
+
+        if incoming_edges:
+            outputs = state.get("outputs", {}) or {}
+            missing_sources = sorted(
+                {
+                    source_node
+                    for edge in incoming_edges
+                    if (source_node := edge.get("source") or edge.get("source_node_id"))
+                    and source_node not in outputs
+                }
+            )
+            if missing_sources:
+                logger.info(
+                    "Deferring %s until upstream output(s) exist: %s",
+                    node_id,
+                    ", ".join(missing_sources),
+                )
+                return {}
 
         logger.info(
             f"Running: {node_label} (tool: {node_def.tool}, provider: {node_llm_config.provider or 'NOT SET'})"
