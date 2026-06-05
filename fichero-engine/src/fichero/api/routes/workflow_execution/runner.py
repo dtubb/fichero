@@ -645,15 +645,17 @@ async def _run_workflow_in_background(
         )
         initial_state["workflow_id"] = request.workflow_id
 
-        # Identify exit nodes (nodes with no outgoing edges) using raw IDs
-        exit_node_ids = set()
+        # Identify exit nodes (nodes with no outgoing edges). Workflow edges
+        # use raw node IDs, but LangGraph events use the display label when one
+        # exists, so completion tracking must compare against event names.
+        exit_node_event_names = set()
         all_source_nodes = {
             e.get("source") or e.get("source_node_id", "") for e in workflow.edges
         }
         for node in workflow.nodes:
             node_id = node.get("id", "")
             if node_id and node_id not in all_source_nodes:
-                exit_node_ids.add(node_id)
+                exit_node_event_names.add(node.get("label") or node_id)
 
         def _normalize_node_name(name: str) -> str:
             """Strip LangGraph internal suffixes to get the original node ID."""
@@ -664,7 +666,7 @@ async def _run_workflow_in_background(
             return name
 
 
-        logger.debug(f"Exit nodes for completion: {exit_node_ids}")
+        logger.debug(f"Exit nodes for completion: {exit_node_event_names}")
         completed_exit_nodes = set()
 
         # Stream execution events
@@ -925,14 +927,17 @@ async def _run_workflow_in_background(
                     )
 
                     # Track exit node completion (using normalized ID)
-                    if original_id in exit_node_ids:
+                    if original_id in exit_node_event_names:
                         completed_exit_nodes.add(original_id)
                         logger.info(
-                            f"Exit node completed: {original_id}, {len(completed_exit_nodes)}/{len(exit_node_ids)}"
+                            f"Exit node completed: {original_id}, {len(completed_exit_nodes)}/{len(exit_node_event_names)}"
                         )
 
                         # Check if all exit nodes are done
-                        if exit_node_ids and completed_exit_nodes >= exit_node_ids:
+                        if (
+                            exit_node_event_names
+                            and completed_exit_nodes >= exit_node_event_names
+                        ):
                             logger.info("All exit nodes completed, ending stream")
                             break
 
@@ -944,7 +949,10 @@ async def _run_workflow_in_background(
             else {}
         )
 
-        missing_exit_nodes = _missing_exit_nodes(exit_node_ids, completed_exit_nodes)
+        missing_exit_nodes = _missing_exit_nodes(
+            exit_node_event_names,
+            completed_exit_nodes,
+        )
         if missing_exit_nodes:
             missing_list = ", ".join(sorted(missing_exit_nodes))
             raise RuntimeError(
