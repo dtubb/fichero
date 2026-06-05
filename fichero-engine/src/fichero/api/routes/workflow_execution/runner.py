@@ -597,7 +597,14 @@ async def _run_workflow_in_background(
         app, checkpointer = create_compiled_app(
             workflow_def,
             db_path=db.path,
-            enable_parallel=True,
+            # The LangGraph Send fan-out path can checkpoint a completed
+            # aggregate while failing to schedule downstream nodes under the
+            # live astream_events runner (#1665/#1668 repro: Catalogue pauses
+            # after transcribe with branch:to:Extract All Entities = None).
+            # Prefer correctness for app/CLI workflows: process all selected
+            # files inside the tool node until the dynamic fan-out path has a
+            # checkpointer-backed regression test.
+            enable_parallel=False,
             event_callback=emit_parallel_event,
             interrupt_before=request.interrupt_before or None,
             interrupt_after=request.interrupt_after or None,
