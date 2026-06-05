@@ -185,6 +185,45 @@ class TestLoadPresetFiles:
             for e in preset["edges"]
         )
 
+    def test_reviewable_catalogue_stage_presets_ship_beside_catalogue(self):
+        """Reviewable staged presets are additive; the full Catalogue preset
+        remains unchanged while users can run transcription and entity/KG
+        stages independently (#1669)."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        stage1 = presets["Catalogue Stage 1 - Transcribe Pages"]
+        stage2 = presets["Catalogue Stage 2 - Extract Entities + KG"]
+
+        for preset in (stage1, stage2):
+            assert preset.get("is_template") is True
+            assert preset.get("is_system") is True
+            assert preset.get("folder_path") == "/Catalogue"
+            assert "stage" in preset.get("tags", [])
+            assert "reviewable" in preset.get("tags", [])
+
+        stage1_tools = {n["tool"] for n in stage1["nodes"]}
+        assert stage1_tools == {"files", "transcribe"}
+        transcribe_node = next(n for n in stage1["nodes"] if n["tool"] == "transcribe")
+        assert transcribe_node["config"].get("update_page_content") is True
+        assert "provider_name" not in transcribe_node["config"], (
+            "transcribe stage must use the vision default, not the text $small alias"
+        )
+
+        stage2_tools = {n["tool"] for n in stage2["nodes"]}
+        assert stage2_tools == {"files", "aggregate", "extract_all", "kg_writer"}
+        extract_node = next(n for n in stage2["nodes"] if n["tool"] == "extract_all")
+        assert extract_node["config"].get("provider_name") == "$small"
+        assert extract_node["config"].get("persist_kg") is False
+
+        extract_id = _node_id(stage2, "extract_all")
+        kg_writer_id = _node_id(stage2, "kg_writer")
+        assert any(
+            e["source"] == extract_id
+            and e["target"] == kg_writer_id
+            and e["source_port"] == "kg_payload"
+            and e["target_port"] == "kg_payload"
+            for e in stage2["edges"]
+        ), "stage 2 must persist KG via the explicit kg_writer stage"
+
     def test_catalogue_small_uses_dollar_small_throughout(self):
         """Every LLM-using node in the default Catalogue preset references
         the $small alias so users with different providers don't have to

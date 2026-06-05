@@ -1,0 +1,52 @@
+{
+  "name": "Catalogue Stage 1 - Transcribe Pages",
+  "description": "Stage 1 of the reviewable catalogue pipeline. Transcribe selected files/pages and persist the page text as the page-content layer. Use this when the import did not already provide transcripts, or when you want to refresh transcription before entity extraction.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Catalogue",
+  "tags": [
+    "preset",
+    "catalogue",
+    "stage",
+    "transcribe",
+    "reviewable"
+  ],
+  "config": {
+    "preset_version": 1,
+    "stage": "transcription"
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "transcribe",
+      "tool": "transcribe",
+      "label": "Transcribe pages",
+      "position_x": 280,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "vision_mode": "auto",
+        "language": "en",
+        "update_page_content": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-files-transcribe",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "files",
+      "target_port": "files"
+    }
+  ]
+}
