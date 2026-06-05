@@ -64,6 +64,8 @@ class IIIFImportSummary:
     pages_seen: int = 0
     documents_created: int = 0
     documents_skipped: int = 0
+    artifacts_created: int = 0
+    artifacts_skipped: int = 0
     entities_created: int = 0
     entities_reused: int = 0
     annotations_created: int = 0
@@ -132,6 +134,12 @@ def import_iiif(
         manifests_seen=parsed.manifests_seen,
     )
     summary.warnings.extend(parsed.warnings)
+    artifacts_created, artifacts_skipped = _import_transcript_artifacts(
+        client,
+        parsed.nodes,
+    )
+    summary.artifacts_created = artifacts_created
+    summary.artifacts_skipped = artifacts_skipped
     created, skipped = _import_annotations(client, parsed.annotation_jobs)
     summary.annotations_created = created
     summary.annotations_skipped = skipped
@@ -440,10 +448,94 @@ def _import_annotations(
     return created, skipped
 
 
+def _import_transcript_artifacts(
+    client: ManifestApiClient,
+    nodes: list[dict[str, Any]],
+) -> tuple[int, int]:
+    """Create per-page transcription artifacts from imported IIIF text."""
+
+    text_nodes = [
+        node
+        for node in nodes
+        if node.get("node_type") == "page" and str(node.get("text") or "").strip()
+    ]
+    if not text_nodes:
+        return 0, 0
+
+    docs = _list_items(client, "/documents?limit=500")
+    doc_id_by_external = {
+        str(doc.get("metadata", {}).get("canonical_external_id")): str(doc.get("id"))
+        for doc in docs
+        if doc.get("id") and doc.get("metadata", {}).get("canonical_external_id")
+    }
+
+    created = 0
+    skipped = 0
+    for node in text_nodes:
+        document_id = doc_id_by_external.get(str(node.get("external_id")))
+        if not document_id:
+            skipped += 1
+            continue
+        text = str(node.get("text") or "").strip()
+        if _has_imported_transcript_artifact(client, document_id, text):
+            skipped += 1
+            continue
+        metadata = dict(node.get("metadata") or {})
+        client.request(
+            "POST",
+            "/artifacts/",
+            {
+                "document_id": document_id,
+                "artifact_type": "transcription",
+                "content": text,
+                "data": {
+                    "provenance": "import",
+                    "source": "iiif_w3c",
+                    "canonical_external_id": node.get("external_id"),
+                    "iiif_id": metadata.get("iiif_id"),
+                    "page_label": node.get("page_label"),
+                    "language": node.get("language"),
+                },
+                "provider": "iiif-import",
+                "model": "w3c-annotation",
+                "step_name": "import-iiif",
+                "reviewed": True,
+            },
+        )
+        created += 1
+    return created, skipped
+
+
+def _has_imported_transcript_artifact(
+    client: ManifestApiClient,
+    document_id: str,
+    content: str,
+) -> bool:
+    artifacts = _list_items(
+        client,
+        f"/artifacts/document/{document_id}?artifact_type=transcription&include_descendants=false&limit=200",
+    )
+    for artifact in artifacts:
+        if artifact.get("content") != content:
+            continue
+        data = artifact.get("data") or {}
+        if (
+            artifact.get("provider") == "iiif-import"
+            or data.get("source") == "iiif_w3c"
+        ):
+            return True
+    return False
+
+
 def _list_items(client: ManifestApiClient, path: str) -> list[dict[str, Any]]:
     response = client.request("GET", path)
     if isinstance(response, dict):
-        return list(response.get("items") or response.get("entities") or [])
+        return list(
+            response.get("items")
+            or response.get("entities")
+            or response.get("artifacts")
+            or []
+        )
     if isinstance(response, list):
         return response
     return []

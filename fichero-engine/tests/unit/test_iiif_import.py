@@ -164,7 +164,7 @@ def test_parse_iiif_directory_normalizes_nodes_and_annotation_jobs(tmp_path):
     parsed = parse_iiif_directory(root)
 
     assert parsed.manifests_seen == 1
-    assert len(parsed.nodes) == 3
+    assert len(parsed.nodes) == 2
     page = parsed.nodes[-1]
     assert page["node_type"] == "page"
     assert page["text"] == "Marshall went to Istmina."
@@ -183,13 +183,26 @@ def test_import_iiif_scopes_entities_to_page_and_preserves_text_annotations(
 
     assert summary.manifests_seen == 1
     assert summary.pages_seen == 1
-    assert summary.documents_created == 3
+    assert summary.documents_created == 2
+    assert summary.artifacts_created == 1
     assert summary.entities_created == 1
     assert summary.annotations_created == 2
 
     docs = client.get("/api/documents?limit=500").json()["items"]
     page = next(doc for doc in docs if doc["name"] == "Page 001")
     assert page["page_content"] == "Marshall went to Istmina."
+    artifacts = client.get(
+        f"/api/artifacts/document/{page['id']}",
+        params={"artifact_type": "transcription", "include_descendants": False},
+    ).json()["items"]
+    assert len(artifacts) == 1
+    assert artifacts[0]["content"] == "Marshall went to Istmina."
+    assert artifacts[0]["provider"] == "iiif-import"
+    assert artifacts[0]["model"] == "w3c-annotation"
+    assert artifacts[0]["data"]["source"] == "iiif_w3c"
+    assert artifacts[0]["data"]["canonical_external_id"] == (
+        "https__example.org__iiif__canvas__page-001"
+    )
 
     page_entities = client.get(f"/api/entities?document_id={page['id']}&limit=500").json()[
         "items"
@@ -206,8 +219,14 @@ def test_import_iiif_scopes_entities_to_page_and_preserves_text_annotations(
     assert "tagging" in entity_ann["tags"]
 
     summary2 = import_iiif(adapter, root, str(tmp_path / "Tiny.fichero"))
-    assert summary2.documents_skipped == 3
+    assert summary2.documents_skipped == 2
+    assert summary2.artifacts_skipped == 1
     assert summary2.annotations_skipped == 2
+    artifacts2 = client.get(
+        f"/api/artifacts/document/{page['id']}",
+        params={"artifact_type": "transcription", "include_descendants": False},
+    ).json()["items"]
+    assert len(artifacts2) == 1
 
 
 def test_cli_import_iiif_invokes_importer(monkeypatch, tmp_path):
