@@ -118,6 +118,22 @@ def _classify_provider_error(error_text: str) -> dict[str, str]:
     }
 
 
+def _missing_exit_nodes(
+    exit_node_ids: set[str],
+    completed_exit_nodes: set[str],
+) -> set[str]:
+    """Return graph exit nodes that never completed.
+
+    LangGraph can end the event stream without raising even when a downstream
+    user node started but never produced an ``on_chain_end`` event. Treating
+    that as success hides missing artifacts/KG rows from SwiftUI, so the
+    runner must fail loud before recording workflow_completed.
+    """
+    if not exit_node_ids:
+        return set()
+    return set(exit_node_ids) - set(completed_exit_nodes)
+
+
 # =============================================================================
 # Python Code Generation
 # =============================================================================
@@ -927,6 +943,14 @@ async def _run_workflow_in_background(
             if checkpoint_tuple
             else {}
         )
+
+        missing_exit_nodes = _missing_exit_nodes(exit_node_ids, completed_exit_nodes)
+        if missing_exit_nodes:
+            missing_list = ", ".join(sorted(missing_exit_nodes))
+            raise RuntimeError(
+                "Workflow stream ended before exit node(s) completed: "
+                f"{missing_list}"
+            )
 
         # Store final state
         state["status"] = "completed"

@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from langgraph.types import Send
 
 from fichero.api.routes.workflow_execution.core import get_thread_status
+from fichero.api.routes.workflow_execution.runner import _missing_exit_nodes
 from fichero.models import Workflow
 
 
@@ -49,6 +50,25 @@ def _make_mock_checkpointer(thread_ids: list[str] | None = None):
 # ---------------------------------------------------------------------------
 # GET /api/workflow-execution/threads — list threads
 # ---------------------------------------------------------------------------
+
+
+class TestWorkflowCompletionGuards:
+    def test_missing_exit_nodes_returns_unfinished_exits(self):
+        missing = _missing_exit_nodes(
+            {"kg_writer", "catalogue"},
+            {"catalogue"},
+        )
+        assert missing == {"kg_writer"}
+
+    def test_missing_exit_nodes_allows_completed_exits(self):
+        missing = _missing_exit_nodes(
+            {"kg_writer", "catalogue"},
+            {"kg_writer", "catalogue"},
+        )
+        assert missing == set()
+
+    def test_missing_exit_nodes_allows_graphs_without_exit_detection(self):
+        assert _missing_exit_nodes(set(), set()) == set()
 
 
 class TestListThreads:
