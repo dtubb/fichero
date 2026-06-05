@@ -2493,3 +2493,11 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - Filed issues #1643–#1648, #1650–#1652 (UI reveal, Apple boxes, KG export, IIIF importer, derived_from/bbox two-page scans, portable LangGraph project, old→IIIF converter [standalone], cluster-output importer, extensibility).
 - Running: background raw-asset copy of all 44 Marshall collections → ~/code/marshall_diaries (overnight.sh; ~3.1G/44 collections done). ~/code/ghc scaffolded, awaiting source path.
 - Gotchas: macOS ships openrsync (no --log-file; use -v); setsid absent (don't use in launchers); Mac idle-sleep kills detached jobs (caffeinate -ims, keep lid open).
+
+## 2026-06-05 — Session Summary
+
+- Fixed and committed Marshall/Fichero import/workflow slices through `fa20d2b5`: imported manifest pages materialize artifacts, SwiftUI routes imported pages through storage display, workflow fan-in and live-send scheduling regressions were fixed, stale DB handles are closed before recreate, and the dead citation dependency was removed from `Catalogue`.
+- Updated the standalone Marshall `build_manifest.py` converter so W3C/IIIF entity annotations become canonical manifest `entities[]`; verified import-only libraries now create page-scoped entities before workflows run.
+- Smoke-tested Marshall at 5 and 10 pages successfully. `Marshall10Entities-064359.fichero` is the best current Xcode test library.
+- Smoke-tested 20 pages and found the next blocker: imported artifacts/entities/images are present, but the long `Extract All Entities` stage lacks reliable page progress/checkpoint visibility and did not produce claims/folder catalogue outputs in the verification run.
+- Filed/updated the staged-workflow issue cluster: #1669, #1673, #1674, #1675, #1676, #1677, #1678. Daniel's direction is to add new staged workflows/chains beside the existing mostly working `Catalogue`, not mutate it first.

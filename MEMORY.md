@@ -1,5 +1,17 @@
 # Durable Lessons Learned / Decisions
 
+## Marshall import workflow should be staged, not hidden behind Catalogue — 2026-06-05
+
+For IIIF/W3C imports, preserve the existing `Catalogue` workflow and add new staged workflows/chains beside it. The desired contract is explicit user-reviewable layers: imported transcript artifacts, imported W3C entities, additional extractor-generated entities, reversible page/folder entity cleanup, SVO/KVO claims, ontological KG, then catalogue/narrative outputs. Do not hide missing stages with SwiftUI fallbacks; backend persists each layer, SwiftUI displays/reviews it through typed/generated API clients.
+
+## W3C entity annotations need importer-level canonical entity persistence — 2026-06-05
+
+Marshall W3C annotation files can already carry entity annotations. The standalone `~/code/marshall_diaries/build_manifest.py` converter should emit canonical page `entities[]` from those annotation bodies so `fichero import-iiif` creates page-scoped `KnowledgeEntity` rows before any workflow runs. This preserves import provenance separately from later spaCy/Apple/LLM extraction and lets entity cleanup compare imported vs extracted layers.
+
+## Workflow scale testing must advance 5 → 10 → 20 with progress evidence — 2026-06-05
+
+Marshall smoke testing showed 5-page and 10-page IIIF/W3C imports plus Catalogue can finish green, but 20 pages exposed a long `Extract All Entities` progress/checkpoint visibility failure where claims and folder catalogue artifacts were not produced. Do not scale to the full corpus until 20-page workflow progress, terminal status, and KG write completion are reliable and observable.
+
 ## viewDisplayMode toolbar sync — reverse direction was missing — 2026-06-01
 
 `viewDisplayMode` (@SceneStorage) drives `LibraryView.displayMode` directly, but mutations to `viewDisplayMode` from the toolbar picker were NOT propagated back to `viewSettings.libraryLayout`. The `handleLibraryLayoutChange` → `viewDisplayMode` path existed (View menu → toolbar); the reverse (toolbar → View menu) didn't. Pattern: any time you add a `Picker` bound to `@SceneStorage`, check whether the OTHER direction needs an `onChange` handler too.
