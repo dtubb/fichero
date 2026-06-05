@@ -24,6 +24,7 @@ from fastapi.responses import StreamingResponse
 from fichero.db import Database
 from fichero.api.main import get_library_database
 from fichero.models import Workflow
+from fichero.workflows.activity import get_activity_tracker
 from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
 from fichero.workflows.workflow_store import WorkflowStore
 from fichero.workflows.runtime import (
@@ -422,8 +423,24 @@ async def get_thread_status(
         workflow_error = (
             current_state.get("error") if isinstance(current_state, dict) else None
         )
+        try:
+            run = await get_activity_tracker(str(db.path)).store.get_workflow_run(
+                thread_id
+            )
+        except Exception as run_status_exc:
+            logger.debug(
+                "Could not load workflow run status for %s: %s",
+                thread_id,
+                run_status_exc,
+            )
+            run = None
 
-        if has_pending_writes:
+        if run and run.status:
+            status = run.status
+            workflow_error = run.error or workflow_error
+            workflow_name = run.workflow_name or workflow_name
+            workflow_id = run.workflow_id or workflow_id
+        elif has_pending_writes:
             status = "paused"
         elif workflow_error:
             status = "failed"

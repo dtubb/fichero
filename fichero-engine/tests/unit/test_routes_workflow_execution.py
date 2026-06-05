@@ -6,6 +6,7 @@ mocking for LangGraph-dependent paths.
 """
 
 import pytest
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from langgraph.types import Send
@@ -13,6 +14,7 @@ from langgraph.types import Send
 from fichero.api.routes.workflow_execution.core import get_thread_status
 from fichero.api.routes.workflow_execution.runner import _missing_exit_nodes
 from fichero.models import Workflow
+from fichero.workflows.activity_types import WorkflowRun
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +133,56 @@ class TestGetThreadStatus:
         # Pydantic JSON serialization is the failure mode from the live CLI.
         payload = response.model_dump_json()
         assert "Transcribe each file_process" in payload
+
+    @pytest.mark.asyncio
+    async def test_prefers_persisted_failed_run_over_clean_checkpoint(self):
+        """A checkpoint without pending writes is not proof the run succeeded."""
+        checkpoint_tuple = MagicMock()
+        checkpoint_tuple.checkpoint = {
+            "id": "checkpoint-1",
+            "channel_values": {"workflow_id": "workflow-1"},
+        }
+        checkpoint_tuple.metadata = {}
+        checkpoint_tuple.pending_writes = []
+
+        mock_cp = _make_mock_checkpointer()
+        mock_cp.aget_tuple = AsyncMock(return_value=checkpoint_tuple)
+        db = MagicMock()
+        db.path = "/tmp/test.fichero/fichero.duckdb"
+
+        run = WorkflowRun(
+            thread_id="thread-1",
+            workflow_id="workflow-1",
+            workflow_name="Stage 2",
+            python_code="",
+            execution_log="ERROR",
+            status="failed",
+            started_at=datetime.now(),
+            completed_at=datetime.now(),
+            duration_ms=1,
+            error="not enough values to unpack",
+            workflow_snapshot=None,
+            node_name_map=None,
+            progress_timeline=None,
+            diagram_mermaid=None,
+        )
+        tracker = MagicMock()
+        tracker.store.get_workflow_run = AsyncMock(return_value=run)
+
+        with (
+            patch(
+                "fichero.api.routes.workflow_execution.core.AsyncDuckDBCheckpointer.from_db_path",
+                return_value=mock_cp,
+            ),
+            patch(
+                "fichero.api.routes.workflow_execution.core.get_activity_tracker",
+                return_value=tracker,
+            ),
+        ):
+            response = await get_thread_status("thread-1", db=db)
+
+        assert response.status == "failed"
+        assert response.error == "not enough values to unpack"
 
 
 # ---------------------------------------------------------------------------
