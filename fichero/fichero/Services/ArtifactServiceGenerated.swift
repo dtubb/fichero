@@ -453,22 +453,24 @@ final class EntityServiceGenerated: ObservableObject {
     }
 
     /// List entities filtered to a specific source document.
-    /// Uses a direct URLRequest because the generated client's query struct
-    /// does not expose the `document_id` query parameter (#1434 / Timeline+Map fix).
     func listEntitiesForDocument(
         documentId: String,
         limit: Int = 200
     ) async throws -> [Components.Schemas.KnowledgeEntity] {
-        guard let lib = client.currentLibraryPath else { return [] }
-        let docEncoded = documentId.addingPercentEncoding(
-            withAllowedCharacters: .urlQueryAllowed) ?? documentId
-        guard let url = URL(string: "\(client.baseURL)/api/entities"
-            + "?document_id=\(docEncoded)&limit=\(limit)") else { return [] }
-        var req = URLRequest(url: url)
-        req.addEngineAuth(libraryPath: lib)
-        let (data, _) = try await URLSession.shared.data(for: req)
-        struct Envelope: Decodable { let items: [Components.Schemas.KnowledgeEntity] }
-        return (try? JSONDecoder().decode(Envelope.self, from: data))?.items ?? []
+        let response = try await client.api.listEntitiesApiEntitiesGet(
+            query: .init(documentId: documentId, limit: limit),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
     }
 
     /// Fetch per-entity claim counts for badge display in the entity browser.
