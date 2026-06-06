@@ -113,3 +113,19 @@ All Swift merges build-gated green via Xcode MCP (`BuildProject`, tab windowtab1
 **NEW issues from Daniel's run:** #1723/#1724/#1725 (UX/log noise), #1726 (RealityKit grid+precise-drag+click-select+hi-res+agent-render).
 **HOLD until Daniel explicitly confirms codex's image/layout fixes:** #1707 PDF render path, #1721 drag-drop-library, ContentView image/layout chrome. STAY OFF ContentView*/LayoutMode/image-render files.
 **Memory:** manager-operating-model, fix-then-sweep-for-siblings, no-xcodebuild-test (swiftlint pre-commit gate; build via MCP only; one build at a time), finder-like-ui, knowledge-consistency-mandate.
+
+## Manager tick — 2026-06-06 ~8:40pm ADT
+- 0.0.2 HEAD: 048c40ed (pushed). SidebarView split (#1703) shipped + built green.
+- IN FLIGHT: tmux `f_codex_ux` (gpt-5.4, worktree ~/code/fichero-sidebar-ux, branch
+  ux/sidebar-toolbar) working #1723 (surface Mind Palace/Research/Model Comparison/
+  chat-with-docs in sidebar) + #1724 (collapse 2 confusing left toggles + clearer
+  Library icon). Code-only; manager gates+merges.
+- NEW BUG filed: #1727 (new library gets no Inbox — root cause in library.py create_library;
+  fix = idempotent ensure-Inbox on create+open). Queued for backend/codex lane.
+- #1726 RealityKit grew an annotation axis (agent arrange + notes/people in 3D, esp. work view).
+- REMAINING #1703 splits (gpt-5.3-codex-spark, mechanical): WelcomeView ~830,
+  DocumentInspectorInfoTab ~803, SidebarItemRow ~784.
+- HOLD (await Daniel's nod on codex image fixes): #1707 PDF render, #1721 drag-drop-library,
+  ContentView image-render chrome.
+- f_backend = Daniel's live :8765 server — never touch. f_codex (old) idle.
+- LOOP: waking ~every 30 min to gate finished workers + keep the queue moving.
