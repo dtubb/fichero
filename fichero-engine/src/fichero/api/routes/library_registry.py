@@ -1,14 +1,19 @@
-"""Known library registry persistence (#1131).
+"""Known library registry persistence (#1131, #1661).
 
 Endpoints for managing the backend's registry of known .fichero libraries.
 The registry enables CLI operations like listing available libraries and
-switching between them.
+switching between them, and the SwiftUI sidebar's "Close Library" action.
+
+The registry is GLOBAL — it records every .fichero package the app/CLI has
+opened, independent of which library is currently active. It is therefore
+stored in the engine's global library database (``settings.global_library_path``)
+and these endpoints do NOT require an ``X-Fichero-Library-Path`` header.
 
 Endpoints:
   GET /api/registry                 — List all known libraries
   POST /api/registry/add            — Add a library path to registry
   POST /api/registry/update-access  — Mark library as accessed (for sorting)
-  DELETE /api/registry/{path}       — Remove from registry
+  DELETE /api/registry/{path}       — Remove from registry (idempotent)
 """
 
 from __future__ import annotations
@@ -20,17 +25,31 @@ from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from fichero.api.main import get_library_database
 from fichero.db import Database
+from fichero.db_manager import db_manager
 from fichero.models import KnownLibrary, LibraryRegistryResponse
+from fichero.storage import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def get_global_database() -> Database:
+    """FastAPI dependency: return the engine's GLOBAL library database.
+
+    The known-library registry is app-wide, not scoped to any one library,
+    so it lives in the global library package (``global.fichero``) and is
+    reachable with no ``X-Fichero-Library-Path`` header. The package and its
+    DuckDB file are created on first access by the DatabaseManager.
+    """
+    return db_manager.get_database(str(settings.global_library_path))
+
+
 @router.get("/registry", response_model=LibraryRegistryResponse)
-def list_known_libraries(db: Database = Depends(get_library_database)) -> LibraryRegistryResponse:
-    """List all known libraries in the registry.
+def list_known_libraries(
+    db: Database = Depends(get_global_database),
+) -> LibraryRegistryResponse:
+    """List all known libraries in the global registry.
 
     Returns libraries sorted by last_accessed descending, with most
     recently accessed libraries first for CLI "recent" list UX.
@@ -53,14 +72,14 @@ def list_known_libraries(db: Database = Depends(get_library_database)) -> Librar
 def add_known_library(
     path: str,
     name: str | None = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_global_database),
 ) -> KnownLibrary:
-    """Add a library path to the known libraries registry.
+    """Add a library path to the global known-libraries registry.
 
     Args:
         path: Absolute path to the .fichero package (must be expanded already)
         name: Optional display name (defaults to package basename)
-        db: Database instance injected by FastAPI
+        db: Global registry database injected by FastAPI
 
     Returns:
         The KnownLibrary record that was created or updated.
@@ -111,7 +130,7 @@ def add_known_library(
 @router.post("/registry/update-access")
 def update_library_access(
     path: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_global_database),
 ) -> KnownLibrary:
     """Mark a library as accessed (update last_accessed timestamp).
 
@@ -120,7 +139,7 @@ def update_library_access(
 
     Args:
         path: Absolute path to the .fichero package
-        db: Database instance injected by FastAPI
+        db: Global registry database injected by FastAPI
 
     Returns:
         The updated KnownLibrary record
@@ -150,41 +169,39 @@ def update_library_access(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.delete("/registry/{library_path}")
+@router.delete("/registry/{library_path:path}")
 def remove_known_library(
     library_path: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_global_database),
 ) -> dict:
-    """Remove a library from the known libraries registry.
+    """Remove a library from the global known-libraries registry.
 
-    The library path is URL-encoded in the route param. Returns empty
-    response with 204 on success.
+    The library path is URL-encoded in the route param (handles spaces).
+    Idempotent: removing a path that isn't registered is a no-op that still
+    returns 200, so the SwiftUI "Close Library" action and the CLI can close
+    a library without worrying about stale state.
 
     Args:
         library_path: URL-encoded absolute path to the .fichero package
-        db: Database instance injected by FastAPI
+        db: Global registry database injected by FastAPI
 
     Raises:
-        404: If the library is not in the registry
-        500: If database operation fails
+        500: If the database operation fails
     """
-    # Decode the URL-encoded path
+    # Decode the URL-encoded path (handles spaces and other reserved chars)
     path = unquote(library_path)
     pkg_path = Path(path).expanduser().resolve()
 
     try:
         existing = db.query(KnownLibrary, path=str(pkg_path))
         if not existing:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Library not in registry: {path}",
-            )
+            # Idempotent no-op — the library is already absent from the registry.
+            logger.info("Library not in registry (no-op remove): %s", pkg_path)
+            return {"status": "not_registered", "path": str(pkg_path)}
 
-        library = existing[0]
-        db.delete(library)
+        for library in existing:
+            db.delete(library)
         return {"status": "removed", "path": str(pkg_path)}
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error("Failed to remove known library: %s", e)
         raise HTTPException(status_code=500, detail=str(e)) from e

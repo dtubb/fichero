@@ -138,7 +138,7 @@ async def get_source_file(
 
     from fichero.storage import resolve_source
 
-    source_path = resolve_source(doc)
+    source_path = resolve_source(doc, library_root=db.path.parent)
 
     if not source_path:
         logger.warning(
@@ -231,7 +231,7 @@ async def debug_document_paths(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
-    source_path = resolve_source(doc)
+    source_path = resolve_source(doc, library_root=db.path.parent)
     thumb_path = _thumb_path(doc.id, package_path)
 
     return DocumentDebugResponse(

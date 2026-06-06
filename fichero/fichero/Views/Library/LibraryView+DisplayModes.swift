@@ -166,13 +166,14 @@ extension LibraryView {
                 }
                 // Eager prefetch: warm the thumbnail cache as soon as the folder
                 // contents arrive so fast-scrolling sees images not placeholders (#719).
-                // Only file docs have backend thumbnails; folders use SF icons locally.
+                // Imported IIIF/W3C pages are `docType == .page` + `fileType == .image`,
+                // so include page images as well as top-level image files.
                 .task(id: filteredDocuments.map(\.id).joined()) {
                     guard !Task.isCancelled else { return }
-                    let fileIds = filteredDocuments
-                        .filter { $0.docType == .file && $0.fileType != .pdf }
+                    let imageIds = filteredDocuments
+                        .filter { $0.fileType == .image && $0.docType != .folder }
                         .map(\.id)
-                    await libraryManager.globalLibrary?.storageService.prefetchThumbnails(fileIds)
+                    await libraryManager.globalLibrary?.storageService.prefetchThumbnails(imageIds)
                 }
             }
         }

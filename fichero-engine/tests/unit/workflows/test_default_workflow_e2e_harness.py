@@ -32,7 +32,7 @@ from fichero.models import Artifact, DocType, Document, FileType, Workflow
 from fichero.workflows.builder import build_graph
 from fichero.workflows.default_workflows import _load_preset_files
 from fichero.workflows import registry as workflow_registry
-from fichero.workflows.runtime import build_initial_state, to_workflow_def
+from fichero.workflows.runtime import build_initial_state, create_compiled_app, to_workflow_def
 
 # Import workflow tools for registry side effects before build_graph().
 import fichero.workflows.tools  # noqa: F401
@@ -59,9 +59,7 @@ def test_catalogue_default_workflow_lands_artifacts_and_kg_rows(
     )
     db = db_manager.get_database(library_path)
 
-    before_claim_rows = db.all(KnowledgeClaim)
-    before_claim_ids = {claim.id for claim in before_claim_rows}
-    before_claims = len(before_claim_rows)
+    before_claims = len(db.all(KnowledgeClaim))
     before_entities = len(db.all(KnowledgeEntity))
 
     workflow = _load_catalogue_workflow()
@@ -86,6 +84,104 @@ def test_catalogue_default_workflow_lands_artifacts_and_kg_rows(
         before_entities=before_entities,
         before_claims=before_claims,
     )
+
+
+def test_catalogue_default_workflow_processes_imported_pdf_page_children(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Imported PDF page children should receive artifacts and KG claims."""
+
+    _install_deterministic_workflow_stubs(monkeypatch)
+    library_path, parent_doc_id, page_doc_ids = _seed_imported_pdf_page_library(tmp_path)
+    db = db_manager.get_database(library_path)
+
+    before_claims = len(db.all(KnowledgeClaim))
+    before_entities = len(db.all(KnowledgeEntity))
+
+    workflow = _load_catalogue_workflow()
+    state = build_initial_state(
+        {"selected_doc_ids": [parent_doc_id]},
+        library_path=str(library_path),
+    )
+    state["workflow_id"] = workflow.id
+    state["task_id"] = "test-imported-pdf-page-catalogue"
+
+    final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
+
+    _assert_workflow_completed(final_state)
+    parent_doc = db.get(Document, parent_doc_id)
+    assert parent_doc is not None
+    assert parent_doc.page_content == "Catalogue narrative for the regression fixture."
+
+    assert len(db.all(KnowledgeEntity)) > before_entities
+    assert len(db.all(KnowledgeClaim)) > before_claims
+    for page_doc_id in page_doc_ids:
+        artifacts = db.query(Artifact, document_id=page_doc_id)
+        assert any(a.artifact_type == "transcription" for a in artifacts)
+        assert any(a.artifact_type == "people" for a in artifacts)
+
+        claims = db.query(KnowledgeClaim, source_document_id=page_doc_id)
+        assert any(
+            claim.text == "Regression Person signed the fixture deed."
+            and claim.entity_ids
+            for claim in claims
+        )
+
+
+def test_catalogue_live_graph_waits_for_all_merge_inputs_before_catalogue(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """#1665: live/checkpointed execution must not catalogue before KG writes."""
+
+    _install_deterministic_workflow_stubs(monkeypatch)
+    library_path, parent_doc_id, _page_doc_ids = _seed_imported_pdf_page_library(tmp_path)
+    db = db_manager.get_database(library_path)
+    workflow = _load_catalogue_workflow()
+    app, checkpointer = create_compiled_app(
+        workflow,
+        db_path=db.path,
+        enable_parallel=True,
+        skip_cache=True,
+    )
+    state = build_initial_state(
+        {"selected_doc_ids": [parent_doc_id]},
+        library_path=str(library_path),
+    )
+    state["workflow_id"] = workflow.id
+    state["task_id"] = "test-live-catalogue-fanin"
+    config = {"configurable": {"thread_id": "test-live-catalogue-fanin"}}
+
+    events: list[tuple[str, str]] = []
+
+    async def run() -> dict:
+        async for event in app.astream_events(state, config=config, version="v2"):
+            kind = event.get("event")
+            name = event.get("name")
+            if (
+                kind in {"on_chain_start", "on_chain_end"}
+                and isinstance(name, str)
+                and name not in {"__start__", "LangGraph"}
+                and not name.startswith("Runnable")
+            ):
+                events.append((kind, name))
+        checkpoint = await checkpointer.aget_tuple(config)
+        assert checkpoint is not None
+        return checkpoint.checkpoint.get("channel_values", {})
+
+    final_state = asyncio.run(run())
+    _assert_workflow_completed(final_state)
+
+    def event_index(kind: str, name: str) -> int:
+        try:
+            return events.index((kind, name))
+        except ValueError as exc:  # pragma: no cover - assertion message path
+            raise AssertionError(f"missing event {(kind, name)!r} in {events!r}") from exc
+
+    catalogue_start = event_index("on_chain_start", "Catalogue")
+    assert event_index("on_chain_end", "Extract All Entities") < catalogue_start
+    assert event_index("on_chain_end", "Write KG") < catalogue_start
 
 
 @pytest.mark.parametrize(
@@ -178,9 +274,6 @@ def _install_deterministic_workflow_stubs(
     async def fake_citations_extract(*args, **kwargs):
         return {"text": "", "value": [], "cached": False}
 
-    async def fake_citations_extract(*args, **kwargs):
-        return {"text": "", "value": [], "cached": False}
-
     monkeypatch.setattr("fichero.llm.resolve_model_alias", resolve_alias)
     monkeypatch.setattr(
         "fichero.workflows.tools.extract_all.chat_structured_with_fallback",
@@ -204,6 +297,10 @@ def _install_deterministic_workflow_stubs(
         fake_citations_extract,
     )
     async def _noop_cleanup(*args, **kwargs):
+        state = kwargs.get("state") or {}
+        assert "extract_all" in (state.get("outputs") or {}), (
+            "folder cleanup must not run before extract_all output exists"
+        )
         return {"text": "", "value": [], "cached": False}
     for _tool in (
         "people_folder_cleanup",
@@ -267,6 +364,56 @@ def _seed_fixture_library(
     # query the doc that catalogue actually writes to.
     catalogue_target_id = folder.id if selection_shape == "folder" else source_doc.id
     return library_path, selected_doc_id, source_doc.id, catalogue_target_id
+
+
+def _seed_imported_pdf_page_library(tmp_path: Path) -> tuple[Path, str, list[str]]:
+    library_path = tmp_path / "imported-pages.fichero"
+    seed(library_path)
+    db = db_manager.get_database(library_path)
+
+    source_file = tmp_path / "marshall-imported.pdf"
+    source_file.write_bytes(b"%PDF-1.4\n% regression fixture\n")
+
+    parent_doc = Document(
+        id="marshall-imported-pdf",
+        name="Marshall imported PDF",
+        path=str(source_file),
+        doc_type=DocType.file,
+        file_type=FileType.pdf,
+    )
+    pages = [
+        Document(
+            id="marshall-imported-page-1",
+            parent_id=parent_doc.id,
+            name="Marshall imported PDF p. 1",
+            doc_type=DocType.page,
+            sequence=1,
+            page_content=FIXTURE_TEXT,
+            metadata={
+                "page_number": 1,
+                "transcription": FIXTURE_TEXT,
+                "text_length": len(FIXTURE_TEXT),
+            },
+        ),
+        Document(
+            id="marshall-imported-page-2",
+            parent_id=parent_doc.id,
+            name="Marshall imported PDF p. 2",
+            doc_type=DocType.page,
+            sequence=2,
+            page_content=FIXTURE_TEXT,
+            metadata={
+                "page_number": 2,
+                "transcription": FIXTURE_TEXT,
+                "text_length": len(FIXTURE_TEXT),
+            },
+        ),
+    ]
+    db.save(parent_doc)
+    for page in pages:
+        db.save(page)
+
+    return library_path, parent_doc.id, [page.id for page in pages]
 
 
 def _load_catalogue_workflow():

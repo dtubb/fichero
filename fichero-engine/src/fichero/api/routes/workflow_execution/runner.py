@@ -118,6 +118,22 @@ def _classify_provider_error(error_text: str) -> dict[str, str]:
     }
 
 
+def _missing_exit_nodes(
+    exit_node_ids: set[str],
+    completed_exit_nodes: set[str],
+) -> set[str]:
+    """Return graph exit nodes that never completed.
+
+    LangGraph can end the event stream without raising even when a downstream
+    user node started but never produced an ``on_chain_end`` event. Treating
+    that as success hides missing artifacts/KG rows from SwiftUI, so the
+    runner must fail loud before recording workflow_completed.
+    """
+    if not exit_node_ids:
+        return set()
+    return set(exit_node_ids) - set(completed_exit_nodes)
+
+
 # =============================================================================
 # Python Code Generation
 # =============================================================================
@@ -597,7 +613,14 @@ async def _run_workflow_in_background(
         app, checkpointer = create_compiled_app(
             workflow_def,
             db_path=db.path,
-            enable_parallel=True,
+            # The LangGraph Send fan-out path can checkpoint a completed
+            # aggregate while failing to schedule downstream nodes under the
+            # live astream_events runner (#1665/#1668 repro: Catalogue pauses
+            # after transcribe with branch:to:Extract All Entities = None).
+            # Prefer correctness for app/CLI workflows: process all selected
+            # files inside the tool node until the dynamic fan-out path has a
+            # checkpointer-backed regression test.
+            enable_parallel=False,
             event_callback=emit_parallel_event,
             interrupt_before=request.interrupt_before or None,
             interrupt_after=request.interrupt_after or None,
@@ -622,15 +645,17 @@ async def _run_workflow_in_background(
         )
         initial_state["workflow_id"] = request.workflow_id
 
-        # Identify exit nodes (nodes with no outgoing edges) using raw IDs
-        exit_node_ids = set()
+        # Identify exit nodes (nodes with no outgoing edges). Workflow edges
+        # use raw node IDs, but LangGraph events use the display label when one
+        # exists, so completion tracking must compare against event names.
+        exit_node_event_names = set()
         all_source_nodes = {
             e.get("source") or e.get("source_node_id", "") for e in workflow.edges
         }
         for node in workflow.nodes:
             node_id = node.get("id", "")
             if node_id and node_id not in all_source_nodes:
-                exit_node_ids.add(node_id)
+                exit_node_event_names.add(node.get("label") or node_id)
 
         def _normalize_node_name(name: str) -> str:
             """Strip LangGraph internal suffixes to get the original node ID."""
@@ -641,7 +666,7 @@ async def _run_workflow_in_background(
             return name
 
 
-        logger.debug(f"Exit nodes for completion: {exit_node_ids}")
+        logger.debug(f"Exit nodes for completion: {exit_node_event_names}")
         completed_exit_nodes = set()
 
         # Stream execution events
@@ -902,14 +927,17 @@ async def _run_workflow_in_background(
                     )
 
                     # Track exit node completion (using normalized ID)
-                    if original_id in exit_node_ids:
+                    if original_id in exit_node_event_names:
                         completed_exit_nodes.add(original_id)
                         logger.info(
-                            f"Exit node completed: {original_id}, {len(completed_exit_nodes)}/{len(exit_node_ids)}"
+                            f"Exit node completed: {original_id}, {len(completed_exit_nodes)}/{len(exit_node_event_names)}"
                         )
 
                         # Check if all exit nodes are done
-                        if exit_node_ids and completed_exit_nodes >= exit_node_ids:
+                        if (
+                            exit_node_event_names
+                            and completed_exit_nodes >= exit_node_event_names
+                        ):
                             logger.info("All exit nodes completed, ending stream")
                             break
 
@@ -920,6 +948,17 @@ async def _run_workflow_in_background(
             if checkpoint_tuple
             else {}
         )
+
+        missing_exit_nodes = _missing_exit_nodes(
+            exit_node_event_names,
+            completed_exit_nodes,
+        )
+        if missing_exit_nodes:
+            missing_list = ", ".join(sorted(missing_exit_nodes))
+            raise RuntimeError(
+                "Workflow stream ended before exit node(s) completed: "
+                f"{missing_list}"
+            )
 
         # Store final state
         state["status"] = "completed"

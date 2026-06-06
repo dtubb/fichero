@@ -176,6 +176,14 @@ extension ContentView {
         availablePreviewModes.count > 1
     }
 
+    /// Library/Search own the stable reading workspace: Library/List,
+    /// Document Canvas, Reading/WebKit, plus the window-level inspector.
+    /// This is independent of the current layout so toolbar pane buttons
+    /// don't disappear when previews are temporarily hidden.
+    var supportsReadingWorkspace: Bool {
+        sidebarMode == .library || sidebarMode == .search
+    }
+
     /// Available display modes for the current sidebar mode.
     /// Library is icon-only in 0.0.1 unless advanced views are explicitly enabled.
     var availableViewDisplayModes: [ViewDisplayMode] {
@@ -574,13 +582,19 @@ extension ContentView {
         if let encoded = try? JSONEncoder().encode(newSelection) {
             browserSelectionData = encoded
         }
-        // Note: previously this auto-synced detailDocument from selection
-        // so single-clicks in the grid would swap the preview pane. Per
-        // Daniel's intended click model (#772): single-click should only
-        // update the right inspector (via inspectorDocument's
-        // browserSelection priority), NOT the preview pane. detailDocument
-        // is now only mutated by handleDoubleClick (and explicit
-        // openSelectedDocument keyboard shortcut + sidebar selection).
+        guard let firstId = newSelection.first,
+              let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),
+              BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
+                layoutMode: currentLayoutMode,
+                selectedDocumentId: firstId,
+                currentDetailDocumentId: detailDocument?.id
+              ) else {
+            if newSelection.isEmpty {
+                detailDocument = nil
+            }
+            return
+        }
+        detailDocument = doc
     }
 
     /// Handles `.onChange(of: detailDocument)`.

@@ -1,17 +1,25 @@
 # Frontend Development Standards
 
-**⚠️ IMPORTANT**: Fichero is **100% SwiftUI**. See `SWIFTUI_PRINCIPLES.md` for mandatory guidelines.
+**⚠️ IMPORTANT**: Fichero is **SwiftUI-first**. See `SWIFTUI_PRINCIPLES.md` for mandatory guidelines.
+
+> **Updated 2026-06-06:** "100% SwiftUI / NO AppKit" is aspirational, not
+> literal. The current codebase keeps ~8 *sanctioned* `NSViewRepresentable`
+> bridges where SwiftUI genuinely can't reach: PDFKit rendering + zoom, the
+> image magnifier / cursor tracking, scroll-wheel zoom, Quick Look, and
+> rich/plain-text editors (~18 files `import AppKit`). The rule is **SwiftUI-first,
+> AppKit only behind an isolated bridge** — see `docs/CLAUDE.md` → "SwiftUI-first".
+> The old `APPKIT_FINAL_AUDIT.md` referenced below has been retired.
 
 ## SwiftUI-Only Policy
 
-**NO AppKit** - We use pure SwiftUI except in absolutely unavoidable cases:
+**SwiftUI-first** — avoid AppKit except in the sanctioned bridge cases above:
 - ❌ No NSView wrapping
 - ❌ No AppKit controls
 - ❌ No manual layout constraints
 - ❌ No NotificationCenter for app logic
 
 **Before using AppKit:**
-1. Look in demo code: `/Users/dtubb/code/fichero_main/fichero/sample_code` and `/Users/dtubb/code/fichero_main/fichero/sample_code/FoodTruckBuildingASwiftUIMultiplatformApp`
+1. Look in demo code: `/Users/danieltubb/code/fichero/fichero/sample_code` and `/Users/danieltubb/code/fichero/fichero/sample_code/FoodTruckBuildingASwiftUIMultiplatformApp`
 2. Check `Sosumi MCP Tool` for SwiftUI equivalent
 3. Search Ref MCP Tool for documentation
 4. Verify there's no SwiftUI-native solution
@@ -47,8 +55,12 @@ Use these BEFORE implementing custom solutions!
 - **Documentation**: Use /// docstrings for public APIs
 
 ### Architecture
-- **Pure SwiftUI**: No AppKit view hierarchy
+- **SwiftUI-first**: AppKit only behind sanctioned `NSViewRepresentable` bridges (see note at top)
 - **MVVM Pattern**: Separate Views, ViewModels, and Models
+  > **Updated 2026-06-06:** in practice the app uses `@MainActor ObservableObject`
+  > services injected via `@EnvironmentObject` (per-library / per-window) rather
+  > than per-view ViewModels — see `docs/CLAUDE.md` → "Multi-Window & Multi-Library
+  > Architecture". Treat "MVVM" loosely: state lives in stores/services, views stay thin.
 - **Dependency Injection**: Use @EnvironmentObject for services (never create in views)
 - **Reactive Programming**: Use @Observable (iOS 17+) or Combine
 - **Thread Safety**: Use @MainActor for UI updates (not DispatchQueue.main)

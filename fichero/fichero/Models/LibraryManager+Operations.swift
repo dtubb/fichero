@@ -146,6 +146,42 @@ extension LibraryManager {
         saveOpenLibraryPaths()
     }
 
+    /// Close a library AND unregister it from the global known-library
+    /// registry (#1661). The .fichero package on disk is left untouched — this
+    /// only removes the library from the open set and the registry, so it
+    /// stops appearing in the sidebar and `library list`.
+    ///
+    /// The Global/Local library can't be closed.
+    func closeAndUnregisterLibrary(_ id: UUID) {
+        guard id != Self.globalLibraryId else {
+            libraryManagerLogger.warning("Cannot close Global library")
+            return
+        }
+        guard let library = getLibrary(id: id) else { return }
+
+        let path = library.url.path
+        let apiClient = library.apiClient
+
+        // Remove from the open set immediately so the UI updates without
+        // waiting on the network. The registry DELETE is idempotent on the
+        // backend, so ordering doesn't matter for correctness.
+        closeLibrary(id)
+
+        // Best-effort unregister from the global registry. Failure here is
+        // non-fatal — the library is already gone from the app's open set.
+        let encoded = path.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? path
+        Task {
+            do {
+                try await apiClient.delete("/registry/\(encoded)")
+                libraryManagerLogger.info("Unregistered library from registry: \(path, privacy: .public)")
+            } catch {
+                libraryManagerLogger.error(
+                    "Failed to unregister library \(path, privacy: .public): \(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
     // Save a library to a new URL (for Save As or initial save)
     // swiftlint:disable:next function_body_length
     func saveLibrary(_ id: UUID, to url: URL) throws {

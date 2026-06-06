@@ -733,6 +733,16 @@
         "response_model": "ArtifactListResponse"
       },
       {
+        "method": "POST",
+        "path": "/artifacts/",
+        "operation_id": "create_artifact_api_artifacts__post",
+        "summary": "Create Artifact",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ArtifactCreateRequest",
+        "response_model": "ArtifactResponse"
+      },
+      {
         "method": "GET",
         "path": "/artifacts/document/{doc_id}",
         "operation_id": "list_document_artifacts_api_artifacts_document__doc_id__get",

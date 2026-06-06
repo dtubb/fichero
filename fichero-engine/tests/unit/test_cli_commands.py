@@ -881,6 +881,51 @@ def test_artifacts_list_still_works():
     assert call[1] == "doc-7"
 
 
+def test_import_manifest_prints_artifact_counts(monkeypatch, tmp_path):
+    """The manifest importer summary must expose artifact rows.
+
+    Imported transcripts/entities are first-class backend artifacts; hiding
+    their counts in CLI output made it look like import skipped them.
+    """
+    from fichero.manifest_import import ImportSummary
+
+    manifest = tmp_path / "manifest.jsonl"
+    manifest.write_text("", encoding="utf-8")
+    library = tmp_path / "library.fichero"
+
+    def fake_import_manifest_via_http(**kwargs):
+        assert kwargs["manifest_path"] == manifest
+        assert kwargs["library_path"] == library
+        return ImportSummary(
+            manifest=str(manifest),
+            library_path=str(library),
+            nodes_seen=6,
+            pages_seen=5,
+            documents_created=6,
+            documents_skipped=0,
+            entities_created=12,
+            entities_reused=3,
+            artifacts_created=5,
+            artifacts_skipped=1,
+            claims_created=7,
+            claims_skipped=2,
+        )
+
+    monkeypatch.setattr(
+        "fichero.manifest_import.import_manifest_via_http",
+        fake_import_manifest_via_http,
+    )
+
+    result = runner.invoke(
+        cli.app,
+        ["import-manifest", "--manifest", str(manifest), "--library", str(library)],
+    )
+
+    assert result.exit_code == 0
+    assert "artifacts_created: 5" in result.output
+    assert "artifacts_skipped: 1" in result.output
+
+
 # -- import --recursive ---------------------------------------------------
 def test_import_directory_recursive(tmp_path):
     """A directory PATH should fan out into per-file imports.

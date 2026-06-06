@@ -104,6 +104,12 @@ def test_cloudstorage_box_path_allowed():
     assert _is_allowed_library_path(str(p)) is True
 
 
+def test_home_code_path_allowed():
+    """Corpus/dev libraries under ~/code are allowed."""
+    p = Path.home() / "code" / "marshall_diaries" / "Marshall.fichero"
+    assert _is_allowed_library_path(str(p)) is True
+
+
 def test_non_fichero_suffix_rejected():
     """A path without a .fichero suffix is rejected."""
     p = Path.home() / "Documents" / "notes.txt"

@@ -12,6 +12,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "NotesBr
 /// needs no SidebarMode wiring.
 struct NotesBrowserView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var apiClient: APIClient
     @StateObject private var service = NoteService()
 
     @State private var kindFilter: String = ""        // "" = all kinds
@@ -259,6 +260,7 @@ struct NotesBrowserView: View {
     // MARK: - Actions
 
     private func reload() async {
+        service.libraryPath = apiClient.currentLibraryPath
         await service.loadAll(kind: kindFilter, tag: tagFilter, query: searchText)
     }
 

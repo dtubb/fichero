@@ -2410,6 +2410,57 @@
       }
     },
     "/api/artifacts/": {
+      "post": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Create Artifact",
+        "description": "Create a processing artifact for a document.",
+        "operationId": "create_artifact_api_artifacts__post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "get": {
         "tags": [
           "artifacts"
@@ -9962,19 +10013,8 @@
           "library"
         ],
         "summary": "List Known Libraries",
-        "description": "List all known libraries in the registry.\n\nReturns libraries sorted by last_accessed descending, with most\nrecently accessed libraries first for CLI \"recent\" list UX.",
+        "description": "List all known libraries in the global registry.\n\nReturns libraries sorted by last_accessed descending, with most\nrecently accessed libraries first for CLI \"recent\" list UX.",
         "operationId": "list_known_libraries_api_registry_get",
-        "parameters": [
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -9982,16 +10022,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LibraryRegistryResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -10005,7 +10035,7 @@
           "library"
         ],
         "summary": "Add Known Library",
-        "description": "Add a library path to the known libraries registry.\n\nArgs:\n    path: Absolute path to the .fichero package (must be expanded already)\n    name: Optional display name (defaults to package basename)\n    db: Database instance injected by FastAPI\n\nReturns:\n    The KnownLibrary record that was created or updated.\n\nRaises:\n    400: If path is invalid or not a .fichero package\n    500: If database operation fails",
+        "description": "Add a library path to the global known-libraries registry.\n\nArgs:\n    path: Absolute path to the .fichero package (must be expanded already)\n    name: Optional display name (defaults to package basename)\n    db: Global registry database injected by FastAPI\n\nReturns:\n    The KnownLibrary record that was created or updated.\n\nRaises:\n    400: If path is invalid or not a .fichero package\n    500: If database operation fails",
         "operationId": "add_known_library_api_registry_add_post",
         "parameters": [
           {
@@ -10025,15 +10055,6 @@
               "type": "string",
               "nullable": true,
               "title": "Name"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
             }
           }
         ],
@@ -10067,7 +10088,7 @@
           "library"
         ],
         "summary": "Update Library Access",
-        "description": "Mark a library as accessed (update last_accessed timestamp).\n\nUsed by CLI to track which libraries the user works with, enabling\nsorting by recency in list operations.\n\nArgs:\n    path: Absolute path to the .fichero package\n    db: Database instance injected by FastAPI\n\nReturns:\n    The updated KnownLibrary record\n\nRaises:\n    404: If the library is not in the registry\n    500: If database operation fails",
+        "description": "Mark a library as accessed (update last_accessed timestamp).\n\nUsed by CLI to track which libraries the user works with, enabling\nsorting by recency in list operations.\n\nArgs:\n    path: Absolute path to the .fichero package\n    db: Global registry database injected by FastAPI\n\nReturns:\n    The updated KnownLibrary record\n\nRaises:\n    404: If the library is not in the registry\n    500: If database operation fails",
         "operationId": "update_library_access_api_registry_update_access_post",
         "parameters": [
           {
@@ -10077,15 +10098,6 @@
             "schema": {
               "type": "string",
               "title": "Path"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
             }
           }
         ],
@@ -10119,7 +10131,7 @@
           "library"
         ],
         "summary": "Remove Known Library",
-        "description": "Remove a library from the known libraries registry.\n\nThe library path is URL-encoded in the route param. Returns empty\nresponse with 204 on success.\n\nArgs:\n    library_path: URL-encoded absolute path to the .fichero package\n    db: Database instance injected by FastAPI\n\nRaises:\n    404: If the library is not in the registry\n    500: If database operation fails",
+        "description": "Remove a library from the global known-libraries registry.\n\nThe library path is URL-encoded in the route param (handles spaces).\nIdempotent: removing a path that isn't registered is a no-op that still\nreturns 200, so the SwiftUI \"Close Library\" action and the CLI can close\na library without worrying about stale state.\n\nArgs:\n    library_path: URL-encoded absolute path to the .fichero package\n    db: Global registry database injected by FastAPI\n\nRaises:\n    500: If the database operation fails",
         "operationId": "remove_known_library_api_registry__library_path__delete",
         "parameters": [
           {
@@ -10129,15 +10141,6 @@
             "schema": {
               "type": "string",
               "title": "Library Path"
-            }
-          },
-          {
-            "name": "X-Fichero-Library-Path",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "X-Fichero-Library-Path"
             }
           }
         ],
@@ -33708,6 +33711,81 @@
         "title": "Artifact",
         "description": "Output from any processing step - versioned and chainable.\n\nArtifacts are results from AI/ML processing:\n- Transcription (OCR text)\n- Entities (people, places, dates)\n- Summary\n- Translation\n- Grouping suggestions (which pages belong together)\n- Segmentation suggestions (regions within a page)\n\nVersioning: Multiple versions can exist for the same document.\nChaining: One artifact can be derived from another (OCR \u2192 cleaned text).\n\nStructural artifacts (grouping, segmentation) suggest changes that\nbecome Document structure when user approves."
       },
+      "ArtifactCreateRequest": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "artifact_type": {
+            "type": "string",
+            "title": "Artifact Type"
+          },
+          "content": {
+            "type": "string",
+            "nullable": true,
+            "title": "Content"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Data"
+          },
+          "source_artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Artifact Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "default": 1
+          },
+          "source_document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Document Id"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "step_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Step Name"
+          },
+          "confidence": {
+            "type": "number",
+            "nullable": true,
+            "title": "Confidence"
+          },
+          "reviewed": {
+            "type": "boolean",
+            "title": "Reviewed",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "artifact_type"
+        ],
+        "title": "ArtifactCreateRequest",
+        "description": "Create a processing artifact for a document.\n\nThis is the public API counterpart to workflow tools saving\n``Artifact`` rows internally. Importers use it so imported, already\nprocessed corpora materialize the same transcription/entity/catalogue\nartifacts SwiftUI reads after an in-app workflow run."
+      },
       "ArtifactListResponse": {
         "properties": {
           "items": {
@@ -39887,6 +39965,13 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
+          },
+          "source_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Document Ids"
           }
         },
         "type": "object",

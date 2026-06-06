@@ -16,14 +16,15 @@ extension Notification.Name {
 }
 
 /// Tab selection for document inspector. Order matters — left-to-right is
-/// content / knowledge graph / artifacts / info, per Daniel's mental model:
-/// "the document itself" → "the structured world inside it" → "the raw
-/// outputs" → "metadata about the document".
+/// content / entities / knowledge graph / artifacts / info, per Daniel's
+/// mental model: "the document itself" → "extracted entities" → "structured
+/// claims" → "the raw outputs" → "metadata about the document".
 enum InspectorTab: String, CaseIterable, Identifiable {
     case content = "Content"
     case outline = "Outline"
     case annotations = "Annotations"
     case notes = "Notes"
+    case entities = "Entities"
     case knowledgeGraph = "Knowledge Graph"
     case artifacts = "Artifacts"
     case edits = "Edits"
@@ -37,6 +38,7 @@ enum InspectorTab: String, CaseIterable, Identifiable {
         case .outline: return "list.bullet.indent"
         case .annotations: return "highlighter"
         case .notes: return "pencil.and.scribble"
+        case .entities: return "person.text.rectangle"
         case .knowledgeGraph: return "point.3.connected.trianglepath.dotted"
         case .artifacts: return "shippingbox"
         case .edits: return "slider.horizontal.3"
@@ -55,8 +57,10 @@ enum InspectorTab: String, CaseIterable, Identifiable {
             return "Annotations — view and edit highlights and notes on this document"
         case .notes:
             return "Notes — free-text research notes linked to this document"
+        case .entities:
+            return "Entities — extracted people, places, organizations, and concepts"
         case .knowledgeGraph:
-            return "Knowledge graph — the entities (people, places, organizations…) found in this document"
+            return "Knowledge graph — structured SVO claims and interpretations for this document"
         case .artifacts:
             return "Artifacts — outputs generated for this document, such as summaries and transcripts"
         case .edits:
@@ -231,6 +235,8 @@ struct DocumentInspector: View {
             DocumentInspectorAnnotationsTab(document: doc)
         case .notes:
             DocumentNotesTab(document: doc)
+        case .entities:
+            entitiesTab(for: doc)
         case .knowledgeGraph:
             knowledgeGraphTab(for: doc)
         case .artifacts:
@@ -244,7 +250,9 @@ struct DocumentInspector: View {
 
     private func availableTabs(for doc: Document?) -> [InspectorTab] {
         guard let doc else { return InspectorTab.allCases }
-        var tabs: [InspectorTab] = [.content, .outline, .annotations, .notes, .knowledgeGraph, .artifacts]
+        var tabs: [InspectorTab] = [
+            .content, .outline, .annotations, .notes, .entities, .knowledgeGraph, .artifacts
+        ]
         if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
             tabs.append(.edits)
         }
@@ -260,6 +268,17 @@ struct DocumentInspector: View {
             DocumentInspectorContentV2(document: doc, mode: .pageContentOnly)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    @ViewBuilder
+    private func entitiesTab(for doc: Document) -> some View {
+        DocumentInspectorEntitiesTab(
+            documentId: doc.id,
+            entityService: entityService,
+            onEntitySelect: { entityId in
+                kgFocusState.focusEntity(entityId: entityId)
+            }
+        )
     }
 
     @ViewBuilder

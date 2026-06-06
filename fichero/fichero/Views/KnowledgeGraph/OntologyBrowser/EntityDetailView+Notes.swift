@@ -13,6 +13,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "EntityN
 struct EntityNotesSection: View {
     let entityId: String
 
+    @EnvironmentObject private var apiClient: APIClient
     @StateObject private var service = NoteService()
     @State private var newText = ""
     @State private var editingId: String?
@@ -34,6 +35,7 @@ struct EntityNotesSection: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .task(id: entityId) {
             guard !entityId.isEmpty else { return }
+            service.libraryPath = apiClient.currentLibraryPath
             await service.load(linkedEntityId: entityId)
         }
     }

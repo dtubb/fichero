@@ -8,12 +8,18 @@ import SwiftUI
 struct ZoomableImagePreview: View {
     /// Local file URL. Required for the plain-preview path; ignored when
     /// `renderedImage` is provided (editor / backend-rendered preview mode).
-    var url: URL
+    var url: URL?
     var documentId: String?
     /// Backend-rendered NSImage (editor mode). When non-nil, takes precedence
     /// over `url` for display — the URL is still used as a stable identity key
     /// but image data comes from this override (#1402).
-    var renderedImage: NSImage? = nil
+    var renderedImage: NSImage?
+
+    init(url: URL? = nil, documentId: String? = nil, renderedImage: NSImage? = nil) {
+        self.url = url
+        self.documentId = documentId
+        self.renderedImage = renderedImage
+    }
 
     private static let logger = Logger(subsystem: "app.fichero.fichero", category: "ZoomableImagePreview")
 
@@ -165,30 +171,34 @@ struct ZoomableImagePreview: View {
             // Main content area
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 0) {
-                    // Image view with cursor tracking and integrated loupe
-                    ImageWithCursorTracking(
-                        url: url,
-                        overrideImage: renderedImage,
-                        scale: $scale,
-                        cursorPosition: $cursorPosition,
-                        imageSize: $imageSize,
-                        visibleRect: $visibleRect,
-                        minScale: minScale,
-                        maxScale: maxScale,
-                        loupeEnabled: loupeEnabled,
-                        loupeLocked: loupeLocked,
-                        loupeMagnification: Binding(
-                            get: { CGFloat(loupeMagnification) },
-                            set: { loupeMagnification = Double($0) }
-                        ),
-                        loupeSize: Binding(
-                            get: { CGFloat(loupeSize) },
-                            set: { loupeSize = Double($0) }
-                        ),
-                        coordinator: $imageCoordinator
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .background(Color(nsColor: NSColor(white: 0.88, alpha: 1.0)))
+                    if renderedImage != nil || url != nil {
+                        ImageWithCursorTracking(
+                            url: url ?? URL(fileURLWithPath: "/"),
+                            overrideImage: renderedImage,
+                            scale: $scale,
+                            cursorPosition: $cursorPosition,
+                            imageSize: $imageSize,
+                            visibleRect: $visibleRect,
+                            minScale: minScale,
+                            maxScale: maxScale,
+                            loupeEnabled: loupeEnabled,
+                            loupeLocked: loupeLocked,
+                            loupeMagnification: Binding(
+                                get: { CGFloat(loupeMagnification) },
+                                set: { loupeMagnification = Double($0) }
+                            ),
+                            loupeSize: Binding(
+                                get: { CGFloat(loupeSize) },
+                                set: { loupeSize = Double($0) }
+                            ),
+                            coordinator: $imageCoordinator
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    } else {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
 
                     // Bottom magnifier panel
                     if magnifierEnabled, let img = image {
@@ -217,6 +227,7 @@ struct ZoomableImagePreview: View {
                         .frame(height: CGFloat(panelHeight))
                     }
                 }
+                .background(Color(nsColor: NSColor(white: 0.88, alpha: 1.0)))
 
                 // Mini-map navigator (top right) - show when zoomed in (visible rect < full) or loupe active.
                 // visibleRect starts at (0,0,0,0) before layout completes, which would
@@ -240,11 +251,11 @@ struct ZoomableImagePreview: View {
             }
         }
         .onAppear {
-            image = renderedImage ?? NSImage(contentsOf: url)
+            image = renderedImage ?? url.flatMap { NSImage(contentsOf: $0) }
             if let img = image {
                 imageSize = img.size
-            } else {
-                Self.logger.error("Failed to load NSImage from: \(url.path)")
+            } else if renderedImage == nil {
+                Self.logger.error("Failed to load NSImage from: \(url?.path ?? "<no url>")")
             }
             if let key = scaleKey {
                 if let saved = loadSavedScale(for: key) {
@@ -253,11 +264,11 @@ struct ZoomableImagePreview: View {
             }
         }
         .onChange(of: url) { _, newURL in
-            image = renderedImage ?? NSImage(contentsOf: newURL)
+            image = renderedImage ?? newURL.flatMap { NSImage(contentsOf: $0) }
             if let img = image {
                 imageSize = img.size
-            } else {
-                Self.logger.error("Failed to load NSImage from: \(newURL.path)")
+            } else if renderedImage == nil {
+                Self.logger.error("Failed to load NSImage from: \(newURL?.path ?? "<no url>")")
             }
             // Restore saved zoom for this scaleKey if present. Otherwise
             // leave scale untouched — the NSViewRepresentable's

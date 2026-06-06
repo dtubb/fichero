@@ -42,7 +42,81 @@ class ArtifactListResponse(BaseModel):
     count: int
 
 
+class ArtifactCreateRequest(BaseModel):
+    """Create a processing artifact for a document.
+
+    This is the public API counterpart to workflow tools saving
+    ``Artifact`` rows internally. Importers use it so imported, already
+    processed corpora materialize the same transcription/entity/catalogue
+    artifacts SwiftUI reads after an in-app workflow run.
+    """
+
+    document_id: str
+    artifact_type: str
+    content: Optional[str] = None
+    data: Optional[dict] = None
+    source_artifact_id: Optional[str] = None
+    version: int = 1
+    source_document_id: Optional[str] = None
+    run_id: Optional[str] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    step_name: Optional[str] = None
+    confidence: Optional[float] = None
+    reviewed: bool = False
+
+
+def _artifact_response(artifact: Artifact) -> ArtifactResponse:
+    return ArtifactResponse(
+        id=artifact.id,
+        document_id=artifact.document_id,
+        artifact_type=artifact.artifact_type,
+        content=artifact.content,
+        data=artifact.data,
+        version=artifact.version,
+        provider=artifact.provider,
+        model=artifact.model,
+        confidence=artifact.confidence,
+        reviewed=artifact.reviewed,
+        created_at=artifact.created_at.isoformat() if artifact.created_at else "",
+    )
+
+
 # Routes
+
+
+@router.post("/", response_model=ArtifactResponse)
+async def create_artifact(
+    request: ArtifactCreateRequest,
+    db: Database = Depends(get_library_database),
+) -> ArtifactResponse:
+    """Create a processing artifact for a document."""
+    doc = db.get(Document, request.document_id)
+    if not doc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Document not found: {request.document_id}",
+        )
+    artifact_type = request.artifact_type.strip()
+    if not artifact_type:
+        raise HTTPException(status_code=422, detail="artifact_type is required")
+    artifact = Artifact(
+        document_id=request.document_id,
+        artifact_type=artifact_type,
+        content=request.content,
+        data=request.data,
+        source_artifact_id=request.source_artifact_id,
+        version=request.version,
+        source_document_id=request.source_document_id,
+        run_id=request.run_id,
+        provider=request.provider,
+        model=request.model,
+        step_name=request.step_name,
+        confidence=request.confidence,
+        reviewed=request.reviewed,
+    )
+    db.save(artifact)
+    return _artifact_response(artifact)
 
 
 @router.get("/")
@@ -68,22 +142,7 @@ async def list_all_artifacts(
     total = len(artifacts)
     artifacts = artifacts[offset : offset + limit]
 
-    response_artifacts = [
-        ArtifactResponse(
-            id=a.id,
-            document_id=a.document_id,
-            artifact_type=a.artifact_type,
-            content=a.content,
-            data=a.data,
-            version=a.version,
-            provider=a.provider,
-            model=a.model,
-            confidence=a.confidence,
-            reviewed=a.reviewed,
-            created_at=a.created_at.isoformat() if a.created_at else "",
-        )
-        for a in artifacts
-    ]
+    response_artifacts = [_artifact_response(a) for a in artifacts]
     return ArtifactListResponse(items=response_artifacts, count=total)
 
 
@@ -172,22 +231,7 @@ async def list_document_artifacts(
     artifacts = artifacts[offset : offset + limit]
 
     # Convert to response format
-    response_artifacts = [
-        ArtifactResponse(
-            id=a.id,
-            document_id=a.document_id,
-            artifact_type=a.artifact_type,
-            content=a.content,
-            data=a.data,
-            version=a.version,
-            provider=a.provider,
-            model=a.model,
-            confidence=a.confidence,
-            reviewed=a.reviewed,
-            created_at=a.created_at.isoformat() if a.created_at else "",
-        )
-        for a in artifacts
-    ]
+    response_artifacts = [_artifact_response(a) for a in artifacts]
 
     return ArtifactListResponse(items=response_artifacts, count=total)
 
@@ -204,19 +248,7 @@ async def get_artifact(
             status_code=404, detail=f"Artifact not found: {artifact_id}"
         )
 
-    return ArtifactResponse(
-        id=artifact.id,
-        document_id=artifact.document_id,
-        artifact_type=artifact.artifact_type,
-        content=artifact.content,
-        data=artifact.data,
-        version=artifact.version,
-        provider=artifact.provider,
-        model=artifact.model,
-        confidence=artifact.confidence,
-        reviewed=artifact.reviewed,
-        created_at=artifact.created_at.isoformat() if artifact.created_at else "",
-    )
+    return _artifact_response(artifact)
 
 
 class ArtifactUpdate(BaseModel):
@@ -256,19 +288,7 @@ async def update_artifact(
 
     db.save(artifact)
 
-    return ArtifactResponse(
-        id=artifact.id,
-        document_id=artifact.document_id,
-        artifact_type=artifact.artifact_type,
-        content=artifact.content,
-        data=artifact.data,
-        version=artifact.version,
-        provider=artifact.provider,
-        model=artifact.model,
-        confidence=artifact.confidence,
-        reviewed=artifact.reviewed,
-        created_at=artifact.created_at.isoformat() if artifact.created_at else "",
-    )
+    return _artifact_response(artifact)
 
 
 @router.delete("/{artifact_id}", status_code=204)

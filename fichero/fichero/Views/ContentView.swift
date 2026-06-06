@@ -105,10 +105,9 @@ struct ContentView: View {
     @SceneStorage("showSidebar") var showSidebar: Bool = true
     @SceneStorage("showInspectorSidebar") var showInspectorSidebar: Bool = true
     @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool = true
-    // Per-window visibility of the two reading-surface panes (#1448). Each
-    // window keeps its own choice via @SceneStorage (same pattern as the
-    // sidebar/inspector toggles). The library list/grid is intentionally NOT
-    // toggleable — it is always present as the spine of the workspace.
+    // Per-window visibility of the three middle panes (#1448). Each window
+    // keeps its own choice via @SceneStorage (same pattern as the
+    // sidebar/inspector toggles), so selection never remounts or hides panes.
     @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool = true
     @SceneStorage("showReadingPane") var showReadingPane: Bool = true
     // When false (default), selecting a different item NEVER changes which
@@ -651,8 +650,8 @@ extension ContentView {
         // bar) instead of having a custom .principal field competing
         // with SearchView's own .searchable.
 
-        // Document grid toggle — hides/shows the icon-grid/list middle column
-        // so the preview pane can fill the full content area (#616).
+        // Library pane toggle — hides/shows the icon-grid/list middle column.
+        // In widescreen this does not change the canvas/reading pane set.
         ToolbarItem(placement: .automatic) {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -661,40 +660,61 @@ extension ContentView {
             } label: {
                 Image(systemName: showDocumentGrid ? "rectangle.split.2x1" : "rectangle")
             }
-            .help(showDocumentGrid ? "Hide Document Grid (⌘⇧G)" : "Show Document Grid (⌘⇧G)")
+            .help(showDocumentGrid ? "Hide Library Pane (⌘⇧G)" : "Show Library Pane (⌘⇧G)")
             .keyboardShortcut("g", modifiers: [.command, .shift])
         }
 
         // Per-window show/hide for the document canvas and the reading/WebKit
-        // pane (#1448). Only meaningful in the reading-capable modes where those
-        // panes exist, so they're gated on showsPreviewPane to avoid dead
-        // controls elsewhere. The library list/grid stays always-present.
-        if showsPreviewPane {
+        // pane (#1448). Keep these controls present throughout Library/Search,
+        // even when the current layout is None/Standard, so panes are a stable
+        // user choice rather than selection/layout side effects.
+        if supportsReadingWorkspace {
             ToolbarItem(placement: .automatic) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        showDocumentCanvas.toggle()
+                        let next = ReadingWorkspacePaneTogglePolicy.toggledPane(
+                            layoutMode: currentLayoutMode,
+                            paneFlag: showDocumentCanvas
+                        )
+                        currentLayoutMode = next.layoutMode
+                        showDocumentCanvas = next.paneVisible
+                        viewSettings.previewMode = normalizedPreviewMode(.widescreen)
                     }
                 } label: {
                     Image(systemName: "doc.richtext")
                 }
-                .help(showDocumentCanvas ? "Hide Document Canvas" : "Show Document Canvas")
-                // The canvas/reading split only exists in the widescreen reading
-                // layout — disable the toggles elsewhere so they're not dead
-                // controls (#1516).
-                .disabled(currentLayoutMode != .widescreen)
+                .help(
+                    ReadingWorkspacePaneTogglePolicy.isPaneVisible(
+                        layoutMode: currentLayoutMode,
+                        paneFlag: showDocumentCanvas
+                    )
+                        ? "Hide Document Canvas"
+                        : "Show Document Canvas"
+                )
             }
 
             ToolbarItem(placement: .automatic) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        showReadingPane.toggle()
+                        let next = ReadingWorkspacePaneTogglePolicy.toggledPane(
+                            layoutMode: currentLayoutMode,
+                            paneFlag: showReadingPane
+                        )
+                        currentLayoutMode = next.layoutMode
+                        showReadingPane = next.paneVisible
+                        viewSettings.previewMode = normalizedPreviewMode(.widescreen)
                     }
                 } label: {
                     Image(systemName: "text.book.closed")
                 }
-                .help(showReadingPane ? "Hide Reading Pane" : "Show Reading Pane")
-                .disabled(currentLayoutMode != .widescreen)
+                .help(
+                    ReadingWorkspacePaneTogglePolicy.isPaneVisible(
+                        layoutMode: currentLayoutMode,
+                        paneFlag: showReadingPane
+                    )
+                        ? "Hide Reading Pane"
+                        : "Show Reading Pane"
+                )
             }
         }
 

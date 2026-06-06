@@ -21,6 +21,11 @@ struct MailStyleRow: View {
     private static let thumbWidth: CGFloat = 28
     private static let thumbHeight: CGFloat = 36
 
+    fileprivate static func canDecodeLocalImagePath(_ path: String) -> Bool {
+        (path as NSString).isAbsolutePath
+            && FileManager.default.fileExists(atPath: path)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             // Thumbnail to the left — same source as the icon view's
@@ -178,6 +183,7 @@ struct MailStyleRow: View {
                 PDFThumbnailView(path: path, size: size)
                     .clipped()
             } else if document.docType == .page,
+                      document.fileType != .image,
                       let pdfPath = resolvedParentPDFPath(for: document),
                       !pdfPath.isEmpty {
                 let pageIndex = max(0, (document.sequence ?? 1) - 1)
@@ -190,9 +196,16 @@ struct MailStyleRow: View {
                 // Decode off the main thread (cached) — avoids scroll jank from
                 // synchronous NSImage(contentsOfFile:) in body (#1509). Still
                 // skips the OCR-text TextPreviewThumbnail branch for images (#1458).
-                LocalImageThumbnailView(path: path, documentId: document.id)
-                    .frame(width: size.width, height: size.height)
-                    .clipped()
+                if Self.canDecodeLocalImagePath(path) {
+                    LocalImageThumbnailView(path: path, documentId: document.id)
+                        .frame(width: size.width, height: size.height)
+                        .clipped()
+                } else {
+                    LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: size.width, height: size.height)
+                        .clipped()
+                }
             } else if let preview = document.pageContent, !preview.isEmpty {
                 TextPreviewThumbnail(text: preview)
                     .frame(width: size.width, height: size.height)
@@ -314,6 +327,7 @@ struct DocumentThumbnailView: View {
                     PDFThumbnailView(path: path, size: CGSize(width: 240, height: 320))
                         .clipped()
                 } else if document.docType == .page,
+                          document.fileType != .image,
                           let pdfPath = resolvedParentPDFPath(for: document),
                           !pdfPath.isEmpty {
                     let pageIndex = max(0, (document.sequence ?? 1) - 1)
@@ -328,9 +342,16 @@ struct DocumentThumbnailView: View {
                     // Decode off the main thread (cached) — avoids scroll jank
                     // from synchronous NSImage(contentsOfFile:) in body (#1509).
                     // Still skips the OCR-text TextPreviewThumbnail branch (#1458).
-                    LocalImageThumbnailView(path: path, documentId: document.id)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
+                    if MailStyleRow.canDecodeLocalImagePath(path) {
+                        LocalImageThumbnailView(path: path, documentId: document.id)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                    } else {
+                        LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                    }
                 } else if let preview = document.pageContent, !preview.isEmpty {
                     TextPreviewThumbnail(text: preview)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)

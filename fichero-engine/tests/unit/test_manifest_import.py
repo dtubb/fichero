@@ -179,6 +179,7 @@ def test_import_creates_documents_entities_claims(client, db, tmp_path):
     assert summary.pages_seen == 1
     assert summary.documents_created == 2
     assert summary.entities_created == 2
+    assert summary.artifacts_created == 3
     assert summary.claims_created == 1
     assert summary.warnings == []
 
@@ -203,6 +204,23 @@ def test_import_creates_documents_entities_claims(client, db, tmp_path):
     ent_items = entities["items"] if isinstance(entities, dict) else entities
     names = {e["canonical_name"] for e in ent_items}
     assert {"Marshall", "Istmina"} <= names
+    by_entity_name = {e["canonical_name"]: e for e in ent_items}
+    assert page["id"] in by_entity_name["Marshall"]["source_document_ids"]
+    assert page["id"] in by_entity_name["Istmina"]["source_document_ids"]
+
+    page_artifacts = client.get(
+        f"/api/artifacts/document/{page['id']}?include_descendants=false"
+    ).json()
+    artifact_types = {a["artifact_type"] for a in page_artifacts["items"]}
+    assert {"transcription", "people", "places"} <= artifact_types
+    transcription = next(
+        a for a in page_artifacts["items"] if a["artifact_type"] == "transcription"
+    )
+    assert transcription["content"] == "Marshall went to Istmina this afternoon."
+    people = next(a for a in page_artifacts["items"] if a["artifact_type"] == "people")
+    assert people["data"]["items"][0]["name"] == "Marshall"
+    places = next(a for a in page_artifacts["items"] if a["artifact_type"] == "places")
+    assert places["data"]["items"][0]["name"] == "Istmina"
 
     claims = client.get("/api/claims?limit=500").json()
     claim_items = claims["items"] if isinstance(claims, dict) else claims
@@ -452,6 +470,8 @@ def test_import_is_idempotent(client, db, tmp_path):
     assert second.documents_skipped == 2
     assert second.entities_created == 0
     assert second.entities_reused == 2
+    assert second.artifacts_created == 0
+    assert second.artifacts_skipped == 3
     assert second.claims_created == 0
     assert second.claims_skipped == 1
 
@@ -462,3 +482,11 @@ def test_import_is_idempotent(client, db, tmp_path):
     claims = client.get("/api/claims?limit=500").json()
     claim_items = claims["items"] if isinstance(claims, dict) else claims
     assert len(claim_items) == 1
+    artifacts = client.get("/api/artifacts/?limit=500").json()
+    artifact_items = artifacts["items"] if isinstance(artifacts, dict) else artifacts
+    imported = [
+        a
+        for a in artifact_items
+        if a["artifact_type"] in {"transcription", "people", "places"}
+    ]
+    assert len(imported) == 3

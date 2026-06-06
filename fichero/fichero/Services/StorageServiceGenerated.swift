@@ -1,3 +1,4 @@
+import AppKit
 import FicheroAPIClient
 import Foundation
 import ImageIO
@@ -31,6 +32,7 @@ class StorageServiceGenerated: ObservableObject {
     /// switching libraries naturally resets.
     private var thumbnailCache: [String: Image] = [:]
     private var displayCache: [String: Image] = [:]
+    private var displayNSImageCache: [String: NSImage] = [:]
 
     /// Upper bound on the thumbnail cache so opening a folder with thousands
     /// of images can't grow it without limit (#719). When exceeded, the
@@ -98,6 +100,22 @@ class StorageServiceGenerated: ObservableObject {
         return image
     }
 
+    /// Get display-quality image for zoomable AppKit-backed canvases.
+    /// Uses the same generated storage endpoint as `getDisplayImage`, not the
+    /// image-edit preview endpoint.
+    func getDisplayNSImage(_ docId: String) async throws -> NSImage {
+        if let cached = displayNSImageCache[docId] {
+            return cached
+        }
+        logger.info("Loading display NSImage for document: \(docId)")
+        let data = try await fetchImageData(from: displayURL(for: docId))
+        guard let image = NSImage(data: data) else {
+            throw StorageServiceError.invalidImageData
+        }
+        displayNSImageCache[docId] = image
+        return image
+    }
+
     /// Warm the thumbnail cache for a batch of documents (#719).
     /// Fires concurrent fetches (max 6 at a time) only for uncached ids.
     /// Errors are swallowed — this is best-effort prefetch, not critical load.
@@ -125,6 +143,7 @@ class StorageServiceGenerated: ObservableObject {
     func invalidateImageCache(for docId: String) {
         thumbnailCache.removeValue(forKey: docId)
         displayCache.removeValue(forKey: docId)
+        displayNSImageCache.removeValue(forKey: docId)
         thumbnailCacheOrder.removeAll { $0 == docId }
     }
 

@@ -148,7 +148,6 @@
 		20D8EE472F4BE285006950A3 /* ActionPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE462F4BE285006950A3 /* ActionPickerView.swift */; };
 		20D8EE492F4BED4B006950A3 /* ActionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE482F4BED4B006950A3 /* ActionRowView.swift */; };
 		20D8EE4B2F4BED57006950A3 /* ActionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D8EE4A2F4BED57006950A3 /* ActionDetailView.swift */; };
-		2133BF0B15424FFDBA37619B /* FolderContentsGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */; };
 		21B8070BD02B0087A8B83D04 /* MindPalaceTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55DF06231EA1679E067896E3 /* MindPalaceTheme.swift */; };
 		230EB3E3E820CFEC092A3C49 /* ResearchTasksPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5287875D44BA51CD93CA12F8 /* ResearchTasksPane.swift */; };
 		23CB922EB4868B4EF1C20215 /* PDFReadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74515FA0260E31DB7F74A1D3 /* PDFReadingView.swift */; };
@@ -636,7 +635,6 @@
 		6650E28284D750D9076B0612 /* ContentView+ReadingLayout.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+ReadingLayout.swift"; sourceTree = "<group>"; };
 		72D05E0BE3C8D1AEA1AA3A8D /* ImageMarqueeOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageMarqueeOverlay.swift; sourceTree = "<group>"; };
 		74515FA0260E31DB7F74A1D3 /* PDFReadingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFReadingView.swift; sourceTree = "<group>"; };
-		747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderContentsGrid.swift; sourceTree = "<group>"; };
 		74B8B6B4FF52EDA955679CF0 /* ResearchWorkspaceView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchWorkspaceView.swift; sourceTree = "<group>"; };
 		75371C597B1E4689B6E1803F /* TriggerEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerEditorView.swift; sourceTree = "<group>"; };
 		7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleEditorView.swift; sourceTree = "<group>"; };
@@ -1539,7 +1537,6 @@
 				A1FB1D7E2F0420A90023093C /* DocumentInspector.swift */,
 				D11000012F99900100ABC001 /* DocumentInspector */,
 				108 /* EditorView.swift */,
-				747AC1DB57A54EA79D0817E8 /* FolderContentsGrid.swift */,
 				A1FB1D7F2F0420A90023093C /* LibraryView.swift */,
 				A1BFB3FA2F057B9300EAA55A /* CheckerboardPattern.swift */,
 				A1BFB3FB2F057B9300EAA55A /* FolderAccessManager.swift */,
@@ -2061,7 +2058,6 @@
 				202674BF2F478647008EAB5D /* SidebarActions.swift in Sources */,
 				A1BFB2DC2F042E5100EAA55A /* SettingsView.swift in Sources */,
 				008 /* EditorView.swift in Sources */,
-				2133BF0B15424FFDBA37619B /* FolderContentsGrid.swift in Sources */,
 				A1BFB4502F0AABA600EAA55A /* ItemTypeRegistry.swift in Sources */,
 				011 /* SearchView.swift in Sources */,
 				A1FB1D7B2F0420310023093C /* AIModelCatalog.swift in Sources */,

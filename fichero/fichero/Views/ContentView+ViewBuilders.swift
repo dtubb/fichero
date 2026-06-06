@@ -200,11 +200,6 @@ extension ContentView {
             contentWithOptionalModeRail
                 .overlay { paneFocusIndicator(for: .content) }
                 .frame(maxWidth: .infinity)
-        } else if !showDocumentGrid {
-            // Grid hidden (#616): show only the preview/editor at full width.
-            previewView
-                .overlay { paneFocusIndicator(for: .preview) }
-                .frame(maxWidth: .infinity)
         } else {
             // Folders now show the current layout so the WebKit/reading
             // pane remains visible for folder-level aggregate content (#1405).
@@ -216,40 +211,60 @@ extension ContentView {
             Group {
                 switch layout {
                 case .none:
-                    contentWithOptionalModeRail
-                        .overlay { paneFocusIndicator(for: .content) }
-                        .frame(maxWidth: .infinity)
-
-                case .standard:
-                    VSplitView {
+                    if showDocumentGrid {
                         contentWithOptionalModeRail
                             .overlay { paneFocusIndicator(for: .content) }
-                            .frame(minHeight: 150, idealHeight: 180)
-
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        // Grid hidden (#616): show only the preview/editor at full width.
                         previewView
                             .overlay { paneFocusIndicator(for: .preview) }
-                            .frame(minHeight: 400, idealHeight: 720)
+                            .frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: .infinity)
+
+                case .standard:
+                    if showDocumentGrid {
+                        VSplitView {
+                            contentWithOptionalModeRail
+                                .overlay { paneFocusIndicator(for: .content) }
+                                .frame(minHeight: 150, idealHeight: 180)
+
+                            previewView
+                                .overlay { paneFocusIndicator(for: .preview) }
+                                .frame(minHeight: 400, idealHeight: 720)
+                        }
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        previewView
+                            .overlay { paneFocusIndicator(for: .preview) }
+                            .frame(maxWidth: .infinity)
+                    }
 
                 case .widescreen:
-                    // Library list is always present; the document canvas and the
-                    // reading/WebKit pane are each independently toggleable
-                    // per-window (#1448). When the canvas is hidden the reading
-                    // pane takes over the freed space so there's never a gap.
+                    // Library/list, document canvas, and reading/WebKit are
+                    // independently toggleable per-window (#1448). Hiding the
+                    // Library pane must not collapse the reading workspace into
+                    // a different single-preview layout.
+                    let panePlan = WidescreenPanePlan.make(
+                        showDocumentGrid: showDocumentGrid,
+                        showDocumentCanvas: showDocumentCanvas,
+                        showReadingPane: showReadingPane
+                    )
                     HStack(spacing: 0) {
-                        // When both reading panes are hidden the list takes the
-                        // whole width instead of staying a fixed column with a
-                        // blank grey area beside it (#1516). list-only is a valid
-                        // state — the library list is the always-present spine.
-                        contentWithOptionalModeRail
-                            .overlay { paneFocusIndicator(for: .content) }
-                            .frame(
-                                width: (showDocumentCanvas || showReadingPane)
-                                    ? clampedWidescreenContentPaneWidth : .infinity
-                            )
+                        if panePlan.showsLibraryPane {
+                            // When both reading panes are hidden the list takes the
+                            // whole width instead of staying a fixed column with a
+                            // blank grey area beside it (#1516). list-only is a valid
+                            // state — the library list is the always-present spine.
+                            contentWithOptionalModeRail
+                                .overlay { paneFocusIndicator(for: .content) }
+                                .frame(
+                                    width: (panePlan.showsCanvasPane || panePlan.showsReadingPane)
+                                        ? clampedWidescreenContentPaneWidth : .infinity
+                                )
+                        }
 
-                        if showDocumentCanvas || showReadingPane {
+                        if panePlan.showsLibraryDivider {
                             ResizableDivider(
                                 width: $widescreenContentPaneWidth,
                                 minWidth: ContentView.contentListMinWidth,
@@ -258,10 +273,10 @@ extension ContentView {
                             )
                         }
 
-                        if showDocumentCanvas {
+                        if panePlan.showsCanvasPane {
                             widescreenCanvasPane
 
-                            if showReadingPane {
+                            if panePlan.showsCanvasReadingDivider {
                                 ResizableDivider(
                                     width: $pageContentPaneWidth,
                                     minWidth: 220,
@@ -271,7 +286,7 @@ extension ContentView {
                                 widescreenReadingPane
                                     .frame(width: CGFloat(pageContentPaneWidth))
                             }
-                        } else if showReadingPane {
+                        } else if panePlan.showsReadingPane {
                             widescreenReadingPane
                                 .frame(maxWidth: .infinity)
                         }
@@ -301,8 +316,14 @@ extension ContentView {
             .overlay { paneFocusIndicator(for: .preview) }
             .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
         } else {
+            let canvasDocument = CanvasDocumentPolicy.documentForCanvas(
+                selectedDocumentIds: browserSelection,
+                documents: documentStore.currentDocuments,
+                detailDocument: detailDocument,
+                inspectorDocument: inspectorDocument
+            )
             EditorView(
-                document: detailDocument,
+                document: canvasDocument,
                 showHeader: false,
                 onPDFPageIndexChange: { index in
                     syncGridSelectionToPDFPage(index: index)
@@ -362,8 +383,14 @@ extension ContentView {
                     Spacer(minLength: 0)
                 }
 
+                let previewDocument = CanvasDocumentPolicy.documentForCanvas(
+                    selectedDocumentIds: browserSelection,
+                    documents: documentStore.currentDocuments,
+                    detailDocument: detailDocument,
+                    inspectorDocument: inspectorDocument
+                )
                 EditorView(
-                    document: detailDocument,
+                    document: previewDocument,
                     onPDFPageIndexChange: { index in
                         syncGridSelectionToPDFPage(index: index)
                     }

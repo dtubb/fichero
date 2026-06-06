@@ -1,4 +1,6 @@
+import FicheroAPIClient
 import Foundation
+import OpenAPIRuntime
 import OSLog
 
 // MARK: - Note model
@@ -68,29 +70,74 @@ struct NoteCreateFreeBody: Encodable {
 @MainActor
 final class NoteService: ObservableObject {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "NoteService")
-    private let base = "http://127.0.0.1:8765/api/notes"
 
     @Published var notes: [NoteItem] = []
     @Published var isLoading = false
     @Published var error: String?
 
-    func load(linkedDocumentId: String) async {
+    /// Active library path, injected by the owning view before `load(...)`.
+    /// Kept for existing views, but transport uses the generated OpenAPI client.
+    var libraryPath: String? {
+        didSet { client.currentLibraryPath = libraryPath }
+    }
+
+    private let client: FicheroClient
+    private let decoder = JSONDecoder()
+
+    init(ficheroClient: FicheroClient = FicheroClient()) {
+        self.client = ficheroClient
+        self.libraryPath = ficheroClient.currentLibraryPath
+    }
+
+    private var headers: Operations.ListNotesApiNotesGet.Input.Headers {
+        .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+    }
+
+    private func note(from value: OpenAPIValueContainer) throws -> NoteItem {
+        guard let object = value.value else { throw NoteServiceError.emptyContainer }
+        let data = try JSONSerialization.data(withJSONObject: object)
+        return try decoder.decode(NoteItem.self, from: data)
+    }
+
+    private func note(from generated: Components.Schemas.Note) throws -> NoteItem {
+        guard let id = generated.id else { throw NoteServiceError.missingId }
+        return NoteItem(
+            id: id,
+            title: generated.title,
+            body: generated.body ?? "",
+            kind: generated.kind?.rawValue ?? "zettel",
+            tags: generated.tags ?? [],
+            linkedDocumentIds: generated.linkedDocumentIds ?? [],
+            createdAt: generated.createdAt?.ISO8601Format() ?? "",
+            updatedAt: generated.updatedAt?.ISO8601Format() ?? ""
+        )
+    }
+
+    private func noteKind(_ kind: String?) -> Components.Schemas.NoteKind? {
+        guard let kind, !kind.isEmpty else { return nil }
+        return Components.Schemas.NoteKind(rawValue: kind)
+    }
+
+    private func load(query: Operations.ListNotesApiNotesGet.Input.Query) async {
         isLoading = true
         error = nil
         defer { isLoading = false }
         do {
-            guard var comps = URLComponents(string: base) else { return }
-            comps.queryItems = [URLQueryItem(name: "linked_document_id", value: linkedDocumentId)]
-            guard let url = comps.url else { return }
-            var req = URLRequest(url: url)
-            req.addEngineAuth()
-            let (data, _) = try await URLSession.shared.data(for: req)
-            let resp = try JSONDecoder().decode(NoteListResponse.self, from: data)
-            notes = resp.items
+            let response = try await client.api.listNotesApiNotesGet(.init(query: query, headers: headers))
+            guard case .ok(let okResponse) = response else {
+                notes = []
+                self.error = "Notes unavailable"
+                return
+            }
+            notes = try okResponse.body.json.items.map { try note(from: $0) }
         } catch {
             self.error = error.localizedDescription
             logger.error("load notes failed: \(error.localizedDescription)")
         }
+    }
+
+    func load(linkedDocumentId: String) async {
+        await load(query: .init(linkedDocumentId: linkedDocumentId))
     }
 
     /// Load all notes, optionally filtered by kind / tag / linked entity /
@@ -101,106 +148,68 @@ final class NoteService: ObservableObject {
         linkedEntityId: String? = nil,
         query: String? = nil
     ) async {
-        isLoading = true
-        error = nil
-        defer { isLoading = false }
-        do {
-            guard var comps = URLComponents(string: base) else { return }
-            var items: [URLQueryItem] = []
-            if let kind, !kind.isEmpty { items.append(URLQueryItem(name: "kind", value: kind)) }
-            if let tag, !tag.isEmpty { items.append(URLQueryItem(name: "tag", value: tag)) }
-            if let linkedEntityId, !linkedEntityId.isEmpty {
-                items.append(URLQueryItem(name: "linked_entity_id", value: linkedEntityId))
-            }
-            if let query, !query.isEmpty { items.append(URLQueryItem(name: "q", value: query)) }
-            comps.queryItems = items.isEmpty ? nil : items
-            guard let url = comps.url else { return }
-            var req = URLRequest(url: url)
-            req.addEngineAuth()
-            let (data, _) = try await URLSession.shared.data(for: req)
-            let resp = try JSONDecoder().decode(NoteListResponse.self, from: data)
-            notes = resp.items
-        } catch {
-            self.error = error.localizedDescription
-            logger.error("loadAll notes failed: \(error.localizedDescription)")
-        }
+        await load(query: .init(
+            kind: noteKind(kind),
+            tag: tag?.isEmpty == false ? tag : nil,
+            linkedEntityId: linkedEntityId?.isEmpty == false ? linkedEntityId : nil,
+            q: query?.isEmpty == false ? query : nil
+        ))
     }
 
     /// Create a free-floating note with no links (#1500).
     func createFree(body: String, kind: String) async throws -> NoteItem {
-        guard let url = URL(string: base) else { throw NoteServiceError.invalidURL }
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.addEngineAuth()
-        req.httpBody = try JSONEncoder().encode(NoteCreateFreeBody(title: nil, body: body, kind: kind))
-        let (data, _) = try await URLSession.shared.data(for: req)
-        let note = try JSONDecoder().decode(NoteItem.self, from: data)
+        let note = try await create(body: body, kind: kind)
         notes.insert(note, at: 0)
         return note
     }
 
     /// Load notes linked to a KG entity (#1501).
     func load(linkedEntityId: String) async {
-        isLoading = true
-        error = nil
-        defer { isLoading = false }
-        do {
-            guard var comps = URLComponents(string: base) else { return }
-            comps.queryItems = [URLQueryItem(name: "linked_entity_id", value: linkedEntityId)]
-            guard let url = comps.url else { return }
-            var req = URLRequest(url: url)
-            req.addEngineAuth()
-            let (data, _) = try await URLSession.shared.data(for: req)
-            let resp = try JSONDecoder().decode(NoteListResponse.self, from: data)
-            notes = resp.items
-        } catch {
-            self.error = error.localizedDescription
-            logger.error("load entity notes failed: \(error.localizedDescription)")
-        }
+        await load(query: .init(linkedEntityId: linkedEntityId))
     }
 
     /// Create a note linked to a KG entity. Defaults to `kind=reference`
     /// (entity bio/summary). (#1501)
     func create(body: String, linkedEntityId: String, kind: String = "reference") async throws -> NoteItem {
-        guard let url = URL(string: base) else { throw NoteServiceError.invalidURL }
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.addEngineAuth()
-        let payload = NoteCreateEntityBody(
-            title: nil, body: body, kind: kind, linkedEntityIds: [linkedEntityId]
-        )
-        req.httpBody = try JSONEncoder().encode(payload)
-        let (data, _) = try await URLSession.shared.data(for: req)
-        let note = try JSONDecoder().decode(NoteItem.self, from: data)
+        let note = try await create(body: body, kind: kind, linkedEntityIds: [linkedEntityId])
         notes.insert(note, at: 0)
         return note
     }
 
     func create(body: String, linkedDocumentId: String) async throws -> NoteItem {
-        guard let url = URL(string: base) else { throw NoteServiceError.invalidURL }
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.addEngineAuth()
-        let payload = NoteCreateBody(title: nil, body: body, linkedDocumentIds: [linkedDocumentId])
-        req.httpBody = try JSONEncoder().encode(payload)
-        let (data, _) = try await URLSession.shared.data(for: req)
-        let note = try JSONDecoder().decode(NoteItem.self, from: data)
+        let note = try await create(body: body, linkedDocumentIds: [linkedDocumentId])
         notes.insert(note, at: 0)
         return note
     }
 
+    private func create(
+        body: String,
+        kind: String? = nil,
+        linkedEntityIds: [String]? = nil,
+        linkedDocumentIds: [String]? = nil
+    ) async throws -> NoteItem {
+        let payload = Components.Schemas.FicheroApiRoutesNotesNoteCreateRequest(
+            body: body,
+            kind: noteKind(kind),
+            linkedEntityIds: linkedEntityIds,
+            linkedDocumentIds: linkedDocumentIds
+        )
+        let response = try await client.api.createNoteApiNotesPost(.init(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(payload)
+        ))
+        guard case .ok(let okResponse) = response else { throw NoteServiceError.unexpectedResponse }
+        return try note(from: try okResponse.body.json)
+    }
+
     func update(noteId: String, body: String) async throws -> NoteItem {
-        guard let url = URL(string: "\(base)/\(noteId)") else { throw NoteServiceError.invalidURL }
-        var req = URLRequest(url: url)
-        req.httpMethod = "PATCH"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.addEngineAuth()
-        req.httpBody = try JSONEncoder().encode(NotePatchBody(body: body))
-        let (data, _) = try await URLSession.shared.data(for: req)
-        let updated = try JSONDecoder().decode(NoteItem.self, from: data)
+        let response = try await client.api.patchNoteApiNotesNoteIdPatch(.init(
+            path: .init(noteId: noteId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(.init(body: body))
+        ))
+        guard case .ok(let okResponse) = response else { throw NoteServiceError.unexpectedResponse }
+        let updated = try note(from: try okResponse.body.json)
         if let idx = notes.firstIndex(where: { $0.id == noteId }) {
             notes[idx] = updated
         }
@@ -208,17 +217,27 @@ final class NoteService: ObservableObject {
     }
 
     func delete(noteId: String) async throws {
-        guard let url = URL(string: "\(base)/\(noteId)") else { throw NoteServiceError.invalidURL }
-        var req = URLRequest(url: url)
-        req.httpMethod = "DELETE"
-        req.addEngineAuth()
-        _ = try await URLSession.shared.data(for: req)
+        let response = try await client.api.deleteNoteApiNotesNoteIdDelete(.init(
+            path: .init(noteId: noteId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        ))
+        guard case .noContent = response else { throw NoteServiceError.unexpectedResponse }
         notes.removeAll { $0.id == noteId }
     }
 }
 
 enum NoteServiceError: LocalizedError {
     case invalidURL
+    case emptyContainer
+    case missingId
+    case unexpectedResponse
 
-    var errorDescription: String? { "Invalid URL" }
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL: return "Invalid URL"
+        case .emptyContainer: return "Note response was empty"
+        case .missingId: return "Note response was missing an id"
+        case .unexpectedResponse: return "Unexpected note response"
+        }
+    }
 }

@@ -194,6 +194,101 @@ class TestLibraryAutoRegistration:
         pass  # Covered by integration tests
 
 
+class TestGlobalRegistryHeaderless:
+    """The registry is GLOBAL — list/add/remove must work with NO
+    X-Fichero-Library-Path header and be shared across libraries (#1661).
+    """
+
+    @pytest.fixture
+    def global_client(self, tmp_path):
+        """Test client whose registry dependency points at a tmp global DB.
+
+        Sends NO X-Fichero-Library-Path header — proving the registry
+        endpoints are global and header-free.
+        """
+        from fastapi.testclient import TestClient
+
+        from fichero.api.main import app
+        from fichero.api.routes.library_registry import get_global_database
+
+        global_db = Database(path=tmp_path / "global.fichero" / "fichero.duckdb")
+        app.dependency_overrides[get_global_database] = lambda: global_db
+        try:
+            yield TestClient(app)
+        finally:
+            app.dependency_overrides.pop(get_global_database, None)
+            global_db.conn.close()
+
+    def test_list_empty_no_header(self, global_client):
+        """GET /api/registry works with no library header (was 422 before)."""
+        response = global_client.get("/api/registry")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 0
+        assert body["libraries"] == []
+
+    def test_add_then_list_no_header(self, global_client, tmp_path):
+        """POST /api/registry/add + GET /api/registry, no header."""
+        lib_path = tmp_path / "Headerless.fichero"
+        lib_path.mkdir(parents=True, exist_ok=True)
+
+        add = global_client.post("/api/registry/add", params={"path": str(lib_path)})
+        assert add.status_code == 200, add.text
+
+        listed = global_client.get("/api/registry")
+        assert listed.status_code == 200
+        paths = [lib["path"] for lib in listed.json()["libraries"]]
+        assert str(lib_path.resolve()) in paths
+
+    def test_remove_handles_spaces(self, global_client, tmp_path):
+        """DELETE /api/registry/{path} works for a path containing spaces."""
+        from urllib.parse import quote
+
+        lib_path = tmp_path / "My Marshall Library.fichero"
+        lib_path.mkdir(parents=True, exist_ok=True)
+        global_client.post("/api/registry/add", params={"path": str(lib_path)})
+
+        encoded = quote(str(lib_path.resolve()), safe="")
+        removed = global_client.delete(f"/api/registry/{encoded}")
+        assert removed.status_code == 200, removed.text
+        assert removed.json()["status"] == "removed"
+
+        # Gone from the list.
+        listed = global_client.get("/api/registry")
+        paths = [lib["path"] for lib in listed.json()["libraries"]]
+        assert str(lib_path.resolve()) not in paths
+
+    def test_remove_is_idempotent(self, global_client, tmp_path):
+        """Removing an unregistered library is a 200 no-op, not a 404."""
+        from urllib.parse import quote
+
+        lib_path = tmp_path / "NeverRegistered.fichero"
+        encoded = quote(str(lib_path.resolve()), safe="")
+        removed = global_client.delete(f"/api/registry/{encoded}")
+        assert removed.status_code == 200
+        assert removed.json()["status"] == "not_registered"
+
+    def test_registry_shared_across_libraries(self, global_client, tmp_path):
+        """A library added once is visible regardless of which library is
+        'active' — the registry is global, not per-library. We prove this by
+        adding under no header and confirming a second add under a (bogus)
+        library header still sees the same single global registry."""
+        lib_path = tmp_path / "Shared.fichero"
+        lib_path.mkdir(parents=True, exist_ok=True)
+        global_client.post("/api/registry/add", params={"path": str(lib_path)})
+
+        # Even with an unrelated library header, the listing is the same global
+        # registry (the dependency override ignores the header entirely).
+        listed = global_client.get(
+            "/api/registry",
+            headers={"X-Fichero-Library-Path": str(tmp_path / "Other.fichero")},
+        )
+        assert listed.status_code == 200
+        paths = [lib["path"] for lib in listed.json()["libraries"]]
+        assert str(lib_path.resolve()) in paths
+        assert listed.json()["count"] == 1
+
+
 # Placeholder fixtures — these would be provided by conftest.py in a real project
 @pytest.fixture
 def client(temp_library_path):

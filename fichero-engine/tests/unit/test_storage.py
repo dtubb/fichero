@@ -1,7 +1,7 @@
 """Unit tests for storage module."""
 import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 import tempfile
 import os
 
@@ -186,6 +186,39 @@ class TestResolveSource:
 
         result = resolve_source(doc)
         assert result == file
+
+    def test_library_relative_doc_path_resolves_under_current_library(self, tmp_path):
+        """Copied-in package paths should resolve after a library move/rename."""
+        from fichero.storage import resolve_source
+
+        library_root = tmp_path / "Renamed.fichero"
+        source = library_root / "files" / "ab" / "page.jpg"
+        source.parent.mkdir(parents=True)
+        source.touch()
+
+        doc = Mock()
+        doc.path = "files/ab/page.jpg"
+        doc.metadata = {}
+
+        result = resolve_source(doc, library_root=library_root)
+        assert result == source
+
+    def test_old_absolute_files_path_falls_back_to_current_library(self, tmp_path):
+        """Old absolute paths baking in a prior .fichero name should recover."""
+        from fichero.storage import resolve_source
+
+        old_root = tmp_path / "Old.fichero"
+        new_root = tmp_path / "New.fichero"
+        source = new_root / "files" / "cd" / "page.jpg"
+        source.parent.mkdir(parents=True)
+        source.touch()
+
+        doc = Mock()
+        doc.path = str(old_root / "files" / "cd" / "page.jpg")
+        doc.metadata = {}
+
+        result = resolve_source(doc, library_root=new_root)
+        assert result == source
 
     def test_bookmark_priority(self, tmp_path):
         """Bookmark should take priority over paths."""

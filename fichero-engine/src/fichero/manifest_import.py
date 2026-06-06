@@ -195,6 +195,8 @@ class ImportSummary:
     documents_skipped: int = 0
     entities_created: int = 0
     entities_reused: int = 0
+    artifacts_created: int = 0
+    artifacts_skipped: int = 0
     claims_created: int = 0
     claims_skipped: int = 0
     warnings: list[str] = field(default_factory=list)
@@ -209,6 +211,8 @@ class ImportSummary:
             "documents_skipped": self.documents_skipped,
             "entities_created": self.entities_created,
             "entities_reused": self.entities_reused,
+            "artifacts_created": self.artifacts_created,
+            "artifacts_skipped": self.artifacts_skipped,
             "claims_created": self.claims_created,
             "claims_skipped": self.claims_skipped,
             "warnings": self.warnings,
@@ -344,7 +348,47 @@ def entity_payload(entity: dict[str, Any], node: dict[str, Any]) -> dict[str, An
         "description": entity.get("description"),
         "language": entity.get("language") or node.get("language"),
         "metadata": metadata,
+        "source_document_ids": [],
     }
+
+
+def _entity_artifact_type(entity_type: str) -> str | None:
+    match entity_type:
+        case "person":
+            return "people"
+        case "location":
+            return "places"
+        case "organization":
+            return "organizations"
+        case "event":
+            return "events"
+        case "concept":
+            return "keywords"
+        case _:
+            return None
+
+
+def _entity_artifact_item(entity: dict[str, Any]) -> dict[str, Any]:
+    item: dict[str, Any] = {
+        "name": entity.get("canonical_name"),
+        "entity_type": entity.get("entity_type") or "other",
+        "aliases": entity.get("aliases") or [],
+        "description": entity.get("description"),
+        "language": entity.get("language"),
+        "external_id": entity.get("external_id"),
+        "metadata": entity.get("metadata") or {},
+    }
+    return {k: v for k, v in item.items() if v not in (None, "", [])}
+
+
+def _entity_artifact_content(artifact_type: str, items: list[dict[str, Any]]) -> str:
+    title = artifact_type.replace("_", " ").replace("-", " ").title()
+    lines = [f"## {title}"]
+    for item in items:
+        name = item.get("name")
+        if name:
+            lines.append(f"- {name}")
+    return "\n".join(lines)
 
 
 def claim_payload(
@@ -413,6 +457,22 @@ def _list_claim_external_ids(client: ManifestApiClient) -> set[str]:
         if ext:
             existing.add(str(ext))
     return existing
+
+
+def _list_artifact_keys(client: ManifestApiClient) -> set[tuple[str, str]]:
+    response = client.request("GET", "/artifacts/?limit=500")
+    items: list[dict[str, Any]] = []
+    if isinstance(response, dict):
+        items = list(response.get("items") or [])
+    elif isinstance(response, list):
+        items = response
+    keys: set[tuple[str, str]] = set()
+    for artifact in items:
+        doc_id = artifact.get("document_id")
+        artifact_type = artifact.get("artifact_type")
+        if doc_id and artifact_type:
+            keys.add((str(doc_id), str(artifact_type)))
+    return keys
 
 
 def _existing_doc_id_by_external(
@@ -642,6 +702,7 @@ def import_manifest(
             entity_id_by_key[str(name)] = str(existing["id"])
 
     for node in nodes:
+        source_document_id = doc_id_by_external.get(node["external_id"])
         for entity in node.get("entities") or []:
             name = entity.get("canonical_name")
             if not name:
@@ -651,16 +712,96 @@ def import_manifest(
                 # Reuse — register the external_id alias for claim refs.
                 if ext:
                     entity_id_by_key[ext] = entity_id_by_key[name]
+                if source_document_id:
+                    update_payload = entity_payload(entity, node)
+                    update_payload["id"] = entity_id_by_key[name]
+                    update_payload["source_document_ids"] = [source_document_id]
+                    client.request("POST", "/entities", update_payload)
                 summary.entities_reused += 1
                 continue
+            payload = entity_payload(entity, node)
+            if source_document_id:
+                payload["source_document_ids"] = [source_document_id]
             created = client.request(
-                "POST", "/entities", entity_payload(entity, node)
+                "POST", "/entities", payload
             )
             new_id = str(created["id"])
             entity_id_by_key[name] = new_id
             if ext:
                 entity_id_by_key[ext] = new_id
             summary.entities_created += 1
+
+    # --- artifacts (page-level processing outputs: transcript + entity lists) ---
+    existing_artifact_keys = _list_artifact_keys(client)
+    for node in nodes:
+        doc_id = doc_id_by_external.get(node["external_id"])
+        if not doc_id:
+            continue
+
+        text = (node.get("text") or "").strip()
+        if text:
+            key = (doc_id, "transcription")
+            if key in existing_artifact_keys:
+                summary.artifacts_skipped += 1
+            else:
+                client.request(
+                    "POST",
+                    "/artifacts/",
+                    {
+                        "document_id": doc_id,
+                        "artifact_type": "transcription",
+                        "content": text,
+                        "data": {
+                            "source": "manifest-import",
+                            "page_label": node.get("page_label"),
+                            "external_id": node.get("external_id"),
+                        },
+                        "provider": "manifest-importer",
+                        "model": CANONICAL_VERSION,
+                        "step_name": "import_manifest",
+                        "confidence": 1.0,
+                    },
+                )
+                existing_artifact_keys.add(key)
+                summary.artifacts_created += 1
+
+        grouped_entities: dict[str, list[dict[str, Any]]] = {}
+        for entity in node.get("entities") or []:
+            entity_type = entity.get("entity_type") or "other"
+            artifact_type = _entity_artifact_type(entity_type)
+            if not artifact_type:
+                continue
+            grouped_entities.setdefault(artifact_type, []).append(
+                _entity_artifact_item(entity)
+            )
+        for artifact_type, items in grouped_entities.items():
+            if not items:
+                continue
+            key = (doc_id, artifact_type)
+            if key in existing_artifact_keys:
+                summary.artifacts_skipped += 1
+                continue
+            client.request(
+                "POST",
+                "/artifacts/",
+                {
+                    "document_id": doc_id,
+                    "artifact_type": artifact_type,
+                    "content": _entity_artifact_content(artifact_type, items),
+                    "data": {
+                        "items": items,
+                        "source": "manifest-import",
+                        "page_label": node.get("page_label"),
+                        "external_id": node.get("external_id"),
+                    },
+                    "provider": "manifest-importer",
+                    "model": CANONICAL_VERSION,
+                    "step_name": "import_manifest",
+                    "confidence": 1.0,
+                },
+            )
+            existing_artifact_keys.add(key)
+            summary.artifacts_created += 1
 
     # --- claims ---
     existing_claim_externals = _list_claim_external_ids(client)

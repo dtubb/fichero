@@ -17,6 +17,7 @@ extension Notification.Name {
 struct DocumentInspectorAnnotationsTab: View {
     let document: Document
 
+    @EnvironmentObject private var apiClient: APIClient
     @StateObject private var service = AnnotationService()
     @ObservedObject private var claimFocusState = ClaimFocusState.shared
     @State private var newNoteText: String = ""
@@ -35,6 +36,7 @@ struct DocumentInspectorAnnotationsTab: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: document.id) {
+            service.libraryPath = apiClient.currentLibraryPath
             await service.load(documentId: document.id)
         }
         .sheet(item: $editingAnnotation) { annotation in

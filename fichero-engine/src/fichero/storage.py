@@ -182,7 +182,9 @@ def _display_path(doc_id: str, package_path: Path | None = None) -> Path:
 # =============================================================================
 
 
-def resolve_source(doc: "Document") -> Path | None:
+def resolve_source(
+    doc: "Document", library_root: "Path | str | None" = None
+) -> Path | None:
     """Resolve the source file for a document.
 
     Priority:
@@ -191,9 +193,13 @@ def resolve_source(doc: "Document") -> Path | None:
     3. metadata.source_path
     4. metadata.full_path
     5. metadata.local_path
+    6. library-relative fallback — re-root a copied-in ``files/…`` path under the
+       CURRENT library package, so a renamed/moved ``.fichero`` still resolves
+       images even though the stored absolute path baked in the old name.
 
     Args:
         doc: Document to resolve source for
+        library_root: the current ``.fichero`` package dir (e.g. ``db.path.parent``)
 
     Returns:
         Path to existing file, or None if not found
@@ -214,8 +220,17 @@ def resolve_source(doc: "Document") -> Path | None:
             p = Path(doc.path).expanduser()
         except TypeError:
             p = None
-        if p is not None and p.exists():
-            return p
+        if p is not None:
+            # A relative path (e.g. "files/nc/<id>_<name>.jpg") is stored for
+            # COPY/MOVE ingests so the library bundle can be renamed/moved
+            # without breaking image paths (#1663). Resolve it against the
+            # CURRENT library root rather than the process CWD.
+            if not p.is_absolute() and library_root is not None:
+                candidate = (Path(library_root).expanduser() / p)
+                if candidate.exists():
+                    return candidate
+            elif p.is_absolute() and p.exists():
+                return p
 
     # Check metadata fields
     if doc.metadata:
@@ -227,6 +242,23 @@ def resolve_source(doc: "Document") -> Path | None:
                     continue
                 if p.exists():
                     return p
+
+    # Library-relative fallback: the library was renamed/moved, so the stored
+    # absolute path (which bakes in the old package name) no longer exists, but
+    # the copied-in file still lives under <library_root>/files/<tail>.
+    if library_root is not None:
+        root = Path(library_root).expanduser()
+        candidates = [doc.path] + [
+            (doc.metadata or {}).get(k)
+            for k in ("source_path", "full_path", "display_path", "local_path")
+        ]
+        for path_str in candidates:
+            if not path_str or "/files/" not in str(path_str):
+                continue
+            tail = str(path_str).split("/files/", 1)[1]
+            p = root / "files" / tail
+            if p.exists():
+                return p
 
     return None
 

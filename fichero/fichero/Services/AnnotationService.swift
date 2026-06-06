@@ -1,5 +1,7 @@
 // swiftlint:disable file_length
+import FicheroAPIClient
 import Foundation
+import OpenAPIRuntime
 import OSLog
 
 // MARK: - Models
@@ -168,9 +170,7 @@ private struct AnnotationListResponse: Decodable {
 
 // MARK: - Service
 
-/// Thin wrapper over the backend annotations API (`/api/annotations`, #1276),
-/// modelled on `ActionsService`. Hand-written rather than generated because the
-/// list envelope is untyped on the wire (see `AnnotationListResponse`).
+/// Thin generated-client wrapper over the backend annotations API (`/api/annotations`, #1276).
 ///
 /// Every method degrades gracefully: a network or decode failure sets `error`
 /// and leaves `annotations` untouched (or returns `nil`) rather than throwing
@@ -183,42 +183,52 @@ final class AnnotationService: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
-    private let engineBaseURL = "http://localhost:8765"
-    private let session = URLSession.shared
-
-    private func decoder() -> JSONDecoder { JSONDecoder() }
-
-    private func annotationsURL() -> URL? {
-        URL(string: "\(engineBaseURL)/api/annotations")
+    /// Active library path, injected by the owning view before `load(...)`.
+    /// Kept as a property so existing views can set it from `APIClient`, but the
+    /// transport is the generated OpenAPI client rather than hand-built URLSession.
+    var libraryPath: String? {
+        didSet { client.currentLibraryPath = libraryPath }
     }
 
-    private func annotationURL(id: String) -> URL? {
-        URL(string: "\(engineBaseURL)/api/annotations/\(id)")
+    private let client: FicheroClient
+    private let decoder = JSONDecoder()
+
+    init(ficheroClient: FicheroClient = FicheroClient()) {
+        self.client = ficheroClient
+        self.libraryPath = ficheroClient.currentLibraryPath
     }
 
-    private func annotationCropURL(id: String) -> URL? {
-        URL(string: "\(engineBaseURL)/api/annotations/\(id)/crop")
+    private var headers: Operations.ListAnnotationsApiAnnotationsGet.Input.Headers {
+        .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
     }
 
-    private func annotationPromoteURL(id: String) -> URL? {
-        URL(string: "\(engineBaseURL)/api/annotations/\(id)/promote-to-claim")
+    private func annotation(from value: OpenAPIValueContainer) throws -> DocumentAnnotation {
+        guard let object = value.value else { throw AnnotationServiceError.emptyContainer }
+        let data = try JSONSerialization.data(withJSONObject: object)
+        return try decoder.decode(DocumentAnnotation.self, from: data)
     }
 
-    private func authedGet(_ url: URL) -> URLRequest {
-        var request = URLRequest(url: url)
-        request.addEngineAuth()
-        return request
-    }
-
-    private func authedRequest(_ url: URL, method: String, body: Data? = nil) -> URLRequest {
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.addEngineAuth()
-        if let body {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = body
-        }
-        return request
+    private func annotation(from generated: Components.Schemas.Annotation) -> DocumentAnnotation? {
+        guard let id = generated.id else { return nil }
+        return DocumentAnnotation(
+            id: id,
+            documentId: generated.documentId,
+            pageLabel: generated.pageLabel,
+            charStart: generated.charStart,
+            charEnd: generated.charEnd,
+            bbox: generated.bbox,
+            kind: AnnotationKind(rawValue: generated.kind.rawValue) ?? .unknown,
+            text: generated.text,
+            rating: generated.rating,
+            color: generated.color,
+            tags: generated.tags ?? [],
+            linkedClaimIds: generated.linkedClaimIds ?? [],
+            linkedEntityIds: generated.linkedEntityIds ?? [],
+            linkedNoteIds: generated.linkedNoteIds ?? [],
+            createdBy: generated.createdBy,
+            createdAt: generated.createdAt?.ISO8601Format(),
+            updatedAt: generated.updatedAt?.ISO8601Format()
+        )
     }
 
     // MARK: - List
@@ -230,28 +240,19 @@ final class AnnotationService: ObservableObject {
         error = nil
         defer { isLoading = false }
 
-        guard let annotationsURL = annotationsURL(),
-              var components = URLComponents(url: annotationsURL, resolvingAgainstBaseURL: false) else {
-            error = "Invalid annotations URL"
-            return
-        }
-        components.queryItems = [URLQueryItem(name: "document_id", value: documentId)]
-        guard let url = components.url else {
-            error = "Invalid annotations URL"
-            return
-        }
-
         do {
-            let (data, response) = try await session.data(for: authedGet(url))
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-                logger.warning("List annotations returned status \(code, privacy: .public)")
-                error = "Annotations unavailable (HTTP \(code))"
+            let response = try await client.api.listAnnotationsApiAnnotationsGet(.init(
+                query: .init(documentId: documentId),
+                headers: headers
+            ))
+            guard case .ok(let okResponse) = response else {
+                logger.warning("List annotations returned non-OK response")
+                error = "Annotations unavailable"
                 annotations = []
                 return
             }
-            let decoded = try decoder().decode(AnnotationListResponse.self, from: data)
-            annotations = decoded.items
+            let decoded = try okResponse.body.json
+            annotations = try decoded.items.map { try annotation(from: $0) }
         } catch {
             // Backend may not be wired yet during parallel development — degrade
             // to an empty list rather than crashing the inspector (#1276).
@@ -266,19 +267,16 @@ final class AnnotationService: ObservableObject {
     /// Fetch the latest server copy for one annotation and merge it into the list.
     @discardableResult
     func getAnnotation(id: String) async -> DocumentAnnotation? {
-        guard let url = annotationURL(id: id) else {
-            error = "Invalid annotations URL"
-            return nil
-        }
-
         do {
-            let (data, response) = try await session.data(for: authedGet(url))
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-                error = "Could not load annotation (HTTP \(code))"
+            let response = try await client.api.getAnnotationApiAnnotationsAnnotationIdGet(.init(
+                path: .init(annotationId: id),
+                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+            ))
+            guard case .ok(let okResponse) = response,
+                  let annotation = annotation(from: try okResponse.body.json) else {
+                error = "Could not load annotation"
                 return nil
             }
-            let annotation = try decoder().decode(DocumentAnnotation.self, from: data)
             if let index = annotations.firstIndex(where: { $0.id == annotation.id }) {
                 annotations[index] = annotation
             } else {
@@ -308,31 +306,26 @@ final class AnnotationService: ObservableObject {
         tags: [String] = [],
         linkedClaimIds: [String] = []
     ) async -> DocumentAnnotation? {
-        guard let url = annotationsURL() else {
-            error = "Invalid annotations URL"
-            return nil
-        }
-
-        var payload: [String: Any] = [
-            "document_id": documentId,
-            "kind": (kind == .unknown ? AnnotationKind.note : kind).rawValue,
-            "tags": tags
-        ]
-        if !text.isEmpty { payload["text"] = text }
-        if let pageLabel { payload["page_label"] = pageLabel }
-        if let bbox { payload["bbox"] = bbox }
-        if let color { payload["color"] = color }
-        if !linkedClaimIds.isEmpty { payload["linked_claim_ids"] = linkedClaimIds }
-
         do {
-            let body = try JSONSerialization.data(withJSONObject: payload)
-            let (data, response) = try await session.data(for: authedRequest(url, method: "POST", body: body))
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-                error = "Could not save annotation (HTTP \(code))"
+            let request = Components.Schemas.AnnotationCreateRequest(
+                documentId: documentId,
+                kind: Components.Schemas.AnnotationKind(rawValue: (kind == .unknown ? AnnotationKind.note : kind).rawValue) ?? .note,
+                pageLabel: pageLabel,
+                bbox: bbox,
+                text: text.isEmpty ? nil : text,
+                color: color,
+                tags: tags,
+                linkedClaimIds: linkedClaimIds.isEmpty ? nil : linkedClaimIds
+            )
+            let response = try await client.api.createAnnotationApiAnnotationsPost(.init(
+                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+                body: .json(request)
+            ))
+            guard case .ok(let okResponse) = response,
+                  let created = annotation(from: try okResponse.body.json) else {
+                error = "Could not save annotation"
                 return nil
             }
-            let created = try decoder().decode(DocumentAnnotation.self, from: data)
             annotations.insert(created, at: 0)
             error = nil
             return created
@@ -349,19 +342,17 @@ final class AnnotationService: ObservableObject {
     /// in-memory copy on success. Returns `nil` on failure.
     @discardableResult
     func updateText(id: String, text: String) async -> DocumentAnnotation? {
-        guard let url = annotationURL(id: id) else {
-            error = "Invalid annotations URL"
-            return nil
-        }
         do {
-            let body = try JSONSerialization.data(withJSONObject: ["text": text])
-            let (data, response) = try await session.data(for: authedRequest(url, method: "PATCH", body: body))
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-                error = "Could not update annotation (HTTP \(code))"
+            let response = try await client.api.patchAnnotationApiAnnotationsAnnotationIdPatch(.init(
+                path: .init(annotationId: id),
+                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+                body: .json(.init(text: text))
+            ))
+            guard case .ok(let okResponse) = response,
+                  let updated = annotation(from: try okResponse.body.json) else {
+                error = "Could not update annotation"
                 return nil
             }
-            let updated = try decoder().decode(DocumentAnnotation.self, from: data)
             if let idx = annotations.firstIndex(where: { $0.id == id }) {
                 annotations[idx] = updated
             }
@@ -379,20 +370,24 @@ final class AnnotationService: ObservableObject {
     /// Fetch cropped text/image bytes for an annotation's source span or region.
     @discardableResult
     func cropAnnotation(id: String) async -> Data? {
-        guard let url = annotationCropURL(id: id) else {
-            error = "Invalid annotations URL"
-            return nil
-        }
-
         do {
-            let (data, response) = try await session.data(for: authedGet(url))
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-                error = "Could not crop annotation (HTTP \(code))"
+            let response = try await client.api.getCropApiAnnotationsAnnotationIdCropGet(.init(
+                path: .init(annotationId: id),
+                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+            ))
+            guard case .ok(let okResponse) = response else {
+                error = "Could not crop annotation"
+                return nil
+            }
+            guard let value = try okResponse.body.json.value else {
+                error = "Could not crop annotation"
                 return nil
             }
             error = nil
-            return data
+            if let string = value as? String {
+                return string.data(using: .utf8)
+            }
+            return try JSONSerialization.data(withJSONObject: value)
         } catch {
             logger.warning("Failed to crop annotation: \(error.localizedDescription, privacy: .public)")
             self.error = "Could not crop annotation"
@@ -405,16 +400,13 @@ final class AnnotationService: ObservableObject {
     /// Promote a highlight/note annotation into a KnowledgeClaim.
     @discardableResult
     func promoteToClaim(id: String) async -> Bool {
-        guard let url = annotationPromoteURL(id: id) else {
-            error = "Invalid annotations URL"
-            return false
-        }
-
         do {
-            let (_, response) = try await session.data(for: authedRequest(url, method: "POST"))
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-                error = "Could not promote annotation (HTTP \(code))"
+            let response = try await client.api.promoteToClaimApiAnnotationsAnnotationIdPromoteToClaimPost(.init(
+                path: .init(annotationId: id),
+                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+            ))
+            guard case .ok = response else {
+                error = "Could not promote annotation"
                 return false
             }
             error = nil
@@ -431,15 +423,13 @@ final class AnnotationService: ObservableObject {
     /// Delete an annotation and remove it from `annotations`. Returns `true` on success.
     @discardableResult
     func delete(id: String) async -> Bool {
-        guard let url = annotationURL(id: id) else {
-            error = "Invalid annotations URL"
-            return false
-        }
         do {
-            let (_, response) = try await session.data(for: authedRequest(url, method: "DELETE"))
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-                error = "Could not delete annotation (HTTP \(code))"
+            let response = try await client.api.deleteAnnotationApiAnnotationsAnnotationIdDelete(.init(
+                path: .init(annotationId: id),
+                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+            ))
+            guard case .noContent = response else {
+                error = "Could not delete annotation"
                 return false
             }
             annotations.removeAll { $0.id == id }
@@ -465,5 +455,16 @@ final class AnnotationService: ObservableObject {
         if annotation.tags.contains(where: { $0.lowercased().contains(needle) }) { return true }
         if annotation.linkedClaimIds.contains(where: { $0.lowercased().contains(needle) }) { return true }
         return false
+    }
+}
+
+enum AnnotationServiceError: LocalizedError {
+    case emptyContainer
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyContainer:
+            return "Annotation response was empty"
+        }
     }
 }

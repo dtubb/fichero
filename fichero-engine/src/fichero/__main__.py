@@ -618,6 +618,8 @@ def import_manifest_command(
     typer.echo(f"documents_skipped: {summary.documents_skipped}")
     typer.echo(f"entities_created: {summary.entities_created}")
     typer.echo(f"entities_reused: {summary.entities_reused}")
+    typer.echo(f"artifacts_created: {summary.artifacts_created}")
+    typer.echo(f"artifacts_skipped: {summary.artifacts_skipped}")
     typer.echo(f"claims_created: {summary.claims_created}")
     typer.echo(f"claims_skipped: {summary.claims_skipped}")
 
@@ -1657,6 +1659,7 @@ def kg_reset(
 _LIBRARY_LIST_ROOTS = (
     Path.home() / "Documents",
     Path.home() / "Dropbox",
+    Path.home() / "code",
     Path.home() / "Library" / "Application Support",
 )
 
@@ -1845,13 +1848,21 @@ def library_close(
         help="Path to the library to deactivate.",
     ),
 ) -> None:
-    """Deactivate a library (placeholder for future logic).
+    """Close a library: unregister it from the global registry (#1661).
+
+    The .fichero package on disk is NOT deleted — only its registry entry is
+    removed, so it no longer shows up in ``library list`` or the app sidebar.
+    Idempotent: closing an unregistered library is a no-op success.
 
     Output: "Closed: {path}"
     """
     expanded = str(Path(path).expanduser())
-    # For now, this is a no-op that just prints the message
-    typer.echo(f"Closed: {expanded}")
+
+    def op(c: FicheroClient) -> dict:
+        c.remove_known_library(expanded)
+        return {"status": f"Closed: {expanded}"}
+
+    _invoke(ctx, op)
 
 
 @library_app.command("reset")

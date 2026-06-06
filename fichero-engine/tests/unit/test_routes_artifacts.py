@@ -5,7 +5,6 @@ summaries, etc.). They are always linked to a Document. SwiftUI uses these route
 display processed results alongside source documents.
 """
 
-import pytest
 from datetime import datetime
 
 from fichero.models import Artifact, Document, DocType, FileType, Status
@@ -38,6 +37,53 @@ def _make_artifact(db, doc_id: str, artifact_type: str = "transcription", conten
     )
     db.save(a)
     return a
+
+
+# ---------------------------------------------------------------------------
+# POST /api/artifacts/
+# ---------------------------------------------------------------------------
+
+
+class TestCreateArtifact:
+    def test_create_artifact_persists_for_document(self, client, db):
+        doc = _make_doc(db)
+
+        r = client.post(
+            "/api/artifacts/",
+            json={
+                "document_id": doc.id,
+                "artifact_type": "transcription",
+                "content": "imported transcript",
+                "data": {"source": "manifest-import"},
+                "provider": "manifest-importer",
+                "model": "fichero-corpus-import-v1",
+                "step_name": "import_manifest",
+                "confidence": 1.0,
+            },
+        )
+
+        assert r.status_code == 200
+        body = r.json()
+        assert body["document_id"] == doc.id
+        assert body["artifact_type"] == "transcription"
+        assert body["content"] == "imported transcript"
+        assert body["data"]["source"] == "manifest-import"
+        assert body["provider"] == "manifest-importer"
+        assert body["model"] == "fichero-corpus-import-v1"
+        assert body["confidence"] == 1.0
+
+        listed = client.get(
+            f"/api/artifacts/document/{doc.id}?include_descendants=false"
+        ).json()
+        assert listed["count"] == 1
+        assert listed["items"][0]["id"] == body["id"]
+
+    def test_create_artifact_rejects_missing_document(self, client):
+        r = client.post(
+            "/api/artifacts/",
+            json={"document_id": "missing", "artifact_type": "transcription"},
+        )
+        assert r.status_code == 404
 
 
 # ---------------------------------------------------------------------------

@@ -28,8 +28,11 @@ extension ContentView {
     /// Resolved PDF file path for the currently previewed document, or nil.
     var detailPDFPath: String? {
         guard let doc = detailDocument else { return nil }
+        guard CanvasDocumentPolicy.shouldUsePDFCanvas(for: doc) else { return nil }
         if doc.fileType == .pdf, let path = doc.path, !path.isEmpty { return path }
-        if doc.docType == .page { return resolvedParentPDFPath(for: doc) }
+        if doc.docType == .page {
+            return resolvedParentPDFPath(for: doc)
+        }
         return nil
     }
 

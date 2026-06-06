@@ -1,0 +1,70 @@
+{
+  "name": "Catalogue Stage 3 - Catalogue Artifacts",
+  "description": "Stage 3 of the reviewable catalogue pipeline. Read existing page text and already-written KG rows, then generate catalogue artifacts on the selected document or folder without re-running transcription or entity extraction.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Catalogue",
+  "tags": [
+    "preset",
+    "catalogue",
+    "stage",
+    "artifacts",
+    "reviewable"
+  ],
+  "config": {
+    "preset_version": 1,
+    "stage": "catalogue_artifacts"
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files with text and KG",
+      "position_x": 80,
+      "position_y": 220,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "aggregate_text",
+      "tool": "aggregate",
+      "label": "Collect page text",
+      "position_x": 280,
+      "position_y": 220,
+      "inputs": {},
+      "config": {
+        "mode": "concat",
+        "separator": "\n\n---\n\n"
+      }
+    },
+    {
+      "id": "catalogue",
+      "tool": "catalogue",
+      "label": "Write catalogue artifacts",
+      "position_x": 500,
+      "position_y": 220,
+      "inputs": {},
+      "config": {
+        "output_language": "auto",
+        "provider_name": "$small"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-files-aggregate-documents",
+      "source": "files-source",
+      "target": "aggregate_text",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "e-aggregate-catalogue-text",
+      "source": "aggregate_text",
+      "target": "catalogue",
+      "source_port": "text",
+      "target_port": "text"
+    }
+  ]
+}

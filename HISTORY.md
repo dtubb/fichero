@@ -2484,3 +2484,27 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - **Locked the thinking-layer design** (`docs/architecture/thinking-layer.md`, PRs #1571/#1572): 5 workspace decisions + node-class/prototype north star (everything is a typed node; one class registry; Workspace + ResearchProject as tree nodes by class). Phased in #1570.
 - **Shipped hard foundation (gated, merged):** #1573/#1562 — `KnowledgeEntity.source_document_ids` native per-page scope (3739 tests pass); #1574/#1561 — inspector crash fixed (DocumentTabView forwards WorkflowExecutionObserver).
 - Cleaned 12 inactive agent worktrees; salvaged a session-limited subagent's #1562 work rather than re-dispatching.
+
+## 2026-06-04 — Session Summary (import architecture + corpus pipeline)
+
+- Merged: #1637/#1638 (import --copy-images + Apple Stage-1 schema-in-prompt NER fix), #1639 (folder + ingest copy/move/link + per-file metadata), #1641 WebKit reading-surface frame-clamp, #1649 design doc.
+- Proved end-to-end: copy-mode import (local images + clean text) + per-page Apple NER → 10 entities/51 claims on Marshall sample. NER on a FOLDER does NOT fan out — must iterate pages.
+- Designed canonical interchange = IIIF (source) + W3C annotations (anchoring) + RDF (KG). Doc: docs/architecture/portable-workflows-and-archival-format.md.
+- Filed issues #1643–#1648, #1650–#1652 (UI reveal, Apple boxes, KG export, IIIF importer, derived_from/bbox two-page scans, portable LangGraph project, old→IIIF converter [standalone], cluster-output importer, extensibility).
+- Running: background raw-asset copy of all 44 Marshall collections → ~/code/marshall_diaries (overnight.sh; ~3.1G/44 collections done). ~/code/ghc scaffolded, awaiting source path.
+- Gotchas: macOS ships openrsync (no --log-file; use -v); setsid absent (don't use in launchers); Mac idle-sleep kills detached jobs (caffeinate -ims, keep lid open).
+
+## 2026-06-05 — Session Summary
+
+- Fixed and committed Marshall/Fichero import/workflow slices through `fa20d2b5`: imported manifest pages materialize artifacts, SwiftUI routes imported pages through storage display, workflow fan-in and live-send scheduling regressions were fixed, stale DB handles are closed before recreate, and the dead citation dependency was removed from `Catalogue`.
+- Updated the standalone Marshall `build_manifest.py` converter so W3C/IIIF entity annotations become canonical manifest `entities[]`; verified import-only libraries now create page-scoped entities before workflows run.
+- Smoke-tested Marshall at 5 and 10 pages successfully. `Marshall10Entities-064359.fichero` is the best current Xcode test library.
+- Smoke-tested 20 pages and found the next blocker: imported artifacts/entities/images are present, but the long `Extract All Entities` stage lacks reliable page progress/checkpoint visibility and did not produce claims/folder catalogue outputs in the verification run.
+- Filed/updated the staged-workflow issue cluster: #1669, #1673, #1674, #1675, #1676, #1677, #1678. Daniel's direction is to add new staged workflows/chains beside the existing mostly working `Catalogue`, not mutate it first.
+
+## 2026-06-06 — Session Summary
+
+- Fixed Marshall imported image thumbnails/display in SwiftUI: `LibraryImageView` image loads are keyed by `(document_id, image_type)`, preventing LazyGrid/List reuse from leaving placeholders after storage returns 200.
+- Stabilized Library/Search reading layout: Canvas/Reading toolbar buttons remain visible, enter Widescreen when pressed from None/Standard, and folders/groups render container placeholders instead of hiding the canvas pane.
+- Verified Marshall storage endpoints return real JPEG thumbnails/display images from the live backend, and updated #1680/#1681/#1666 with findings.
+- Added focused Swift tests for image-load identity, canvas document policy, and pane toggle policy; focused Xcode tests passed, and touched-file SwiftLint exited cleanly.

@@ -2,7 +2,8 @@ import PDFKit
 import Quartz
 import SwiftUI
 
-/// Document preview/editor view
+// Document preview/editor view
+// swiftlint:disable:next type_body_length
 struct EditorView: View {
     let document: Document?
     var showHeader: Bool = true
@@ -120,55 +121,126 @@ struct EditorView: View {
         return metadataPath
     }
 
+    enum PreviewRoute: Equatable {
+        case container
+        case pagePDF(path: String, pageIndex: Int)
+        case storageDisplay(documentId: String)
+        case pdf(path: String)
+        case imageFile(path: String, documentId: String)
+        case imageEditor(documentId: String)
+        case quickLook
+
+        var usesImageEditingPreviewForViewing: Bool {
+            if case .imageEditor = self {
+                return true
+            }
+            return false
+        }
+    }
+
+    static func canDecodeLocalImagePath(_ path: String) -> Bool {
+        (path as NSString).isAbsolutePath
+            && FileManager.default.fileExists(atPath: path)
+    }
+
+    static func previewRoute(for doc: Document, parentPDFPath: String?, isEditing: Bool) -> PreviewRoute {
+        if doc.docType == .folder {
+            return folderPreviewRoute(for: doc, isEditing: isEditing)
+        }
+        if doc.docType == .page {
+            return pagePreviewRoute(for: doc, parentPDFPath: parentPDFPath, isEditing: isEditing)
+        }
+        if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
+            return .pdf(path: path)
+        }
+        if doc.fileType == .image, let path = doc.path, !path.isEmpty {
+            if isEditing {
+                return .imageEditor(documentId: doc.id)
+            }
+            if canDecodeLocalImagePath(path) {
+                return .imageFile(path: path, documentId: doc.id)
+            }
+            return .storageDisplay(documentId: doc.id)
+        }
+        if doc.fileType == .image {
+            return isEditing ? .imageEditor(documentId: doc.id) : .storageDisplay(documentId: doc.id)
+        }
+        return .quickLook
+    }
+
+    private static func folderPreviewRoute(for doc: Document, isEditing: Bool) -> PreviewRoute {
+        if doc.fileType == .image {
+            return isEditing ? .imageEditor(documentId: doc.id) : .storageDisplay(documentId: doc.id)
+        }
+        if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
+            return .pdf(path: path)
+        }
+        return .container
+    }
+
+    private static func pagePreviewRoute(
+        for doc: Document,
+        parentPDFPath: String?,
+        isEditing: Bool
+    ) -> PreviewRoute {
+        if isEditing {
+            return .imageEditor(documentId: doc.id)
+        }
+        if doc.fileType != .image,
+           let parentPDFPath,
+           let pageIndex = doc.sequence,
+           !parentPDFPath.isEmpty {
+            return .pagePDF(path: parentPDFPath, pageIndex: max(0, pageIndex - 1))
+        }
+        return .storageDisplay(documentId: doc.id)
+    }
+
     @ViewBuilder
     private func previewContent(_ doc: Document) -> some View {
-        if doc.docType == .folder {
-            FolderContentsGrid(folder: doc)
-        } else if doc.docType == .page {
-            // Page children now use the same canonical image-editing surface as
-            // images (navigation + marquee + per-page edit toolbar). (#1265)
-            ImageEditorView(
-                document: doc,
-                onNavigate: onNavigateToDocument,
-                selectedDocumentIDs: selectedDocumentIDs
+        switch Self.previewRoute(for: doc, parentPDFPath: resolvedParentPDFPath(for: doc), isEditing: isEditing) {
+        case .container:
+            containerPlaceholder(doc)
+        case .pagePDF(let path, let pageIndex):
+            DocumentCanvas(
+                content: .pdf(path: path, pageIndex: pageIndex),
+                onPageIndexChange: onPDFPageIndexChange
             )
-        } else if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
+        case .storageDisplay(let documentId):
+            ZStack(alignment: .topTrailing) {
+                DocumentCanvas(content: .imageStorageDisplay(documentId: documentId))
+                editModeToggle
+            }
+        case .pdf(let path):
             // Top-level PDF file — single-page view, starts at page 0 (#595).
             PDFPageWithToolbar(
                 path: path,
                 pageIndex: 0,
                 onPageIndexChange: onPDFPageIndexChange
             )
-        } else if doc.fileType == .image, let path = doc.path, !path.isEmpty {
-            // Local image file with a path. View mode → plain preview via
-            // DocumentCanvas (#1402, full ZoomableImagePreview zoom/loupe/
-            // magnifier). Edit mode → the same ImageEditorView used by
-            // page-children, exposing crop/rotate/enhance/remove-bg tools, so
-            // single image files finally have a way to reach editing (#1453).
+        case .imageFile(let path, let documentId):
             ZStack(alignment: .topTrailing) {
-                if isEditing {
-                    ImageEditorView(
-                        document: doc,
-                        onNavigate: onNavigateToDocument,
-                        selectedDocumentIDs: selectedDocumentIDs
-                    )
-                } else {
-                    DocumentCanvas(
-                        content: .imageFile(url: URL(fileURLWithPath: path), documentId: doc.id)
-                    )
-                }
+                DocumentCanvas(
+                    content: .imageFile(url: URL(fileURLWithPath: path), documentId: documentId)
+                )
                 editModeToggle
             }
-        } else if doc.fileType == .image {
-            // Remote/no-path image → editor provides preview via backend render.
+        case .imageEditor:
             ImageEditorView(
                 document: doc,
                 onNavigate: onNavigateToDocument,
                 selectedDocumentIDs: selectedDocumentIDs
             )
-        } else {
+        case .quickLook:
             QuickLookDownloadView(document: doc)
         }
+    }
+
+    private func containerPlaceholder(_ doc: Document) -> some View {
+        ContentUnavailableView(
+            doc.name,
+            systemImage: doc.docType.icon,
+            description: Text("Select an image or PDF page to preview it here.")
+        )
     }
 
     // MARK: - Edit-mode Toggle
