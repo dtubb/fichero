@@ -76,4 +76,48 @@ final class LayoutModeTests: XCTestCase {
         XCTAssertTrue(listWithCanvas.showsLibraryDivider)
         XCTAssertFalse(listWithCanvas.showsCanvasReadingDivider)
     }
+
+    func testSelectionPromotesToDetailWhenPreviewPaneIsVisible() {
+        XCTAssertTrue(
+            BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
+                layoutMode: .widescreen,
+                selectedDocumentId: "page-1",
+                currentDetailDocumentId: "folder-1"
+            )
+        )
+
+        XCTAssertTrue(
+            BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
+                layoutMode: .standard,
+                selectedDocumentId: "image-1",
+                currentDetailDocumentId: nil
+            )
+        )
+    }
+
+    func testSelectionDoesNotPromoteWhenPreviewPaneIsHiddenOrAlreadyCurrent() {
+        XCTAssertFalse(
+            BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
+                layoutMode: .none,
+                selectedDocumentId: "page-1",
+                currentDetailDocumentId: "folder-1"
+            )
+        )
+
+        XCTAssertFalse(
+            BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
+                layoutMode: .widescreen,
+                selectedDocumentId: "page-1",
+                currentDetailDocumentId: "page-1"
+            )
+        )
+
+        XCTAssertFalse(
+            BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
+                layoutMode: .widescreen,
+                selectedDocumentId: nil,
+                currentDetailDocumentId: "folder-1"
+            )
+        )
+    }
 }

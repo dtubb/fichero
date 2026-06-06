@@ -67,3 +67,21 @@ struct WidescreenPanePlan: Equatable {
         )
     }
 }
+
+/// Selection policy for the library browser's detail/canvas document.
+///
+/// If the user has a preview/canvas pane visible, a plain selection should drive
+/// that pane. If preview is hidden, selection remains browse-only until the user
+/// explicitly opens a document.
+struct BrowserSelectionPreviewPolicy {
+    static func shouldPromoteSelectionToDetail(
+        layoutMode: LayoutMode,
+        selectedDocumentId: String?,
+        currentDetailDocumentId: String?
+    ) -> Bool {
+        guard layoutMode != .none, let selectedDocumentId else {
+            return false
+        }
+        return selectedDocumentId != currentDetailDocumentId
+    }
+}

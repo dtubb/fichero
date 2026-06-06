@@ -574,13 +574,19 @@ extension ContentView {
         if let encoded = try? JSONEncoder().encode(newSelection) {
             browserSelectionData = encoded
         }
-        // Note: previously this auto-synced detailDocument from selection
-        // so single-clicks in the grid would swap the preview pane. Per
-        // Daniel's intended click model (#772): single-click should only
-        // update the right inspector (via inspectorDocument's
-        // browserSelection priority), NOT the preview pane. detailDocument
-        // is now only mutated by handleDoubleClick (and explicit
-        // openSelectedDocument keyboard shortcut + sidebar selection).
+        guard let firstId = newSelection.first,
+              let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),
+              BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
+                layoutMode: currentLayoutMode,
+                selectedDocumentId: firstId,
+                currentDetailDocumentId: detailDocument?.id
+              ) else {
+            if newSelection.isEmpty {
+                detailDocument = nil
+            }
+            return
+        }
+        detailDocument = doc
     }
 
     /// Handles `.onChange(of: detailDocument)`.
