@@ -100,6 +100,16 @@ struct CanvasDocumentPolicy {
         return true
     }
 
+    static func shouldUsePDFCanvas(for document: Document) -> Bool {
+        if document.fileType == .pdf {
+            return true
+        }
+        if document.docType == .page {
+            return document.fileType != .image
+        }
+        return false
+    }
+
     static func documentForCanvas(
         selectedDocumentIds: Set<String>,
         documents: [Document],

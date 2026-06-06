@@ -180,4 +180,37 @@ final class LayoutModeTests: XCTestCase {
 
         XCTAssertEqual(resolved?.id, "image-folder")
     }
+
+    func testImageBackedPageDoesNotUsePDFCanvas() {
+        let imagePage = Document(
+            id: "image-page",
+            docType: .page,
+            fileType: .image,
+            name: "Imported image page",
+            path: "files/nc/page.jpg",
+            sequence: 2
+        )
+
+        XCTAssertFalse(CanvasDocumentPolicy.shouldUsePDFCanvas(for: imagePage))
+    }
+
+    func testPDFBackedPageUsesPDFCanvas() {
+        let pdfPage = Document(
+            id: "pdf-page",
+            docType: .page,
+            fileType: nil,
+            name: "PDF page",
+            sequence: 2
+        )
+        let pdfFile = Document(
+            id: "pdf-file",
+            docType: .file,
+            fileType: .pdf,
+            name: "Source.pdf",
+            path: "/tmp/source.pdf"
+        )
+
+        XCTAssertTrue(CanvasDocumentPolicy.shouldUsePDFCanvas(for: pdfPage))
+        XCTAssertTrue(CanvasDocumentPolicy.shouldUsePDFCanvas(for: pdfFile))
+    }
 }
