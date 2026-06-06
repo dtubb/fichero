@@ -7,6 +7,7 @@ entry point ``fichero = "fichero.__main__:main"`` is declared in pyproject.toml.
 
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -622,6 +623,85 @@ def import_manifest_command(
     typer.echo(f"artifacts_skipped: {summary.artifacts_skipped}")
     typer.echo(f"claims_created: {summary.claims_created}")
     typer.echo(f"claims_skipped: {summary.claims_skipped}")
+
+
+@app.command(name="import-iiif")
+def import_iiif_command(
+    iiif: Path = typer.Option(
+        ...,
+        "--iiif",
+        help="Path to a IIIF Presentation 3.0 file or directory.",
+    ),
+    library: Path = typer.Option(
+        ...,
+        "--library",
+        help="Target .fichero package to create/populate.",
+    ),
+    api: str = typer.Option(
+        None,
+        "--api",
+        help="Engine API base URL (default http://127.0.0.1:8765/api).",
+    ),
+    token_file: Path = typer.Option(
+        None,
+        "--token-file",
+        help="Path to the engine API key (default the app's .api-key).",
+    ),
+    no_create_library: bool = typer.Option(
+        False,
+        "--no-create-library",
+        help="Do not POST /api/library first; assume the library exists.",
+    ),
+    ingest: str = typer.Option(
+        None,
+        "--ingest",
+        help="Image ingest mode: 'link' (default), 'copy', or 'move'.",
+    ),
+    copy_images: bool = typer.Option(
+        False,
+        "--copy-images/--no-copy-images",
+        help="Legacy alias for '--ingest copy'. Prefer --ingest.",
+    ),
+) -> None:
+    """Import IIIF Presentation 3.0 + W3C AnnotationPages via the engine API."""
+    from fichero.iiif_import import (
+        DEFAULT_API_BASE,
+        DEFAULT_TOKEN_FILE,
+        import_iiif_via_http,
+    )
+
+    try:
+        summary = import_iiif_via_http(
+            iiif_path=iiif,
+            library_path=library,
+            api_base=api or DEFAULT_API_BASE,
+            token_file=token_file or DEFAULT_TOKEN_FILE,
+            create_library=not no_create_library,
+            copy_images=copy_images,
+            ingest_mode=ingest,
+        )
+    except Exception as exc:
+        typer.secho(f"IIIF import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    if summary.warnings:
+        typer.secho(
+            f"Imported with {len(summary.warnings)} warning(s).",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        for warning in summary.warnings[:10]:
+            typer.echo(f"  {warning}", err=True)
+
+    typer.echo(f"library: {summary.library_path}")
+    typer.echo(f"manifests_seen: {summary.manifests_seen}")
+    typer.echo(f"pages_seen: {summary.pages_seen}")
+    typer.echo(f"documents_created: {summary.documents_created}")
+    typer.echo(f"documents_skipped: {summary.documents_skipped}")
+    typer.echo(f"entities_created: {summary.entities_created}")
+    typer.echo(f"entities_reused: {summary.entities_reused}")
+    typer.echo(f"annotations_created: {summary.annotations_created}")
+    typer.echo(f"annotations_skipped: {summary.annotations_skipped}")
 
 
 @app.command(name="import-archivo-judicial-medellin")
@@ -1907,6 +1987,14 @@ def docs_update(
     name: Optional[str] = typer.Option(None, "--name", help="New document name."),
     parent_id: Optional[str] = typer.Option(None, "--parent-id", help="New parent folder ID."),
     folder_path: Optional[str] = typer.Option(None, "--folder-path", help="New folder path."),
+    page_content: Optional[str] = typer.Option(
+        None, "--page-content", help="New page content (transcript/body text)."
+    ),
+    page_content_file: Optional[str] = typer.Option(
+        None,
+        "--page-content-file",
+        help="Read new page content from a file (use '-' for stdin). Wins over --page-content.",
+    ),
 ) -> None:
     """Update editable fields on a document."""
     fields: dict[str, Any] = {}
@@ -1916,8 +2004,19 @@ def docs_update(
         fields["parent_id"] = parent_id
     if folder_path is not None:
         fields["folder_path"] = folder_path
+    if page_content_file is not None:
+        if page_content_file == "-":
+            page_content = sys.stdin.read()
+        else:
+            page_content = Path(page_content_file).read_text(encoding="utf-8")
+    if page_content is not None:
+        fields["page_content"] = page_content
     if not fields:
-        typer.secho("No fields to update — pass --name, --parent-id, or --folder-path.", err=True)
+        typer.secho(
+            "No fields to update — pass --name, --parent-id, --folder-path, "
+            "--page-content, or --page-content-file.",
+            err=True,
+        )
         raise typer.Exit(code=1)
     _invoke(ctx, lambda c: c.update_document(doc_id, **fields))
 

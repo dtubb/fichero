@@ -75,8 +75,8 @@ struct ImageEditChainPanel: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(chain.operations.enumerated()), id: \.element.id) { index, op in
-                        stepRow(index: index, op: op)
+                    ForEach(Array(chain.operations.enumerated()), id: \.element.id) { index, operation in
+                        stepRow(index: index, operation: operation)
                         if index < chain.operations.count - 1 {
                             Divider().padding(.leading, 40)
                         }
@@ -108,7 +108,7 @@ struct ImageEditChainPanel: View {
     // MARK: - Step Row (expandable, bidirectional-selected)
 
     @ViewBuilder
-    private func stepRow(index: Int, op: ImageEditOperation) -> some View {
+    private func stepRow(index: Int, operation: ImageEditOperation) -> some View {
         let isSelected = selectedStepIndex == index
         VStack(alignment: .leading, spacing: 0) {
             Button {
@@ -117,19 +117,19 @@ struct ImageEditChainPanel: View {
                         selectedStepIndex = nil
                     } else {
                         selectedStepIndex = index
-                        seedEnhanceSliders(from: op)
-                        seedRotateSlider(from: op)
+                        seedEnhanceSliders(from: operation)
+                        seedRotateSlider(from: operation)
                     }
                 }
             } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: op.icon)
+                    Image(systemName: operation.icon)
                         .frame(width: 22)
                         .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(op.title).font(.subheadline)
-                        if !op.summary.isEmpty {
-                            Text(op.summary).font(.caption).foregroundStyle(.secondary)
+                        Text(operation.title).font(.subheadline)
+                        if !operation.summary.isEmpty {
+                            Text(operation.summary).font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     Spacer()
@@ -154,7 +154,7 @@ struct ImageEditChainPanel: View {
             .buttonStyle(.plain)
 
             if isSelected {
-                stepEditor(for: op, at: index)
+                stepEditor(for: operation, at: index)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 10)
             }
@@ -163,8 +163,8 @@ struct ImageEditChainPanel: View {
 
     @ViewBuilder
     // swiftlint:disable:next function_body_length
-    private func stepEditor(for op: ImageEditOperation, at index: Int) -> some View {
-        switch op.opKind {
+    private func stepEditor(for operation: ImageEditOperation, at index: Int) -> some View {
+        switch operation.opKind {
         case "enhance":
             VStack(alignment: .leading, spacing: 8) {
                 enhanceSlider("Brightness", value: $enhanceBrightness)
@@ -211,10 +211,10 @@ struct ImageEditChainPanel: View {
             }
             .font(.caption)
         case "crop":
-            let cropLeft = op.params["left"] as? Int ?? 0
-            let cropTop = op.params["top"] as? Int ?? 0
-            let cropWidth = op.params["width"] as? Int ?? 0
-            let cropHeight = op.params["height"] as? Int ?? 0
+            let cropLeft = operation.params["left"] as? Int ?? 0
+            let cropTop = operation.params["top"] as? Int ?? 0
+            let cropWidth = operation.params["width"] as? Int ?? 0
+            let cropHeight = operation.params["height"] as? Int ?? 0
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     Image(systemName: "crop").foregroundStyle(.secondary)
@@ -324,18 +324,18 @@ struct ImageEditChainPanel: View {
         }
     }
 
-    private func seedEnhanceSliders(from op: ImageEditOperation) {
-        guard op.opKind == "enhance" else { return }
-        enhanceBrightness = (op.params["brightness"] as? Double) ?? 1.0
-        enhanceContrast = (op.params["contrast"] as? Double) ?? 1.0
-        enhanceSharpen = (op.params["sharpen"] as? Double) ?? 1.0
-        enhanceAutoLevels = (op.params["auto_levels"] as? Bool) ?? false
+    private func seedEnhanceSliders(from operation: ImageEditOperation) {
+        guard operation.opKind == "enhance" else { return }
+        enhanceBrightness = (operation.params["brightness"] as? Double) ?? 1.0
+        enhanceContrast = (operation.params["contrast"] as? Double) ?? 1.0
+        enhanceSharpen = (operation.params["sharpen"] as? Double) ?? 1.0
+        enhanceAutoLevels = (operation.params["auto_levels"] as? Bool) ?? false
     }
 
-    private func seedRotateSlider(from op: ImageEditOperation) {
-        guard op.opKind == "rotate" else { return }
-        rotateAngle = (op.params["angle"] as? Double)
-            ?? Double(op.params["angle"] as? Int ?? 0)
+    private func seedRotateSlider(from operation: ImageEditOperation) {
+        guard operation.opKind == "rotate" else { return }
+        rotateAngle = (operation.params["angle"] as? Double)
+            ?? Double(operation.params["angle"] as? Int ?? 0)
     }
 
     // MARK: - Add Step
@@ -447,7 +447,7 @@ struct ImageEditChainPanel: View {
 // swiftlint:enable type_body_length
 
 #Preview("With edits") {
-    @Previewable @State var selectedIdx: Int? = nil
+    @Previewable @State var selectedIdx: Int?
     ImageEditChainPanel(
         chain: ImageEditChain(
             documentId: "doc1",
@@ -473,7 +473,7 @@ struct ImageEditChainPanel: View {
 }
 
 #Preview("Empty") {
-    @Previewable @State var selectedIdx: Int? = nil
+    @Previewable @State var selectedIdx: Int?
     ImageEditChainPanel(
         chain: ImageEditChain(documentId: "doc1", operations: [], updatedAt: nil),
         isBusy: false,

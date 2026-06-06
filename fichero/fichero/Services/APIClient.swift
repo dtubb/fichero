@@ -52,7 +52,7 @@ class APIClient: ObservableObject {
     @Published var currentLibraryPath: String?
 
     init() {
-        self.baseURL = URL(string: "http://127.0.0.1:8765/api")!
+        self.baseURL = EngineConfig.apiBaseURL
 
         // Configure session
         let config = URLSessionConfiguration.default
@@ -300,15 +300,15 @@ class APIClient: ObservableObject {
     // MARK: - URL Builders (for images)
 
     func thumbnailURL(for documentId: String) -> URL {
-        URL(string: "http://127.0.0.1:8765/api/storage/thumbnail/\(documentId)")!
+        EngineConfig.apiBaseURL.appendingPathComponent("storage/thumbnail/\(documentId)")
     }
 
     func displayURL(for documentId: String) -> URL {
-        URL(string: "http://127.0.0.1:8765/api/storage/display/\(documentId)")!
+        EngineConfig.apiBaseURL.appendingPathComponent("storage/display/\(documentId)")
     }
 
     func sourceURL(for documentId: String) -> URL {
-        URL(string: "http://127.0.0.1:8765/api/storage/source/\(documentId)")!
+        EngineConfig.apiBaseURL.appendingPathComponent("storage/source/\(documentId)")
     }
 
     // MARK: - Response Validation
@@ -346,7 +346,7 @@ class APIClient: ObservableObject {
 
 extension APIClient {
     func patch<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
-        let url = URL(string: "http://127.0.0.1:8765/api")!.appendingPathComponent(path)
+        let url = EngineConfig.apiBaseURL.appendingPathComponent(path)
 
         var request = URLRequest(url: url)
         request.httpMethod = "PATCH"

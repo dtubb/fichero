@@ -1,11 +1,27 @@
 // swiftlint:disable file_length
+import FicheroAPIClient
 import Foundation
+import OpenAPIRuntime
 import OSLog
 
-// Service for interacting with the Action Library backend
+/// Canonical service for the Action Library (`/api/actions`).
+///
+/// Routes every REST call through the generated OpenAPI client
+/// (`FicheroClient` → `AuthTokenMiddleware` + `LibraryPathMiddleware`) instead
+/// of hand-written `URLSession` requests (#1666/#1711). This is the single
+/// transport for all `/api/actions/*` traffic: the former two duplicate
+/// services (`ActionsService` + `ActionLibraryService`) both spoke raw
+/// `URLRequest` to the same surface; they are now collapsed onto this one type,
+/// with `ActionsService` reduced to a thin subclass that only carries the
+/// label/return-shape variants its existing call sites depend on.
+///
+/// Like `IntegrationsService`/`ModelComparisonService`, the localhost client is
+/// used purely to carry auth; `LibraryPathMiddleware` injects
+/// `X-Fichero-Library-Path` centrally for library-scoped paths (#1710), so call
+/// sites pass `headers: .init(xFicheroLibraryPath: libPath)` and never hand-pass the library header.
 @MainActor
 // swiftlint:disable:next type_body_length
-final class ActionLibraryService: ObservableObject {
+class ActionLibraryService: ObservableObject {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "ActionLibraryService")
 
     @Published var actions: [ActionItem] = []
@@ -15,19 +31,45 @@ final class ActionLibraryService: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
-    private let baseURL = "http://localhost:8765/api/actions"
-    private var libraryPath: String = ""
+    /// Shared generated client — the single transport for both this type and the
+    /// `ActionsService` subclass.
+    let client: FicheroClient
 
-    // MARK: - Configuration
+    /// Library-scoped header value, injected on every request. Falls back to an
+    /// empty string when no library is open (matches prior inline behaviour).
+    private var libPath: String { client.currentLibraryPath ?? "" }
 
-    func setLibraryPath(_ path: String) {
-        self.libraryPath = path
+    init(client: FicheroClient = .localhost) {
+        self.client = client
     }
 
-    private func request(for url: URL) -> URLRequest {
-        var request = URLRequest(url: url)
-        request.addEngineAuth(libraryPath: libraryPath.isEmpty ? nil : libraryPath)
-        return request
+    // MARK: - Response Mapping Helpers
+
+    /// Bridge a generated typed schema (e.g. `ActionResponse`) into the matching
+    /// app model. The generated schemas encode to the same snake_case wire bytes
+    /// the former `URLSession` decoders consumed, so this is a 1:1 mapping.
+    /// `internal` so the `ActionsService` subclass can reuse it.
+    func decodeModel<T: Decodable>(from value: some Encodable, as _: T.Type = T.self) throws -> T {
+        let data = try JSONEncoder().encode(value)
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    /// Bridge the free-form `items` container array returned by the list
+    /// endpoints (`ActionListResponse.items`) into app models, mirroring the
+    /// proven `IntegrationsService`/`NoteService` container-decode pattern.
+    func decodeModels<T: Decodable>(from containers: [OpenAPIValueContainer], as _: T.Type = T.self) throws -> [T] {
+        try containers.map { container in
+            guard let object = container.value else { throw ActionLibraryError.serverError }
+            let data = try JSONSerialization.data(withJSONObject: object)
+            return try JSONDecoder().decode(T.self, from: data)
+        }
+    }
+
+    /// Build an `OpenAPIObjectContainer` from a free-form `[String: Any]` node /
+    /// graph dictionary for the from-node / composite request bodies.
+    func objectContainer(from dict: [String: Any]) throws -> OpenAPIRuntime.OpenAPIObjectContainer {
+        let data = try JSONSerialization.data(withJSONObject: dict)
+        return try JSONDecoder().decode(OpenAPIRuntime.OpenAPIObjectContainer.self, from: data)
     }
 
     // MARK: - List Operations
@@ -38,21 +80,14 @@ final class ActionLibraryService: ObservableObject {
         error = nil
 
         do {
-            guard let url = URL(string: baseURL) else {
-                throw ActionLibraryError.invalidURL
-            }
-
-            let request = request(for: url)
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
+            let response = try await client.api.listActionsApiActionsGet(headers: .init(xFicheroLibraryPath: libPath))
+            switch response {
+            case .ok(let okResponse):
+                actions = try decodeModels(from: try okResponse.body.json.items, as: ActionItem.self)
+                logger.info("Loaded \(self.actions.count) actions")
+            case .unprocessableContent, .undocumented:
                 throw ActionLibraryError.serverError
             }
-
-            let decoder = JSONDecoder()
-            actions = try decoder.decode([ActionItem].self, from: data)
-            logger.info("Loaded \(self.actions.count) actions")
         } catch {
             self.error = error.localizedDescription
             logger.error("Failed to load actions: \(error.localizedDescription)")
@@ -64,16 +99,13 @@ final class ActionLibraryService: ObservableObject {
     /// Load categories
     func loadCategories() async {
         do {
-            guard let url = URL(string: "\(baseURL)/categories") else { return }
-
-            let request = request(for: url)
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else { return }
-
-            let result = try JSONDecoder().decode([String: [String]].self, from: data)
-            categories = result["categories"] ?? []
+            let response = try await client.api.listCategoriesApiActionsCategoriesGet(headers: .init(xFicheroLibraryPath: libPath))
+            switch response {
+            case .ok(let okResponse):
+                categories = try okResponse.body.json.categories
+            case .unprocessableContent, .undocumented:
+                return
+            }
         } catch {
             logger.error("Failed to load categories: \(error.localizedDescription)")
         }
@@ -82,17 +114,16 @@ final class ActionLibraryService: ObservableObject {
     /// Load actions by category
     func loadActions(category: String) async -> [ActionItem] {
         do {
-            guard let url = URL(string: "\(baseURL)/category/\(category)") else {
+            let response = try await client.api.listActionsByCategoryApiActionsCategoryCategoryGet(
+                path: .init(category: category),
+                headers: .init(xFicheroLibraryPath: libPath)
+            )
+            switch response {
+            case .ok(let okResponse):
+                return try decodeModels(from: try okResponse.body.json.items, as: ActionItem.self)
+            case .unprocessableContent, .undocumented:
                 return []
             }
-
-            let request = request(for: url)
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else { return [] }
-
-            return try JSONDecoder().decode([ActionItem].self, from: data)
         } catch {
             logger.error("Failed to load category: \(error.localizedDescription)")
             return []
@@ -102,15 +133,13 @@ final class ActionLibraryService: ObservableObject {
     /// Load built-in actions
     func loadBuiltinActions() async -> [ActionItem] {
         do {
-            guard let url = URL(string: "\(baseURL)/builtin") else { return [] }
-
-            let request = request(for: url)
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else { return [] }
-
-            return try JSONDecoder().decode([ActionItem].self, from: data)
+            let response = try await client.api.listBuiltinActionsApiActionsBuiltinGet(headers: .init(xFicheroLibraryPath: libPath))
+            switch response {
+            case .ok(let okResponse):
+                return try decodeModels(from: try okResponse.body.json.items, as: ActionItem.self)
+            case .unprocessableContent, .undocumented:
+                return []
+            }
         } catch {
             logger.error("Failed to load builtin actions: \(error.localizedDescription)")
             return []
@@ -120,15 +149,13 @@ final class ActionLibraryService: ObservableObject {
     /// Load custom actions
     func loadCustomActions() async -> [ActionItem] {
         do {
-            guard let url = URL(string: "\(baseURL)/custom") else { return [] }
-
-            let request = request(for: url)
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else { return [] }
-
-            return try JSONDecoder().decode([ActionItem].self, from: data)
+            let response = try await client.api.listCustomActionsApiActionsCustomGet(headers: .init(xFicheroLibraryPath: libPath))
+            switch response {
+            case .ok(let okResponse):
+                return try decodeModels(from: try okResponse.body.json.items, as: ActionItem.self)
+            case .unprocessableContent, .undocumented:
+                return []
+            }
         } catch {
             logger.error("Failed to load custom actions: \(error.localizedDescription)")
             return []
@@ -138,34 +165,41 @@ final class ActionLibraryService: ObservableObject {
     /// Load recent actions
     func loadRecentActions(limit: Int = 10) async {
         do {
-            guard let url = URL(string: "\(baseURL)/recent?limit=\(limit)") else { return }
-
-            let request = request(for: url)
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else { return }
-
-            recentActions = try JSONDecoder().decode([ActionItem].self, from: data)
+            let response = try await client.api.listRecentActionsApiActionsRecentGet(
+                query: .init(limit: limit),
+                headers: .init(xFicheroLibraryPath: libPath)
+            )
+            switch response {
+            case .ok(let okResponse):
+                recentActions = try decodeModels(from: try okResponse.body.json.items, as: ActionItem.self)
+            case .unprocessableContent, .undocumented:
+                return
+            }
         } catch {
             logger.error("Failed to load recent actions: \(error.localizedDescription)")
         }
     }
 
-    /// Load popular actions
-    func loadPopularActions(limit: Int = 10) async {
+    /// Load popular actions. Sets `popularActions` and also returns the list so
+    /// the `ActionsService` subclass can vend it directly to its call sites.
+    @discardableResult
+    func loadPopularActions(limit: Int = 10) async -> [ActionItem] {
         do {
-            guard let url = URL(string: "\(baseURL)/popular?limit=\(limit)") else { return }
-
-            let request = request(for: url)
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else { return }
-
-            popularActions = try JSONDecoder().decode([ActionItem].self, from: data)
+            let response = try await client.api.listPopularActionsApiActionsPopularGet(
+                query: .init(limit: limit),
+                headers: .init(xFicheroLibraryPath: libPath)
+            )
+            switch response {
+            case .ok(let okResponse):
+                let loaded = try decodeModels(from: try okResponse.body.json.items, as: ActionItem.self)
+                popularActions = loaded
+                return loaded
+            case .unprocessableContent, .undocumented:
+                return []
+            }
         } catch {
             logger.error("Failed to load popular actions: \(error.localizedDescription)")
+            return []
         }
     }
 
@@ -174,30 +208,20 @@ final class ActionLibraryService: ObservableObject {
     /// Search actions
     func search(query: String? = nil, category: String? = nil, tags: [String]? = nil) async -> [ActionItem] {
         do {
-            var components = URLComponents(string: "\(baseURL)/search")
-            var queryItems: [URLQueryItem] = []
-
-            if let query = query, !query.isEmpty {
-                queryItems.append(URLQueryItem(name: "query", value: query))
+            let response = try await client.api.searchActionsApiActionsSearchGet(
+                query: .init(
+                    query: (query?.isEmpty == false) ? query : nil,
+                    category: category,
+                    tags: (tags?.isEmpty == false) ? tags?.joined(separator: ",") : nil
+                ),
+                headers: .init(xFicheroLibraryPath: libPath)
+            )
+            switch response {
+            case .ok(let okResponse):
+                return try decodeModels(from: try okResponse.body.json.items, as: ActionItem.self)
+            case .unprocessableContent, .undocumented:
+                return []
             }
-            if let category = category {
-                queryItems.append(URLQueryItem(name: "category", value: category))
-            }
-            if let tags = tags, !tags.isEmpty {
-                queryItems.append(URLQueryItem(name: "tags", value: tags.joined(separator: ",")))
-            }
-
-            components?.queryItems = queryItems.isEmpty ? nil : queryItems
-
-            guard let url = components?.url else { return [] }
-
-            let request = request(for: url)
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else { return [] }
-
-            return try JSONDecoder().decode([ActionItem].self, from: data)
         } catch {
             logger.error("Search failed: \(error.localizedDescription)")
             return []
@@ -209,15 +233,16 @@ final class ActionLibraryService: ObservableObject {
     /// Get action by ID
     func getAction(_ actionId: String) async -> ActionItem? {
         do {
-            guard let url = URL(string: "\(baseURL)/\(actionId)") else { return nil }
-
-            let request = request(for: url)
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else { return nil }
-
-            return try JSONDecoder().decode(ActionItem.self, from: data)
+            let response = try await client.api.getActionApiActionsActionIdGet(
+                path: .init(actionId: actionId),
+                headers: .init(xFicheroLibraryPath: libPath)
+            )
+            switch response {
+            case .ok(let okResponse):
+                return try decodeModel(from: try okResponse.body.json, as: ActionItem.self)
+            case .unprocessableContent, .undocumented:
+                return nil
+            }
         } catch {
             logger.error("Failed to get action: \(error.localizedDescription)")
             return nil
@@ -226,51 +251,44 @@ final class ActionLibraryService: ObservableObject {
 
     /// Create a new action
     func createAction(_ action: CreateActionRequest) async throws -> ActionItem {
-        guard let url = URL(string: baseURL) else {
-            throw ActionLibraryError.invalidURL
-        }
-
-        var request = request(for: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(action)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let response = try await client.api.createActionApiActionsPost(
+            headers: .init(xFicheroLibraryPath: libPath),
+            body: .json(.init(
+                name: action.name,
+                description: action.description,
+                category: action.category,
+                tags: action.tags,
+                icon: action.icon,
+                author: action.author
+            ))
+        )
+        switch response {
+        case .ok(let okResponse):
+            let created: ActionItem = try decodeModel(from: try okResponse.body.json)
+            logger.info("Created action: \(created.name)")
+            return created
+        case .unprocessableContent, .undocumented:
             throw ActionLibraryError.serverError
         }
-
-        let created = try JSONDecoder().decode(ActionItem.self, from: data)
-        logger.info("Created action: \(created.name)")
-        return created
     }
 
     /// Delete an action
     func deleteAction(_ actionId: String) async throws {
-        guard let url = URL(string: "\(baseURL)/\(actionId)") else {
-            throw ActionLibraryError.invalidURL
-        }
-
-        var request = request(for: url)
-        request.httpMethod = "DELETE"
-
-        let (_, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
+        let response = try await client.api.deleteActionApiActionsActionIdDelete(
+            path: .init(actionId: actionId),
+            headers: .init(xFicheroLibraryPath: libPath)
+        )
+        switch response {
+        case .ok:
+            logger.info("Deleted action: \(actionId)")
+        case .undocumented(let statusCode, _):
+            if statusCode == 403 {
+                throw ActionLibraryError.cannotDeleteBuiltin
+            }
+            throw ActionLibraryError.serverError
+        case .unprocessableContent:
             throw ActionLibraryError.serverError
         }
-
-        if httpResponse.statusCode == 403 {
-            throw ActionLibraryError.cannotDeleteBuiltin
-        }
-
-        if httpResponse.statusCode != 200 {
-            throw ActionLibraryError.serverError
-        }
-
-        logger.info("Deleted action: \(actionId)")
     }
 
     // MARK: - Usage Tracking
@@ -278,12 +296,10 @@ final class ActionLibraryService: ObservableObject {
     /// Record that an action was used
     func recordUse(_ actionId: String) async {
         do {
-            guard let url = URL(string: "\(baseURL)/\(actionId)/use") else { return }
-
-            var request = request(for: url)
-            request.httpMethod = "POST"
-
-            let (_, _) = try await URLSession.shared.data(for: request)
+            _ = try await client.api.recordActionUseApiActionsActionIdUsePost(
+                path: .init(actionId: actionId),
+                headers: .init(xFicheroLibraryPath: libPath)
+            )
             logger.debug("Recorded use of action: \(actionId)")
         } catch {
             logger.error("Failed to record action use: \(error.localizedDescription)")
@@ -294,43 +310,30 @@ final class ActionLibraryService: ObservableObject {
 
     /// Export action as JSON
     func exportAction(_ actionId: String) async throws -> String {
-        guard let url = URL(string: "\(baseURL)/\(actionId)/export") else {
-            throw ActionLibraryError.invalidURL
-        }
-
-        let request = request(for: url)
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let response = try await client.api.exportActionApiActionsActionIdExportGet(
+            path: .init(actionId: actionId),
+            headers: .init(xFicheroLibraryPath: libPath)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.jsonData
+        case .unprocessableContent, .undocumented:
             throw ActionLibraryError.serverError
         }
-
-        let result = try JSONDecoder().decode([String: String].self, from: data)
-        return result["json"] ?? ""
     }
 
     /// Import action from JSON
     func importAction(_ json: String, newId: Bool = true) async throws -> ActionItem {
-        guard let url = URL(string: "\(baseURL)/import") else {
-            throw ActionLibraryError.invalidURL
-        }
-
-        var request = request(for: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body = ImportActionRequest(jsonData: json, newId: newId)
-        request.httpBody = try JSONEncoder().encode(body)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let response = try await client.api.importActionApiActionsImportPost(
+            headers: .init(xFicheroLibraryPath: libPath),
+            body: .json(.init(jsonData: json, newId: newId))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try decodeModel(from: try okResponse.body.json, as: ActionItem.self)
+        case .unprocessableContent, .undocumented:
             throw ActionLibraryError.serverError
         }
-
-        return try JSONDecoder().decode(ActionItem.self, from: data)
     }
 
     // MARK: - Action Creation Helpers
@@ -343,31 +346,22 @@ final class ActionLibraryService: ObservableObject {
         category: String = "custom",
         tags: [String] = []
     ) async throws -> ActionItem {
-        guard let url = URL(string: "\(baseURL)/from-node") else {
-            throw ActionLibraryError.invalidURL
-        }
-
-        var request = request(for: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body: [String: Any] = [
-            "name": name,
-            "node": node,
-            "description": description,
-            "category": category,
-            "tags": tags
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let response = try await client.api.createActionFromNodeApiActionsFromNodePost(
+            headers: .init(xFicheroLibraryPath: libPath),
+            body: .json(.init(
+                name: name,
+                node: .init(additionalProperties: try objectContainer(from: node)),
+                description: description,
+                category: category,
+                tags: tags
+            ))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try decodeModel(from: try okResponse.body.json, as: ActionItem.self)
+        case .unprocessableContent, .undocumented:
             throw ActionLibraryError.serverError
         }
-
-        return try JSONDecoder().decode(ActionItem.self, from: data)
     }
 
     /// Create composite action from multiple nodes
@@ -379,50 +373,37 @@ final class ActionLibraryService: ObservableObject {
         category: String = "custom",
         tags: [String] = []
     ) async throws -> ActionItem {
-        guard let url = URL(string: "\(baseURL)/composite") else {
-            throw ActionLibraryError.invalidURL
+        let nodePayloads = try nodes.map {
+            Components.Schemas.CreateCompositeRequest.NodesPayloadPayload(
+                additionalProperties: try objectContainer(from: $0)
+            )
         }
-
-        var request = request(for: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body: [String: Any] = [
-            "name": name,
-            "nodes": nodes,
-            "edges": edges,
-            "description": description,
-            "category": category,
-            "tags": tags
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let edgePayloads = try edges.map {
+            Components.Schemas.CreateCompositeRequest.EdgesPayloadPayload(
+                additionalProperties: try objectContainer(from: $0)
+            )
+        }
+        let response = try await client.api.createCompositeActionApiActionsCompositePost(
+            headers: .init(xFicheroLibraryPath: libPath),
+            body: .json(.init(
+                name: name,
+                nodes: nodePayloads,
+                edges: edgePayloads,
+                description: description,
+                category: category,
+                tags: tags
+            ))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try decodeModel(from: try okResponse.body.json, as: ActionItem.self)
+        case .unprocessableContent, .undocumented:
             throw ActionLibraryError.serverError
         }
-
-        return try JSONDecoder().decode(ActionItem.self, from: data)
     }
 }
 
 // ActionItem and CreateActionRequest are defined in ActionsService.swift — do not duplicate
-
-// MARK: - Models
-
-struct ImportActionRequest: Codable {
-    let jsonData: String
-    let newId: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case jsonData = "json_data"
-        case newId = "new_id"
-    }
-}
-
-// AnyCodable is defined in Models/Document.swift — do not duplicate
 
 // MARK: - Errors
 

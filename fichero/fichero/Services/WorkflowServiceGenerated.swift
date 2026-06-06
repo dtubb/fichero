@@ -359,15 +359,14 @@ class WorkflowServiceGenerated: ObservableObject {
     /// Reinstall default workflows from backend presets (Transcribe, Catalogue).
     /// Deletes existing presets and re-seeds so updated JSON reaches the library.
     func reinstallDefaults() async throws {
-        guard let baseURL = URL(string: "\(client.baseURL.absoluteString)/api/workflows/reinstall-defaults") else {
-            throw WorkflowServiceError.unexpectedResponse
-        }
-        var request = URLRequest(url: baseURL)
-        request.httpMethod = "POST"
-        request.addEngineAuth(libraryPath: client.currentLibraryPath)
-        let (_, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        // Library-scoped op (#1714): the header is required by the generated signature.
+        let response = try await client.api.reinstallDefaultWorkflowsApiWorkflowsReinstallDefaultsPost(.init(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        ))
+        switch response {
+        case .ok:
+            return
+        default:
             throw WorkflowServiceError.unexpectedResponse
         }
     }

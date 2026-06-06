@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import OSLog
 
@@ -27,30 +28,61 @@ extension ComparisonDetailView {
         isLoading = true
         error = nil
 
+        // Route through the generated client (injects auth + library header)
+        // instead of a hand-written URLSession call. Model-comparison is a
+        // dev-tier, app-wide feature; the middleware still supplies the bearer
+        // token the backend requires.
+        let client = libraryManager.globalLibrary?.ficheroClient ?? FicheroClient.localhost
+
         do {
-            let urlString = "http://localhost:8765/api/model-comparison/comparison/\(comparisonSummary.comparisonId)"
-            let url = URL(string: urlString)!
-            var request = URLRequest(url: url)
-            request.addEngineAuth()
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let response = try await client.api.getComparisonApiModelComparisonComparisonComparisonIdGet(
+                path: .init(comparisonId: comparisonSummary.comparisonId)
+            )
 
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw URLError(.badServerResponse)
-            }
-
-            if httpResponse.statusCode == 404 {
+            switch response {
+            case .ok(let okResponse):
+                comparison = Self.mapComparison(try okResponse.body.json)
+            case .unprocessableContent:
                 self.error = "Comparison not found"
-            } else if httpResponse.statusCode != 200 {
-                self.error = "Server error: \(httpResponse.statusCode)"
-            } else {
-                let decoder = JSONDecoder()
-                comparison = try decoder.decode(ComparisonDetail.self, from: data)
+            case .undocumented(let statusCode, _):
+                self.error = "Server error: \(statusCode)"
             }
         } catch {
             self.error = error.localizedDescription
         }
 
         isLoading = false
+    }
+
+    /// Map the generated `ComparisonResultResponse` to the app's `ComparisonDetail`.
+    private static func mapComparison(
+        _ response: Components.Schemas.ComparisonResultResponse
+    ) -> ComparisonDetail {
+        let results = response.results.map { result in
+            ModelResultDetail(
+                provider: result.provider,
+                model: result.model,
+                response: result.response,
+                latencyMs: result.latencyMs,
+                inputTokens: result.inputTokens,
+                outputTokens: result.outputTokens,
+                costUsd: result.costUsd,
+                error: result.error,
+                timestamp: result.timestamp
+            )
+        }
+
+        return ComparisonDetail(
+            prompt: response.prompt,
+            modelsCompared: response.modelsCompared,
+            results: results,
+            fastestModel: response.fastestModel,
+            cheapestModel: response.cheapestModel,
+            totalCostUsd: response.totalCostUsd,
+            totalLatencyMs: response.totalLatencyMs,
+            comparisonId: response.comparisonId,
+            timestamp: response.timestamp
+        )
     }
 
     func rerunComparison(_ comparison: ComparisonDetail) async {

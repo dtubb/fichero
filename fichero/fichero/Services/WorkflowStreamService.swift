@@ -1,5 +1,7 @@
 import Combine
+import FicheroAPIClient
 import Foundation
+import OpenAPIRuntime
 import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowStreamService")
@@ -13,6 +15,11 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Workflo
 @MainActor
 class WorkflowStreamService: ObservableObject {
     private let api: APIClient
+
+    /// Generated client for the plain-JSON REST calls (execute / stop / resume).
+    /// The SSE byte-stream in `subscribeToStream` stays on `api` (raw URLSession) —
+    /// the generated client can't surface a streaming body (#1714).
+    private let client: FicheroClient
 
     /// Current streaming status
     @Published var isStreaming = false
@@ -28,12 +35,24 @@ class WorkflowStreamService: ObservableObject {
 
     private var streamTask: Task<Void, Never>?
 
-    init(apiClient: APIClient) {
+    init(apiClient: APIClient, ficheroClient: FicheroClient) {
         self.api = apiClient
+        self.client = ficheroClient
     }
 
     deinit {
         streamTask?.cancel()
+    }
+
+    /// Library header for the library-scoped execution endpoints. Sourced from the
+    /// `APIClient` so it tracks the same per-window library path the SSE path uses.
+    private var libraryHeader: String { api.currentLibraryPath ?? "" }
+
+    /// Build the OpenAPI free-form object container from a JSON-compatible dict,
+    /// round-tripping through JSONSerialization to match the previous encoding.
+    private func objectContainer(fromJSON dict: [String: Any]) throws -> OpenAPIRuntime.OpenAPIObjectContainer {
+        let data = try JSONSerialization.data(withJSONObject: dict)
+        return try JSONDecoder().decode(OpenAPIRuntime.OpenAPIObjectContainer.self, from: data)
     }
 
     // MARK: - Public Methods
@@ -63,49 +82,42 @@ class WorkflowStreamService: ObservableObject {
         hadError = false
         isStreaming = true
 
-        // Step 1: POST to /execute to start the workflow
-        var requestBody: [String: Any] = [
-            "workflow_id": workflowId,
-            "inputs": inputs,
-            "checkpoint_ns": "",
-            "interrupt_before": [] as [String],
-            "interrupt_after": [] as [String]
-        ]
-        if let providerOverride, !providerOverride.isEmpty {
-            requestBody["provider_override"] = providerOverride
-        }
-        if let modelOverride, !modelOverride.isEmpty {
-            requestBody["model_override"] = modelOverride
-        }
-
-        guard let executeUrl = URL(string: "\(api.baseURL)/workflow-execution/execute") else {
-            throw WorkflowStreamError.invalidURL
-        }
-
-        var executeRequest = URLRequest(url: executeUrl)
-        executeRequest.httpMethod = "POST"
-        executeRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        executeRequest.addEngineAuth(libraryPath: api.currentLibraryPath)
-
-        let bodyData = try JSONSerialization.data(withJSONObject: requestBody, options: [])
-        executeRequest.httpBody = bodyData
+        // Step 1: POST to /execute to start the workflow (generated client, #1714).
+        let request = Components.Schemas.ExecuteWorkflowRequest(
+            workflowId: workflowId,
+            inputs: .init(additionalProperties: try objectContainer(fromJSON: inputs)),
+            checkpointNs: "",
+            interruptBefore: [],
+            interruptAfter: [],
+            providerOverride: (providerOverride?.isEmpty == false) ? providerOverride : nil,
+            modelOverride: (modelOverride?.isEmpty == false) ? modelOverride : nil
+        )
 
         logger.info("Starting workflow execution: \(workflowId)")
 
-        let (responseData, executeResponse) = try await URLSession.shared.data(for: executeRequest)
+        let executeResponse = try await client.api.executeWorkflowApiWorkflowExecutionExecutePost(.init(
+            headers: .init(xFicheroLibraryPath: libraryHeader),
+            body: .json(request)
+        ))
 
-        guard let httpResponse = executeResponse as? HTTPURLResponse else {
-            throw WorkflowStreamError.invalidResponse
+        // The backend contract is 202 Accepted; map the handshake payload onto the
+        // app model (carries thread_id + stream_url). Other statuses surface as errors.
+        let acceptedResponse: ExecuteAcceptedResponse
+        switch executeResponse {
+        case .accepted(let accepted):
+            let payload = try accepted.body.json
+            acceptedResponse = ExecuteAcceptedResponse(
+                threadId: payload.threadId,
+                workflowId: payload.workflowId,
+                workflowName: payload.workflowName,
+                status: payload.status ?? "accepted",
+                streamUrl: payload.streamUrl
+            )
+        case .unprocessableContent:
+            throw WorkflowStreamError.httpError(statusCode: 422)
+        case .undocumented(let statusCode, _):
+            throw WorkflowStreamError.httpError(statusCode: statusCode)
         }
-
-        // Accept 202 (non-blocking) or 200 (legacy blocking)
-        guard httpResponse.statusCode == 202 || httpResponse.statusCode == 200 else {
-            throw WorkflowStreamError.httpError(statusCode: httpResponse.statusCode)
-        }
-
-        // Parse the response
-        let decoder = JSONDecoder()
-        let acceptedResponse = try decoder.decode(ExecuteAcceptedResponse.self, from: responseData)
 
         currentThreadId = acceptedResponse.threadId
         logger.info("Workflow execution started, thread: \(acceptedResponse.threadId)")
@@ -224,53 +236,49 @@ class WorkflowStreamService: ObservableObject {
         // First cancel the local stream
         cancelStream()
 
-        // Then delete the thread on the backend
-        guard let url = URL(string: "\(api.baseURL)/workflow-execution/threads/\(threadId)") else {
-            throw WorkflowStreamError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.addEngineAuth(libraryPath: api.currentLibraryPath)
-
         logger.info("Stopping workflow thread: \(threadId)")
 
-        let (_, response) = try await URLSession.shared.data(for: request)
+        // Then delete the thread on the backend (generated client, #1714).
+        let response = try await client.api.deleteThreadApiWorkflowExecutionThreadsThreadIdDelete(.init(
+            path: .init(threadId: threadId),
+            headers: .init(xFicheroLibraryPath: libraryHeader)
+        ))
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WorkflowStreamError.invalidResponse
+        // 200 = deleted, 404 = already gone (both OK). 404 arrives as `.undocumented`
+        // since the generated contract only documents 200/422.
+        switch response {
+        case .ok:
+            logger.info("Workflow thread stopped: \(threadId)")
+        case .undocumented(let statusCode, _):
+            if statusCode == 404 {
+                logger.info("Workflow thread already gone: \(threadId)")
+            } else {
+                throw WorkflowStreamError.httpError(statusCode: statusCode)
+            }
+        case .unprocessableContent:
+            throw WorkflowStreamError.httpError(statusCode: 422)
         }
-
-        // 200 = deleted, 404 = already gone (both OK)
-        if httpResponse.statusCode != 200 && httpResponse.statusCode != 404 {
-            throw WorkflowStreamError.httpError(statusCode: httpResponse.statusCode)
-        }
-
-        logger.info("Workflow thread stopped: \(threadId)")
     }
 
     /// Resume a paused workflow
     /// - Parameter threadId: The thread ID to resume
     func resumeWorkflow(threadId: String, onEvent: ((WorkflowStreamEvent) -> Void)? = nil) async throws {
-        guard let url = URL(string: "\(api.baseURL)/workflow-execution/threads/\(threadId)/resume") else {
-            throw WorkflowStreamError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addEngineAuth(libraryPath: api.currentLibraryPath)
-
         logger.info("Resuming workflow thread: \(threadId)")
 
-        let (_, response) = try await URLSession.shared.data(for: request)
+        // Resume the thread (generated client, #1714). No inputs → no body, matching
+        // the previous empty-body POST. The SSE resubscribe below stays raw URLSession.
+        let response = try await client.api.resumeWorkflowApiWorkflowExecutionThreadsThreadIdResumePost(.init(
+            path: .init(threadId: threadId),
+            headers: .init(xFicheroLibraryPath: libraryHeader)
+        ))
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WorkflowStreamError.invalidResponse
-        }
-
-        if httpResponse.statusCode != 200 {
-            throw WorkflowStreamError.httpError(statusCode: httpResponse.statusCode)
+        switch response {
+        case .ok:
+            break
+        case .unprocessableContent:
+            throw WorkflowStreamError.httpError(statusCode: 422)
+        case .undocumented(let statusCode, _):
+            throw WorkflowStreamError.httpError(statusCode: statusCode)
         }
 
         // Resubscribe to the stream

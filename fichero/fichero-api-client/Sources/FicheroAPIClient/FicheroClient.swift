@@ -48,6 +48,10 @@ public final class FicheroClient: ObservableObject {
         self.currentLibraryPath = libraryPath
 
         // The API paths in OpenAPI already include /api prefix, so use base URL directly
+        // LibraryPathMiddleware injects X-Fichero-Library-Path centrally (#1710).
+        // #1710 Phase 2: with the middleware in place, the per-call-site
+        // `headers: .init(xFicheroLibraryPath:)` args in the generated services
+        // become redundant and can be stripped — see issue #1710 for the sweep.
         self.api = Client(
             serverURL: baseURL,
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),

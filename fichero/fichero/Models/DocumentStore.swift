@@ -254,6 +254,12 @@ class DocumentStore: ObservableObject {
             childrenCache[documentId] = applyStatusOverrides(fresh)
             return childrenCache[documentId] ?? []
         } catch {
+            // Surface the failure: an empty result here is otherwise
+            // indistinguishable from a genuinely empty folder, leaving the
+            // user with no children and no explanation (#1718).
+            logger.error(
+                "children(of:) failed to load children for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
             return []
         }
     }

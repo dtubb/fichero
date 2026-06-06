@@ -119,7 +119,7 @@ final class ImageEditingServiceGenerated: ObservableObject {
     private let session = URLSession.shared
 
     /// - Parameter engineURL: Engine root without `/api` (e.g. `http://127.0.0.1:8765`).
-    init(libraryPath: String, engineURL: URL = URL(string: "http://127.0.0.1:8765")!) {
+    init(libraryPath: String, engineURL: URL = EngineConfig.host) {
         self.libraryPath = libraryPath
         self.engineURL = engineURL
     }

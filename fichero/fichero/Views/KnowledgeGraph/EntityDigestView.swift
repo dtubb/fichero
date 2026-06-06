@@ -83,25 +83,14 @@ struct EntityDigestView: View {
     }
 
     private func indexRow(_ entity: Components.Schemas.KnowledgeEntity) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entity.canonicalName)
-                    .font(.body)
-                if let type = entity.entityType {
-                    Text(type.rawValue.capitalized)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            let count = claimCounts[entity.id ?? ""] ?? 0
-            Text("\(count) sources")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(Color.secondary.opacity(0.1)))
-        }
+        // Shares the canonical EntityRow renderer in its `.digest`
+        // presentation so the researcher index and the OntologyBrowser
+        // sidebar stay on one code path (#1690).
+        EntityRow(
+            entity: entity,
+            claimCount: claimCounts[entity.id ?? ""] ?? 0,
+            style: .digest
+        )
     }
 
     private var emptyState: some View {

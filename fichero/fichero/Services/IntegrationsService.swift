@@ -1,7 +1,20 @@
+import FicheroAPIClient
 import Foundation
+import OpenAPIRuntime
 import OSLog
 
-/// Service for interacting with app integrations (DEVONthink, Bookends, Tinderbox)
+/// Service for interacting with app integrations (DEVONthink, Bookends, Tinderbox).
+///
+/// Routes through the generated OpenAPI client (FicheroClient → AuthTokenMiddleware
+/// + LibraryPathMiddleware) instead of hand-written URLSession requests (#1666/#1713).
+/// Integrations endpoints are **app-level** (they target external desktop apps,
+/// not a particular `.fichero` library) and the former URLSession path sent only
+/// the engine Bearer token with no library header — so this mirrors
+/// `ModelComparisonService`, using the localhost client purely to carry auth.
+///
+/// The `+AppSpecific` extension lives in a separate file but is the *same* type:
+/// both halves share this `client` and the mapping helpers below, so there is a
+/// single consistent transport for every `/api/integrations/*` call.
 @MainActor
 final class IntegrationsService: ObservableObject {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "IntegrationsService")
@@ -10,15 +23,40 @@ final class IntegrationsService: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
-    let baseURL = "http://localhost:8765/api/integrations"
+    /// App-wide client (auth only, no library scope) — see type doc.
+    let client: FicheroClient
 
-    /// GET request with engine Bearer token (#742). Replaces former
-    /// `URLSession.shared.data(from: url)` callsites. `internal` so the
-    /// `+AppSpecific` extension in another file can use it.
-    func authedGet(_ url: URL) -> URLRequest {
-        var request = URLRequest(url: url)
-        request.addEngineAuth()
-        return request
+    init(client: FicheroClient = .localhost) {
+        self.client = client
+    }
+
+    // MARK: - Response Mapping Helpers
+
+    /// Bridge a generated typed schema (e.g. `IntegrationInfo`, `IntegrationItem`)
+    /// into the matching app model. The generated schemas encode to the same
+    /// snake_case wire bytes the former URLSession decoders consumed, so this is
+    /// a 1:1 mapping. `internal` so the `+AppSpecific` extension can reuse it.
+    func decodeModel<T: Decodable>(from value: some Encodable, as _: T.Type = T.self) throws -> T {
+        let data = try JSONEncoder().encode(value)
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    /// Bridge a list of free-form response containers (the backend returns
+    /// open `items` / `databases` / `libraries` / `documents` arrays) into app
+    /// models, mirroring the proven `NoteService` container-decode pattern.
+    func decodeModels<T: Decodable>(from containers: [OpenAPIValueContainer], as _: T.Type = T.self) throws -> [T] {
+        try containers.map { container in
+            guard let object = container.value else { throw IntegrationsError.serverError }
+            let data = try JSONSerialization.data(withJSONObject: object)
+            return try JSONDecoder().decode(T.self, from: data)
+        }
+    }
+
+    /// Build an `OpenAPIObjectContainer` from a string map for request bodies
+    /// (export metadata, Tinderbox attributes).
+    func objectContainer(from dict: [String: String]) throws -> OpenAPIRuntime.OpenAPIObjectContainer {
+        let data = try JSONSerialization.data(withJSONObject: dict)
+        return try JSONDecoder().decode(OpenAPIRuntime.OpenAPIObjectContainer.self, from: data)
     }
 
     // MARK: - Integration Management
@@ -29,20 +67,16 @@ final class IntegrationsService: ObservableObject {
         error = nil
 
         do {
-            guard let url = URL(string: baseURL) else {
-                throw IntegrationsError.invalidURL
-            }
-
-            let (data, response) = try await URLSession.shared.data(for: authedGet(url))
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
+            let response = try await client.api.listIntegrationsApiIntegrationsGet(headers: .init())
+            switch response {
+            case .ok(let okResponse):
+                let body = try okResponse.body.json
+                integrations = try decodeModels(from: body.items, as: AppIntegration.self)
+                logger.info("Loaded \(self.integrations.count) integrations")
+            case .undocumented(let statusCode, _):
+                logger.error("Failed to load integrations: HTTP \(statusCode)")
                 throw IntegrationsError.serverError
             }
-
-            let decoder = JSONDecoder()
-            integrations = try decoder.decode([AppIntegration].self, from: data)
-            logger.info("Loaded \(self.integrations.count) integrations")
         } catch {
             self.error = error.localizedDescription
             logger.error("Failed to load integrations: \(error.localizedDescription)")
@@ -54,30 +88,25 @@ final class IntegrationsService: ObservableObject {
     /// Refresh a specific integration's status
     func refreshIntegration(_ name: String) async -> AppIntegration? {
         do {
-            guard let url = URL(string: "\(baseURL)/\(name.lowercased())/refresh") else {
-                throw IntegrationsError.invalidURL
+            let response = try await client.api.refreshIntegrationApiIntegrationsAppNameRefreshPost(
+                path: .init(appName: name.lowercased()),
+                headers: .init()
+            )
+            switch response {
+            case .ok(let okResponse):
+                let integration: AppIntegration = try decodeModel(from: try okResponse.body.json)
+                // Update in list
+                if let index = integrations.firstIndex(where: { $0.name.lowercased() == name.lowercased() }) {
+                    integrations[index] = integration
+                }
+                return integration
+            case .unprocessableContent:
+                logger.error("Failed to refresh \(name): validation error")
+                return nil
+            case .undocumented(let statusCode, _):
+                logger.error("Failed to refresh \(name): HTTP \(statusCode)")
+                return nil
             }
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.addEngineAuth()
-
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                throw IntegrationsError.serverError
-            }
-
-            let decoder = JSONDecoder()
-            let integration = try decoder.decode(AppIntegration.self, from: data)
-
-            // Update in list
-            if let index = integrations.firstIndex(where: { $0.name.lowercased() == name.lowercased() }) {
-                integrations[index] = integration
-            }
-
-            return integration
         } catch {
             logger.error("Failed to refresh \(name): \(error.localizedDescription)")
             return nil
@@ -94,60 +123,45 @@ final class IntegrationsService: ObservableObject {
         database: String? = nil,
         container: String? = nil
     ) async throws -> [IntegrationItem] {
-        var urlComponents = URLComponents(string: "\(baseURL)/\(appName.lowercased())/items")
-        var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "limit", value: String(limit))
-        ]
-
-        if let search = search, !search.isEmpty {
-            queryItems.append(URLQueryItem(name: "search", value: search))
-        }
-        if let database = database {
-            queryItems.append(URLQueryItem(name: "database", value: database))
-        }
-        if let container = container {
-            queryItems.append(URLQueryItem(name: "container", value: container))
-        }
-
-        urlComponents?.queryItems = queryItems
-
-        guard let url = urlComponents?.url else {
-            throw IntegrationsError.invalidURL
-        }
-
-        let (data, response) = try await URLSession.shared.data(for: authedGet(url))
-
-        guard let httpResponse = response as? HTTPURLResponse else {
+        let response = try await client.api.listItemsApiIntegrationsAppNameItemsGet(
+            path: .init(appName: appName.lowercased()),
+            query: .init(
+                limit: limit,
+                search: (search?.isEmpty == false) ? search : nil,
+                database: database,
+                container: container
+            ),
+            headers: .init()
+        )
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return try decodeModels(from: body.items, as: IntegrationItem.self)
+        case .unprocessableContent:
+            throw IntegrationsError.serverError
+        case .undocumented(let statusCode, _):
+            // The backend signals "app not running" with 503 (#1666 parity).
+            if statusCode == 503 {
+                throw IntegrationsError.appNotAvailable(appName)
+            }
             throw IntegrationsError.serverError
         }
-
-        if httpResponse.statusCode == 503 {
-            throw IntegrationsError.appNotAvailable(appName)
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw IntegrationsError.serverError
-        }
-
-        let decoder = JSONDecoder()
-        return try decoder.decode([IntegrationItem].self, from: data)
     }
 
     /// Get a specific item
     func getItem(from appName: String, externalId: String) async throws -> IntegrationItem {
-        guard let url = URL(string: "\(baseURL)/\(appName.lowercased())/items/\(externalId)") else {
-            throw IntegrationsError.invalidURL
-        }
-
-        let (data, response) = try await URLSession.shared.data(for: authedGet(url))
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let response = try await client.api.getItemApiIntegrationsAppNameItemsExternalIdGet(
+            path: .init(appName: appName.lowercased(), externalId: externalId),
+            headers: .init()
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try decodeModel(from: try okResponse.body.json)
+        case .unprocessableContent:
+            throw IntegrationsError.serverError
+        case .undocumented:
             throw IntegrationsError.serverError
         }
-
-        let decoder = JSONDecoder()
-        return try decoder.decode(IntegrationItem.self, from: data)
     }
 
     // MARK: - Import/Export
@@ -158,30 +172,19 @@ final class IntegrationsService: ObservableObject {
         externalId: String,
         targetPath: String? = nil
     ) async throws -> ImportResult {
-        guard let url = URL(string: "\(baseURL)/\(appName.lowercased())/import") else {
-            throw IntegrationsError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addEngineAuth()
-
-        let body: [String: Any?] = [
-            "external_id": externalId,
-            "target_path": targetPath
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body.compactMapValues { $0 })
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let response = try await client.api.importItemApiIntegrationsAppNameImportPost(
+            path: .init(appName: appName.lowercased()),
+            headers: .init(),
+            body: .json(.init(externalId: externalId, targetPath: targetPath))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try decodeModel(from: try okResponse.body.json)
+        case .unprocessableContent:
+            throw IntegrationsError.serverError
+        case .undocumented:
             throw IntegrationsError.serverError
         }
-
-        let decoder = JSONDecoder()
-        return try decoder.decode(ImportResult.self, from: data)
     }
 
     /// Export a file to an integration
@@ -194,55 +197,47 @@ final class IntegrationsService: ObservableObject {
         container: String? = nil,
         prototype: String? = nil
     ) async throws -> ExportResult {
-        guard let url = URL(string: "\(baseURL)/\(appName.lowercased())/export") else {
-            throw IntegrationsError.invalidURL
+        let metadataPayload = try metadata.map {
+            Components.Schemas.FicheroApiRoutesIntegrationsExportRequest.MetadataPayload(
+                additionalProperties: try objectContainer(from: $0)
+            )
         }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addEngineAuth()
-
-        let body: [String: Any?] = [
-            "file_path": filePath,
-            "metadata": metadata,
-            "database": database,
-            "group": group,
-            "container": container,
-            "prototype": prototype
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body.compactMapValues { $0 })
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let response = try await client.api.exportItemApiIntegrationsAppNameExportPost(
+            path: .init(appName: appName.lowercased()),
+            headers: .init(),
+            body: .json(.init(
+                filePath: filePath,
+                metadata: metadataPayload,
+                database: database,
+                group: group,
+                container: container,
+                prototype: prototype
+            ))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try decodeModel(from: try okResponse.body.json)
+        case .unprocessableContent:
+            throw IntegrationsError.serverError
+        case .undocumented:
             throw IntegrationsError.serverError
         }
-
-        let decoder = JSONDecoder()
-        return try decoder.decode(ExportResult.self, from: data)
     }
 
     /// Open an item in its native app
     func openItem(in appName: String, externalId: String) async throws -> Bool {
-        guard let url = URL(string: "\(baseURL)/\(appName.lowercased())/open/\(externalId)") else {
-            throw IntegrationsError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addEngineAuth()
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let response = try await client.api.openItemApiIntegrationsAppNameOpenExternalIdPost(
+            path: .init(appName: appName.lowercased(), externalId: externalId),
+            headers: .init()
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.success
+        case .unprocessableContent:
+            throw IntegrationsError.serverError
+        case .undocumented:
             throw IntegrationsError.serverError
         }
-
-        let result = try JSONDecoder().decode([String: Bool].self, from: data)
-        return result["success"] ?? false
     }
 
 }

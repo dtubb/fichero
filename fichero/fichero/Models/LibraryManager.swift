@@ -19,6 +19,13 @@ class LibraryManager: ObservableObject {
     /// The currently active library (used for new tabs/windows)
     @Published var currentLibraryId: UUID?
 
+    /// Cross-window "Open in New Tab / New Window" intent (#1685). Set just
+    /// before `openWindow(id: "main")`; the destination LibraryView consumes
+    /// and clears it once its documents load, so the freshly opened window
+    /// focuses the requested document. Reuses the Safari new-window path —
+    /// no parallel tab system.
+    @Published var pendingOpenDocumentId: String?
+
     /// Counter for unsaved library numbering (Untitled, Untitled 2, Untitled 3, etc.)
     var untitledCounter: Int = 1
 
@@ -109,7 +116,7 @@ class LibraryManager: ObservableObject {
             self.chatServiceGenerated = ChatServiceGenerated(ficheroClient: self.ficheroClient)
             self.workflowStore = workflowStore ?? WorkflowStore(ficheroClient: self.ficheroClient)
             self.workflowServiceGenerated = WorkflowServiceGenerated(ficheroClient: self.ficheroClient)
-            self.workflowStreamService = WorkflowStreamService(apiClient: self.apiClient)
+            self.workflowStreamService = WorkflowStreamService(apiClient: self.apiClient, ficheroClient: self.ficheroClient)
             self.importService = importService ?? ImportServiceGenerated(ficheroClient: self.ficheroClient)
             self.documentServiceGenerated = DocumentServiceGenerated(ficheroClient: self.ficheroClient)
             self.storageService = storageService ?? StorageServiceGenerated(ficheroClient: self.ficheroClient)

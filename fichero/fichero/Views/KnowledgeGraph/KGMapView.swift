@@ -165,7 +165,6 @@ struct KGMapView: View {
         return map
     }
 
-
     /// Claims with valid coordinates that pass the scope filter.
     private var locatedClaims: [LocatedClaim] {
         claims.compactMap { claim -> LocatedClaim? in

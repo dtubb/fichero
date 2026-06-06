@@ -1,3 +1,4 @@
+import AppKit
 import FicheroAPIClient
 import SwiftUI
 
@@ -5,7 +6,7 @@ import SwiftUI
 
 struct ClaimSummaryCard: View {
     let claim: Components.Schemas.KnowledgeClaim
-    var onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)? = nil
+    var onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)?
 
     /// Expanded → reveals the verbatim source excerpt + fetches
     /// contradictions + evidence-chain. Collapsed by default to keep
@@ -19,6 +20,8 @@ struct ClaimSummaryCard: View {
     @State private var showDeleteConfirmation = false
     @State private var isInlineEditing = false
     @Environment(KGFocusState.self) var kgFocusState
+    /// Finder-style Open in New Tab / New Window for claim cards (#1685).
+    @Environment(\.openWindow) private var openWindow
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
 
     struct SVOTriple {
@@ -141,9 +144,26 @@ struct ClaimSummaryCard: View {
             .padding(10)
             .background(Color(.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            .onTapGesture { focusClaim() }
+            .onTapGesture {
+                // Cmd-click opens in a new tab, Finder-style (#1685);
+                // plain click focuses the claim in place.
+                if NSApp.currentEvent?.modifierFlags.contains(.command) ?? false {
+                    openClaimInNewWindow(asTab: true)
+                } else {
+                    focusClaim()
+                }
+            }
             .onTapGesture(count: 2) { isInlineEditing = true }
             .contextMenu {
+                // Finder-style open affordances (#1685). "Open" focuses the
+                // claim in this window; New Tab / New Window open a fresh
+                // window carrying the focus via the cross-window KGFocusState.
+                OpenInMenuItems(
+                    open: { focusClaim() },
+                    openInNewTab: { openClaimInNewWindow(asTab: true) },
+                    openInNewWindow: { openClaimInNewWindow(asTab: false) }
+                )
+                Divider()
                 // Status sub-menu — set epistemic_status via PATCH.
                 // Confirmed / Tentative / Rejected are the three states the
                 // extractor emits; this lets the user override after review.
@@ -193,6 +213,17 @@ struct ClaimSummaryCard: View {
             sourceDocumentId: claim.sourceDocumentId,
             sourcePageLabel: claim.sourcePageLabel
         )
+    }
+
+    /// Open this claim in a new tab/window (#1685). Reuses the Safari
+    /// new-window path; the shared `KGFocusState` carries the focus.
+    private func openClaimInNewWindow(asTab: Bool) {
+        // Follow-up (#1685): like entities, a brand-new window only reacts to
+        // focusedClaimId via .onChange, so deterministic auto-focus on first
+        // mount would need a one-shot on-appear consumer of KGFocusState.
+        focusClaim()
+        let libraryId = LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId
+        WindowOpener.open(libraryId: libraryId, asTab: asTab, using: openWindow)
     }
 
     private func revealSourceClaimInline() {

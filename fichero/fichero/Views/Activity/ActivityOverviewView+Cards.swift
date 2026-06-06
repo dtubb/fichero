@@ -23,7 +23,7 @@ extension ActivityOverviewView {
                     .foregroundStyle(.tertiary)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         // Header row
                         HStack(spacing: 0) {
                             Text("Document")
@@ -43,7 +43,7 @@ extension ActivityOverviewView {
                         Divider()
 
                         // Document rows
-                        ForEach(docs.prefix(20)) { doc in
+                        ForEach(docs) { doc in
                             HStack(spacing: 0) {
                                 Text(doc.documentName)
                                     .font(.caption)

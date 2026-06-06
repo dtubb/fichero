@@ -3,11 +3,37 @@ import SwiftUI
 
 // MARK: - Entity Row
 
+/// Shared renderer for a single `KnowledgeEntity` row. One component, two
+/// presentations so the OntologyBrowser sidebar and the researcher-facing
+/// EntityDigestView index share one code path instead of bespoke duplicates
+/// (#1690). The compact artifact-string chips (`EntityLozenge` /
+/// `ArtifactEntityCell`) are intentionally NOT folded in here — they render
+/// raw artifact extraction strings, not a `KnowledgeEntity`.
 struct EntityRow: View {
+    /// Visual presentation.
+    /// - `.browser`: the OntologyBrowser curation-sidebar look — type icon,
+    ///   subheadline name + aliases subtitle, accent claim-count pill, and a
+    ///   trailing type chip.
+    /// - `.digest`: the EntityDigestView "published" look — no icon,
+    ///   body-weight name, capitalized-type subtitle, and an "N sources"
+    ///   secondary capsule.
+    enum Style {
+        case browser
+        case digest
+    }
+
     let entity: Components.Schemas.KnowledgeEntity
     var claimCount: Int = 0
+    var style: Style = .browser
 
     var body: some View {
+        switch style {
+        case .browser: browserBody
+        case .digest: digestBody
+        }
+    }
+
+    private var browserBody: some View {
         HStack(spacing: 8) {
             Image(systemName: iconForEntityType)
                 .foregroundStyle(colorForEntityType)
@@ -47,6 +73,27 @@ struct EntityRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         .padding(.vertical, 4)
+    }
+
+    private var digestBody: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entity.canonicalName)
+                    .font(.body)
+                if let type = entity.entityType {
+                    Text(type.rawValue.capitalized)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            Text("\(claimCount) sources")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.secondary.opacity(0.1)))
+        }
     }
 
     private var colorForEntityType: Color {
