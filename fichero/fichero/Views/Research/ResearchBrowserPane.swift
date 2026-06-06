@@ -1,7 +1,6 @@
 import AppKit
 import OSLog
 import SwiftUI
-import WebKit
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ResearchBrowserPane")
 
@@ -13,60 +12,6 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Researc
 // this pane. If an AI sub-agent is added to drive browsing, it must be isolated:
 // internet-only tools (search/fetch/navigate), no library-read or KG-read tools.
 // See research_tools.py module docstring for the full data-diode contract.
-
-// MARK: - WKWebView representable
-
-struct WebBrowserView: NSViewRepresentable {
-    @Binding var urlString: String
-    @Binding var pageTitle: String
-    @Binding var isLoading: Bool
-
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    func makeNSView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        let webView = WKWebView(frame: .zero, configuration: config)
-        webView.navigationDelegate = context.coordinator
-        context.coordinator.webView = webView
-        return webView
-    }
-
-    func updateNSView(_ webView: WKWebView, context: Context) {
-        let target = context.coordinator.lastLoadedURL
-        if target != urlString, let url = URL(string: urlString), url.scheme != nil {
-            context.coordinator.lastLoadedURL = urlString
-            webView.load(URLRequest(url: url))
-        }
-    }
-
-    @MainActor
-    class Coordinator: NSObject, WKNavigationDelegate {
-        var parent: WebBrowserView
-        weak var webView: WKWebView?
-        var lastLoadedURL: String = ""
-
-        init(_ parent: WebBrowserView) {
-            self.parent = parent
-        }
-
-        func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
-            parent.isLoading = true
-        }
-
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            parent.isLoading = false
-            parent.pageTitle = webView.title ?? ""
-            if let currentURL = webView.url?.absoluteString {
-                lastLoadedURL = currentURL
-                parent.urlString = currentURL
-            }
-        }
-
-        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
-            parent.isLoading = false
-        }
-    }
-}
 
 // MARK: - Browser Pane
 
@@ -85,7 +30,7 @@ struct ResearchBrowserPane: View {
         VStack(spacing: 0) {
             toolbar
             Divider()
-            WebBrowserView(urlString: $urlString, pageTitle: $pageTitle, isLoading: $isLoading)
+            FicheroWebView(urlString: $urlString, pageTitle: $pageTitle, isLoading: $isLoading)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }

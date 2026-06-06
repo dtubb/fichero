@@ -326,6 +326,7 @@
 		AA214031892F4668F16A3E75 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */; };
 		AD284E03A3377968AE568677 /* DocumentInspectorMetadataTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */; };
 		ADC61F9B335300BEA77F278C /* EntityDetailView+Audit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E8622F0305ED125BEDB904 /* EntityDetailView+Audit.swift */; };
+		ADEE74E7CF17264BA16507C7 /* FicheroWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AA64CFDF3C633C03CCE24A6 /* FicheroWebView.swift */; };
 		AF3C46E684A7D133B1BAA5D2 /* TriggerEditorFormPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0264B7B8616BA5159B2CEF1 /* TriggerEditorFormPanel.swift */; };
 		AF3C8529001F34ACB80A8D50 /* EntityDetailView+Notes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD96D53320D07109835C90BF /* EntityDetailView+Notes.swift */; };
 		AF868ABDCF249BD2499197F3 /* ContentView+NavigationHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43322F30A05232A97F8B3B87 /* ContentView+NavigationHistory.swift */; };
@@ -638,6 +639,7 @@
 		74515FA0260E31DB7F74A1D3 /* PDFReadingView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFReadingView.swift; sourceTree = "<group>"; };
 		74B8B6B4FF52EDA955679CF0 /* ResearchWorkspaceView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResearchWorkspaceView.swift; sourceTree = "<group>"; };
 		75371C597B1E4689B6E1803F /* TriggerEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerEditorView.swift; sourceTree = "<group>"; };
+		7AA64CFDF3C633C03CCE24A6 /* FicheroWebView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroWebView.swift; sourceTree = "<group>"; };
 		7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleEditorView.swift; sourceTree = "<group>"; };
 		7F3FE2F360EADE051A3D2D51 /* EntitySplitSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EntitySplitSheet.swift; sourceTree = "<group>"; };
 		80E4C1042F69F06267FA6CCD /* DocumentCanvas.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentCanvas.swift; sourceTree = "<group>"; };
@@ -1457,6 +1459,7 @@
 				A13E7C372F27F33C00EC9EE1 /* WorkflowExecutionRow.swift */,
 				20D8ED502F48E2C4006950A3 /* WorkflowPreviewSheet.swift */,
 				20D8ED542F48E2CC006950A3 /* WorkflowExecutionRow+Helpers.swift */,
+				7AA64CFDF3C633C03CCE24A6 /* FicheroWebView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -2272,6 +2275,7 @@
 				82E00BEA3E5CAB3FF69DEEE6 /* LocalImageThumbnailView.swift in Sources */,
 				011D2B0F5D8064D8ABF7A999 /* ArtifactRichTextCodec.swift in Sources */,
 				F0B74209906E1D1F5A904335 /* NodeClassPicker.swift in Sources */,
+				ADEE74E7CF17264BA16507C7 /* FicheroWebView.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
