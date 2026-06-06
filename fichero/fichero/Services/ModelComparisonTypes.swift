@@ -334,10 +334,14 @@ struct ToolsResponse: Codable {
 
 enum ComparisonError: LocalizedError {
     case invalidURL
+    case validation(String)
+    case serverError(Int)
 
     var errorDescription: String? {
         switch self {
         case .invalidURL: return "Invalid URL"
+        case .validation(let detail): return detail
+        case .serverError(let code): return "Server error: \(code)"
         }
     }
 }
