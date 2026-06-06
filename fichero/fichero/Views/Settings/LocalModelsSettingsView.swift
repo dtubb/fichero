@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
@@ -8,6 +9,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Setting
 /// Local model management (Whisper, Embeddings)
 struct LocalModelsSettingsView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var libraryManager: LibraryManager
 
     @State private var whisperModels: [LocalModelStatus] = []
     @State private var embeddingsModels: [LocalModelStatus] = []
@@ -121,16 +123,25 @@ struct LocalModelsSettingsView: View {
         }
     }
 
+    /// The generated API client (injects auth + library header via middleware).
+    /// Local-models endpoints are app-wide (not library-scoped), but routing
+    /// through the generated client still supplies the bearer token the backend
+    /// requires and removes the hardcoded localhost URLs.
+    private var client: FicheroClient {
+        libraryManager.globalLibrary?.ficheroClient ?? FicheroClient.localhost
+    }
+
     private func downloadModel(type: String, modelId: String) async {
         do {
-            let url = URL(string: "http://127.0.0.1:8765/api/local-models/download/\(type)/\(modelId)")!
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.addEngineAuth()
-            let (_, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else { return }
-            await loadModels()
+            let response = try await client.api.downloadModelApiLocalModelsDownloadModelTypeModelIdPost(
+                path: .init(modelType: type, modelId: modelId)
+            )
+            switch response {
+            case .ok:
+                await loadModels()
+            case .unprocessableContent, .undocumented:
+                errorMessage = "Download failed"
+            }
         } catch {
             errorMessage = "Download failed: \(error.localizedDescription)"
         }
@@ -138,34 +149,55 @@ struct LocalModelsSettingsView: View {
 
     private func deleteModel(type: String, modelId: String) async {
         do {
-            let url = URL(string: "http://127.0.0.1:8765/api/local-models/\(type)/\(modelId)")!
-            var request = URLRequest(url: url)
-            request.httpMethod = "DELETE"
-            request.addEngineAuth()
-            let (_, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else { return }
-            await loadModels()
+            let response = try await client.api.deleteModelApiLocalModelsModelTypeModelIdDelete(
+                path: .init(modelType: type, modelId: modelId)
+            )
+            switch response {
+            case .ok:
+                await loadModels()
+            case .unprocessableContent, .undocumented:
+                errorMessage = "Delete failed"
+            }
         } catch {
             errorMessage = "Delete failed: \(error.localizedDescription)"
         }
     }
 
     private func fetchLocalModels() async throws -> [LocalModelStatus] {
-        let url = URL(string: "http://127.0.0.1:8765/api/local-models")!
-        var request = URLRequest(url: url)
-        request.addEngineAuth()
-        let (data, _) = try await URLSession.shared.data(for: request)
-        let response = try JSONDecoder().decode(LocalModelsResponse.self, from: data)
-        return response.models
+        let response = try await client.api.listLocalModelsApiLocalModelsGet(query: .init())
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.models.map { model in
+                LocalModelStatus(
+                    modelId: model.modelId,
+                    modelType: model.modelType,
+                    displayName: model.displayName,
+                    sizeBytes: model.sizeBytes,
+                    isDownloaded: model.isDownloaded,
+                    expectedSizeMb: model.expectedSizeMb,
+                    path: model.path
+                )
+            }
+        case .unprocessableContent:
+            throw LocalModelsError.requestFailed
+        case .undocumented(let statusCode, _):
+            throw LocalModelsError.unexpectedStatus(statusCode)
+        }
     }
 
     private func fetchDiskUsage() async throws -> DiskUsageInfo {
-        let url = URL(string: "http://127.0.0.1:8765/api/local-models/disk-usage")!
-        var request = URLRequest(url: url)
-        request.addEngineAuth()
-        let (data, _) = try await URLSession.shared.data(for: request)
-        return try JSONDecoder().decode(DiskUsageInfo.self, from: data)
+        let response = try await client.api.diskUsageApiLocalModelsDiskUsageGet()
+        switch response {
+        case .ok(let okResponse):
+            let usage = try okResponse.body.json
+            return DiskUsageInfo(
+                whisper: usage.whisper,
+                embeddings: usage.embeddings,
+                total: usage.total
+            )
+        case .undocumented(let statusCode, _):
+            throw LocalModelsError.unexpectedStatus(statusCode)
+        }
     }
 
     private func formatBytes(_ bytes: Int) -> String {
@@ -177,8 +209,18 @@ struct LocalModelsSettingsView: View {
 
 // MARK: - Local Models Response Types
 
-struct LocalModelsResponse: Codable {
-    let models: [LocalModelStatus]
+enum LocalModelsError: LocalizedError {
+    case requestFailed
+    case unexpectedStatus(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .requestFailed:
+            return "Request failed"
+        case .unexpectedStatus(let statusCode):
+            return "Unexpected response: HTTP \(statusCode)"
+        }
+    }
 }
 
 struct LocalModelStatus: Codable, Identifiable {
