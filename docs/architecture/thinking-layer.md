@@ -43,12 +43,12 @@ matter of *surfacing and connecting* existing primitives, not building new ones.
 │    folder > doc/group > chapter/section > page > chunk               │
 │            ↓                                                          │
 │            annotations / artifacts / citations / translations        │
-│            entities > SVO claims > hermeneutic statements             │
+│            entities > claims (SVO) > interpretations (hermeneutic)    │
 │    [Select any row → "Add to Workspace" → alias into Thing 2]        │
 ├─────────────────────────────────────────────────────────────────────┤
 │  KG / HERMENEUTICS / EMBEDDINGS LAYER                                │
 │  KnowledgeEntity · KnowledgeClaim(SVO) · Annotation · Reference      │
-│  HermeneuticStatement · BookStructureNode · LanceDB · search         │
+│  Interpretation (hermeneutic) · BookStructureNode · LanceDB · search │
 ├─────────────────────────────────────────────────────────────────────┤
 │  SOURCE LAYER                                                        │
 │  Library > Folder > Group/File > Page > Chunk  +  Artifact           │
