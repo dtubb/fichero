@@ -87,3 +87,7 @@ All Swift merges build-gated green via Xcode MCP (`BuildProject`, tab windowtab1
 - If SwiftUI still shows placeholder icons while `/api/storage/thumbnail/{id}` returns JPEG, inspect `LibraryImageView` environment service injection and `DocumentThumbnailView` branch selection.
 - Continue #1666 by adding an allowlist test for raw URLSession paths, then migrate `ImageEditingServiceGenerated` or `ArtifactServiceGenerated` slices to generated OpenAPI.
 - Continue staged workflow/chain work from #1669/#1673; do not modify `catalogue.json` directly.
+
+## 2026-06-06 (PM cont.) — lint gate closed
+- swiftlint was NOT being run as a gate (MCP build ignores lint warnings) → Daniel flagged Xcode showing 48 violations. Fixed process: swiftlint is now a STANDING pre-commit gate (memory: manager-operating-model). #1719 shipped: 48→29 (my session nits + mechanical debt fixed; remaining 29 are structural file-splits → #1703/#1704). 0.0.2 at efe4146a.
+- Cadence reminders in force: batch a few disjoint workers → ONE Xcode build; run `swiftlint lint --quiet fichero/fichero/` before every push; ONE build/verify at a time.
