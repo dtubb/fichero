@@ -14,13 +14,24 @@ final class FeatureManagerToolAllowlistTests: XCTestCase {
         let required: Set<String> = [
             "files",
             "collection",
+            "folder",
+            "aggregate",
             "transcribe",
+            "extract_all",
+            "kg_writer",
             "catalogue",
+            "citations_extract",
             "extract_entities",
             "key_people",
             "timeline",
             "keywords",
-            "summarize_file"
+            "summarize_file",
+            "people_folder_cleanup",
+            "places_folder_cleanup",
+            "organizations_folder_cleanup",
+            "dates_folder_cleanup",
+            "events_folder_cleanup",
+            "keywords_folder_cleanup"
         ]
 
         let enabled = featureManager.workflowEnabledTools

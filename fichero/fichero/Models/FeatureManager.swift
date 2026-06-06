@@ -8,14 +8,17 @@ class FeatureManager: ObservableObject {
     static let shared = FeatureManager()
     // Bumped to re-apply workflow execution release defaults on existing
     // installs (langgraph preview, run-on-selection, files toolbar, import/export).
-    private static let releaseProfileVersion = 29
+    private static let releaseProfileVersion = 30
     private static let workflowV001EnabledTools =
         "files,collection,folder,aggregate,transcribe,catalogue,"
-        + "extract_entities,key_people,timeline,keywords,summarize_file,"
+        + "extract_all,kg_writer,extract_entities,key_people,timeline,keywords,summarize_file,"
         + "describe,rewrite,"
+        + "citations_extract,"
         + "people_extract,dates_extract,rivers_extract,events_extract,"
         + "mines_extract,properties_extract,legal_references_extract,"
-        + "keywords_extract,quotes_extract"
+        + "keywords_extract,quotes_extract,"
+        + "people_folder_cleanup,places_folder_cleanup,organizations_folder_cleanup,"
+        + "dates_folder_cleanup,events_folder_cleanup,keywords_folder_cleanup"
     private static let isDevFeatureTier =
         ProcessInfo.processInfo.environment["FICHERO_FEATURE_TIER"]?.lowercased() == "dev"
 

@@ -192,8 +192,9 @@ class TestLoadPresetFiles:
         presets = {p["name"]: p for p in _load_preset_files()}
         stage1 = presets["Catalogue Stage 1 - Transcribe Pages"]
         stage2 = presets["Catalogue Stage 2 - Extract Entities + KG"]
+        stage3 = presets["Catalogue Stage 3 - Catalogue Artifacts"]
 
-        for preset in (stage1, stage2):
+        for preset in (stage1, stage2, stage3):
             assert preset.get("is_template") is True
             assert preset.get("is_system") is True
             assert preset.get("folder_path") == "/Catalogue"
@@ -223,6 +224,25 @@ class TestLoadPresetFiles:
             and e["target_port"] == "kg_payload"
             for e in stage2["edges"]
         ), "stage 2 must persist KG via the explicit kg_writer stage"
+
+        stage3_tools = {n["tool"] for n in stage3["nodes"]}
+        assert stage3_tools == {"files", "aggregate", "catalogue"}
+        catalogue_node = next(n for n in stage3["nodes"] if n["tool"] == "catalogue")
+        assert catalogue_node["config"].get("provider_name") == "$small"
+        assert catalogue_node["config"].get("output_language") == "auto"
+
+        aggregate_id = _node_id(stage3, "aggregate")
+        catalogue_id = _node_id(stage3, "catalogue")
+        assert any(
+            e["source"] == aggregate_id
+            and e["target"] == catalogue_id
+            and e["source_port"] == "text"
+            and e["target_port"] == "text"
+            for e in stage3["edges"]
+        ), "stage 3 must feed page text into catalogue without re-running extraction"
+
+        assert "extract_all" not in stage3_tools
+        assert "kg_writer" not in stage3_tools
 
     def test_catalogue_small_uses_dollar_small_throughout(self):
         """Every LLM-using node in the default Catalogue preset references
