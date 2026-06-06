@@ -232,9 +232,11 @@ class WorkflowExecutionService: ObservableObject {
     // MARK: - Pause / Cancel
 
     func pauseWorkflow(threadId: String) async throws {
+        // pause/cancel are app-wide (operate on a thread by id, no library
+        // header in their OpenAPI signature) — unlike the other thread ops.
         let response = try await client.api.pauseWorkflowApiWorkflowExecutionThreadsThreadIdPausePost(
             path: .init(threadId: threadId),
-            headers: .init(xFicheroLibraryPath: libraryHeaders)
+            headers: .init()
         )
 
         switch response {
@@ -250,7 +252,7 @@ class WorkflowExecutionService: ObservableObject {
     func cancelWorkflow(threadId: String) async throws {
         let response = try await client.api.cancelWorkflowApiWorkflowExecutionThreadsThreadIdCancelPost(
             path: .init(threadId: threadId),
-            headers: .init(xFicheroLibraryPath: libraryHeaders)
+            headers: .init()
         )
 
         switch response {
