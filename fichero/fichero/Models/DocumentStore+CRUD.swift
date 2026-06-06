@@ -209,7 +209,7 @@ extension DocumentStore {
         }
 
         // Create form data for file upload
-        var request = URLRequest(url: URL(string: "http://127.0.0.1:8765/api/documents/import")!)
+        var request = URLRequest(url: EngineConfig.apiBaseURL.appendingPathComponent("documents/import"))
         request.httpMethod = "POST"
 
         let boundary = "Boundary-\(UUID().uuidString)"

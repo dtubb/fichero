@@ -206,7 +206,7 @@ struct MindPalaceNode: Codable, Identifiable, Hashable {
 
     static func thumbnailURL(
         forSourceId sourceId: String,
-        baseURL: URL? = URL(string: "http://127.0.0.1:8765/api")
+        baseURL: URL?
     ) -> URL? {
         guard !sourceId.isEmpty,
               let baseURL else { return nil }

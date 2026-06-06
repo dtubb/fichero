@@ -94,7 +94,7 @@ class AppState: ObservableObject {
     }
 
     private func pingBackendOnce() async {
-        guard let url = URL(string: "http://127.0.0.1:8765/api/health") else { return }
+        let url = EngineConfig.apiBaseURL.appendingPathComponent("health")
         var request = URLRequest(url: url)
         request.timeoutInterval = 3
         do {
@@ -146,11 +146,7 @@ class AppState: ObservableObject {
         isCheckingBackend = true
         defer { isCheckingBackend = false }
 
-        guard let url = URL(string: "http://127.0.0.1:8765/api/health") else {
-            backendError = "Invalid API URL"
-            isBackendRunning = false
-            return
-        }
+        let url = EngineConfig.apiBaseURL.appendingPathComponent("health")
 
         logger.info("⏱ checkBackendHealth request-start → \(url.absoluteString)")
         do {
@@ -240,7 +236,7 @@ class AppState: ObservableObject {
     }
 
     func resetAIDefaults() async throws {
-        let url = URL(string: "http://127.0.0.1:8765/api/settings/ai-defaults")!
+        let url = EngineConfig.apiBaseURL.appendingPathComponent("settings/ai-defaults")
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
