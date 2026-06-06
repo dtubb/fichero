@@ -91,3 +91,10 @@ All Swift merges build-gated green via Xcode MCP (`BuildProject`, tab windowtab1
 ## 2026-06-06 (PM cont.) — lint gate closed
 - swiftlint was NOT being run as a gate (MCP build ignores lint warnings) → Daniel flagged Xcode showing 48 violations. Fixed process: swiftlint is now a STANDING pre-commit gate (memory: manager-operating-model). #1719 shipped: 48→29 (my session nits + mechanical debt fixed; remaining 29 are structural file-splits → #1703/#1704). 0.0.2 at efe4146a.
 - Cadence reminders in force: batch a few disjoint workers → ONE Xcode build; run `swiftlint lint --quiet fichero/fichero/` before every push; ONE build/verify at a time.
+
+## 2026-06-06 (PM cont.2) — audit-hunt batches + folder plan
+- Shipped (batched, one build each, swiftlint-gated): #1716+#1717 (init-race + EngineConfig URL centralization), #1719 (swiftlint 48→29), #1690+#1718 (shared EntityRow + try! crash fixes). 0.0.2 at bb8515b5. ~18 issues this session; Daniel tested the app — "ran and seemed to work" (migration sweep runtime-validated).
+- **#1704 folder-reorg PLAN posted** (concrete, build-safe, PBX-aware): Batch1 Views/Library→6 subfolders (ready), Batch2 Workflow renames, Batch3 Services/ grouping (high cross-ref, own session), Batch4 Models/ grouping (own session), Batch5 Views/root→ContentView/ (defer — codex's held files). Each batch = git mv + add-swift-file.rb register + MCP build-gate, one subfolder/commit, NEVER bulk mv.
+- New issues filed: #1720 (File menu: Open Recent + Close Database), #1721 (drag-drop .fichero → open new window vs import branch).
+- **Next:** #1703 (split the big files, one worker/file) + #1704 Batch1 (Views/Library reorg — scripted/gated) + #1702 (hand-rolled structs→generated, verify schema coverage first). Remaining swiftlint debt (29) is exactly the #1703 file-splits.
+- HOLD: #1707 PDF + ContentView image/layout chrome + #1721 (touches ContentViewModifiers) until Daniel explicitly confirms codex's image/layout.
