@@ -285,6 +285,12 @@ struct MainContentModifiers: ViewModifier {
         case .search:
             viewMode = .search(nil)
         case .chat:
+            // Model Comparison lives under the chat sidebar mode. "New
+            // Comparison" sets sidebarMode = .chat AND viewMode = .comparison(nil);
+            // without this guard the mode-change handler immediately overwrote
+            // viewMode back to .chat(nil), so the comparison UI was never
+            // reachable (#1475). Preserve an explicitly-set comparison view.
+            if case .comparison = viewMode { return }
             viewMode = .chat(nil)
         case .workflows:
             viewMode = .workflow(nil)
