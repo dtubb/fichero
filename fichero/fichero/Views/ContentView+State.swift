@@ -176,6 +176,14 @@ extension ContentView {
         availablePreviewModes.count > 1
     }
 
+    /// Library/Search own the stable reading workspace: Library/List,
+    /// Document Canvas, Reading/WebKit, plus the window-level inspector.
+    /// This is independent of the current layout so toolbar pane buttons
+    /// don't disappear when previews are temporarily hidden.
+    var supportsReadingWorkspace: Bool {
+        sidebarMode == .library || sidebarMode == .search
+    }
+
     /// Available display modes for the current sidebar mode.
     /// Library is icon-only in 0.0.1 unless advanced views are explicitly enabled.
     var availableViewDisplayModes: [ViewDisplayMode] {

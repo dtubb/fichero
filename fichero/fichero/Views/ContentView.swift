@@ -665,35 +665,56 @@ extension ContentView {
         }
 
         // Per-window show/hide for the document canvas and the reading/WebKit
-        // pane (#1448). Only meaningful in the reading-capable modes where those
-        // panes exist, so they're gated on showsPreviewPane to avoid dead
-        // controls elsewhere. The library list/grid stays always-present.
-        if showsPreviewPane {
+        // pane (#1448). Keep these controls present throughout Library/Search,
+        // even when the current layout is None/Standard, so panes are a stable
+        // user choice rather than selection/layout side effects.
+        if supportsReadingWorkspace {
             ToolbarItem(placement: .automatic) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        showDocumentCanvas.toggle()
+                        let next = ReadingWorkspacePaneTogglePolicy.toggledPane(
+                            layoutMode: currentLayoutMode,
+                            paneFlag: showDocumentCanvas
+                        )
+                        currentLayoutMode = next.layoutMode
+                        showDocumentCanvas = next.paneVisible
+                        viewSettings.previewMode = normalizedPreviewMode(.widescreen)
                     }
                 } label: {
                     Image(systemName: "doc.richtext")
                 }
-                .help(showDocumentCanvas ? "Hide Document Canvas" : "Show Document Canvas")
-                // The canvas/reading split only exists in the widescreen reading
-                // layout — disable the toggles elsewhere so they're not dead
-                // controls (#1516).
-                .disabled(currentLayoutMode != .widescreen)
+                .help(
+                    ReadingWorkspacePaneTogglePolicy.isPaneVisible(
+                        layoutMode: currentLayoutMode,
+                        paneFlag: showDocumentCanvas
+                    )
+                        ? "Hide Document Canvas"
+                        : "Show Document Canvas"
+                )
             }
 
             ToolbarItem(placement: .automatic) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        showReadingPane.toggle()
+                        let next = ReadingWorkspacePaneTogglePolicy.toggledPane(
+                            layoutMode: currentLayoutMode,
+                            paneFlag: showReadingPane
+                        )
+                        currentLayoutMode = next.layoutMode
+                        showReadingPane = next.paneVisible
+                        viewSettings.previewMode = normalizedPreviewMode(.widescreen)
                     }
                 } label: {
                     Image(systemName: "text.book.closed")
                 }
-                .help(showReadingPane ? "Hide Reading Pane" : "Show Reading Pane")
-                .disabled(currentLayoutMode != .widescreen)
+                .help(
+                    ReadingWorkspacePaneTogglePolicy.isPaneVisible(
+                        layoutMode: currentLayoutMode,
+                        paneFlag: showReadingPane
+                    )
+                        ? "Hide Reading Pane"
+                        : "Show Reading Pane"
+                )
             }
         }
 

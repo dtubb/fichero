@@ -77,6 +77,38 @@ final class LayoutModeTests: XCTestCase {
         XCTAssertFalse(listWithCanvas.showsCanvasReadingDivider)
     }
 
+    func testReadingWorkspacePaneToggleShowsPaneByEnteringWidescreen() {
+        let fromNone = ReadingWorkspacePaneTogglePolicy.toggledPane(
+            layoutMode: .none,
+            paneFlag: false
+        )
+        let fromStandard = ReadingWorkspacePaneTogglePolicy.toggledPane(
+            layoutMode: .standard,
+            paneFlag: true
+        )
+
+        XCTAssertEqual(fromNone.layoutMode, .widescreen)
+        XCTAssertTrue(fromNone.paneVisible)
+        XCTAssertEqual(fromStandard.layoutMode, .widescreen)
+        XCTAssertTrue(fromStandard.paneVisible)
+    }
+
+    func testReadingWorkspacePaneToggleOnlyHidesInWidescreen() {
+        let hidden = ReadingWorkspacePaneTogglePolicy.toggledPane(
+            layoutMode: .widescreen,
+            paneFlag: true
+        )
+        let shown = ReadingWorkspacePaneTogglePolicy.toggledPane(
+            layoutMode: .widescreen,
+            paneFlag: false
+        )
+
+        XCTAssertEqual(hidden.layoutMode, .widescreen)
+        XCTAssertFalse(hidden.paneVisible)
+        XCTAssertEqual(shown.layoutMode, .widescreen)
+        XCTAssertTrue(shown.paneVisible)
+    }
+
     func testSelectionPromotesToDetailWhenPreviewPaneIsVisible() {
         XCTAssertTrue(
             BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(

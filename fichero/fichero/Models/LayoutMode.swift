@@ -68,6 +68,29 @@ struct WidescreenPanePlan: Equatable {
     }
 }
 
+/// Toolbar behavior for the independent Library / Canvas / Reading pane buttons.
+///
+/// Canvas and Reading only render as separate panes in widescreen mode. If the
+/// user presses one of those buttons from None or Standard, treat it as an
+/// explicit request to enter the stable widescreen workspace and show that pane.
+struct ReadingWorkspacePaneTogglePolicy {
+    struct Result: Equatable {
+        let layoutMode: LayoutMode
+        let paneVisible: Bool
+    }
+
+    static func isPaneVisible(layoutMode: LayoutMode, paneFlag: Bool) -> Bool {
+        layoutMode == .widescreen && paneFlag
+    }
+
+    static func toggledPane(layoutMode: LayoutMode, paneFlag: Bool) -> Result {
+        if layoutMode != .widescreen {
+            return Result(layoutMode: .widescreen, paneVisible: true)
+        }
+        return Result(layoutMode: .widescreen, paneVisible: !paneFlag)
+    }
+}
+
 /// Selection policy for the library browser's detail/canvas document.
 ///
 /// If the user has a preview/canvas pane visible, a plain selection should drive
