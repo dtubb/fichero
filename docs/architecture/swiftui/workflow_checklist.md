@@ -3,6 +3,21 @@
 **Last Updated**: December 31, 2025
 **For**: Fichero macOS App Development
 
+> **Updated 2026-06-06:** several process references below are stale — read with
+> these corrections:
+> - **Tasks are tracked in GitHub Issues + Milestones**, not `docs/agent-workflow/TODO.md`
+>   (retired). Ignore the "check / update TODO.md" steps.
+> - **Branch discipline**: commit milestone work directly to the milestone branch
+>   (e.g. `0.0.2`); do **not** create per-task `feature-branch-name` branches and do
+>   not `git pull origin main` into your work — see `.claude/CLAUDE.md` → "Branch discipline".
+> - **AppKit**: "100% SwiftUI" is aspirational. SwiftUI-first with ~8 sanctioned
+>   `NSViewRepresentable` bridges (PDFKit, magnifier, text editors, …). The
+>   `APPKIT_FINAL_AUDIT.md` referenced below has been retired — see
+>   `docs/architecture/swiftui/development_standards.md`.
+> - **New `.swift` files must be registered** with `ruby scripts/add-swift-file.rb <path>`
+>   (the main target uses traditional PBX refs); the build gate is `bash scripts/verify_all.sh`.
+> - Prefer the **Xcode MCP** build/test tools over the raw `xcodebuild` invocations shown here.
+
 ---
 
 ## Daily Development Workflow
@@ -12,8 +27,8 @@
 **Prerequisites**:
 ```bash
 # [ ] Start Python backend (REQUIRED)
-cd /Users/dtubb/code/fichero_main/fichero
-PYTHONPATH=src .venv/bin/uvicorn fichero.api.main:app --port 8765
+cd /Users/danieltubb/code/fichero
+PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
 
 # [ ] Open Xcode project
 open Fichero/Fichero.xcodeproj
@@ -376,9 +391,9 @@ swiftlint lint --path Fichero/Fichero/Views/MyView.swift
 
 ### Quick Links
 - Backend API: http://localhost:8765/docs
-- Sample Code: `/Users/dtubb/code/fichero_main/fichero/sample_code`
-- Frontend Docs: `/Users/dtubb/code/fichero_main/fichero/docs/architecture/swiftui/`
-- TODO List: `/Users/dtubb/code/fichero_main/fichero/docs/agent-workflow/TODO.md`
+- Sample Code: `/Users/danieltubb/code/fichero/fichero/sample_code`
+- Frontend Docs: `/Users/danieltubb/code/fichero/docs/architecture/swiftui/`
+- TODO List: GitHub Issues + Milestones (the source of truth; the old `docs/agent-workflow/TODO.md` is retired)
 
 ### MCP Tools
 - **Sosumi**: `searchAppleDocumentation("swiftui drag drop")`

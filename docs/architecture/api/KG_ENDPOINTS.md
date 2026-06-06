@@ -7,6 +7,23 @@ headers.
 
 Generated 2026-05-12 after the overnight build-out.
 
+> **Knowledge-object terminology (canonical, 2026-06-06):** the code models
+> knowledge as a small fixed set of object types — use these words exactly:
+> - **claim (SVO)** — a fact/assertion as a subject–verb–object triple,
+>   classified by the `claim_type` enum (`fact`/`analysis`/`interpretation`/
+>   `argument`/`historiography`/`theory`). Model: `KnowledgeClaim`
+>   (`knowledge_models.py`). This is the *only* "statement" object; the
+>   phrase **"ontological statement" is deprecated** — say "claim".
+> - **interpretation (hermeneutic)** — a meaning-making statement produced by
+>   applying an `InterpretiveFramework` to a claim/passage. A *distinct* object,
+>   not a claim. Model: `Interpretation` (`hermeneutics_models.py`).
+>   (Note: `claim_type="interpretation"` is a claim *classification*, not the
+>   same thing as an `Interpretation` object.)
+> - **entity** — `KnowledgeEntity`; **annotation** — `Annotation` (surface mark
+>   on a document region); **note** — `Note` (free-floating Zettelkasten unit).
+> - **attribute** — a *field* of an entity or claim (e.g. `confidence`,
+>   `claim_type`, `subject_canonical`), **not** a separate object type.
+
 ## 1. Aggregate inspector — one call per selection
 
 **These are the workhorses for the right-side inspector.** Use these
