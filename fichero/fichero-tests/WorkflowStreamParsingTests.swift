@@ -6,6 +6,7 @@
 //  This is pure-function testing: JSON string in → WorkflowStreamEvent out.
 //
 
+import FicheroAPIClient
 import Foundation
 import Testing
 @testable import Fichero
@@ -16,7 +17,7 @@ struct WorkflowStreamParsingTests {
     // MARK: - Helper
 
     private func makeService() -> WorkflowStreamService {
-        WorkflowStreamService(apiClient: APIClient())
+        WorkflowStreamService(apiClient: APIClient(), ficheroClient: FicheroClient())
     }
 
     private func json(

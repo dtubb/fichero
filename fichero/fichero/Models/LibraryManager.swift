@@ -116,7 +116,7 @@ class LibraryManager: ObservableObject {
             self.chatServiceGenerated = ChatServiceGenerated(ficheroClient: self.ficheroClient)
             self.workflowStore = workflowStore ?? WorkflowStore(ficheroClient: self.ficheroClient)
             self.workflowServiceGenerated = WorkflowServiceGenerated(ficheroClient: self.ficheroClient)
-            self.workflowStreamService = WorkflowStreamService(apiClient: self.apiClient)
+            self.workflowStreamService = WorkflowStreamService(apiClient: self.apiClient, ficheroClient: self.ficheroClient)
             self.importService = importService ?? ImportServiceGenerated(ficheroClient: self.ficheroClient)
             self.documentServiceGenerated = DocumentServiceGenerated(ficheroClient: self.ficheroClient)
             self.storageService = storageService ?? StorageServiceGenerated(ficheroClient: self.ficheroClient)
