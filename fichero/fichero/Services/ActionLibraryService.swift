@@ -18,7 +18,7 @@ import OSLog
 /// Like `IntegrationsService`/`ModelComparisonService`, the localhost client is
 /// used purely to carry auth; `LibraryPathMiddleware` injects
 /// `X-Fichero-Library-Path` centrally for library-scoped paths (#1710), so call
-/// sites pass `headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")` and never hand-pass the library header.
+/// sites pass `headers: .init(xFicheroLibraryPath: libPath)` and never hand-pass the library header.
 @MainActor
 // swiftlint:disable:next type_body_length
 class ActionLibraryService: ObservableObject {
@@ -34,6 +34,10 @@ class ActionLibraryService: ObservableObject {
     /// Shared generated client — the single transport for both this type and the
     /// `ActionsService` subclass.
     let client: FicheroClient
+
+    /// Library-scoped header value, injected on every request. Falls back to an
+    /// empty string when no library is open (matches prior inline behaviour).
+    private var libPath: String { client.currentLibraryPath ?? "" }
 
     init(client: FicheroClient = .localhost) {
         self.client = client
@@ -76,7 +80,7 @@ class ActionLibraryService: ObservableObject {
         error = nil
 
         do {
-            let response = try await client.api.listActionsApiActionsGet(headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""))
+            let response = try await client.api.listActionsApiActionsGet(headers: .init(xFicheroLibraryPath: libPath))
             switch response {
             case .ok(let okResponse):
                 actions = try decodeModels(from: try okResponse.body.json.items, as: ActionItem.self)
@@ -95,7 +99,7 @@ class ActionLibraryService: ObservableObject {
     /// Load categories
     func loadCategories() async {
         do {
-            let response = try await client.api.listCategoriesApiActionsCategoriesGet(headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""))
+            let response = try await client.api.listCategoriesApiActionsCategoriesGet(headers: .init(xFicheroLibraryPath: libPath))
             switch response {
             case .ok(let okResponse):
                 categories = try okResponse.body.json.categories
@@ -112,7 +116,7 @@ class ActionLibraryService: ObservableObject {
         do {
             let response = try await client.api.listActionsByCategoryApiActionsCategoryCategoryGet(
                 path: .init(category: category),
-                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+                headers: .init(xFicheroLibraryPath: libPath)
             )
             switch response {
             case .ok(let okResponse):
@@ -129,7 +133,7 @@ class ActionLibraryService: ObservableObject {
     /// Load built-in actions
     func loadBuiltinActions() async -> [ActionItem] {
         do {
-            let response = try await client.api.listBuiltinActionsApiActionsBuiltinGet(headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""))
+            let response = try await client.api.listBuiltinActionsApiActionsBuiltinGet(headers: .init(xFicheroLibraryPath: libPath))
             switch response {
             case .ok(let okResponse):
                 return try decodeModels(from: try okResponse.body.json.items, as: ActionItem.self)
@@ -145,7 +149,7 @@ class ActionLibraryService: ObservableObject {
     /// Load custom actions
     func loadCustomActions() async -> [ActionItem] {
         do {
-            let response = try await client.api.listCustomActionsApiActionsCustomGet(headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""))
+            let response = try await client.api.listCustomActionsApiActionsCustomGet(headers: .init(xFicheroLibraryPath: libPath))
             switch response {
             case .ok(let okResponse):
                 return try decodeModels(from: try okResponse.body.json.items, as: ActionItem.self)
@@ -163,7 +167,7 @@ class ActionLibraryService: ObservableObject {
         do {
             let response = try await client.api.listRecentActionsApiActionsRecentGet(
                 query: .init(limit: limit),
-                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+                headers: .init(xFicheroLibraryPath: libPath)
             )
             switch response {
             case .ok(let okResponse):
@@ -183,7 +187,7 @@ class ActionLibraryService: ObservableObject {
         do {
             let response = try await client.api.listPopularActionsApiActionsPopularGet(
                 query: .init(limit: limit),
-                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+                headers: .init(xFicheroLibraryPath: libPath)
             )
             switch response {
             case .ok(let okResponse):
@@ -210,7 +214,7 @@ class ActionLibraryService: ObservableObject {
                     category: category,
                     tags: (tags?.isEmpty == false) ? tags?.joined(separator: ",") : nil
                 ),
-                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+                headers: .init(xFicheroLibraryPath: libPath)
             )
             switch response {
             case .ok(let okResponse):
@@ -231,7 +235,7 @@ class ActionLibraryService: ObservableObject {
         do {
             let response = try await client.api.getActionApiActionsActionIdGet(
                 path: .init(actionId: actionId),
-                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+                headers: .init(xFicheroLibraryPath: libPath)
             )
             switch response {
             case .ok(let okResponse):
@@ -248,7 +252,7 @@ class ActionLibraryService: ObservableObject {
     /// Create a new action
     func createAction(_ action: CreateActionRequest) async throws -> ActionItem {
         let response = try await client.api.createActionApiActionsPost(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            headers: .init(xFicheroLibraryPath: libPath),
             body: .json(.init(
                 name: action.name,
                 description: action.description,
@@ -272,7 +276,7 @@ class ActionLibraryService: ObservableObject {
     func deleteAction(_ actionId: String) async throws {
         let response = try await client.api.deleteActionApiActionsActionIdDelete(
             path: .init(actionId: actionId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+            headers: .init(xFicheroLibraryPath: libPath)
         )
         switch response {
         case .ok:
@@ -294,7 +298,7 @@ class ActionLibraryService: ObservableObject {
         do {
             _ = try await client.api.recordActionUseApiActionsActionIdUsePost(
                 path: .init(actionId: actionId),
-                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+                headers: .init(xFicheroLibraryPath: libPath)
             )
             logger.debug("Recorded use of action: \(actionId)")
         } catch {
@@ -308,7 +312,7 @@ class ActionLibraryService: ObservableObject {
     func exportAction(_ actionId: String) async throws -> String {
         let response = try await client.api.exportActionApiActionsActionIdExportGet(
             path: .init(actionId: actionId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+            headers: .init(xFicheroLibraryPath: libPath)
         )
         switch response {
         case .ok(let okResponse):
@@ -321,7 +325,7 @@ class ActionLibraryService: ObservableObject {
     /// Import action from JSON
     func importAction(_ json: String, newId: Bool = true) async throws -> ActionItem {
         let response = try await client.api.importActionApiActionsImportPost(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            headers: .init(xFicheroLibraryPath: libPath),
             body: .json(.init(jsonData: json, newId: newId))
         )
         switch response {
@@ -343,7 +347,7 @@ class ActionLibraryService: ObservableObject {
         tags: [String] = []
     ) async throws -> ActionItem {
         let response = try await client.api.createActionFromNodeApiActionsFromNodePost(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            headers: .init(xFicheroLibraryPath: libPath),
             body: .json(.init(
                 name: name,
                 node: .init(additionalProperties: try objectContainer(from: node)),
@@ -380,7 +384,7 @@ class ActionLibraryService: ObservableObject {
             )
         }
         let response = try await client.api.createCompositeActionApiActionsCompositePost(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            headers: .init(xFicheroLibraryPath: libPath),
             body: .json(.init(
                 name: name,
                 nodes: nodePayloads,
