@@ -149,7 +149,7 @@ extension ModelComparisonView {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 8) {
-                        ForEach(service.history.prefix(5)) { result in
+                        ForEach(service.history) { result in
                             Button {
                                 service.lastResult = result
                             } label: {
