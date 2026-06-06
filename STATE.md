@@ -24,7 +24,11 @@ All Swift merges build-gated green via Xcode MCP (`BuildProject`, tab windowtab1
 - **#1714** — Tier-2 stragglers (WorkflowService reinstall-defaults, WorkflowDiagramPreview code JSON, WorkflowStream REST parts).
 - Tier-3 (SearchService keywords, Artifact list) blocked on backend OpenAPI exposure.
 
-**Next-work queue (consistency sweep is the headline):** ideally land **#1710** (LibraryPathMiddleware) FIRST so the #1711–1714 migrations don't hand-pass the header; then #1711→#1712→#1713→#1714. Then the rest of the audit plan: #1690 unified knowledge component, #1692 multi-select (notes+entity lists), #1694 exclude-from-search/KG, #1686 entity-as-library, #1703/#1704 folder reorg + file splits, #1700/#1702 reactivity. HOLD #1707 PDF + ContentView-editing chrome until Daniel tests codex's image/layout.
+**#1712 WorkflowExecutionService migrated** (6956d5e5, build-green) — build-gate caught pause/cancel as app-wide (reject the header) vs the other 5 library-scoped; fed back to #1710 as evidence.
+
+**STRONG RECOMMENDATION — land #1710 (LibraryPathMiddleware) NEXT, hands-on.** Every service migration keeps tripping on "which ops take the library header" (compareNode forgot a required one; pause/cancel got a rejected one). A middleware that injects the header by endpoint (app-wide skip-list, mirroring legacy APIClient configureRequest:132-143) makes #1711/#1713/#1714 trivial (no header args at all) and removes the silent-422 class. Do it carefully (add middleware + wire into FicheroClient + a contract test; then optionally strip manual `xFicheroLibraryPath:` args), build-gate via MCP. THEN the remaining migrations.
+
+**Migration queue after #1710:** #1713 (Integrations consolidation) → #1711 (Actions de-dup, bigger) → #1714 (Tier-2 stragglers). Then the rest of the audit plan: #1690 unified knowledge component, #1692 multi-select (notes+entity lists), #1694 exclude-from-search/KG, #1686 entity-as-library, #1703/#1704 folder reorg + file splits, #1700/#1702 reactivity. HOLD #1707 PDF + ContentView-editing chrome until Daniel tests codex's image/layout.
 
 **Filed:** #1707 (PDFs don't render like folders — consistent render path), #1708 (Marshall importer EPIC), #1709 (4 pre-existing Swift test failures), plus the UX-consistency plan #1684–#1705.
 
