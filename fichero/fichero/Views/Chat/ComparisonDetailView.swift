@@ -7,6 +7,7 @@ let comparisonDetailLogger = Logger(subsystem: "app.fichero.fichero", category: 
 struct ComparisonDetailView: View {
     let comparisonSummary: ComparisonSummary
     @EnvironmentObject var apiClient: APIClient
+    @EnvironmentObject var libraryManager: LibraryManager
 
     @State var comparison: ComparisonDetail?
     @State var isLoading = true
@@ -42,5 +43,6 @@ struct ComparisonDetailView: View {
         )
     )
     .environmentObject(APIClient())
+    .environmentObject(LibraryManager.shared)
     .frame(width: 800, height: 600)
 }
