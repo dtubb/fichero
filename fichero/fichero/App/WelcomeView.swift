@@ -5,7 +5,10 @@
 // swiftlint:disable line_length file_length
 
 import FicheroAPIClient
+import OSLog
 import SwiftUI
+
+private let welcomeLogger = Logger(subsystem: "app.fichero.fichero", category: "WelcomeView")
 
 // MARK: - WelcomeView
 
@@ -98,7 +101,7 @@ struct OnboardingWizardView: View {
 
     // Local server connectivity check.
     @State private var localTestState: LocalTestState = .idle
-    enum LocalTestState { case idle, testing, connected, failed(String) }
+    enum LocalTestState { case idle, testing, connected(String?), failed(String) }
 
     /// Default for new imports. Mirrors GeneralSettingsView's
     /// @AppStorage("defaultImportMode"). Default = link.
@@ -585,9 +588,10 @@ struct OnboardingWizardView: View {
                         ProgressView().controlSize(.small)
                         Text("Testing…").font(.caption).foregroundStyle(.secondary)
                     }
-                case .connected:
-                    Label("Connected", systemImage: "checkmark.circle.fill")
-                        .font(.caption).foregroundStyle(.green)
+                case .connected(let note):
+                    Label(note ?? "Connected", systemImage: note == nil
+                        ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                        .font(.caption).foregroundStyle(note == nil ? .green : .yellow)
                 case .failed(let reason):
                     Label(reason, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption).foregroundStyle(.orange)
@@ -730,16 +734,49 @@ struct OnboardingWizardView: View {
         do {
             var request = URLRequest(url: probeURL)
             request.timeoutInterval = 5
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 let code = (response as? HTTPURLResponse)?.statusCode ?? 0
                 localTestState = .failed("Server responded with HTTP \(code).")
                 return
             }
-            localTestState = .connected
+            // Distinguish "running but no models installed" from a healthy
+            // connection. A reachable server with an empty model list is a
+            // different problem than an unreachable one (the catch branch) —
+            // the user needs to pull a model, not start the server.
+            if probeModelCount(from: data, providerType: entry.providerType) == 0 {
+                localTestState = .connected("Connected, but no models are installed yet.")
+            } else {
+                localTestState = .connected(nil)
+            }
         } catch {
+            welcomeLogger.error(
+                "Local provider probe failed for \(entry.providerType, privacy: .public) at \(probeURL.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
             localTestState = .failed("Couldn't reach \(probeURL.host ?? "server") — is \(entry.name) running?")
         }
+    }
+
+    /// Count the models reported by a local provider's list endpoint so the
+    /// connection test can tell "running but empty" apart from "running with
+    /// models". Ollama (`/api/tags`) returns `{"models":[…]}`; LM Studio and
+    /// other OpenAI-compatible servers (`/v1/models`) return `{"data":[…]}`.
+    /// Returns `nil` when the shape is unrecognized so callers can treat the
+    /// count as unknown (and not falsely warn about missing models).
+    private func probeModelCount(from data: Data, providerType: String) -> Int? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        if providerType == "ollama", let models = json["models"] as? [Any] {
+            return models.count
+        }
+        if let list = json["data"] as? [Any] {
+            return list.count
+        }
+        if let models = json["models"] as? [Any] {
+            return models.count
+        }
+        return nil
     }
 
     private func skipAndDismiss() {

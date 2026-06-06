@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 /// Inspector for the selected Mind Palace node. Shows the node's kind/label
@@ -99,9 +100,17 @@ struct SpatialNodeInspector: View {
 // MARK: - Previews (#1299 — self-contained mock data for RenderPreview)
 
 /// Decode a MindPalaceNode from inline JSON so previews need no live service.
-private func _previewNode(_ json: String) -> MindPalaceNode {
-    // swiftlint:disable:next force_try
-    try! JSONDecoder().decode(MindPalaceNode.self, from: Data(json.utf8))
+/// Returns `nil` (rendering the empty-selection state) instead of crashing on
+/// malformed preview JSON — `SpatialNodeInspector(node:)` already accepts an
+/// optional node.
+private func _previewNode(_ json: String) -> MindPalaceNode? {
+    do {
+        return try JSONDecoder().decode(MindPalaceNode.self, from: Data(json.utf8))
+    } catch {
+        Logger(subsystem: "app.fichero.fichero", category: "SpatialNodeInspector")
+            .error("Preview node decode failed: \(error.localizedDescription, privacy: .public)")
+        return nil
+    }
 }
 
 #Preview("Node with source") {
