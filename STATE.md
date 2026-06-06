@@ -1,18 +1,20 @@
 # STATE.md — Fichero
 
-## 2026-06-05 — Session paused for sleep
+## 2026-06-06 — Session ended after Marshall SwiftUI layout/image fixes
 
-**Branch:** `0.0.2` at `fa20d2b5` (`fix(workflows): remove dead citation dependency from Catalogue (#1665)`).
+**Branch:** `0.0.2` at `00ad0ca8` (`fix(layout): keep reading pane toggles stable`).
 
-**Current focus:** Marshall IIIF/W3C import and staged workflow reliability. Do not break the mostly working `Catalogue` workflow; add staged workflows/chains beside it, then connect them.
+**Current focus:** Marshall IIIF/W3C import and staged workflow reliability. Keep the existing Catalogue workflow mostly intact; add/review staged workflows and chain them once each layer is reliable.
 
 **What is known:**
-- SMB copy is still running: `copy_all_smb.sh` plus `rsync` for the 1928 enhanced documents. `_stage` is about 11G.
-- Best user-test library so far: `/Users/danieltubb/code/marshall_diaries/Marshall10Entities-064359.fichero`.
-- 5-page and 10-page Marshall imports verify with thumbnails/display 200, transcript artifacts, imported W3C entities, page entities, KG claims, and folder catalogue artifacts.
-- 20-page import verifies imported artifacts/entities/images, but workflow claim/folder outputs did not complete visibly; this is tracked on #1665/#1673.
+- SMB transfer previously completed at about 29G in `_stage`, but re-check before assuming current local state.
+- Live backend storage returns real JPEG bytes for `MarshallStage5-133917.fichero`: thumbnail `157x200`, display `786x1000`.
+- SwiftUI fixes pushed: storage image loads key by `(document_id, image_type)` and Library/Search pane toggles are stable across Library/List, Document Canvas, Reading/WebKit, and Inspector.
+- Remaining generated-client risk is tracked on #1666: raw image-editing, artifact/KG, and model-comparison URLSession paths still need migration/allowlist tests.
+- 5-page/10-page imports worked previously; 20-page workflow completion/progress remains the scale gate.
 
 **Open issue cluster:**
+- #1666 generated-client/raw URL audit.
 - #1669 staged Catalogue split.
 - #1673 long-stage page progress/checkpoint visibility.
 - #1674 imported vs extracted entity provenance layers.
@@ -20,10 +22,11 @@
 - #1676 post-entity SVO/KVO stage.
 - #1677 SwiftUI review UI for staged layers.
 - #1678 ontological KG layer.
+- #1680/#1681 Marshall SwiftUI storage/layout QA.
 
 **Next session — start here:**
-- Check `pgrep -fl 'copy_all_smb|rsync'` and `du -sh ~/code/marshall_diaries/_stage`; keep the copy alive.
-- Continue adding additive staged workflow presets/chain scaffolding in `fichero-engine/src/fichero/resources/default_workflows/` and chain APIs without modifying `catalogue.json`.
-- Inspect `fichero-engine/src/fichero/workflows/chaining.py` and `fichero-engine/src/fichero/api/routes/chains.py` before editing chain behavior.
-- Add focused tests around default workflow seeding/chain presets, then commit only the scoped diff.
-- Resume scale testing at 20 pages after workflow progress/checkpoint fixes; do not move to full corpus until 20 is green.
+- Ask Daniel to test the latest `0.0.2` in Xcode with `MarshallStage5-133917.fichero`: thumbnails, center canvas image, Reading/WebKit text, and Inspector should stay stable.
+- Re-check `_stage` size and SMB/copy status, then resume Marshall staged import testing at 5 → 10 → 20 pages.
+- If SwiftUI still shows placeholder icons while `/api/storage/thumbnail/{id}` returns JPEG, inspect `LibraryImageView` environment service injection and `DocumentThumbnailView` branch selection.
+- Continue #1666 by adding an allowlist test for raw URLSession paths, then migrate `ImageEditingServiceGenerated` or `ArtifactServiceGenerated` slices to generated OpenAPI.
+- Continue staged workflow/chain work from #1669/#1673; do not modify `catalogue.json` directly.

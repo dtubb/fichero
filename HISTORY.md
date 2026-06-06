@@ -2501,3 +2501,10 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - Smoke-tested Marshall at 5 and 10 pages successfully. `Marshall10Entities-064359.fichero` is the best current Xcode test library.
 - Smoke-tested 20 pages and found the next blocker: imported artifacts/entities/images are present, but the long `Extract All Entities` stage lacks reliable page progress/checkpoint visibility and did not produce claims/folder catalogue outputs in the verification run.
 - Filed/updated the staged-workflow issue cluster: #1669, #1673, #1674, #1675, #1676, #1677, #1678. Daniel's direction is to add new staged workflows/chains beside the existing mostly working `Catalogue`, not mutate it first.
+
+## 2026-06-06 — Session Summary
+
+- Fixed Marshall imported image thumbnails/display in SwiftUI: `LibraryImageView` image loads are keyed by `(document_id, image_type)`, preventing LazyGrid/List reuse from leaving placeholders after storage returns 200.
+- Stabilized Library/Search reading layout: Canvas/Reading toolbar buttons remain visible, enter Widescreen when pressed from None/Standard, and folders/groups render container placeholders instead of hiding the canvas pane.
+- Verified Marshall storage endpoints return real JPEG thumbnails/display images from the live backend, and updated #1680/#1681/#1666 with findings.
+- Added focused Swift tests for image-load identity, canvas document policy, and pane toggle policy; focused Xcode tests passed, and touched-file SwiftLint exited cleanly.

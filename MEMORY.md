@@ -1,5 +1,9 @@
 # Durable Lessons Learned / Decisions
 
+## SwiftUI storage image display must be keyed by document identity — 2026-06-06
+
+Imported image pages should render through storage endpoints (`/api/storage/thumbnail/{id}` and `/api/storage/display/{id}`), not image-edit preview endpoints. SwiftUI lazy grids/lists must key async image loads by `(document_id, image_type)`; a plain `.task` can leave stale placeholders or images when cells are reused even though the backend returned real JPEG bytes. Keep Library/List, Document Canvas, Reading/WebKit, and Inspector as independently toggled panes. Folder/group selection should render a canvas container placeholder, while selected image/PDF page children still win.
+
 ## Marshall import workflow should be staged, not hidden behind Catalogue — 2026-06-05
 
 For IIIF/W3C imports, preserve the existing `Catalogue` workflow and add new staged workflows/chains beside it. The desired contract is explicit user-reviewable layers: imported transcript artifacts, imported W3C entities, additional extractor-generated entities, reversible page/folder entity cleanup, SVO/KVO claims, ontological KG, then catalogue/narrative outputs. Do not hide missing stages with SwiftUI fallbacks; backend persists each layer, SwiftUI displays/reviews it through typed/generated API clients.
