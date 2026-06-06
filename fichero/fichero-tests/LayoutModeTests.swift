@@ -120,4 +120,64 @@ final class LayoutModeTests: XCTestCase {
             )
         )
     }
+
+    func testCanvasDocumentUsesSelectedPreviewableChildOverFolderInspector() {
+        let folder = Document(id: "folder-1", docType: .folder, name: "Diary")
+        let page = Document(
+            id: "page-1",
+            parentId: "folder-1",
+            docType: .page,
+            fileType: .image,
+            name: "Page 1"
+        )
+
+        let resolved = CanvasDocumentPolicy.documentForCanvas(
+            selectedDocumentIds: ["page-1"],
+            documents: [page],
+            detailDocument: folder,
+            inspectorDocument: folder
+        )
+
+        XCTAssertEqual(resolved?.id, "page-1")
+    }
+
+    func testCanvasDocumentDoesNotPreviewPlainFolderOrGroup() {
+        let folder = Document(id: "folder-1", docType: .folder, name: "Diary")
+        let group = Document(id: "group-1", docType: .group, name: "Chapter")
+
+        XCTAssertNil(
+            CanvasDocumentPolicy.documentForCanvas(
+                selectedDocumentIds: [],
+                documents: [],
+                detailDocument: folder,
+                inspectorDocument: folder
+            )
+        )
+        XCTAssertNil(
+            CanvasDocumentPolicy.documentForCanvas(
+                selectedDocumentIds: [],
+                documents: [],
+                detailDocument: group,
+                inspectorDocument: group
+            )
+        )
+    }
+
+    func testCanvasDocumentCanPreviewImageBackedFolder() {
+        let imageFolder = Document(
+            id: "image-folder",
+            docType: .folder,
+            fileType: .image,
+            name: "Imported image folder"
+        )
+
+        let resolved = CanvasDocumentPolicy.documentForCanvas(
+            selectedDocumentIds: [],
+            documents: [],
+            detailDocument: imageFolder,
+            inspectorDocument: imageFolder
+        )
+
+        XCTAssertEqual(resolved?.id, "image-folder")
+    }
 }

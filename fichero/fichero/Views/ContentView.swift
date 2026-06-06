@@ -105,10 +105,9 @@ struct ContentView: View {
     @SceneStorage("showSidebar") var showSidebar: Bool = true
     @SceneStorage("showInspectorSidebar") var showInspectorSidebar: Bool = true
     @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool = true
-    // Per-window visibility of the two reading-surface panes (#1448). Each
-    // window keeps its own choice via @SceneStorage (same pattern as the
-    // sidebar/inspector toggles). The library list/grid is intentionally NOT
-    // toggleable — it is always present as the spine of the workspace.
+    // Per-window visibility of the three middle panes (#1448). Each window
+    // keeps its own choice via @SceneStorage (same pattern as the
+    // sidebar/inspector toggles), so selection never remounts or hides panes.
     @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool = true
     @SceneStorage("showReadingPane") var showReadingPane: Bool = true
     // When false (default), selecting a different item NEVER changes which

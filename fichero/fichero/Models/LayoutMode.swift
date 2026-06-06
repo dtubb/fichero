@@ -85,3 +85,38 @@ struct BrowserSelectionPreviewPolicy {
         return selectedDocumentId != currentDetailDocumentId
     }
 }
+
+/// Chooses the document that should drive the image/PDF canvas.
+///
+/// The inspector can legitimately show a folder or group, but the canvas should
+/// only receive documents it can render. Keeping that distinction explicit
+/// prevents folder selection from blanking the image/PDF pane while a child page
+/// remains selected in the library list.
+struct CanvasDocumentPolicy {
+    static func isCanvasPreviewable(_ document: Document) -> Bool {
+        if document.docType == .folder || document.docType == .group {
+            return document.fileType != nil
+        }
+        return true
+    }
+
+    static func documentForCanvas(
+        selectedDocumentIds: Set<String>,
+        documents: [Document],
+        detailDocument: Document?,
+        inspectorDocument: Document?
+    ) -> Document? {
+        if let selectedId = selectedDocumentIds.first,
+           let selected = documents.first(where: { $0.id == selectedId }),
+           isCanvasPreviewable(selected) {
+            return selected
+        }
+        if let detailDocument, isCanvasPreviewable(detailDocument) {
+            return detailDocument
+        }
+        if let inspectorDocument, isCanvasPreviewable(inspectorDocument) {
+            return inspectorDocument
+        }
+        return nil
+    }
+}
