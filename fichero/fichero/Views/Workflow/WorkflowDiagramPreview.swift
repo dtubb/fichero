@@ -1,12 +1,5 @@
+import FicheroAPIClient
 import SwiftUI
-
-private struct WorkflowCodeResponse: Codable {
-    let pythonCode: String
-
-    enum CodingKeys: String, CodingKey {
-        case pythonCode = "python_code"
-    }
-}
 
 /// Sheet view showing the LangGraph visualization and Python code for a workflow
 struct WorkflowDiagramPreview: View {
@@ -194,27 +187,21 @@ struct WorkflowDiagramPreview: View {
 
     private func loadCode() async {
         do {
-            let url = apiClient.baseURL
-                .appendingPathComponent("workflow-execution")
-                .appendingPathComponent("workflows")
-                .appendingPathComponent(workflowId)
-                .appendingPathComponent("code")
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.addEngineAuth(libraryPath: apiClient.currentLibraryPath)
-
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                if let errorJson = try? JSONDecoder().decode([String: String].self, from: data),
-                   let detail = errorJson["detail"] {
-                    self.error = detail
-                }
-                return
-            }
-
-            if let codeResponse = try? JSONDecoder().decode(WorkflowCodeResponse.self, from: data) {
-                pythonCode = codeResponse.pythonCode
+            // Route the JSON code fetch through the generated client (#1714).
+            // The co-located PNG download in `loadDiagram()` stays raw URLSession
+            // (binary image, not modellable through the generated client).
+            let client = makeGeneratedClient()
+            let response = try await client.api.getWorkflowCodeApiWorkflowExecutionWorkflowsWorkflowIdCodeGet(.init(
+                path: .init(workflowId: workflowId),
+                headers: .init(xFicheroLibraryPath: apiClient.currentLibraryPath ?? "")
+            ))
+            switch response {
+            case .ok(let okResponse):
+                pythonCode = try okResponse.body.json.pythonCode
+            case .unprocessableContent:
+                self.error = "Validation error"
+            case .undocumented(let statusCode, _):
+                self.error = "Failed to load code (HTTP \(statusCode))"
             }
         } catch {
             // Code loading failure sets error only if diagram also failed
@@ -222,5 +209,15 @@ struct WorkflowDiagramPreview: View {
                 self.error = error.localizedDescription
             }
         }
+    }
+
+    /// Build a generated client from the injected `APIClient` host + library path.
+    /// `apiClient.baseURL` carries the `/api` suffix; FicheroClient expects the host
+    /// root (openapi paths already include `/api`), so strip the path here.
+    private func makeGeneratedClient() -> FicheroClient {
+        var components = URLComponents(url: apiClient.baseURL, resolvingAgainstBaseURL: false)
+        components?.path = ""
+        let host = components?.url ?? apiClient.baseURL
+        return FicheroClient(baseURL: host, libraryPath: apiClient.currentLibraryPath)
     }
 }
