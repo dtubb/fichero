@@ -1,21 +1,57 @@
 import Foundation
-import OpenAPIRuntime
 import HTTPTypes
+import OpenAPIRuntime
 
-/// Middleware that adds the X-Fichero-Library-Path header to requests.
+/// Middleware that adds the `X-Fichero-Library-Path` header to every
+/// library-scoped request on the generated `FicheroClient`.
 ///
-/// This replicates the behavior of the legacy APIClient which sends
-/// the current library path with each request.
+/// This is the generated-client counterpart to the legacy `APIClient`'s
+/// `configureRequest` (`Services/APIClient.swift`). Before this existed, the
+/// header was passed BY HAND at every generated call site
+/// (`headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")`),
+/// which is error-prone: required ops 422/fail-to-compile when forgotten,
+/// optional ops silently 422 or return wrong-library data (#1710, #1666).
+///
+/// **One source of truth for "is this endpoint app-wide?"** — the skip-list
+/// in `isAppWidePath(_:)` mirrors the legacy `configureRequest` exactly
+/// (health / providers-except-refs / settings / registry). Keep the two in
+/// sync; the goal is to eventually delete the legacy one.
+///
+/// **Library path is read LIVE on every request** (via the `currentLibraryPath`
+/// closure), not snapshotted at construction. This mirrors how
+/// `AuthTokenMiddleware` reads its token fresh on each request, and means the
+/// header always reflects the client's *current* `currentLibraryPath` even if
+/// it changes between requests.
 public struct LibraryPathMiddleware: ClientMiddleware {
-    /// The library path to send with each request.
-    /// Can be updated dynamically.
-    public var libraryPath: String?
+    /// Live accessor for the current library path. Returns `nil` (header
+    /// omitted) when no library is loaded.
+    private let currentLibraryPath: @Sendable () -> String?
 
-    /// Endpoints that don't need the library path header
-    private let appWideEndpoints = ["/health", "/providers/catalog", "/providers/models"]
-
+    /// Construct with a fixed library path (used by tests / direct callers).
     public init(libraryPath: String? = nil) {
-        self.libraryPath = libraryPath
+        self.currentLibraryPath = { libraryPath }
+    }
+
+    /// Construct with a live accessor so the header reflects the client's
+    /// current library path at request time rather than a snapshot.
+    public init(currentLibraryPath: @escaping @Sendable () -> String?) {
+        self.currentLibraryPath = currentLibraryPath
+    }
+
+    /// App-wide endpoints that must NOT carry the `X-Fichero-Library-Path`
+    /// header. Mirrors `APIClient.configureRequest` exactly:
+    /// - `/health` — readiness probe, no library yet.
+    /// - `/providers` (except `/providers/refs`) — provider catalogue is global;
+    ///   provider *references* are library-specific and DO get the header.
+    /// - `/settings` — app-wide settings.
+    /// - `/registry` — the known-library registry is GLOBAL (one registry of all
+    ///   `.fichero` packages), not scoped to any one library (#1661).
+    public static func isAppWidePath(_ path: String) -> Bool {
+        let isHealth = path.contains("/health")
+        let isAppWideProvider = path.contains("/providers") && !path.contains("/providers/refs")
+        let isSettings = path.contains("/settings")
+        let isRegistry = path.contains("/registry")
+        return isHealth || isAppWideProvider || isSettings || isRegistry
     }
 
     public func intercept(
@@ -26,13 +62,14 @@ public struct LibraryPathMiddleware: ClientMiddleware {
         next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
         var request = request
-
-        // Check if this is an app-wide endpoint
         let path = request.path ?? ""
-        let isAppWide = appWideEndpoints.contains { path.contains($0) }
 
-        // Add library path header for library-scoped endpoints
-        if !isAppWide, let libraryPath = libraryPath {
+        // Library-scoped endpoints get the header (overwrite, not append) when a
+        // library is loaded. App-wide endpoints, or a nil/empty path, leave it
+        // absent — matching the legacy behaviour (and its warning log).
+        if !Self.isAppWidePath(path),
+           let libraryPath = currentLibraryPath(),
+           !libraryPath.isEmpty {
             request.headerFields[.init("X-Fichero-Library-Path")!] = libraryPath
         }
 
@@ -40,17 +77,53 @@ public struct LibraryPathMiddleware: ClientMiddleware {
     }
 }
 
-/// Actor-safe wrapper for LibraryPathMiddleware that can be shared across tasks.
+/// Thread-safe holder for the current library path so `LibraryPathMiddleware`
+/// can read it live from any executor without hopping to the main actor.
+public final class LibraryPathBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value: String?
+
+    public init(value: String? = nil) {
+        self._value = value
+    }
+
+    public var value: String? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _value
+        }
+        set {
+            lock.lock()
+            _value = newValue
+            lock.unlock()
+        }
+    }
+}
+
+/// Owns the live library path and vends a `LibraryPathMiddleware` bound to it.
+///
+/// `FicheroClient` keeps one of these and updates `libraryPath` whenever its
+/// `currentLibraryPath` changes; the middleware created via `createMiddleware()`
+/// reads the value live through a shared `LibraryPathBox`, so requests always
+/// carry the current path.
 @MainActor
 public final class LibraryPathProvider: ObservableObject {
-    @Published public var libraryPath: String?
+    @Published public var libraryPath: String? {
+        didSet { box.value = libraryPath }
+    }
+
+    private let box: LibraryPathBox
 
     public init(libraryPath: String? = nil) {
+        self.box = LibraryPathBox(value: libraryPath)
         self.libraryPath = libraryPath
     }
 
-    /// Creates a middleware configured with the current library path.
+    /// Creates a middleware that reads this provider's current library path
+    /// live (not a snapshot) via the shared box.
     public func createMiddleware() -> LibraryPathMiddleware {
-        LibraryPathMiddleware(libraryPath: libraryPath)
+        let box = self.box
+        return LibraryPathMiddleware(currentLibraryPath: { box.value })
     }
 }
