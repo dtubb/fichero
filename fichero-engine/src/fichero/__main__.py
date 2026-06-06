@@ -618,6 +618,8 @@ def import_manifest_command(
     typer.echo(f"documents_skipped: {summary.documents_skipped}")
     typer.echo(f"entities_created: {summary.entities_created}")
     typer.echo(f"entities_reused: {summary.entities_reused}")
+    typer.echo(f"artifacts_created: {summary.artifacts_created}")
+    typer.echo(f"artifacts_skipped: {summary.artifacts_skipped}")
     typer.echo(f"claims_created: {summary.claims_created}")
     typer.echo(f"claims_skipped: {summary.claims_skipped}")
 
