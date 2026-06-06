@@ -1,75 +1,66 @@
+import FicheroAPIClient
 import Foundation
+import OpenAPIRuntime
 
 // MARK: - App-Specific Methods
+//
+// These are part of the SAME `IntegrationsService` type as the core file — they
+// share its `client` and mapping helpers (`decodeModels`, `objectContainer`) so
+// there is one consistent generated-client transport for every endpoint (#1713).
 
 extension IntegrationsService {
 
     /// List DEVONthink databases
     func listDEVONthinkDatabases() async throws -> [DEVONthinkDatabase] {
-        guard let url = URL(string: "\(baseURL)/devonthink/databases") else {
-            throw IntegrationsError.invalidURL
-        }
-
-        let (data, response) = try await URLSession.shared.data(for: authedGet(url))
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let response = try await client.api.listDevonthinkDatabasesApiIntegrationsDevonthinkDatabasesGet(headers: .init())
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return try decodeModels(from: body.databases, as: DEVONthinkDatabase.self)
+        case .undocumented:
             throw IntegrationsError.serverError
         }
-
-        let result = try JSONDecoder().decode([String: [DEVONthinkDatabase]].self, from: data)
-        return result["databases"] ?? []
     }
 
     /// List Bookends libraries
     func listBookendsLibraries() async throws -> [BookendsLibrary] {
-        guard let url = URL(string: "\(baseURL)/bookends/libraries") else {
-            throw IntegrationsError.invalidURL
-        }
-
-        let (data, response) = try await URLSession.shared.data(for: authedGet(url))
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let response = try await client.api.listBookendsLibrariesApiIntegrationsBookendsLibrariesGet(headers: .init())
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return try decodeModels(from: body.libraries, as: BookendsLibrary.self)
+        case .undocumented:
             throw IntegrationsError.serverError
         }
-
-        let result = try JSONDecoder().decode([String: [BookendsLibrary]].self, from: data)
-        return result["libraries"] ?? []
     }
 
     /// Get a formatted citation from Bookends
     func getBookendsCitation(externalId: String, style: String = "APA") async throws -> String {
-        guard let url = URL(string: "\(baseURL)/bookends/citation/\(externalId)?style=\(style)") else {
-            throw IntegrationsError.invalidURL
-        }
-
-        let (data, response) = try await URLSession.shared.data(for: authedGet(url))
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let response = try await client.api.getBookendsCitationApiIntegrationsBookendsCitationExternalIdGet(
+            path: .init(externalId: externalId),
+            query: .init(style: style),
+            headers: .init()
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.citation
+        case .unprocessableContent:
+            throw IntegrationsError.serverError
+        case .undocumented:
             throw IntegrationsError.serverError
         }
-
-        let result = try JSONDecoder().decode([String: String].self, from: data)
-        return result["citation"] ?? ""
     }
 
     /// List Tinderbox documents
     func listTinderboxDocuments() async throws -> [TinderboxDocument] {
-        guard let url = URL(string: "\(baseURL)/tinderbox/documents") else {
-            throw IntegrationsError.invalidURL
-        }
-
-        let (data, response) = try await URLSession.shared.data(for: authedGet(url))
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        let response = try await client.api.listTinderboxDocumentsApiIntegrationsTinderboxDocumentsGet(headers: .init())
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return try decodeModels(from: body.documents, as: TinderboxDocument.self)
+        case .undocumented:
             throw IntegrationsError.serverError
         }
-
-        let result = try JSONDecoder().decode([String: [TinderboxDocument]].self, from: data)
-        return result["documents"] ?? []
     }
 
     /// Create a Tinderbox note
@@ -80,35 +71,28 @@ extension IntegrationsService {
         prototype: String? = nil,
         attributes: [String: String]? = nil
     ) async throws -> String {
-        guard let url = URL(string: "\(baseURL)/tinderbox/notes") else {
-            throw IntegrationsError.invalidURL
+        let attributesPayload = try attributes.map {
+            Components.Schemas.CreateNoteRequest.AttributesPayload(
+                additionalProperties: try objectContainer(from: $0)
+            )
         }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addEngineAuth()
-
-        let body: [String: Any?] = [
-            "name": name,
-            "text": text,
-            "container": container,
-            "prototype": prototype,
-            "attributes": attributes
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body.compactMapValues { $0 })
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw IntegrationsError.serverError
-        }
-
-        let result = try JSONDecoder().decode([String: String].self, from: data)
-        guard let noteId = result["id"] else {
+        let response = try await client.api.createTinderboxNoteApiIntegrationsTinderboxNotesPost(
+            headers: .init(),
+            body: .json(.init(
+                name: name,
+                text: text,
+                container: container,
+                prototype: prototype,
+                attributes: attributesPayload
+            ))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.id
+        case .unprocessableContent:
+            throw IntegrationsError.createFailed
+        case .undocumented:
             throw IntegrationsError.createFailed
         }
-        return noteId
     }
 }
