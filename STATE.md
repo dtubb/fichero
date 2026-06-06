@@ -5,11 +5,17 @@
 **Branch:** `0.0.2` at `9450c148`, pushed. `main` integrated via PR #1706 (= 0.0.2).
 All Swift merges build-gated green via Xcode MCP (`BuildProject`, tab windowtab1).
 
-**Shipped this session (each merged + MCP-build-verified + pushed + issue closed):**
+**Shipped this session (each merged + MCP-build-verified + pushed + issue closed). 0.0.2 now at 16fec8f6:**
 - #1701 — 3 hand-written URLSession sites → generated OpenAPI client (DocumentPickerSheet/batches, ComparisonDetailView/model-comparison, LocalModelsSettingsView/local-models).
 - #1699 — extracted shared `FicheroWebView`; de-duped WKWebView wrappers (left DocumentKGWebPane's GuardedWKWebView intact — genuinely different).
 - #1687 — removed user-facing 30/50 list caps (show ALL, Finder-style); kept recent-N widgets/chips/toggles.
 - #1683 — **IIIF/W3C importer integrated** (iiif_import.py + import-iiif CLI). Resolved 3 manifest_import conflicts to feat's page-scoping; fixed a double transcript-write bug (added `write_transcript_artifacts=False` on IIIF→manifest). 568 backend tests green; db.py/knowledge_models additions are no-migration auto-column-add safe.
+- #1685 — Finder "Open / Open in New Tab / Open in New Window" context menus + Cmd-click (library/sidebar/entity/claim); new shared `OpenAffordances.swift`; native macOS tabs via addTabbedWindow.
+- #1475 — Model Comparison UI made reachable (guard in ContentViewModifiers .chat case; re-applied fresh — the ms/researcher branch was too stale to merge).
+
+**Branch backlog cleared (worktrees + branches):** retired as already-on-0.0.2 / superseded: manifest-folder, manifest-copy-images, webkit-1641 (codex's GuardedWKWebView), apple-stage1-ner-empty (#1633 — already landed, closed). **#1590** (image viewer reflects edited rendition) HELD — its stale branch touches codex's image files Daniel is testing; re-implement fresh after he verifies. ms/researcher worktree is the stale #1475 branch — superseded, do not merge.
+
+**In flight:** worker migrating hand-written `ModelComparisonService` → generated client (#1666, isolated worktree agent-ad165e5e). On completion: review → MCP build-gate → merge.
 
 **Filed:** #1707 (PDFs don't render like folders — consistent render path), #1708 (Marshall importer EPIC), #1709 (4 pre-existing Swift test failures), plus the UX-consistency plan #1684–#1705.
 
