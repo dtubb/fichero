@@ -1282,6 +1282,7 @@ class Annotation(BaseModel):
         description="Hex colour for highlight tint, e.g. '#FFFF00'",
     )
     tags: list[str] = Field(default_factory=list)
+    metadata: dict = Field(default_factory=dict)
 
     # Cross-links — promote annotations into the KG.
     linked_claim_ids: list[str] = Field(default_factory=list)

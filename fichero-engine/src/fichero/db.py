@@ -1663,13 +1663,19 @@ class Database(DatabaseEmbeddingMixin):
         # provenance_chain on a Document table from before that field landed).
         # ADD COLUMN is non-destructive and idempotent, so this is the generic
         # mechanism that makes the no-migration rule hold for existing DBs too.
-        existing = {
-            row[0]
-            for row in self._execute(
-                f"SELECT column_name FROM information_schema.columns "
-                f"WHERE table_name = '{table}'"
-            ).fetchall()
-        }
+        try:
+            existing = {
+                row[1]
+                for row in self._execute(f"PRAGMA table_info({sql_table})").fetchall()
+            }
+        except Exception:
+            existing = {
+                row[0]
+                for row in self._execute(
+                    f"SELECT column_name FROM information_schema.columns "
+                    f"WHERE table_name = '{table}'"
+                ).fetchall()
+            }
         for name, field_info in model.model_fields.items():
             if name not in existing:
                 col_type = self._python_to_duckdb_type(field_info.annotation)

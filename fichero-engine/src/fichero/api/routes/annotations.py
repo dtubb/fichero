@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -42,6 +43,7 @@ class AnnotationCreateRequest(BaseModel):
     linked_claim_ids: list[str] = []
     linked_entity_ids: list[str] = []
     linked_note_ids: list[str] = []
+    metadata: dict[str, Any] = {}
 
 
 @router.post("", response_model=Annotation, summary="Create an annotation")
@@ -103,6 +105,7 @@ class AnnotationPatchRequest(BaseModel):
     char_start: int | None = None
     char_end: int | None = None
     bbox: list[float] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @router.patch("/{annotation_id}", response_model=Annotation)
