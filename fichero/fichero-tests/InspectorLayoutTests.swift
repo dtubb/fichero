@@ -8,22 +8,25 @@ import Testing
 
 struct InspectorTabTests {
 
-    @Test("InspectorTab includes content/annotations/notes/kg/artifacts/edits/info")
+    @Test("InspectorTab includes content/annotations/notes/entities/kg/artifacts/edits/info")
     func allCases() {
-        #expect(InspectorTab.allCases.count == 7)
+        #expect(InspectorTab.allCases.count == 9)
         #expect(InspectorTab.allCases.contains(.content))
+        #expect(InspectorTab.allCases.contains(.outline))
         #expect(InspectorTab.allCases.contains(.annotations))
         #expect(InspectorTab.allCases.contains(.notes))
+        #expect(InspectorTab.allCases.contains(.entities))
         #expect(InspectorTab.allCases.contains(.knowledgeGraph))
         #expect(InspectorTab.allCases.contains(.artifacts))
         #expect(InspectorTab.allCases.contains(.edits))
         #expect(InspectorTab.allCases.contains(.info))
     }
 
-    @Test("InspectorTab order: content, annotations, notes, kg, artifacts, edits, info")
+    @Test("InspectorTab order: content, outline, annotations, notes, entities, kg, artifacts, edits, info")
     func ordering() {
         let expected: [InspectorTab] = [
-            .content, .annotations, .notes, .knowledgeGraph, .artifacts, .edits, .info
+            .content, .outline, .annotations, .notes, .entities, .knowledgeGraph,
+            .artifacts, .edits, .info
         ]
         #expect(InspectorTab.allCases == expected)
     }
@@ -38,8 +41,10 @@ struct InspectorTabTests {
     @Test("InspectorTab icons are correct SF Symbols")
     func icons() {
         #expect(InspectorTab.content.icon == "doc.text")
+        #expect(InspectorTab.outline.icon == "list.bullet.indent")
         #expect(InspectorTab.annotations.icon == "highlighter")
         #expect(InspectorTab.notes.icon == "pencil.and.scribble")
+        #expect(InspectorTab.entities.icon == "person.text.rectangle")
         #expect(InspectorTab.knowledgeGraph.icon == "point.3.connected.trianglepath.dotted")
         #expect(InspectorTab.artifacts.icon == "shippingbox")
         #expect(InspectorTab.edits.icon == "slider.horizontal.3")
@@ -49,8 +54,10 @@ struct InspectorTabTests {
     @Test("InspectorTab rawValues are display names")
     func rawValues() {
         #expect(InspectorTab.content.rawValue == "Content")
+        #expect(InspectorTab.outline.rawValue == "Outline")
         #expect(InspectorTab.annotations.rawValue == "Annotations")
         #expect(InspectorTab.notes.rawValue == "Notes")
+        #expect(InspectorTab.entities.rawValue == "Entities")
         #expect(InspectorTab.knowledgeGraph.rawValue == "Knowledge Graph")
         #expect(InspectorTab.artifacts.rawValue == "Artifacts")
         #expect(InspectorTab.edits.rawValue == "Edits")
