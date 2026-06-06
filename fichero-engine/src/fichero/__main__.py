@@ -7,6 +7,7 @@ entry point ``fichero = "fichero.__main__:main"`` is declared in pyproject.toml.
 
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -1907,6 +1908,14 @@ def docs_update(
     name: Optional[str] = typer.Option(None, "--name", help="New document name."),
     parent_id: Optional[str] = typer.Option(None, "--parent-id", help="New parent folder ID."),
     folder_path: Optional[str] = typer.Option(None, "--folder-path", help="New folder path."),
+    page_content: Optional[str] = typer.Option(
+        None, "--page-content", help="New page content (transcript/body text)."
+    ),
+    page_content_file: Optional[str] = typer.Option(
+        None,
+        "--page-content-file",
+        help="Read new page content from a file (use '-' for stdin). Wins over --page-content.",
+    ),
 ) -> None:
     """Update editable fields on a document."""
     fields: dict[str, Any] = {}
@@ -1916,8 +1925,19 @@ def docs_update(
         fields["parent_id"] = parent_id
     if folder_path is not None:
         fields["folder_path"] = folder_path
+    if page_content_file is not None:
+        if page_content_file == "-":
+            page_content = sys.stdin.read()
+        else:
+            page_content = Path(page_content_file).read_text(encoding="utf-8")
+    if page_content is not None:
+        fields["page_content"] = page_content
     if not fields:
-        typer.secho("No fields to update — pass --name, --parent-id, or --folder-path.", err=True)
+        typer.secho(
+            "No fields to update — pass --name, --parent-id, --folder-path, "
+            "--page-content, or --page-content-file.",
+            err=True,
+        )
         raise typer.Exit(code=1)
     _invoke(ctx, lambda c: c.update_document(doc_id, **fields))
 
