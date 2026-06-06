@@ -1,6 +1,31 @@
 # STATE.md — Fichero
 
-## 2026-06-06 — Session ended after Marshall SwiftUI layout/image fixes
+## 2026-06-06 (PM) — Manager session: consistency sweep + IIIF integration
+
+**Branch:** `0.0.2` at `9450c148`, pushed. `main` integrated via PR #1706 (= 0.0.2).
+All Swift merges build-gated green via Xcode MCP (`BuildProject`, tab windowtab1).
+
+**Shipped this session (each merged + MCP-build-verified + pushed + issue closed):**
+- #1701 — 3 hand-written URLSession sites → generated OpenAPI client (DocumentPickerSheet/batches, ComparisonDetailView/model-comparison, LocalModelsSettingsView/local-models).
+- #1699 — extracted shared `FicheroWebView`; de-duped WKWebView wrappers (left DocumentKGWebPane's GuardedWKWebView intact — genuinely different).
+- #1687 — removed user-facing 30/50 list caps (show ALL, Finder-style); kept recent-N widgets/chips/toggles.
+- #1683 — **IIIF/W3C importer integrated** (iiif_import.py + import-iiif CLI). Resolved 3 manifest_import conflicts to feat's page-scoping; fixed a double transcript-write bug (added `write_transcript_artifacts=False` on IIIF→manifest). 568 backend tests green; db.py/knowledge_models additions are no-migration auto-column-add safe.
+
+**Filed:** #1707 (PDFs don't render like folders — consistent render path), #1708 (Marshall importer EPIC), #1709 (4 pre-existing Swift test failures), plus the UX-consistency plan #1684–#1705.
+
+**Known issues:**
+- #1709: 4 Swift tests fail (AnnotationService wiring, FeatureManager v001 defaults, ImageEditOp display, KGSurfaceTab ordering) — pre-existing, not from this session's merges. Build is green.
+- `verify_all.sh` pytest gate hung at 0% CPU (~40min) under the live :8765 backend — environmental (CrossLanguageGate vs Daniel's --reload backend), not a code failure. Backend tests pass when run directly.
+
+**Next session — start here (steady, one at a time, MCP build-gate each):**
+- Assess + integrate the remaining 1-ahead branches: **fix/apple-stage1-ner-empty (#1633 — HIGH: feeds #1662 0-SVO Marshall blocker)**, feat/manifest-folder-and-local-metadata, feat/manifest-copy-images, ms/researcher (#1475). Likely-superseded (verify then retire): agent-a0c2a1ba (image-viewer), fix/webkit-reading-surface-1641 (codex did GuardedWKWebView).
+- Continue UX-consistency issues: #1690 (unified knowledge edit/display component), #1685 (open in new tab/window context menus), #1684 (Cmd+'/Cmd+Shift+' nav), #1692 (multi-select sidebar/notes/entities), #1694 (exclude-from-search/KG).
+- HOLD until Daniel tests codex's image/layout fixes: #1707 (PDF render path) + chrome issues that edit ContentView.
+- Marshall epic #1708 children: #1673/#1674/#1675/#1676/#1677/#1678/#1662.
+
+---
+
+## 2026-06-06 — Session ended after Marshall SwiftUI layout/image fixes (codex)
 
 **Branch:** `0.0.2` at `00ad0ca8` (`fix(layout): keep reading pane toggles stable`).
 
