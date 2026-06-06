@@ -1,13 +1,20 @@
+import FicheroAPIClient
 import Foundation
+import OpenAPIRuntime
 import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowExecutionService")
 
-/// Service for executing workflows via the backend API
+/// Service for executing workflows via the backend API.
+///
+/// Routes through the generated OpenAPI client (FicheroClient → AuthTokenMiddleware
+/// + LibraryPathMiddleware) instead of hand-written URLSession requests (#1666/#1712).
+/// These endpoints are **library-scoped** (a workflow run lives in a library), so the
+/// library header is passed explicitly on every call — matching SavedSearch/Chat/Note.
+/// (#1710 will later fold this into middleware and drop the manual header arg.)
 @MainActor
 class WorkflowExecutionService: ObservableObject {
-    private let baseURL: URL
-    private var libraryPath: String?
+    private let client: FicheroClient
 
     @Published var isExecuting: Bool = false
     @Published var threads: [ExecutionThread] = []
@@ -15,22 +22,47 @@ class WorkflowExecutionService: ObservableObject {
     @Published var error: String?
 
     init(baseURL: URL = URL(string: "http://127.0.0.1:8765/api")!, libraryPath: String? = nil) {
-        self.baseURL = baseURL
-        self.libraryPath = libraryPath
+        // FicheroClient expects the host root (paths in openapi.json already carry the
+        // `/api` prefix). Legacy call sites pass `…:8765/api`, so strip any path here.
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        components?.path = ""
+        let host = components?.url ?? baseURL
+        self.client = FicheroClient(baseURL: host, libraryPath: libraryPath)
     }
 
     /// Update the library path (called when library changes)
     func setLibraryPath(_ path: String?) {
-        self.libraryPath = path
+        client.currentLibraryPath = path
     }
 
-    /// Create a URLRequest with common headers (auth + library path).
-    private func createRequest(url: URL, method: String) -> URLRequest {
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addEngineAuth(libraryPath: libraryPath)
-        return request
+    /// Library header for the library-scoped workflow-execution endpoints.
+    private var libraryHeaders: String { client.currentLibraryPath ?? "" }
+
+    /// Map a generated execution-status payload onto the app model (1:1 fields).
+    private func mapThread(_ response: Components.Schemas.ExecutionStatusResponse) -> ExecutionThread {
+        ExecutionThread(
+            threadId: response.threadId,
+            workflowId: response.workflowId,
+            workflowName: response.workflowName,
+            status: mapStatus(response.status),
+            checkpointId: response.checkpointId,
+            error: response.error
+        )
+    }
+
+    /// Map the backend status string onto the app status enum. Unknown values
+    /// (e.g. the 202 "accepted" handshake state) collapse to `.running`, which
+    /// preserves a valid case rather than failing — the prior URLSession path
+    /// decoded the same field straight into this enum.
+    private func mapStatus(_ raw: String?) -> ExecutionStatus {
+        ExecutionStatus(rawValue: raw ?? "") ?? .running
+    }
+
+    /// Build the OpenAPI free-form object container from a JSON-compatible dict,
+    /// round-tripping through JSONSerialization to match the previous encoding.
+    private func objectContainer(fromJSON dict: [String: Any]) throws -> OpenAPIRuntime.OpenAPIObjectContainer {
+        let data = try JSONSerialization.data(withJSONObject: dict)
+        return try JSONDecoder().decode(OpenAPIRuntime.OpenAPIObjectContainer.self, from: data)
     }
 
     // MARK: - Execute Workflow
@@ -43,185 +75,192 @@ class WorkflowExecutionService: ObservableObject {
         interruptBefore: [String] = [],
         interruptAfter: [String] = []
     ) async throws -> ExecutionThread {
-        let url = baseURL.appendingPathComponent("workflow-execution/execute")
-
-        var body: [String: Any] = [
-            "workflow_id": workflowId,
-            "inputs": inputs,
-            "interrupt_before": interruptBefore,
-            "interrupt_after": interruptAfter
-        ]
-        if let threadId = threadId {
-            body["thread_id"] = threadId
-        }
-
-        var request = createRequest(url: url, method: "POST")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let inputsPayload = Components.Schemas.ExecuteWorkflowRequest.InputsPayload(
+            additionalProperties: try objectContainer(fromJSON: inputs)
+        )
+        let request = Components.Schemas.ExecuteWorkflowRequest(
+            workflowId: workflowId,
+            inputs: inputsPayload,
+            threadId: threadId,
+            interruptBefore: interruptBefore,
+            interruptAfter: interruptAfter
+        )
 
         isExecuting = true
         defer { isExecuting = false }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let response = try await client.api.executeWorkflowApiWorkflowExecutionExecutePost(
+            headers: .init(xFicheroLibraryPath: libraryHeaders),
+            body: .json(request)
+        )
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WorkflowExecutionError.invalidResponse
+        switch response {
+        case .accepted(let accepted):
+            // 202: the run was accepted; map the handshake payload onto the
+            // app thread model (no checkpoint/error yet at acceptance time).
+            let payload = try accepted.body.json
+            let thread = ExecutionThread(
+                threadId: payload.threadId,
+                workflowId: payload.workflowId,
+                workflowName: payload.workflowName,
+                status: mapStatus(payload.status),
+                checkpointId: nil,
+                error: nil
+            )
+            currentThreadStatus = thread
+            logger.info("Executed workflow \(workflowId), thread: \(thread.threadId)")
+            return thread
+        case .unprocessableContent:
+            logger.error("Execute workflow failed: validation error")
+            throw WorkflowExecutionError.serverError(422, "Validation error")
+        case .undocumented(let statusCode, _):
+            logger.error("Execute workflow failed: \(statusCode)")
+            throw WorkflowExecutionError.serverError(statusCode, "Execute workflow failed")
         }
-
-        if httpResponse.statusCode >= 400 {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            logger.error("Execute workflow failed: \(errorMessage)")
-            throw WorkflowExecutionError.serverError(httpResponse.statusCode, errorMessage)
-        }
-
-        let thread = try JSONDecoder().decode(ExecutionThread.self, from: data)
-        currentThreadStatus = thread
-        logger.info("Executed workflow \(workflowId), thread: \(thread.threadId)")
-        return thread
     }
 
     // MARK: - Resume Workflow
 
     /// Resume a paused workflow
     func resumeWorkflow(threadId: String, inputs: [String: Any]? = nil) async throws -> ExecutionThread {
-        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/resume")
-
-        var request = createRequest(url: url, method: "POST")
-
+        let body: Operations.ResumeWorkflowApiWorkflowExecutionThreadsThreadIdResumePost.Input.Body?
         if let inputs = inputs {
-            let body: [String: Any] = ["inputs": inputs]
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            let inputsPayload = Components.Schemas.ResumeWorkflowRequest.InputsPayload(
+                additionalProperties: try objectContainer(fromJSON: inputs)
+            )
+            body = .json(.init(inputs: inputsPayload))
+        } else {
+            body = nil
         }
 
         isExecuting = true
         defer { isExecuting = false }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let response = try await client.api.resumeWorkflowApiWorkflowExecutionThreadsThreadIdResumePost(
+            path: .init(threadId: threadId),
+            headers: .init(xFicheroLibraryPath: libraryHeaders),
+            body: body
+        )
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WorkflowExecutionError.invalidResponse
+        switch response {
+        case .ok(let okResponse):
+            let thread = mapThread(try okResponse.body.json)
+            currentThreadStatus = thread
+            logger.info("Resumed workflow thread: \(threadId)")
+            return thread
+        case .unprocessableContent:
+            logger.error("Resume workflow failed: validation error")
+            throw WorkflowExecutionError.serverError(422, "Validation error")
+        case .undocumented(let statusCode, _):
+            logger.error("Resume workflow failed: \(statusCode)")
+            throw WorkflowExecutionError.serverError(statusCode, "Resume workflow failed")
         }
-
-        if httpResponse.statusCode >= 400 {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            logger.error("Resume workflow failed: \(errorMessage)")
-            throw WorkflowExecutionError.serverError(httpResponse.statusCode, errorMessage)
-        }
-
-        let thread = try JSONDecoder().decode(ExecutionThread.self, from: data)
-        currentThreadStatus = thread
-        logger.info("Resumed workflow thread: \(threadId)")
-        return thread
     }
 
     // MARK: - Get Thread Status
 
     /// Get the current status of an execution thread
     func getThreadStatus(threadId: String) async throws -> ExecutionThread {
-        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/status")
+        let response = try await client.api.getThreadStatusApiWorkflowExecutionThreadsThreadIdStatusGet(
+            path: .init(threadId: threadId),
+            headers: .init(xFicheroLibraryPath: libraryHeaders)
+        )
 
-        let request = createRequest(url: url, method: "GET")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WorkflowExecutionError.invalidResponse
+        switch response {
+        case .ok(let okResponse):
+            let thread = mapThread(try okResponse.body.json)
+            currentThreadStatus = thread
+            return thread
+        case .unprocessableContent:
+            logger.error("Get thread status failed: validation error")
+            throw WorkflowExecutionError.serverError(422, "Validation error")
+        case .undocumented(let statusCode, _):
+            logger.error("Get thread status failed: \(statusCode)")
+            throw WorkflowExecutionError.serverError(statusCode, "Get thread status failed")
         }
-
-        if httpResponse.statusCode >= 400 {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            logger.error("Get thread status failed: \(errorMessage)")
-            throw WorkflowExecutionError.serverError(httpResponse.statusCode, errorMessage)
-        }
-
-        let thread = try JSONDecoder().decode(ExecutionThread.self, from: data)
-        currentThreadStatus = thread
-        return thread
     }
 
     // MARK: - List Threads
 
     /// List all execution threads
     func listThreads(limit: Int = 100) async throws -> [ExecutionThread] {
-        let url = baseURL.appendingPathComponent("workflow-execution/threads")
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-        components.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+        let response = try await client.api.listThreadsApiWorkflowExecutionThreadsGet(
+            query: .init(limit: limit),
+            headers: .init(xFicheroLibraryPath: libraryHeaders)
+        )
 
-        let request = createRequest(url: components.url!, method: "GET")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WorkflowExecutionError.invalidResponse
+        switch response {
+        case .ok(let okResponse):
+            let responseBody = try okResponse.body.json
+            threads = responseBody.threads.map { mapThread($0) }
+            logger.info("Listed \(self.threads.count) threads")
+            return threads
+        case .unprocessableContent:
+            logger.error("List threads failed: validation error")
+            throw WorkflowExecutionError.serverError(422, "Validation error")
+        case .undocumented(let statusCode, _):
+            logger.error("List threads failed: \(statusCode)")
+            throw WorkflowExecutionError.serverError(statusCode, "List threads failed")
         }
-
-        if httpResponse.statusCode >= 400 {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            logger.error("List threads failed: \(errorMessage)")
-            throw WorkflowExecutionError.serverError(httpResponse.statusCode, errorMessage)
-        }
-
-        let responseBody = try JSONDecoder().decode(ThreadListResponse.self, from: data)
-        threads = responseBody.threads
-        logger.info("Listed \(self.threads.count) threads")
-        return threads
     }
 
     // MARK: - Delete Thread
 
     /// Delete an execution thread and its checkpoints
     func deleteThread(threadId: String) async throws {
-        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)")
+        let response = try await client.api.deleteThreadApiWorkflowExecutionThreadsThreadIdDelete(
+            path: .init(threadId: threadId),
+            headers: .init(xFicheroLibraryPath: libraryHeaders)
+        )
 
-        let request = createRequest(url: url, method: "DELETE")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WorkflowExecutionError.invalidResponse
+        switch response {
+        case .ok:
+            // Remove from local list
+            threads.removeAll { $0.threadId == threadId }
+            if currentThreadStatus?.threadId == threadId {
+                currentThreadStatus = nil
+            }
+            logger.info("Deleted thread: \(threadId)")
+        case .undocumented(let statusCode, _):
+            logger.error("Delete thread failed: \(statusCode)")
+            throw WorkflowExecutionError.serverError(statusCode, "Delete thread failed")
+        default:
+            throw WorkflowExecutionError.serverError(422, "Delete thread failed")
         }
-
-        if httpResponse.statusCode >= 400 {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            logger.error("Delete thread failed: \(errorMessage)")
-            throw WorkflowExecutionError.serverError(httpResponse.statusCode, errorMessage)
-        }
-
-        // Remove from local list
-        threads.removeAll { $0.threadId == threadId }
-        if currentThreadStatus?.threadId == threadId {
-            currentThreadStatus = nil
-        }
-        logger.info("Deleted thread: \(threadId)")
     }
 
     // MARK: - Pause / Cancel
 
     func pauseWorkflow(threadId: String) async throws {
-        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/pause")
-        let request = createRequest(url: url, method: "POST")
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let response = try await client.api.pauseWorkflowApiWorkflowExecutionThreadsThreadIdPausePost(
+            path: .init(threadId: threadId),
+            headers: .init(xFicheroLibraryPath: libraryHeaders)
+        )
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WorkflowExecutionError.invalidResponse
+        switch response {
+        case .ok:
+            logger.info("Pause requested for workflow thread: \(threadId)")
+        case .undocumented(let statusCode, _):
+            throw WorkflowExecutionError.serverError(statusCode, "Pause workflow failed")
+        default:
+            throw WorkflowExecutionError.serverError(422, "Pause workflow failed")
         }
-        if httpResponse.statusCode >= 400 {
-            throw WorkflowExecutionError.serverError(httpResponse.statusCode, "Pause workflow failed")
-        }
-        logger.info("Pause requested for workflow thread: \(threadId)")
     }
 
     func cancelWorkflow(threadId: String) async throws {
-        let url = baseURL.appendingPathComponent("workflow-execution/threads/\(threadId)/cancel")
-        let request = createRequest(url: url, method: "POST")
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let response = try await client.api.cancelWorkflowApiWorkflowExecutionThreadsThreadIdCancelPost(
+            path: .init(threadId: threadId),
+            headers: .init(xFicheroLibraryPath: libraryHeaders)
+        )
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WorkflowExecutionError.invalidResponse
+        switch response {
+        case .ok:
+            logger.info("Cancel requested for workflow thread: \(threadId)")
+        case .undocumented(let statusCode, _):
+            throw WorkflowExecutionError.serverError(statusCode, "Cancel workflow failed")
+        default:
+            throw WorkflowExecutionError.serverError(422, "Cancel workflow failed")
         }
-        if httpResponse.statusCode >= 400 {
-            throw WorkflowExecutionError.serverError(httpResponse.statusCode, "Cancel workflow failed")
-        }
-        logger.info("Cancel requested for workflow thread: \(threadId)")
     }
 }
 
@@ -258,10 +297,8 @@ enum ExecutionStatus: String, Codable {
     case failed
 }
 
-/// Response containing list of threads
-struct ThreadListResponse: Codable {
-    let threads: [ExecutionThread]
-}
+// The thread-list response is now the generated `Components.Schemas.ThreadListResponse`
+// (mapped in `listThreads`); the hand-written struct was retired in #1712.
 
 // Note: AnyCodable is defined in Document.swift
 
