@@ -72,6 +72,8 @@ struct SidebarItemRow: View {
     @ObservedObject var libraryManager: LibraryManager
 
     @Environment(WorkflowExecutionObserver.self) var executionObserver
+    /// Finder-style Open in New Tab / New Window for sidebar rows (#1685).
+    @Environment(\.openWindow) private var openWindow
 
     var library: LibraryManager.LibraryReference? {
         guard let libraryId = item.libraryId else { return nil }
@@ -188,8 +190,50 @@ struct SidebarItemRow: View {
             .contentShape(Rectangle())
     }
 
+    /// Document id when this sidebar row represents a document or folder —
+    /// used to focus it after opening in a new tab/window (#1685).
+    private var openableDocumentId: String? {
+        if case .document(let doc) = item.itemType { return doc.id }
+        return nil
+    }
+
+    /// In-window "Open": select this row (drives navigation/preview).
+    private func openInWindow() {
+        selectedItemId = item.id
+    }
+
+    /// "Open in New Tab / New Window": open a fresh window on this item's
+    /// library via the shared Safari new-window path. For document/folder rows
+    /// the document is focused once the new window loads; other item types open
+    /// the library and leave deeper focus as a follow-up.
+    private func openInNewWindow(asTab: Bool) {
+        // Follow-up (#1685): focus non-document sidebar items (saved
+        // searches, workflows, chats) in the new window — needs a pending
+        // sidebar selection consumed by SidebarView, mirroring
+        // pendingOpenDocumentId.
+        guard let libraryId = item.libraryId ?? libraryManager.currentLibraryId else { return }
+        WindowOpener.open(
+            libraryId: libraryId,
+            documentId: openableDocumentId,
+            asTab: asTab,
+            using: openWindow
+        )
+    }
+
     private var rowContextMenu: some View {
         Group {
+            // Finder-style open affordances (#1685). "Open" selects the row in
+            // this window; New Tab / New Window open a fresh window on the
+            // item's library, focusing the document when the row is a doc.
+            if item.libraryId != nil {
+                OpenInMenuItems(
+                    open: { openInWindow() },
+                    openInNewTab: { openInNewWindow(asTab: true) },
+                    openInNewWindow: { openInNewWindow(asTab: false) }
+                )
+                Divider()
+            }
+
             SidebarItemContextMenu(
                 item: item,
                 renameState: renameState,
