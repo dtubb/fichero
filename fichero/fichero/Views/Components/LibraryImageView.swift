@@ -1,10 +1,15 @@
 import OSLog
 import SwiftUI
 
+struct LibraryImageLoadKey: Hashable {
+    let documentId: String
+    let imageType: LibraryImageView.ImageType
+}
+
 /// Image view that loads from backend with proper library path headers
 /// Replacement for AsyncImage which doesn't support custom headers
 struct LibraryImageView: View {
-    enum ImageType {
+    enum ImageType: Hashable {
         case thumbnail
         case display
     }
@@ -16,10 +21,12 @@ struct LibraryImageView: View {
     @EnvironmentObject var storageService: StorageServiceGenerated
 
     @State private var image: Image?
+    @State private var loadedKey: LibraryImageLoadKey?
     @State private var isLoading = false
     @State private var loadError: Error?
 
     private static let logger = Logger(subsystem: "app.fichero.fichero", category: "LibraryImageView")
+    private var loadKey: LibraryImageLoadKey { .init(documentId: documentId, imageType: imageType) }
 
     var body: some View {
         Group {
@@ -36,36 +43,49 @@ struct LibraryImageView: View {
                 Color.clear
             }
         }
-        .task {
+        .task(id: loadKey) {
             guard !Task.isCancelled else { return }
-            await loadImage()
+            await loadImage(for: loadKey)
         }
     }
 
-    private func loadImage() async {
-        guard image == nil else { return }
+    private func loadImage(for key: LibraryImageLoadKey) async {
+        guard loadedKey != key || image == nil else { return }
 
+        image = nil
+        loadedKey = nil
         isLoading = true
         loadError = nil
 
-        let imageTypeLabel = self.imageType == .thumbnail ? "thumbnail" : "display"
-        Self.logger.info("Loading \(imageTypeLabel) for document: \(self.documentId)")
+        let imageTypeLabel = key.imageType == .thumbnail ? "thumbnail" : "display"
+        Self.logger.info("Loading \(imageTypeLabel) for document: \(key.documentId)")
 
         do {
-            switch imageType {
+            let loadedImage: Image
+            switch key.imageType {
             case .thumbnail:
-                image = try await storageService.getThumbnail(documentId)
-                Self.logger.info("Successfully loaded thumbnail for: \(self.documentId)")
+                loadedImage = try await storageService.getThumbnail(key.documentId)
+                Self.logger.info("Successfully loaded thumbnail for: \(key.documentId)")
             case .display:
-                image = try await storageService.getDisplayImage(documentId)
-                Self.logger.info("Successfully loaded display image for: \(self.documentId)")
+                loadedImage = try await storageService.getDisplayImage(key.documentId)
+                Self.logger.info("Successfully loaded display image for: \(key.documentId)")
             }
+            guard loadKey == key else {
+                isLoading = false
+                return
+            }
+            image = loadedImage
+            loadedKey = key
         } catch {
+            guard loadKey == key else {
+                isLoading = false
+                return
+            }
             loadError = error
             if case StorageServiceError.notFound = error {
-                Self.logger.info("No \(imageTypeLabel) yet for \(self.documentId): \(error.localizedDescription)")
+                Self.logger.info("No \(imageTypeLabel) yet for \(key.documentId): \(error.localizedDescription)")
             } else {
-                Self.logger.error("Failed to load image for \(self.documentId): \(error.localizedDescription)")
+                Self.logger.error("Failed to load image for \(key.documentId): \(error.localizedDescription)")
             }
             // Will show placeholder icon
         }

@@ -141,26 +141,25 @@ final class LayoutModeTests: XCTestCase {
         XCTAssertEqual(resolved?.id, "page-1")
     }
 
-    func testCanvasDocumentDoesNotPreviewPlainFolderOrGroup() {
+    func testCanvasDocumentShowsPlainFolderOrGroupAsContainerPlaceholder() {
         let folder = Document(id: "folder-1", docType: .folder, name: "Diary")
         let group = Document(id: "group-1", docType: .group, name: "Chapter")
 
-        XCTAssertNil(
-            CanvasDocumentPolicy.documentForCanvas(
-                selectedDocumentIds: [],
-                documents: [],
-                detailDocument: folder,
-                inspectorDocument: folder
-            )
+        let folderResult = CanvasDocumentPolicy.documentForCanvas(
+            selectedDocumentIds: [],
+            documents: [],
+            detailDocument: folder,
+            inspectorDocument: folder
         )
-        XCTAssertNil(
-            CanvasDocumentPolicy.documentForCanvas(
-                selectedDocumentIds: [],
-                documents: [],
-                detailDocument: group,
-                inspectorDocument: group
-            )
+        let groupResult = CanvasDocumentPolicy.documentForCanvas(
+            selectedDocumentIds: [],
+            documents: [],
+            detailDocument: group,
+            inspectorDocument: group
         )
+
+        XCTAssertEqual(folderResult?.id, "folder-1")
+        XCTAssertEqual(groupResult?.id, "group-1")
     }
 
     func testCanvasDocumentCanPreviewImageBackedFolder() {

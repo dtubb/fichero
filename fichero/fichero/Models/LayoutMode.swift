@@ -88,16 +88,14 @@ struct BrowserSelectionPreviewPolicy {
 
 /// Chooses the document that should drive the image/PDF canvas.
 ///
-/// The inspector can legitimately show a folder or group, but the canvas should
-/// only receive documents it can render. Keeping that distinction explicit
-/// prevents folder selection from blanking the image/PDF pane while a child page
-/// remains selected in the library list.
+/// The inspector can legitimately show a folder or group. The canvas accepts
+/// those containers too, but renders them as a placeholder rather than hiding
+/// the pane. Keeping selection precedence explicit prevents folder selection
+/// from blanking the image/PDF pane while a child page remains selected in the
+/// library list.
 struct CanvasDocumentPolicy {
     static func isCanvasPreviewable(_ document: Document) -> Bool {
-        if document.docType == .folder || document.docType == .group {
-            return document.fileType != nil
-        }
-        return true
+        true
     }
 
     static func shouldUsePDFCanvas(for document: Document) -> Bool {
