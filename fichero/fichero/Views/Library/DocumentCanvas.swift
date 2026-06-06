@@ -70,6 +70,7 @@ private struct StorageDisplayImageCanvas: View {
                     .controlSize(.small)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: documentId) {
             image = nil
             loadError = nil

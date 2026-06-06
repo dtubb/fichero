@@ -352,8 +352,34 @@ struct ImageWithCursorTracking: NSViewRepresentable {
 
         @MainActor
         @objc func boundsDidChange(_ notification: Notification) {
+            revealAfterInitialLayoutIfNeeded()
             updateContentInsetsForCurrentLayout()
             updateVisibleRect()
+        }
+
+        /// `makeNSView` hides the scroll view until the first center/fit pass
+        /// to avoid a flash at 1x. In split-pane layouts SwiftUI can mount the
+        /// AppKit view at zero size, then deliver the real size only through a
+        /// bounds-change notification. Without revealing from that path the
+        /// loaded image remains invisible even though storage returned it.
+        @MainActor
+        func revealAfterInitialLayoutIfNeeded() {
+            guard needsInitialCenter,
+                  let scrollView = scrollView,
+                  scrollView.bounds.width > 0,
+                  scrollView.bounds.height > 0,
+                  let imageView = imageView as? NSImageView,
+                  imageView.image != nil else { return }
+
+            needsInitialCenter = false
+            if let fitScale = calculateFitScale() {
+                scrollView.magnification = fitScale
+                onScaleChanged?(fitScale)
+            }
+            centerContent()
+            if scrollView.alphaValue < 1 {
+                scrollView.alphaValue = 1
+            }
         }
 
         @MainActor
