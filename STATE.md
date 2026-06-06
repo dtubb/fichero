@@ -15,7 +15,16 @@ All Swift merges build-gated green via Xcode MCP (`BuildProject`, tab windowtab1
 
 **Branch backlog cleared (worktrees + branches):** retired as already-on-0.0.2 / superseded: manifest-folder, manifest-copy-images, webkit-1641 (codex's GuardedWKWebView), apple-stage1-ner-empty (#1633 — already landed, closed). **#1590** (image viewer reflects edited rendition) HELD — its stale branch touches codex's image files Daniel is testing; re-implement fresh after he verifies. ms/researcher worktree is the stale #1475 branch — superseded, do not merge.
 
-**In flight:** worker migrating hand-written `ModelComparisonService` → generated client (#1666, isolated worktree agent-ad165e5e). On completion: review → MCP build-gate → merge.
+**ModelComparisonService migrated** (#1666, cb27f92a, build-green) — all 10 endpoints → generated ops; compare-node fix revealed a systemic class → filed **#1710** (no LibraryPathMiddleware on the generated client; library header hand-passed per call site → silent-422 risk). Adopted rule: fix→sweep→file (memory: fix-then-sweep-for-siblings).
+
+**#1666 URLSession audit done** — KEEP (SSE/binary/WKWebView/lifecycle/transport) vs MIGRATE classified. Concrete migration backlog filed:
+- **#1711** — migrate + DE-DUP ActionsService & ActionLibraryService (duplicate /api/actions code paths) → generated client.
+- **#1712** — migrate WorkflowExecutionService (7 calls).
+- **#1713** — migrate + consolidate IntegrationsService(+AppSpecific).
+- **#1714** — Tier-2 stragglers (WorkflowService reinstall-defaults, WorkflowDiagramPreview code JSON, WorkflowStream REST parts).
+- Tier-3 (SearchService keywords, Artifact list) blocked on backend OpenAPI exposure.
+
+**Next-work queue (consistency sweep is the headline):** ideally land **#1710** (LibraryPathMiddleware) FIRST so the #1711–1714 migrations don't hand-pass the header; then #1711→#1712→#1713→#1714. Then the rest of the audit plan: #1690 unified knowledge component, #1692 multi-select (notes+entity lists), #1694 exclude-from-search/KG, #1686 entity-as-library, #1703/#1704 folder reorg + file splits, #1700/#1702 reactivity. HOLD #1707 PDF + ContentView-editing chrome until Daniel tests codex's image/layout.
 
 **Filed:** #1707 (PDFs don't render like folders — consistent render path), #1708 (Marshall importer EPIC), #1709 (4 pre-existing Swift test failures), plus the UX-consistency plan #1684–#1705.
 
