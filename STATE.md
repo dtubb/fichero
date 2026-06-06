@@ -98,3 +98,9 @@ All Swift merges build-gated green via Xcode MCP (`BuildProject`, tab windowtab1
 - New issues filed: #1720 (File menu: Open Recent + Close Database), #1721 (drag-drop .fichero → open new window vs import branch).
 - **Next:** #1703 (split the big files, one worker/file) + #1704 Batch1 (Views/Library reorg — scripted/gated) + #1702 (hand-rolled structs→generated, verify schema coverage first). Remaining swiftlint debt (29) is exactly the #1703 file-splits.
 - HOLD: #1707 PDF + ContentView image/layout chrome + #1721 (touches ContentViewModifiers) until Daniel explicitly confirms codex's image/layout.
+
+## 2026-06-06 (PM cont.3) — big-file splits + codex53 transition
+- #1703: 3 biggest files split+shipped (build-gated): OntologyBrowser 1982→317 (8ca6c431), DocumentInspector 1807→381 (5960766c), DocumentInspectorArtifactsTab 1926→13 (47c060db). 0.0.2 at 47c060db.
+- **WORKER ENGINE = codex53 (Daniel's directive), not Claude** — run impl+reviews on `codex -m codex53` in tmux (scripts/spawn-worker.sh codex, add -m codex53) so Opus manager context is preserved. Claude/Sonnet = fallback only. Build-coordination: codex does swiftlint+compile-only, MANAGER owns the single MCP build-gate, never concurrent xcodebuild. (memory: manager-operating-model.)
+- Lessons: salvage uncommitted-but-complete worker output (commit-in-worktree→merge); parallel file-creating workers conflict on project.pbxproj → resolve with `git checkout --ours pbxproj` + re-run add-swift-file.rb, or serialize splits.
+- Next: remaining #1703 800-tier (SidebarView+ViewComponents 831, WelcomeView 830, DocumentInspectorInfoTab 803, SidebarItemRow 784) one codex53 worker/file; #1704 Batch1 Views/Library reorg; #1702 hand-rolled structs. HOLD #1707/#1721/ContentView-image-chrome until Daniel confirms codex's image fixes.
