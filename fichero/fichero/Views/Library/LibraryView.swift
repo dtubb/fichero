@@ -76,6 +76,9 @@ struct LibraryView: View {
 
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var windowState: WindowState
+    /// Finder-style Open in New Tab / New Window opens a fresh window on the
+    /// current library via the Safari new-window path (#1685).
+    @Environment(\.openWindow) var openWindow
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
     @EnvironmentObject var documentStore: DocumentStore
     @Environment(WorkflowExecutionObserver.self) var executionObserver
@@ -232,6 +235,13 @@ struct LibraryView: View {
             .onAppear {
                 loadSortSettings(for: folderId)
                 syncSortOrder()
+                consumePendingOpen()
+            }
+            .onChange(of: documents.count) { _, _ in
+                // A window opened via "Open in New Tab/Window" may still be
+                // loading its documents when it first appears; retry the
+                // pending-open hand-off once rows arrive (#1685).
+                consumePendingOpen()
             }
             .onChange(of: folderId) { _, newId in
                 loadSortSettings(for: newId)

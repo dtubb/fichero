@@ -223,10 +223,58 @@ extension LibraryView {
         }
     }
 
+    // MARK: - Open Affordances (#1685)
+
+    /// In-window "Open": navigate into containers, otherwise show the doc in
+    /// the detail/preview pane. Mirrors the existing double-click open path.
+    func openDocument(_ doc: Document) {
+        selection = [doc.id]
+        selectionAnchor = doc.id
+        if canNavigateInto(doc) {
+            onNavigateInto(doc)
+        } else {
+            detailDocument = doc
+        }
+    }
+
+    /// "Open in New Tab / New Window": open a fresh window on this library via
+    /// the shared Safari new-window path, asking it to focus this document
+    /// once its rows load.
+    func openDocumentInNewWindow(_ doc: Document, asTab: Bool) {
+        WindowOpener.open(
+            libraryId: windowState.libraryId,
+            documentId: doc.id,
+            asTab: asTab,
+            using: openWindow
+        )
+    }
+
+    /// Hand-off consumer for a cross-window open intent. When a window is
+    /// opened via "Open in New Tab/Window" with a pending document id, select
+    /// and preview that document here, then clear the intent so sibling
+    /// windows don't also consume it.
+    func consumePendingOpen() {
+        guard let pendingId = libraryManager.pendingOpenDocumentId,
+              let doc = documents.first(where: { $0.id == pendingId }) else { return }
+        libraryManager.pendingOpenDocumentId = nil
+        openDocument(doc)
+    }
+
     // MARK: - Context Menu
 
     @ViewBuilder
     func documentContextMenu(for document: Document) -> some View {
+        // Finder-style open affordances (#1685). "Open" reuses the existing
+        // in-window open path; New Tab / New Window reuse the Safari
+        // new-window path and focus this document once the window loads.
+        OpenInMenuItems(
+            open: { openDocument(document) },
+            openInNewTab: { openDocumentInNewWindow(document, asTab: true) },
+            openInNewWindow: { openDocumentInNewWindow(document, asTab: false) }
+        )
+
+        Divider()
+
         Button {
             startRename(for: document)
         } label: {

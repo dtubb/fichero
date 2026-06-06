@@ -15,6 +15,8 @@ import SwiftUI
 struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @Environment(KGFocusState.self) private var kgFocusState
+    /// Finder-style Open in New Tab / New Window for ontology rows (#1685).
+    @Environment(\.openWindow) private var openWindow
     @StateObject private var loadState = OntologyBrowserLoadState()
     @SceneStorage("ontology.selectedEntityId") private var selectedEntityId: String?
     @State private var navHistory = NavigationHistoryManager()
@@ -670,10 +672,30 @@ struct OntologyBrowser: View { // swiftlint:disable:this type_body_length
         }
     }
 
+    /// Open an entity in a new tab/window (#1685). Reuses the Safari
+    /// new-window path; the cross-window `KGFocusState` singleton carries the
+    /// focus so the destination OntologyBrowser selects this entity.
+    private func openEntityInNewWindow(_ entity: Components.Schemas.KnowledgeEntity, asTab: Bool) {
+        guard let entityId = entity.id else { return }
+        // Follow-up (#1685): the new window's OntologyBrowser only reacts to
+        // focusedEntityId via .onChange, so a brand-new window that mounts
+        // after this assignment may not auto-select. A one-shot on-appear
+        // consumer of KGFocusState would make this deterministic.
+        kgFocusState.focusEntity(entityId: entityId)
+        let libraryId = LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId
+        WindowOpener.open(libraryId: libraryId, asTab: asTab, using: openWindow)
+    }
+
     private func entityRow(_ entity: Components.Schemas.KnowledgeEntity) -> some View {
         EntityRow(entity: entity, claimCount: claimCounts[entity.id ?? ""] ?? 0)
             .tag(entity.id)
             .contextMenu {
+                OpenInMenuItems(
+                    open: { selectedEntityId = entity.id },
+                    openInNewTab: { openEntityInNewWindow(entity, asTab: true) },
+                    openInNewWindow: { openEntityInNewWindow(entity, asTab: false) }
+                )
+                Divider()
                 Button("Edit entity…") { entityPendingEdit = entity }
                 Button("Merge entities…") { entityPendingMerge = entity }
                 Button("Split entity…") { entityPendingSplit = entity }

@@ -175,6 +175,7 @@
 		56DCD53ACD6483561CF542B3 /* KGTemporalSpatial.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43EAB861267206E7A929830F /* KGTemporalSpatial.swift */; };
 		5D064ECAAD353BDB778B8580 /* AnnotationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61D7DC57117008EBCFE607A9 /* AnnotationService.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
+		60CB18CE86D7EC81918F1BD2 /* OpenAffordances.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16622C4E0F3AB58187B2AFF6 /* OpenAffordances.swift */; };
 		639627BEE7CCC2963F10FA1B /* SpatialNodeInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D19CBC29C9F35A0B770C01D /* SpatialNodeInspector.swift */; };
 		64574A29B56CBA1F27542556 /* BackendSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */; };
 		650278DC2930567D10469587 /* ContentViewHelperViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00B5245346C7E0A399A7A82A /* ContentViewHelperViews.swift */; };
@@ -439,7 +440,6 @@
 		A1624FF62F2EE5710019C019 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			dstPath = "";
-			dstSubfolder = None;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
@@ -492,6 +492,7 @@
 		151 /* ChainEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainEditorView.swift; sourceTree = "<group>"; };
 		152 /* ScheduleCreationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleCreationSheet.swift; sourceTree = "<group>"; };
 		153 /* TriggerCreationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TriggerCreationSheet.swift; sourceTree = "<group>"; };
+		16622C4E0F3AB58187B2AFF6 /* OpenAffordances.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenAffordances.swift; sourceTree = "<group>"; };
 		16BEAA9442D4996FBD92BC7F /* ScheduleDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ScheduleDetailView.swift; sourceTree = "<group>"; };
 		1786CA1F532B414196BAAABE /* PDFThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFThumbnailView.swift; sourceTree = "<group>"; };
 		19C6A533EA3E96E1F5AE19ED /* AppNavigationHistory.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppNavigationHistory.swift; sourceTree = "<group>"; };
@@ -866,11 +867,15 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10521AA2EFDC92400B28C3E /* fichero-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = "fichero-tests";
 			sourceTree = "<group>";
 		};
 		A10521C22EFDC94100B28C3E /* fichero-ui-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = "fichero-ui-tests";
 			sourceTree = "<group>";
 		};
@@ -1064,6 +1069,7 @@
 				4C831988A1430C389E770F5C /* Research */,
 				43322F30A05232A97F8B3B87 /* ContentView+NavigationHistory.swift */,
 				ECAB62BE723D861411DD670E /* Notes */,
+				16622C4E0F3AB58187B2AFF6 /* OpenAffordances.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1656,6 +1662,8 @@
 			);
 			buildRules = (
 			);
+			dependencies = (
+			);
 			name = Fichero;
 			packageProductDependencies = (
 				A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */,
@@ -1778,6 +1786,8 @@
 /* Begin PBXShellScriptBuildPhase section */
 		CC0011223344556677889902 /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
+			files = (
+			);
 			inputPaths = (
 				"$(SRCROOT)/../.swiftlint.yml",
 				"$(SRCROOT)/fichero",
@@ -1791,13 +1801,13 @@
 				"SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"",
 				"if [ ! -x \"$SWIFTLINT_BIN\" ]; then",
 				"  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"",
-				"fi",
+				fi,
 				"",
 				"if [ -x \"$SWIFTLINT_BIN\" ]; then",
 				"  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero\"",
-				"else",
+				else,
 				"  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"",
-				"fi",
+				fi,
 				"",
 				"mkdir -p \"$DERIVED_FILE_DIR\"",
 				"touch \"$DERIVED_FILE_DIR/swiftlint.done\"",
@@ -1807,6 +1817,8 @@
 		CC0011223344556677889903 /* Embed Fichero Engine */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
+			files = (
+			);
 			name = "Embed Fichero Engine";
 			shellPath = /bin/sh;
 			shellScript = (
@@ -1836,7 +1848,7 @@
 				"",
 				"  exit 0",
 				"",
-				"fi",
+				fi,
 				"",
 				"",
 				"",
@@ -1852,7 +1864,7 @@
 				"",
 				"  exit 1",
 				"",
-				"fi",
+				fi,
 				"",
 				"",
 				"",
@@ -2276,6 +2288,7 @@
 				011D2B0F5D8064D8ABF7A999 /* ArtifactRichTextCodec.swift in Sources */,
 				F0B74209906E1D1F5A904335 /* NodeClassPicker.swift in Sources */,
 				ADEE74E7CF17264BA16507C7 /* FicheroWebView.swift in Sources */,
+				60CB18CE86D7EC81918F1BD2 /* OpenAffordances.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -2304,7 +2317,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		800 /* Debug configuration for PBXProject "fichero" */ = {
+		800 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -2370,7 +2383,7 @@
 			};
 			name = Debug;
 		};
-		801 /* Release configuration for PBXProject "fichero" */ = {
+		801 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -2428,7 +2441,7 @@
 			};
 			name = Release;
 		};
-		810 /* Debug configuration for PBXNativeTarget "Fichero" */ = {
+		810 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2474,7 +2487,7 @@
 			};
 			name = Debug;
 		};
-		811 /* Release configuration for PBXNativeTarget "Fichero" */ = {
+		811 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2522,7 +2535,7 @@
 			};
 			name = Release;
 		};
-		A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */ = {
+		A10521AF2EFDC92400B28C3E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2545,7 +2558,7 @@
 			};
 			name = Debug;
 		};
-		A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */ = {
+		A10521B02EFDC92400B28C3E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2568,7 +2581,7 @@
 			};
 			name = Release;
 		};
-		A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */ = {
+		A10521C82EFDC94100B28C3E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -2584,7 +2597,7 @@
 			};
 			name = Debug;
 		};
-		A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */ = {
+		A10521C92EFDC94100B28C3E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -2606,32 +2619,32 @@
 		600 /* Build configuration list for PBXNativeTarget "Fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				810 /* Debug configuration for PBXNativeTarget "Fichero" */,
-				811 /* Release configuration for PBXNativeTarget "Fichero" */,
+				810 /* Debug */,
+				811 /* Release */,
 			);
 			defaultConfigurationName = Debug;
 		};
 		710 /* Build configuration list for PBXProject "fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				800 /* Debug configuration for PBXProject "fichero" */,
-				801 /* Release configuration for PBXProject "fichero" */,
+				800 /* Debug */,
+				801 /* Release */,
 			);
 			defaultConfigurationName = Debug;
 		};
 		A10521B12EFDC92400B28C3E /* Build configuration list for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */,
-				A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */,
+				A10521AF2EFDC92400B28C3E /* Debug */,
+				A10521B02EFDC92400B28C3E /* Release */,
 			);
 			defaultConfigurationName = Debug;
 		};
 		A10521C72EFDC94100B28C3E /* Build configuration list for PBXNativeTarget "FicheroUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */,
-				A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */,
+				A10521C82EFDC94100B28C3E /* Debug */,
+				A10521C92EFDC94100B28C3E /* Release */,
 			);
 			defaultConfigurationName = Debug;
 		};
