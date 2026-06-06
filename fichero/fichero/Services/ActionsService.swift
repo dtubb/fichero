@@ -1,184 +1,55 @@
 import Foundation
 import OSLog
 
-/// Service for interacting with the Action Library
+/// Thin compatibility shim over the canonical `ActionLibraryService` (#1711).
+///
+/// Both services historically spoke raw `URLSession` to the *same*
+/// `/api/actions` surface — duplicate transport. They are now collapsed onto
+/// one type: `ActionLibraryService` owns the single generated-client transport
+/// and all mapping, and `ActionsService` is a subclass that only re-exposes the
+/// handful of method *shapes* its existing call sites
+/// (`ActionLibraryView`, `ActionDetailView`) depend on — different argument
+/// labels (`actionId:`/`id:`) and a couple that reload `actions` afterwards.
+/// Everything else (`loadActions`, `loadCategories`, `loadBuiltinActions`,
+/// `loadCustomActions`, `loadPopularActions`, the `@Published` state) is
+/// inherited unchanged, so there is no duplicate URLSession glue.
 @MainActor
-final class ActionsService: ObservableObject {
-    private let logger = Logger(subsystem: "app.fichero.fichero", category: "ActionsService")
-
-    @Published var actions: [ActionItem] = []
-    @Published var categories: [String] = []
-    @Published var isLoading = false
-    @Published var error: String?
-
-    private let baseURL = "http://localhost:8765/api/actions"
-
-    /// Build a GET request that carries the engine Bearer token (#742).
-    /// All callers used to use `URLSession.shared.data(from: url)`, which
-    /// strips headers — that 401s post-#742.
-    private func authedGet(_ url: URL) -> URLRequest {
-        var request = URLRequest(url: url)
-        request.addEngineAuth()
-        return request
-    }
-
-    // MARK: - List Actions
-
-    func loadActions() async {
-        isLoading = true
-        error = nil
-
-        do {
-            guard let url = URL(string: baseURL) else { throw ActionsError.invalidURL }
-            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
-            actions = try JSONDecoder().decode([ActionItem].self, from: data)
-            logger.info("Loaded \(self.actions.count) actions")
-        } catch {
-            self.error = error.localizedDescription
-            logger.error("Failed to load actions: \(error.localizedDescription)")
-        }
-
-        isLoading = false
-    }
-
-    func loadCategories() async {
-        do {
-            guard let url = URL(string: "\(baseURL)/categories") else { return }
-            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
-            let result = try JSONDecoder().decode(CategoriesResponse.self, from: data)
-            categories = result.categories.map { $0.name }
-        } catch {
-            logger.error("Failed to load categories: \(error.localizedDescription)")
-        }
-    }
-
-    func loadBuiltinActions() async -> [ActionItem] {
-        do {
-            guard let url = URL(string: "\(baseURL)/builtin") else { return [] }
-            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
-            return try JSONDecoder().decode([ActionItem].self, from: data)
-        } catch {
-            return []
-        }
-    }
-
-    func loadCustomActions() async -> [ActionItem] {
-        do {
-            guard let url = URL(string: "\(baseURL)/custom") else { return [] }
-            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
-            return try JSONDecoder().decode([ActionItem].self, from: data)
-        } catch {
-            return []
-        }
-    }
-
-    func loadPopularActions(limit: Int = 10) async -> [ActionItem] {
-        do {
-            guard let url = URL(string: "\(baseURL)/popular?limit=\(limit)") else { return [] }
-            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
-            return try JSONDecoder().decode([ActionItem].self, from: data)
-        } catch {
-            return []
-        }
-    }
-
-    // MARK: - Search
-
-    func searchActions(query: String?, category: String? = nil, tags: [String]? = nil) async -> [ActionItem] {
-        var components = URLComponents(string: "\(baseURL)/search")
-        var queryItems: [URLQueryItem] = []
-
-        if let query = query, !query.isEmpty {
-            queryItems.append(URLQueryItem(name: "query", value: query))
-        }
-        if let category = category {
-            queryItems.append(URLQueryItem(name: "category", value: category))
-        }
-        if let tags = tags, !tags.isEmpty {
-            queryItems.append(URLQueryItem(name: "tags", value: tags.joined(separator: ",")))
-        }
-
-        components?.queryItems = queryItems.isEmpty ? nil : queryItems
-
-        do {
-            guard let url = components?.url else { return [] }
-            let (data, _) = try await URLSession.shared.data(for: authedGet(url))
-            return try JSONDecoder().decode([ActionItem].self, from: data)
-        } catch {
-            return []
-        }
-    }
-
-    // MARK: - CRUD
-
-    func getAction(id: String) async throws -> ActionItem {
-        guard let url = URL(string: "\(baseURL)/\(id)") else { throw ActionsError.invalidURL }
-        let (data, _) = try await URLSession.shared.data(for: authedGet(url))
-        return try JSONDecoder().decode(ActionItem.self, from: data)
-    }
-
-    func createAction(_ request: CreateActionRequest) async throws -> ActionItem {
-        guard let url = URL(string: baseURL) else { throw ActionsError.invalidURL }
-
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.addEngineAuth()
-        urlRequest.httpBody = try JSONEncoder().encode(request)
-
-        let (data, _) = try await URLSession.shared.data(for: urlRequest)
-        let action = try JSONDecoder().decode(ActionItem.self, from: data)
+final class ActionsService: ActionLibraryService {
+    /// Create an action, then refresh the published `actions` list so list views
+    /// pick up the new entry (matches the former `ActionsService` behaviour).
+    override func createAction(_ request: CreateActionRequest) async throws -> ActionItem {
+        let action = try await super.createAction(request)
         await loadActions()
         return action
     }
 
+    /// Record use — `actionId:`-labelled variant for existing call sites.
+    func recordUse(actionId: String) async {
+        await recordUse(actionId)
+    }
+
+    /// Delete by `id:` then refresh the published `actions` list.
     func deleteAction(id: String) async throws {
-        guard let url = URL(string: "\(baseURL)/\(id)") else { throw ActionsError.invalidURL }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.addEngineAuth()
-
-        let (_, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw ActionsError.deleteFailed
-        }
-
+        try await deleteAction(id)
         await loadActions()
     }
 
-    func recordUse(actionId: String) async {
-        guard let url = URL(string: "\(baseURL)/\(actionId)/use") else { return }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.addEngineAuth()
-
-        _ = try? await URLSession.shared.data(for: request)
+    /// Get by `id:`, throwing instead of returning `nil`.
+    func getAction(id: String) async throws -> ActionItem {
+        guard let action = await getAction(id) else {
+            throw ActionLibraryError.serverError
+        }
+        return action
     }
 
-    // MARK: - Import/Export
-
+    /// Export by `id:`.
     func exportAction(id: String) async throws -> String {
-        guard let url = URL(string: "\(baseURL)/\(id)/export") else { throw ActionsError.invalidURL }
-        let (data, _) = try await URLSession.shared.data(for: authedGet(url))
-        let result = try JSONDecoder().decode([String: String].self, from: data)
-        return result["json"] ?? ""
+        try await exportAction(id)
     }
 
+    /// Import from JSON (always with a fresh id), then refresh `actions`.
     func importAction(json: String) async throws -> ActionItem {
-        guard let url = URL(string: "\(baseURL)/import") else { throw ActionsError.invalidURL }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.addEngineAuth()
-
-        let body = ["json_data": json, "new_id": true] as [String: Any]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, _) = try await URLSession.shared.data(for: request)
-        let action = try JSONDecoder().decode(ActionItem.self, from: data)
+        let action = try await importAction(json, newId: true)
         await loadActions()
         return action
     }
@@ -253,26 +124,5 @@ struct CreateActionRequest: Encodable {
         try container.encode(tags, forKey: .tags)
         try container.encode(icon, forKey: .icon)
         try container.encode(author, forKey: .author)
-    }
-}
-
-struct CategoriesResponse: Codable {
-    let categories: [CategoryInfo]
-}
-
-struct CategoryInfo: Codable {
-    let value: String
-    let name: String
-}
-
-enum ActionsError: LocalizedError {
-    case invalidURL
-    case deleteFailed
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL: return "Invalid URL"
-        case .deleteFailed: return "Failed to delete action"
-        }
     }
 }
