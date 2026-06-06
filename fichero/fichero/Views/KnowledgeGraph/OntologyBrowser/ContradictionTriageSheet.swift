@@ -21,11 +21,19 @@ struct ContradictionTriageSheet: View {
         let groupTitle: String
     }
 
-    private var grouped: [(id: String, title: String, pairs: [Pair])] {
+    /// One contradiction group (keyed by `groupId`) with its display title and
+    /// the pairs it contains.
+    struct PairGroup: Identifiable {
+        let id: String
+        let title: String
+        let pairs: [Pair]
+    }
+
+    private var grouped: [PairGroup] {
         let map = Dictionary(grouping: pairs, by: \.groupId)
         return map.keys.sorted().map { id in
             let items = (map[id] ?? []).sorted { ($0.evidence.linkQuality) > ($1.evidence.linkQuality) }
-            return (id, items.first?.groupTitle ?? id, items)
+            return PairGroup(id: id, title: items.first?.groupTitle ?? id, pairs: items)
         }
     }
 
@@ -131,8 +139,8 @@ struct ContradictionTriageSheet: View {
                         )
                     }
 
-                    if let ev = pair.evidence.evidence, !ev.isEmpty {
-                        Text("Link evidence: \(ev)")
+                    if let evidenceText = pair.evidence.evidence, !evidenceText.isEmpty {
+                        Text("Link evidence: \(evidenceText)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

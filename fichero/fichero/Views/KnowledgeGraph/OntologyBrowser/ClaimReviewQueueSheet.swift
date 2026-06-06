@@ -201,18 +201,18 @@ struct ClaimReviewQueueSheet: View {
         guard let library = LibraryManager.shared.globalLibrary else { return }
         let claimIds = Array(selectedIds)
         guard !claimIds.isEmpty else { return }
-        var ok = 0
+        var successCount = 0
         for claimId in claimIds {
             updatingIds.insert(claimId)
             defer { updatingIds.remove(claimId) }
             do {
                 _ = try await library.entityService.patchClaim(claimId, curationState: state)
-                ok += 1
+                successCount += 1
                 NotificationCenter.default.post(name: .ficheroClaimUpdated, object: claimId)
             } catch {
                 continue
             }
         }
-        statusMessage = "Batch update: \(ok)/\(claimIds.count) → \(state.rawValue)"
+        statusMessage = "Batch update: \(successCount)/\(claimIds.count) → \(state.rawValue)"
     }
 }
