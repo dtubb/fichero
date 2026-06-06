@@ -651,8 +651,8 @@ extension ContentView {
         // bar) instead of having a custom .principal field competing
         // with SearchView's own .searchable.
 
-        // Document grid toggle — hides/shows the icon-grid/list middle column
-        // so the preview pane can fill the full content area (#616).
+        // Library pane toggle — hides/shows the icon-grid/list middle column.
+        // In widescreen this does not change the canvas/reading pane set.
         ToolbarItem(placement: .automatic) {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -661,7 +661,7 @@ extension ContentView {
             } label: {
                 Image(systemName: showDocumentGrid ? "rectangle.split.2x1" : "rectangle")
             }
-            .help(showDocumentGrid ? "Hide Document Grid (⌘⇧G)" : "Show Document Grid (⌘⇧G)")
+            .help(showDocumentGrid ? "Hide Library Pane (⌘⇧G)" : "Show Library Pane (⌘⇧G)")
             .keyboardShortcut("g", modifiers: [.command, .shift])
         }
 

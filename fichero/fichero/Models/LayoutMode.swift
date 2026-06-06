@@ -36,3 +36,34 @@ enum LayoutMode: String, CaseIterable, Identifiable {
         }
     }
 }
+
+/// Visibility plan for the widescreen reading workspace.
+///
+/// The three panes are independent user choices: Library/List, document canvas,
+/// and reading/WebKit. Hiding the Library pane must not collapse the canvas or
+/// reading pane into a different layout.
+struct WidescreenPanePlan: Equatable {
+    let showsLibraryPane: Bool
+    let showsCanvasPane: Bool
+    let showsReadingPane: Bool
+
+    var showsLibraryDivider: Bool {
+        showsLibraryPane && (showsCanvasPane || showsReadingPane)
+    }
+
+    var showsCanvasReadingDivider: Bool {
+        showsCanvasPane && showsReadingPane
+    }
+
+    static func make(
+        showDocumentGrid: Bool,
+        showDocumentCanvas: Bool,
+        showReadingPane: Bool
+    ) -> WidescreenPanePlan {
+        WidescreenPanePlan(
+            showsLibraryPane: showDocumentGrid,
+            showsCanvasPane: showDocumentCanvas,
+            showsReadingPane: showReadingPane
+        )
+    }
+}

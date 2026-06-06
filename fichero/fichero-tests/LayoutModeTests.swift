@@ -45,4 +45,35 @@ final class LayoutModeTests: XCTestCase {
         XCTAssertEqual(LayoutMode.standard.keyboardShortcut, "1")
         XCTAssertEqual(LayoutMode.widescreen.keyboardShortcut, "2")
     }
+
+    func testWidescreenPanePlanKeepsCanvasAndReadingWhenLibraryIsHidden() {
+        let plan = WidescreenPanePlan.make(
+            showDocumentGrid: false,
+            showDocumentCanvas: true,
+            showReadingPane: true
+        )
+
+        XCTAssertFalse(plan.showsLibraryPane)
+        XCTAssertTrue(plan.showsCanvasPane)
+        XCTAssertTrue(plan.showsReadingPane)
+        XCTAssertFalse(plan.showsLibraryDivider)
+        XCTAssertTrue(plan.showsCanvasReadingDivider)
+    }
+
+    func testWidescreenPanePlanShowsLibraryDividerOnlyWhenLibraryHasANeighbor() {
+        let listOnly = WidescreenPanePlan.make(
+            showDocumentGrid: true,
+            showDocumentCanvas: false,
+            showReadingPane: false
+        )
+        XCTAssertFalse(listOnly.showsLibraryDivider)
+
+        let listWithCanvas = WidescreenPanePlan.make(
+            showDocumentGrid: true,
+            showDocumentCanvas: true,
+            showReadingPane: false
+        )
+        XCTAssertTrue(listWithCanvas.showsLibraryDivider)
+        XCTAssertFalse(listWithCanvas.showsCanvasReadingDivider)
+    }
 }
