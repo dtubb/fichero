@@ -21,7 +21,7 @@ class WorkflowExecutionService: ObservableObject {
     @Published var currentThreadStatus: ExecutionThread?
     @Published var error: String?
 
-    init(baseURL: URL = URL(string: "http://127.0.0.1:8765/api")!, libraryPath: String? = nil) {
+    init(baseURL: URL = EngineConfig.apiBaseURL, libraryPath: String? = nil) {
         // FicheroClient expects the host root (paths in openapi.json already carry the
         // `/api` prefix). Legacy call sites pass `…:8765/api`, so strip any path here.
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)

@@ -49,7 +49,7 @@ class StorageServiceGenerated: ObservableObject {
     /// Cached thumbnail for `docId`, if present. Exposed for tests (#719).
     func cachedThumbnail(for docId: String) -> Image? { thumbnailCache[docId] }
 
-    init(ficheroClient: FicheroClient, baseURL: URL = URL(string: "http://127.0.0.1:8765/api")!) {
+    init(ficheroClient: FicheroClient, baseURL: URL = EngineConfig.apiBaseURL) {
         self.client = ficheroClient
         self.baseURL = baseURL
     }
