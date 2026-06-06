@@ -238,8 +238,11 @@ extension ModelComparisonService {
         let pinnedPayload = Components.Schemas.NodeCompareRequest.PinnedInputsPayload(
             additionalProperties: try objectContainer(fromJSON: pinnedInputs.mapValues { $0 as Any })
         )
+        // compare-node is library-scoped (a workflow node lives in a library),
+        // unlike the other app-wide comparison endpoints — pass the current
+        // library path, matching SavedSearch/Chat/Note services.
         let response = try await client.api.compareWorkflowNodeApiModelComparisonCompareNodePost(
-            headers: .init(),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(.init(
                 workflowId: workflowId,
                 nodeId: nodeId,
