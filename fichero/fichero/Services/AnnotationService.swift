@@ -183,23 +183,34 @@ final class AnnotationService: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
-    /// Active library path, injected by the owning view before `load(...)`.
-    /// Kept as a property so existing views can set it from `APIClient`, but the
-    /// transport is the generated OpenAPI client rather than hand-built URLSession.
-    var libraryPath: String? {
-        didSet { client.currentLibraryPath = libraryPath }
-    }
+    /// Active library path for the owning window. Prefer passing this into
+    /// `init(libraryPath:)` so the transport is configured before any `load()`.
+    /// It stays settable so a view can re-point the service when the window's
+    /// library changes, but assignment no longer drives transport state via a
+    /// fragile `didSet` — `syncLibraryPath()` reconciles the client immediately
+    /// before each request, so a load can never run with a stale path (#1716).
+    var libraryPath: String?
 
     private let client: FicheroClient
     private let decoder = JSONDecoder()
 
-    init(ficheroClient: FicheroClient = FicheroClient()) {
+    init(ficheroClient: FicheroClient = FicheroClient(), libraryPath: String? = nil) {
         self.client = ficheroClient
-        self.libraryPath = ficheroClient.currentLibraryPath
+        self.libraryPath = libraryPath ?? ficheroClient.currentLibraryPath
+        client.currentLibraryPath = self.libraryPath
+    }
+
+    /// Reconcile the transport's library path with `libraryPath` right before a
+    /// request. Removes the init-race + `didSet` seam: every call targets the
+    /// owning window's library regardless of when `libraryPath` was assigned.
+    private func syncLibraryPath() {
+        if client.currentLibraryPath != libraryPath {
+            client.currentLibraryPath = libraryPath
+        }
     }
 
     private var headers: Operations.ListAnnotationsApiAnnotationsGet.Input.Headers {
-        .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        .init(xFicheroLibraryPath: libraryPath ?? "")
     }
 
     private func annotation(from value: OpenAPIValueContainer) throws -> DocumentAnnotation {
@@ -236,6 +247,7 @@ final class AnnotationService: ObservableObject {
     /// Load annotations for a document into `annotations`. Never throws — on failure
     /// `annotations` is cleared and `error` is set so the tab can show an empty state.
     func load(documentId: String) async {
+        syncLibraryPath()
         isLoading = true
         error = nil
         defer { isLoading = false }
@@ -267,10 +279,11 @@ final class AnnotationService: ObservableObject {
     /// Fetch the latest server copy for one annotation and merge it into the list.
     @discardableResult
     func getAnnotation(id: String) async -> DocumentAnnotation? {
+        syncLibraryPath()
         do {
             let response = try await client.api.getAnnotationApiAnnotationsAnnotationIdGet(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+                headers: .init(xFicheroLibraryPath: libraryPath ?? "")
             ))
             guard case .ok(let okResponse) = response,
                   let annotation = annotation(from: try okResponse.body.json) else {
@@ -306,6 +319,7 @@ final class AnnotationService: ObservableObject {
         tags: [String] = [],
         linkedClaimIds: [String] = []
     ) async -> DocumentAnnotation? {
+        syncLibraryPath()
         do {
             let request = Components.Schemas.AnnotationCreateRequest(
                 documentId: documentId,
@@ -318,7 +332,7 @@ final class AnnotationService: ObservableObject {
                 linkedClaimIds: linkedClaimIds.isEmpty ? nil : linkedClaimIds
             )
             let response = try await client.api.createAnnotationApiAnnotationsPost(.init(
-                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+                headers: .init(xFicheroLibraryPath: libraryPath ?? ""),
                 body: .json(request)
             ))
             guard case .ok(let okResponse) = response,
@@ -342,10 +356,11 @@ final class AnnotationService: ObservableObject {
     /// in-memory copy on success. Returns `nil` on failure.
     @discardableResult
     func updateText(id: String, text: String) async -> DocumentAnnotation? {
+        syncLibraryPath()
         do {
             let response = try await client.api.patchAnnotationApiAnnotationsAnnotationIdPatch(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+                headers: .init(xFicheroLibraryPath: libraryPath ?? ""),
                 body: .json(.init(text: text))
             ))
             guard case .ok(let okResponse) = response,
@@ -370,10 +385,11 @@ final class AnnotationService: ObservableObject {
     /// Fetch cropped text/image bytes for an annotation's source span or region.
     @discardableResult
     func cropAnnotation(id: String) async -> Data? {
+        syncLibraryPath()
         do {
             let response = try await client.api.getCropApiAnnotationsAnnotationIdCropGet(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+                headers: .init(xFicheroLibraryPath: libraryPath ?? "")
             ))
             guard case .ok(let okResponse) = response else {
                 error = "Could not crop annotation"
@@ -400,10 +416,11 @@ final class AnnotationService: ObservableObject {
     /// Promote a highlight/note annotation into a KnowledgeClaim.
     @discardableResult
     func promoteToClaim(id: String) async -> Bool {
+        syncLibraryPath()
         do {
             let response = try await client.api.promoteToClaimApiAnnotationsAnnotationIdPromoteToClaimPost(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+                headers: .init(xFicheroLibraryPath: libraryPath ?? "")
             ))
             guard case .ok = response else {
                 error = "Could not promote annotation"
@@ -423,10 +440,11 @@ final class AnnotationService: ObservableObject {
     /// Delete an annotation and remove it from `annotations`. Returns `true` on success.
     @discardableResult
     func delete(id: String) async -> Bool {
+        syncLibraryPath()
         do {
             let response = try await client.api.deleteAnnotationApiAnnotationsAnnotationIdDelete(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+                headers: .init(xFicheroLibraryPath: libraryPath ?? "")
             ))
             guard case .noContent = response else {
                 error = "Could not delete annotation"

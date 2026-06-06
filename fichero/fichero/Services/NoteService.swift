@@ -75,22 +75,34 @@ final class NoteService: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
-    /// Active library path, injected by the owning view before `load(...)`.
-    /// Kept for existing views, but transport uses the generated OpenAPI client.
-    var libraryPath: String? {
-        didSet { client.currentLibraryPath = libraryPath }
-    }
+    /// Active library path for the owning window. Prefer passing this into
+    /// `init(libraryPath:)` so the transport is configured before any `load()`.
+    /// It stays settable so a view can re-point the service when the window's
+    /// library changes, but assignment no longer drives transport state via a
+    /// fragile `didSet` — `syncLibraryPath()` reconciles the client immediately
+    /// before each request, so a load can never run with a stale path (#1716).
+    var libraryPath: String?
 
     private let client: FicheroClient
     private let decoder = JSONDecoder()
 
-    init(ficheroClient: FicheroClient = FicheroClient()) {
+    init(ficheroClient: FicheroClient = FicheroClient(), libraryPath: String? = nil) {
         self.client = ficheroClient
-        self.libraryPath = ficheroClient.currentLibraryPath
+        self.libraryPath = libraryPath ?? ficheroClient.currentLibraryPath
+        client.currentLibraryPath = self.libraryPath
+    }
+
+    /// Reconcile the transport's library path with `libraryPath` right before a
+    /// request. Removes the init-race + `didSet` seam: every call targets the
+    /// owning window's library regardless of when `libraryPath` was assigned.
+    private func syncLibraryPath() {
+        if client.currentLibraryPath != libraryPath {
+            client.currentLibraryPath = libraryPath
+        }
     }
 
     private var headers: Operations.ListNotesApiNotesGet.Input.Headers {
-        .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        .init(xFicheroLibraryPath: libraryPath ?? "")
     }
 
     private func note(from value: OpenAPIValueContainer) throws -> NoteItem {
@@ -119,6 +131,7 @@ final class NoteService: ObservableObject {
     }
 
     private func load(query: Operations.ListNotesApiNotesGet.Input.Query) async {
+        syncLibraryPath()
         isLoading = true
         error = nil
         defer { isLoading = false }
@@ -188,6 +201,7 @@ final class NoteService: ObservableObject {
         linkedEntityIds: [String]? = nil,
         linkedDocumentIds: [String]? = nil
     ) async throws -> NoteItem {
+        syncLibraryPath()
         let payload = Components.Schemas.FicheroApiRoutesNotesNoteCreateRequest(
             body: body,
             kind: noteKind(kind),
@@ -195,7 +209,7 @@ final class NoteService: ObservableObject {
             linkedDocumentIds: linkedDocumentIds
         )
         let response = try await client.api.createNoteApiNotesPost(.init(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            headers: .init(xFicheroLibraryPath: libraryPath ?? ""),
             body: .json(payload)
         ))
         guard case .ok(let okResponse) = response else { throw NoteServiceError.unexpectedResponse }
@@ -203,9 +217,10 @@ final class NoteService: ObservableObject {
     }
 
     func update(noteId: String, body: String) async throws -> NoteItem {
+        syncLibraryPath()
         let response = try await client.api.patchNoteApiNotesNoteIdPatch(.init(
             path: .init(noteId: noteId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            headers: .init(xFicheroLibraryPath: libraryPath ?? ""),
             body: .json(.init(body: body))
         ))
         guard case .ok(let okResponse) = response else { throw NoteServiceError.unexpectedResponse }
@@ -217,9 +232,10 @@ final class NoteService: ObservableObject {
     }
 
     func delete(noteId: String) async throws {
+        syncLibraryPath()
         let response = try await client.api.deleteNoteApiNotesNoteIdDelete(.init(
             path: .init(noteId: noteId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+            headers: .init(xFicheroLibraryPath: libraryPath ?? "")
         ))
         guard case .noContent = response else { throw NoteServiceError.unexpectedResponse }
         notes.removeAll { $0.id == noteId }
