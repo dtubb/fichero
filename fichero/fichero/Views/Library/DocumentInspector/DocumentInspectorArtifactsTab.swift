@@ -1611,7 +1611,7 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
             // Interpretation list (collapsed by default until loaded)
             if isExpanded && !isLoading {
                 LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(interpretations.prefix(8), id: \.id) { interp in
+                    ForEach(interpretations, id: \.id) { interp in
                         interpretationRow(interp)
                     }
                 }

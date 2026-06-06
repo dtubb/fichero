@@ -630,7 +630,7 @@ struct WorkflowProvenancePanel: View {
                     .foregroundStyle(.secondary)
             } else {
                 LazyVStack(alignment: .leading, spacing: 6) {
-                    ForEach(runs.prefix(10), id: \.workflowId) { run in
+                    ForEach(runs, id: \.workflowId) { run in
                         provenanceRow(run)
                     }
                 }
