@@ -11,6 +11,12 @@ extension LibraryManager {
     func openLibrary(at url: URL) -> LibraryReference {
         // Check if already open
         if let existing = openLibraries.first(where: { $0.url == url }) {
+            Task {
+                await KnownLibraryRegistryStore.shared.noteOpenedLibrary(
+                    url: url,
+                    displayName: existing.displayName
+                )
+            }
             libraryManagerLogger.info("Library already open: \(url.lastPathComponent)")
             return existing
         }
@@ -54,6 +60,12 @@ extension LibraryManager {
         saveOpenLibraryPaths()
 
         scheduleLoadWhenBackendReady(for: library)
+        Task {
+            await KnownLibraryRegistryStore.shared.noteOpenedLibrary(
+                url: url,
+                displayName: displayName
+            )
+        }
 
         return library
     }
@@ -264,6 +276,13 @@ extension LibraryManager {
             if !isTempLibrary {
                 loadedLibraryIds.remove(library.id)
                 scheduleLoadWhenBackendReady(for: library)
+            }
+
+            Task {
+                await KnownLibraryRegistryStore.shared.noteOpenedLibrary(
+                    url: url,
+                    displayName: displayName
+                )
             }
 
         } catch {

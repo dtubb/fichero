@@ -130,6 +130,7 @@ struct FicheroApp: App {
                         try await backendService.start()
                         let backendMs = Date().timeIntervalSince(backendStart) * 1000
                         logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
+                        await KnownLibraryRegistryStore.shared.refresh()
                         await libraryManager.backendDidBecomeReady()
                     } catch {
                         logger.error("Failed to start backend: \(error.localizedDescription)")
@@ -149,17 +150,8 @@ struct FicheroApp: App {
 
             // File menu - Database/Library management
             CommandGroup(replacing: .newItem) {
-                FocusedNewDatabaseButton()
-
-                FocusedOpenDatabaseButton()
-
-                Divider()
-
-                FocusedNewWindowButton()
-
-                Divider()
-
-                FocusedSaveDatabaseButton()
+                FileMenuCommands()
+                    .environmentObject(libraryManager)
             }
 
             // Edit menu
