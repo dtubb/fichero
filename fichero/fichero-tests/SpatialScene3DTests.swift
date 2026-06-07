@@ -1,0 +1,49 @@
+@testable import Fichero
+import XCTest
+
+final class SpatialScene3DTests: XCTestCase {
+
+    func testPersistedDragEndPositionPrefersTrackedDragPosition() {
+        let originalNode = MindPalaceNode(
+            id: "node-1",
+            roomId: "room-1",
+            nodeType: .source,
+            label: "Dragged",
+            positionX: 0,
+            positionY: 0,
+            positionZ: 0
+        )
+
+        let position = SpatialScene3D.persistedDragEndPosition(
+            nodeId: originalNode.id,
+            dragPositions: [originalNode.id: SIMD3<Double>(1.13, -0.37, 0.12)],
+            nodes: [originalNode]
+        )
+
+        XCTAssertEqual(position?.x, 1.25)
+        XCTAssertEqual(position?.y, -0.25)
+        XCTAssertEqual(position?.z, 0.0)
+    }
+
+    func testPersistedDragEndPositionFallsBackToNodeSnapshot() {
+        let node = MindPalaceNode(
+            id: "node-1",
+            roomId: "room-1",
+            nodeType: .source,
+            label: "Dragged",
+            positionX: 0.62,
+            positionY: -0.62,
+            positionZ: 0.13
+        )
+
+        let position = SpatialScene3D.persistedDragEndPosition(
+            nodeId: node.id,
+            dragPositions: [:],
+            nodes: [node]
+        )
+
+        XCTAssertEqual(position?.x, 0.5)
+        XCTAssertEqual(position?.y, -0.5)
+        XCTAssertEqual(position?.z, 0.25)
+    }
+}

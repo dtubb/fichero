@@ -68,6 +68,7 @@ struct SpatialScene3D: View {
     @State private var dragStart = CGSize.zero
     @State private var magnificationStart = 1.0
     @State private var nodeDragOrigins: [String: SIMD3<Double>] = [:]
+    @State private var nodeDragPositions: [String: SIMD3<Double>] = [:]
     #endif
 
     var body: some View {
@@ -182,18 +183,38 @@ struct SpatialScene3D: View {
                     MindPalaceNode.snap(origin.y + rawDeltaY),
                     origin.z
                 )
+                nodeDragPositions[nodeId] = next
                 onNodePositionChanged(nodeId, next)
                 let rawPosition = SIMD3<Float>(Float(next.x), Float(next.y), Float(next.z))
                 value.entity.position = (rawPosition - normalized.center) * normalized.scale
             }
             .onEnded { value in
                 let nodeId = value.entity.name
-                if let node = nodes.first(where: { $0.id == nodeId }) {
-                    let snapped = node.snappedPosition()
-                    onNodeMoveEnded(nodeId, snapped)
+                if let position = Self.persistedDragEndPosition(
+                    nodeId: nodeId,
+                    dragPositions: nodeDragPositions,
+                    nodes: nodes
+                ) {
+                    onNodeMoveEnded(nodeId, position)
                 }
-                nodeDragOrigins[nodeId] = nil
+                nodeDragOrigins.removeValue(forKey: nodeId)
+                nodeDragPositions.removeValue(forKey: nodeId)
             }
+    }
+
+    static func persistedDragEndPosition(
+        nodeId: String,
+        dragPositions: [String: SIMD3<Double>],
+        nodes: [MindPalaceNode]
+    ) -> SIMD3<Double>? {
+        if let dragged = dragPositions[nodeId] {
+            return SIMD3<Double>(
+                MindPalaceNode.snap(dragged.x),
+                MindPalaceNode.snap(dragged.y),
+                MindPalaceNode.snap(dragged.z)
+            )
+        }
+        return nodes.first(where: { $0.id == nodeId })?.snappedPosition()
     }
 
     private func updateCamera(_ camera: PerspectiveCamera) {
