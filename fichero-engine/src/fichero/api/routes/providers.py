@@ -14,6 +14,7 @@ from fichero.db import Database
 from fichero.app_db import get_app_db, AppDatabase
 from fichero.api.main import get_library_database
 from fichero.models import Model, Provider, ProviderRef, ProviderType
+from fichero.models import AppleIntelligenceProbeResponse
 from fichero.providers import (
     get_provider_info,
     list_providers as list_catalog_providers,
@@ -64,14 +65,10 @@ def _safe_isoformat(value) -> str:
 # =============================================================================
 
 
-class AppleIntelligenceProbeResponse(BaseModel):
-    """Result of probing whether Apple Intelligence is usable on this Mac."""
-
-    available: bool
-    reason: str | None = None
-
-
-@router.get("/apple-intelligence/probe")
+@router.get(
+    "/apple-intelligence/probe",
+    response_model=AppleIntelligenceProbeResponse,
+)
 async def probe_apple_intelligence() -> AppleIntelligenceProbeResponse:
     """Quick check: is Apple Intelligence usable on this device?
 
@@ -166,7 +163,10 @@ async def list_provider_catalog() -> ProviderCatalogListResponse:
     return ProviderCatalogListResponse(items=result, count=len(result))
 
 
-@router.get("/catalog/{provider_type}")
+@router.get(
+    "/catalog/{provider_type}",
+    response_model=ProviderCatalogResponse,
+)
 async def get_catalog_provider(provider_type: str) -> ProviderCatalogResponse:
     """Get info about a specific provider type."""
     info = get_provider_info(provider_type)
@@ -450,7 +450,7 @@ async def delete_provider_ref(
     return DeletedResponse(status="deleted")
 
 
-@router.get("/{provider_id}")
+@router.get("/{provider_id}", response_model=ProviderResponse)
 async def get_provider(
     provider_id: str,
     app_db: AppDatabase = Depends(get_app_database),
@@ -472,7 +472,7 @@ async def get_provider(
     )
 
 
-@router.patch("/{provider_id}")
+@router.patch("/{provider_id}", response_model=ProviderResponse)
 async def update_provider(
     provider_id: str,
     request: ProviderUpdate,
@@ -510,7 +510,7 @@ async def update_provider(
     )
 
 
-@router.delete("/{provider_id}")
+@router.delete("/{provider_id}", response_model=DeletedResponse)
 async def delete_provider(
     provider_id: str,
     app_db: AppDatabase = Depends(get_app_database),

@@ -84,8 +84,11 @@ class SearchServiceGenerated: ObservableObject {
 
         switch response {
         case .ok(let okResponse):
-            let container = try okResponse.body.json
-            return extractEmbeddingStats(from: container)
+            let payload = try okResponse.body.json
+            return EmbeddingStatsResponse(
+                indexedCount: payload.indexedCount,
+                tableExists: payload.tableExists
+            )
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
@@ -415,23 +418,6 @@ class SearchServiceGenerated: ObservableObject {
     }
 
     // MARK: - Type Conversions
-
-    /// Extract embedding stats from untyped response container
-    private func extractEmbeddingStats(from container: OpenAPIRuntime.OpenAPIValueContainer) -> EmbeddingStatsResponse {
-        var indexedCount = 0
-        var tableExists = false
-
-        if let dict = container.value as? [String: any Sendable] {
-            if let count = dict["indexed_count"] as? Int {
-                indexedCount = count
-            }
-            if let exists = dict["table_exists"] as? Bool {
-                tableExists = exists
-            }
-        }
-
-        return EmbeddingStatsResponse(indexedCount: indexedCount, tableExists: tableExists)
-    }
 
     /// Extract reindex status from untyped response container
     private func extractReindexStatus(from container: OpenAPIRuntime.OpenAPIValueContainer) -> ReindexStatus {

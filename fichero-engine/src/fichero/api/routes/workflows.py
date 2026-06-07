@@ -32,6 +32,7 @@ from fichero.workflows.registry import (
     create_node_from_tool,
     enrich_node_with_ports,
 )
+from fichero.models import ReinstallDefaultWorkflowsResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -596,10 +597,13 @@ async def export_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/reinstall-defaults")
+@router.post(
+    "/reinstall-defaults",
+    response_model=ReinstallDefaultWorkflowsResponse,
+)
 async def reinstall_default_workflows(
     db: Database = Depends(get_library_database),
-) -> dict:
+) -> ReinstallDefaultWorkflowsResponse:
     """Delete and re-seed the bundled default workflows (Transcribe, Catalogue).
 
     Used when we ship a new preset version (new nodes, fixed edge schema, etc.)
@@ -611,7 +615,7 @@ async def reinstall_default_workflows(
 
     try:
         seeded = seed_default_workflows(db, force=True)
-        return {"seeded": seeded, "status": "ok"}
+        return ReinstallDefaultWorkflowsResponse(seeded=seeded, status="ok")
     except Exception as exc:
         logger.exception("Failed to reinstall default workflows")
         raise HTTPException(status_code=500, detail=str(exc))

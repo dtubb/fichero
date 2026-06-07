@@ -2743,7 +2743,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "HealthResponse"
       }
     ],
     "hermeneutics": [
@@ -7328,7 +7328,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "EmbeddingStatsResponse"
       },
       {
         "method": "GET",
@@ -7538,7 +7538,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "LibraryStatsResponse"
       }
     ],
     "storage": [
@@ -8341,7 +8341,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "ReinstallDefaultWorkflowsResponse"
       },
       {
         "method": "POST",
