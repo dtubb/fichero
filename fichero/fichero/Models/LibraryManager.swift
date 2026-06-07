@@ -26,6 +26,12 @@ class LibraryManager: ObservableObject {
     /// no parallel tab system.
     @Published var pendingOpenDocumentId: String?
 
+    /// Cross-window library handoff queue for open-in-new-window flows. The
+    /// caller appends one library id per `openWindow(id: "main")`; each new
+    /// destination scene consumes the oldest pending id during initialization
+    /// so batched opens don't clobber one another.
+    @Published var pendingWindowLibraryIds: [UUID] = []
+
     /// Counter for unsaved library numbering (Untitled, Untitled 2, Untitled 3, etc.)
     var untitledCounter: Int = 1
 

@@ -120,8 +120,10 @@ struct DropTargetModifiers: ViewModifier {
         content
             // Transferable API — does not interfere with hit testing on sidebar
             // icon/text rows the way .onDrop(of:) does. Root-level drops are
-            // routed to Inbox in handleFileDrop; the 400 error is now readable
-            // via LocalizedError so the real backend message surfaces (#598).
+            // classified in handleFileDrop: `.fichero` packages open/focus a
+            // window, everything else still imports to Inbox. The 400 error is
+            // now readable via LocalizedError so the real backend message
+            // surfaces (#598).
             .dropDestination(for: URL.self) { urls, _ in
                 handleFileDrop(urls)
                 return true
