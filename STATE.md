@@ -196,3 +196,8 @@ Closed/resolved tonight (13): #1703,#1707,#1731,#1737,#1736,#1730,#1732,#1733,#1
 In flight: f_codex_filemenu (gpt-5.4, ~/code/fichero-filemenu) = #1720 File menu (Open Recent from registry + Close Database reusing sidebar action + Open/New). May touch backend (lastOpenedAt) — ruff+pytest if so, else Xcode build gate.
 DEFERRED (border on parked #1740 design — leave for attended): #1696 (unify show/hide chrome observable), #1697 (unify spatial render state). Needs-Daniel: #1709 (4 failing Swift tests — can't run xcodebuild test here), #1715 (OpenAPI header backend). #1704 reorg (needs move-swift-file.rb). #1740 Phase 1 = ~4am fallback.
 Next bounded picks: #1721 (drag-drop .fichero→new window), backlog bugs.
+
+### Tick 7 (~02:23) — landed: #1720 File menu Open Recent + Close Database (97a14833, CLOSED). New FileMenuCommands.swift. Gate note: discarded Xcode-16 pbxproj auto-normalization noise (dstSubfolder/empty exceptions) before merge — recurs on each GUI build, just `git checkout -- project.pbxproj`. 0.0.2 green.
+Closed/resolved tonight (14): +#1720.
+In flight: f_codex_dragopen (gpt-5.4, ~/code/fichero-dragopen) = #1721 drop a .fichero → open/focus window (reuse #1720 path), not replace; other files still import to Inbox. Frontend, Xcode build gate.
+Next bounded: backlog bugs (gh issue list), backend bounded bugs ideal. AVOID design EPICs + #1696/#1697 + #1709/#1715. #1704 reorg needs move helper. #1740 Phase 1 = ~4am fallback if bounded work runs out.
