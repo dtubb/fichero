@@ -1,0 +1,27 @@
+import SwiftUI
+
+extension DocumentInspectorInfoTab {
+    var headerSection: some View {
+        VStack(alignment: .center, spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.windowBackgroundColor))
+                    .frame(width: 80, height: 100)
+
+                LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 80, height: 100)
+                    .clipped()
+            }
+            .frame(width: 80, height: 100)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            Text(document.name)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 8)
+    }
+}
