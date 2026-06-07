@@ -399,6 +399,26 @@ def _entity_artifact_content(artifact_type: str, items: list[dict[str, Any]]) ->
     return "\n".join(lines)
 
 
+def _import_receipt_content(node: dict[str, Any]) -> str:
+    name = node.get("name") or node.get("external_id") or "page"
+    page_label = node.get("page_label")
+    if page_label:
+        return f"Imported {name} (page {page_label}) from manifest."
+    return f"Imported {name} from manifest."
+
+
+def _import_receipt_data(node: dict[str, Any]) -> dict[str, Any]:
+    images = node.get("images") or []
+    return {
+        "source": "manifest-import",
+        "external_id": node.get("external_id"),
+        "page_label": node.get("page_label"),
+        "canonical_version": node.get("canonical_version"),
+        "image_roles": [img.get("role") for img in images if img.get("role")],
+        "image_count": len(images),
+    }
+
+
 def claim_payload(
     claim: dict[str, Any],
     node: dict[str, Any],
@@ -760,6 +780,28 @@ def import_manifest(
         doc_id = doc_id_by_external.get(node["external_id"])
         if not doc_id:
             continue
+
+        if node.get("node_type") == "page":
+            key = (doc_id, "import_receipt")
+            if key in existing_artifact_keys:
+                summary.artifacts_skipped += 1
+            else:
+                client.request(
+                    "POST",
+                    "/artifacts/",
+                    {
+                        "document_id": doc_id,
+                        "artifact_type": "import_receipt",
+                        "content": _import_receipt_content(node),
+                        "data": _import_receipt_data(node),
+                        "provider": "manifest-importer",
+                        "model": CANONICAL_VERSION,
+                        "step_name": "import_manifest",
+                        "confidence": 1.0,
+                    },
+                )
+                existing_artifact_keys.add(key)
+                summary.artifacts_created += 1
 
         text = (node.get("text") or "").strip()
         if text and write_transcript_artifacts:
