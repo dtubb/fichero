@@ -1,5 +1,7 @@
 import OSLog
 import SwiftUI
+import UniformTypeIdentifiers
+// swiftlint:disable file_length
 
 // MARK: - ContentView Actions Extension
 // Agent: ActionsAgent
@@ -309,6 +311,11 @@ extension ContentView {
     func handleFileDrop(urls: [URL]) {
         logger.info("Files dropped: \(urls.map { $0.lastPathComponent })")
 
+        let droppedURLs = classifyDroppedURLs(urls)
+        openDroppedLibraries(droppedURLs.libraryURLs)
+
+        guard !droppedURLs.importURLs.isEmpty else { return }
+
         var targetParentId: String?
         if case .library(let doc) = viewMode {
             targetParentId = doc?.id
@@ -339,14 +346,14 @@ extension ContentView {
 
             do {
                 _ = try await library.importService.importFiles(
-                    urls,
+                    droppedURLs.importURLs,
                     mode: .copy,
                     parentId: targetParentId
                 ) { current, total in
                     importProgress = "Importing \(current) of \(total)..."
                 }
                 await library.documentStore.refresh()
-                logger.info("Successfully imported \(urls.count) dropped item(s)")
+                logger.info("Successfully imported \(droppedURLs.importURLs.count) dropped item(s)")
             } catch {
                 logger.error("Failed dropped import: \(String(describing: error))")
                 importError = "Import failed: \(error.localizedDescription)"
@@ -390,5 +397,42 @@ extension ContentView {
             detailDocument = target
             browserSelection = [target.id]
         }
+    }
+
+    private func classifyDroppedURLs(_ urls: [URL]) -> (libraryURLs: [URL], importURLs: [URL]) {
+        var libraryURLs: [URL] = []
+        var importURLs: [URL] = []
+
+        for url in urls {
+            if url.isFicheroLibraryPackage {
+                libraryURLs.append(url.standardizedFileURL)
+            } else {
+                importURLs.append(url)
+            }
+        }
+
+        return (libraryURLs, importURLs)
+    }
+
+    private func openDroppedLibraries(_ urls: [URL]) {
+        for libraryURL in urls {
+            LibraryWindowOpener.openOrFocusLibrary(at: libraryURL, using: openWindow)
+        }
+    }
+}
+
+private extension URL {
+    var isFicheroLibraryPackage: Bool {
+        guard pathExtension.localizedCaseInsensitiveCompare("fichero") == .orderedSame else {
+            return false
+        }
+
+        let resourceValues = try? resourceValues(forKeys: [.contentTypeKey, .isDirectoryKey])
+        if let contentType = resourceValues?.contentType,
+           contentType.conforms(to: .ficheroSession) {
+            return true
+        }
+
+        return resourceValues?.isDirectory == true
     }
 }

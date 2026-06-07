@@ -4,6 +4,7 @@ import SwiftUI
 
 // MARK: - LibraryWindow
 
+// swiftlint:disable type_body_length
 /// Main window view - simplified to just track one library per window
 struct LibraryWindow: View {
     @EnvironmentObject var libraryManager: LibraryManager
@@ -17,6 +18,7 @@ struct LibraryWindow: View {
 
     @State private var hasInitialized = false
     @State private var showingFileImporter = false
+    @State private var hostWindow: NSWindow?
     @SceneStorage("libraryWindow.libraryId") private var persistedLibraryId: String?
 
     @Environment(\.openWindow) private var openWindow
@@ -64,6 +66,10 @@ struct LibraryWindow: View {
                 WelcomeView(onCreateLibrary: createNewLibrary, onOpenLibrary: { showingFileImporter = true })
             }
         }
+        .background(WindowAccessor { window in
+            hostWindow = window
+            syncHostWindowMetadata()
+        })
         .fileImporter(
             isPresented: $showingFileImporter,
             allowedContentTypes: [.package],
@@ -157,10 +163,17 @@ struct LibraryWindow: View {
             windowState.libraryId = id
             libraryWindowLogger.info("Switched to library: \(id)")
         }
+        .onChange(of: windowState.libraryId) { _, _ in
+            syncHostWindowMetadata()
+        }
+        .onChange(of: windowState.library?.url) { _, _ in
+            syncHostWindowMetadata()
+        }
         .onAppear {
             guard !hasInitialized else { return }
             hasInitialized = true
             initializeWindow()
+            syncHostWindowMetadata()
         }
     }
 
@@ -171,6 +184,14 @@ struct LibraryWindow: View {
             initializeWindow - openLibraries=\(libraryManager.openLibraries.count), \
             currentLibraryId=\(libraryManager.currentLibraryId?.uuidString ?? "nil")
             """)
+
+        if let pendingId = libraryManager.pendingWindowLibraryIds.first,
+           libraryManager.getLibrary(id: pendingId) != nil {
+            libraryWindowLogger.info("Consuming pendingWindowLibraryId: \(pendingId)")
+            libraryManager.pendingWindowLibraryIds.removeFirst()
+            assignLibrary(id: pendingId)
+            return
+        }
 
         // Priority 0: Restore the library this scene was showing last time.
         if let persistedLibraryId,
@@ -296,6 +317,29 @@ struct LibraryWindow: View {
         if wasCurrent {
             windowState.libraryId = LibraryManager.globalLibraryId
             persistedLibraryId = LibraryManager.globalLibraryId.uuidString
+        }
+    }
+
+    private func syncHostWindowMetadata() {
+        hostWindow?.representedURL = windowState.library?.url
+    }
+}
+// swiftlint:enable type_body_length
+
+private struct WindowAccessor: NSViewRepresentable {
+    let onResolve: (NSWindow?) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            onResolve(view.window)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            onResolve(nsView.window)
         }
     }
 }

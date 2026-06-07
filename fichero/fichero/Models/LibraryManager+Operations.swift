@@ -6,11 +6,18 @@ extension LibraryManager {
 
     /// Open a library from a URL
     /// If already open, returns the existing reference
-    /// - Parameter url: URL to the .fichero package
+    /// - Parameters:
+    ///   - url: URL to the .fichero package
+    ///   - makeCurrent: When true, update `currentLibraryId` for same-window
+    ///     open flows. New-window callers pass false and use the pending scene
+    ///     handoff instead.
     /// - Returns: Library reference that can be shared across windows
-    func openLibrary(at url: URL) -> LibraryReference {
+    func openLibrary(at url: URL, makeCurrent: Bool = true) -> LibraryReference {
         // Check if already open
         if let existing = openLibraries.first(where: { $0.url == url }) {
+            if makeCurrent {
+                currentLibraryId = existing.id
+            }
             Task {
                 await KnownLibraryRegistryStore.shared.noteOpenedLibrary(
                     url: url,
@@ -47,7 +54,9 @@ extension LibraryManager {
             openLibraries.append(library)
         }
 
-        currentLibraryId = library.id  // Set as current library
+        if makeCurrent {
+            currentLibraryId = library.id
+        }
         let clientId = ObjectIdentifier(library.apiClient)
         let securityScoped = needsSecurityAccess
         libraryManagerLogger.info("""

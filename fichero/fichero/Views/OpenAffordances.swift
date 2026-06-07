@@ -49,7 +49,7 @@ enum WindowOpener {
         using openWindow: OpenWindowAction
     ) {
         let manager = LibraryManager.shared
-        manager.currentLibraryId = libraryId
+        manager.pendingWindowLibraryIds.append(libraryId)
         manager.pendingOpenDocumentId = documentId
 
         let hostWindow = NSApp.keyWindow ?? NSApp.mainWindow
@@ -104,5 +104,42 @@ enum WindowOpener {
         NSApp.windows.first {
             !before.contains(ObjectIdentifier($0)) && $0.isVisible && $0 !== hostWindow
         }
+    }
+}
+
+enum LibraryWindowOpener {
+    @MainActor
+    static func openOrFocusLibrary(at url: URL, using openWindow: OpenWindowAction) {
+        let normalizedURL = url.standardizedFileURL
+        Task {
+            await KnownLibraryRegistryStore.shared.noteOpenedLibrary(
+                url: normalizedURL,
+                displayName: normalizedURL.deletingPathExtension().lastPathComponent
+            )
+        }
+        guard !focusExistingWindow(for: normalizedURL) else { return }
+        let manager = LibraryManager.shared
+        let library = manager.openLibraries.first(where: {
+            $0.url.standardizedFileURL == normalizedURL
+        }) ?? manager.openLibrary(at: normalizedURL, makeCurrent: false)
+
+        WindowOpener.open(libraryId: library.id, asTab: false, using: openWindow)
+    }
+
+    @MainActor
+    private static func focusExistingWindow(for url: URL) -> Bool {
+        let normalizedURL = url.standardizedFileURL
+        guard let window = NSApp.windows.first(where: {
+            $0.representedURL?.standardizedFileURL == normalizedURL
+        }) else {
+            return false
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+        window.makeKeyAndOrderFront(nil)
+        return true
     }
 }
