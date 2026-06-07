@@ -523,9 +523,9 @@ struct PaneVisibilitySection: View {
         Section("Panes") {
             PaneToggleButton(
                 binding: showDocumentGrid,
-                showLabel: "Show Library Pane",
-                hideLabel: "Hide Library Pane",
-                icon: "rectangle.split.2x1",
+                showLabel: "Show Library Browser",
+                hideLabel: "Hide Library Browser",
+                icon: "books.vertical",
                 shortcut: KeyboardShortcut("g", modifiers: [.command, .shift])
             )
             PaneToggleButton(

@@ -195,6 +195,17 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         )
     }
 
+    func testLibraryBrowserToggleCopyUsesExplicitLibraryName() throws {
+        let toolbarSource = try Self.appSource("Views/ContentView.swift")
+        let menuSource = try Self.appSource("Views/Menu/ViewMenuCommands.swift")
+
+        XCTAssertTrue(toolbarSource.contains("books.vertical.fill"))
+        XCTAssertTrue(toolbarSource.contains("Hide Library Browser (⌘⇧G)"))
+        XCTAssertTrue(menuSource.contains("Show Library Browser"))
+        XCTAssertTrue(menuSource.contains("Hide Library Browser"))
+        XCTAssertTrue(menuSource.contains("icon: \"books.vertical\""))
+    }
+
     // MARK: - ActivityChildType
 
     func testActivityChildTypeRawValuesStable() {
