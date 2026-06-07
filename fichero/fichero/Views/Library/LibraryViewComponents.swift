@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import SwiftUI
 
 // MARK: - Mail-Style Row (like Apple Mail)
@@ -13,8 +12,6 @@ struct MailStyleRow: View {
     /// follow-up — list view filter.)
     var visibleEntityTypes: Set<String> = ["people", "places", "organizations", "dates", "events", "keywords"]
     var onTagTap: (String) -> Void = { _ in }
-
-    @EnvironmentObject private var documentStore: DocumentStore
 
     // Compact leading thumbnail so the title/text gets the row's width
     // (Mail-style — the icon was previously 40×50 and crowded the title). (#1459)
@@ -134,38 +131,6 @@ struct MailStyleRow: View {
         }
     }
 
-    /// Page-child docs store the parent PDF path in `metadata.pdf_path`.
-    /// For dropped imports that path may be a temp dir macOS already
-    /// GC'd, so fall back to the parent doc's current `path` resolved
-    /// via `pdf_parent_id` — mirrors DocumentThumbnailView.resolvedParentPDFPath.
-    private func resolvedParentPDFPath(for doc: Document) -> String? {
-        let metadataPath = doc.metadata["pdf_path"]?.value as? String
-        if let metadataPath, !metadataPath.isEmpty,
-           !metadataPath.contains("/fichero-drop-"),
-           FileManager.default.fileExists(atPath: metadataPath) {
-            return metadataPath
-        }
-        // The parent PDF is the selectedCollection when we're viewing its
-        // page children — currentDocuments is the *children* list, so the
-        // parent isn't in it. Check selectedCollection first, then fall
-        // back to currentDocuments (covers other lookup paths). (#890)
-        let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
-        if let parentId {
-            if let selected = documentStore.selectedCollection,
-               selected.id == parentId,
-               let selectedPath = selected.path,
-               !selectedPath.isEmpty {
-                return selectedPath
-            }
-            if let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
-               let parentPath = parent.path,
-               !parentPath.isEmpty {
-                return parentPath
-            }
-        }
-        return metadataPath
-    }
-
     @ViewBuilder
     private var rowThumbnail: some View {
         let size = CGSize(width: Self.thumbWidth, height: Self.thumbHeight)
@@ -177,20 +142,6 @@ struct MailStyleRow: View {
                 Image(systemName: "folder.fill")
                     .font(.system(size: 20))
                     .foregroundColor(.accentColor)
-            } else if document.fileType == .pdf,
-                      let path = document.path,
-                      !path.isEmpty {
-                PDFThumbnailView(path: path, size: size)
-                    .clipped()
-            } else if document.docType == .page,
-                      document.fileType != .image,
-                      let pdfPath = resolvedParentPDFPath(for: document),
-                      !pdfPath.isEmpty {
-                let pageIndex = max(0, (document.sequence ?? 1) - 1)
-                PDFThumbnailView(
-                    path: pdfPath, size: size, pageIndex: pageIndex
-                )
-                .clipped()
             } else if document.fileType == .image,
                       let path = document.path, !path.isEmpty {
                 // Decode off the main thread (cached) — avoids scroll jank from
@@ -269,43 +220,6 @@ struct DocumentThumbnailView: View {
     let document: Document
     let isSelected: Bool
     var scale: CGFloat = 1.0
-    @EnvironmentObject private var documentStore: DocumentStore
-
-    /// Page-child docs store the original drop's PDF path in
-    /// `metadata.pdf_path`. For dropped imports, that path is a temp dir
-    /// (`/private/var/folders/.../T/fichero-drop-XXX/...`) which macOS
-    /// garbage-collects, leaving a dead path. (#703 — grid filled with
-    /// placeholder icons.) Try the metadata path first; if it's gone or
-    /// looks like a temp drop dir, fall back to the parent PDF doc's
-    /// current `path` resolved via `pdf_parent_id` — checking
-    /// `selectedCollection` first because that's where the parent PDF
-    /// lives when we're viewing its children (currentDocuments is the
-    /// children list, not a peer of the parent). (#927 mirrors the
-    /// MailStyleRow fix from #890.)
-    fileprivate func resolvedParentPDFPath(for doc: Document) -> String? {
-        let metadataPath = doc.metadata["pdf_path"]?.value as? String
-        if let metadataPath, !metadataPath.isEmpty,
-           !metadataPath.contains("/fichero-drop-"),
-           FileManager.default.fileExists(atPath: metadataPath) {
-            return metadataPath
-        }
-        let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
-        if let parentId {
-            if let selected = documentStore.selectedCollection,
-               selected.id == parentId,
-               let selectedPath = selected.path,
-               !selectedPath.isEmpty {
-                return selectedPath
-            }
-            if let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
-               let parentPath = parent.path,
-               !parentPath.isEmpty {
-                return parentPath
-            }
-        }
-        return metadataPath
-    }
-
     var body: some View {
         VStack(spacing: 6) {
             ZStack {
@@ -318,25 +232,10 @@ struct DocumentThumbnailView: View {
                     .aspectRatio(3.0 / 4.0, contentMode: .fit)
 
                 // Show folder icon for folders, thumbnail for files.
-                // For PDFs + PDF page children, render locally via PDFKit.
                 if document.docType == .folder {
                     Image(systemName: "folder.fill")
                         .font(.system(size: 48 * scale))
                         .foregroundColor(.accentColor)
-                } else if document.fileType == .pdf, let path = document.path, !path.isEmpty {
-                    PDFThumbnailView(path: path, size: CGSize(width: 240, height: 320))
-                        .clipped()
-                } else if document.docType == .page,
-                          document.fileType != .image,
-                          let pdfPath = resolvedParentPDFPath(for: document),
-                          !pdfPath.isEmpty {
-                    let pageIndex = max(0, (document.sequence ?? 1) - 1)
-                    PDFThumbnailView(
-                        path: pdfPath,
-                        size: CGSize(width: 240, height: 320),
-                        pageIndex: pageIndex
-                    )
-                    .clipped()
                 } else if document.fileType == .image,
                           let path = document.path, !path.isEmpty {
                     // Decode off the main thread (cached) — avoids scroll jank

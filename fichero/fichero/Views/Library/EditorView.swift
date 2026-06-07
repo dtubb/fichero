@@ -1,9 +1,6 @@
-import PDFKit
-import Quartz
 import SwiftUI
 
 // Document preview/editor view
-// swiftlint:disable:next type_body_length
 struct EditorView: View {
     let document: Document?
     var showHeader: Bool = true
@@ -16,8 +13,6 @@ struct EditorView: View {
     var onNavigateToDocument: ((String) -> Void)?
     /// Current multi-file selection — drives batch-apply in the image editor (#1265).
     var selectedDocumentIDs: Set<String> = []
-
-    @EnvironmentObject private var documentStore: DocumentStore
 
     /// Whether the canvas is showing the editing surface (tools) rather than
     /// the plain zoom/loupe preview. Off by default so chrome stays minimal
@@ -93,39 +88,9 @@ struct EditorView: View {
 
     // MARK: - Preview Content
 
-    /// Resolve the parent PDF's on-disk path for a page-child document.
-    /// Checks metadata["pdf_path"] first (set when ingest knows the path
-    /// upfront), then the selected collection, then currentDocuments —
-    /// mirrors LibraryListRow.resolvedParentPDFPath. (#890)
-    private func resolvedParentPDFPath(for doc: Document) -> String? {
-        let metadataPath = doc.metadata["pdf_path"]?.value as? String
-        if let metadataPath, !metadataPath.isEmpty,
-           !metadataPath.contains("/fichero-drop-"),
-           FileManager.default.fileExists(atPath: metadataPath) {
-            return metadataPath
-        }
-        let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
-        if let parentId {
-            if let selected = documentStore.selectedCollection,
-               selected.id == parentId,
-               let selectedPath = selected.path,
-               !selectedPath.isEmpty {
-                return selectedPath
-            }
-            if let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
-               let parentPath = parent.path,
-               !parentPath.isEmpty {
-                return parentPath
-            }
-        }
-        return metadataPath
-    }
-
     enum PreviewRoute: Equatable {
         case container
-        case pagePDF(path: String, pageIndex: Int)
         case storageDisplay(documentId: String)
-        case pdf(path: String)
         case imageFile(path: String, documentId: String)
         case imageEditor(documentId: String)
         case quickLook
@@ -143,15 +108,15 @@ struct EditorView: View {
             && FileManager.default.fileExists(atPath: path)
     }
 
-    static func previewRoute(for doc: Document, parentPDFPath: String?, isEditing: Bool) -> PreviewRoute {
+    static func previewRoute(for doc: Document, isEditing: Bool) -> PreviewRoute {
         if doc.docType == .folder {
             return folderPreviewRoute(for: doc, isEditing: isEditing)
         }
         if doc.docType == .page {
-            return pagePreviewRoute(for: doc, parentPDFPath: parentPDFPath, isEditing: isEditing)
+            return pagePreviewRoute(for: doc, isEditing: isEditing)
         }
-        if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
-            return .pdf(path: path)
+        if doc.fileType == .pdf {
+            return .storageDisplay(documentId: doc.id)
         }
         if doc.fileType == .image, let path = doc.path, !path.isEmpty {
             if isEditing {
@@ -172,51 +137,32 @@ struct EditorView: View {
         if doc.fileType == .image {
             return isEditing ? .imageEditor(documentId: doc.id) : .storageDisplay(documentId: doc.id)
         }
-        if doc.fileType == .pdf, let path = doc.path, !path.isEmpty {
-            return .pdf(path: path)
+        if doc.fileType == .pdf {
+            return .storageDisplay(documentId: doc.id)
         }
         return .container
     }
 
     private static func pagePreviewRoute(
         for doc: Document,
-        parentPDFPath: String?,
         isEditing: Bool
     ) -> PreviewRoute {
         if isEditing {
             return .imageEditor(documentId: doc.id)
-        }
-        if doc.fileType != .image,
-           let parentPDFPath,
-           let pageIndex = doc.sequence,
-           !parentPDFPath.isEmpty {
-            return .pagePDF(path: parentPDFPath, pageIndex: max(0, pageIndex - 1))
         }
         return .storageDisplay(documentId: doc.id)
     }
 
     @ViewBuilder
     private func previewContent(_ doc: Document) -> some View {
-        switch Self.previewRoute(for: doc, parentPDFPath: resolvedParentPDFPath(for: doc), isEditing: isEditing) {
+        switch Self.previewRoute(for: doc, isEditing: isEditing) {
         case .container:
             containerPlaceholder(doc)
-        case .pagePDF(let path, let pageIndex):
-            DocumentCanvas(
-                content: .pdf(path: path, pageIndex: pageIndex),
-                onPageIndexChange: onPDFPageIndexChange
-            )
         case .storageDisplay(let documentId):
             ZStack(alignment: .topTrailing) {
                 DocumentCanvas(content: .imageStorageDisplay(documentId: documentId))
                 editModeToggle
             }
-        case .pdf(let path):
-            // Top-level PDF file — single-page view, starts at page 0 (#595).
-            PDFPageWithToolbar(
-                path: path,
-                pageIndex: 0,
-                onPageIndexChange: onPDFPageIndexChange
-            )
         case .imageFile(let path, let documentId):
             ZStack(alignment: .topTrailing) {
                 DocumentCanvas(
