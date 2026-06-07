@@ -1,0 +1,203 @@
+import FicheroAPIClient
+import SwiftUI
+
+// MARK: - DocumentBibliographyPanel (#1434)
+
+/// Extracted bibliography panel — scholarly references extracted from
+/// within the document itself, backed by `GET /api/documents/{id}/citations`.
+/// Distinct from CitationGraphPanel (doc-to-doc links in the knowledge
+/// graph); this shows the bibliography inside the document itself.
+struct DocumentBibliographyPanel: View {
+    let documentId: String
+
+    @State private var references: [Components.Schemas.Reference] = []
+    @State private var selfRef: Components.Schemas.Reference?
+    @State private var isLoading = false
+    @State private var loadError: String?
+    @State private var copiedAll = false
+
+    private var allBibtex: String {
+        let parts = ([selfRef].compactMap { $0 } + references)
+            .compactMap { $0.bibtex }
+            .filter { !$0.isEmpty }
+        return parts.joined(separator: "\n\n")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if isLoading && references.isEmpty && loadError == nil {
+                HStack(spacing: 6) {
+                    ProgressView().scaleEffect(0.6)
+                    Text("Loading…").font(.caption).foregroundStyle(.secondary)
+                }
+            } else if let err = loadError {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                    Text(err)
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    Button("Retry") { Task { await load() } }
+                        .font(.caption2).buttonStyle(.borderless)
+                }
+            } else if references.isEmpty && selfRef == nil {
+                Text("No bibliography extracted yet — run a workflow that includes citation extraction to populate this section.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                if !allBibtex.isEmpty {
+                    HStack {
+                        Spacer()
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(allBibtex, forType: .string)
+                            copiedAll = true
+                        } label: {
+                            Label(
+                                copiedAll ? "Copied!" : "Copy all BibTeX",
+                                systemImage: copiedAll ? "checkmark" : "doc.on.doc"
+                            )
+                            .font(.caption2)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .onChange(of: copiedAll) { _, newValue in
+                            if newValue {
+                                Task {
+                                    try? await Task.sleep(for: .seconds(1.5))
+                                    copiedAll = false
+                                }
+                            }
+                        }
+                    }
+                }
+                if let selfRef {
+                    referenceRow(selfRef, isSelf: true)
+                    if !references.isEmpty { Divider() }
+                }
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    ForEach(references, id: \.id) { ref in
+                        referenceRow(ref, isSelf: false)
+                    }
+                }
+            }
+        }
+        .task(id: documentId) { await load() }
+    }
+
+    @ViewBuilder
+    private func referenceRow(_ ref: Components.Schemas.Reference, isSelf: Bool) -> some View {
+        ReferenceRowView(ref: ref, isSelf: isSelf)
+    }
+
+    private func load() async {
+        guard let library = LibraryManager.shared.globalLibrary else { return }
+        isLoading = true
+        loadError = nil
+        defer { isLoading = false }
+        do {
+            let resp = try await library.entityService.listDocumentCitations(documentId: documentId)
+            selfRef = resp._self
+            references = resp.references
+        } catch {
+            loadError = error.localizedDescription
+        }
+    }
+}
+
+private struct ReferenceRowView: View {
+    let ref: Components.Schemas.Reference
+    let isSelf: Bool
+
+    @State private var isExpanded = false
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                if isSelf {
+                    Image(systemName: "doc.text")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Text(refTitle)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                if let bibtex = ref.bibtex, !bibtex.isEmpty {
+                    Button {
+                        if isExpanded {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(bibtex, forType: .string)
+                            copied = true
+                        } else {
+                            isExpanded = true
+                        }
+                    } label: {
+                        Image(systemName: copied ? "checkmark" : (isExpanded ? "doc.on.doc" : "chevron.down"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(isExpanded ? "Copy BibTeX" : "Show BibTeX")
+                    .onChange(of: copied) { _, newValue in
+                        if newValue {
+                            Task {
+                                try? await Task.sleep(for: .seconds(1.5))
+                                copied = false
+                            }
+                        }
+                    }
+                }
+            }
+            HStack(spacing: 6) {
+                if let authors = ref.authors, !authors.isEmpty {
+                    Text(authors.prefix(2).joined(separator: ", "))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                if let year = ref.year {
+                    Text(String(year))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                }
+                if let doi = ref.doi, !doi.isEmpty {
+                    Text("DOI")
+                        .font(.caption2)
+                        .foregroundStyle(Color.accentColor)
+                        .help(doi)
+                }
+                Spacer(minLength: 4)
+                if let journal = ref.journalOrBook {
+                    Text(journal)
+                        .font(.caption2)
+                        .italic()
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+            if isExpanded, let bibtex = ref.bibtex, !bibtex.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Text(bibtex)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .padding(6)
+                        .background(Color(.textBackgroundColor).opacity(0.6))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+                .frame(maxHeight: 80)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var refTitle: String {
+        if let title = ref.title, !title.isEmpty { return title }
+        if let bib = ref.bibtex, !bib.isEmpty { return String(bib.prefix(60)) + "…" }
+        return "Untitled"
+    }
+}
