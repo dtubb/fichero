@@ -54,45 +54,6 @@ private extension ModelComparisonService {
         return try JSONDecoder().decode(OpenAPIRuntime.OpenAPIObjectContainer.self, from: data)
     }
 
-    func mapComparison(_ response: Components.Schemas.ComparisonResultResponse) -> ComparisonResult {
-        ComparisonResult(
-            prompt: response.prompt,
-            modelsCompared: response.modelsCompared,
-            results: response.results.map { mapModelResult($0) },
-            fastestModel: response.fastestModel,
-            cheapestModel: response.cheapestModel,
-            totalCostUsd: response.totalCostUsd,
-            totalLatencyMs: response.totalLatencyMs,
-            comparisonId: response.comparisonId,
-            timestamp: response.timestamp
-        )
-    }
-
-    func mapModelResult(_ result: Components.Schemas.ModelResultResponse) -> ModelResult {
-        ModelResult(
-            provider: result.provider,
-            model: result.model,
-            response: result.response,
-            latencyMs: result.latencyMs,
-            inputTokens: result.inputTokens,
-            outputTokens: result.outputTokens,
-            costUsd: result.costUsd,
-            error: result.error,
-            timestamp: result.timestamp
-        )
-    }
-
-    func mapTier(_ tier: [Components.Schemas.TierModelInfo]?) -> [TieredModelInfo] {
-        (tier ?? []).map {
-            TieredModelInfo(
-                provider: $0.provider,
-                model: $0.model,
-                inputPrice: $0.inputPrice,
-                outputPrice: $0.outputPrice,
-                tier: $0.tier
-            )
-        }
-    }
 }
 
 // MARK: - Comparison Operations
@@ -118,7 +79,7 @@ extension ModelComparisonService {
 
             switch response {
             case .ok(let okResponse):
-                let result = mapComparison(try okResponse.body.json)
+                let result = try okResponse.body.json
                 lastResult = result
                 history.insert(result, at: 0)
                 logger.info("Comparison complete: \(result.comparisonId)")
@@ -156,7 +117,7 @@ extension ModelComparisonService {
 
             switch response {
             case .ok(let okResponse):
-                let result = mapComparison(try okResponse.body.json)
+                let result = try okResponse.body.json
                 lastResult = result
                 history.insert(result, at: 0)
                 logger.info("Vision comparison complete: \(result.comparisonId)")
@@ -207,7 +168,7 @@ extension ModelComparisonService {
 
             switch response {
             case .ok(let okResponse):
-                let result = mapComparison(try okResponse.body.json)
+                let result = try okResponse.body.json
                 lastResult = result
                 history.insert(result, at: 0)
                 logger.info("Tool comparison complete: \(result.comparisonId)")
@@ -254,24 +215,7 @@ extension ModelComparisonService {
 
         switch response {
         case .ok(let okResponse):
-            let payload = try okResponse.body.json
-            return NodeComparisonResponse(
-                workflowId: payload.workflowId,
-                nodeId: payload.nodeId,
-                toolName: payload.toolName,
-                choices: payload.choices.map { choice in
-                    NodeComparisonChoice(
-                        provider: choice.provider,
-                        model: choice.model,
-                        result: NodeModelResult(
-                            response: choice.result.response,
-                            latencyMs: choice.result.latencyMs,
-                            costUsd: choice.result.costUsd,
-                            error: choice.result.error
-                        )
-                    )
-                }
-            )
+            return try okResponse.body.json
         case .unprocessableContent:
             throw ComparisonError.validation("Validation error")
         case .undocumented(let statusCode, _):
@@ -292,15 +236,7 @@ extension ModelComparisonService {
             let response = try await client.api.estimateComparisonCostApiModelComparisonEstimateCostPost(
                 body: .json(.init(prompt: prompt, models: modelsPayload))
             )
-            let payload = try response.ok.body.json
-            return CostEstimate(
-                estimatedInputTokens: payload.estimatedInputTokens,
-                estimatedOutputTokens: payload.estimatedOutputTokens,
-                modelEstimates: payload.modelEstimates.map {
-                    ModelCostEstimate(provider: $0.provider, model: $0.model, estimatedCostUsd: $0.estimatedCostUsd)
-                },
-                totalEstimatedCostUsd: payload.totalEstimatedCostUsd
-            )
+            return try response.ok.body.json
         } catch {
             logger.error("Failed to estimate cost: \(error.localizedDescription)")
             return nil
@@ -314,15 +250,7 @@ extension ModelComparisonService {
     func loadModels() async {
         do {
             let response = try await client.api.listAvailableModelsApiModelComparisonModelsGet()
-            let body = try response.ok.body.json
-            availableModels = body.models.map {
-                ComparisonModelInfo(
-                    provider: $0.provider,
-                    model: $0.model,
-                    inputPricePerMillion: $0.inputPricePerMillion,
-                    outputPricePerMillion: $0.outputPricePerMillion
-                )
-            }
+            availableModels = try response.ok.body.json.models
         } catch {
             logger.error("Failed to load models: \(error.localizedDescription)")
         }
@@ -331,14 +259,7 @@ extension ModelComparisonService {
     func loadPresets() async {
         do {
             let response = try await client.api.getComparisonPresetsApiModelComparisonPresetsGet()
-            let body = try response.ok.body.json
-            presets = body.presets.map { preset in
-                ComparisonPreset(
-                    name: preset.name,
-                    description: preset.description,
-                    models: preset.models.map { ["provider": $0.provider, "model": $0.model] }
-                )
-            }
+            presets = try response.ok.body.json.presets
         } catch {
             logger.error("Failed to load presets: \(error.localizedDescription)")
         }
@@ -349,8 +270,7 @@ extension ModelComparisonService {
             let response = try await client.api.getComparisonHistoryApiModelComparisonHistoryGet(
                 query: .init(limit: limit)
             )
-            let body = try response.ok.body.json
-            history = body.history.map { mapComparison($0) }
+            history = try response.ok.body.json.history
         } catch {
             logger.error("Failed to load history: \(error.localizedDescription)")
         }
@@ -359,13 +279,7 @@ extension ModelComparisonService {
     func loadModelsByTier() async {
         do {
             let response = try await client.api.getModelsGroupedByTierApiModelComparisonModelsByTierGet()
-            let payload = try response.ok.body.json
-            modelsByTier = ModelsByTier(
-                frontier: mapTier(payload.frontier),
-                mid: mapTier(payload.mid),
-                budget: mapTier(payload.budget),
-                local: mapTier(payload.local)
-            )
+            modelsByTier = try response.ok.body.json
         } catch {
             logger.error("Failed to load models by tier: \(error.localizedDescription)")
         }
@@ -374,18 +288,7 @@ extension ModelComparisonService {
     func loadTools() async {
         do {
             let response = try await client.api.listAvailableToolsApiModelComparisonToolsGet()
-            let body = try response.ok.body.json
-            availableTools = body.items.map { tool in
-                ComparisonToolInfo(
-                    name: tool.name,
-                    displayName: tool.displayName,
-                    description: tool.description,
-                    category: tool.category,
-                    inputPorts: tool.inputPorts.map {
-                        ToolPortInfo(id: $0.id, name: $0.name, required: $0.required)
-                    }
-                )
-            }
+            availableTools = try response.ok.body.json.items
         } catch {
             logger.error("Failed to load tools: \(error.localizedDescription)")
         }
