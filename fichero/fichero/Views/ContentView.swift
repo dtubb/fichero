@@ -658,9 +658,10 @@ extension ContentView {
                     showDocumentGrid.toggle()
                 }
             } label: {
-                Image(systemName: showDocumentGrid ? "rectangle.split.2x1" : "rectangle")
+                Image(systemName: showDocumentGrid ? "books.vertical.fill" : "books.vertical")
             }
-            .help(showDocumentGrid ? "Hide Library Pane (⌘⇧G)" : "Show Library Pane (⌘⇧G)")
+            .help(showDocumentGrid ? "Hide Library Browser (⌘⇧G)" : "Show Library Browser (⌘⇧G)")
+            .accessibilityLabel(showDocumentGrid ? "Hide Library Browser" : "Show Library Browser")
             .keyboardShortcut("g", modifiers: [.command, .shift])
         }
 

@@ -14,6 +14,29 @@ extension Notification.Name {
     static let scrollToPage = Notification.Name("scrollToPage")
 }
 
+enum ChatScopeBuilder {
+    static func currentScopeDocumentIds(
+        browserSelection: Set<String>,
+        currentDocuments: [Document],
+        detailDocument: Document?
+    ) -> [String] {
+        let selectedIds = currentDocuments
+            .filter { browserSelection.contains($0.id) && $0.docType != .folder }
+            .map(\.id)
+        if !selectedIds.isEmpty {
+            return selectedIds
+        }
+
+        if let detailDocument, detailDocument.docType != .folder {
+            return [detailDocument.id]
+        }
+
+        return currentDocuments
+            .filter { $0.docType != .folder }
+            .map(\.id)
+    }
+}
+
 extension ContentView {
 
     // MARK: - Document and Navigation Helpers
@@ -265,6 +288,20 @@ extension ContentView {
         // / new launch all start in this mode. Per-folder overrides
         // (saveDisplayMode above) still win when present. (#943)
         defaultLibraryViewDisplayMode = effectiveMode
+    }
+
+    func openChatWithCurrentScope() {
+        // Follow-up (#1723): keep this discoverable sidebar entry, but promote the
+        // scoped-docs chat into a first-class inspector pane/tab once the
+        // library inspector gets a stable chat slot.
+        let scopedIds = ChatScopeBuilder.currentScopeDocumentIds(
+            browserSelection: browserSelection,
+            currentDocuments: documentStore.currentDocuments,
+            detailDocument: detailDocument
+        )
+        chatSelectedDocuments = Set(scopedIds)
+        sidebarMode = .chat
+        viewMode = .chat(nil)
     }
 
     // MARK: - File Import
