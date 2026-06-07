@@ -473,6 +473,29 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    /// Inspector source-of-truth entity payload for one document/page.
+    ///
+    /// Backed by `GET /api/documents/{document_id}/inspector`, which is the
+    /// same route the CLI `docs inspector <page>` verifies in #1653.
+    func listInspectorEntitiesForDocument(
+        documentId: String
+    ) async throws -> [Components.Schemas.KnowledgeEntity] {
+        let response = try await client.api.inspectorApiDocumentsDocumentIdInspectorGet(
+            path: .init(documentId: documentId),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.entities
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     /// Fetch per-entity claim counts for badge display in the entity browser.
     func fetchClaimCounts() async throws -> [String: Int] {
         let response = try await client.api.entityClaimCountsApiEntitiesClaimCountsGet(

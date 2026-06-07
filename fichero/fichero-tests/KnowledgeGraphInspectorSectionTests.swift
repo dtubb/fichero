@@ -52,6 +52,24 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertFalse(entityHandler.contains("sourceDocumentId"))
     }
 
+    func testInspectorEntitiesTabUsesInspectorEndpointSourceOfTruth() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+
+        XCTAssertTrue(source.contains("listInspectorEntitiesForDocument"))
+        XCTAssertFalse(source.contains("listEntitiesForDocument(documentId: documentId)"))
+    }
+
+    func testInspectorEntitiesTabDistinguishesLoadedButHiddenEntities() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+
+        XCTAssertTrue(source.contains("Loaded \\(entities.count) entities, but the current filter hides every kind."))
+        XCTAssertTrue(source.contains("Loaded \\(entities.count) entities, but none mapped into a visible section."))
+    }
+
     // testFetchButtonHelpersExposeExpectedLabelsAndIcons removed: the
     // KnowledgeGraphInspectorSection.fetchButtonHelp(for:)/fetchButtonIcon(for:)
     // helpers no longer exist in production, so the test no longer compiles.
