@@ -47,6 +47,17 @@ class TestDetectLanguage:
         )
         assert detect_language(text) == "English"
 
+    def test_english_prose_with_spanish_proper_nouns_stays_english(self):
+        text = (
+            "Marshall wrote in English about Popayán, Andagoya, alcalde, "
+            "and the Cauca valley, but the passage itself explains the "
+            "journey in ordinary English prose with dates, names, and "
+            "context about the diary entries and the people he met there. "
+            "The document says the travelers crossed the river at dawn and "
+            "recorded what they saw in the town that afternoon."
+        )
+        assert detect_language(text) == "English"
+
     def test_close_to_tied_breaks_only_with_heavy_diacritics(self):
         # Roughly equal stop-words but no diacritics → English (default).
         text = "the cat el gato in the la the and y of de"
@@ -88,3 +99,21 @@ class TestResolveOutputLanguage:
         # Empty text + auto → falls back to the default kwarg.
         assert resolve_output_language("auto", "", default="English") == "English"
         assert resolve_output_language("auto", "", default="Spanish") == "Spanish"
+
+    def test_primary_language_override_wins_over_auto(self):
+        english_text = "This note is mostly English prose about Popayán and Andagoya."
+        assert resolve_output_language(
+            "auto",
+            english_text,
+            default="English",
+            primary_language="Spanish",
+        ) == "Spanish"
+
+    def test_explicit_language_beats_primary_language_override(self):
+        spanish_text = "El documento describe el caso de Antonio Asprilla."
+        assert resolve_output_language(
+            "English",
+            spanish_text,
+            default="English",
+            primary_language="Spanish",
+        ) == "English"

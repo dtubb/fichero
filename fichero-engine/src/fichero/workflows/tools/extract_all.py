@@ -1501,9 +1501,14 @@ async def extract_all(
     if not text:
         return {"text": "", "value": {}, "error": "No text input"}
 
+    from fichero.app_db import get_app_db
     from fichero.lang_detect import resolve_output_language
+    primary_language = get_app_db().get_setting("default_primary_language")
     output_language = resolve_output_language(
-        inputs.get("output_language"), text, default="English"
+        inputs.get("output_language"),
+        text,
+        default="English",
+        primary_language=primary_language,
     )
 
     # Determine extraction mode. Default to two-stage for Apple Intelligence

@@ -32679,6 +32679,11 @@
             "title": "Large Model",
             "default": ""
           },
+          "primary_language": {
+            "type": "string",
+            "title": "Primary Language",
+            "default": ""
+          },
           "temperature": {
             "type": "string",
             "title": "Temperature",
