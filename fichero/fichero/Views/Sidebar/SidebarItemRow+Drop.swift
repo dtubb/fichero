@@ -60,7 +60,7 @@ extension SidebarItemRow {
     }
 
     @ViewBuilder
-    private func childrenList(_ children: [SidebarItem]) -> some View {
+    func childrenList(_ children: [SidebarItem]) -> some View {
         // Cross-hierarchy / cross-section drops use SwiftUI's native
         // `.dropDestination(for:action:)` on the ForEach (DynamicViewContent)
         // which exposes the insertion offset — the same `.above`-targeting

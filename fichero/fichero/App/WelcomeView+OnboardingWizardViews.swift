@@ -93,6 +93,7 @@ extension OnboardingWizardView {
         }
     }
 
+    @ViewBuilder
     func choiceCard(_ value: OnboardingChoice, title: String, badge: String?, blurb: String) -> some View {
         let isSelected = choice == value
         Button { choice = value } label: {
@@ -229,6 +230,7 @@ extension OnboardingWizardView {
         }
     }
 
+    @ViewBuilder
     func importModeCard(_ mode: IngestMode, title: String, badge: String?, blurb: String) -> some View {
         let isSelected = defaultImportMode == mode.rawValue
         Button { defaultImportMode = mode.rawValue } label: {
@@ -350,6 +352,7 @@ extension OnboardingWizardView {
     }
 
     /// One row in the catalog-driven provider list. Click to select.
+    @ViewBuilder
     func catalogRow(entry: Components.Schemas.ProviderCatalogResponse) -> some View {
         let isSelected = selectedProviderType == entry.providerType
         Button {
