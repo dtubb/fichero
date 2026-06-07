@@ -23,6 +23,7 @@ struct ArtifactEntitiesView: View {
     var visibleTypes: Set<String> = ["people", "places", "organizations", "dates", "events", "keywords"]
 
     @EnvironmentObject var artifactService: ArtifactServiceGenerated
+    @Environment(WorkflowExecutionObserver.self) var executionObserver
 
     @State private var people: [String] = []
     @State private var places: [String] = []
@@ -48,6 +49,12 @@ struct ArtifactEntitiesView: View {
             }
         }
         .onAppear { Task { await loadEntities() } }
+        .onChange(of: documentId) {
+            Task { await loadEntities(forceRefresh: true) }
+        }
+        .onChange(of: executionObserver.workflowCompletedCount) {
+            Task { await loadEntities(forceRefresh: true) }
+        }
     }
 
     @ViewBuilder
@@ -149,20 +156,27 @@ struct ArtifactEntitiesView: View {
     }
 
     @MainActor
-    private func loadEntities() async {
+    private func loadEntities(forceRefresh: Bool = false) async {
         let cacheKey = "\(documentId)|own"
         let artifacts: [Artifact]
-        if let cached = artifactService.artifactsByDocument[cacheKey] {
+        people = []
+        places = []
+        organizations = []
+        events = []
+        dates = []
+        keywords = []
+
+        if !forceRefresh, let cached = artifactService.artifactsByDocument[cacheKey] {
             artifacts = cached
+        } else if let fetched = try? await artifactService.getArtifacts(
+            forDocumentId: documentId,
+            forceRefresh: forceRefresh,
+            includeDescendants: false
+        ) {
+            artifacts = fetched
         } else {
-            do {
-                artifacts = try await artifactService.getArtifacts(
-                    forDocumentId: documentId, includeDescendants: false
-                )
-            } catch {
-                loaded = true
-                return
-            }
+            loaded = true
+            return
         }
         for artifact in artifacts {
             switch artifact.artifactType {

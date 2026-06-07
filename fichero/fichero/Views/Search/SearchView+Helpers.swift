@@ -14,7 +14,12 @@ extension SearchView {
     func loadDocument(_ id: String) {
         Task {
             do {
-                var doc: Document = try await apiClient.get("/documents/\(id)")
+                guard let library = libraryManager.getLibrary(id: windowState.libraryId) else {
+                    logger.error("No active library while loading search result document")
+                    return
+                }
+
+                var doc = try await library.documentServiceGenerated.getDocument(id)
                 // Page-child docs have no path of their own — the preview
                 // needs the parent PDF's on-disk path. EditorView resolves
                 // it via documentStore.currentDocuments, but in the search
@@ -24,7 +29,7 @@ extension SearchView {
                 if doc.docType == .page || (doc.path == nil && doc.parentId != nil) {
                     let parentId = doc.parentId ?? (doc.metadata["pdf_parent_id"]?.value as? String)
                     if let parentId {
-                        if let parent: Document = try? await apiClient.get("/documents/\(parentId)"),
+                        if let parent = try? await library.documentServiceGenerated.getDocument(parentId),
                            let parentPath = parent.path, !parentPath.isEmpty {
                             doc.metadata["pdf_path"] = AnyCodable(parentPath)
                             doc.metadata["pdf_parent_id"] = AnyCodable(parentId)
@@ -132,6 +137,9 @@ extension SearchView {
         }
 
         logger.info("Starting enhanced search for: \(queryText)")
+        if displayMode != .list {
+            displayMode = .list
+        }
         isSearching = true
         searchError = nil
 
@@ -174,6 +182,19 @@ extension SearchView {
                 }
             }
         }
+    }
+
+    func openExcerpt(_ result: SearchResult) {
+        guard let info = SearchResultRowFromAPI.navigationUserInfo(for: result) else {
+            loadDocument(result.documentId)
+            return
+        }
+
+        NotificationCenter.default.post(
+            name: .ficheroOpenClaimSource,
+            object: nil,
+            userInfo: info
+        )
     }
 
 }

@@ -8,6 +8,21 @@ import XCTest
 @MainActor
 final class SearchResultRowFromAPITests: XCTestCase {
 
+    private func makeResult(
+        contentPreview: String? = nil,
+        metadata: [String: AnyCodable] = [:],
+        highlights: [String]? = nil
+    ) -> SearchResult {
+        SearchResult(
+            documentId: "doc-1",
+            score: 0.91,
+            contentPreview: contentPreview,
+            metadata: metadata,
+            highlights: highlights,
+            transcriptExcerpts: []
+        )
+    }
+
     // MARK: - attributedHighlight
 
     func testAttributedHighlightPreservesPlainText() {
@@ -106,5 +121,46 @@ final class SearchResultRowFromAPITests: XCTestCase {
         )
         let visible = String(attr.characters)
         XCTAssertEqual(visible, "Match: Asprilla")
+    }
+
+    // MARK: - Excerpt fallback + navigation
+
+    func testPreferredExcerptFallsBackToSourceExcerptMetadata() {
+        let result = makeResult(
+            contentPreview: "Generic preview",
+            metadata: ["source_excerpt": AnyCodable("Specific matched excerpt")]
+        )
+
+        let row = SearchResultRowFromAPI(result: result)
+        XCTAssertEqual(row.preferredExcerptText, "Specific matched excerpt")
+    }
+
+    func testNavigationUserInfoUsesMetadataWhenTranscriptExcerptMissing() {
+        let result = makeResult(
+            metadata: [
+                "source_excerpt": AnyCodable("Specific matched excerpt"),
+                "source_page_label": AnyCodable("12"),
+                "source_char_start": AnyCodable(45),
+                "source_char_end": AnyCodable(61)
+            ]
+        )
+
+        let info = SearchResultRowFromAPI.navigationUserInfo(for: result)
+        XCTAssertEqual(info?["documentId"] as? String, "doc-1")
+        XCTAssertEqual(info?["excerpt"] as? String, "Specific matched excerpt")
+        XCTAssertEqual(info?["pageLabel"] as? String, "12")
+        XCTAssertEqual(info?["charStart"] as? Int, 45)
+        XCTAssertEqual(info?["charEnd"] as? Int, 61)
+    }
+
+    func testSearchServiceConversionPreservesTranscriptExcerptsWiring() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent("Services/SearchServiceGenerated.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+
+        XCTAssertTrue(source.contains("transcriptExcerpts: generated.transcriptExcerpts"))
     }
 }
