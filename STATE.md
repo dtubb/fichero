@@ -173,3 +173,9 @@ Next queue after these: #1736 tab→window, #1704 Views reorg (SOLO), #1730 Real
 In flight: f_codex_tabfix (gpt-5.4, ~/code/fichero-tabfix) = #1736 open-in-new-tab→tab not window; f_codex_rkpersist (gpt-5.4, ~/code/fichero-rkpersist) = #1730 RealityKit persist node position on drag (persistence ONLY, #1726 features parked).
 Closed so far tonight: #1703, #1707, #1731, #1737. Backend PDF (#1707) needs engine restart on Daniel's :8765 to take effect.
 Next queue: #1704 Views/ reorg (SOLO next), responsive cluster #1732-35, #1702, then GitHub backlog. #1740 Phase 1 = ~4am fallback only.
+
+### Tick 3 (~23:55) — landed: #1736 open-in-tab (6903ef56) + #1730 RealityKit persist (1ab7d299). Both CLOSED. 0.0.2 green.
+Closed tonight: #1703,#1707,#1731,#1737,#1736,#1730 (6).
+In flight: f_codex_responsive (gpt-5.4, ~/code/fichero-responsive) = responsive cluster #1732/#1733/#1734/#1735 (toggle styling, mini-toolbar overflow, library single-column min, pane-aware window min).
+DECISION: #1704 Views/Library reorg DEFERRED — add-swift-file.rb only ADDS (no remove-old-ref), so a file MOVE needs stale-ref removal or the build goes red. Too risky to fire blind overnight. TODO when attended: write scripts/move-swift-file.rb (xcodeproj gem: remove old PBXFileReference by path + add new) + test on 1 file, THEN run Batch 1 (18 files → 6 subfolders per #1704 plan) in small build-gated commits. Until then, prefer no-pbxproj cleanup.
+Next queue: gate responsive cluster, then #1702 hand-rolled→generated (Services, disjoint), GitHub backlog (bugs/consistency/dead-code), stale-worktree cleanup (8 stale ms/* worktrees — check for unmerged work first). #1740 Phase 1 = 4am fallback.
