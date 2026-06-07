@@ -59,6 +59,7 @@ struct LibraryWindow: View {
                 .environmentObject(library.modelService)
                 .environmentObject(library.artifactService)
                 .environmentObject(library.entityService)
+                .environmentObject(library.kgCurationService)
                 .environmentObject(library.researchService)
                 .environment(executionObserver)
             } else {

@@ -264,6 +264,9 @@ extension LibraryView {
 
     @ViewBuilder
     func documentContextMenu(for document: Document) -> some View {
+        let excludeTargets = excludeToggleTargets(for: document)
+        let shouldIncludeInProcessing = excludeTargets.allSatisfy(\.excludeFromProcessing)
+
         // Finder-style open affordances (#1685). "Open" reuses the existing
         // in-window open path; New Tab / New Window reuse the Safari
         // new-window path and focus this document once the window loads.
@@ -296,6 +299,20 @@ extension LibraryView {
             workspacePickerDocument = document
         } label: {
             Label("Add to Workspace…", systemImage: "square.grid.2x2")
+        }
+
+        Button {
+            Task {
+                await toggleExcludeFromProcessing(
+                    documentIds: excludeTargets.map(\.id),
+                    excluded: !shouldIncludeInProcessing
+                )
+            }
+        } label: {
+            Label(
+                shouldIncludeInProcessing ? "Include in Processing" : "Exclude from Processing",
+                systemImage: shouldIncludeInProcessing ? "eye" : "eye.slash"
+            )
         }
 
         // Run Workflow submenu — workflows grouped by `folderPath` so
@@ -392,6 +409,44 @@ extension LibraryView {
         if trimmed.isEmpty { return path }
         return String(trimmed.split(separator: "/").last ?? Substring(trimmed))
     }
+
+    private func excludeToggleTargets(for document: Document) -> [Document] {
+        let targetIds = selection.isEmpty ? [document.id] : Array(selection)
+        let selectedDocuments = documents.filter { targetIds.contains($0.id) }
+        return selectedDocuments.isEmpty ? [document] : selectedDocuments
+    }
+
+    @MainActor
+    private func toggleExcludeFromProcessing(
+        documentIds: [String],
+        excluded: Bool
+    ) async {
+        guard let library = activeLibraryReference else { return }
+
+        do {
+            let refreshed = try await library.documentServiceGenerated.batchExclude(
+                documentIds: documentIds,
+                excluded: excluded
+            )
+            for updated in refreshed {
+                documentStore.refreshLocalContent(updated)
+                if detailDocument?.id == updated.id {
+                    detailDocument = updated
+                }
+            }
+        } catch {
+            documentStore.error = error
+        }
+    }
+
+    private var activeLibraryReference: LibraryManager.LibraryReference? {
+        if let libraryId = windowState.libraryId,
+           let library = libraryManager.getLibrary(id: libraryId) {
+            return library
+        }
+        return libraryManager.globalLibrary
+    }
+
     // MARK: - Workflow Execution (replaces batch path)
     /// Execute a workflow via SSE, mirroring the toolbar path in ContentView+Actions.
     /// Passes ALL selected document IDs at once so aggregation workflows (Catalogue)
