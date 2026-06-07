@@ -190,3 +190,9 @@ Closed/resolved tonight (12): #1703,#1707,#1731,#1737,#1736,#1730,#1732,#1733,#1
 In flight: f_codex_genstructs (gpt-5.4, ~/code/fichero-genstructs) = #1702 hand-rolled structs→generated (NoteItem/ActivityItem/ActionItem/ModelComparison) + openapi regen. Cross-layer — gate: ruff+pytest THEN Xcode build.
 Housekeeping: pruned clean ~/code/fichero-mind-palace worktree. LEFT (have uncommitted WIP — Daniel review before pruning): fichero-bibliography-citations(3), fichero-kg-hermeneutics(7,detached), fichero-library-reading-surface(3), fichero-researcher(3), fichero-workflows(6).
 Next after #1702: GitHub backlog cleanup/bugs, #1710 (Swift LibraryPathMiddleware, careful) or leave #1715/#1710 for Daniel. #1704 reorg deferred (move helper). #1740 Phase 1 = ~4am fallback.
+
+### Tick 6 (~01:46) — landed: #1702 hand-rolled structs→generated (b7f1064b, CLOSED, −295 lines). Manager fixed 3 gate errors worker missed (wrong generated name, metadata helper name-collision→metadataStrings+4 callers, re-added Identifiable). 0.0.2 green.
+Closed/resolved tonight (13): #1703,#1707,#1731,#1737,#1736,#1730,#1732,#1733,#1734,#1735,#1727,#1725,#1702.
+In flight: f_codex_filemenu (gpt-5.4, ~/code/fichero-filemenu) = #1720 File menu (Open Recent from registry + Close Database reusing sidebar action + Open/New). May touch backend (lastOpenedAt) — ruff+pytest if so, else Xcode build gate.
+DEFERRED (border on parked #1740 design — leave for attended): #1696 (unify show/hide chrome observable), #1697 (unify spatial render state). Needs-Daniel: #1709 (4 failing Swift tests — can't run xcodebuild test here), #1715 (OpenAPI header backend). #1704 reorg (needs move-swift-file.rb). #1740 Phase 1 = ~4am fallback.
+Next bounded picks: #1721 (drag-drop .fichero→new window), backlog bugs.
