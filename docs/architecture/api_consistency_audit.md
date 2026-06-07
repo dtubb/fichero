@@ -1,7 +1,7 @@
 # API Consistency Audit
 
 Date: 2026-06-07
-Branch: `chore/api-architecture-pass1`
+Branch: `chore/api-architecture-pass2`
 Scope: generated-client supersession check for #1412-#1417, remaining Swift raw transport/model drift, backend `response_model` gaps, blocking-route candidates, and endpoint coverage status for #1443.
 
 ## Supersession Verdict: #1412-#1417
@@ -13,7 +13,7 @@ Scope: generated-client supersession check for #1412-#1417, remaining Swift raw 
 | #1414 | Superseded by generated-client migration work | Actions transport is already de-duplicated onto one generated-client path. See [fichero/fichero/Services/ActionsService.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/ActionsService.swift:5) and commits `22a0af6e` / `e192e28e` (#1711). |
 | #1415 | Superseded by generated-client migration work | Workflow execution already routes through `FicheroClient`. See [fichero/fichero/Services/WorkflowExecutionService.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/WorkflowExecutionService.swift:8) and commits `562d1b22` / `6956d5e5` (#1712). |
 | #1416 | Superseded by generated-client migration work | Integrations already route through `FicheroClient`. See [fichero/fichero/Services/IntegrationsService.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/IntegrationsService.swift:6) and commit `69f931af` (#1713). |
-| #1417 | Largely superseded; only residual sweep remains | Model comparison moved first (`c76176ef`, #1666), then the tier-2 stragglers moved (`9d883ca8`, #1714). Remaining raw transport is no longer the original B1-B3 service cluster; it is concentrated in `ResearchService`, `ArtifactServiceGenerated`, `ImageEditingServiceGenerated`, plus a few justified SSE/binary call sites. |
+| #1417 | Largely superseded; only residual sweep remains | Model comparison moved first (`c76176ef`, #1666), then the tier-2 stragglers moved (`9d883ca8`, #1714). Pass 2 moved `ResearchService` onto `FicheroClient`; remaining raw transport is now concentrated in `ArtifactServiceGenerated`, `ImageEditingServiceGenerated`, and a few justified SSE/binary call sites. |
 
 ### #1710 status
 
@@ -23,8 +23,6 @@ Scope: generated-client supersession check for #1412-#1417, remaining Swift raw 
 
 ### Still hand-rolled and should be treated as migration backlog
 
-- [fichero/fichero/Services/ResearchService.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/ResearchService.swift:6)
-  Full research CRUD stack is still legacy `APIClient` + hand-rolled request/response structs (`ProjectCreateRequest`, `ResearchListResponse`, `WebSearchRequest`, etc.).
 - [fichero/fichero/Services/ArtifactServiceGenerated.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/ArtifactServiceGenerated.swift:116)
   Large residual raw transport surface. Notable direct sites: all-artifacts list, citation usages, library entity-type registry, classification list reads, and hermeneutics interpretation/framework reads and writes.
 - [fichero/fichero/Services/ImageEditingServiceGenerated.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/ImageEditingServiceGenerated.swift:103)
@@ -52,9 +50,7 @@ Scope: generated-client supersession check for #1412-#1417, remaining Swift raw 
 ## Hand-Rolled Swift Models Still Duplicating Backend Shapes
 
 - [fichero/fichero/Models/ResearchModels.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Models/ResearchModels.swift:45)
-  Research project/plan/task/note/source/checklist types are still frontend-owned duplicates.
-- [fichero/fichero/Services/ResearchService.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Services/ResearchService.swift:8)
-  Request/response payload structs duplicate backend research request bodies and list envelopes.
+  Research project/plan/task/note/source/checklist types are still frontend-owned duplicates even though transport now runs through the generated client.
 - [fichero/fichero/Models/SpatialModels.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Models/SpatialModels.swift:98)
   Mind Palace room/node/connection/stack/viewport types remain hand-rolled even though the backend exposes typed responses.
 - [fichero/fichero/Models/Document.swift](/Users/danieltubb/code/fichero-apiarch/fichero/fichero/Models/Document.swift:334)
@@ -64,7 +60,7 @@ Scope: generated-client supersession check for #1412-#1417, remaining Swift raw 
 
 ## Backend Routes Missing Explicit `response_model`
 
-`fichero-engine/tests/contracts/endpoints.json` currently records 46 OpenAPI operations with `response_model = null`.
+`fichero-engine/tests/contracts/endpoints.json` currently records 42 OpenAPI operations with `response_model = null`.
 
 ### Legitimate null-model cases
 
@@ -73,22 +69,12 @@ Scope: generated-client supersession check for #1412-#1417, remaining Swift raw 
 
 ### Actionable route families still worth converting
 
-- `/api/actions/categories`
-- `/api/actions/{action_id}`
-- `/api/actions/{action_id}/use`
-- `/api/actions/{action_id}/export`
-- `/api/local-models`
-- `/api/local-models/disk-usage`
-- `/api/local-models/download/{model_type}/{model_id}`
-- `/api/local-models/{model_type}/{model_id}`
-- `/api/workflows/reinstall-defaults`
-- `/api/health`
-- `/api/stats`
-- `/api/search/stats`
-- `/api/providers/apple-intelligence/probe`
-- `/api/providers/catalog/{provider_type}`
-- `/api/providers/{provider_id}`
-- `/api/chat/conversations/{conversation_id}`
+- `/api/annotations/{annotation_id}` and `/api/annotations/{annotation_id}/crop`
+- `/api/artifacts/{artifact_id}`
+- `/api/batches/{batch_id}/execute`, `/resume`, `/retry`
+- `/api/claims/{claim_id}` and `/api/entities/{entity_id}`
+- `/api/documents/{doc_id}` and `/api/documents/{doc_id}/notes`
+- `/api/storage/stats`
 
 ## Blocking / Event-Loop Risk Candidates
 
@@ -132,10 +118,12 @@ These are candidates, not fully-audited fixes:
 
 - Migrated `SearchServiceGenerated.keywordCloud()` off a hand-written `URLSession` request and onto the generated OpenAPI client.
 - Moved the action and local-model response envelopes into `fichero.models`, added explicit `response_model=` coverage to those legacy routes, and added an OpenAPI regression test for them.
+- Added shared explicit response models for `/api/health`, `/api/stats`, `/api/search/stats`, `/api/workflows/reinstall-defaults`, and the remaining provider detail/probe routes; regenerated `openapi.json` and the Swift client schema.
+- Migrated `ResearchService` off legacy `APIClient` transport onto generated `FicheroClient` operations while preserving the existing research UI-facing model layer.
 
 ## Remaining Recommended Work
 
 - Close #1412 and #1413 as superseded.
-- Close or re-scope #1414-#1417 around the **actual** remaining transport debt (`ResearchService`, `ArtifactServiceGenerated`, `ImageEditingServiceGenerated`, multipart upload helpers), rather than the old Endpoints/EngineRequest plan.
+- Close or re-scope #1414-#1417 around the **actual** remaining transport debt (`ArtifactServiceGenerated`, `ImageEditingServiceGenerated`, multipart upload helpers), rather than the old Endpoints/EngineRequest plan.
 - Keep #1710 open for Phase 2 header-arg cleanup.
 - Keep #1443 open. The CLI side is almost done; SwiftUI endpoint coverage is not.
