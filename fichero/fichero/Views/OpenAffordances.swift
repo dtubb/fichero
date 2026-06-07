@@ -52,23 +52,57 @@ enum WindowOpener {
         manager.currentLibraryId = libraryId
         manager.pendingOpenDocumentId = documentId
 
+        let hostWindow = NSApp.keyWindow ?? NSApp.mainWindow
+
         // Snapshot existing windows so we can identify the newly created one
         // for tab-merging below.
         let before = Set(NSApp.windows.map(ObjectIdentifier.init))
-        openWindow(id: "main")
+        if asTab {
+            openWindow(id: "main")
+        } else {
+            openWindowDisallowingAutomaticTabs(using: openWindow, before: before)
+        }
 
         guard asTab else { return }
+        guard let hostWindow else { return }
 
         // SwiftUI materialises the new NSWindow on a later runloop turn, so
         // defer the tab-merge until it exists.
         DispatchQueue.main.async {
-            guard let host = NSApp.keyWindow ?? NSApp.mainWindow else { return }
-            let newWindow = NSApp.windows.first {
-                !before.contains(ObjectIdentifier($0)) && $0.isVisible && $0 !== host
-            }
+            let newWindow = newlyCreatedWindow(afterOpeningWindows: before, hostWindow: hostWindow)
             guard let newWindow else { return }
-            host.addTabbedWindow(newWindow, ordered: .above)
+            hostWindow.tabbingMode = .preferred
+            newWindow.tabbingMode = .preferred
+            hostWindow.addTabbedWindow(newWindow, ordered: .above)
             newWindow.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    @MainActor
+    private static func openWindowDisallowingAutomaticTabs(
+        using openWindow: OpenWindowAction,
+        before: Set<ObjectIdentifier>
+    ) {
+        let previousAllowsAutomaticTabbing = NSWindow.allowsAutomaticWindowTabbing
+        NSWindow.allowsAutomaticWindowTabbing = false
+        openWindow(id: "main")
+        DispatchQueue.main.async {
+            NSWindow.allowsAutomaticWindowTabbing = previousAllowsAutomaticTabbing
+            if let newWindow = NSApp.windows.first(where: {
+                !before.contains(ObjectIdentifier($0)) && $0.isVisible
+            }) {
+                newWindow.tabbingMode = .disallowed
+            }
+        }
+    }
+
+    @MainActor
+    private static func newlyCreatedWindow(
+        afterOpeningWindows before: Set<ObjectIdentifier>,
+        hostWindow: NSWindow
+    ) -> NSWindow? {
+        NSApp.windows.first {
+            !before.contains(ObjectIdentifier($0)) && $0.isVisible && $0 !== hostWindow
         }
     }
 }
