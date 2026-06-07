@@ -29,6 +29,7 @@ from fichero.models import EntityAuditListResponse, KGGraphListResponse
 router = APIRouter(prefix="/kg/entity-curation")
 
 KG_ENTITY_EMBEDDINGS_TABLE = "kg_entity_embeddings"
+LEGACY_KG_ENTITY_EMBEDDINGS_TABLE = "kg_entities"
 
 
 class EntityMergeRequest(BaseModel):
@@ -62,6 +63,22 @@ class EmbedEntitiesResponse(BaseModel):
 
 class _EmbedEntityRequest(BaseModel):
     entity_ids: list[str] | None = None
+
+
+def _entity_embeddings_table_name(db: Database) -> str | None:
+    """Resolve the entity vector table for semantic search.
+
+    `kg_entities` is the long-lived table populated by entity upserts and KG
+    rebuilds. `kg_entity_embeddings` is the newer batch-embed route's table.
+    Keep semantic search readable across both so older libraries with existing
+    vectors do not 503.
+    """
+    tables = set(db._lance_tables())
+    if KG_ENTITY_EMBEDDINGS_TABLE in tables:
+        return KG_ENTITY_EMBEDDINGS_TABLE
+    if LEGACY_KG_ENTITY_EMBEDDINGS_TABLE in tables:
+        return LEGACY_KG_ENTITY_EMBEDDINGS_TABLE
+    return None
 
 
 def _audit_response(audit: EntityMergeAudit) -> EntityAuditResponse:
@@ -338,16 +355,20 @@ async def search_entities_semantic(
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     """Semantic entity search via LanceDB."""
-    if KG_ENTITY_EMBEDDINGS_TABLE not in db._lance_tables():
+    table_name = _entity_embeddings_table_name(db)
+    if table_name is None:
         raise HTTPException(
             status_code=503,
-            detail="Entity embeddings not yet indexed. POST /kg/entity-curation/semantic/embed first.",
+            detail=(
+                "Entity embeddings not yet indexed. POST /kg/entity-curation/semantic/embed "
+                "first or rebuild KG vectors."
+            ),
         )
     try:
         query_vector = db._embed_text(q)  # type: ignore[attr-defined]
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Embedding generation failed: {exc}") from exc
-    results = db.search_vectors(KG_ENTITY_EMBEDDINGS_TABLE, query_vector, limit=limit)
+    results = db.search_vectors(table_name, query_vector, limit=limit)
     entity_ids = [r["id"] for r in results]
     if not entity_ids:
         return KGGraphListResponse(items=[], count=0)
