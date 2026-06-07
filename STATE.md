@@ -184,3 +184,9 @@ Next queue: gate responsive cluster, then #1702 hand-rolled→generated (Service
 Closed tonight (10): #1703,#1707,#1731,#1737,#1736,#1730,#1732,#1733,#1734,#1735.
 In flight: f_codex_inbox (gpt-5.4, ~/code/fichero-inbox) = #1727 auto-seed Inbox on create+open (idempotent, fixes Marshall Diaries too — BACKEND); f_codex_webkit (gpt-5.4, ~/code/fichero-webkit) = #1725 quiet WKWebView console logging (FRONTEND). Disjoint.
 Backlog noted for next ticks: #1702 hand-rolled structs→generated (NoteItem/ActivityItem/ActionItem/ModelComparison), #1715/#1710 OpenAPI library-header consolidation (delicate, prefer attended), #1709 4 failing Swift tests (can't run xcodebuild test here — needs Daniel), stale-worktree cleanup (8 stale, check unmerged first). #1704 reorg still deferred (need move-swift-file.rb). #1740 Phase 1 = 4am fallback.
+
+### Tick 5 (~01:05) — landed: #1727 auto-seed Inbox (9e4c850b, CLOSED, needs engine restart). #1725 resolved no-code (system os_log, not app-suppressible; offered OS_ACTIVITY_MODE opt-in — CLOSED). 0.0.2 green.
+Closed/resolved tonight (12): #1703,#1707,#1731,#1737,#1736,#1730,#1732,#1733,#1734,#1735,#1727,#1725.
+In flight: f_codex_genstructs (gpt-5.4, ~/code/fichero-genstructs) = #1702 hand-rolled structs→generated (NoteItem/ActivityItem/ActionItem/ModelComparison) + openapi regen. Cross-layer — gate: ruff+pytest THEN Xcode build.
+Housekeeping: pruned clean ~/code/fichero-mind-palace worktree. LEFT (have uncommitted WIP — Daniel review before pruning): fichero-bibliography-citations(3), fichero-kg-hermeneutics(7,detached), fichero-library-reading-surface(3), fichero-researcher(3), fichero-workflows(6).
+Next after #1702: GitHub backlog cleanup/bugs, #1710 (Swift LibraryPathMiddleware, careful) or leave #1715/#1710 for Daniel. #1704 reorg deferred (move helper). #1740 Phase 1 = ~4am fallback.
