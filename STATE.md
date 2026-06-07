@@ -201,3 +201,8 @@ Next bounded picks: #1721 (drag-drop .fichero→new window), backlog bugs.
 Closed/resolved tonight (14): +#1720.
 In flight: f_codex_dragopen (gpt-5.4, ~/code/fichero-dragopen) = #1721 drop a .fichero → open/focus window (reuse #1720 path), not replace; other files still import to Inbox. Frontend, Xcode build gate.
 Next bounded: backlog bugs (gh issue list), backend bounded bugs ideal. AVOID design EPICs + #1696/#1697 + #1709/#1715. #1704 reorg needs move helper. #1740 Phase 1 = ~4am fallback if bounded work runs out.
+
+### Tick 8 (~02:57) — landed: #1721 drag-drop .fichero→open/focus window (657b51c4, CLOSED). 0.0.2 green.
+Closed/resolved tonight (15): +#1721.
+In flight: f_codex_inspent (gpt-5.4, ~/code/fichero-inspent) = #1653 inspector Entities panel empty though engine returns them (frontend decode/scope bug); f_codex_relpaths (gpt-5.4, ~/code/fichero-relpaths) = #1663/#1664 store image paths relative to lib root + resolve both legacy-absolute/new-relative (backend, never mutate Marshall data). Disjoint.
+Backlog rich in backend IIIF-import bugs (#1650-1664) — many need real data to verify, prefer leaving for Daniel or pick the data-independent ones. #1728 (surface Notes/MindPalace-icon/Automation) still a bounded frontend option. #1740 Phase 1 fallback if bounded work thins.
