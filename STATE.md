@@ -284,3 +284,5 @@ NEXT: port #1662 fix (backend, after Marshall report). Curation (#73) needs a pl
 - #1750 CRITICAL REVIEW running (code-reviewer agent, background) — Daniel wants assurance it works + no missed local-path sites. Apply its findings when it returns.
 - LANES: f_codex_apiarch2 (architecture pass2), f_codex_marshall (one-folder observe + steps). #1750-review agent (bg).
 - NEXT architecture: #1758 search/embed/pykeen audit (read-only first → report → fix); then port #1662 into engine; then Curation planning (#73). Search is Daniel's explicit concern.
+
+### #1750 critical review (code-reviewer agent) = APPROVE. Sound, no missed local-path sites, no regressions. Filed follow-up: cache-flush-on-host-change + invalid-URL feedback (Remote milestone). Pre-existing main-thread NSImage on QuickLook path noted (low pri).
