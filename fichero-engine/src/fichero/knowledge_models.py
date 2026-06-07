@@ -299,6 +299,26 @@ class ClaimCurationState(str, Enum):
     rejected = "rejected"
 
 
+class EntityCurationState(str, Enum):
+    unreviewed = "unreviewed"
+    verified = "verified"
+    rejected = "rejected"
+    merged = "merged"
+
+
+class EntityResolutionRuleType(str, Enum):
+    suppress = "suppress"
+    merge_into = "merge_into"
+    reclassify = "reclassify"
+    alias = "alias"
+
+
+class ClaimSuppressionRuleAction(str, Enum):
+    disable = "disable"
+    demote = "demote"
+    prune = "prune"
+
+
 class ClaimRelationType(str, Enum):
     """Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B).
 
@@ -688,8 +708,39 @@ class KnowledgeEntity(BaseModel):
         default_factory=list,
         description="Document/page ids this entity was extracted from (per-page scope; parent aggregates via descendants). #1562",
     )
+    curation_state: EntityCurationState = EntityCurationState.unreviewed
     corroboration_count: int = 0
     merged_into_id: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class EntityResolutionRule(BaseModel):
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    rule_type: EntityResolutionRuleType
+    match_canonical_name: str
+    match_entity_type: EntityType | None = None
+    target_canonical_name: str | None = None
+    target_entity_type: EntityType | None = None
+    reason: str
+    created_by: str = "human"
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class ClaimSuppressionRule(BaseModel):
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    action: ClaimSuppressionRuleAction
+    match_predicate_verb: str | None = None
+    match_subject_name: str | None = None
+    match_object_phrase: str | None = None
+    suppress_is_a_copulas: bool = False
+    reason: str
+    created_by: str = "human"
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
