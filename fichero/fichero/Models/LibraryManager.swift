@@ -70,6 +70,7 @@ class LibraryManager: ObservableObject {
         let modelService: ModelServiceGenerated
         let artifactService: ArtifactServiceGenerated
         let entityService: EntityServiceGenerated  // /api/entities + /api/claims (#728)
+        let kgCurationService: KGCurationServiceGenerated
         let activityService: ActivityServiceGenerated
         let batchService: BatchServiceGenerated
         let automationService: AutomationServiceGenerated
@@ -130,6 +131,7 @@ class LibraryManager: ObservableObject {
             self.modelService = modelService ?? ModelServiceGenerated(ficheroClient: self.ficheroClient)
             self.artifactService = ArtifactServiceGenerated(ficheroClient: self.ficheroClient)
             self.entityService = EntityServiceGenerated(ficheroClient: self.ficheroClient)
+            self.kgCurationService = KGCurationServiceGenerated(ficheroClient: self.ficheroClient)
             self.activityService = ActivityServiceGenerated(ficheroClient: self.ficheroClient)
             self.batchService = BatchServiceGenerated(ficheroClient: self.ficheroClient)
             self.automationService = AutomationServiceGenerated(ficheroClient: self.ficheroClient)

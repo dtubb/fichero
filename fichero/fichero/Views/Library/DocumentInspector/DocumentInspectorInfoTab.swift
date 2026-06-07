@@ -5,6 +5,16 @@ import SwiftUI
 struct DocumentInspectorInfoTab: View {
     let document: Document
 
+    @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var windowState: WindowState
+    @EnvironmentObject private var documentStore: DocumentStore
+    @State private var isUpdatingExclude = false
+    @State private var excludeFromProcessingOverride: Bool?
+
+    var isExcludedFromProcessing: Bool {
+        excludeFromProcessingOverride ?? document.excludeFromProcessing
+    }
+
     var body: some View {
         VStack(alignment: .center, spacing: 0) {
             headerSection
@@ -78,5 +88,39 @@ struct DocumentInspectorInfoTab: View {
             }
             .formStyle(.grouped)
         }
+        .onChange(of: document.id) { _, _ in
+            excludeFromProcessingOverride = nil
+        }
+    }
+
+    @MainActor
+    func toggleExcludeFromProcessing() async {
+        guard let library = currentLibrary else { return }
+
+        isUpdatingExclude = true
+        defer { isUpdatingExclude = false }
+
+        do {
+            let refreshed = try await library.documentServiceGenerated.batchExclude(
+                documentIds: [document.id],
+                excluded: !isExcludedFromProcessing
+            )
+            for updated in refreshed {
+                documentStore.refreshLocalContent(updated)
+                if updated.id == document.id {
+                    excludeFromProcessingOverride = updated.excludeFromProcessing
+                }
+            }
+        } catch {
+            documentStore.error = error
+        }
+    }
+
+    private var currentLibrary: LibraryManager.LibraryReference? {
+        if let libraryId = windowState.libraryId,
+           let library = libraryManager.getLibrary(id: libraryId) {
+            return library
+        }
+        return libraryManager.globalLibrary
     }
 }

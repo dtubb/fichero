@@ -122,6 +122,7 @@ struct Document: Identifiable, Codable, Hashable {
     var status: Status
     var metadata: [String: AnyCodable]
     var pageContent: String?
+    var excludeFromProcessing: Bool
     var isWorkspace: Bool
     var curatedItems: [[String: AnyCodable]]
     var structure: [DocumentStructureNode]
@@ -150,6 +151,7 @@ struct Document: Identifiable, Codable, Hashable {
         case status
         case metadata
         case pageContent = "page_content"
+        case excludeFromProcessing = "exclude_from_processing"
         case isWorkspace = "is_workspace"
         case curatedItems = "curated_items"
         case structure
@@ -173,6 +175,7 @@ struct Document: Identifiable, Codable, Hashable {
         status: Status = .pending,
         metadata: [String: AnyCodable] = [:],
         pageContent: String? = nil,
+        excludeFromProcessing: Bool = false,
         isWorkspace: Bool = false,
         curatedItems: [[String: AnyCodable]] = [],
         structure: [DocumentStructureNode] = [],
@@ -194,6 +197,7 @@ struct Document: Identifiable, Codable, Hashable {
         self.status = status
         self.metadata = metadata
         self.pageContent = pageContent
+        self.excludeFromProcessing = excludeFromProcessing
         self.isWorkspace = isWorkspace
         self.curatedItems = curatedItems
         self.structure = structure
@@ -221,6 +225,7 @@ struct Document: Identifiable, Codable, Hashable {
         self.status = try container.decode(Status.self, forKey: .status)
         self.metadata = try container.decode([String: AnyCodable].self, forKey: .metadata)
         self.pageContent = try container.decodeIfPresent(String.self, forKey: .pageContent)
+        self.excludeFromProcessing = try container.decodeIfPresent(Bool.self, forKey: .excludeFromProcessing) ?? false
         self.isWorkspace = try container.decodeIfPresent(Bool.self, forKey: .isWorkspace) ?? false
         self.curatedItems = try container.decodeIfPresent([[String: AnyCodable]].self, forKey: .curatedItems) ?? []
         self.structure = try container.decodeIfPresent([DocumentStructureNode].self, forKey: .structure) ?? []

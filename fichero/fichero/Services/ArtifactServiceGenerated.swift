@@ -401,6 +401,11 @@ private let entityServiceLogger = Logger(
     category: "EntityServiceGenerated"
 )
 
+private let kgCurationServiceLogger = Logger(
+    subsystem: "app.fichero.fichero",
+    category: "KGCurationServiceGenerated"
+)
+
 /// Service wrapper for the dedicated `/api/entities` and `/api/claims`
 /// endpoints. The catalogue extractors write `KnowledgeEntity` +
 /// `KnowledgeClaim` rows (#728); this service is the read path the
@@ -2447,5 +2452,179 @@ final class EntityServiceGenerated: ObservableObject {
             sourceExcerpt: dict["source_excerpt"] as? String,
             similarityScore: score
         )
+    }
+}
+
+/// Typed wrappers for `/api/kg/curation-rules/*`.
+///
+/// Intentionally excludes batch entity curation-state updates: the generated
+/// OpenAPI client does not expose that backend route yet (#1765 step 6).
+@MainActor
+final class KGCurationServiceGenerated: ObservableObject {
+    private let client: FicheroClient
+
+    init(ficheroClient: FicheroClient) {
+        self.client = ficheroClient
+    }
+
+    enum ServiceError: Error {
+        case validationError(String)
+        case unexpectedResponse(Int)
+    }
+
+    func listEntityRules() async throws -> [Components.Schemas.EntityRuleReadResponse] {
+        let response = try await client.api.listEntityRulesApiKgCurationRulesEntityRulesGet(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("listEntityRules unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func createEntityRule(
+        _ request: Components.Schemas.EntityRuleCreateRequest
+    ) async throws -> Components.Schemas.EntityRuleReadResponse {
+        let response = try await client.api.createEntityRuleApiKgCurationRulesEntityRulesPost(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(request)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("createEntityRule unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func deleteEntityRule(ruleId: String) async throws -> Components.Schemas.EntityRuleDeleteResponse {
+        let request = Components.Schemas.EntityRuleDeleteRequest(ruleId: ruleId)
+        let response = try await client.api.deleteEntityRuleApiKgCurationRulesEntityRulesDelete(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(request)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("deleteEntityRule unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func batchCreateEntityRules(
+        _ requests: [Components.Schemas.EntityRuleCreateRequest]
+    ) async throws -> [Components.Schemas.EntityRuleReadResponse] {
+        var body = Components.Schemas.EntityRuleBatchCreateRequest()
+        body.items = requests
+        let response = try await client.api.createEntityRulesBatchApiKgCurationRulesEntityRulesBatchPost(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("batchCreateEntityRules unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func listClaimRules() async throws -> [Components.Schemas.ClaimRuleReadResponse] {
+        let response = try await client.api.listClaimRulesApiKgCurationRulesClaimRulesGet(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("listClaimRules unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func createClaimRule(
+        _ request: Components.Schemas.ClaimRuleCreateRequest
+    ) async throws -> Components.Schemas.ClaimRuleReadResponse {
+        let response = try await client.api.createClaimRuleApiKgCurationRulesClaimRulesPost(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(request)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("createClaimRule unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func deleteClaimRule(ruleId: String) async throws -> Components.Schemas.ClaimRuleDeleteResponse {
+        let request = Components.Schemas.ClaimRuleDeleteRequest(ruleId: ruleId)
+        let response = try await client.api.deleteClaimRuleApiKgCurationRulesClaimRulesDelete(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(request)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("deleteClaimRule unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func batchCreateClaimRules(
+        _ requests: [Components.Schemas.ClaimRuleCreateRequest]
+    ) async throws -> [Components.Schemas.ClaimRuleReadResponse] {
+        var body = Components.Schemas.ClaimRuleBatchCreateRequest()
+        body.items = requests
+        let response = try await client.api.createClaimRulesBatchApiKgCurationRulesClaimRulesBatchPost(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("batchCreateClaimRules unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
     }
 }

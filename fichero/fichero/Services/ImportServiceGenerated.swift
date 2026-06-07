@@ -366,6 +366,7 @@ class ImportServiceGenerated: ObservableObject {
             status: convertFromGeneratedStatus(generated.status),
             metadata: convertMetadata(generated.metadata),
             pageContent: generated.pageContent ?? (extras["page_content"] as? String),
+            excludeFromProcessing: generated.excludeFromProcessing ?? false,
             sortOrder: sortOrder,
             createdAt: generated.createdAt ?? Date(),
             updatedAt: generated.updatedAt ?? Date(),

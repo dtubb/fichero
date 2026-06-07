@@ -425,6 +425,44 @@ class DocumentServiceGenerated: ObservableObject {
         }
     }
 
+    /// Toggle exclude-from-processing on a batch of documents.
+    /// Uses the generated `/api/documents/batch-exclude` operation, then
+    /// re-fetches the affected records through the generated document getter
+    /// so callers can refresh local state without raw URL paths.
+    func batchExclude(
+        documentIds: [String],
+        excluded: Bool
+    ) async throws -> [Document] {
+        isProcessing = true
+        defer { isProcessing = false }
+
+        let request = Components.Schemas.DocumentBatchExcludeRequest(
+            documentIds: documentIds,
+            excluded: excluded,
+            reason: nil
+        )
+
+        let response = try await client.api.batchExcludeDocumentsApiDocumentsBatchExcludePatch(
+            .init(
+                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+                body: .json(request)
+            )
+        )
+
+        switch response {
+        case .ok(let ok):
+            let result = try ok.body.json
+            return try await result.documentIds.asyncMap { id in
+                try await self.getDocument(id)
+            }
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
     // MARK: - Delete
 
     /// Delete a document
@@ -493,6 +531,7 @@ class DocumentServiceGenerated: ObservableObject {
             status: convertFromGeneratedStatus(doc.status),
             metadata: convertMetadata(doc.metadata),
             pageContent: pageContent,
+            excludeFromProcessing: doc.excludeFromProcessing ?? false,
             createdAt: doc.createdAt ?? Date(),
             updatedAt: doc.updatedAt ?? Date(),
             expectedThumbnailPath: doc.expectedThumbnailPath,
@@ -576,6 +615,17 @@ class DocumentServiceGenerated: ObservableObject {
             result[key] = AnyCodable(value ?? "")
         }
         return result
+    }
+}
+
+private extension Sequence {
+    func asyncMap<T>(_ transform: (Element) async throws -> T) async rethrows -> [T] {
+        var results: [T] = []
+        for element in self {
+            let transformed = try await transform(element)
+            results.append(transformed)
+        }
+        return results
     }
 }
 

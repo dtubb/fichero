@@ -20,6 +20,22 @@ extension DocumentInspectorInfoTab {
                 .font(.headline)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
+
+            Button {
+                Task { await toggleExcludeFromProcessing() }
+            } label: {
+                if isUpdatingExclude {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Label(
+                        isExcludedFromProcessing ? "Include in Processing" : "Exclude from Processing",
+                        systemImage: isExcludedFromProcessing ? "eye" : "eye.slash"
+                    )
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(isUpdatingExclude)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
