@@ -28,14 +28,21 @@ class TestListDocuments:
     def test_empty_list(self, client):
         r = client.get("/api/documents")
         assert r.status_code == 200
-        assert r.json()["items"] == []
+        items = r.json()["items"]
+        assert len(items) == 1
+        assert items[0]["name"] == "Inbox"
+        assert items[0]["parent_id"] is None
+        assert items[0]["doc_type"] == "folder"
 
     def test_returns_saved_documents(self, client, db):
         _make_doc(db, "Doc A")
         _make_doc(db, "Doc B")
         r = client.get("/api/documents")
         assert r.status_code == 200
-        assert len(r.json()["items"]) == 2
+        items = r.json()["items"]
+        assert len(items) == 3
+        names = {item["name"] for item in items}
+        assert {"Inbox", "Doc A", "Doc B"} <= names
 
     def test_pagination_limit(self, client, db):
         for i in range(5):
@@ -49,7 +56,7 @@ class TestListDocuments:
             _make_doc(db, f"Doc {i}")
         r = client.get("/api/documents?offset=3")
         assert r.status_code == 200
-        assert len(r.json()["items"]) == 2
+        assert len(r.json()["items"]) == 3
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +72,7 @@ class TestListCollections:
         assert r.status_code == 200
         ids = [d["id"] for d in r.json()["items"]]
         assert root.id in ids
-        assert len(ids) == 1  # child excluded
+        assert len(ids) == 2  # child excluded; Inbox is always present
 
 
 # ---------------------------------------------------------------------------
