@@ -74,7 +74,7 @@ async def get_thumbnail(
 
     # If no thumbnail, try to generate one
     if not thumb_path:
-        thumb_path = ensure_thumbnail(doc, package_path=package_path)
+        thumb_path = ensure_thumbnail(doc, package_path=package_path, db=db)
 
     if not thumb_path or not thumb_path.exists():
         raise HTTPException(status_code=404, detail="Thumbnail not available")
@@ -109,7 +109,7 @@ async def get_display_image(
 
     # If no display image, try to generate one
     if not display_path:
-        display_path = ensure_display(doc, package_path=package_path)
+        display_path = ensure_display(doc, package_path=package_path, db=db)
 
     if not display_path or not display_path.exists():
         raise HTTPException(status_code=404, detail="Display image not available")
