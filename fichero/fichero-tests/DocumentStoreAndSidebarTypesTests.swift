@@ -130,12 +130,69 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testEntitiesSidebarEntryPointIsPinnedAndFeatureGated() throws {
-        let source = try Self.appSource("Views/Sidebar/SidebarView+ViewComponents.swift")
+        let source = try Self.appSource("Views/Sidebar/SidebarView+PinnedNavigationRows.swift")
 
-        XCTAssertTrue(source.contains("Label(\"Entities\", systemImage: SidebarMode.knowledgeGraph.icon)"))
-        XCTAssertTrue(source.contains(".tag(\"entities-browser\")"))
+        XCTAssertTrue(source.contains("tag: \"entities-browser\""))
+        XCTAssertTrue(source.contains("systemImage: SidebarMode.knowledgeGraph.icon"))
         XCTAssertTrue(source.contains("FeatureManager.shared.isKnowledgeGraphEnabled"))
         XCTAssertTrue(source.contains("entitiesNavigationRow()"))
+    }
+
+    func testSidebarPinnedRowsExposeMindPalaceResearchComparisonAndChatWithDocs() throws {
+        let source = try Self.appSource("Views/Sidebar/SidebarView+PinnedNavigationRows.swift")
+
+        XCTAssertTrue(source.contains("tag: \"comparison-browser\""))
+        XCTAssertTrue(source.contains("tag: \"chat-with-docs-browser\""))
+        XCTAssertTrue(source.contains("tag: \"research-browser\""))
+        XCTAssertTrue(source.contains("tag: \"mind-palace-browser\""))
+        XCTAssertTrue(source.contains("FeatureManager.shared.isResearchEnabled"))
+        XCTAssertTrue(source.contains("FeatureManager.shared.isMindPalaceEnabled"))
+    }
+
+    func testPinnedSidebarEntryPointsRouteToExpectedSurfaces() throws {
+        let source = try Self.appSource("Views/Sidebar/SidebarView.swift")
+
+        XCTAssertTrue(source.contains("id == \"comparison-browser\""))
+        XCTAssertTrue(source.contains("viewMode = .comparison(nil)"))
+        XCTAssertTrue(source.contains("id == \"chat-with-docs-browser\""))
+        XCTAssertTrue(source.contains("onOpenChatWithCurrentScope?()"))
+        XCTAssertTrue(source.contains("id == \"mind-palace-browser\""))
+        XCTAssertTrue(source.contains("viewMode = .mindPalace"))
+        XCTAssertTrue(source.contains("id == \"research-browser\""))
+        XCTAssertTrue(source.contains("sidebarMode = .research"))
+    }
+
+    func testCurrentChatScopePrefersSelectionThenDetailThenVisibleCollection() {
+        let folder = Document(id: "folder-1", docType: .folder, name: "Folder")
+        let page = Document(id: "page-1", parentId: "folder-1", docType: .page, fileType: .pdf, name: "Page 1")
+        let image = Document(id: "image-1", parentId: "folder-1", docType: .file, fileType: .image, name: "Image 1")
+
+        XCTAssertEqual(
+            ChatScopeBuilder.currentScopeDocumentIds(
+                browserSelection: ["page-1"],
+                currentDocuments: [folder, page, image],
+                detailDocument: folder
+            ),
+            ["page-1"]
+        )
+
+        XCTAssertEqual(
+            ChatScopeBuilder.currentScopeDocumentIds(
+                browserSelection: [],
+                currentDocuments: [folder],
+                detailDocument: image
+            ),
+            ["image-1"]
+        )
+
+        XCTAssertEqual(
+            ChatScopeBuilder.currentScopeDocumentIds(
+                browserSelection: [],
+                currentDocuments: [folder, page, image],
+                detailDocument: folder
+            ),
+            ["page-1", "image-1"]
+        )
     }
 
     // MARK: - ActivityChildType

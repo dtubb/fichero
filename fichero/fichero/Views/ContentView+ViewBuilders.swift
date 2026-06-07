@@ -39,6 +39,9 @@ extension ContentView {
             windowPersistenceId: sidebarWindowPersistenceId,
             onCreateChatWithDocuments: { documentIds in
                 chatSelectedDocuments = Set(documentIds)
+            },
+            onOpenChatWithCurrentScope: {
+                openChatWithCurrentScope()
             }
         )
         .environmentObject(savedSearchService)

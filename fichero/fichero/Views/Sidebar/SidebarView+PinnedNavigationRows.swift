@@ -3,6 +3,22 @@ import SwiftUI
 // MARK: - Activity Navigation Row
 
 extension SidebarView {
+    private func pinnedNavigationRow(
+        _ title: String,
+        systemImage: String,
+        tag: String,
+        help: String
+    ) -> some View {
+        Label(title, systemImage: systemImage)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .tag(tag)
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .help(help)
+    }
+
     /// Single non-expandable "Activity" row — clicking navigates to the activity browser.
     /// Styled as a regular sidebar leaf row (icon + normal-weight label) matching
     /// Inbox / folder rows. Bold section-header style removed in #655.
@@ -35,34 +51,66 @@ extension SidebarView {
     }
 
     private func workflowsNavigationRow() -> some View {
-        Label("Workflows", systemImage: "bolt")
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .tag("workflows-browser")
-            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
+        pinnedNavigationRow(
+            "Workflows",
+            systemImage: "bolt",
+            tag: "workflows-browser",
+            help: "Browse workflows"
+        )
     }
 
     private func batchesNavigationRow() -> some View {
-        Label("Batches", systemImage: "square.stack.3d.up")
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .tag("batches-browser")
-            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
+        pinnedNavigationRow(
+            "Batches",
+            systemImage: "square.stack.3d.up",
+            tag: "batches-browser",
+            help: "Browse batch runs"
+        )
+    }
+
+    private func comparisonNavigationRow() -> some View {
+        pinnedNavigationRow(
+            "Model Comparison",
+            systemImage: "rectangle.split.2x1",
+            tag: "comparison-browser",
+            help: "Open the model comparison workspace"
+        )
+    }
+
+    private func chatWithDocsNavigationRow() -> some View {
+        pinnedNavigationRow(
+            "Chat with Docs",
+            systemImage: "text.bubble",
+            tag: "chat-with-docs-browser",
+            help: "Open chat scoped to the current library selection"
+        )
+    }
+
+    private func researchNavigationRow() -> some View {
+        pinnedNavigationRow(
+            "Research",
+            systemImage: SidebarMode.research.icon,
+            tag: "research-browser",
+            help: "Open the research workspace"
+        )
+    }
+
+    private func mindPalaceNavigationRow() -> some View {
+        pinnedNavigationRow(
+            "Mind Palace",
+            systemImage: SidebarMode.mindPalace.icon,
+            tag: "mind-palace-browser",
+            help: "Open the Mind Palace workspace"
+        )
     }
 
     private func entitiesNavigationRow() -> some View {
-        Label("Entities", systemImage: SidebarMode.knowledgeGraph.icon)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .tag("entities-browser")
-            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            .help("Browse the library by entity and knowledge graph")
+        pinnedNavigationRow(
+            "Entities",
+            systemImage: SidebarMode.knowledgeGraph.icon,
+            tag: "entities-browser",
+            help: "Browse the library by entity and knowledge graph"
+        )
     }
 
     /// Workflows / Batches / Activity pinned once at the bottom of the sidebar.
@@ -73,6 +121,9 @@ extension SidebarView {
     func pinnedGlobalNavigationRows() -> some View {
         if FeatureManager.shared.isWorkflowsEnabled
             || FeatureManager.shared.isBatchesEnabled
+            || FeatureManager.shared.isChatEnabled
+            || FeatureManager.shared.isResearchEnabled
+            || FeatureManager.shared.isMindPalaceEnabled
             || FeatureManager.shared.isKnowledgeGraphEnabled
             || FeatureManager.shared.isActivityEnabled {
             Divider()
@@ -87,6 +138,22 @@ extension SidebarView {
 
         if FeatureManager.shared.isBatchesEnabled {
             batchesNavigationRow()
+        }
+
+        if FeatureManager.shared.isWorkflowsEnabled {
+            comparisonNavigationRow()
+        }
+
+        if FeatureManager.shared.isChatEnabled {
+            chatWithDocsNavigationRow()
+        }
+
+        if FeatureManager.shared.isResearchEnabled {
+            researchNavigationRow()
+        }
+
+        if FeatureManager.shared.isMindPalaceEnabled {
+            mindPalaceNavigationRow()
         }
 
         if FeatureManager.shared.isKnowledgeGraphEnabled {
