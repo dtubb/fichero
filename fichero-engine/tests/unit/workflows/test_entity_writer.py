@@ -126,6 +126,33 @@ class TestUpsertEntity:
         assert len(rows) == 1
         assert rows[0].canonical_name == "John Davidson"
 
+    def test_entity_resolution_rule_match_is_case_insensitive_and_trimmed(self, db):
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        db.save(
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.suppress,
+                match_canonical_name="john davidson",
+                match_entity_type=EntityType.person,
+                reason="known duplicate noise",
+            )
+        )
+
+        mixed_case_id = upsert_entity(
+            db,
+            canonical_name="John Davidson",
+            entity_type=EntityType.person,
+        )
+        upper_id = upsert_entity(
+            db,
+            canonical_name="  JOHN  Davidson ",
+            entity_type=EntityType.person,
+        )
+
+        assert mixed_case_id is None
+        assert upper_id is None
+        assert db.query(KnowledgeEntity, entity_type=EntityType.person) == []
+
     def test_reclassify_rule_overrides_type(self, db):
         from fichero.workflows.tools._entity_writer import upsert_entity
 
@@ -830,6 +857,43 @@ class TestWriterGateRules:
         assert survivor.canonical_name == "John Davidson"
         claims = db.query(KnowledgeClaim, subject_entity_id=survivor.id)
         assert len(claims) == 2
+
+    def test_redirect_cycle_suppresses_entity_and_claim_write(self, db):
+        from fichero.workflows.tools.extractors import _write_kg_rows
+
+        for source_name, target_name in (
+            ("Alpha", "Bravo"),
+            ("Bravo", "Charlie"),
+            ("Charlie", "Delta"),
+            ("Delta", "Echo"),
+            ("Echo", "Foxtrot"),
+            ("Foxtrot", "Golf"),
+            ("Golf", "Hotel"),
+            ("Hotel", "India"),
+            ("India", "Alpha"),
+        ):
+            db.save(
+                EntityResolutionRule(
+                    rule_type=EntityResolutionRuleType.alias,
+                    match_canonical_name=source_name,
+                    match_entity_type=EntityType.person,
+                    target_canonical_name=target_name,
+                    target_entity_type=EntityType.person,
+                    reason="redirect chain",
+                )
+            )
+
+        _write_kg_rows(
+            db,
+            section={"name": "people", "entity_type": EntityType.person},
+            items=[{"name": "Alpha", "verb": "signed", "object": "the deed"}],
+            container_id="doc-cycle",
+            page_label="1",
+            source_excerpt="Alpha signed the deed.",
+        )
+
+        assert db.query(KnowledgeEntity, entity_type=EntityType.person) == []
+        assert db.query(KnowledgeClaim, source_document_id="doc-cycle") == []
 
 
 class TestAdminQualifierDedup:
