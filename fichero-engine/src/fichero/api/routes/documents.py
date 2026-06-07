@@ -21,6 +21,8 @@ from fichero.knowledge_models import (
     DocumentCitation,
     KnowledgeClaim,
     KnowledgeEntity,
+    MutationLog,
+    MutationOperationType,
     Note,
 )
 from fichero.models import Artifact, DocType, Document, FileType, Status
@@ -121,8 +123,20 @@ class DocumentUpdate(BaseModel):
     is_read: Optional[bool] = None
     is_starred: Optional[bool] = None
     is_flagged: Optional[bool] = None
+    exclude_from_processing: Optional[bool] = None
     metadata: Optional[dict] = None
     prototype_key: Optional[str] = None
+
+
+class DocumentBatchExcludeRequest(BaseModel):
+    document_ids: list[str]
+    excluded: bool
+    reason: str | None = None
+
+
+class DocumentBatchExcludeResponse(BaseModel):
+    updated: int
+    document_ids: list[str]
 
 
 class PrototypeAssignRequest(BaseModel):
@@ -653,6 +667,50 @@ async def update_document(
 
     logger.info(f"Updated document: {doc_id}")
     return doc
+
+
+@router.patch("/batch-exclude", response_model=DocumentBatchExcludeResponse)
+async def batch_exclude_documents(
+    request: DocumentBatchExcludeRequest,
+    db: Database = Depends(get_library_database),
+) -> DocumentBatchExcludeResponse:
+    """Toggle exclude-from-processing on multiple documents with audit logging."""
+    seen: set[str] = set()
+    updated_ids: list[str] = []
+    for document_id in request.document_ids:
+        normalized_id = str(document_id).strip()
+        if not normalized_id or normalized_id in seen:
+            continue
+        seen.add(normalized_id)
+
+        doc = db.get(Document, normalized_id)
+        if doc is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Document not found: {normalized_id}",
+            )
+
+        before = doc.model_dump(mode="json")
+        doc.exclude_from_processing = request.excluded
+        doc.updated_at = datetime.now()
+        db.save(doc)
+        db.save(
+            MutationLog(
+                entity_type="Document",
+                entity_id=doc.id,
+                operation=MutationOperationType.update,
+                before_state=before,
+                after_state=doc.model_dump(mode="json"),
+                changed_fields=["exclude_from_processing"],
+                created_by=request.reason or "batch_exclude_documents",
+            )
+        )
+        updated_ids.append(doc.id)
+
+    return DocumentBatchExcludeResponse(
+        updated=len(updated_ids),
+        document_ids=updated_ids,
+    )
 
 
 @router.put("/{doc_id}/prototype", response_model=PrototypeAssignResponse)

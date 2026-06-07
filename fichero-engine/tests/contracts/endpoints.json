@@ -1959,6 +1959,16 @@
         "response_model": "Document"
       },
       {
+        "method": "PATCH",
+        "path": "/documents/batch-exclude",
+        "operation_id": "batch_exclude_documents_api_documents_batch_exclude_patch",
+        "summary": "Batch Exclude Documents",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "DocumentBatchExcludeRequest",
+        "response_model": "DocumentBatchExcludeResponse"
+      },
+      {
         "method": "POST",
         "path": "/documents/cleanup-orphans",
         "operation_id": "cleanup_orphan_documents_api_documents_cleanup_orphans_post",
@@ -3582,6 +3592,86 @@
         ],
         "request_model": null,
         "response_model": "KGGraphListResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/kg/curation-rules/claim-rules",
+        "operation_id": "delete_claim_rule_api_kg_curation_rules_claim_rules_delete",
+        "summary": "Delete Claim Rule",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ClaimRuleDeleteRequest",
+        "response_model": "ClaimRuleDeleteResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/curation-rules/claim-rules",
+        "operation_id": "list_claim_rules_api_kg_curation_rules_claim_rules_get",
+        "summary": "List Claim Rules",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ClaimRuleListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/curation-rules/claim-rules",
+        "operation_id": "create_claim_rule_api_kg_curation_rules_claim_rules_post",
+        "summary": "Create Claim Rule",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ClaimRuleCreateRequest",
+        "response_model": "ClaimRuleReadResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/curation-rules/claim-rules/batch",
+        "operation_id": "create_claim_rules_batch_api_kg_curation_rules_claim_rules_batch_post",
+        "summary": "Create Claim Rules Batch",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ClaimRuleBatchCreateRequest",
+        "response_model": "ClaimRuleListResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/kg/curation-rules/entity-rules",
+        "operation_id": "delete_entity_rule_api_kg_curation_rules_entity_rules_delete",
+        "summary": "Delete Entity Rule",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EntityRuleDeleteRequest",
+        "response_model": "EntityRuleDeleteResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/kg/curation-rules/entity-rules",
+        "operation_id": "list_entity_rules_api_kg_curation_rules_entity_rules_get",
+        "summary": "List Entity Rules",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EntityRuleListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/curation-rules/entity-rules",
+        "operation_id": "create_entity_rule_api_kg_curation_rules_entity_rules_post",
+        "summary": "Create Entity Rule",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EntityRuleCreateRequest",
+        "response_model": "EntityRuleReadResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/curation-rules/entity-rules/batch",
+        "operation_id": "create_entity_rules_batch_api_kg_curation_rules_entity_rules_batch_post",
+        "summary": "Create Entity Rules Batch",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EntityRuleBatchCreateRequest",
+        "response_model": "EntityRuleListResponse"
       },
       {
         "method": "POST",

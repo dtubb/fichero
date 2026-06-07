@@ -14,6 +14,7 @@ __all__ = [
     "folders",
     "hermeneutics",
     "ingest",
+    "kg_curation_rules",
     "local_models",
     "mcp_servers",
     "mcp_tools",

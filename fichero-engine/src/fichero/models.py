@@ -269,6 +269,13 @@ class Document(BaseModel):
     is_read: bool = False
     is_starred: bool = False
     is_flagged: bool = False
+    exclude_from_processing: bool = Field(
+        default=False,
+        description=(
+            "True when import/workflow processing should skip this document. "
+            "Used by curation to keep selected rows out of downstream passes."
+        ),
+    )
 
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)

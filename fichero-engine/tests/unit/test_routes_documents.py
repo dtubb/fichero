@@ -5,6 +5,7 @@ hierarchical collections. Tests cover CRUD, hierarchy traversal, and
 pagination. No external dependencies; uses real in-memory DB fixture.
 """
 
+from fichero.knowledge_models import MutationLog
 from fichero.models import Document, DocType
 
 
@@ -404,6 +405,40 @@ class TestUpdateDocument:
         assert payload["is_read"] is False
         assert payload["is_flagged"] is False
         assert payload["is_starred"] is False
+
+
+class TestBatchExcludeDocuments:
+    def test_batch_exclude_updates_documents_and_logs_mutation(self, client, db):
+        doc_a = _make_doc(db, "Doc A")
+        doc_b = _make_doc(db, "Doc B")
+
+        r = client.patch(
+            "/api/documents/batch-exclude",
+            json={
+                "document_ids": [doc_a.id, doc_b.id],
+                "excluded": True,
+                "reason": "curation",
+            },
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["updated"] == 2
+        assert set(payload["document_ids"]) == {doc_a.id, doc_b.id}
+
+        refreshed_a = db.get(Document, doc_a.id)
+        refreshed_b = db.get(Document, doc_b.id)
+        assert refreshed_a is not None and refreshed_a.exclude_from_processing is True
+        assert refreshed_b is not None and refreshed_b.exclude_from_processing is True
+
+        logs = [
+            m
+            for m in db.query(MutationLog)
+            if m.entity_type == "Document" and m.entity_id in {doc_a.id, doc_b.id}
+        ]
+        assert len(logs) == 2
+        assert all(m.changed_fields == ["exclude_from_processing"] for m in logs)
+        assert all(m.after_state["exclude_from_processing"] is True for m in logs)
 
 
 # ---------------------------------------------------------------------------
