@@ -3594,6 +3594,16 @@
         "response_model": "KGGraphListResponse"
       },
       {
+        "method": "PATCH",
+        "path": "/kg/claims/batch-curation",
+        "operation_id": "batch_set_claim_curation_state_api_kg_claims_batch_curation_patch",
+        "summary": "Batch set claim curation state",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BatchClaimCurationRequest",
+        "response_model": "BatchClaimCurationResponse"
+      },
+      {
         "method": "DELETE",
         "path": "/kg/curation-rules/claim-rules",
         "operation_id": "delete_claim_rule_api_kg_curation_rules_claim_rules_delete",
@@ -3672,6 +3682,16 @@
         "query_params": [],
         "request_model": "EntityRuleBatchCreateRequest",
         "response_model": "EntityRuleListResponse"
+      },
+      {
+        "method": "PATCH",
+        "path": "/kg/entities/batch-curation",
+        "operation_id": "batch_set_entity_curation_state_api_kg_entities_batch_curation_patch",
+        "summary": "Batch set entity curation state",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BatchEntityCurationRequest",
+        "response_model": "BatchEntityCurationResponse"
       },
       {
         "method": "POST",

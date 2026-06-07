@@ -15,6 +15,7 @@ from fichero.knowledge_models import (
     ClaimCurationState,
     ClaimType,
     EpistemicStatus,
+    MutationLog,
     SourceType,
     EntityType,
 )
@@ -146,6 +147,49 @@ class TestBatchTransition:
             "to_state": "bogus",
         })
         assert r.status_code == 400
+
+
+class TestBatchClaimCuration:
+    def test_batch_updates_claims_and_logs_mutations(self, client, db):
+        c1 = _make_claim("c-1", "Claim one")
+        c2 = _make_claim("c-2", "Claim two")
+        db.save(c1)
+        db.save(c2)
+
+        r = client.patch("/api/kg/claims/batch-curation", json={
+            "claim_ids": ["c-1", "c-2"],
+            "curation_state": "curated",
+        })
+
+        assert r.status_code == 200
+        assert r.json() == {
+            "updated": 2,
+            "claim_ids": ["c-1", "c-2"],
+        }
+        assert db.get(KnowledgeClaim, "c-1").curation_state == ClaimCurationState.curated
+        assert db.get(KnowledgeClaim, "c-2").curation_state == ClaimCurationState.curated
+
+        logs = [m for m in db.all(MutationLog) if m.entity_type == "KnowledgeClaim"]
+        assert len(logs) == 2
+        assert {m.entity_id for m in logs} == {"c-1", "c-2"}
+        for log in logs:
+            assert log.operation.value == "update"
+            assert log.changed_fields == ["curation_state"]
+            assert log.before_state["curation_state"] == "unreviewed"
+            assert log.after_state["curation_state"] == "curated"
+
+    def test_batch_skips_unchanged_claims(self, client, db):
+        claim = _make_claim("c-1", curation_state=ClaimCurationState.shortlisted)
+        db.save(claim)
+
+        r = client.patch("/api/kg/claims/batch-curation", json={
+            "claim_ids": ["c-1"],
+            "curation_state": "shortlisted",
+        })
+
+        assert r.status_code == 200
+        assert r.json() == {"updated": 0, "claim_ids": []}
+        assert db.all(MutationLog) == []
 
 
 # ---------------------------------------------------------------------------

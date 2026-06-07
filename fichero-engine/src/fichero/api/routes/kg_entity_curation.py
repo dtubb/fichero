@@ -20,13 +20,17 @@ from fichero.db import Database
 from fichero.knowledge_models import (
     EntityMergeAudit,
     EntityMergeOperationType,
+    EntityCurationState,
     EntityType,
     KnowledgeEntity,
     KnowledgeClaim,
+    MutationLog,
+    MutationOperationType,
 )
 from fichero.models import EntityAuditListResponse, KGGraphListResponse
 
 router = APIRouter(prefix="/kg/entity-curation")
+kg_entities_router = APIRouter(prefix="/kg/entities", tags=["knowledge-graph"])
 
 KG_ENTITY_EMBEDDINGS_TABLE = "kg_entity_embeddings"
 LEGACY_KG_ENTITY_EMBEDDINGS_TABLE = "kg_entities"
@@ -61,6 +65,16 @@ class EmbedEntitiesResponse(BaseModel):
     table: str
 
 
+class BatchEntityCurationRequest(BaseModel):
+    entity_ids: list[str] = Field(min_length=1, description="Entity IDs to update.")
+    curation_state: EntityCurationState = Field(description="New curation state for every listed entity.")
+
+
+class BatchEntityCurationResponse(BaseModel):
+    updated: int
+    entity_ids: list[str] = Field(default_factory=list, description="Entity IDs whose state actually changed.")
+
+
 class _EmbedEntityRequest(BaseModel):
     entity_ids: list[str] | None = None
 
@@ -91,6 +105,24 @@ def _audit_response(audit: EntityMergeAudit) -> EntityAuditResponse:
         reversal_id=audit.reversal_id,
         created_by=audit.created_by,
         created_at=audit.created_at,
+    )
+
+
+def _log_entity_curation_mutation(
+    *,
+    db: Database,
+    entity: KnowledgeEntity,
+    before_state: dict[str, Any],
+) -> None:
+    db.save(
+        MutationLog(
+            entity_type="KnowledgeEntity",
+            entity_id=entity.id,
+            operation=MutationOperationType.update,
+            before_state=before_state,
+            after_state=entity.model_dump(mode="json"),
+            changed_fields=["curation_state"],
+        )
     )
 
 
@@ -167,6 +199,37 @@ async def merge_entities(
         db.save(ent)
     db.save(absorber)
     return _audit_response(audit)
+
+
+@kg_entities_router.patch(
+    "/batch-curation",
+    response_model=BatchEntityCurationResponse,
+    summary="Batch set entity curation state",
+)
+async def batch_set_entity_curation_state(
+    request: BatchEntityCurationRequest,
+    db: Database = Depends(get_library_database),
+) -> BatchEntityCurationResponse:
+    entities: list[KnowledgeEntity] = []
+    for entity_id in request.entity_ids:
+        entity = db.get(KnowledgeEntity, entity_id)
+        if entity is None:
+            raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+        entities.append(entity)
+
+    now = datetime.now()
+    updated_ids: list[str] = []
+    for entity in entities:
+        if entity.curation_state == request.curation_state:
+            continue
+        before_state = entity.model_dump(mode="json")
+        entity.curation_state = request.curation_state
+        entity.updated_at = now
+        db.save(entity)
+        _log_entity_curation_mutation(db=db, entity=entity, before_state=before_state)
+        updated_ids.append(entity.id)
+
+    return BatchEntityCurationResponse(updated=len(updated_ids), entity_ids=updated_ids)
 
 
 @router.post("/split", response_model=EntityAuditResponse)
