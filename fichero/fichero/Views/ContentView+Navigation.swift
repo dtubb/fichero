@@ -47,6 +47,14 @@ extension ContentView {
         case .library:
             if let doc = libraryViewDocument, viewDisplayMode == .realitykit {
                 FolderRealityKitSurface(documentId: doc.id, selectedNodeId: .constant(nil))
+            } else if viewDisplayMode == .workspace,
+                      featureManager.isWorkspaceModeEnabled,
+                      let doc = libraryViewDocument {
+                CollectionWorkspaceStub(collectionId: doc.id)
+            } else if viewDisplayMode == .spatial,
+                      featureManager.isSpatialModeEnabled,
+                      let doc = libraryViewDocument {
+                CollectionSpatialStub(collectionId: doc.id)
             } else {
                 LibraryView(
                     documents: selectedDocuments,

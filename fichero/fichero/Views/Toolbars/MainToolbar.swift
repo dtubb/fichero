@@ -91,6 +91,8 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     case table = "Table"
     case map = "Map"
     case realitykit = "RealityKit"
+    case spatial = "Spatial"
+    case workspace = "Workspace"
 
     var id: String { rawValue }
 
@@ -111,6 +113,8 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .table: "tablecells"
         case .map: "map"
         case .realitykit: "cube.transparent"
+        case .spatial: "square.3.layers.3d"
+        case .workspace: "square.stack.3d.up"
         }
     }
 
@@ -121,6 +125,8 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .table: "Column view"
         case .map: "Visual map"
         case .realitykit: "Spatial 3D view"
+        case .spatial: "Spatial collection view"
+        case .workspace: "Workspace collection view"
         }
     }
 }

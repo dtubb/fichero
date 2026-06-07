@@ -190,7 +190,14 @@ extension ContentView {
         switch sidebarMode {
         case .library:
             if let doc = libraryViewDocument, doc.docType == .folder || doc.isWorkspace {
-                return [.icon, .list, .table, .map, .realitykit]
+                var modes: [ViewDisplayMode] = [.icon, .list, .table, .map, .realitykit]
+                if featureManager.isWorkspaceModeEnabled {
+                    modes.append(.workspace)
+                }
+                if featureManager.isSpatialModeEnabled {
+                    modes.append(.spatial)
+                }
+                return modes
             }
             if !featureManager.isLibraryAdvancedViewsEnabled {
                 return [.icon]
@@ -426,7 +433,7 @@ extension ContentView {
         case .icon: .icons
         case .list: .list
         case .table: .table
-        case .map, .realitykit: .map
+        case .map, .realitykit, .spatial, .workspace: .map
         }
         if viewSettings.libraryLayout != newLayout {
             viewSettings.libraryLayout = newLayout
@@ -450,7 +457,7 @@ extension ContentView {
             case .icon: .icons
             case .list: .list
             case .table: .table
-            case .map, .realitykit: .map
+            case .map, .realitykit, .spatial, .workspace: .map
             }
         }
 
@@ -570,7 +577,7 @@ extension ContentView {
         case .icon: .icons
         case .list: .list
         case .table: .table
-        case .map, .realitykit: .map
+        case .map, .realitykit, .spatial, .workspace: .map
         }
 
         let effectivePreviewMode = normalizedPreviewMode(viewSettings.previewMode)

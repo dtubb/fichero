@@ -126,6 +126,14 @@ struct WorkflowEditor: View {
                             scale: $scale,
                             snapToGrid: $snapToGrid
                         )
+                    case .spatial, .workspace:
+                        // Collection-only stubs live at the library routing seam.
+                        // In the workflow editor they fall back to the canvas like .map/.realitykit.
+                        WorkflowCanvasView(
+                            workflow: $editingWorkflow,
+                            scale: $scale,
+                            snapToGrid: $snapToGrid
+                        )
                     }
                 }
                 .frame(minHeight: 200)
