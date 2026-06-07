@@ -5,7 +5,7 @@ struct SearchView: View {
     let savedSearch: SavedSearch?
     @Binding var selection: Set<String>
     @Binding var detailDocument: Document?
-    let displayMode: ViewDisplayMode  // Universal view mode from toolbar
+    @Binding var displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
     @State var queryText: String = ""
     @State var searchResults: [SearchResult] = []
@@ -55,7 +55,6 @@ struct SearchView: View {
     }
 
     @EnvironmentObject var searchService: SearchServiceGenerated
-    @EnvironmentObject var apiClient: APIClient
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var windowState: WindowState
 
@@ -182,6 +181,9 @@ extension SearchView {
             displayMode: displayMode,
             selection: $selection,
             onLoadDocument: loadDocument,
+            onOpenExcerpt: { result in
+                openExcerpt(result)
+            },
             currentQuery: queryText,
             isSearching: isSearching,
             indexedCount: indexedCount,
@@ -221,7 +223,7 @@ extension SearchView {
         savedSearch: nil,
         selection: .constant([]),
         detailDocument: .constant(nil),
-        displayMode: .icon
+        displayMode: .constant(.icon)
     )
     .frame(width: 800, height: 600)
 }

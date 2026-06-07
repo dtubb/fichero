@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -14,6 +15,7 @@ struct KeywordCloudEntryDTO: Decodable, Identifiable {
 }
 
 @MainActor
+// swiftlint:disable:next type_body_length
 class SearchServiceGenerated: ObservableObject {
     private let client: FicheroClient
 
@@ -413,7 +415,8 @@ class SearchServiceGenerated: ObservableObject {
             score: generated.score,
             contentPreview: generated.contentPreview,
             metadata: metadata,
-            highlights: generated.highlights
+            highlights: generated.highlights,
+            transcriptExcerpts: generated.transcriptExcerpts ?? []
         )
     }
 
@@ -476,11 +479,6 @@ struct EmbedStatus: Codable {
     enum CodingKeys: String, CodingKey {
         case documentId = "document_id"
         case embedded
-    }
-
-    init(documentId: String, embedded: Bool) {
-        self.documentId = documentId
-        self.embedded = embedded
     }
 }
 

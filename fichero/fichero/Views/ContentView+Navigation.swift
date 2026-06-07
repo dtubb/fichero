@@ -88,7 +88,7 @@ extension ContentView {
                 savedSearch: savedSearch,
                 selection: $browserSelection,
                 detailDocument: $detailDocument,
-                displayMode: viewDisplayMode
+                displayMode: $viewDisplayMode
             )
 
         case .chat(let conversation):

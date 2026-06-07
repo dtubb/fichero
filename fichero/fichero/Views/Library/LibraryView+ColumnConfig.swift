@@ -87,11 +87,20 @@ extension LibraryView {
         case "progress":
             ProgressCell(document: doc)
         case "output":
-            Text(doc.pageContent ?? "-")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .help(doc.pageContent ?? "")
+            VStack(alignment: .leading, spacing: 6) {
+                Text(doc.pageContent ?? "-")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                    .help(doc.pageContent ?? "")
+
+                ArtifactEntitiesView(
+                    documentId: doc.id,
+                    style: .multiLine,
+                    visibleTypes: listVisibleEntityTypes
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         case "fileType":
             if doc.docType == .folder {
                 Text("Folder").font(.caption).foregroundColor(.secondary)
