@@ -6,37 +6,6 @@ struct MapCard: View {
     let document: Document
     let isSelected: Bool
     let position: CGPoint
-
-    @EnvironmentObject private var documentStore: DocumentStore
-
-    /// See `MailStyleRow.resolvedParentPDFPath` — same fallback chain so
-    /// page children render the correct PDF page on map cards even when
-    /// the metadata path has gone stale or the parent PDF is only
-    /// reachable via `selectedCollection`. (#927)
-    private func resolvedParentPDFPath(for doc: Document) -> String? {
-        let metadataPath = doc.metadata["pdf_path"]?.value as? String
-        if let metadataPath, !metadataPath.isEmpty,
-           !metadataPath.contains("/fichero-drop-"),
-           FileManager.default.fileExists(atPath: metadataPath) {
-            return metadataPath
-        }
-        let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
-        if let parentId {
-            if let selected = documentStore.selectedCollection,
-               selected.id == parentId,
-               let selectedPath = selected.path,
-               !selectedPath.isEmpty {
-                return selectedPath
-            }
-            if let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
-               let parentPath = parent.path,
-               !parentPath.isEmpty {
-                return parentPath
-            }
-        }
-        return metadataPath
-    }
-
     var body: some View {
         VStack(spacing: 6) {
             // Thumbnail area
@@ -44,26 +13,9 @@ struct MapCard: View {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color(.windowBackgroundColor))
 
-                // PDFs + PDF page children render locally via PDFKit;
-                // everything else loads thumbnail from backend API.
-                if document.fileType == .pdf, let path = document.path, !path.isEmpty {
-                    PDFThumbnailView(path: path, size: CGSize(width: 200, height: 280))
-                        .clipped()
-                } else if document.docType == .page,
-                          let pdfPath = resolvedParentPDFPath(for: document),
-                          !pdfPath.isEmpty {
-                    let pageIndex = max(0, (document.sequence ?? 1) - 1)
-                    PDFThumbnailView(
-                        path: pdfPath,
-                        size: CGSize(width: 200, height: 280),
-                        pageIndex: pageIndex
-                    )
+                LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                    .aspectRatio(contentMode: .fill)
                     .clipped()
-                } else {
-                    LibraryImageView(documentId: document.id, imageType: .thumbnail)
-                        .aspectRatio(contentMode: .fill)
-                        .clipped()
-                }
 
                 // Status indicator overlay
                 VStack {
