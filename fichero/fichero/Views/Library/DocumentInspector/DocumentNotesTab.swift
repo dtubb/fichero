@@ -98,7 +98,7 @@ struct DocumentNotesTab: View {
     @ViewBuilder
     private func noteCard(_ note: NoteItem) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            if editingId == note.id {
+            if editingId == note.id ?? "" {
                 editingCard(note)
             } else {
                 readCard(note)
@@ -113,7 +113,7 @@ struct DocumentNotesTab: View {
 
     private func readCard(_ note: NoteItem) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(note.body)
+            Text(note.body ?? "")
                 .font(.callout)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -124,13 +124,14 @@ struct DocumentNotesTab: View {
                     .foregroundStyle(.tertiary)
                 Spacer()
                 Button("Edit") {
-                    editingId = note.id
-                    editingText = note.body
+                    editingId = note.id ?? ""
+                    editingText = note.body ?? ""
                 }
                 .buttonStyle(.borderless)
                 .font(.caption)
                 Button(role: .destructive) {
-                    Task { try? await service.delete(noteId: note.id) }
+                    guard let noteId = note.id else { return }
+                    Task { try? await service.delete(noteId: noteId) }
                 } label: {
                     Image(systemName: "trash")
                         .font(.caption)
@@ -188,19 +189,17 @@ struct DocumentNotesTab: View {
 
     private func saveEdit(_ note: NoteItem) async {
         let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty, let noteId = note.id else { return }
         do {
-            _ = try await service.update(noteId: note.id, body: trimmed)
+            _ = try await service.update(noteId: noteId, body: trimmed)
             editingId = nil
         } catch {
             logger.error("update note failed: \(error.localizedDescription)")
         }
     }
 
-    private func relativeDate(_ iso: String) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = formatter.date(from: iso) else { return iso }
+    private func relativeDate(_ date: Date?) -> String {
+        guard let date else { return "" }
         let rel = RelativeDateTimeFormatter()
         rel.unitsStyle = .abbreviated
         return rel.localizedString(for: date, relativeTo: Date())

@@ -5,23 +5,9 @@ import OSLog
 
 // MARK: - Note model
 
-struct NoteItem: Codable, Identifiable {
-    let id: String
-    let title: String?
-    let body: String
-    let kind: String
-    let tags: [String]
-    let linkedDocumentIds: [String]
-    let createdAt: String
-    let updatedAt: String
+typealias NoteItem = Components.Schemas.Note
 
-    enum CodingKeys: String, CodingKey {
-        case id, title, body, kind, tags
-        case linkedDocumentIds = "linked_document_ids"
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-    }
-}
+extension Components.Schemas.Note: Identifiable {}
 
 struct NoteListResponse: Codable {
     let items: [NoteItem]
@@ -108,7 +94,7 @@ final class NoteService: ObservableObject {
     private func note(from value: OpenAPIValueContainer) throws -> NoteItem {
         guard let object = value.value else { throw NoteServiceError.emptyContainer }
         let data = try JSONSerialization.data(withJSONObject: object)
-        return try decoder.decode(NoteItem.self, from: data)
+        return try note(from: decoder.decode(NoteItem.self, from: data))
     }
 
     private func note(from generated: Components.Schemas.Note) throws -> NoteItem {
@@ -117,11 +103,20 @@ final class NoteService: ObservableObject {
             id: id,
             title: generated.title,
             body: generated.body ?? "",
-            kind: generated.kind?.rawValue ?? "zettel",
+            kind: generated.kind ?? .zettel,
             tags: generated.tags ?? [],
+            linkedNoteIds: generated.linkedNoteIds ?? [],
+            linkedEntityIds: generated.linkedEntityIds ?? [],
+            linkedClaimIds: generated.linkedClaimIds ?? [],
             linkedDocumentIds: generated.linkedDocumentIds ?? [],
-            createdAt: generated.createdAt?.ISO8601Format() ?? "",
-            updatedAt: generated.updatedAt?.ISO8601Format() ?? ""
+            linkedStructureNodeId: generated.linkedStructureNodeId,
+            address: generated.address,
+            parentAddress: generated.parentAddress,
+            authorType: generated.authorType,
+            createdBy: generated.createdBy,
+            createdAt: generated.createdAt,
+            updatedAt: generated.updatedAt,
+            additionalProperties: generated.additionalProperties
         )
     }
 

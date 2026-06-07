@@ -90,7 +90,7 @@ struct EntityNotesSection: View {
     @ViewBuilder
     private func noteCard(_ note: NoteItem) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            if editingId == note.id {
+            if editingId == note.id ?? "" {
                 editingCard(note)
             } else {
                 readCard(note)
@@ -105,23 +105,24 @@ struct EntityNotesSection: View {
 
     private func readCard(_ note: NoteItem) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(note.body)
+            Text(note.body ?? "")
                 .font(.callout)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
             HStack {
-                Text(note.kind.capitalized)
+                Text((note.kind?.rawValue ?? "reference").capitalized)
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                 Spacer()
                 Button("Edit") {
-                    editingId = note.id
-                    editingText = note.body
+                    editingId = note.id ?? ""
+                    editingText = note.body ?? ""
                 }
                 .buttonStyle(.borderless)
                 .font(.caption)
                 Button(role: .destructive) {
-                    Task { try? await service.delete(noteId: note.id) }
+                    guard let noteId = note.id else { return }
+                    Task { try? await service.delete(noteId: noteId) }
                 } label: {
                     Image(systemName: "trash").font(.caption)
                 }
@@ -174,9 +175,9 @@ struct EntityNotesSection: View {
 
     private func saveEdit(_ note: NoteItem) async {
         let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty, let noteId = note.id else { return }
         do {
-            _ = try await service.update(noteId: note.id, body: trimmed)
+            _ = try await service.update(noteId: noteId, body: trimmed)
             editingId = nil
         } catch {
             logger.error("update entity note failed: \(error.localizedDescription)")
