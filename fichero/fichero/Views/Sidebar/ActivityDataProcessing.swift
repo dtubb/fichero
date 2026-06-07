@@ -125,9 +125,9 @@ func activityHasError(_ item: ActivityItem) -> Bool {
 }
 
 func activityExtractFileCount(from item: ActivityItem) -> Int {
-    if let count = item.metadata?["input_count"].flatMap(Int.init) { return count }
-    if let count = item.metadata?["total_results"].flatMap(Int.init) { return count }
-    if let count = item.metadata?["nodes_completed"].flatMap(Int.init) { return count }
+    if let count = item.metadataStrings?["input_count"].flatMap(Int.init) { return count }
+    if let count = item.metadataStrings?["total_results"].flatMap(Int.init) { return count }
+    if let count = item.metadataStrings?["nodes_completed"].flatMap(Int.init) { return count }
     return 0
 }
 
@@ -135,7 +135,7 @@ func activityExtractWorkflowName(from item: ActivityItem) -> String {
     if item.type.hasPrefix("batch_"), let batchId = item.batchId {
         return "Batch \(String(batchId.prefix(8)))"
     }
-    if let name = item.metadata?["workflow_name"] { return activityCleanWorkflowName(name) }
+    if let name = item.metadataStrings?["workflow_name"] { return activityCleanWorkflowName(name) }
     if item.message.hasPrefix("Workflow '") {
         let afterPrefix = String(item.message.dropFirst(10))
         if let endQuote = afterPrefix.firstIndex(of: "'") {

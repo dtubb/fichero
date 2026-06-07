@@ -36,11 +36,16 @@ struct AnyValueAsString: Codable, Hashable {
 
 typealias ActivityItem = Components.Schemas.ActivityResponse
 
+// The hand-rolled ActivityItem was Identifiable (id: String); the generated
+// schema has the same `id`, so opt it into Identifiable for ForEach (#1702).
+extension Components.Schemas.ActivityResponse: Identifiable {}
+
 extension Components.Schemas.ActivityResponse {
     var type: String { _type }
 
-    /// Metadata with all values as strings.
-    var metadata: [String: String]? {
+    /// Metadata with all values as strings. Named distinctly from the generated
+    /// `metadata` (a `MetadataPayload?`) to avoid shadowing it (#1702).
+    var metadataStrings: [String: String]? {
         guard let metadata else { return nil }
         let converted = metadata.additionalProperties.value.mapValues { value -> String in
             if let string = value as? String {
