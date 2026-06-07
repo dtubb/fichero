@@ -21,7 +21,7 @@ class StorageServiceGenerated: ObservableObject {
 
     private let client: FicheroClient
     private let session = URLSession.shared
-    private let baseURL: URL
+    private let configuredBaseURL: URL?
 
     /// In-memory cache keyed by `docId`. Prevents the "Loading thumbnail
     /// for document: X" storms Daniel was seeing — `.task` re-fires on
@@ -33,6 +33,7 @@ class StorageServiceGenerated: ObservableObject {
     private var thumbnailCache: [String: Image] = [:]
     private var displayCache: [String: Image] = [:]
     private var displayNSImageCache: [String: NSImage] = [:]
+    private var sourceDataCache: [String: Data] = [:]
 
     /// Upper bound on the thumbnail cache so opening a folder with thousands
     /// of images can't grow it without limit (#719). When exceeded, the
@@ -49,15 +50,19 @@ class StorageServiceGenerated: ObservableObject {
     /// Cached thumbnail for `docId`, if present. Exposed for tests (#719).
     func cachedThumbnail(for docId: String) -> Image? { thumbnailCache[docId] }
 
-    init(ficheroClient: FicheroClient, baseURL: URL = EngineConfig.apiBaseURL) {
+    private var baseURL: URL {
+        configuredBaseURL ?? EngineConfig.apiBaseURL
+    }
+
+    init(ficheroClient: FicheroClient, baseURL: URL? = nil) {
         self.client = ficheroClient
-        self.baseURL = baseURL
+        self.configuredBaseURL = baseURL
     }
 
     convenience init(apiClient: APIClient) {
         let libraryPath = apiClient.currentLibraryPath ?? ""
         let ficheroClient = FicheroClient(libraryPath: libraryPath)
-        self.init(ficheroClient: ficheroClient, baseURL: apiClient.baseURL)
+        self.init(ficheroClient: ficheroClient)
     }
 
     // MARK: - Image Loading
@@ -116,6 +121,18 @@ class StorageServiceGenerated: ObservableObject {
         return image
     }
 
+    /// Get original source-file bytes for a document. Memoised per-service
+    /// instance so PDFKit surfaces can share one download.
+    func getSourceData(_ docId: String) async throws -> Data {
+        if let cached = sourceDataCache[docId] {
+            return cached
+        }
+        logger.info("Loading source data for document: \(docId)")
+        let data = try await fetchBinaryData(from: sourceURL(for: docId))
+        sourceDataCache[docId] = data
+        return data
+    }
+
     /// Warm the thumbnail cache for a batch of documents (#719).
     /// Fires concurrent fetches (max 6 at a time) only for uncached ids.
     /// Errors are swallowed — this is best-effort prefetch, not critical load.
@@ -144,6 +161,7 @@ class StorageServiceGenerated: ObservableObject {
         thumbnailCache.removeValue(forKey: docId)
         displayCache.removeValue(forKey: docId)
         displayNSImageCache.removeValue(forKey: docId)
+        sourceDataCache.removeValue(forKey: docId)
         thumbnailCacheOrder.removeAll { $0 == docId }
     }
 
@@ -154,6 +172,10 @@ class StorageServiceGenerated: ObservableObject {
     /// of a generic "invalid response" so #1018-style failures can be
     /// diagnosed from logs without re-instrumenting the backend.
     private func fetchImageData(from url: URL) async throws -> Data {
+        try await fetchBinaryData(from: url)
+    }
+
+    private func fetchBinaryData(from url: URL) async throws -> Data {
         var request = URLRequest(url: url)
         request.addEngineAuth(libraryPath: client.currentLibraryPath)
         let (data, response) = try await session.data(for: request)

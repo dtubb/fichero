@@ -9,7 +9,7 @@ import SwiftUI
 /// native ⌘+ / ⌘- still work, and the inspector toolbar remains the
 /// canonical zoom surface.
 struct PDFPageWithToolbar: View {
-    let path: String
+    let documentId: String
     let pageIndex: Int
     var onPageIndexChange: ((Int) -> Void)?
 
@@ -160,7 +160,7 @@ struct PDFPageWithToolbar: View {
 
             ZStack {
                 PDFPageView(
-                    path: path,
+                    documentId: documentId,
                     pageIndex: pageIndex,
                     onPageIndexChange: onPageIndexChange,
                     zoomController: zoom,
@@ -170,7 +170,7 @@ struct PDFPageWithToolbar: View {
 
                 if loupeEnabled {
                     PDFLoupeOverlay(
-                        pdfPath: path,
+                        documentId: documentId,
                         pageIndex: pageIndex,
                         cursorPosition: effectiveLoupePosition,
                         magnification: loupeMagnification,

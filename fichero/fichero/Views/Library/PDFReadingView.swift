@@ -8,7 +8,7 @@ struct PDFReadingView: View {
     private static let maxContentWidth: Double = 600
 
     let document: Document?
-    let pdfPath: String
+    let pdfDocumentId: String
     let pageIndex: Int
     @Binding var contentWidth: Double
     var onPageIndexChange: ((Int) -> Void)?
@@ -16,7 +16,7 @@ struct PDFReadingView: View {
     var body: some View {
         HStack(spacing: 0) {
             PDFPageWithToolbar(
-                path: pdfPath,
+                documentId: pdfDocumentId,
                 pageIndex: pageIndex,
                 onPageIndexChange: onPageIndexChange
             )
@@ -43,7 +43,7 @@ struct PDFReadingView: View {
 
 /// Vertical thumbnail strip showing all pages of a multi-page PDF document.
 struct DocumentPageListView: View {
-    let pdfPath: String
+    let pdfDocumentId: String
     let pages: [Document]
     let selectedPageIndex: Int
     let onPageSelect: (Int) -> Void
@@ -54,7 +54,7 @@ struct DocumentPageListView: View {
                 VStack(spacing: 6) {
                     ForEach(Array(pages.enumerated()), id: \.element.id) { idx, page in
                         PageThumbnailStripCell(
-                            pdfPath: pdfPath,
+                            pdfDocumentId: pdfDocumentId,
                             pageIndex: idx,
                             pageNumber: page.sequence ?? (idx + 1),
                             isSelected: selectedPageIndex == idx
@@ -81,7 +81,7 @@ struct DocumentPageListView: View {
 }
 
 private struct PageThumbnailStripCell: View {
-    let pdfPath: String
+    let pdfDocumentId: String
     let pageIndex: Int
     let pageNumber: Int
     let isSelected: Bool
@@ -91,7 +91,7 @@ private struct PageThumbnailStripCell: View {
         Button(action: onSelect) {
             VStack(spacing: 3) {
                 PDFThumbnailView(
-                    path: pdfPath,
+                    documentId: pdfDocumentId,
                     size: CGSize(width: 88, height: 114),
                     pageIndex: pageIndex
                 )

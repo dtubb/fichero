@@ -18,11 +18,6 @@ struct MailStyleRow: View {
     private static let thumbWidth: CGFloat = 28
     private static let thumbHeight: CGFloat = 36
 
-    fileprivate static func canDecodeLocalImagePath(_ path: String) -> Bool {
-        (path as NSString).isAbsolutePath
-            && FileManager.default.fileExists(atPath: path)
-    }
-
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             // Thumbnail to the left — same source as the icon view's
@@ -142,21 +137,11 @@ struct MailStyleRow: View {
                 Image(systemName: "folder.fill")
                     .font(.system(size: 20))
                     .foregroundColor(.accentColor)
-            } else if document.fileType == .image,
-                      let path = document.path, !path.isEmpty {
-                // Decode off the main thread (cached) — avoids scroll jank from
-                // synchronous NSImage(contentsOfFile:) in body (#1509). Still
-                // skips the OCR-text TextPreviewThumbnail branch for images (#1458).
-                if Self.canDecodeLocalImagePath(path) {
-                    LocalImageThumbnailView(path: path, documentId: document.id)
-                        .frame(width: size.width, height: size.height)
-                        .clipped()
-                } else {
-                    LibraryImageView(documentId: document.id, imageType: .thumbnail)
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: size.width, height: size.height)
-                        .clipped()
-                }
+            } else if document.fileType == .image {
+                LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
             } else if let preview = document.pageContent, !preview.isEmpty {
                 TextPreviewThumbnail(text: preview)
                     .frame(width: size.width, height: size.height)
@@ -236,21 +221,11 @@ struct DocumentThumbnailView: View {
                     Image(systemName: "folder.fill")
                         .font(.system(size: 48 * scale))
                         .foregroundColor(.accentColor)
-                } else if document.fileType == .image,
-                          let path = document.path, !path.isEmpty {
-                    // Decode off the main thread (cached) — avoids scroll jank
-                    // from synchronous NSImage(contentsOfFile:) in body (#1509).
-                    // Still skips the OCR-text TextPreviewThumbnail branch (#1458).
-                    if MailStyleRow.canDecodeLocalImagePath(path) {
-                        LocalImageThumbnailView(path: path, documentId: document.id)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .clipped()
-                    } else {
-                        LibraryImageView(documentId: document.id, imageType: .thumbnail)
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .clipped()
-                    }
+                } else if document.fileType == .image {
+                    LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
                 } else if let preview = document.pageContent, !preview.isEmpty {
                     TextPreviewThumbnail(text: preview)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)

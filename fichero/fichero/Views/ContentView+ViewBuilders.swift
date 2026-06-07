@@ -358,9 +358,9 @@ extension ContentView {
     /// Extracted so the canvas can be conditionally shown/hidden (#1448).
     @ViewBuilder
     var widescreenCanvasPane: some View {
-        if let pdfPath = detailPDFPath {
+        if let pdfDocumentId = detailPDFDocumentId {
             PDFPageWithToolbar(
-                path: pdfPath,
+                documentId: pdfDocumentId,
                 pageIndex: selectedPageIndex,
                 onPageIndexChange: { index in
                     guard documentScrollSync.beginDriving(.pdf) else { return }
@@ -398,7 +398,7 @@ extension ContentView {
     var widescreenReadingPane: some View {
         knowledgeSurface(
             for: detailDocument,
-            activePageNumber: detailPDFPath == nil ? nil : selectedPageIndex + 1,
+            activePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
             pageCount: pdfDocPages.isEmpty ? nil : pdfDocPages.count,
             scrollSync: documentScrollSync,
             onPageSelected: { index in

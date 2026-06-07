@@ -25,54 +25,22 @@ extension ContentView {
         }
     }
 
-    /// Resolved PDF file path for the currently previewed document, or nil.
-    var detailPDFPath: String? {
+    /// Resolved parent-PDF document id for the currently previewed document, or nil.
+    var detailPDFDocumentId: String? {
         guard let doc = detailDocument else { return nil }
         guard CanvasDocumentPolicy.shouldUsePDFCanvas(for: doc) else { return nil }
-        if doc.fileType == .pdf, let path = doc.path, !path.isEmpty { return path }
+        if doc.fileType == .pdf { return doc.id }
         if doc.docType == .page {
-            return resolvedParentPDFPath(for: doc)
+            return resolvedParentPDFDocumentId(for: doc)
         }
         return nil
     }
 
-    /// Resolve the parent PDF's on-disk path for a page child (page docs have
-    /// `path == nil` — the file lives on the parent PDF). Mirrors
-    /// `EditorView.resolvedParentPDFPath` (#890): prefer a `pdf_path` that
-    /// actually EXISTS on disk and isn't a stale import temp dir, else the
-    /// selected collection, else the parent in `currentDocuments`.
-    ///
-    /// Crucially this returns nil when nothing resolves to a real file rather
-    /// than handing a stale/nonexistent path to `PDFView`, which renders a blank
-    /// page-with-toolbar (the #1247 symptom). On nil the widescreen layout falls
-    /// through to `EditorView`, whose resolver covers the same cases.
-    func resolvedParentPDFPath(for doc: Document) -> String? {
-        let metadataPath = doc.metadata["pdf_path"]?.value as? String
-        if let metadataPath, !metadataPath.isEmpty,
-           !metadataPath.contains("/fichero-drop-"),
-           FileManager.default.fileExists(atPath: metadataPath) {
-            return metadataPath
-        }
+    /// Resolve the parent PDF document id for a page child. Page documents
+    /// carry their own id, but the bytes live on the parent PDF document.
+    func resolvedParentPDFDocumentId(for doc: Document) -> String? {
         let parentId = doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
-        if let parentId {
-            if let selected = documentStore.selectedCollection,
-               selected.id == parentId,
-               let selectedPath = selected.path, !selectedPath.isEmpty {
-                return selectedPath
-            }
-            if let parent = documentStore.currentDocuments.first(where: { $0.id == parentId }),
-               let parentPath = parent.path, !parentPath.isEmpty {
-                return parentPath
-            }
-        }
-        // Last resort: a metadata path that exists even if it wasn't preferred
-        // above (e.g. didn't match the parent lookups). Never return a path that
-        // isn't on disk — that's what blanks the viewer.
-        if let metadataPath, !metadataPath.isEmpty,
-           FileManager.default.fileExists(atPath: metadataPath) {
-            return metadataPath
-        }
-        return nil
+        return parentId
     }
 
     /// Current PDF page index. Prefers pageFocusDocument (set by scroll/flip)
@@ -96,7 +64,7 @@ extension ContentView {
     /// Five-pane reading layout: page-thumbnail strip | PDF | content text.
     /// Sidebar (NavigationSplitView) and inspector (window-level HStack) are the other two panes.
     @ViewBuilder
-    func fivePaneReadingView(pdfPath: String, pages: [Document]) -> some View {
+    func fivePaneReadingView(pdfDocumentId: String, pages: [Document]) -> some View {
         let selectedIdx: Int = {
             let focusDoc = pageFocusDocument ?? detailDocument
             if let doc = focusDoc, doc.docType == .page {
@@ -106,7 +74,7 @@ extension ContentView {
         }()
         HStack(spacing: 0) {
             DocumentPageListView(
-                pdfPath: pdfPath,
+                pdfDocumentId: pdfDocumentId,
                 pages: pages,
                 selectedPageIndex: selectedIdx,
                 onPageSelect: { idx in syncGridSelectionToPDFPage(index: idx) }
@@ -116,7 +84,7 @@ extension ContentView {
             ResizableDivider(width: $pageListWidth, minWidth: 80, maxWidth: 200)
 
             PDFPageWithToolbar(
-                path: pdfPath,
+                documentId: pdfDocumentId,
                 pageIndex: selectedIdx,
                 onPageIndexChange: { idx in
                     guard documentScrollSync.beginDriving(.pdf) else { return }
