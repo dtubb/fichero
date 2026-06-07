@@ -19,6 +19,7 @@ from PIL import Image
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.models import Document, FileType
+from fichero.storage import get_display, get_thumbnail, resolve_source
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/iiif", tags=["iiif"])
@@ -93,26 +94,18 @@ class IIIFManifest(BaseModel):
 # =============================================================================
 
 
-def _get_image_path(doc: Document) -> Path | None:
+def _get_image_path(
+    doc: Document, library_root: Path | None = None
+) -> Path | None:
     """Get the image file path for a document."""
     if doc.file_type not in (FileType.image, FileType.pdf) and not doc.path:
         return None
 
-    # Try display image first, then thumbnail, then original
-    paths_to_try = []
-
-    if hasattr(doc, "display_image_path") and doc.display_image_path:
-        paths_to_try.append(Path(doc.display_image_path))
-    if hasattr(doc, "thumbnail_path") and doc.thumbnail_path:
-        paths_to_try.append(Path(doc.thumbnail_path))
-    if doc.path:
-        paths_to_try.append(Path(doc.path))
-
-    for path in paths_to_try:
-        if path.exists():
-            return path
-
-    return None
+    return (
+        get_display(doc, package_path=library_root)
+        or get_thumbnail(doc, package_path=library_root)
+        or resolve_source(doc, library_root=library_root)
+    )
 
 
 def _get_image_dimensions(image_path: Path) -> tuple[int, int]:
@@ -232,7 +225,7 @@ async def get_image_info(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {identifier}")
 
-    image_path = _get_image_path(doc)
+    image_path = _get_image_path(doc, db.path.parent)
     if not image_path:
         raise HTTPException(
             status_code=404, detail=f"No image available for document: {identifier}"
@@ -287,7 +280,7 @@ async def serve_iiif_image(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {identifier}")
 
-    image_path = _get_image_path(doc)
+    image_path = _get_image_path(doc, db.path.parent)
     if not image_path:
         raise HTTPException(
             status_code=404, detail=f"No image available for document: {identifier}"
@@ -315,7 +308,7 @@ async def get_iiif_manifest(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
 
-    image_path = _get_image_path(doc)
+    image_path = _get_image_path(doc, db.path.parent)
     if not image_path:
         raise HTTPException(
             status_code=404, detail=f"No image available for document: {document_id}"
@@ -388,7 +381,7 @@ async def get_document_image(
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
 
-    image_path = _get_image_path(doc)
+    image_path = _get_image_path(doc, db.path.parent)
     if not image_path:
         raise HTTPException(
             status_code=404, detail=f"No image available for document: {document_id}"

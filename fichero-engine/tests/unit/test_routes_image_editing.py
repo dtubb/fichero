@@ -241,6 +241,25 @@ class TestImageEditChainRoutes:
 
 
 class TestImagePreviewRoute:
+    def test_preview_resolves_library_relative_source_path(
+        self, client, db, test_package
+    ):
+        image_path = test_package / "files" / "im" / "preview.jpg"
+        image_path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (77, 55), "white").save(image_path, format="JPEG")
+
+        doc = Document(
+            name="preview.jpg",
+            path=str(image_path.relative_to(test_package)),
+            file_type=FileType.image,
+        )
+        db.save(doc)
+
+        r = client.get(f"/api/images/{doc.id}/preview?apply_edits=false")
+        assert r.status_code == 200
+        rendered = Image.open(io.BytesIO(r.content))
+        assert rendered.size == (77, 55)
+
     def test_preview_returns_original_without_edits(self, client, db, tmp_path):
         doc = _make_image_doc(db, tmp_path, size=(90, 60))
         r = client.get(f"/api/images/{doc.id}/preview?apply_edits=false")

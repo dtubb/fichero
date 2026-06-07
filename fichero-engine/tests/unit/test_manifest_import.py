@@ -257,7 +257,7 @@ class _RecordingClient:
             # rewrite the active image path to local.
             return {
                 "id": f"doc-{self._counter}",
-                "path": f"/lib/files/copied_{self._counter}.jpg",
+                "path": f"files/co/copied_{self._counter}.jpg",
             }
         if method == "POST" and path == "/documents":
             self._counter += 1
@@ -307,7 +307,7 @@ def test_copy_images_triggers_ingest_copy_and_keeps_page_content(tmp_path):
     # Copy mode rewrites the active image path to the LOCAL in-library file so
     # the app never reaches over the network; the original is preserved.
     img = put_body["metadata"]["images"][0]
-    assert img["source_path"].startswith("/lib/files/copied_")
+    assert img["source_path"].startswith("files/")
     assert img["original_source_path"] == str(tmp_path / "page_001_enhanced.jpg")
 
     # The group container (no image) still goes through the reference create

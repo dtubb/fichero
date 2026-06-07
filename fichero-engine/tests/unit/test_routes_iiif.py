@@ -5,9 +5,9 @@ prefix="/iiif" and is mounted at "/api/iiif", creating the double-prefix
 pattern: actual paths are at /api/iiif/iiif/...
 """
 
-import pytest
+from PIL import Image
 
-from fichero.models import Document, DocType
+from fichero.models import Document, DocType, FileType
 
 
 BASE = "/api/iiif/iiif"
@@ -30,3 +30,24 @@ class TestIIIFImageInfo:
 
         r = client.get(f"{BASE}/doc-no-img/info.json")
         assert r.status_code == 404
+
+    def test_relative_image_path_resolves_against_current_library(
+        self, client, db, test_package
+    ):
+        image_path = test_package / "files" / "ii" / "scan.jpg"
+        image_path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (40, 20), "white").save(image_path, format="JPEG")
+
+        doc = Document(
+            id="doc-rel-img",
+            name="scan.jpg",
+            doc_type=DocType.file,
+            file_type=FileType.image,
+            path=str(image_path.relative_to(test_package)),
+        )
+        db.save(doc)
+
+        r = client.get(f"{BASE}/{doc.id}/info.json")
+        assert r.status_code == 200
+        assert r.json()["width"] == 40
+        assert r.json()["height"] == 20
