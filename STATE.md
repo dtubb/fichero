@@ -129,3 +129,37 @@ All Swift merges build-gated green via Xcode MCP (`BuildProject`, tab windowtab1
   ContentView image-render chrome.
 - f_backend = Daniel's live :8765 server — never touch. f_codex (old) idle.
 - LOOP: waking ~every 30 min to gate finished workers + keep the queue moving.
+
+## OVERNIGHT PLAN — 2026-06-06 ~10pm ADT (Daniel asleep, Claude autonomous)
+**Directive (Daniel):** focus on CODE CLEANUP / quality — finish splits, organize Views, kill
+duplicate code paths, fix bugs. DO NOT chase new features. Goal: fewer code paths, fewer bugs,
+easier to use. Use codex tmux workers + agents; wake every 30 min; gate+merge with ONE Xcode
+build at a time; never restart f_backend (:8765).
+
+**0.0.2 HEAD:** 2a7f42ad (WelcomeView + SidebarItemRow splits shipped + gate fixes).
+
+**IN FLIGHT (launched ~10pm):**
+- tmux `f_codex_pdfbe` (gpt-5.4, ~/code/fichero-pdf-backend, fix/pdf-storage-1707): backend
+  #1707+#1731 — make /api/storage/thumbnail|display serve PDF page images (kills a divergent
+  render path). ruff+pytest gate; backend code-only.
+- tmux `f_codex_infotab` (gpt-5.3-codex-spark, ~/code/fichero-infotab, refactor/infotab-split):
+  #1703 re-split DocumentInspectorInfoTab (EXTRACT not duplicate; last attempt duplicated symbols).
+
+**CLEANUP QUEUE (dispatch as lanes free, steady, ≤2 lanes, pbxproj-writers NOT concurrent):**
+1. #1737 stuck grey sidebar row (gpt-5.4) — bug.
+2. #1736 Open-in-New-Tab opens window (gpt-5.4) — bug.
+3. #1704 Views/ folder reorg into feature subfolders — BIG, mass file moves + pbxproj; do SOLO,
+   careful, hard build-gate. Riskiest; do when no other Swift lane runs.
+4. #1730 RealityKit move-doesn't-persist (gpt-5.4) — bug.
+5. #1702 hand-rolled structs → generated; responsive cluster #1732/#1733/#1734/#1735 (touch
+   ContentView/Library — hold while a frontend lane runs).
+
+**PARKED (feature work — Daniel: don't get sidetracked):** #1740 unified collection+view-mode
+(plan APPROVED + banked in #1740 comment, NOT building tonight), #1738/#1739 (its children),
+#1741 class/prototype system, #1729 Researcher AI-plan, #1728 surface-built-views, #1726 RealityKit.
+Backend PDF (#1707) is cleanup (dup-path kill), not feature.
+
+**Gate recipe:** merge branch → swiftlint touched dir → SOLO Xcode MCP BuildProject(windowtab1)
+→ fix any access-level/@ViewBuilder regressions in place → push → comment/close issue → remove
+worktree + kill tmux. pbxproj conflict → `git checkout --ours` + re-run add-swift-file.rb.
+ALWAYS verify a split actually shrank the original before trusting it.
