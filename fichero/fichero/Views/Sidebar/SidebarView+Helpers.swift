@@ -3,6 +3,16 @@ import SwiftUI
 // MARK: - Helpers
 
 extension SidebarView {
+    func sidebarLibrarySelectionId(_ libraryId: UUID) -> String {
+        "library:\(libraryId.uuidString)"
+    }
+
+    func selectedLibraryId(from selectionId: String) -> UUID? {
+        guard selectionId.hasPrefix("library:") else { return nil }
+        let rawId = String(selectionId.dropFirst("library:".count))
+        return UUID(uuidString: rawId)
+    }
+
     /// All cached items combined (for recursive searches)
     var allCachedItems: [SidebarItem] {
         cachedLibraryHeaders
