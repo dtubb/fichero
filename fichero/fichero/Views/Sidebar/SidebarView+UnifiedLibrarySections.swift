@@ -45,8 +45,8 @@ extension SidebarView {
                     )
                 } label: {
                     libraryDisclosureLabel(library: library, totalCount: totalCount)
-                        .selectionDisabled()
                 }
+                .tag(sidebarLibrarySelectionId(library.id))
                 .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
             }
         }

@@ -18,6 +18,7 @@ extension SidebarView {
                 handleLibraryHeaderItemDrop(droppedIds: droppedIds, library: library)
             },
             onTap: {
+                selectedItemId = sidebarLibrarySelectionId(library.id)
                 if windowState.libraryId != library.id { windowState.libraryId = library.id }
                 sidebarMode = .library
                 viewMode = .library(nil)

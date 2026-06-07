@@ -148,6 +148,14 @@ struct SidebarView: View {
                         return
                     }
                     lastHandledSelectionId = id
+                    if let libraryId = selectedLibraryId(from: id) {
+                        if windowState.libraryId != libraryId {
+                            windowState.libraryId = libraryId
+                        }
+                        sidebarMode = .library
+                        viewMode = .library(nil)
+                        return
+                    }
                     if id == "activity-browser" {
                         sidebarMode = .activity
                         viewMode = .activity(nil)
