@@ -440,8 +440,7 @@ extension LibraryView {
     }
 
     private var activeLibraryReference: LibraryManager.LibraryReference? {
-        if let libraryId = windowState.libraryId,
-           let library = libraryManager.getLibrary(id: libraryId) {
+        if let library = libraryManager.getLibrary(id: windowState.libraryId) {
             return library
         }
         return libraryManager.globalLibrary

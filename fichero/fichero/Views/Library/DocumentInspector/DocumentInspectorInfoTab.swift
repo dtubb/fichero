@@ -8,8 +8,8 @@ struct DocumentInspectorInfoTab: View {
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var windowState: WindowState
     @EnvironmentObject private var documentStore: DocumentStore
-    @State private var isUpdatingExclude = false
-    @State private var excludeFromProcessingOverride: Bool?
+    @State var isUpdatingExclude = false
+    @State var excludeFromProcessingOverride: Bool?
 
     var isExcludedFromProcessing: Bool {
         excludeFromProcessingOverride ?? document.excludeFromProcessing
@@ -117,8 +117,7 @@ struct DocumentInspectorInfoTab: View {
     }
 
     private var currentLibrary: LibraryManager.LibraryReference? {
-        if let libraryId = windowState.libraryId,
-           let library = libraryManager.getLibrary(id: libraryId) {
+        if let library = libraryManager.getLibrary(id: windowState.libraryId) {
             return library
         }
         return libraryManager.globalLibrary

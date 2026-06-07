@@ -452,9 +452,11 @@ class DocumentServiceGenerated: ObservableObject {
         switch response {
         case .ok(let ok):
             let result = try ok.body.json
-            return try await result.documentIds.asyncMap { id in
-                try await self.getDocument(id)
+            var documents: [Document] = []
+            for id in result.documentIds {
+                documents.append(try await getDocument(id))
             }
+            return documents
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
