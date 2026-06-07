@@ -1,3 +1,5 @@
+// swiftlint:disable file_length
+import AppKit
 import FicheroAPIClient
 import OSLog
 import SwiftUI
@@ -9,14 +11,21 @@ private let inspectorEntitiesLogger = Logger(
     category: "DocumentInspectorEntitiesTab"
 )
 
+// swiftlint:disable type_body_length
 struct DocumentInspectorEntitiesTab: View {
+    let document: Document
     let documentId: String
     let entityService: EntityServiceGenerated
+    let kgCurationService: KGCurationServiceGenerated
     var onEntitySelect: ((String) -> Void)?
 
     @State private var entities: [Components.Schemas.KnowledgeEntity] = []
+    @State private var entitySelection: Set<String> = []
+    @State private var selectionAnchor: String?
     @State private var isLoading = false
+    @State private var isApplyingBulkAction = false
     @State private var loadError: String?
+    @State private var actionMessage: String?
     @AppStorage("inspector.entities.hiddenKinds") private var hiddenKindsCSV: String = ""
 
     private var hiddenKinds: Set<EntityKind> {
@@ -45,10 +54,30 @@ struct DocumentInspectorEntitiesTab: View {
         !hiddenKinds.isEmpty
     }
 
+    private var orderedEntities: [Components.Schemas.KnowledgeEntity] {
+        grouped.flatMap(\.1)
+    }
+
+    private var selectedEntities: [Components.Schemas.KnowledgeEntity] {
+        orderedEntities.filter { entitySelection.contains($0.stableInspectorId) }
+    }
+
+    private var bulkActionScopeLabel: String {
+        document.docType == .page ? "This page only" : "This folder only"
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 header
+                if entitySelection.count > 1 {
+                    bulkActionBar
+                }
+                if let actionMessage {
+                    Text(actionMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 if isLoading {
                     ProgressView().padding(.vertical, 8)
@@ -88,6 +117,24 @@ struct DocumentInspectorEntitiesTab: View {
             .buttonStyle(.plain)
             .help("Reload entities")
         }
+    }
+
+    private var bulkActionBar: some View {
+        HStack(spacing: 8) {
+            Text("\(entitySelection.count) selected")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            bulkActionMenu(title: "Approve", systemImage: "checkmark.circle", action: .approve)
+            bulkActionMenu(title: "Reject", systemImage: "xmark.circle", action: .reject)
+            bulkActionMenu(title: "Suppress", systemImage: "eye.slash", action: .suppress)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.secondary.opacity(0.08))
+        )
     }
 
     @ViewBuilder
@@ -165,12 +212,10 @@ struct DocumentInspectorEntitiesTab: View {
         _ entity: Components.Schemas.KnowledgeEntity,
         kind: EntityKind
     ) -> some View {
+        let stableId = entity.stableInspectorId
+        let isSelected = entitySelection.contains(stableId)
         Button {
-            if let id = entity.id {
-                onEntitySelect?(id)
-            } else {
-                postSearch(for: entity, kind: kind)
-            }
+            handleEntityTap(entity, kind: kind)
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -178,6 +223,9 @@ struct DocumentInspectorEntitiesTab: View {
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundStyle(.primary)
+                    if let curationState = entity.curationState, curationState != .unreviewed {
+                        EntityCurationBadge(state: curationState)
+                    }
                     if let count = entity.sourceDocumentIds?.count, count > 1 {
                         Text("\(count) sources")
                             .font(.caption2)
@@ -203,10 +251,13 @@ struct DocumentInspectorEntitiesTab: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color.accentColor.opacity(0.06))
+                    .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.accentColor.opacity(0.06))
             )
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            entityContextMenu(for: entity)
+        }
         .help("Inspect \(entity.canonicalName)")
     }
 
@@ -229,6 +280,7 @@ struct DocumentInspectorEntitiesTab: View {
                 "Loaded \(loaded.count, privacy: .public) inspector entities for \(documentId, privacy: .public)"
             )
             entities = loaded
+            syncSelectionToLoadedEntities()
         } catch is CancellationError {
             // Superseded by a newer document selection.
         } catch {
@@ -237,6 +289,184 @@ struct DocumentInspectorEntitiesTab: View {
             )
             loadError = "Couldn't load entities: \(error.localizedDescription)"
             entities = []
+            entitySelection = []
+            selectionAnchor = nil
+        }
+    }
+
+    @ViewBuilder
+    private func entityContextMenu(
+        for entity: Components.Schemas.KnowledgeEntity
+    ) -> some View {
+        let targetEntities = contextMenuTargetEntities(for: entity)
+        let targetCount = targetEntities.count
+
+        Menu("Approve") {
+            bulkScopeButtons(
+                action: .approve,
+                targetEntities: targetEntities
+            )
+        }
+        .disabled(isApplyingBulkAction || targetCount == 0)
+
+        Menu("Reject") {
+            bulkScopeButtons(
+                action: .reject,
+                targetEntities: targetEntities
+            )
+        }
+        .disabled(isApplyingBulkAction || targetCount == 0)
+
+        Menu("Suppress") {
+            bulkScopeButtons(
+                action: .suppress,
+                targetEntities: targetEntities
+            )
+        }
+        .disabled(isApplyingBulkAction || targetCount == 0)
+    }
+
+    @ViewBuilder
+    private func bulkScopeButtons(
+        action: InspectorEntityBulkAction,
+        targetEntities: [Components.Schemas.KnowledgeEntity]
+    ) -> some View {
+        Button(bulkActionScopeLabel) {
+            Task {
+                await applyBulkAction(
+                    action,
+                    scope: .pageOrFolderOnly,
+                    targetEntities: targetEntities
+                )
+            }
+        }
+        Button("Library-wide") {
+            Task {
+                await applyBulkAction(
+                    action,
+                    scope: .libraryWide,
+                    targetEntities: targetEntities
+                )
+            }
+        }
+    }
+
+    private func bulkActionMenu(
+        title: String,
+        systemImage: String,
+        action: InspectorEntityBulkAction
+    ) -> some View {
+        Menu {
+            bulkScopeButtons(action: action, targetEntities: selectedEntities)
+        } label: {
+            Label(title, systemImage: systemImage)
+        }
+        .menuStyle(.borderlessButton)
+        .disabled(isApplyingBulkAction || selectedEntities.isEmpty)
+    }
+
+    private func handleEntityTap(
+        _ entity: Components.Schemas.KnowledgeEntity,
+        kind: EntityKind
+    ) {
+        let stableIds = orderedEntities.map(\.stableInspectorId)
+        let modifiers = InspectorEntitySelectionModifiers(nsEventFlags: NSEvent.modifierFlags)
+        let reduced = InspectorEntityBulkSelection.reduceTap(
+            tappedId: entity.stableInspectorId,
+            orderedIds: stableIds,
+            selection: entitySelection,
+            anchor: selectionAnchor,
+            modifiers: modifiers
+        )
+        entitySelection = reduced.selection
+        selectionAnchor = reduced.anchor
+
+        guard modifiers.isEmpty else { return }
+        if let id = entity.id {
+            onEntitySelect?(id)
+        } else {
+            postSearch(for: entity, kind: kind)
+        }
+    }
+
+    private func contextMenuTargetEntities(
+        for entity: Components.Schemas.KnowledgeEntity
+    ) -> [Components.Schemas.KnowledgeEntity] {
+        if entitySelection.contains(entity.stableInspectorId) {
+            return selectedEntities
+        }
+        return [entity]
+    }
+
+    private func syncSelectionToLoadedEntities() {
+        let validIds = Set(orderedEntities.map(\.stableInspectorId))
+        entitySelection = entitySelection.intersection(validIds)
+        if let selectionAnchor, !validIds.contains(selectionAnchor) {
+            self.selectionAnchor = nil
+        }
+    }
+
+    private func applyBulkAction(
+        _ action: InspectorEntityBulkAction,
+        scope: InspectorEntityBulkActionScope,
+        targetEntities: [Components.Schemas.KnowledgeEntity]
+    ) async {
+        let entityIds = targetEntities.compactMap(\.id)
+        let missingIdCount = targetEntities.count - entityIds.count
+        guard !entityIds.isEmpty || (action == .suppress && scope == .libraryWide) else {
+            actionMessage = "Selected entities are missing IDs, so \(action.verb.lowercased()) was skipped."
+            return
+        }
+
+        isApplyingBulkAction = true
+        actionMessage = nil
+        defer { isApplyingBulkAction = false }
+
+        do {
+            let suppressRules = action == .suppress && scope == .libraryWide
+                ? InspectorEntityBulkSelection.libraryWideSuppressRules(for: targetEntities)
+                : []
+            if !entityIds.isEmpty {
+                _ = try await kgCurationService.batchSetEntityCurationState(
+                    entityIds: entityIds,
+                    curationState: action.curationState
+                )
+                applyLocalStateUpdate(entityIds: Set(entityIds), state: action.curationState)
+            }
+
+            if action == .suppress, scope == .libraryWide {
+                if !suppressRules.isEmpty {
+                    _ = try await kgCurationService.batchCreateEntityRules(suppressRules)
+                }
+            }
+
+            var message = "\(action.verb) \(entityIds.count) entit"
+            message += entityIds.count == 1 ? "y" : "ies"
+            if action == .suppress, scope == .libraryWide {
+                message += " and wrote \(suppressRules.count) suppress rule"
+                message += suppressRules.count == 1 ? "" : "s"
+            }
+            if missingIdCount > 0 {
+                message += "; skipped \(missingIdCount) without IDs"
+            }
+            actionMessage = message
+        } catch {
+            inspectorEntitiesLogger.error(
+                "Bulk entity action failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            actionMessage = "Couldn't \(action.verb.lowercased()) entities: \(error.localizedDescription)"
+        }
+    }
+
+    private func applyLocalStateUpdate(
+        entityIds: Set<String>,
+        state: Components.Schemas.EntityCurationState
+    ) {
+        entities = entities.map { entity in
+            guard let id = entity.id, entityIds.contains(id) else { return entity }
+            var updated = entity
+            updated.curationState = state
+            return updated
         }
     }
 
@@ -254,9 +484,154 @@ struct DocumentInspectorEntitiesTab: View {
         )
     }
 }
+// swiftlint:enable type_body_length
 
 extension Components.Schemas.KnowledgeEntity {
     var stableInspectorId: String {
         id ?? "\(entityType?.rawValue ?? "other"):\(canonicalName)"
     }
 }
+
+struct InspectorEntityBulkSelection {
+    struct ReductionResult {
+        let selection: Set<String>
+        let anchor: String?
+    }
+
+    static func reduceTap(
+        tappedId: String,
+        orderedIds: [String],
+        selection: Set<String>,
+        anchor: String?,
+        modifiers: InspectorEntitySelectionModifiers
+    ) -> ReductionResult {
+        if modifiers.contains(.shift),
+           let anchor,
+           let anchorIndex = orderedIds.firstIndex(of: anchor),
+           let tappedIndex = orderedIds.firstIndex(of: tappedId) {
+            let range = min(anchorIndex, tappedIndex)...max(anchorIndex, tappedIndex)
+            let rangeIds = Set(orderedIds[range])
+            if modifiers.contains(.command) {
+                return ReductionResult(selection: selection.union(rangeIds), anchor: anchor)
+            }
+            return ReductionResult(selection: rangeIds, anchor: anchor)
+        }
+
+        if modifiers.contains(.command) {
+            var updated = selection
+            if updated.contains(tappedId) {
+                updated.remove(tappedId)
+            } else {
+                updated.insert(tappedId)
+            }
+            return ReductionResult(selection: updated, anchor: tappedId)
+        }
+
+        return ReductionResult(selection: [tappedId], anchor: tappedId)
+    }
+
+    static func libraryWideSuppressRules(
+        for entities: [Components.Schemas.KnowledgeEntity]
+    ) -> [Components.Schemas.EntityRuleCreateRequest] {
+        var seen = Set<String>()
+        return entities.compactMap { entity in
+            let canonicalName = entity.canonicalName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !canonicalName.isEmpty else { return nil }
+            let dedupeKey = canonicalName.lowercased()
+            guard seen.insert(dedupeKey).inserted else { return nil }
+            return Components.Schemas.EntityRuleCreateRequest(
+                ruleType: .suppress,
+                matchCanonicalName: canonicalName,
+                matchEntityType: entity.entityType,
+                targetCanonicalName: nil,
+                targetEntityType: nil,
+                reason: "Bulk suppress from inspector",
+                createdBy: "human"
+            )
+        }
+    }
+}
+
+struct InspectorEntitySelectionModifiers: OptionSet {
+    let rawValue: Int
+
+    static let shift = Self(rawValue: 1 << 0)
+    static let command = Self(rawValue: 1 << 1)
+
+    init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    init(nsEventFlags: NSEvent.ModifierFlags) {
+        var value: Self = []
+        if nsEventFlags.contains(.shift) {
+            value.insert(.shift)
+        }
+        if nsEventFlags.contains(.command) {
+            value.insert(.command)
+        }
+        self = value
+    }
+}
+
+enum InspectorEntityBulkAction {
+    case approve
+    case reject
+    case suppress
+
+    var verb: String {
+        switch self {
+        case .approve: return "Approved"
+        case .reject: return "Rejected"
+        case .suppress: return "Suppressed"
+        }
+    }
+
+    var curationState: Components.Schemas.EntityCurationState {
+        switch self {
+        case .approve: return .verified
+        case .reject, .suppress: return .rejected
+        }
+    }
+}
+
+enum InspectorEntityBulkActionScope {
+    case pageOrFolderOnly
+    case libraryWide
+}
+
+struct EntityCurationBadge: View {
+    let state: Components.Schemas.EntityCurationState
+
+    var body: some View {
+        Text(label)
+            .font(.caption2)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.16), in: Capsule())
+            .foregroundStyle(color)
+    }
+
+    private var label: String {
+        switch state {
+        case .verified:
+            return "Approved"
+        case .rejected:
+            return "Rejected"
+        default:
+            return "Unreviewed"
+        }
+    }
+
+    private var color: Color {
+        switch state {
+        case .verified:
+            return .green
+        case .rejected:
+            return .red
+        default:
+            return .gray
+        }
+    }
+}
+// swiftlint:enable file_length

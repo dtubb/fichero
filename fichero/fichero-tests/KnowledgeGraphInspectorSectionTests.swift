@@ -1,6 +1,7 @@
 @testable import Fichero
 import XCTest
 
+// swiftlint:disable type_body_length
 @MainActor
 final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
@@ -68,6 +69,104 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
         XCTAssertTrue(source.contains("Loaded \\(entities.count) entities, but the current filter hides every kind."))
         XCTAssertTrue(source.contains("Loaded \\(entities.count) entities, but none mapped into a visible section."))
+    }
+
+    func testInspectorEntitySelectionReducerPlainClickReplacesSelection() {
+        let result = InspectorEntityBulkSelection.reduceTap(
+            tappedId: "b",
+            orderedIds: ["a", "b", "c"],
+            selection: ["a", "c"],
+            anchor: "a",
+            modifiers: []
+        )
+
+        XCTAssertEqual(result.selection, ["b"])
+        XCTAssertEqual(result.anchor, "b")
+    }
+
+    func testInspectorEntitySelectionReducerCommandClickTogglesSelection() {
+        let result = InspectorEntityBulkSelection.reduceTap(
+            tappedId: "b",
+            orderedIds: ["a", "b", "c"],
+            selection: ["a"],
+            anchor: "a",
+            modifiers: [.command]
+        )
+
+        XCTAssertEqual(result.selection, ["a", "b"])
+        XCTAssertEqual(result.anchor, "b")
+    }
+
+    func testInspectorEntitySelectionReducerShiftClickBuildsRangeFromAnchor() {
+        let result = InspectorEntityBulkSelection.reduceTap(
+            tappedId: "d",
+            orderedIds: ["a", "b", "c", "d"],
+            selection: ["a"],
+            anchor: "b",
+            modifiers: [.shift]
+        )
+
+        XCTAssertEqual(result.selection, ["b", "c", "d"])
+        XCTAssertEqual(result.anchor, "b")
+    }
+
+    func testInspectorEntitySelectionReducerCommandShiftUnionsRange() {
+        let result = InspectorEntityBulkSelection.reduceTap(
+            tappedId: "d",
+            orderedIds: ["a", "b", "c", "d"],
+            selection: ["a"],
+            anchor: "b",
+            modifiers: [.shift, .command]
+        )
+
+        XCTAssertEqual(result.selection, ["a", "b", "c", "d"])
+        XCTAssertEqual(result.anchor, "b")
+    }
+
+    func testLibraryWideSuppressRulesDeduplicateCanonicalNames() {
+        let entities = [
+            Components.Schemas.KnowledgeEntity(
+                id: "entity-1",
+                canonicalName: "Ada Lovelace",
+                entityType: .person,
+                aliases: nil,
+                description: nil,
+                language: nil,
+                metadata: nil,
+                mergedIntoId: nil
+            ),
+            Components.Schemas.KnowledgeEntity(
+                id: "entity-2",
+                canonicalName: "ada lovelace",
+                entityType: .person,
+                aliases: nil,
+                description: nil,
+                language: nil,
+                metadata: nil,
+                mergedIntoId: nil
+            )
+        ]
+
+        let rules = InspectorEntityBulkSelection.libraryWideSuppressRules(for: entities)
+
+        XCTAssertEqual(rules.count, 1)
+        XCTAssertEqual(rules.first?.ruleType, .suppress)
+        XCTAssertEqual(rules.first?.matchCanonicalName, "Ada Lovelace")
+        XCTAssertEqual(rules.first?.reason, "Bulk suppress from inspector")
+    }
+
+    func testInspectorEntitiesTabUsesGeneratedBulkCurationOnly() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+        let serviceSource = try Self.appSource("Services/ArtifactServiceGenerated.swift")
+
+        XCTAssertTrue(source.contains("batchSetEntityCurationState"))
+        XCTAssertTrue(source.contains("batchCreateEntityRules"))
+        XCTAssertFalse(source.contains("URLSession"))
+        XCTAssertFalse(source.contains("URLRequest"))
+        XCTAssertFalse(source.contains("URL(string:"))
+        XCTAssertTrue(serviceSource.contains("batchSetEntityCurationStateApiKgEntitiesBatchCurationPatch"))
     }
 
     // testFetchButtonHelpersExposeExpectedLabelsAndIcons removed: the
@@ -240,3 +339,4 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         )
     }
 }
+// swiftlint:enable type_body_length

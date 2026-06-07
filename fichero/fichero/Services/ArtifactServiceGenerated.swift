@@ -2457,8 +2457,6 @@ final class EntityServiceGenerated: ObservableObject {
 
 /// Typed wrappers for `/api/kg/curation-rules/*`.
 ///
-/// Intentionally excludes batch entity curation-state updates: the generated
-/// OpenAPI client does not expose that backend route yet (#1765 step 6).
 @MainActor
 final class KGCurationServiceGenerated: ObservableObject {
     private let client: FicheroClient
@@ -2546,6 +2544,31 @@ final class KGCurationServiceGenerated: ObservableObject {
             throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let code, _):
             kgCurationServiceLogger.error("batchCreateEntityRules unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func batchSetEntityCurationState(
+        entityIds: [String],
+        curationState: Components.Schemas.EntityCurationState
+    ) async throws -> Components.Schemas.BatchEntityCurationResponse {
+        let body = Components.Schemas.BatchEntityCurationRequest(
+            entityIds: entityIds,
+            curationState: curationState
+        )
+        let response = try await client.api.batchSetEntityCurationStateApiKgEntitiesBatchCurationPatch(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("batchSetEntityCurationState unexpected response: \(code)")
             throw ServiceError.unexpectedResponse(code)
         }
     }
