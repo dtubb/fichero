@@ -15,8 +15,13 @@ from pydantic import BaseModel
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
+from fichero.models import (
+    ActionCategoriesResponse,
+    ActionJsonResponse,
+    ActionListResponse,
+    ActionSuccessResponse,
+)
 from fichero.workflows.action_store import ActionStore, Action
-from fichero.models import ActionListResponse
 
 router = APIRouter(prefix="/actions", tags=["actions"])
 
@@ -89,18 +94,6 @@ class CreateFromNodeRequest(BaseModel):
     description: str = ""
     category: str = "custom"
     tags: list[str] = []
-
-
-class CategoriesResponse(BaseModel):
-    categories: list[str]
-
-
-class ActionSuccessResponse(BaseModel):
-    success: bool
-
-
-class ActionJsonResponse(BaseModel):
-    json_data: str
 
 
 class CreateCompositeRequest(BaseModel):
@@ -192,11 +185,11 @@ async def list_popular_actions(
     return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
 
 
-@router.get("/categories")
-async def list_categories(store: ActionStore = Depends(get_action_store)) -> CategoriesResponse:
+@router.get("/categories", response_model=ActionCategoriesResponse)
+async def list_categories(store: ActionStore = Depends(get_action_store)) -> ActionCategoriesResponse:
     """List all action categories."""
     categories = store.get_categories()
-    return CategoriesResponse(categories=categories)
+    return ActionCategoriesResponse(categories=categories)
 
 
 @router.get("/category/{category}", response_model=ActionListResponse)
@@ -305,7 +298,7 @@ async def update_action(
     return action_to_response(action)
 
 
-@router.delete("/{action_id}")
+@router.delete("/{action_id}", response_model=ActionSuccessResponse)
 async def delete_action(action_id: str, store: ActionStore = Depends(get_action_store)) -> ActionSuccessResponse:
     """Delete an action."""
     action = store.get(action_id)
@@ -324,7 +317,7 @@ async def delete_action(action_id: str, store: ActionStore = Depends(get_action_
 # =========================================================================
 
 
-@router.post("/{action_id}/use")
+@router.post("/{action_id}/use", response_model=ActionSuccessResponse)
 async def record_action_use(
     action_id: str, store: ActionStore = Depends(get_action_store)
 ) -> ActionSuccessResponse:
@@ -342,7 +335,7 @@ async def record_action_use(
 # =========================================================================
 
 
-@router.get("/{action_id}/export")
+@router.get("/{action_id}/export", response_model=ActionJsonResponse)
 async def export_action(action_id: str, store: ActionStore = Depends(get_action_store)) -> ActionJsonResponse:
     """Export an action as JSON."""
     try:

@@ -28850,7 +28850,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CategoriesResponse"
+                  "$ref": "#/components/schemas/ActionCategoriesResponse"
                 }
               }
             }
@@ -30299,7 +30299,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero__api__routes__local_models__DeleteModelResponse"
+                  "$ref": "#/components/schemas/fichero__models__DeleteModelResponse"
                 }
               }
             }
@@ -32350,6 +32350,23 @@
         ],
         "title": "AcceptResponse"
       },
+      "ActionCategoriesResponse": {
+        "properties": {
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Categories"
+          }
+        },
+        "type": "object",
+        "required": [
+          "categories"
+        ],
+        "title": "ActionCategoriesResponse",
+        "description": "Response from GET /api/actions/categories."
+      },
       "ActionJsonResponse": {
         "properties": {
           "json_data": {
@@ -32361,7 +32378,8 @@
         "required": [
           "json_data"
         ],
-        "title": "ActionJsonResponse"
+        "title": "ActionJsonResponse",
+        "description": "Response from GET /api/actions/{action_id}/export."
       },
       "ActionListResponse": {
         "properties": {
@@ -32496,7 +32514,8 @@
         "required": [
           "success"
         ],
-        "title": "ActionSuccessResponse"
+        "title": "ActionSuccessResponse",
+        "description": "Boolean success envelope for action mutations."
       },
       "ActivityFeedGroup": {
         "properties": {
@@ -34631,22 +34650,6 @@
           "region"
         ],
         "title": "CaptureViewportResponse"
-      },
-      "CategoriesResponse": {
-        "properties": {
-          "categories": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Categories"
-          }
-        },
-        "type": "object",
-        "required": [
-          "categories"
-        ],
-        "title": "CategoriesResponse"
       },
       "CategoryToolsResponse": {
         "properties": {
@@ -55348,25 +55351,6 @@
         ],
         "title": "DeleteModelResponse"
       },
-      "fichero__api__routes__local_models__DeleteModelResponse": {
-        "properties": {
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "freed_bytes": {
-            "type": "integer",
-            "title": "Freed Bytes"
-          }
-        },
-        "type": "object",
-        "required": [
-          "status",
-          "freed_bytes"
-        ],
-        "title": "DeleteModelResponse",
-        "description": "Result of a model deletion."
-      },
       "fichero__api__routes__mind_palace__NoteCreateRequest": {
         "properties": {
           "room_id": {
@@ -55864,6 +55848,25 @@
         ],
         "title": "ProjectStatus",
         "description": "Lifecycle of a research workspace (#918)."
+      },
+      "fichero__models__DeleteModelResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "freed_bytes": {
+            "type": "integer",
+            "title": "Freed Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "freed_bytes"
+        ],
+        "title": "DeleteModelResponse",
+        "description": "Result of a model deletion."
       },
       "fichero__models__DocumentListResponse": {
         "properties": {

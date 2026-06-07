@@ -1,14 +1,12 @@
-import Foundation
-import OSLog
 import FicheroAPIClient
+import Foundation
 import OpenAPIRuntime
+import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "SearchServiceGenerated")
 
 /// Service for search operations using generated OpenAPI client
 /// Lightweight DTO matching `KeywordCloudEntry` on the backend.
-/// Manual decoding because the OpenAPI client doesn't include this
-/// endpoint yet (added without regenerating; #519/#481 follow-up).
 struct KeywordCloudEntryDTO: Decodable, Identifiable {
     let name: String
     let count: Int
@@ -313,25 +311,25 @@ class SearchServiceGenerated: ObservableObject {
     // MARK: - Backward Compatibility Methods
 
     /// Top-N keyword cloud — name + per-doc count, sorted by frequency.
-    /// Hand-written URL fetch (the OpenAPI client doesn't yet expose
-    /// /api/search/keywords because we added it without regenerating).
     /// Empty array when the workflow hasn't extracted any keywords yet.
     func keywordCloud(limit: Int = 50) async throws -> [KeywordCloudEntryDTO] {
-        var components = URLComponents(
-            url: EngineConfig.apiBaseURL.appendingPathComponent("search/keywords"),
-            resolvingAgainstBaseURL: false
-        )!
-        components.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
-        guard let url = components.url else { return [] }
-        var request = URLRequest(url: url)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.addEngineAuth(libraryPath: libraryPath)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              (200...299).contains(http.statusCode) else {
+        let response = try await client.api.keywordCloudApiSearchKeywordsGet(
+            .init(
+                headers: .init(xFicheroLibraryPath: libraryPath),
+                query: .init(limit: limit)
+            )
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            let payload = try okResponse.body.json
+            return payload.items.map { KeywordCloudEntryDTO(name: $0.name, count: $0.count) }
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented:
             return []
         }
-        return (try? JSONDecoder().decode([KeywordCloudEntryDTO].self, from: data)) ?? []
     }
 
     /// Search with backward-compatible interface returning manual types
