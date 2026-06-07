@@ -244,6 +244,48 @@ class TestExtractAllCooperativeScheduling:
         assert any("KG write page" in data["file_path"] for _, data in progress_events)
 
 
+class TestExtractAllOutputLanguageOverride:
+    @pytest.mark.asyncio
+    async def test_primary_language_setting_overrides_auto_detection(self, monkeypatch):
+        module = importlib.import_module("fichero.workflows.tools.extract_all")
+
+        async def fake_run_two_stage(
+            _text,
+            _records,
+            _state,
+            _llm_config,
+            output_language,
+            _inputs,
+            _progress_callback,
+        ):
+            return {"output_language": output_language}
+
+        class _FakeAppDB:
+            def get_setting(self, key: str):
+                if key == "default_primary_language":
+                    return "Spanish"
+                return None
+
+        monkeypatch.setattr(module, "_run_two_stage", fake_run_two_stage)
+        monkeypatch.setattr("fichero.app_db.get_app_db", lambda: _FakeAppDB())
+
+        result = await module.extract_all(
+            {
+                "text": (
+                    "Marshall wrote in English about Popayán and Andagoya, "
+                    "but the diary passage itself is ordinary English prose."
+                ),
+                "records": [],
+                "output_language": "auto",
+                "extraction_mode": "twostage",
+            },
+            {},
+            LLMConfig(provider="test", model="test"),
+        )
+
+        assert result["output_language"] == "Spanish"
+
+
 class TestExtractAllGuardrailFallback:
     """#1284 — guardrail/unsupported_language chunks must engage $large fallback.
 

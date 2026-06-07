@@ -490,6 +490,7 @@ class AppDatabase:
             "default_medium_model",
             "default_large_provider",
             "default_large_model",
+            "default_primary_language",
             "default_temperature",
             "default_max_tokens",
             "default_prompt_prefix",
@@ -554,6 +555,7 @@ class AppDatabase:
             "default_small_provider", "default_small_model",
             "default_medium_provider", "default_medium_model",
             "default_large_provider", "default_large_model",
+            "default_primary_language",
             "default_temperature", "default_max_tokens", "default_prompt_prefix",
         ]
         for key in keys_to_delete:

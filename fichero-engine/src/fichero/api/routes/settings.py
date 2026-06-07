@@ -36,6 +36,7 @@ class AIDefaults(BaseModel):
     medium_model: str = ""
     large_provider: str = ""
     large_model: str = ""
+    primary_language: str = ""
     # Advanced
     temperature: str = ""
     max_tokens: str = ""
@@ -66,6 +67,7 @@ def get_ai_defaults() -> AIDefaults:
         medium_model=defaults.get("default_medium_model", ""),
         large_provider=defaults.get("default_large_provider", ""),
         large_model=defaults.get("default_large_model", ""),
+        primary_language=defaults.get("default_primary_language", ""),
         temperature=defaults.get("default_temperature", ""),
         max_tokens=defaults.get("default_max_tokens", ""),
         prompt_prefix=defaults.get("default_prompt_prefix", ""),
@@ -95,6 +97,7 @@ def set_ai_defaults(body: AIDefaults) -> StatusOkResponse:
         "default_medium_model": body.medium_model,
         "default_large_provider": body.large_provider,
         "default_large_model": body.large_model,
+        "default_primary_language": body.primary_language,
         "default_temperature": body.temperature,
         "default_max_tokens": body.max_tokens,
         "default_prompt_prefix": body.prompt_prefix,

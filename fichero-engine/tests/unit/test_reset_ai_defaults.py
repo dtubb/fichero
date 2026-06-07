@@ -125,3 +125,11 @@ class TestResetAIDefaults:
         # Video isn't in the factory baseline → cleared, no value
         assert "default_video_provider" not in defaults
         assert "default_video_model" not in defaults
+
+    def test_reset_clears_primary_language_override(self, app_db):
+        app_db.set_setting("default_primary_language", "Spanish")
+
+        app_db.reset_ai_defaults()
+
+        defaults = app_db.get_ai_defaults()
+        assert "default_primary_language" not in defaults

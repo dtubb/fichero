@@ -18,6 +18,7 @@ class TestGetAIDefaults:
             "small_provider", "small_model",
             "medium_provider", "medium_model",
             "large_provider", "large_model",
+            "primary_language",
             "temperature", "max_tokens",
             "prompt_prefix",
         }
@@ -50,6 +51,7 @@ class TestSetAIDefaults:
             "medium_model": "openai/gpt-4o-mini",
             "large_provider": "apple",
             "large_model": "apple-intelligence",
+            "primary_language": "Spanish",
             "temperature": "0.7",
             "max_tokens": "1000",
             "prompt_prefix": "",
@@ -76,6 +78,7 @@ class TestSetAIDefaults:
             "medium_model": "openai/gpt-4o-mini",
             "large_provider": "apple",
             "large_model": "apple-intelligence",
+            "primary_language": "English",
             "temperature": "",
             "max_tokens": "",
             "prompt_prefix": "",
@@ -94,6 +97,7 @@ class TestSetAIDefaults:
         assert data["medium_model"] == "openai/gpt-4o-mini"
         assert data["large_provider"] == "apple"
         assert data["large_model"] == "apple-intelligence"
+        assert data["primary_language"] == "English"
 
     def test_empty_values_clear_setting(self, client):
         # Set then clear
@@ -106,6 +110,7 @@ class TestSetAIDefaults:
             "small_provider": "apple", "small_model": "apple-intelligence",
             "medium_provider": "openrouter", "medium_model": "openai/gpt-4o-mini",
             "large_provider": "apple", "large_model": "apple-intelligence",
+            "primary_language": "Spanish",
             "temperature": "", "max_tokens": "",
             "prompt_prefix": "",
         }
@@ -123,6 +128,7 @@ class TestSetAIDefaults:
         assert data["medium_model"] == "openai/gpt-4o-mini"
         assert data["large_provider"] == "apple"
         assert data["large_model"] == "apple-intelligence"
+        assert data["primary_language"] == ""
 
 
 class TestResetAIDefaults:
@@ -133,6 +139,7 @@ class TestResetAIDefaults:
             "audio_provider": "", "audio_model": "",
             "video_provider": "", "video_model": "",
             "embeddings_provider": "", "embeddings_model": "",
+            "primary_language": "Spanish",
             "temperature": "0.5", "max_tokens": "",
             "prompt_prefix": "",
         }
@@ -149,6 +156,7 @@ class TestResetAIDefaults:
             k.endswith(("_provider", "_model"))
             for k in non_empty_fields
         ), f"Unexpected non-empty fields after reset: {non_empty_fields}"
+        assert data["primary_language"] == ""
         # Most typed categories use Apple Intelligence defaults.
         for key in ("text_provider", "small_provider", "large_provider",
                     "vision_provider", "audio_provider"):
