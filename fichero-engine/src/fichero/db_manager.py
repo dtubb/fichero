@@ -64,6 +64,7 @@ class DatabaseManager:
             migrate_saved_search_table,
             migrate_workflow_table,
         )
+        from fichero.library_bootstrap import ensure_inbox_folder
         from fichero.workflows.default_workflows import seed_default_workflows
 
         package_path = Path(package_path)
@@ -99,6 +100,8 @@ class DatabaseManager:
                             logger.info(f"Seeded {seeded} default workflow preset(s)")
                     except Exception as exc:
                         logger.warning(f"Default workflow seeding skipped: {exc}")
+
+                ensure_inbox_folder(db)
 
                 self._databases[cache_key] = db
                 logger.info(f"Database connection created: {db_path}")
