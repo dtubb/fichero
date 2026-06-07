@@ -206,3 +206,9 @@ Next bounded: backlog bugs (gh issue list), backend bounded bugs ideal. AVOID de
 Closed/resolved tonight (15): +#1721.
 In flight: f_codex_inspent (gpt-5.4, ~/code/fichero-inspent) = #1653 inspector Entities panel empty though engine returns them (frontend decode/scope bug); f_codex_relpaths (gpt-5.4, ~/code/fichero-relpaths) = #1663/#1664 store image paths relative to lib root + resolve both legacy-absolute/new-relative (backend, never mutate Marshall data). Disjoint.
 Backlog rich in backend IIIF-import bugs (#1650-1664) — many need real data to verify, prefer leaving for Daniel or pick the data-independent ones. #1728 (surface Notes/MindPalace-icon/Automation) still a bounded frontend option. #1740 Phase 1 fallback if bounded work thins.
+
+### Tick 9 (~03:38) — landed: #1663/#1664 relative image paths (94f19d69, both CLOSED, backend, restart needed) + #1653 inspector entities empty (8db7d5b4, CLOSED, frontend). 0.0.2 green.
+Closed/resolved tonight (18): +#1663,#1664,#1653.
+In flight: f_codex_surface (gpt-5.4, ~/code/fichero-surface) = #1728 surface Notes browser (AppState flag+Data-menu sheet) + verify/add Mind Palace SidebarModeBar icon + cautious Automation (flip only if wiring real). Frontend, Xcode build gate.
+Restart-needed-on-Daniel's-:8765 to take effect: #1727 (Inbox), #1707/#1731 (PDF storage), #1663/#1664 (relative paths). All backend code merged.
+Next bounded: backlog (data-independent), #1345 (/children doc: prefix — verify still open), #1720 follow-ups. #1740 Phase 1 fallback if thin.
