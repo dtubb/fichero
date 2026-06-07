@@ -168,3 +168,8 @@ ALWAYS verify a split actually shrank the original before trusting it.
 In flight: f_codex_pdffe (gpt-5.4, ~/code/fichero-pdf-fe) = PDF frontend render-collapse onto LibraryImageView (#1707 fe + #1731); f_codex_greyrow (gpt-5.4, ~/code/fichero-greyrow) = #1737 stuck grey sidebar row.
 Note for Daniel AM: backend PDF fix needs an engine RESTART to take effect on your :8765.
 Next queue after these: #1736 tab→window, #1704 Views reorg (SOLO), #1730 RealityKit persist, responsive cluster #1732-35, then GitHub backlog.
+
+### Tick 2 (~23:18) — landed: PDF frontend render-collapse (#1707/#1731 CLOSED, eacbd293, −203 lines) + grey-row fix (#1737 CLOSED, 0709d0c3). 0.0.2 green.
+In flight: f_codex_tabfix (gpt-5.4, ~/code/fichero-tabfix) = #1736 open-in-new-tab→tab not window; f_codex_rkpersist (gpt-5.4, ~/code/fichero-rkpersist) = #1730 RealityKit persist node position on drag (persistence ONLY, #1726 features parked).
+Closed so far tonight: #1703, #1707, #1731, #1737. Backend PDF (#1707) needs engine restart on Daniel's :8765 to take effect.
+Next queue: #1704 Views/ reorg (SOLO next), responsive cluster #1732-35, #1702, then GitHub backlog. #1740 Phase 1 = ~4am fallback only.
