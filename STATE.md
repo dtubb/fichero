@@ -223,3 +223,5 @@ Tonight's tally: 20 issues closed/resolved (#1703,1707,1731,1737,1736,1730,1732,
 PACING DOWN: bounded data-independent backlog is exhausted — remaining open = design EPICs (#1686/1689/1692/1693/1738/1739/1570/1740-P2), IIIF-data-dependent backend (#1650-1662), needs-Daniel (#1709/1715), deferred #1704 (needs move-swift-file.rb). No safe unattended lane worth the risk at this hour.
 NEEDS ENGINE RESTART on Daniel's :8765 (backend merges): #1727 Inbox, #1707/#1731 PDF storage, #1663/#1664 relative paths.
 Next tick: light GH-hygiene (verify+close any stale-already-fixed issues like #1611 was) OR idle until Daniel returns. Do NOT force risky lanes.
+
+### Tick 12 (~05:20) — IDLE (pacing down). No lanes running; 0.0.2 green at 13c85ad5. No safe stale-close this tick — adjacent candidates (#1680/#1681 imported-image render, #1682 entity-notes lib-path) are IIIF-import-specific, not code-verifiable without real data; left open. #1723/#1724 intentionally open for Daniel's visual verify. No risky work manufactured. 20 closed tonight stands.
