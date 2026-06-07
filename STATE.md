@@ -163,3 +163,8 @@ Backend PDF (#1707) is cleanup (dup-path kill), not feature.
 → fix any access-level/@ViewBuilder regressions in place → push → comment/close issue → remove
 worktree + kill tmux. pbxproj conflict → `git checkout --ours` + re-run add-swift-file.rb.
 ALWAYS verify a split actually shrank the original before trusting it.
+
+### Tick 1 (~22:40) — landed: backend PDF page-images (#1707/#1731, 4471c1c9) + DocumentInspectorInfoTab split (#1703 CLOSED). 0.0.2 green.
+In flight: f_codex_pdffe (gpt-5.4, ~/code/fichero-pdf-fe) = PDF frontend render-collapse onto LibraryImageView (#1707 fe + #1731); f_codex_greyrow (gpt-5.4, ~/code/fichero-greyrow) = #1737 stuck grey sidebar row.
+Note for Daniel AM: backend PDF fix needs an engine RESTART to take effect on your :8765.
+Next queue after these: #1736 tab→window, #1704 Views reorg (SOLO), #1730 RealityKit persist, responsive cluster #1732-35, then GitHub backlog.
