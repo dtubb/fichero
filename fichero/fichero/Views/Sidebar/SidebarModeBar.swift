@@ -3,8 +3,8 @@ import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "SidebarModeBar")
 
-/// Xcode-style mode icon bar at the top of the sidebar
-/// Shows mode icons: Library, Search, Chat, Workflows | Automation | Activity
+/// Xcode-style mode icon bar at the top of the sidebar.
+/// Shows mode icons for the enabled sidebar modes.
 struct SidebarModeBar: View {
     @Binding var selectedMode: SidebarMode
 
@@ -53,6 +53,16 @@ struct SidebarModeBar: View {
                         badgeCount: badgeCount(for: .workflows)
                     ) {
                         selectMode(.workflows)
+                    }
+                }
+
+                if featureManager.isMindPalaceEnabled {
+                    SidebarModeIcon(
+                        mode: .mindPalace,
+                        isSelected: selectedMode == .mindPalace,
+                        badgeCount: 0
+                    ) {
+                        selectMode(.mindPalace)
                     }
                 }
 

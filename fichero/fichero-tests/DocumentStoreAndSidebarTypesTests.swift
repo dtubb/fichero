@@ -149,6 +149,15 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(source.contains("FeatureManager.shared.isMindPalaceEnabled"))
     }
 
+    func testSidebarModeBarExposesMindPalaceIconWhenFeatureEnabled() throws {
+        let source = try Self.appSource("Views/Sidebar/SidebarModeBar.swift")
+
+        XCTAssertTrue(source.contains("if featureManager.isMindPalaceEnabled"))
+        XCTAssertTrue(source.contains("mode: .mindPalace"))
+        XCTAssertTrue(source.contains("selectedMode == .mindPalace"))
+        XCTAssertTrue(source.contains("selectMode(.mindPalace)"))
+    }
+
     func testPinnedSidebarEntryPointsRouteToExpectedSurfaces() throws {
         let source = try Self.appSource("Views/Sidebar/SidebarView.swift")
 
@@ -204,6 +213,18 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(menuSource.contains("Show Library Browser"))
         XCTAssertTrue(menuSource.contains("Hide Library Browser"))
         XCTAssertTrue(menuSource.contains("icon: \"books.vertical\""))
+    }
+
+    func testNotesBrowserIsReachableFromDataMenuAndPresentedAsSheet() throws {
+        let menuSource = try Self.appSource("FicheroApp.swift")
+        let appStateSource = try Self.appSource("App/AppState.swift")
+        let windowSource = try Self.appSource("App/LibraryWindow.swift")
+
+        XCTAssertTrue(appStateSource.contains("@Published var showNotesBrowser: Bool = false"))
+        XCTAssertTrue(menuSource.contains("Label(\"Notes Browser…\", systemImage: \"note.text\")"))
+        XCTAssertTrue(menuSource.contains("appState.showNotesBrowser = true"))
+        XCTAssertTrue(windowSource.contains("get: { appState.showNotesBrowser }"))
+        XCTAssertTrue(windowSource.contains("NotesBrowserView()"))
     }
 
     // MARK: - ActivityChildType
