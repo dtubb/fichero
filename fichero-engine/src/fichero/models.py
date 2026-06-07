@@ -1171,6 +1171,66 @@ class LibraryRegistryResponse(BaseModel):
     count: int
 
 
+class ActionCategoriesResponse(BaseModel):
+    """Response from GET /api/actions/categories."""
+
+    categories: list[str]
+
+
+class ActionSuccessResponse(BaseModel):
+    """Boolean success envelope for action mutations."""
+
+    success: bool
+
+
+class ActionJsonResponse(BaseModel):
+    """Response from GET /api/actions/{action_id}/export."""
+
+    json_data: str
+
+
+class LocalModelInfoResponse(BaseModel):
+    """A locally-managed AI model (Whisper, embeddings)."""
+
+    model_id: str
+    model_type: str
+    display_name: str
+    size_bytes: int
+    is_downloaded: bool
+    expected_size_mb: int
+    path: str | None
+    metadata: dict[str, Any]
+
+
+class LocalModelListResponse(BaseModel):
+    """List of local models."""
+
+    models: list[LocalModelInfoResponse]
+
+
+class DiskUsageResponse(BaseModel):
+    """Disk usage broken down by model type."""
+
+    whisper: int
+    embeddings: int
+    total: int
+
+
+class DownloadStartedResponse(BaseModel):
+    """Confirmation that a model download has been queued."""
+
+    status: str
+    model_type: str
+    model_id: str
+
+
+class DeleteModelResponse(BaseModel):
+    """Result of a model deletion."""
+
+    status: str
+    freed_bytes: int
+
+
 # =============================================================================
 # List Envelope Response Models — standardize all GET list endpoints (#1075)
 # =============================================================================
@@ -1523,6 +1583,14 @@ __all__ = [
     # Known library registry (#1131)
     "KnownLibrary",
     "LibraryRegistryResponse",
+    "ActionCategoriesResponse",
+    "ActionSuccessResponse",
+    "ActionJsonResponse",
+    "LocalModelInfoResponse",
+    "LocalModelListResponse",
+    "DiskUsageResponse",
+    "DownloadStartedResponse",
+    "DeleteModelResponse",
     # List envelope response models (#1075)
     "ActionListResponse",
     "ActivityListResponse",

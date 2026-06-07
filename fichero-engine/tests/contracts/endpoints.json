@@ -41,7 +41,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "CategoriesResponse"
+        "response_model": "ActionCategoriesResponse"
       },
       {
         "method": "GET",
@@ -4760,7 +4760,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__api__routes__local_models__DeleteModelResponse"
+        "response_model": "fichero__models__DeleteModelResponse"
       }
     ],
     "mcp": [
