@@ -5,14 +5,24 @@ import SwiftUI
 /// Backend connection settings
 struct BackendSettingsView: View {
     @EnvironmentObject var appState: AppState
-    @AppStorage("backendPort") private var backendPort: Int = 8765
-    @AppStorage("backendHost") private var backendHost: String = "127.0.0.1"
+    @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
 
     var body: some View {
         Form {
             Section("Connection") {
-                TextField("Host", text: $backendHost)
-                TextField("Port", value: $backendPort, format: .number)
+                TextField("Engine URL", text: $engineHost)
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
+
+                LabeledContent("Effective API Base") {
+                    Text(EngineConfig.apiBaseURL.absoluteString)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+
+                Text("Leave blank to use the embedded localhost engine.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 HStack {
                     Circle()

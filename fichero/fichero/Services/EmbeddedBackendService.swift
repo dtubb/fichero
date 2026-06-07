@@ -30,7 +30,7 @@ final class EmbeddedBackendService: ObservableObject {
 
     private var backendPID: pid_t?
     private var isExternalBackend = false  // Track if using external vs embedded backend
-    private let backendURL = URL(string: "http://127.0.0.1:8765")!
+    private var backendURL: URL { EngineConfig.host }
 
     enum BackendStatus {
         case stopped
@@ -78,6 +78,21 @@ final class EmbeddedBackendService: ObservableObject {
 
         logger.info("Starting embedded backend...")
         status = .starting
+
+        if EngineConfig.usesCustomHost {
+            logger.info("Custom engine host configured: \(EngineConfig.host.absoluteString, privacy: .public)")
+            do {
+                try await waitForBackend(timeout: 5)
+                status = .running
+                isExternalBackend = true
+                logger.info("✅ Connected to configured external backend")
+                return
+            } catch {
+                status = .failed
+                errorMessage = error.localizedDescription
+                throw error
+            }
+        }
 
         #if DEBUG
         // Development mode: connect to external backend if running, skip

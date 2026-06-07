@@ -91,7 +91,6 @@ struct EditorView: View {
     enum PreviewRoute: Equatable {
         case container
         case storageDisplay(documentId: String)
-        case imageFile(path: String, documentId: String)
         case imageEditor(documentId: String)
         case quickLook
 
@@ -101,11 +100,6 @@ struct EditorView: View {
             }
             return false
         }
-    }
-
-    static func canDecodeLocalImagePath(_ path: String) -> Bool {
-        (path as NSString).isAbsolutePath
-            && FileManager.default.fileExists(atPath: path)
     }
 
     static func previewRoute(for doc: Document, isEditing: Bool) -> PreviewRoute {
@@ -118,17 +112,11 @@ struct EditorView: View {
         if doc.fileType == .pdf {
             return .storageDisplay(documentId: doc.id)
         }
-        if doc.fileType == .image, let path = doc.path, !path.isEmpty {
+        if doc.fileType == .image {
             if isEditing {
                 return .imageEditor(documentId: doc.id)
             }
-            if canDecodeLocalImagePath(path) {
-                return .imageFile(path: path, documentId: doc.id)
-            }
             return .storageDisplay(documentId: doc.id)
-        }
-        if doc.fileType == .image {
-            return isEditing ? .imageEditor(documentId: doc.id) : .storageDisplay(documentId: doc.id)
         }
         return .quickLook
     }
@@ -161,13 +149,6 @@ struct EditorView: View {
         case .storageDisplay(let documentId):
             ZStack(alignment: .topTrailing) {
                 DocumentCanvas(content: .imageStorageDisplay(documentId: documentId))
-                editModeToggle
-            }
-        case .imageFile(let path, let documentId):
-            ZStack(alignment: .topTrailing) {
-                DocumentCanvas(
-                    content: .imageFile(url: URL(fileURLWithPath: path), documentId: documentId)
-                )
                 editModeToggle
             }
         case .imageEditor:

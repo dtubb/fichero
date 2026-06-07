@@ -6,7 +6,7 @@ import SwiftUI
 /// Replaces the three parallel zoom wrappers (ZoomableImageView, and the
 /// since-removed ZoomableNSImageView) with a single entry point that reuses
 /// the existing viewer stack:
-///   • image local file   → ZoomableImagePreview(url:)  — full loupe/zoom/magnifier
+///   • image storage      → StorageDisplayImageCanvas — full loupe/zoom/magnifier via HTTP
 ///   • image rendered     → ZoomableImagePreview(renderedImage:) — same stack, NSImage override
 ///   • PDF                → PDFPageWithToolbar
 ///
@@ -17,20 +17,16 @@ struct DocumentCanvas: View {
     var onPageIndexChange: ((Int) -> Void)?
 
     enum Content {
-        /// A local file image (ZoomableImagePreview URL path).
-        case imageFile(url: URL, documentId: String?)
         /// A backend storage display image, resolved by document id.
         case imageStorageDisplay(documentId: String)
         /// A backend-rendered NSImage (editor mode — may be nil while loading).
         case imageRendered(image: NSImage?, documentId: String)
         /// A PDF document at a given page index.
-        case pdf(path: String, pageIndex: Int)
+        case pdf(documentId: String, pageIndex: Int)
     }
 
     var body: some View {
         switch content {
-        case .imageFile(let url, let docId):
-            ZoomableImagePreview(url: url, documentId: docId)
         case .imageStorageDisplay(let docId):
             StorageDisplayImageCanvas(documentId: docId)
         case .imageRendered(let nsImage, let docId):
@@ -38,9 +34,9 @@ struct DocumentCanvas: View {
                 documentId: docId,
                 renderedImage: nsImage
             )
-        case .pdf(let path, let pageIndex):
+        case .pdf(let documentId, let pageIndex):
             PDFPageWithToolbar(
-                path: path,
+                documentId: documentId,
                 pageIndex: pageIndex,
                 onPageIndexChange: onPageIndexChange
             )

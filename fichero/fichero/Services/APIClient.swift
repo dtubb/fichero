@@ -41,7 +41,7 @@ func parseEngineDate(_ dateString: String) -> Date? {
 
 @MainActor
 class APIClient: ObservableObject {
-    let baseURL: URL  // Internal access for SSE streaming services
+    var baseURL: URL { EngineConfig.apiBaseURL }  // Internal access for SSE streaming services
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
@@ -52,8 +52,6 @@ class APIClient: ObservableObject {
     @Published var currentLibraryPath: String?
 
     init() {
-        self.baseURL = EngineConfig.apiBaseURL
-
         // Configure session
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30

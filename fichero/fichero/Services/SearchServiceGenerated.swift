@@ -317,7 +317,10 @@ class SearchServiceGenerated: ObservableObject {
     /// /api/search/keywords because we added it without regenerating).
     /// Empty array when the workflow hasn't extracted any keywords yet.
     func keywordCloud(limit: Int = 50) async throws -> [KeywordCloudEntryDTO] {
-        var components = URLComponents(string: "http://127.0.0.1:8765/api/search/keywords")!
+        var components = URLComponents(
+            url: EngineConfig.apiBaseURL.appendingPathComponent("search/keywords"),
+            resolvingAgainstBaseURL: false
+        )!
         components.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
         guard let url = components.url else { return [] }
         var request = URLRequest(url: url)

@@ -59,7 +59,7 @@ final class PDFPageController: ObservableObject {
 /// Horizontal trackpad swipe navigates to the next/previous page when the
 /// document is at fit-scale; when zoomed in, swipe pans normally.
 struct PDFPageView: NSViewRepresentable {
-    let path: String
+    let documentId: String
     let pageIndex: Int
     /// Fires when the user swipes to a different page.
     /// The index is 0-based into the PDF document.
@@ -80,6 +80,7 @@ struct PDFPageView: NSViewRepresentable {
 
     @State private var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
     @State private var lockedPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
+    @EnvironmentObject private var storageService: StorageServiceGenerated
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -147,7 +148,11 @@ struct PDFPageView: NSViewRepresentable {
         context.coordinator.updateTrackingAreas(
             Notification(name: NSView.frameDidChangeNotification, object: view)
         )
-        loadAndNavigate(view)
+        context.coordinator.loadAndNavigate(
+            view,
+            documentId: documentId,
+            storageService: storageService
+        )
         return view
     }
 
@@ -157,42 +162,16 @@ struct PDFPageView: NSViewRepresentable {
         context.coordinator.pageController = pageController
         zoomController?.pdfView = view
         pageController?.pdfView = view
-        loadAndNavigate(view)
+        context.coordinator.loadAndNavigate(
+            view,
+            documentId: documentId,
+            storageService: storageService
+        )
     }
 
     static func dismantleNSView(_ view: PDFView, coordinator: Coordinator) {
         NotificationCenter.default.removeObserver(coordinator)
         view.trackingAreas.forEach { view.removeTrackingArea($0) }
-    }
-
-    /// Load the PDF document (if not already loaded) and navigate to the
-    /// requested page. Only replaces `document` when the path actually changes
-    /// — re-assigning the same document resets the user's zoom/selection state.
-    private func loadAndNavigate(_ view: PDFView) {
-        let fileURL = URL(fileURLWithPath: path)
-        if view.document?.documentURL != fileURL {
-            // #588: re-engage autoScales for the new document's initial fit.
-            view.autoScales = true
-            view.document = PDFDocument(url: fileURL)
-        }
-        guard let doc = view.document,
-              pageIndex >= 0, pageIndex < doc.pageCount,
-              let page = doc.page(at: pageIndex) else {
-            return
-        }
-        if view.currentPage != page {
-            view.go(to: page)
-        }
-        // Sync the document toolbar's page cluster. Deferred to the next
-        // runloop tick so the @Published writes land after the current SwiftUI
-        // update pass commits (same reasoning as the scale observer). (#1531)
-        if let pageController {
-            let total = doc.pageCount
-            Task { @MainActor in
-                pageController.pageCount = total
-                pageController.pageIndex = pageIndex
-            }
-        }
     }
 
     /// Bridges AppKit notifications / delegate into the SwiftUI callback.
@@ -204,6 +183,9 @@ struct PDFPageView: NSViewRepresentable {
         weak var pdfView: PDFView?
         var zoomController: PDFZoomController?
         var pageController: PDFPageController?
+        private var loadedDocumentId: String?
+        private var requestedDocumentId: String?
+        private var loadTask: Task<Void, Never>?
         // Accumulated horizontal translation for the current pan gesture.
         private var panAccumulated: CGFloat = 0
 
@@ -223,6 +205,65 @@ struct PDFPageView: NSViewRepresentable {
             self.loupeEnabled = loupeEnabled
             self.cursorPosition = cursorPosition
             self.lockedPosition = lockedPosition
+        }
+
+        deinit {
+            loadTask?.cancel()
+        }
+
+        func loadAndNavigate(
+            _ view: PDFView,
+            documentId: String,
+            storageService: StorageServiceGenerated
+        ) {
+            if loadedDocumentId == documentId, view.document != nil {
+                navigateCurrentDocument(in: view)
+                return
+            }
+            if requestedDocumentId == documentId {
+                return
+            }
+
+            requestedDocumentId = documentId
+            loadedDocumentId = nil
+            loadTask?.cancel()
+            view.document = nil
+            view.autoScales = true
+
+            loadTask = Task { [weak self, weak view] in
+                guard let self else { return }
+                do {
+                    let data = try await storageService.getSourceData(documentId)
+                    guard !Task.isCancelled,
+                          let pdfDocument = PDFDocument(data: data),
+                          let view else { return }
+                    self.loadedDocumentId = documentId
+                    self.requestedDocumentId = nil
+                    view.document = pdfDocument
+                    self.navigateCurrentDocument(in: view)
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    self.requestedDocumentId = nil
+                }
+            }
+        }
+
+        private func navigateCurrentDocument(in view: PDFView) {
+            guard let doc = view.document,
+                  owner.pageIndex >= 0, owner.pageIndex < doc.pageCount,
+                  let page = doc.page(at: owner.pageIndex) else {
+                return
+            }
+            if view.currentPage != page {
+                view.go(to: page)
+            }
+            if let pageController {
+                let total = doc.pageCount
+                Task { @MainActor in
+                    pageController.pageCount = total
+                    pageController.pageIndex = owner.pageIndex
+                }
+            }
         }
 
         @objc

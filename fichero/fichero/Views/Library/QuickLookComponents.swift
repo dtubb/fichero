@@ -10,10 +10,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "QuickLo
 struct QuickLookDownloadView: View {
     let document: Document
 
-    @StateObject private var folderAccess = FolderAccessManager.shared
     @State private var fileURL: URL?
     @State private var isLoading = true
-    @State private var needsAccess = false
     @State private var error: String?
 
     @EnvironmentObject var apiClient: APIClient
@@ -22,9 +20,6 @@ struct QuickLookDownloadView: View {
         Group {
             if let url = fileURL {
                 SmartPreviewView(url: url, documentId: document.id)
-            } else if needsAccess {
-                // Prompt user to grant folder access
-                accessRequiredView
             } else if isLoading {
                 VStack(spacing: 16) {
                     ProgressView()
@@ -71,102 +66,16 @@ struct QuickLookDownloadView: View {
         .task(id: document.id) {
             await loadFile()
         }
-    }
-
-    /// The folder we need access to (immediate parent of the file)
-    private var neededFolderName: String {
-        guard let path = document.path else { return "this folder" }
-        return URL(fileURLWithPath: path).deletingLastPathComponent().lastPathComponent
-    }
-
-    private var accessRequiredView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "folder.badge.questionmark")
-                .font(.system(size: 48))
-                .foregroundColor(.orange)
-
-            Text("Grant Access to \(neededFolderName)")
-                .font(.headline)
-
-            Text("Fichero needs permission to read files from this folder. You only need to do this once.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-
-            Button("Grant Access to \(neededFolderName)...") {
-                FolderAccessManager.shared.requestFolderAccess(suggestedPath: document.path) { success in
-                    if success {
-                        Task { await loadFile() }
-                    }
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .padding(.top, 8)
-
-            // Show currently accessible folders
-            if !folderAccess.accessedFolders.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Already accessible:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    ForEach(folderAccess.accessedFolders, id: \.path) { url in
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.caption2)
-                                .foregroundColor(.green)
-                            Text(url.lastPathComponent)
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                .padding(.top, 8)
-            }
+        .onDisappear {
+            cleanupTemporaryFile()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func loadFile() async {
         isLoading = true
         error = nil
         fileURL = nil
-        needsAccess = false
-
-        // First try local path if we have access
-        if let path = document.path {
-            let localURL = URL(fileURLWithPath: path)
-
-            // Check if readable (either directly or via granted folder access)
-            if FolderAccessManager.shared.hasAccess(to: path) {
-                logger.info("Has folder access to: \(path)")
-
-                // Verify the file can actually be read before using it
-                if FileManager.default.isReadableFile(atPath: path) {
-                    logger.info("File is readable, using local path")
-                    await MainActor.run {
-                        self.fileURL = localURL
-                        self.isLoading = false
-                    }
-                    return
-                } else {
-                    logger.warning("File exists but is not readable, falling back to API download: \(path)")
-                    // Fall through to API download
-                }
-            } else {
-                // File exists but no access - prompt user
-                if FileManager.default.fileExists(atPath: path) {
-                    logger.info("File exists but no folder access granted")
-                    await MainActor.run {
-                        self.needsAccess = true
-                        self.isLoading = false
-                    }
-                    return
-                }
-            }
-        }
-
-        // No local path or file doesn't exist - download from API
+        cleanupTemporaryFile()
         logger.info("Loading file from API for document: \(document.id)")
         await downloadFromAPI()
     }
@@ -258,6 +167,16 @@ struct QuickLookDownloadView: View {
                 self.isLoading = false
             }
         }
+    }
+
+    private func cleanupTemporaryFile() {
+        guard let fileURL else { return }
+        let previewRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FicheroPreview")
+            .standardizedFileURL
+        let candidate = fileURL.standardizedFileURL
+        guard candidate.path.hasPrefix(previewRoot.path) else { return }
+        try? FileManager.default.removeItem(at: candidate)
     }
 
     // Get filename with proper extension
