@@ -100,10 +100,12 @@ def _matching_entity_resolution_rules(
     canonical_name: str,
     entity_type: EntityType,
 ) -> list[EntityResolutionRule]:
-    rules = db.query(
-        EntityResolutionRule,
-        match_canonical_name=canonical_name,
-    )
+    normalized_name = _norm_rule_text(canonical_name)
+    rules = [
+        rule
+        for rule in db.query(EntityResolutionRule)
+        if _norm_rule_text(rule.match_canonical_name) == normalized_name
+    ]
     matched = [
         rule
         for rule in rules
@@ -126,11 +128,11 @@ def _apply_entity_resolution_rules(
         loop_key = (_norm_rule_text(current_name), current_type.value)
         if loop_key in seen:
             logger.warning(
-                "upsert_entity: resolution-rule loop detected for %r/%s",
+                "upsert_entity: not writing %r/%s after resolution-rule loop detected; suppressing due to suspected cycle/overflow",
                 current_name,
                 current_type.value,
             )
-            return current_name, current_type
+            return None
         seen.add(loop_key)
 
         rules = _matching_entity_resolution_rules(db, current_name, current_type)
@@ -201,11 +203,11 @@ def _apply_entity_resolution_rules(
         return current_name, current_type
 
     logger.warning(
-        "upsert_entity: resolution-rule iteration cap reached for %r/%s",
+        "upsert_entity: not writing %r/%s after resolution-rule iteration cap reached; suppressing due to suspected cycle/overflow",
         current_name,
         current_type.value,
     )
-    return current_name, current_type
+    return None
 
 
 def _is_bare_is_a_copula(
