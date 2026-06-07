@@ -1876,6 +1876,20 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("batch-exclude")
+    def documents_batch_exclude_patch(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Batch Exclude Documents (PATCH /api/documents/batch-exclude)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/documents/batch-exclude"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PATCH", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("cleanup-orphan")
     def documents_cleanup_orphan_post(
         ctx: typer.Context,
@@ -3502,6 +3516,112 @@ def register_generated_openapi_commands(
                 "limit": limit,
             }
             return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("delete-claim-rule")
+    def kg_delete_claim_rule_delete(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Delete Claim Rule (DELETE /api/kg/curation-rules/claim-rules)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/curation-rules/claim-rules"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("DELETE", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-claim-rules")
+    def kg_list_claim_rules_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Claim Rules (GET /api/kg/curation-rules/claim-rules)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/curation-rules/claim-rules"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-claim-rule")
+    def kg_create_claim_rule_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Create Claim Rule (POST /api/kg/curation-rules/claim-rules)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/curation-rules/claim-rules"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-claim-rules-batch")
+    def kg_create_claim_rules_batch_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Create Claim Rules Batch (POST /api/kg/curation-rules/claim-rules/batch)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/curation-rules/claim-rules/batch"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("delete-entity-rule")
+    def kg_delete_entity_rule_delete(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Delete Entity Rule (DELETE /api/kg/curation-rules/entity-rules)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/curation-rules/entity-rules"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("DELETE", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-entity-rules")
+    def kg_list_entity_rules_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Entity Rules (GET /api/kg/curation-rules/entity-rules)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/curation-rules/entity-rules"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-entity-rule")
+    def kg_create_entity_rule_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Create Entity Rule (POST /api/kg/curation-rules/entity-rules)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/curation-rules/entity-rules"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-entity-rules-batch")
+    def kg_create_entity_rules_batch_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Create Entity Rules Batch (POST /api/kg/curation-rules/entity-rules/batch)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/curation-rules/entity-rules/batch"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("generate-llm-biography-for-a-knowledge-entity")

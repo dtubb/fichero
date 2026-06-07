@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from fichero.manifest_import import import_manifest, validate_nodes
+from fichero.models import Document
 
 
 CANONICAL_VERSION = "fichero-corpus-import-v1"
@@ -495,6 +496,35 @@ def test_import_is_idempotent(client, db, tmp_path):
         if a["artifact_type"] in {"import_receipt", "transcription", "people", "places"}
     ]
     assert len(imported) == 4
+
+
+def test_import_skips_processing_for_excluded_existing_document(client, db, tmp_path):
+    manifest = _fixture_manifest(tmp_path)
+    summary = import_manifest(
+        _TestClientAdapter(client),
+        manifest,
+        str(tmp_path / "lib.fichero"),
+    )
+    assert summary.documents_created == 2
+
+    docs = client.get("/api/documents?limit=500").json()["items"]
+    page = next(d for d in docs if d["name"] == "page_001")
+
+    excluded = db.get(Document, page["id"])
+    assert excluded is not None
+    excluded.exclude_from_processing = True
+    db.save(excluded)
+
+    rerun = import_manifest(
+        _TestClientAdapter(client),
+        manifest,
+        str(tmp_path / "lib.fichero"),
+    )
+
+    assert rerun.documents_skipped == 2
+    assert rerun.entities_created == 0
+    assert rerun.claims_created == 0
+    assert rerun.artifacts_created == 0
 
 
 def test_import_receipt_is_created_even_without_text_or_entities(client, tmp_path):

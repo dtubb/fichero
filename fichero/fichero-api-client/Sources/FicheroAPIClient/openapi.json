@@ -6540,6 +6540,59 @@
         }
       }
     },
+    "/api/documents/batch-exclude": {
+      "patch": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Batch Exclude Documents",
+        "description": "Toggle exclude-from-processing on multiple documents with audit logging.",
+        "operationId": "batch_exclude_documents_api_documents_batch_exclude_patch",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentBatchExcludeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentBatchExcludeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{doc_id}/prototype": {
       "put": {
         "tags": [
@@ -21184,6 +21237,394 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EvidenceChain"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/curation-rules/entity-rules": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Entity Rules",
+        "operationId": "list_entity_rules_api_kg_curation_rules_entity_rules_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityRuleListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Create Entity Rule",
+        "operationId": "create_entity_rule_api_kg_curation_rules_entity_rules_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityRuleCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityRuleReadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Delete Entity Rule",
+        "operationId": "delete_entity_rule_api_kg_curation_rules_entity_rules_delete",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityRuleDeleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityRuleDeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/curation-rules/entity-rules/batch": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Create Entity Rules Batch",
+        "operationId": "create_entity_rules_batch_api_kg_curation_rules_entity_rules_batch_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityRuleBatchCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityRuleListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/curation-rules/claim-rules": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Claim Rules",
+        "operationId": "list_claim_rules_api_kg_curation_rules_claim_rules_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimRuleListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Create Claim Rule",
+        "operationId": "create_claim_rule_api_kg_curation_rules_claim_rules_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimRuleCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimRuleReadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Delete Claim Rule",
+        "operationId": "delete_claim_rule_api_kg_curation_rules_claim_rules_delete",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimRuleDeleteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimRuleDeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/curation-rules/claim-rules/batch": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Create Claim Rules Batch",
+        "operationId": "create_claim_rules_batch_api_kg_curation_rules_claim_rules_batch_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimRuleBatchCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimRuleListResponse"
                 }
               }
             }
@@ -36439,6 +36880,167 @@
         "title": "ClaimRelationType",
         "description": "Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B).\n\nOriginally four kinds (supports / contradicts / refines / duplicate_of).\n#1123 extends with five new dimensions plus ``related_to`` (the generic\nfallback used by ``kg_predictions._record_predictions`` when a model\nsurfaces a relation outside the curated set):\n\n- ``corroborates`` \u2014 independent evidence agreeing with the source\n  claim. Distinct from ``supports`` (which just reinforces with\n  additional evidence drawn from the same line of reasoning).\n- ``derives_from`` \u2014 claim B is inferred from / built on claim A;\n  removing A invalidates B. Stronger than ``cites``.\n- ``cites`` \u2014 B references A as a source. Bibliographic / citation\n  graph use.\n- ``follows`` \u2014 temporal sequence (A then B). Doesn't imply\n  causation; ``caused_by`` is the explicit causal claim.\n- ``caused_by`` \u2014 A is the cause of B. Strong claim; reviewers\n  should treat with corroboration.\n- ``related_to`` \u2014 generic fallback when the typed kinds don't\n  fit. Closes the latent crash in\n  ``kg_predictions.py:269`` where the relation_map fallback\n  referenced this value before it existed.\n\nNote: ``contests`` was considered as a synonym for ``contradicts``\nbut excluded \u2014 same semantic, different word, doesn't earn a\nseparate enum slot. Writers should keep using ``contradicts``."
       },
+      "ClaimRuleBatchCreateRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimRuleCreateRequest"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "title": "ClaimRuleBatchCreateRequest"
+      },
+      "ClaimRuleCreateRequest": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ClaimSuppressionRuleAction"
+          },
+          "match_predicate_verb": {
+            "type": "string",
+            "nullable": true,
+            "title": "Match Predicate Verb"
+          },
+          "match_subject_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Match Subject Name"
+          },
+          "match_object_phrase": {
+            "type": "string",
+            "nullable": true,
+            "title": "Match Object Phrase"
+          },
+          "suppress_is_a_copulas": {
+            "type": "boolean",
+            "title": "Suppress Is A Copulas",
+            "default": false
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "human"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "reason"
+        ],
+        "title": "ClaimRuleCreateRequest"
+      },
+      "ClaimRuleDeleteRequest": {
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "title": "Rule Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule_id"
+        ],
+        "title": "ClaimRuleDeleteRequest"
+      },
+      "ClaimRuleDeleteResponse": {
+        "properties": {
+          "deleted_rule_id": {
+            "type": "string",
+            "title": "Deleted Rule Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted_rule_id"
+        ],
+        "title": "ClaimRuleDeleteResponse"
+      },
+      "ClaimRuleListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimRuleReadResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "ClaimRuleListResponse"
+      },
+      "ClaimRuleReadResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "action": {
+            "$ref": "#/components/schemas/ClaimSuppressionRuleAction"
+          },
+          "match_predicate_verb": {
+            "type": "string",
+            "nullable": true,
+            "title": "Match Predicate Verb"
+          },
+          "match_subject_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Match Subject Name"
+          },
+          "match_object_phrase": {
+            "type": "string",
+            "nullable": true,
+            "title": "Match Object Phrase"
+          },
+          "suppress_is_a_copulas": {
+            "type": "boolean",
+            "title": "Suppress Is A Copulas",
+            "default": false
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "reason",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ClaimRuleReadResponse"
+      },
       "ClaimSourceResolveRequest": {
         "properties": {
           "claim_id": {
@@ -36560,6 +37162,15 @@
           "source_document_id"
         ],
         "title": "ClaimSummary"
+      },
+      "ClaimSuppressionRuleAction": {
+        "type": "string",
+        "enum": [
+          "disable",
+          "demote",
+          "prune"
+        ],
+        "title": "ClaimSuppressionRuleAction"
       },
       "ClaimTransitionRequest": {
         "properties": {
@@ -38373,6 +38984,12 @@
             "title": "Is Flagged",
             "default": false
           },
+          "exclude_from_processing": {
+            "type": "boolean",
+            "title": "Exclude From Processing",
+            "description": "True when import/workflow processing should skip this document. Used by curation to keep selected rows out of downstream passes.",
+            "default": false
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -38415,6 +39032,53 @@
         ],
         "title": "Document",
         "description": "A node in the document hierarchy.\n\nRepresents any organizational unit or file:\n- Collection: top-level archive/project\n- Folder: organizational grouping (box, series)\n- Group: logical document (a letter that spans 3 pages)\n- File: actual file (image, PDF, audio)\n- Page: page within a PDF\n- Chunk: region within a page (signature, stamp, paragraph)\n\nHierarchy via parent_id:\n    Collection > Folder > Group > File > Page > Chunk\n\nCompatible with LangChain's Document concept via page_content and metadata."
+      },
+      "DocumentBatchExcludeRequest": {
+        "properties": {
+          "document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Document Ids"
+          },
+          "excluded": {
+            "type": "boolean",
+            "title": "Excluded"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_ids",
+          "excluded"
+        ],
+        "title": "DocumentBatchExcludeRequest"
+      },
+      "DocumentBatchExcludeResponse": {
+        "properties": {
+          "updated": {
+            "type": "integer",
+            "title": "Updated"
+          },
+          "document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Document Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated",
+          "document_ids"
+        ],
+        "title": "DocumentBatchExcludeResponse"
       },
       "DocumentCitation": {
         "properties": {
@@ -39038,6 +39702,11 @@
             "nullable": true,
             "title": "Is Flagged"
           },
+          "exclude_from_processing": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Exclude From Processing"
+          },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
@@ -39538,6 +40207,16 @@
         "title": "EntityCoOccurrenceListResponse",
         "description": "Standardized envelope for GET /api/entities/{entity_id}/co-occurrence."
       },
+      "EntityCurationState": {
+        "type": "string",
+        "enum": [
+          "unreviewed",
+          "verified",
+          "rejected",
+          "merged"
+        ],
+        "title": "EntityCurationState"
+      },
       "EntityDocumentLink": {
         "properties": {
           "document_id": {
@@ -39862,6 +40541,173 @@
         ],
         "title": "EntityResolutionResponse",
         "description": "Response from resolving a lookup value to an entity."
+      },
+      "EntityResolutionRuleType": {
+        "type": "string",
+        "enum": [
+          "suppress",
+          "merge_into",
+          "reclassify",
+          "alias"
+        ],
+        "title": "EntityResolutionRuleType"
+      },
+      "EntityRuleBatchCreateRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EntityRuleCreateRequest"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "title": "EntityRuleBatchCreateRequest"
+      },
+      "EntityRuleCreateRequest": {
+        "properties": {
+          "rule_type": {
+            "$ref": "#/components/schemas/EntityResolutionRuleType"
+          },
+          "match_canonical_name": {
+            "type": "string",
+            "title": "Match Canonical Name"
+          },
+          "match_entity_type": {
+            "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+            "nullable": true
+          },
+          "target_canonical_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Canonical Name"
+          },
+          "target_entity_type": {
+            "$ref": "#/components/schemas/fichero__knowledge_models__EntityType",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "human"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule_type",
+          "match_canonical_name",
+          "reason"
+        ],
+        "title": "EntityRuleCreateRequest"
+      },
+      "EntityRuleDeleteRequest": {
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "title": "Rule Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule_id"
+        ],
+        "title": "EntityRuleDeleteRequest"
+      },
+      "EntityRuleDeleteResponse": {
+        "properties": {
+          "deleted_rule_id": {
+            "type": "string",
+            "title": "Deleted Rule Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted_rule_id"
+        ],
+        "title": "EntityRuleDeleteResponse"
+      },
+      "EntityRuleListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EntityRuleReadResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "EntityRuleListResponse"
+      },
+      "EntityRuleReadResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "rule_type": {
+            "$ref": "#/components/schemas/EntityResolutionRuleType"
+          },
+          "match_canonical_name": {
+            "type": "string",
+            "title": "Match Canonical Name"
+          },
+          "match_entity_type": {
+            "$ref": "#/components/schemas/EntityType-Output",
+            "nullable": true
+          },
+          "target_canonical_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Canonical Name"
+          },
+          "target_entity_type": {
+            "$ref": "#/components/schemas/EntityType-Output",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "rule_type",
+          "match_canonical_name",
+          "reason",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "EntityRuleReadResponse"
       },
       "EntitySplitRequest": {
         "properties": {
@@ -43439,6 +44285,10 @@
             "type": "array",
             "title": "Source Document Ids",
             "description": "Document/page ids this entity was extracted from (per-page scope; parent aggregates via descendants). #1562"
+          },
+          "curation_state": {
+            "$ref": "#/components/schemas/EntityCurationState",
+            "default": "unreviewed"
           },
           "corroboration_count": {
             "type": "integer",

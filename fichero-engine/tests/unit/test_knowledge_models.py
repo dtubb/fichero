@@ -8,21 +8,26 @@ import pytest
 from fichero.knowledge_models import (
     AttributionRole,
     AttributionStep,
+    ClaimSuppressionRule,
+    ClaimSuppressionRuleAction,
     EvidenceBasis,
     EvidentialDateRange,
     EvidentialPlace,
-    SourceMetadata,
-    ProvenanceInfo,
+    EntityCurationState,
+    EntityResolutionRule,
+    EntityResolutionRuleType,
+    EntityType,
     KnowledgeClaim,
     KnowledgeEntity,
-    # #1123 attribution taxonomy
-    QuotationKind,
-    ProvenanceLayer,
-    SourceGenre,
     GeoPoint,
     PlaceGeometryType,
-    ProvenanceStep,
     ImageProvenance,
+    ProvenanceInfo,
+    ProvenanceLayer,
+    ProvenanceStep,
+    QuotationKind,
+    SourceGenre,
+    SourceMetadata,
     SourceSupport,
 )
 
@@ -555,6 +560,56 @@ class TestEvidentialModel:
             assert loaded.weighted_corroboration_count == 1.6
             assert loaded.corroborating_source_ids == ["doc-1", "doc-7"]
             assert loaded.evidential_confidence == 0.87
+
+
+class TestCurationRules:
+    def test_knowledge_entity_defaults_to_unreviewed_curation_state(self):
+        entity = KnowledgeEntity(canonical_name="Popayan")
+        assert entity.curation_state == EntityCurationState.unreviewed
+
+    def test_rule_models_round_trip_via_database(self):
+        from fichero.db import Database
+
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Database(Path(tmp) / "test.fichero")
+
+            entity_rule = EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.merge_into,
+                match_canonical_name="J. Davidson",
+                match_entity_type=EntityType.person,
+                target_canonical_name="John Davidson",
+                target_entity_type=EntityType.person,
+                reason="same person",
+                created_by="tester",
+            )
+            claim_rule = ClaimSuppressionRule(
+                action=ClaimSuppressionRuleAction.demote,
+                match_predicate_verb="is",
+                match_subject_name="Andagoya",
+                match_object_phrase="a place",
+                suppress_is_a_copulas=True,
+                reason="trivial copula",
+                created_by="tester",
+            )
+
+            db.save(entity_rule)
+            db.save(claim_rule)
+
+            loaded_entity_rules = db.query(
+                EntityResolutionRule,
+                match_canonical_name="J. Davidson",
+            )
+            loaded_claim_rules = db.query(
+                ClaimSuppressionRule,
+                match_subject_name="Andagoya",
+            )
+
+            assert len(loaded_entity_rules) == 1
+            assert loaded_entity_rules[0].rule_type == EntityResolutionRuleType.merge_into
+            assert loaded_entity_rules[0].target_canonical_name == "John Davidson"
+            assert len(loaded_claim_rules) == 1
+            assert loaded_claim_rules[0].action == ClaimSuppressionRuleAction.demote
+            assert loaded_claim_rules[0].suppress_is_a_copulas is True
 
 
 class TestDocumentProvenance:

@@ -31,6 +31,7 @@ Design notes
 from __future__ import annotations
 
 import json
+import logging
 import os
 import urllib.error
 import urllib.parse
@@ -38,6 +39,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
+
+logger = logging.getLogger(__name__)
 
 CANONICAL_VERSION = "fichero-corpus-import-v1"
 
@@ -515,6 +518,18 @@ def _existing_doc_id_by_external(
     return mapping
 
 
+def _existing_doc_by_external(
+    docs: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    mapping: dict[str, dict[str, Any]] = {}
+    for doc in docs:
+        meta = doc.get("metadata") or {}
+        external = meta.get("canonical_external_id")
+        if external:
+            mapping[str(external)] = doc
+    return mapping
+
+
 # ---------------------------------------------------------------------------
 # Import driver
 # ---------------------------------------------------------------------------
@@ -699,6 +714,7 @@ def import_manifest(
     # --- documents (folders/groups/pages), parent-before-child ---
     existing_docs = _list_documents(client)
     doc_id_by_external = _existing_doc_id_by_external(existing_docs)
+    existing_doc_by_external = _existing_doc_by_external(existing_docs)
 
     for node in nodes:
         external_id = node["external_id"]
@@ -734,6 +750,14 @@ def import_manifest(
 
     for node in nodes:
         source_document_id = doc_id_by_external.get(node["external_id"])
+        existing_doc = existing_doc_by_external.get(node["external_id"]) or {}
+        if existing_doc.get("exclude_from_processing") is True:
+            logger.info(
+                "Skipping manifest processing for excluded document %s (%s)",
+                source_document_id,
+                node["external_id"],
+            )
+            continue
         for entity in node.get("entities") or []:
             name = entity.get("canonical_name")
             if not name:
@@ -779,6 +803,14 @@ def import_manifest(
     for node in nodes:
         doc_id = doc_id_by_external.get(node["external_id"])
         if not doc_id:
+            continue
+        existing_doc = existing_doc_by_external.get(node["external_id"]) or {}
+        if existing_doc.get("exclude_from_processing") is True:
+            logger.info(
+                "Skipping manifest artifacts for excluded document %s (%s)",
+                doc_id,
+                node["external_id"],
+            )
             continue
 
         if node.get("node_type") == "page":
@@ -872,6 +904,14 @@ def import_manifest(
     existing_claim_externals = _list_claim_external_ids(client)
     for node in nodes:
         source_document_id = doc_id_by_external.get(node["external_id"])
+        existing_doc = existing_doc_by_external.get(node["external_id"]) or {}
+        if existing_doc.get("exclude_from_processing") is True:
+            logger.info(
+                "Skipping manifest claims for excluded document %s (%s)",
+                source_document_id,
+                node["external_id"],
+            )
+            continue
         for claim in node.get("claims") or []:
             ext = claim.get("external_id")
             if ext and ext in existing_claim_externals:
