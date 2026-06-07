@@ -315,8 +315,8 @@ class SearchServiceGenerated: ObservableObject {
     func keywordCloud(limit: Int = 50) async throws -> [KeywordCloudEntryDTO] {
         let response = try await client.api.keywordCloudApiSearchKeywordsGet(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryPath),
-                query: .init(limit: limit)
+                query: .init(limit: limit),
+                headers: .init(xFicheroLibraryPath: libraryPath)
             )
         )
 
