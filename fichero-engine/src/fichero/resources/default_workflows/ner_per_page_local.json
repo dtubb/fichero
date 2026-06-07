@@ -1,6 +1,6 @@
 {
   "name": "NER per-page (local)",
-  "description": "Local NER extraction over a folder of text files (.md / .txt). No transcription step (text already has page_content); no folder cleanup; no aggregate-combine output. Each file gets its own per-doc people / places / organizations / dates / events / keywords artifacts. Uses the $small alias \u2014 point it at Apple Intelligence in Settings \u2192 AI Defaults to keep everything on-device. Designed for field notes, journals, and any plain-text corpus where you want entity extraction without burning cloud tokens.",
+  "description": "Local NER extraction over a folder of text files (.md / .txt). No transcription step (text already has page_content); no folder cleanup; no aggregate-combine output. Each file gets its own per-doc people / places / organizations / dates / events / keywords artifacts, and factual KG claims persist inline during extraction. Uses the $small alias \u2014 point it at Apple Intelligence in Settings \u2192 AI Defaults to keep everything on-device. Designed for field notes, journals, and any plain-text corpus where you want entity extraction without burning cloud tokens.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -13,7 +13,7 @@
     "field-notes"
   ],
   "config": {
-    "preset_version": 2
+    "preset_version": 3
   },
   "nodes": [
     {
@@ -47,17 +47,8 @@
       "config": {
         "output_language": "auto",
         "provider_name": "$small",
-        "persist_kg": false
+        "persist_kg": true
       }
-    },
-    {
-      "id": "kg_writer",
-      "tool": "kg_writer",
-      "label": "Write KG",
-      "position_x": 560,
-      "position_y": 200,
-      "inputs": {},
-      "config": {}
     }
   ],
   "edges": [
@@ -81,13 +72,6 @@
       "target": "extract_all",
       "source_port": "records",
       "target_port": "records"
-    },
-    {
-      "id": "e-extract_all-kg_writer",
-      "source": "extract_all",
-      "target": "kg_writer",
-      "source_port": "kg_payload",
-      "target_port": "kg_payload"
     }
   ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "Catalogue",
-  "description": "Transcribe every file, extract typed entities (people, places, organizations, dates, events, keywords) in a single combined LLM call per page, then folder-level dedup and a narrative catalogue entry. All LLM nodes use the $small model alias \u2014 set your default small model in Settings \u2192 AI Defaults (e.g. Apple Intelligence for free local use).",
+  "description": "Transcribe every file, extract typed entities (people, places, organizations, dates, events, keywords) in a single combined LLM call per page, persist per-page KG claims inline during extraction, then folder-level dedup and a narrative catalogue entry. All LLM nodes use the $small model alias \u2014 set your default small model in Settings \u2192 AI Defaults (e.g. Apple Intelligence for free local use).",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -10,6 +10,9 @@
     "catalogue",
     "small"
   ],
+  "config": {
+    "preset_version": 2
+  },
   "nodes": [
     {
       "id": "files-source",
@@ -43,17 +46,8 @@
       "config": {
         "output_language": "auto",
         "provider_name": "$small",
-        "persist_kg": false
+        "persist_kg": true
       }
-    },
-    {
-      "id": "kg_writer",
-      "tool": "kg_writer",
-      "label": "Write KG",
-      "position_x": 560,
-      "position_y": 400,
-      "inputs": {},
-      "config": {}
     },
     {
       "id": "citations_extract",
@@ -185,13 +179,6 @@
       "target": "people_folder_clean",
       "source_port": "text",
       "target_port": "text"
-    },
-    {
-      "id": "e-extract_all-kg_writer",
-      "source": "extract_all",
-      "target": "kg_writer",
-      "source_port": "kg_payload",
-      "target_port": "kg_payload"
     },
     {
       "id": "e-files-citations-documents",

@@ -179,7 +179,7 @@ def test_import_creates_documents_entities_claims(client, db, tmp_path):
     assert summary.pages_seen == 1
     assert summary.documents_created == 2
     assert summary.entities_created == 2
-    assert summary.artifacts_created == 3
+    assert summary.artifacts_created == 4
     assert summary.claims_created == 1
     assert summary.warnings == []
 
@@ -212,7 +212,12 @@ def test_import_creates_documents_entities_claims(client, db, tmp_path):
         f"/api/artifacts/document/{page['id']}?include_descendants=false"
     ).json()
     artifact_types = {a["artifact_type"] for a in page_artifacts["items"]}
-    assert {"transcription", "people", "places"} <= artifact_types
+    assert {"import_receipt", "transcription", "people", "places"} <= artifact_types
+    import_receipt = next(
+        a for a in page_artifacts["items"] if a["artifact_type"] == "import_receipt"
+    )
+    assert import_receipt["data"]["external_id"] == "tiny_corpus__page_001"
+    assert import_receipt["data"]["page_label"] == "001"
     transcription = next(
         a for a in page_artifacts["items"] if a["artifact_type"] == "transcription"
     )
@@ -471,7 +476,7 @@ def test_import_is_idempotent(client, db, tmp_path):
     assert second.entities_created == 0
     assert second.entities_reused == 2
     assert second.artifacts_created == 0
-    assert second.artifacts_skipped == 3
+    assert second.artifacts_skipped == 4
     assert second.claims_created == 0
     assert second.claims_skipped == 1
 
@@ -487,6 +492,43 @@ def test_import_is_idempotent(client, db, tmp_path):
     imported = [
         a
         for a in artifact_items
-        if a["artifact_type"] in {"transcription", "people", "places"}
+        if a["artifact_type"] in {"import_receipt", "transcription", "people", "places"}
     ]
-    assert len(imported) == 3
+    assert len(imported) == 4
+
+
+def test_import_receipt_is_created_even_without_text_or_entities(client, tmp_path):
+    manifest = tmp_path / "manifest.jsonl"
+    node = {
+        "canonical_version": CANONICAL_VERSION,
+        "node_type": "page",
+        "external_id": "receipt_only__page_001",
+        "parent_external_id": None,
+        "corpus": "receipt_only",
+        "name": "page_001",
+        "sequence": 1,
+        "page_label": "001",
+        "language": "en",
+        "text": "",
+        "images": [],
+        "entities": [],
+        "claims": [],
+        "metadata": {},
+    }
+    manifest.write_text(json.dumps(node) + "\n", encoding="utf-8")
+
+    summary = import_manifest(
+        _TestClientAdapter(client),
+        manifest,
+        str(tmp_path / "lib.fichero"),
+    )
+
+    assert summary.artifacts_created == 1
+    docs = client.get("/api/documents?limit=500").json()
+    items = docs["items"] if isinstance(docs, dict) else docs
+    page = next(d for d in items if d["name"] == "page_001")
+    page_artifacts = client.get(
+        f"/api/artifacts/document/{page['id']}?include_descendants=false"
+    ).json()
+    artifact_types = {a["artifact_type"] for a in page_artifacts["items"]}
+    assert artifact_types == {"import_receipt"}

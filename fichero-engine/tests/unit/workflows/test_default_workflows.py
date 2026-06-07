@@ -119,7 +119,9 @@ class TestLoadPresetFiles:
         assert "extract_all" in node_tools, (
             "Catalogue preset must use the combined extract_all tool"
         )
-        assert "kg_writer" in node_tools, "Catalogue preset must include kg_writer"
+        assert "kg_writer" not in node_tools, (
+            "Catalogue preset must persist KG inline, not via kg_writer"
+        )
         for cleaner in (
             "people_folder_cleanup",
             "places_folder_cleanup",
@@ -134,7 +136,7 @@ class TestLoadPresetFiles:
         extract_all_node = next(
             n for n in presets["Catalogue"]["nodes"] if n["tool"] == "extract_all"
         )
-        assert extract_all_node["config"].get("persist_kg") is False
+        assert extract_all_node["config"].get("persist_kg") is True
         # Per-type extractors and per-page cleanups dropped for speed.
         for dropped in (
             "people_extract", "places_extract", "organizations_extract",
@@ -146,13 +148,9 @@ class TestLoadPresetFiles:
             assert dropped not in node_tools, (
                 f"Catalogue preset should no longer use {dropped!r}"
             )
-        kg_writer_id = _node_id(presets["Catalogue"], "kg_writer")
         extract_id = _node_id(presets["Catalogue"], "extract_all")
-        assert any(
-            e["source"] == extract_id
-            and e["target"] == kg_writer_id
-            and e["source_port"] == "kg_payload"
-            and e["target_port"] == "kg_payload"
+        assert not any(
+            e["source"] == extract_id and e["source_port"] == "kg_payload"
             for e in presets["Catalogue"]["edges"]
         )
 
@@ -166,22 +164,18 @@ class TestLoadPresetFiles:
         }
         assert not (archive_specific & node_tools)
 
-    def test_ner_per_page_local_has_explicit_kg_writer(self):
+    def test_ner_per_page_local_persists_kg_inline(self):
         presets = {p["name"]: p for p in _load_preset_files()}
         preset = presets["NER per-page (local)"]
         node_tools = {n["tool"] for n in preset["nodes"]}
-        assert "kg_writer" in node_tools
+        assert "kg_writer" not in node_tools
         extract_all_node = next(
             n for n in preset["nodes"] if n["tool"] == "extract_all"
         )
-        assert extract_all_node["config"].get("persist_kg") is False
+        assert extract_all_node["config"].get("persist_kg") is True
         extract_id = _node_id(preset, "extract_all")
-        kg_writer_id = _node_id(preset, "kg_writer")
-        assert any(
-            e["source"] == extract_id
-            and e["target"] == kg_writer_id
-            and e["source_port"] == "kg_payload"
-            and e["target_port"] == "kg_payload"
+        assert not any(
+            e["source"] == extract_id and e["source_port"] == "kg_payload"
             for e in preset["edges"]
         )
 
@@ -210,20 +204,16 @@ class TestLoadPresetFiles:
         )
 
         stage2_tools = {n["tool"] for n in stage2["nodes"]}
-        assert stage2_tools == {"files", "aggregate", "extract_all", "kg_writer"}
+        assert stage2_tools == {"files", "aggregate", "extract_all"}
         extract_node = next(n for n in stage2["nodes"] if n["tool"] == "extract_all")
         assert extract_node["config"].get("provider_name") == "$small"
-        assert extract_node["config"].get("persist_kg") is False
+        assert extract_node["config"].get("persist_kg") is True
 
         extract_id = _node_id(stage2, "extract_all")
-        kg_writer_id = _node_id(stage2, "kg_writer")
-        assert any(
-            e["source"] == extract_id
-            and e["target"] == kg_writer_id
-            and e["source_port"] == "kg_payload"
-            and e["target_port"] == "kg_payload"
+        assert not any(
+            e["source"] == extract_id and e["source_port"] == "kg_payload"
             for e in stage2["edges"]
-        ), "stage 2 must persist KG via the explicit kg_writer stage"
+        ), "stage 2 must persist KG inline inside extract_all"
 
         stage3_tools = {n["tool"] for n in stage3["nodes"]}
         assert stage3_tools == {"files", "aggregate", "catalogue"}
