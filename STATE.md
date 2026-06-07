@@ -225,3 +225,34 @@ NEEDS ENGINE RESTART on Daniel's :8765 (backend merges): #1727 Inbox, #1707/#173
 Next tick: light GH-hygiene (verify+close any stale-already-fixed issues like #1611 was) OR idle until Daniel returns. Do NOT force risky lanes.
 
 ### Tick 12 (~05:20) — IDLE (pacing down). No lanes running; 0.0.2 green at 13c85ad5. No safe stale-close this tick — adjacent candidates (#1680/#1681 imported-image render, #1682 entity-notes lib-path) are IIIF-import-specific, not code-verifiable without real data; left open. #1723/#1724 intentionally open for Daniel's visual verify. No risky work manufactured. 20 closed tonight stands.
+
+## 2026-06-07 MORNING — Daniel back, design session + RESUME systematic build (manager loop ON)
+Daniel: "proceed to work on them steadily, systematically, using tmux codex. make a plan + issues. test on another computer later (host a library one place, view another)."
+
+### New issues filed this morning (design + bugs)
+- #1743 PDF reader stays (annotations) but load via HTTP data not local path (blank-PDF fix) → FOLDED into #1750.
+- #1744 2D spatial image icons forced square (aspect ratio).
+- #1745 annotations (highlight/underline) on images like PDF.
+- #1746 3D spatial doesn't persist positions on view-change (2D does). Follow-up to #1730.
+- #1747 unified canvas: folder-of-images flips like a PDF (swipe + arrow keys + buttons); always show first image (descend nested folders); empty→nothing.
+- #1748 spatial GUI: resize/move with grab-handle box (2D) + finer 3D grid + size/pos fields.
+- #1749 WebKit/text view selectable scope: page / folder / grandparent.
+- #1750 [ARCH] no local-file rendering — ALL image/PDF via storage HTTP + EngineConfig.host configurable (enables remote engine). Audited site list in issue.
+- #1751 [EPIC] unified curation — multi-select disable/group/delete/merge/unmerge/reclassify across files/folders/entities/claims via drag-drop+context-menu+menu+keyboard.
+- #1752 per-item processing toggle + content-type/class (exclude page/image from AI; mark 'photograph'); = prototype/class system #1741/#1570.
+- #1753 model comparison: prepopulate from node editor + saved-comparison library + app-vs-library scope.
+- #1742 (earlier) Automation service is a stub — wire end-to-end before enabling.
+
+### MODEL (locked in #1740): workspace = alias-collection library item (NOT a folder); agent = its own scoped actor; Research = the agent; destination = workspace OR folder. View modes (grid/list/table/map/2D-spatial/3D-spatial/workspace-panes) over collections. [[no-local-paths-server-may-be-remote]] is HARD law.
+
+### BUILD WAVES (priority)
+- **Wave 1 (RUNNING):** #1750 no-local-paths sweep + configurable host → unblocks remote-test goal + fixes blank PDF. Lane f_codex_nolocal (gpt-5.4).
+- **Wave 2 (after #1750 merges — same render files):** #1747 unified canvas nav, #1745 image annotations, #1749 text scope.
+- **Wave 3:** #1746 3D persist, #1744 2D aspect, #1748 handles/finer-grid (after Daniel's spatial-edit design settles).
+- **Wave 4 (EPICs — short plan first, then build):** #1751 curation, #1752 processing/class, #1753 comparison, #1740 Phase 2 workspace+agent.
+- **Remote-library milestone (later):** after #1750, the .fichero package living on the server (open-via-engine not local picker) → enables "host one place, view another." Bigger; needs its own plan.
+
+### OPEN QUESTIONS for Daniel (asked, awaiting)
+- Marshall diary import of ~5 folders of images via an agent — need the SOURCE FOLDER PATHS.
+- "second line in the marshall diary" — unclear, needs clarification.
+- #1753 scope: Activity + Model Comparison app-wide vs per-library-grouped?
