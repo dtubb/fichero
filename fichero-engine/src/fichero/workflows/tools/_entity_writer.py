@@ -22,8 +22,13 @@ from fichero.db import Database
 from fichero.knowledge_models import (
     AttributionRole,
     AttributionStep,
+    ClaimCurationState,
+    ClaimSuppressionRule,
+    ClaimSuppressionRuleAction,
     ClaimType,
     ClaimRelationType,
+    EntityResolutionRule,
+    EntityResolutionRuleType,
     EntityType,
     EvidenceBasis,
     EpistemicStatus,
@@ -41,6 +46,39 @@ from fichero.knowledge_models import (
 logger = logging.getLogger(__name__)
 
 _ENTITY_UPSERT_LOCK = threading.RLock()
+_GENERIC_COPULA_OBJECTS = frozenset({
+    "citation",
+    "citations",
+    "concept",
+    "concepts",
+    "document",
+    "documents",
+    "event",
+    "events",
+    "group",
+    "groups",
+    "idea",
+    "ideas",
+    "location",
+    "locations",
+    "organization",
+    "organizations",
+    "organisation",
+    "organisations",
+    "other",
+    "others",
+    "person",
+    "persons",
+    "people",
+    "place",
+    "places",
+    "region",
+    "regions",
+    "thing",
+    "things",
+    "topic",
+    "topics",
+})
 
 
 def _serialized_entity_upsert(func):
@@ -51,6 +89,200 @@ def _serialized_entity_upsert(func):
             return func(*args, **kwargs)
 
     return wrapper
+
+
+def _norm_rule_text(value: str | None) -> str:
+    return " ".join(str(value or "").split()).strip().casefold()
+
+
+def _matching_entity_resolution_rules(
+    db: Database,
+    canonical_name: str,
+    entity_type: EntityType,
+) -> list[EntityResolutionRule]:
+    rules = db.query(
+        EntityResolutionRule,
+        match_canonical_name=canonical_name,
+    )
+    matched = [
+        rule
+        for rule in rules
+        if rule.match_entity_type is None or rule.match_entity_type == entity_type
+    ]
+    matched.sort(key=lambda rule: (rule.created_at, rule.id))
+    return matched
+
+
+def _apply_entity_resolution_rules(
+    db: Database,
+    canonical_name: str,
+    entity_type: EntityType,
+) -> tuple[str, EntityType] | None:
+    current_name = canonical_name
+    current_type = entity_type
+    seen: set[tuple[str, str]] = set()
+
+    for _ in range(8):
+        loop_key = (_norm_rule_text(current_name), current_type.value)
+        if loop_key in seen:
+            logger.warning(
+                "upsert_entity: resolution-rule loop detected for %r/%s",
+                current_name,
+                current_type.value,
+            )
+            return current_name, current_type
+        seen.add(loop_key)
+
+        rules = _matching_entity_resolution_rules(db, current_name, current_type)
+        if not rules:
+            return current_name, current_type
+
+        suppress_rule = next(
+            (rule for rule in rules if rule.rule_type == EntityResolutionRuleType.suppress),
+            None,
+        )
+        if suppress_rule is not None:
+            logger.info(
+                "upsert_entity: suppressing %r/%s via rule %s",
+                current_name,
+                current_type.value,
+                suppress_rule.id,
+            )
+            return None
+
+        reclassify_rule = next(
+            (
+                rule
+                for rule in rules
+                if rule.rule_type == EntityResolutionRuleType.reclassify
+                and rule.target_entity_type is not None
+                and rule.target_entity_type != current_type
+            ),
+            None,
+        )
+        if reclassify_rule is not None:
+            logger.info(
+                "upsert_entity: reclassifying %r %s -> %s via rule %s",
+                current_name,
+                current_type.value,
+                reclassify_rule.target_entity_type.value,
+                reclassify_rule.id,
+            )
+            current_type = reclassify_rule.target_entity_type
+            continue
+
+        redirect_rule = next(
+            (
+                rule
+                for rule in rules
+                if rule.rule_type in {
+                    EntityResolutionRuleType.merge_into,
+                    EntityResolutionRuleType.alias,
+                }
+                and rule.target_canonical_name
+            ),
+            None,
+        )
+        if redirect_rule is not None:
+            redirected_name = redirect_rule.target_canonical_name.strip()
+            redirected_type = redirect_rule.target_entity_type or current_type
+            logger.info(
+                "upsert_entity: redirecting %r/%s -> %r/%s via rule %s",
+                current_name,
+                current_type.value,
+                redirected_name,
+                redirected_type.value,
+                redirect_rule.id,
+            )
+            current_name = redirected_name
+            current_type = redirected_type
+            continue
+
+        return current_name, current_type
+
+    logger.warning(
+        "upsert_entity: resolution-rule iteration cap reached for %r/%s",
+        current_name,
+        current_type.value,
+    )
+    return current_name, current_type
+
+
+def _is_bare_is_a_copula(
+    predicate_verb: str | None,
+    object_phrase: str | None,
+) -> bool:
+    if _norm_rule_text(predicate_verb) not in {"is", "are", "was", "were", "be"}:
+        return False
+    cleaned = re.sub(r"^[\s\[\]\(\)\"'`]+|[\s\[\]\(\)\"'`.,;:!?]+$", "", object_phrase or "")
+    tokens = [token for token in _norm_rule_text(cleaned).split() if token]
+    if not tokens:
+        return False
+    while tokens and tokens[0] in {"a", "an", "the"}:
+        tokens = tokens[1:]
+    while len(tokens) > 1 and tokens[0] in {"kind", "sort", "type"} and tokens[1] == "of":
+        tokens = tokens[2:]
+    return len(tokens) == 1 and tokens[0] in _GENERIC_COPULA_OBJECTS
+
+
+def _matching_claim_suppression_rules(
+    db: Database,
+    subject_canonical: str | None,
+    predicate_verb: str | None,
+    object_phrase: str | None,
+) -> list[ClaimSuppressionRule]:
+    subject_norm = _norm_rule_text(subject_canonical)
+    predicate_norm = _norm_rule_text(predicate_verb)
+    object_norm = _norm_rule_text(object_phrase)
+    matches: list[ClaimSuppressionRule] = []
+    for rule in db.all(ClaimSuppressionRule):
+        if rule.match_subject_name and _norm_rule_text(rule.match_subject_name) != subject_norm:
+            continue
+        if rule.match_predicate_verb and _norm_rule_text(rule.match_predicate_verb) != predicate_norm:
+            continue
+        if rule.match_object_phrase and _norm_rule_text(rule.match_object_phrase) != object_norm:
+            continue
+        if rule.suppress_is_a_copulas and not _is_bare_is_a_copula(predicate_verb, object_phrase):
+            continue
+        matches.append(rule)
+    matches.sort(key=lambda rule: (rule.created_at, rule.id))
+    return matches
+
+
+def _effective_claim_suppression_action(
+    rule: ClaimSuppressionRule,
+    predicate_verb: str | None,
+    object_phrase: str | None,
+) -> ClaimSuppressionRuleAction:
+    if rule.suppress_is_a_copulas and _is_bare_is_a_copula(predicate_verb, object_phrase):
+        return ClaimSuppressionRuleAction.demote
+    return rule.action
+
+
+def _claim_suppression_action(
+    db: Database,
+    subject_canonical: str | None,
+    predicate_verb: str | None,
+    object_phrase: str | None,
+) -> ClaimSuppressionRuleAction | None:
+    matched = _matching_claim_suppression_rules(
+        db,
+        subject_canonical=subject_canonical,
+        predicate_verb=predicate_verb,
+        object_phrase=object_phrase,
+    )
+    if not matched:
+        return None
+
+    actions = [
+        _effective_claim_suppression_action(rule, predicate_verb, object_phrase)
+        for rule in matched
+    ]
+    if ClaimSuppressionRuleAction.prune in actions:
+        return ClaimSuppressionRuleAction.prune
+    if ClaimSuppressionRuleAction.disable in actions:
+        return ClaimSuppressionRuleAction.disable
+    return ClaimSuppressionRuleAction.demote
 
 
 # Admin-subdivision qualifier vocabulary (#1114 issue 2)
@@ -777,7 +1009,7 @@ def upsert_entity(
     aliases: Optional[list[str]] = None,
     description: Optional[str] = None,
     source_document_id: Optional[str] = None,
-) -> str:
+) -> str | None:
     """Look up entity by ``(canonical_name, entity_type)``; create if missing.
 
     Three-stage match (#897 → #899 Phase B):
@@ -801,6 +1033,11 @@ def upsert_entity(
     Returns the entity ID. Idempotent on the exact path; the fuzzy
     paths preserve surface-form evidence via the aliases list.
     """
+    resolved = _apply_entity_resolution_rules(db, canonical_name, entity_type)
+    if resolved is None:
+        return None
+    canonical_name, entity_type = resolved
+
     existing = db.query(
         KnowledgeEntity,
         canonical_name=canonical_name,
@@ -1283,7 +1520,7 @@ def save_claim(
     place_values: Optional[list[EvidentialPlace | dict]] = None,
     attribution_chain: Optional[list[AttributionStep | dict]] = None,
     source_supports: Optional[list[SourceSupport | dict]] = None,
-) -> str:
+) -> str | None:
     """Save a `KnowledgeClaim` row. Returns the claim ID.
 
     Claims are document-scoped textual assertions linked to entities via
@@ -1306,6 +1543,9 @@ def save_claim(
     check existed; per the issue, the upstream fan-out gets fixed
     separately but this guard means a partial regression can't
     repopulate the same six rows.
+
+    Returns ``None`` when a matching `ClaimSuppressionRule` prunes the
+    claim at write time.
     """
     from difflib import SequenceMatcher
 
@@ -1331,6 +1571,29 @@ def save_claim(
     sc = subject_canonical or (meta.get("subject") if isinstance(meta.get("subject"), str) else None)
     sv = predicate_verb or (meta.get("verb") if isinstance(meta.get("verb"), str) else None)
     so = object_phrase or (meta.get("object") if isinstance(meta.get("object"), str) else None)
+    suppression_action = _claim_suppression_action(
+        db,
+        subject_canonical=sc,
+        predicate_verb=sv,
+        object_phrase=so,
+    )
+    if suppression_action == ClaimSuppressionRuleAction.prune:
+        logger.info(
+            "save_claim: pruned claim for subject=%r predicate=%r object=%r",
+            sc,
+            sv,
+            so,
+        )
+        return None
+
+    claim_confidence = confidence
+    claim_curation_state = ClaimCurationState.unreviewed
+    if suppression_action == ClaimSuppressionRuleAction.disable:
+        claim_curation_state = ClaimCurationState.rejected
+    elif suppression_action == ClaimSuppressionRuleAction.demote:
+        claim_curation_state = ClaimCurationState.rejected
+        claim_confidence = min(confidence, 0.2)
+
     # Predicate canonicalisation (#1123 Phase C): every claim that
     # carries a free-text predicate_verb also gets the canonical slug
     # looked up at write time. Unknown verbs → None (honest absence
@@ -1406,7 +1669,8 @@ def save_claim(
         claim_geo=claim_geo,
         place_values=derived_place_values,
         claim_type=claim_type,
-        confidence=confidence,
+        curation_state=claim_curation_state,
+        confidence=claim_confidence,
         metadata=meta,
         epistemic_status=epistemic_status,
         subject_canonical=sc,
@@ -1439,7 +1703,7 @@ def save_claim(
             {support.source_document_id for support in support_values},
         ),
         corroborating_source_ids=sorted({support.source_document_id for support in support_values}),
-        evidential_confidence=confidence,
+        evidential_confidence=claim_confidence,
         evidential_confidence_source=evidential_confidence_source,
     )
     canonical = _find_cross_source_canonical_claim(db, claim)

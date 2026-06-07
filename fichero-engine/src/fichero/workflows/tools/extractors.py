@@ -1929,13 +1929,14 @@ def _write_citation_usage_rows(
             speaker_name=speaker_name,
             confidence_origin="llm",
         )
-        citation.metadata["claim_id"] = claim_id
-        db.save(citation)
-        claim = db.get(KnowledgeClaim, claim_id)
-        if claim is not None:
-            claim.predicate_canonical = predicate_canonical
-            db.save(claim)
-        written += 1
+        if claim_id is not None:
+            citation.metadata["claim_id"] = claim_id
+            db.save(citation)
+            claim = db.get(KnowledgeClaim, claim_id)
+            if claim is not None:
+                claim.predicate_canonical = predicate_canonical
+                db.save(claim)
+            written += 1
 
     logger.info(
         "_write_citation_usage_rows: %s on %s — items_in=%d usages_written=%d",
@@ -2434,7 +2435,7 @@ def _write_kg_rows(
             mentioned = _scan_for_mentioned_entities(
                 scan_text, alias_pairs, exclude=set()
             )
-            save_claim(
+            claim_id = save_claim(
                 db,
                 text=claim_text,
                 source_document_id=container_id,
@@ -2475,7 +2476,8 @@ def _write_kg_rows(
                     "heuristic" if svo_synthesised else "llm"
                 ),
             )
-            claims_written += 1
+            if claim_id is not None:
+                claims_written += 1
             continue
 
         # Entity-bearing section.
@@ -2495,7 +2497,7 @@ def _write_kg_rows(
                     alias_pairs,
                     exclude=set(),
                 )
-                save_claim(
+                claim_id = save_claim(
                     db,
                     text=claim_text,
                     source_document_id=container_id,
@@ -2521,7 +2523,8 @@ def _write_kg_rows(
                     source_language=detected_language,
                     confidence_origin=("heuristic" if svo_synthesised else "llm"),
                 )
-                claims_written += 1
+                if claim_id is not None:
+                    claims_written += 1
             continue
         aliases = (
             item.get("alternative_spellings")
@@ -2565,6 +2568,8 @@ def _write_kg_rows(
             # scope the entity to the page it was extracted from.
             source_document_id=container_id,
         )
+        if entity_id is None:
+            continue
         # #1119 — reverse alias scan over claim text + predicate + excerpt.
         # Subject entity is already in entity_ids; the scan extends with
         # any OTHER known entities mentioned. Example: "Chocó is part of
@@ -2576,7 +2581,7 @@ def _write_kg_rows(
         mentioned = _scan_for_mentioned_entities(
             scan_text, alias_pairs, exclude={entity_id}
         )
-        save_claim(
+        claim_id = save_claim(
             db,
             text=claim_text,
             source_document_id=container_id,
@@ -2617,7 +2622,8 @@ def _write_kg_rows(
             ),
         )
         entities_written += 1
-        claims_written += 1
+        if claim_id is not None:
+            claims_written += 1
 
     # #1003: structured per-page summary. If items_in > 0 but
     # entities_written + claims_written == 0, a page's items were all

@@ -2,7 +2,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
+from fichero.knowledge_models import (
+    EntityResolutionRule,
+    EntityResolutionRuleType,
+    EntityType,
+    KnowledgeClaim,
+    KnowledgeEntity,
+)
 from fichero.llm import LLMConfig
 from fichero.models import Artifact, DocType, Document
 from fichero.workflows.tools.book_index import (
@@ -138,3 +144,55 @@ async def test_book_index_extract_can_read_index_text_from_page_range(
 
     assert result["value"][0]["term"] == "Choco"
     assert result["value"][0]["pages"][0]["document_id"] == body.id
+
+
+@pytest.mark.asyncio
+async def test_book_index_extract_handles_suppressed_topic_entity(
+    db, test_package
+):
+    parent = Document(name="book.pdf", doc_type=DocType.file, path="/book.pdf")
+    db.save(parent)
+    page = Document(
+        name="page 13",
+        parent_id=parent.id,
+        doc_type=DocType.page,
+        sequence=13,
+        page_content="Artisanal mining used mercury to process gold in the Choco.",
+    )
+    index_page = Document(
+        name="index page",
+        parent_id=parent.id,
+        doc_type=DocType.page,
+        sequence=99,
+        page_content="Artisanal mining, 1",
+    )
+    db.save(page)
+    db.save(index_page)
+    db.save(
+        EntityResolutionRule(
+            rule_type=EntityResolutionRuleType.suppress,
+            match_canonical_name="Artisanal mining",
+            match_entity_type=EntityType.concept,
+            reason="suppress trivial topic",
+        )
+    )
+    llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
+
+    with patch(
+        "fichero.workflows.tools.book_index.chat_structured_with_fallback",
+        new=AsyncMock(return_value=_TopicStatements(statements=[])),
+    ):
+        result = await book_index_extract(
+            {
+                "page_offset": 12,
+                "index_start_sequence": 99,
+                "index_end_sequence": 99,
+            },
+            {"library_path": str(test_package), "selected_doc_ids": [parent.id]},
+            llm_config,
+        )
+
+    assert result["value"][0]["entity_id"] is None
+    assert result["value"][0]["claims_written"] == 0
+    assert db.query(KnowledgeEntity, canonical_name="Artisanal mining") == []
+    assert db.query(KnowledgeClaim, source_document_id=page.id) == []

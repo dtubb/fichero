@@ -5,7 +5,12 @@ KnowledgeEntity + KnowledgeClaim KG layer (#728).
 """
 
 from fichero.knowledge_models import (
+    ClaimCurationState,
+    ClaimSuppressionRule,
+    ClaimSuppressionRuleAction,
     EntityType,
+    EntityResolutionRule,
+    EntityResolutionRuleType,
     EvidenceBasis,
     KnowledgeEntity,
     KnowledgeClaim,
@@ -69,6 +74,80 @@ class TestUpsertEntity:
         loaded = db.get(KnowledgeEntity, entity_id)
         assert "M. Angel" in loaded.aliases
         assert "Maria Angel" in loaded.aliases
+
+    def test_suppress_rule_returns_none(self, db):
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        db.save(
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.suppress,
+                match_canonical_name="Noise",
+                match_entity_type=EntityType.person,
+                reason="known extraction noise",
+            )
+        )
+
+        entity_id = upsert_entity(
+            db,
+            canonical_name="Noise",
+            entity_type=EntityType.person,
+        )
+
+        assert entity_id is None
+        assert db.query(KnowledgeEntity, canonical_name="Noise") == []
+
+    def test_merge_into_rule_folds_name_into_target(self, db):
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        survivor_id = upsert_entity(
+            db,
+            canonical_name="John Davidson",
+            entity_type=EntityType.person,
+        )
+        db.save(
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.merge_into,
+                match_canonical_name="J. Davidson",
+                match_entity_type=EntityType.person,
+                target_canonical_name="John Davidson",
+                target_entity_type=EntityType.person,
+                reason="same person",
+            )
+        )
+
+        merged_id = upsert_entity(
+            db,
+            canonical_name="J. Davidson",
+            entity_type=EntityType.person,
+        )
+
+        assert merged_id == survivor_id
+        rows = db.query(KnowledgeEntity, entity_type=EntityType.person)
+        assert len(rows) == 1
+        assert rows[0].canonical_name == "John Davidson"
+
+    def test_reclassify_rule_overrides_type(self, db):
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        db.save(
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.reclassify,
+                match_canonical_name="Andagoya",
+                match_entity_type=EntityType.concept,
+                target_entity_type=EntityType.location,
+                reason="this is a place",
+            )
+        )
+
+        entity_id = upsert_entity(
+            db,
+            canonical_name="Andagoya",
+            entity_type=EntityType.concept,
+        )
+
+        loaded = db.get(KnowledgeEntity, entity_id)
+        assert loaded is not None
+        assert loaded.entity_type == EntityType.location
 
 
 class TestFuzzyEntityMatch:
@@ -292,6 +371,113 @@ class TestSaveClaim:
         loaded = db.get(KnowledgeClaim, claim_id)
         assert loaded.entity_ids == []
         assert loaded.metadata.get("date_normalized") == "1930-05-12"
+
+    def test_prune_rule_returns_none_and_writes_nothing(self, db):
+        from fichero.workflows.tools._entity_writer import save_claim
+
+        db.save(
+            ClaimSuppressionRule(
+                action=ClaimSuppressionRuleAction.prune,
+                match_subject_name="Noise",
+                match_predicate_verb="is",
+                match_object_phrase="a person",
+                reason="discard trivial noise",
+            )
+        )
+
+        claim_id = save_claim(
+            db,
+            text="Noise is a person.",
+            source_document_id="doc-prune",
+            subject_canonical="Noise",
+            predicate_verb="is",
+            object_phrase="a person",
+        )
+
+        assert claim_id is None
+        assert db.query(KnowledgeClaim, source_document_id="doc-prune") == []
+
+    def test_disable_rule_rejects_claim_without_pruning(self, db):
+        from fichero.workflows.tools._entity_writer import save_claim
+
+        db.save(
+            ClaimSuppressionRule(
+                action=ClaimSuppressionRuleAction.disable,
+                match_subject_name="Pedro",
+                match_predicate_verb="said",
+                reason="known bad extraction",
+            )
+        )
+
+        claim_id = save_claim(
+            db,
+            text="Pedro said the deed was false.",
+            source_document_id="doc-disable",
+            subject_canonical="Pedro",
+            predicate_verb="said",
+            object_phrase="the deed was false",
+            confidence=0.7,
+        )
+
+        loaded = db.get(KnowledgeClaim, claim_id)
+        assert loaded is not None
+        assert loaded.curation_state == ClaimCurationState.rejected
+        assert loaded.confidence == 0.7
+
+    def test_demote_rule_rejects_and_caps_confidence(self, db):
+        from fichero.workflows.tools._entity_writer import save_claim
+
+        db.save(
+            ClaimSuppressionRule(
+                action=ClaimSuppressionRuleAction.demote,
+                match_subject_name="Andagoya",
+                match_predicate_verb="is",
+                match_object_phrase="a place",
+                reason="too generic",
+            )
+        )
+
+        claim_id = save_claim(
+            db,
+            text="Andagoya is a place.",
+            source_document_id="doc-demote",
+            subject_canonical="Andagoya",
+            predicate_verb="is",
+            object_phrase="a place",
+            confidence=0.8,
+        )
+
+        loaded = db.get(KnowledgeClaim, claim_id)
+        assert loaded is not None
+        assert loaded.curation_state == ClaimCurationState.rejected
+        assert loaded.confidence == 0.2
+
+    def test_copula_rule_demotes_instead_of_pruning(self, db):
+        from fichero.workflows.tools._entity_writer import save_claim
+
+        db.save(
+            ClaimSuppressionRule(
+                action=ClaimSuppressionRuleAction.prune,
+                match_subject_name="Andagoya",
+                suppress_is_a_copulas=True,
+                reason="generic type copulas should be demoted, not deleted",
+            )
+        )
+
+        claim_id = save_claim(
+            db,
+            text="Andagoya is a place.",
+            source_document_id="doc-copula",
+            subject_canonical="Andagoya",
+            predicate_verb="is",
+            object_phrase="a place",
+            confidence=0.6,
+        )
+
+        loaded = db.get(KnowledgeClaim, claim_id)
+        assert loaded is not None
+        assert loaded.curation_state == ClaimCurationState.rejected
+        assert loaded.confidence == 0.2
 
     def test_save_claim_source_anchors_missing_date_and_place(self, db):
         from fichero.workflows.tools._entity_writer import save_claim
@@ -580,6 +766,70 @@ class TestTypeConflictDetector:
             # And the entity now carries the upgraded type.
             loaded_entity = db.get(KnowledgeEntity, entity_id)
             assert loaded_entity.entity_type == EntityType.location
+
+
+class TestWriterGateRules:
+    def test_suppress_rule_skips_entity_and_claim_write(self, db):
+        from fichero.workflows.tools.extractors import _write_kg_rows
+
+        db.save(
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.suppress,
+                match_canonical_name="Noise",
+                match_entity_type=EntityType.person,
+                reason="known noise",
+            )
+        )
+
+        _write_kg_rows(
+            db,
+            section={"name": "people", "entity_type": EntityType.person},
+            items=[{"name": "Noise", "verb": "signed", "object": "the deed"}],
+            container_id="doc-noise",
+            page_label="1",
+            source_excerpt="Noise signed the deed.",
+        )
+
+        assert db.query(KnowledgeEntity, canonical_name="Noise") == []
+        assert db.query(KnowledgeClaim, source_document_id="doc-noise") == []
+
+    def test_import_rule_then_second_import_honors_persistent_merge(self, db):
+        from fichero.workflows.tools.extractors import _write_kg_rows
+
+        _write_kg_rows(
+            db,
+            section={"name": "people", "entity_type": EntityType.person},
+            items=[{"name": "John Davidson", "verb": "signed", "object": "the deed"}],
+            container_id="doc-a",
+            page_label="1",
+            source_excerpt="John Davidson signed the deed.",
+        )
+        db.save(
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.merge_into,
+                match_canonical_name="J. Davidson",
+                match_entity_type=EntityType.person,
+                target_canonical_name="John Davidson",
+                target_entity_type=EntityType.person,
+                reason="same person",
+            )
+        )
+
+        _write_kg_rows(
+            db,
+            section={"name": "people", "entity_type": EntityType.person},
+            items=[{"name": "J. Davidson", "verb": "witnessed", "object": "the deed"}],
+            container_id="doc-b",
+            page_label="2",
+            source_excerpt="J. Davidson witnessed the deed.",
+        )
+
+        entities = db.query(KnowledgeEntity, entity_type=EntityType.person)
+        assert len(entities) == 1
+        survivor = entities[0]
+        assert survivor.canonical_name == "John Davidson"
+        claims = db.query(KnowledgeClaim, subject_entity_id=survivor.id)
+        assert len(claims) == 2
 
 
 class TestAdminQualifierDedup:

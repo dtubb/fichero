@@ -272,7 +272,7 @@ async def _extract_topic_statements(
     return [item.model_dump(mode="json") for item in result.statements]
 
 
-def _write_topic_entity(db, entry: IndexEntry) -> str:
+def _write_topic_entity(db, entry: IndexEntry) -> str | None:
     entity_id = upsert_entity(
         db,
         entry.term,
@@ -280,6 +280,8 @@ def _write_topic_entity(db, entry: IndexEntry) -> str:
         aliases=entry.subentries,
         description="Back-of-book index topic.",
     )
+    if entity_id is None:
+        return None
     entity = db.get(KnowledgeEntity, entity_id)
     if entity is not None:
         metadata = dict(entity.metadata or {})
@@ -342,6 +344,21 @@ async def book_index_extract(
         entity_id = _write_topic_entity(db, entry)
         referenced_pages: list[dict[str, Any]] = []
         statements_written = 0
+        if entity_id is None:
+            value = {
+                "term": entry.term,
+                "entity_id": None,
+                "subentries": entry.subentries,
+                "page_refs": entry.page_refs,
+                "pages": referenced_pages,
+                "claims_written": statements_written,
+            }
+            values.append(value)
+            markdown.append(
+                f"- {entry.term}: {', '.join(str(p) for p in entry.page_refs)} "
+                "(suppressed by curation rule)"
+            )
+            continue
 
         for printed_page in entry.page_refs[:max_pages_per_topic]:
             page = resolve_printed_page(
@@ -377,7 +394,7 @@ async def book_index_extract(
                 if not claim_text:
                     claim_text = f"{entry.term} {verb} {obj}."
                 confidence = float(statement.get("confidence") or 0.65)
-                save_claim(
+                claim_id = save_claim(
                     db,
                     claim_text,
                     page.id,
@@ -405,7 +422,8 @@ async def book_index_extract(
                     model=getattr(llm_config, "model", None),
                     confidence_origin="llm",
                 )
-                statements_written += 1
+                if claim_id is not None:
+                    statements_written += 1
 
         value = {
             "term": entry.term,

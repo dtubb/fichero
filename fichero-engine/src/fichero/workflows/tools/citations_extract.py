@@ -404,6 +404,8 @@ async def extract_citations_for_document(
             aliases=[entry.title] if entry.title else [],
             description=entry.raw_text,
         )
+        if entity_id is None:
+            continue
         entity = db.get(KnowledgeEntity, entity_id)
         if entity is not None:
             metadata = dict(entity.metadata or {})
@@ -438,7 +440,8 @@ async def extract_citations_for_document(
             provider=llm_config.provider,
             model=llm_config.model,
         )
-        claims.append({"id": claim_id, "entity_id": entity_id, "entry": entry.as_metadata()})
+        if claim_id is not None:
+            claims.append({"id": claim_id, "entity_id": entity_id, "entry": entry.as_metadata()})
     return {
         "entries": [entry.as_metadata() for entry in entries],
         "inline_citations": [
