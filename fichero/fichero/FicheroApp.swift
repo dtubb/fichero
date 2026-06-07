@@ -117,7 +117,7 @@ struct FicheroApp: App {
                 .environmentObject(claimFocusState)
                 .environment(kgFocusState)
                 .environmentObject(appState.mcpService)
-                .frame(minWidth: 1100, minHeight: 700)
+                .frame(minWidth: 640, minHeight: 700)
                 .onOpenURL { url in
                     handleOpenURL(url)
                 }

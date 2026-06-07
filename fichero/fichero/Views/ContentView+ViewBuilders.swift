@@ -57,7 +57,7 @@ extension ContentView {
         // min: 180 lets the sidebar collapse tight enough that the mode
         // icons dominate the column with minimal wasted space (#615).
         // Was 250 — felt bloated on small screens.
-        .navigationSplitViewColumnWidth(min: 180, ideal: sidebarWidth, max: 360)
+        .navigationSplitViewColumnWidth(min: ContentView.sidebarMinWidth, ideal: sidebarWidth, max: 360)
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
         // NOTE: \.showInspector is published from the detail column in
         // ContentView.navigationSplitColumn (always present), NOT here — the
@@ -82,24 +82,47 @@ extension ContentView {
     @ViewBuilder
     var horizontalModeStrip: some View {
         if showModeRail {
-            // Same button style as the DocumentInspector tab bar (full-height
-            // hit area, centered icon, rounded-rect selection highlight),
-            // centered as a group — so the list mode rail, knowledge surface,
-            // and inspector tabs all read identically. (was capsule pills;
-            // Daniel preferred the inspector look, 2026-05-26.)
-            MiniToolbar {
-                Spacer(minLength: 0)
-                ForEach(availableViewDisplayModes) { mode in
-                    modeRailButton(mode)
+            GeometryReader { geometry in
+                // Keep the rail on the shared 44pt chrome, but pack the mode
+                // buttons tighter as width shrinks and collapse the library's
+                // sort/filter utilities into a trailing overflow menu once the
+                // single-column floor is reached (#1733/#1734).
+                MiniToolbar {
+                    modeRailContent(availableWidth: geometry.size.width)
                 }
-                Spacer(minLength: 0)
-                // Sort + Filter live here — at the Library view's top-right,
-                // next to the display-mode buttons — instead of the global
-                // window toolbar (#1477).
-                librarySortFilterControls
             }
+            .frame(height: MiniToolbar<EmptyView>.standardHeight)
             // XCUITest hook for the view-mode rail (#1230).
             .accessibilityIdentifier("viewModeRail")
+        }
+    }
+
+    @ViewBuilder
+    private func modeRailContent(availableWidth: CGFloat) -> some View {
+        if sidebarMode == .library {
+            let packsIcons = availableWidth < 320
+            let usesOverflowMenu = availableWidth < 270
+            HStack(spacing: packsIcons ? 6 : 12) {
+                HStack(spacing: packsIcons ? 0 : 2) {
+                    ForEach(availableViewDisplayModes) { mode in
+                        modeRailButton(mode, compact: packsIcons)
+                    }
+                }
+
+                Spacer(minLength: packsIcons ? 6 : 12)
+
+                if usesOverflowMenu {
+                    libraryOverflowMenu
+                } else {
+                    librarySortFilterControls
+                }
+            }
+        } else {
+            Spacer(minLength: 0)
+            ForEach(availableViewDisplayModes) { mode in
+                modeRailButton(mode)
+            }
+            Spacer(minLength: 0)
         }
     }
 
@@ -110,29 +133,7 @@ extension ContentView {
     private var librarySortFilterControls: some View {
         if sidebarMode == .library {
             Menu {
-                ForEach(LibrarySortField.allCases) { field in
-                    Button {
-                        libraryToolbarState.sortFieldRaw = field.rawValue
-                    } label: {
-                        Label(field.rawValue, systemImage: field.icon)
-                        if libraryToolbarState.sortField == field {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-                Divider()
-                Button {
-                    libraryToolbarState.sortAscending = true
-                } label: {
-                    Text("Ascending")
-                    if libraryToolbarState.sortAscending { Image(systemName: "checkmark") }
-                }
-                Button {
-                    libraryToolbarState.sortAscending = false
-                } label: {
-                    Text("Descending")
-                    if !libraryToolbarState.sortAscending { Image(systemName: "checkmark") }
-                }
+                librarySortMenuContent
             } label: {
                 Image(systemName: "arrow.up.arrow.down")
             }
@@ -155,18 +156,68 @@ extension ContentView {
         }
     }
 
+    @ViewBuilder
+    private var librarySortMenuContent: some View {
+        ForEach(LibrarySortField.allCases) { field in
+            Button {
+                libraryToolbarState.sortFieldRaw = field.rawValue
+            } label: {
+                Label(field.rawValue, systemImage: field.icon)
+                if libraryToolbarState.sortField == field {
+                    Image(systemName: "checkmark")
+                }
+            }
+        }
+        Divider()
+        Button {
+            libraryToolbarState.sortAscending = true
+        } label: {
+            Text("Ascending")
+            if libraryToolbarState.sortAscending { Image(systemName: "checkmark") }
+        }
+        Button {
+            libraryToolbarState.sortAscending = false
+        } label: {
+            Text("Descending")
+            if !libraryToolbarState.sortAscending { Image(systemName: "checkmark") }
+        }
+    }
+
+    private var libraryOverflowMenu: some View {
+        Menu {
+            librarySortMenuContent
+            if featureManager.isLibraryFilterToolbarEnabled {
+                Divider()
+                Button {
+                    libraryToolbarState.showFilterBar.toggle()
+                } label: {
+                    Label(
+                        libraryToolbarState.showFilterBar ? "Hide Filter" : "Show Filter",
+                        systemImage: "line.3.horizontal.decrease.circle"
+                    )
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("More library controls")
+        .accessibilityIdentifier("libraryOverflowMenu")
+    }
+
     /// One mode-rail tab button, styled like the DocumentInspector tab bar.
     /// Extracted from `horizontalModeStrip` because the inline ForEach body
     /// tripped the SwiftUI type-checker's complexity limit.
     @ViewBuilder
-    private func modeRailButton(_ mode: ViewDisplayMode) -> some View {
+    private func modeRailButton(_ mode: ViewDisplayMode, compact: Bool = false) -> some View {
         let isSelected = viewDisplayMode == mode
         Button {
             updateViewDisplayMode(mode)
         } label: {
             Image(systemName: mode.icon)
                 .font(.system(size: 16, weight: .regular))
-                .frame(width: 40)
+                .frame(width: compact ? 32 : 40)
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
         }
@@ -282,7 +333,7 @@ extension ContentView {
                             if panePlan.showsCanvasReadingDivider {
                                 ResizableDivider(
                                     width: $pageContentPaneWidth,
-                                    minWidth: 220,
+                                    minWidth: ContentView.readingPaneMinWidth,
                                     maxWidth: 540,
                                     edge: .trailing
                                 )

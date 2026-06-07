@@ -21,17 +21,18 @@ enum PaneFocus: Hashable {
 // - ContentView+Persistence: State serialization for @SceneStorage
 // swiftlint:disable:next type_body_length
 struct ContentView: View {
+    static let sidebarMinWidth: Double = 180
     static let inspectorMinWidth: Double = 250
     static let inspectorMaxWidth: Double = 1000
     static let contentMinWidth: Double = 520
     static let contentMaxWidth: Double = 2200
     /// Minimum width of the widescreen content-list pane. Clamped to the
     /// view-mode icon rail width so the rail and list rows (thumbnail + text)
-    /// can't be dragged narrow enough to clip (#1243). #1477 added the Sort
-    /// menu + Filter button to that same rail, so the floor was widened to
-    /// keep them from clipping at the trailing edge. Rail: 4 mode icons × 40pt
-    /// + Sort + Filter + MiniToolbar padding (12×2) + spacing ≈ 300.
-    static let contentListMinWidth: Double = 300
+    /// can't be dragged narrow enough to clip (#1243). The sort/filter tools
+    /// now overflow into a trailing menu when the rail gets tight (#1733), so
+    /// the list can shrink far enough to let the adaptive thumbnail grid fall
+    /// to a single column again (#1734).
+    static let contentListMinWidth: Double = 220
     /// Minimum width of the flexible PDF canvas pane so its mini-toolbar
     /// (zoom −/%/+, fit, actual-size, magnifier, loupe + two dividers) never
     /// clips when the reading-surface dividers are dragged inward. The
@@ -39,6 +40,7 @@ struct ContentView: View {
     /// this guards the one `.frame(maxWidth: .infinity)` pane that otherwise
     /// has no floor. (#1454)
     static let pdfCanvasMinWidth: Double = 360
+    static let readingPaneMinWidth: Double = 220
 
     // MARK: - Environment
 
@@ -294,6 +296,7 @@ struct ContentView: View {
                     .frame(width: CGFloat(inspectorWidth))
             }
         } // end HStack — inspector is window-level, not inside NavigationSplitView (#1199)
+        .frame(minWidth: CGFloat(paneAwareWindowMinWidth), maxWidth: .infinity, maxHeight: .infinity)
 
         // Listen for claim selection from inspector and sync to other panes
         .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { notification in
@@ -313,7 +316,7 @@ struct ContentView: View {
             sidebarContent
         } detail: {
             centerContent
-                .frame(minWidth: CGFloat(ContentView.contentMinWidth), maxWidth: .infinity)
+                .frame(minWidth: CGFloat(paneAwareDetailMinWidth), maxWidth: .infinity)
                 // Publish the per-window inspector binding from the detail
                 // column (always present) rather than the sidebar, which leaves
                 // the hierarchy when collapsed and made ⌘⌥I no-op (#1513/#1451).
@@ -422,6 +425,12 @@ struct ContentView: View {
 // MARK: - Toolbar Content
 
 extension ContentView {
+    @ViewBuilder
+    private func toolbarToggleIcon(_ systemName: String, isActive: Bool) -> some View {
+        Image(systemName: systemName)
+            .symbolVariant(isActive ? .fill : .none)
+    }
+
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
         // Mode icon + title in toolbar center — updates on every sidebar/view-mode change (#323).
@@ -438,7 +447,7 @@ extension ContentView {
                     showSidebar.toggle()
                 }
             } label: {
-                Image(systemName: "sidebar.left")
+                toolbarToggleIcon("sidebar.left", isActive: showSidebar)
             }
             .help(showSidebar ? "Hide Sidebar" : "Show Sidebar")
 
@@ -658,7 +667,7 @@ extension ContentView {
                     showDocumentGrid.toggle()
                 }
             } label: {
-                Image(systemName: showDocumentGrid ? "books.vertical.fill" : "books.vertical")
+                toolbarToggleIcon("books.vertical", isActive: showDocumentGrid)
             }
             .help(showDocumentGrid ? "Hide Library Browser (⌘⇧G)" : "Show Library Browser (⌘⇧G)")
             .accessibilityLabel(showDocumentGrid ? "Hide Library Browser" : "Show Library Browser")
@@ -682,7 +691,13 @@ extension ContentView {
                         viewSettings.previewMode = normalizedPreviewMode(.widescreen)
                     }
                 } label: {
-                    Image(systemName: "doc.richtext")
+                    toolbarToggleIcon(
+                        "doc.richtext",
+                        isActive: ReadingWorkspacePaneTogglePolicy.isPaneVisible(
+                            layoutMode: currentLayoutMode,
+                            paneFlag: showDocumentCanvas
+                        )
+                    )
                 }
                 .help(
                     ReadingWorkspacePaneTogglePolicy.isPaneVisible(
@@ -706,7 +721,13 @@ extension ContentView {
                         viewSettings.previewMode = normalizedPreviewMode(.widescreen)
                     }
                 } label: {
-                    Image(systemName: "text.book.closed")
+                    toolbarToggleIcon(
+                        "text.book.closed",
+                        isActive: ReadingWorkspacePaneTogglePolicy.isPaneVisible(
+                            layoutMode: currentLayoutMode,
+                            paneFlag: showReadingPane
+                        )
+                    )
                 }
                 .help(
                     ReadingWorkspacePaneTogglePolicy.isPaneVisible(
@@ -739,7 +760,7 @@ extension ContentView {
                         showInspectorSidebar.toggle()
                     }
                 } label: {
-                    Image(systemName: "sidebar.right")
+                    toolbarToggleIcon("sidebar.right", isActive: showInspectorSidebar)
                 }
                 .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
             }
