@@ -217,3 +217,9 @@ Next bounded: backlog (data-independent), #1345 (/children doc: prefix — verif
 Closed/resolved tonight (20): +#1728,#1611. Filed #1742 (Automation wiring).
 In flight: f_codex_stubs (gpt-5.4, ~/code/fichero-spatialstubs) = #1740 PHASE 1 ONLY — feature-gated .workspace/.spatial ViewDisplayMode STUBS (flags OFF, nothing removed, ContentUnavailableView). The SAFE pre-approved fallback. Frontend, Xcode build gate. Do NOT let it do Phase 2+.
 Backlog now thin on bounded data-independent work — mostly design EPICs, IIIF-data-dependent backend (#1650-1662), needs-Daniel (#1709/#1715), deferred reorg (#1704). After stubs, consider GH-hygiene stale-close pass or pace down.
+
+### Tick 11 (~04:48) — landed: #1740 PHASE 1 stubs (13c85ad5) — .workspace/.spatial ViewDisplayMode stubs, flags default OFF, ContentUnavailableView, nothing removed, build green. #1740 KEPT OPEN (commented; Phase 2+ awaits Daniel's sign-off on the 4 open Qs). 0.0.2 green.
+Tonight's tally: 20 issues closed/resolved (#1703,1707,1731,1737,1736,1730,1732,1733,1734,1735,1727,1725,1702,1663,1664,1653,1728,1611 + #1345/#1740P1) + filed #1742 (Automation wiring).
+PACING DOWN: bounded data-independent backlog is exhausted — remaining open = design EPICs (#1686/1689/1692/1693/1738/1739/1570/1740-P2), IIIF-data-dependent backend (#1650-1662), needs-Daniel (#1709/1715), deferred #1704 (needs move-swift-file.rb). No safe unattended lane worth the risk at this hour.
+NEEDS ENGINE RESTART on Daniel's :8765 (backend merges): #1727 Inbox, #1707/#1731 PDF storage, #1663/#1664 relative paths.
+Next tick: light GH-hygiene (verify+close any stale-already-fixed issues like #1611 was) OR idle until Daniel returns. Do NOT force risky lanes.
