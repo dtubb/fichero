@@ -31,7 +31,6 @@ from __future__ import annotations
 import base64
 import logging
 import shutil
-
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, Future
@@ -52,6 +51,7 @@ except ImportError:
     ImageOps = None  # type: ignore
 
 if TYPE_CHECKING:
+    from fichero.db import Database
     from fichero.models import Document
 
 logger = logging.getLogger(__name__)
@@ -276,13 +276,54 @@ def _get_bookmark(doc: "Document") -> bytes | None:
     return None
 
 
+def _resolve_pdf_render_source(
+    doc: "Document",
+    *,
+    db: "Database | None" = None,
+    library_root: Path | None = None,
+) -> tuple[Path, int] | None:
+    """Return ``(pdf_path, page_index)`` when ``doc`` should render from a PDF.
+
+    Top-level PDF documents render page 0. Page-child documents render their
+    own ``sequence`` from the parent PDF path instead of trusting any stale
+    per-page ``metadata.pdf_path`` left behind from ingest.
+    """
+    from fichero.models import Document as DocumentModel, DocType, FileType
+
+    if doc.doc_type == DocType.page:
+        if db is None or not doc.parent_id:
+            return None
+        parent = db.get(DocumentModel, doc.parent_id)
+        if not parent or parent.file_type != FileType.pdf:
+            return None
+        source = resolve_source(parent, library_root=library_root)
+        if not source:
+            return None
+        try:
+            page_number = int(doc.sequence or (doc.metadata or {}).get("page_number") or 1)
+        except (TypeError, ValueError):
+            page_number = 1
+        return source, max(page_number - 1, 0)
+
+    if getattr(doc, "file_type", None) != FileType.pdf:
+        return None
+
+    source = resolve_source(doc, library_root=library_root)
+    if not source:
+        return None
+    return source, 0
+
+
 # =============================================================================
 # Thumbnail Generation
 # =============================================================================
 
 
 def ensure_thumbnail(
-    doc: "Document", force: bool = False, package_path: Path | None = None
+    doc: "Document",
+    force: bool = False,
+    package_path: Path | None = None,
+    db: "Database | None" = None,
 ) -> Path | None:
     """Generate thumbnail if needed.
 
@@ -299,25 +340,36 @@ def ensure_thumbnail(
         return None
 
     path = _thumb_path(doc.id, package_path)
-    source = resolve_source(doc)
+    source = resolve_source(doc, library_root=package_path)
+    pdf_render = _resolve_pdf_render_source(
+        doc, db=db, library_root=package_path
+    )
 
-    if not source:
+    if not source and not pdf_render:
         logger.warning(f"No source found for {doc.id}")
         return None
 
     # Check if regeneration needed
     if path.exists() and not force:
+        source_mtime = pdf_render[0].stat().st_mtime if pdf_render else source.stat().st_mtime
         # Auto-regenerate if source is newer
-        if source.stat().st_mtime <= path.stat().st_mtime:
+        if source_mtime <= path.stat().st_mtime:
             return path
         logger.debug(f"Source newer than thumbnail, regenerating: {doc.id}")
+
+    if pdf_render:
+        pdf_path, page_index = pdf_render
+        return _generate_pdf_image(pdf_path, page_index, path, settings.thumb_size)
 
     # Generate
     return _generate_image(source, path, settings.thumb_size)
 
 
 def ensure_display(
-    doc: "Document", force: bool = False, package_path: Path | None = None
+    doc: "Document",
+    force: bool = False,
+    package_path: Path | None = None,
+    db: "Database | None" = None,
 ) -> Path | None:
     """Generate display-size image if needed.
 
@@ -333,16 +385,79 @@ def ensure_display(
         return None
 
     path = _display_path(doc.id, package_path)
-    source = resolve_source(doc)
+    source = resolve_source(doc, library_root=package_path)
+    pdf_render = _resolve_pdf_render_source(
+        doc, db=db, library_root=package_path
+    )
 
-    if not source:
+    if not source and not pdf_render:
         return None
 
     if path.exists() and not force:
-        if source.stat().st_mtime <= path.stat().st_mtime:
+        source_mtime = pdf_render[0].stat().st_mtime if pdf_render else source.stat().st_mtime
+        if source_mtime <= path.stat().st_mtime:
             return path
 
+    if pdf_render:
+        pdf_path, page_index = pdf_render
+        return _generate_pdf_image(pdf_path, page_index, path, settings.display_size)
+
     return _generate_image(source, path, settings.display_size)
+
+
+def _generate_pdf_image(
+    source: Path,
+    page_index: int,
+    dest: Path,
+    size: tuple[int, int],
+) -> Path | None:
+    """Render a PDF page to a cached JPEG."""
+    if Image is None:
+        return None
+
+    try:
+        import fitz
+    except ImportError:
+        logger.warning("PyMuPDF not installed - cannot render PDF: %s", source.name)
+        return None
+
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        with fitz.open(str(source)) as pdf:
+            if page_index < 0 or page_index >= pdf.page_count:
+                logger.warning(
+                    "PDF page %s out of range for %s (page_count=%s)",
+                    page_index,
+                    source.name,
+                    pdf.page_count,
+                )
+                return None
+
+            page = pdf.load_page(page_index)
+            rect = page.rect
+            width_scale = size[0] / max(rect.width, 1)
+            height_scale = size[1] / max(rect.height, 1)
+            scale = max(min(width_scale, height_scale), 0.1)
+            pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+            img.save(dest, "JPEG", quality=settings.quality)
+
+        logger.info(
+            "Generated PDF-derived image: %s from %s page %s",
+            dest,
+            source.name,
+            page_index + 1,
+        )
+        return dest
+    except Exception as exc:
+        logger.warning(
+            "PDF image generation failed for %s page %s: %s",
+            source.name,
+            page_index + 1,
+            exc,
+        )
+        return None
 
 
 def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | None:
