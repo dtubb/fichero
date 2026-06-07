@@ -96,6 +96,30 @@ async def test_embed_entities_empty_short_circuits():
 
 
 @pytest.mark.asyncio
+async def test_search_entities_semantic_falls_back_to_legacy_table():
+    """Older libraries may have entity vectors only in `kg_entities`."""
+    db = MagicMock()
+    entity = _entity("Asprilla")
+    entity.id = "entity-1"
+    db._lance_tables.return_value = ["kg_entities"]
+    db._embed_text.return_value = [0.1, 0.2]
+    db.search_vectors.return_value = [{"id": entity.id, "_score": 0.8}]
+    db.all.return_value = [entity]
+
+    result = await kg_entity_curation.search_entities_semantic(
+        q="Asprilla",
+        entity_type=None,
+        limit=5,
+        db=db,
+    )
+
+    db.search_vectors.assert_called_once_with("kg_entities", [0.1, 0.2], limit=5)
+    assert result.count == 1
+    assert result.items[0]["id"] == entity.id
+    assert result.items[0]["similarity_score"] == 0.8
+
+
+@pytest.mark.asyncio
 async def test_embed_claims_empty_short_circuits():
     db = MagicMock()
     db.all.return_value = []
