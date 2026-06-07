@@ -57,7 +57,7 @@ extension ContentView {
         // min: 180 lets the sidebar collapse tight enough that the mode
         // icons dominate the column with minimal wasted space (#615).
         // Was 250 — felt bloated on small screens.
-        .navigationSplitViewColumnWidth(min: 180, ideal: sidebarWidth, max: 360)
+        .navigationSplitViewColumnWidth(min: ContentView.sidebarMinWidth, ideal: sidebarWidth, max: 360)
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
         // NOTE: \.showInspector is published from the detail column in
         // ContentView.navigationSplitColumn (always present), NOT here — the
@@ -333,7 +333,7 @@ extension ContentView {
                             if panePlan.showsCanvasReadingDivider {
                                 ResizableDivider(
                                     width: $pageContentPaneWidth,
-                                    minWidth: 220,
+                                    minWidth: ContentView.readingPaneMinWidth,
                                     maxWidth: 540,
                                     edge: .trailing
                                 )

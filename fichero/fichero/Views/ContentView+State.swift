@@ -218,6 +218,45 @@ extension ContentView {
         return nil
     }
 
+    var paneAwareDetailMinWidth: Double {
+        guard supportsReadingWorkspace else {
+            return ContentView.contentMinWidth
+        }
+
+        let canvasPaneMinWidth = max(ContentView.pdfCanvasMinWidth, 300)
+        switch currentLayoutMode {
+        case .none:
+            return showDocumentGrid ? ContentView.contentListMinWidth : canvasPaneMinWidth
+        case .standard:
+            return showDocumentGrid
+                ? max(ContentView.contentListMinWidth, canvasPaneMinWidth)
+                : canvasPaneMinWidth
+        case .widescreen:
+            let panePlan = WidescreenPanePlan.make(
+                showDocumentGrid: showDocumentGrid,
+                showDocumentCanvas: showDocumentCanvas,
+                showReadingPane: showReadingPane
+            )
+            var minimumWidth = 0.0
+            if panePlan.showsLibraryPane {
+                minimumWidth += ContentView.contentListMinWidth
+            }
+            if panePlan.showsCanvasPane {
+                minimumWidth += canvasPaneMinWidth
+            }
+            if panePlan.showsReadingPane {
+                minimumWidth += ContentView.readingPaneMinWidth
+            }
+            return max(minimumWidth, ContentView.contentListMinWidth)
+        }
+    }
+
+    var paneAwareWindowMinWidth: Double {
+        let sidebarMinWidth = showSidebar ? ContentView.sidebarMinWidth : 0
+        let inspectorMinWidth = showInspectorSidebar ? ContentView.inspectorMinWidth : 0
+        return sidebarMinWidth + paneAwareDetailMinWidth + inspectorMinWidth
+    }
+
     /// Extracted from the view's `.onAppear` closure to keep `ContentView.body`
     /// within the Swift type-checker's complexity budget (the inline closure
     /// pushed the whole body over the "unable to type-check in reasonable time"

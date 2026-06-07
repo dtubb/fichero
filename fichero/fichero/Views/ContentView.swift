@@ -21,6 +21,7 @@ enum PaneFocus: Hashable {
 // - ContentView+Persistence: State serialization for @SceneStorage
 // swiftlint:disable:next type_body_length
 struct ContentView: View {
+    static let sidebarMinWidth: Double = 180
     static let inspectorMinWidth: Double = 250
     static let inspectorMaxWidth: Double = 1000
     static let contentMinWidth: Double = 520
@@ -39,6 +40,7 @@ struct ContentView: View {
     /// this guards the one `.frame(maxWidth: .infinity)` pane that otherwise
     /// has no floor. (#1454)
     static let pdfCanvasMinWidth: Double = 360
+    static let readingPaneMinWidth: Double = 220
 
     // MARK: - Environment
 
@@ -294,6 +296,7 @@ struct ContentView: View {
                     .frame(width: CGFloat(inspectorWidth))
             }
         } // end HStack — inspector is window-level, not inside NavigationSplitView (#1199)
+        .frame(minWidth: CGFloat(paneAwareWindowMinWidth), maxWidth: .infinity, maxHeight: .infinity)
 
         // Listen for claim selection from inspector and sync to other panes
         .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { notification in
@@ -313,7 +316,7 @@ struct ContentView: View {
             sidebarContent
         } detail: {
             centerContent
-                .frame(minWidth: CGFloat(ContentView.contentMinWidth), maxWidth: .infinity)
+                .frame(minWidth: CGFloat(paneAwareDetailMinWidth), maxWidth: .infinity)
                 // Publish the per-window inspector binding from the detail
                 // column (always present) rather than the sidebar, which leaves
                 // the hierarchy when collapsed and made ⌘⌥I no-op (#1513/#1451).
