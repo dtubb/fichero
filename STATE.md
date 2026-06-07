@@ -274,3 +274,13 @@ Daniel: "(1) get milestones/issues right, (2) get backend+SwiftUI ARCHITECTURE r
 GATE LESSON (cost me a broken push, fixed): do NOT reflexively `git checkout -- project.pbxproj` — when a worker DELETES a registered .swift file, the pbxproj change (removing the ref) is REAL, not Xcode noise. If a deleted file's ref remains → build error "Build input file cannot be found". Fix: remove the ref via the xcodeproj gem (patched validate_value) then COMMIT it; verify `grep -c <file> project.pbxproj` == 0 before push. Only checkout-revert pbxproj for the cosmetic dstSubfolder/empty-exceptions noise.
 MARSHALL (#1662) finding: root cause = broken downstream kg_writer edge in the NER workflow → 0 SVO claims. Fix = enable inline KG persistence in extract_all + remove the broken kg_writer edge. Worker saved workflow_ner_inline_kg.json + made stable_import.sh safe (no uvicorn, :8765, build_manifest+import-manifest). PORT this fix into the fichero engine's default extractor/workflow so it's not stranded in Daniel's engine state. Marshall worker still finalizing report.
 NEXT: port #1662 fix (backend, after Marshall report). Curation (#73) needs a planning agent first. API Surface pass 2 running.
+
+### ~9:50am — Daniel new direction + 4 issues (#1756-1759)
+- #1756 import does NOT register artifacts (should: import→artifacts→entities→SVO claims). BUG, Importers.
+- #1757 break the big catalogue into discrete human-runnable steps 1-5, chainable. Importers (#1669/#1676).
+- #1758 [Search] audit search + embeddings + pykeen end-to-end; search-everything + choose-what-to-search (default content/entities/SVO). Search milestone. ARCHITECTURE PRIORITY.
+- #1759 notes + annotations interface: add/delete per-page AND per-folder, for BOTH notes and annotations. KG&Herm.
+- MARSHALL worker REDIRECTED: do ONE folder, observe per-stage (artifact registration #1756 is broken), report counts; propose the 5-step breakdown (#1757). NOT bulk-import.
+- #1750 CRITICAL REVIEW running (code-reviewer agent, background) — Daniel wants assurance it works + no missed local-path sites. Apply its findings when it returns.
+- LANES: f_codex_apiarch2 (architecture pass2), f_codex_marshall (one-folder observe + steps). #1750-review agent (bg).
+- NEXT architecture: #1758 search/embed/pykeen audit (read-only first → report → fix); then port #1662 into engine; then Curation planning (#73). Search is Daniel's explicit concern.
