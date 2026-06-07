@@ -422,6 +422,12 @@ struct ContentView: View {
 // MARK: - Toolbar Content
 
 extension ContentView {
+    @ViewBuilder
+    private func toolbarToggleIcon(_ systemName: String, isActive: Bool) -> some View {
+        Image(systemName: systemName)
+            .symbolVariant(isActive ? .fill : .none)
+    }
+
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
         // Mode icon + title in toolbar center — updates on every sidebar/view-mode change (#323).
@@ -438,7 +444,7 @@ extension ContentView {
                     showSidebar.toggle()
                 }
             } label: {
-                Image(systemName: "sidebar.left")
+                toolbarToggleIcon("sidebar.left", isActive: showSidebar)
             }
             .help(showSidebar ? "Hide Sidebar" : "Show Sidebar")
 
@@ -658,7 +664,7 @@ extension ContentView {
                     showDocumentGrid.toggle()
                 }
             } label: {
-                Image(systemName: showDocumentGrid ? "books.vertical.fill" : "books.vertical")
+                toolbarToggleIcon("books.vertical", isActive: showDocumentGrid)
             }
             .help(showDocumentGrid ? "Hide Library Browser (⌘⇧G)" : "Show Library Browser (⌘⇧G)")
             .accessibilityLabel(showDocumentGrid ? "Hide Library Browser" : "Show Library Browser")
@@ -682,7 +688,13 @@ extension ContentView {
                         viewSettings.previewMode = normalizedPreviewMode(.widescreen)
                     }
                 } label: {
-                    Image(systemName: "doc.richtext")
+                    toolbarToggleIcon(
+                        "doc.richtext",
+                        isActive: ReadingWorkspacePaneTogglePolicy.isPaneVisible(
+                            layoutMode: currentLayoutMode,
+                            paneFlag: showDocumentCanvas
+                        )
+                    )
                 }
                 .help(
                     ReadingWorkspacePaneTogglePolicy.isPaneVisible(
@@ -706,7 +718,13 @@ extension ContentView {
                         viewSettings.previewMode = normalizedPreviewMode(.widescreen)
                     }
                 } label: {
-                    Image(systemName: "text.book.closed")
+                    toolbarToggleIcon(
+                        "text.book.closed",
+                        isActive: ReadingWorkspacePaneTogglePolicy.isPaneVisible(
+                            layoutMode: currentLayoutMode,
+                            paneFlag: showReadingPane
+                        )
+                    )
                 }
                 .help(
                     ReadingWorkspacePaneTogglePolicy.isPaneVisible(
@@ -739,7 +757,7 @@ extension ContentView {
                         showInspectorSidebar.toggle()
                     }
                 } label: {
-                    Image(systemName: "sidebar.right")
+                    toolbarToggleIcon("sidebar.right", isActive: showInspectorSidebar)
                 }
                 .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
             }
