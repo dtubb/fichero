@@ -23,6 +23,7 @@ from fichero.knowledge_models import (
     KnowledgeClaim,
 )
 from fichero.models import AnnotationListResponse, Document
+from fichero.storage import resolve_source
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/annotations")
@@ -149,8 +150,6 @@ async def get_crop(
     annotation_id: str,
     db: Database = Depends(get_library_database),
 ):
-    from pathlib import Path
-
     from fastapi.responses import PlainTextResponse, Response
 
     from fichero.workflows.tools._annotation_input import (
@@ -166,14 +165,15 @@ async def get_crop(
     if doc is None:
         raise HTTPException(404, f"Document not found: {ann.document_id}")
 
-    if doc.path and ann.bbox:
-        suffix = Path(doc.path).suffix.lower()
+    source_path = resolve_source(doc, library_root=db.path.parent)
+    if source_path and ann.bbox:
+        suffix = source_path.suffix.lower()
         if suffix == ".pdf":
-            png = crop_pdf_page(doc.path, ann)
+            png = crop_pdf_page(str(source_path), ann)
             if png:
                 return Response(content=png, media_type="image/png")
         elif suffix in {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".heic"}:
-            png = crop_image(doc.path, ann)
+            png = crop_image(str(source_path), ann)
             if png:
                 return Response(content=png, media_type="image/png")
 

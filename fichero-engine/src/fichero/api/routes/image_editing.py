@@ -79,6 +79,13 @@ def _get_or_404_document(db: Database, document_id: str) -> Document:
     return doc
 
 
+def _resolve_source_or_404(db: Database, doc: Document) -> Path:
+    source_path = resolve_source(doc, library_root=db.path.parent)
+    if not source_path:
+        raise HTTPException(status_code=404, detail="Source file not available")
+    return source_path
+
+
 def _get_chain(db: Database, document_id: str) -> ImageEditChain | None:
     rows = list(db.query(ImageEditChain, document_id=document_id))
     return rows[0] if rows else None
@@ -450,9 +457,7 @@ async def crop_image(
     db: Database = Depends(get_library_database),
 ) -> ImageEditChainResponse:
     doc = _get_or_404_document(db, document_id)
-    source_path = resolve_source(doc)
-    if not source_path:
-        raise HTTPException(status_code=404, detail="Source file not available")
+    source_path = _resolve_source_or_404(db, doc)
 
     op = {
         "op": "crop",
@@ -489,9 +494,7 @@ async def rotate_image(
     db: Database = Depends(get_library_database),
 ) -> ImageEditChainResponse:
     doc = _get_or_404_document(db, document_id)
-    source_path = resolve_source(doc)
-    if not source_path:
-        raise HTTPException(status_code=404, detail="Source file not available")
+    source_path = _resolve_source_or_404(db, doc)
 
     base = _load_source_image(source_path, page=request.page)
     op = {
@@ -521,9 +524,7 @@ async def enhance_image(
     db: Database = Depends(get_library_database),
 ) -> ImageEditChainResponse:
     doc = _get_or_404_document(db, document_id)
-    source_path = resolve_source(doc)
-    if not source_path:
-        raise HTTPException(status_code=404, detail="Source file not available")
+    source_path = _resolve_source_or_404(db, doc)
 
     base = _load_source_image(source_path, page=request.page)
     op = {
@@ -555,9 +556,7 @@ async def remove_background_image(
     db: Database = Depends(get_library_database),
 ) -> ImageEditChainResponse:
     doc = _get_or_404_document(db, document_id)
-    source_path = resolve_source(doc)
-    if not source_path:
-        raise HTTPException(status_code=404, detail="Source file not available")
+    source_path = _resolve_source_or_404(db, doc)
 
     base = _load_source_image(source_path, page=request.page)
     op = {
@@ -587,9 +586,7 @@ async def segment_image(
     db: Database = Depends(get_library_database),
 ) -> ImageEditChainResponse:
     doc = _get_or_404_document(db, document_id)
-    source_path = resolve_source(doc)
-    if not source_path:
-        raise HTTPException(status_code=404, detail="Source file not available")
+    source_path = _resolve_source_or_404(db, doc)
 
     base = _apply_saved_operations(
         db, document_id, request.page, _load_source_image(source_path, page=request.page)
@@ -640,9 +637,7 @@ async def preview_image(
     db: Database = Depends(get_library_database),
 ) -> Response:
     doc = _get_or_404_document(db, document_id)
-    source_path = resolve_source(doc)
-    if not source_path:
-        raise HTTPException(status_code=404, detail="Source file not available")
+    source_path = _resolve_source_or_404(db, doc)
 
     image = _load_source_image(source_path, page=page)
     if apply_edits:
