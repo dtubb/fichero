@@ -256,3 +256,16 @@ Daniel: "proceed to work on them steadily, systematically, using tmux codex. mak
 - Marshall diary import of ~5 folders of images via an agent — need the SOURCE FOLDER PATHS.
 - "second line in the marshall diary" — unclear, needs clarification.
 - #1753 scope: Activity + Model Comparison app-wide vs per-library-grouped?
+
+## 2026-06-07 ~8:40am — Daniel at coffee; BIG-PICTURE priority + 3 lanes running
+Daniel: "(1) get milestones/issues right, (2) get backend+SwiftUI ARCHITECTURE right — anti-patterns, non-Pydantic API routes, CLI+SwiftUI cover ALL endpoints, no hand-rolled URLs/models, no local paths, everything via API, API non-blocking, import remote+local. Work steadily. Before starting a milestone, REVIEW it fully — old issues may be worth doing."
+- Milestones created: #73 Curation, #74 Remote & Self-Hosting. Morning issues #1740-#1755 assigned to milestones.
+- **MILESTONE-FIRST-REVIEW principle (Daniel):** before dispatching a milestone-worker, `gh issue list --milestone "X"` and review OLD+new issues; give the worker a coherent multi-issue cluster in one context.
+- Reviewed #70 API Surface: found B1-B3 generated-client cluster (#1412-1417) + #1710/#1715/#1443 — but B1-B3 may be SUPERSEDED by overnight generated-client migration (#1701/#1711-1714/#1702); apiarch worker reconciling.
+
+### LANES RUNNING (3)
+- f_codex_nolocal (gpt-5.4, ~/code/fichero-nolocal) = #1750 no-local-paths render sweep (Remote milestone). FRONTEND → Xcode build gate.
+- f_codex_apiarch (gpt-5.4, ~/code/fichero-apiarch, branch chore/api-architecture-pass1) = API architecture pass 1: reconcile B1-B3 vs generated client, audit hand-rolled URLs/non-Pydantic-routes/coverage (writes docs/architecture/api_consistency_audit.md), fix bounded batch. BACKEND+Swift → ruff/pytest + Xcode build.
+- f_codex_marshall (gpt-5.4, /Users/danieltubb/code/marshall_diaries) = import 1-2 _stage NCM_Diary folders + tune workflows for #1662 (0 SVO claims). SEPARATE REPO, uses Daniel's :8765 engine, CLI-only, small batches. Commits in marshall_diaries, NOT fichero.
+
+### NEXT (loop, milestone-first-review): after gating these — Curation (#73: review #1751/#1752/#1741/#1688/#1689/#1692/#1694/#1695), then plan EPICs (#1740 P2, #1751) via planning agents. HOLD canvas (#1743/#1747/#1745/#1749) + spatial (#1744/#1746/#1748/#1755) feature builds until Daniel locks their design (actively redesigning). #1750 unblocks the remote-test goal.
