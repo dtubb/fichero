@@ -180,7 +180,7 @@ struct NotesBrowserView: View {
     @ViewBuilder
     private func noteCard(_ note: NoteItem) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            if editingId == note.id {
+            if editingId == note.id ?? "" {
                 editingCard(note)
             } else {
                 readCard(note)
@@ -199,31 +199,32 @@ struct NotesBrowserView: View {
                 Text(title)
                     .font(.callout.weight(.semibold))
             }
-            Text(note.body)
+            Text(note.body ?? "")
                 .font(.callout)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 6) {
-                Text(note.kind.capitalized)
+                Text((note.kind?.rawValue ?? "zettel").capitalized)
                     .font(.caption2)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
                     .background(Capsule().fill(Color.accentColor.opacity(0.15)))
-                ForEach(note.tags, id: \.self) { tag in
+                ForEach(note.tags ?? [], id: \.self) { tag in
                     Text("#\(tag)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button("Edit") {
-                    editingId = note.id
-                    editingText = note.body
+                    editingId = note.id ?? ""
+                    editingText = note.body ?? ""
                 }
                 .buttonStyle(.borderless)
                 .font(.caption)
                 Button(role: .destructive) {
-                    Task { try? await service.delete(noteId: note.id) }
+                    guard let noteId = note.id else { return }
+                    Task { try? await service.delete(noteId: noteId) }
                 } label: {
                     Image(systemName: "trash").font(.caption)
                 }
@@ -281,9 +282,9 @@ struct NotesBrowserView: View {
 
     private func saveEdit(_ note: NoteItem) async {
         let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty, let noteId = note.id else { return }
         do {
-            _ = try await service.update(noteId: note.id, body: trimmed)
+            _ = try await service.update(noteId: noteId, body: trimmed)
             editingId = nil
         } catch {
             logger.error("update note failed: \(error.localizedDescription)")

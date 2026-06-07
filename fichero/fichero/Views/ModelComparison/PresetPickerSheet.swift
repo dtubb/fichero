@@ -9,9 +9,8 @@ struct PresetPickerSheet: View {
         NavigationStack {
             List(presets) { preset in
                 Button {
-                    selectedModels = preset.models.compactMap { dict in
-                        guard let provider = dict["provider"], let model = dict["model"] else { return nil }
-                        return ModelSpec(provider: provider, model: model)
+                    selectedModels = preset.models.map {
+                        ModelSpec(provider: $0.provider, model: $0.model)
                     }
                     dismiss()
                 } label: {
@@ -23,7 +22,7 @@ struct PresetPickerSheet: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        Text(preset.models.compactMap { $0["model"] }.joined(separator: ", "))
+                        Text(preset.models.map(\.model).joined(separator: ", "))
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
