@@ -103,6 +103,10 @@ class FeatureManager: ObservableObject {
     private var pdfScrollGridSyncEnabledInternal: Bool = false
     @AppStorage("fichero.features.claim_highlight_sync")
     private var claimHighlightSyncEnabledInternal: Bool = false
+    @AppStorage("fichero.features.workspace_mode")
+    private var workspaceModeEnabledInternal: Bool = false
+    @AppStorage("fichero.features.spatial_mode")
+    private var spatialModeEnabledInternal: Bool = false
     @AppStorage("fichero.features.research") private var researchEnabledInternal: Bool = true
     @AppStorage("fichero.features.knowledge_graph") private var knowledgeGraphEnabledInternal: Bool = true
     @AppStorage("fichero.first_run.completed") var firstRunCompleted: Bool = false
@@ -175,6 +179,8 @@ class FeatureManager: ObservableObject {
     var isPdfScrollGridSyncEnabled: Bool { allFeaturesEnabled || pdfScrollGridSyncEnabledInternal }
     /// Bidirectional claim highlight sync across PDF, Content, and Inspector panes. Defaulted OFF.
     var isClaimHighlightSyncEnabled: Bool { allFeaturesEnabled || claimHighlightSyncEnabledInternal }
+    var isWorkspaceModeEnabled: Bool { allFeaturesEnabled || workspaceModeEnabledInternal }
+    var isSpatialModeEnabled: Bool { allFeaturesEnabled || spatialModeEnabledInternal }
     var isResearchEnabled: Bool { allFeaturesEnabled || researchEnabledInternal }
     /// Knowledge Graph / Ontology browser (#498). Defaulted ON — the view is complete.
     var isKnowledgeGraphEnabled: Bool { allFeaturesEnabled || knowledgeGraphEnabledInternal }
@@ -230,6 +236,8 @@ class FeatureManager: ObservableObject {
         workflowLangGraphPreviewEnabledInternal = true
         workflowFilesToolbarEnabledInternal = true
         workflowRunOnSelectionEnabledInternal = true
+        workspaceModeEnabledInternal = false
+        spatialModeEnabledInternal = false
         researchEnabledInternal = true
         knowledgeGraphEnabledInternal = true
         releaseProfileVersionApplied = Self.releaseProfileVersion

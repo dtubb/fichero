@@ -194,7 +194,7 @@ struct LibraryView: View {
                         listView
                     case .table:
                         tableView
-                    case .map, .realitykit:
+                    case .map, .realitykit, .spatial, .workspace:
                         mapView
                     }
                 }
