@@ -951,6 +951,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # Renamed from review_queue 2026-05-15 — the file is unrelated to the
     # entity-pair review queue in kg_review.py.
     (claim_curation.router, "/api", ["claim-curation"]),
+    (claim_curation.kg_claims_router, "/api", ["knowledge-graph"]),
     (storage.router, "/api/storage", ["storage"]),
     (tasks.router, "/api/tasks", ["tasks"]),
     (workflow_execution.router, "/api/workflow-execution", ["workflow-execution"]),
@@ -968,6 +969,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (kg_graph.router, "/api", ["knowledge-graph"]),
     (kg_render.router, "/api", ["knowledge-graph"]),
     (kg_render.bio_router, "/api", ["knowledge-graph"]),
+    (kg_entity_curation.kg_entities_router, "/api", ["knowledge-graph"]),
     (kg_pykeen.router, "/api", ["knowledge-graph"]),
     (kg_predictions.router, "/api", ["knowledge-graph"]),
     (kg_review.router, "/api", ["knowledge-graph"]),

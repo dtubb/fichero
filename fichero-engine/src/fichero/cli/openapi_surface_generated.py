@@ -3518,6 +3518,20 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("batch-set-claim-curation-state")
+    def kg_batch_set_claim_curation_state_patch(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Batch set claim curation state (PATCH /api/kg/claims/batch-curation)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/claims/batch-curation"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PATCH", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("delete-claim-rule")
     def kg_delete_claim_rule_delete(
         ctx: typer.Context,
@@ -3622,6 +3636,20 @@ def register_generated_openapi_commands(
             params = None
             payload = _load_json_payload(body, body_file, required=True)
             return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("batch-set-entity-curation-state")
+    def kg_batch_set_entity_curation_state_patch(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Batch set entity curation state (PATCH /api/kg/entities/batch-curation)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/entities/batch-curation"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("generate-llm-biography-for-a-knowledge-entity")

@@ -11,9 +11,11 @@ from datetime import datetime
 
 from fichero.knowledge_models import (
     ClaimCurationState,
+    EntityCurationState,
     EntityType,
     KnowledgeClaim,
     KnowledgeEntity,
+    MutationLog,
 )
 from fichero.models import DocType, Document
 
@@ -183,6 +185,54 @@ class TestMergeEntities:
         assert r.status_code == 200
         absorber_after = db.get(KnowledgeEntity, absorber.id)
         assert absorber_after.description == "Unified Alice entity"
+
+
+class TestBatchEntityCuration:
+    def test_batch_updates_entities_and_logs_mutations(self, client, db):
+        left = _make_entity(db, "Alice")
+        right = _make_entity(db, "Bob")
+
+        r = client.patch(
+            "/api/kg/entities/batch-curation",
+            json={
+                "entity_ids": [left.id, right.id],
+                "curation_state": "verified",
+            },
+        )
+
+        assert r.status_code == 200
+        assert r.json() == {
+            "updated": 2,
+            "entity_ids": [left.id, right.id],
+        }
+        assert db.get(KnowledgeEntity, left.id).curation_state.value == "verified"
+        assert db.get(KnowledgeEntity, right.id).curation_state.value == "verified"
+
+        logs = [m for m in db.all(MutationLog) if m.entity_type == "KnowledgeEntity"]
+        assert len(logs) == 2
+        assert {m.entity_id for m in logs} == {left.id, right.id}
+        for log in logs:
+            assert log.operation.value == "update"
+            assert log.changed_fields == ["curation_state"]
+            assert log.before_state["curation_state"] == "unreviewed"
+            assert log.after_state["curation_state"] == "verified"
+
+    def test_batch_skips_unchanged_entities(self, client, db):
+        entity = _make_entity(db, "Alice")
+        entity.curation_state = EntityCurationState.unreviewed
+        db.save(entity)
+
+        r = client.patch(
+            "/api/kg/entities/batch-curation",
+            json={
+                "entity_ids": [entity.id],
+                "curation_state": "unreviewed",
+            },
+        )
+
+        assert r.status_code == 200
+        assert r.json() == {"updated": 0, "entity_ids": []}
+        assert db.all(MutationLog) == []
 
 
 # ---------------------------------------------------------------------------

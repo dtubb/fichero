@@ -19,10 +19,13 @@ from fichero.knowledge_models import (
     ClaimCurationState,
     KnowledgeClaim,
     KnowledgeEntity,
+    MutationLog,
+    MutationOperationType,
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/claims", tags=["review-queue"])
+kg_claims_router = APIRouter(prefix="/kg/claims", tags=["knowledge-graph", "claim-curation"])
 
 
 # =============================================================================
@@ -65,6 +68,16 @@ class BatchClaimTransitionResponse(BaseModel):
     total: int
     succeeded: int
     failed: int
+
+
+class BatchClaimCurationRequest(BaseModel):
+    claim_ids: list[str] = Field(min_length=1, description="Claim IDs to update.")
+    curation_state: ClaimCurationState = Field(description="New curation state for every listed claim.")
+
+
+class BatchClaimCurationResponse(BaseModel):
+    updated: int
+    claim_ids: list[str] = Field(default_factory=list, description="Claim IDs whose state actually changed.")
 
 
 class QueueClaimItem(BaseModel):
@@ -139,6 +152,24 @@ def _build_queue_item(claim: KnowledgeClaim, db: Database) -> QueueClaimItem:
         entity_names=_get_entity_names(claim.entity_ids, db),
         created_at=claim.created_at.isoformat() if isinstance(claim.created_at, datetime) else str(claim.created_at),
         review_history=review_history,
+    )
+
+
+def _log_claim_curation_mutation(
+    *,
+    db: Database,
+    claim: KnowledgeClaim,
+    before_state: dict[str, Any],
+) -> None:
+    db.save(
+        MutationLog(
+            entity_type="KnowledgeClaim",
+            entity_id=claim.id,
+            operation=MutationOperationType.update,
+            before_state=before_state,
+            after_state=claim.model_dump(mode="json"),
+            changed_fields=["curation_state"],
+        )
     )
 
 
@@ -263,6 +294,38 @@ async def batch_transition_claims(
         succeeded=succeeded,
         failed=failed,
     )
+
+
+@kg_claims_router.patch(
+    "/batch-curation",
+    response_model=BatchClaimCurationResponse,
+    summary="Batch set claim curation state",
+)
+async def batch_set_claim_curation_state(
+    request: BatchClaimCurationRequest,
+    db: Database = Depends(get_library_database),
+) -> BatchClaimCurationResponse:
+    claims: list[KnowledgeClaim] = []
+    for claim_id in request.claim_ids:
+        claim = db.get(KnowledgeClaim, claim_id)
+        if claim is None:
+            raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
+        claims.append(claim)
+
+    now = datetime.now()
+    updated_ids: list[str] = []
+    for claim in claims:
+        if claim.curation_state == request.curation_state:
+            continue
+        before_state = claim.model_dump(mode="json")
+        claim.curation_state = request.curation_state
+        claim.updated_at = now
+        db.save(claim)
+        _log_claim_curation_mutation(db=db, claim=claim, before_state=before_state)
+        updated_ids.append(claim.id)
+
+    logger.info("Batch curation update: %s claims set to %s", len(updated_ids), request.curation_state.value)
+    return BatchClaimCurationResponse(updated=len(updated_ids), claim_ids=updated_ids)
 
 
 @router.get(

@@ -15293,6 +15293,60 @@
         }
       }
     },
+    "/api/kg/claims/batch-curation": {
+      "patch": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph",
+          "claim-curation"
+        ],
+        "summary": "Batch set claim curation state",
+        "operationId": "batch_set_claim_curation_state_api_kg_claims_batch_curation_patch",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchClaimCurationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchClaimCurationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/storage/thumbnail/{doc_id}": {
       "get": {
         "tags": [
@@ -19664,6 +19718,59 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EntityBioResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entities/batch-curation": {
+      "patch": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph"
+        ],
+        "summary": "Batch set entity curation state",
+        "operationId": "batch_set_entity_curation_state_api_kg_entities_batch_curation_patch",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchEntityCurationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchEntityCurationResponse"
                 }
               }
             }
@@ -34513,6 +34620,50 @@
         ],
         "title": "AuthorType"
       },
+      "BatchClaimCurationRequest": {
+        "properties": {
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Claim Ids",
+            "description": "Claim IDs to update."
+          },
+          "curation_state": {
+            "$ref": "#/components/schemas/ClaimCurationState",
+            "description": "New curation state for every listed claim."
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_ids",
+          "curation_state"
+        ],
+        "title": "BatchClaimCurationRequest"
+      },
+      "BatchClaimCurationResponse": {
+        "properties": {
+          "updated": {
+            "type": "integer",
+            "title": "Updated"
+          },
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Claim Ids",
+            "description": "Claim IDs whose state actually changed."
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated"
+        ],
+        "title": "BatchClaimCurationResponse"
+      },
       "BatchClaimTransitionRequest": {
         "properties": {
           "claim_ids": {
@@ -34599,6 +34750,50 @@
           "batch_id"
         ],
         "title": "BatchDeletedResponse"
+      },
+      "BatchEntityCurationRequest": {
+        "properties": {
+          "entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Entity Ids",
+            "description": "Entity IDs to update."
+          },
+          "curation_state": {
+            "$ref": "#/components/schemas/EntityCurationState",
+            "description": "New curation state for every listed entity."
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_ids",
+          "curation_state"
+        ],
+        "title": "BatchEntityCurationRequest"
+      },
+      "BatchEntityCurationResponse": {
+        "properties": {
+          "updated": {
+            "type": "integer",
+            "title": "Updated"
+          },
+          "entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Entity Ids",
+            "description": "Entity IDs whose state actually changed."
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated"
+        ],
+        "title": "BatchEntityCurationResponse"
       },
       "BatchItemResponse": {
         "properties": {
