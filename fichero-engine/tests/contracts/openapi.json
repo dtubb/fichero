@@ -28,7 +28,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
               }
             }
           },
@@ -66,7 +68,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryStatsResponse"
+                }
               }
             }
           },
@@ -12924,7 +12928,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingStatsResponse"
+                }
               }
             }
           },
@@ -18016,9 +18022,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Reinstall Default Workflows Api Workflows Reinstall Defaults Post"
+                  "$ref": "#/components/schemas/ReinstallDefaultWorkflowsResponse"
                 }
               }
             }
@@ -39199,6 +39203,25 @@
         ],
         "title": "EmbedEntitiesResponse"
       },
+      "EmbeddingStatsResponse": {
+        "properties": {
+          "indexed_count": {
+            "type": "integer",
+            "title": "Indexed Count"
+          },
+          "table_exists": {
+            "type": "boolean",
+            "title": "Table Exists"
+          }
+        },
+        "type": "object",
+        "required": [
+          "indexed_count",
+          "table_exists"
+        ],
+        "title": "EmbeddingStatsResponse",
+        "description": "Response from ``GET /api/search/stats`` and embedded library stats."
+      },
       "EnhanceOperationRequest": {
         "properties": {
           "brightness": {
@@ -41234,6 +41257,56 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "library_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Library Path"
+          },
+          "database": {
+            "type": "string",
+            "nullable": true,
+            "title": "Database"
+          },
+          "document_count": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Document Count"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
+          },
+          "backend_version": {
+            "type": "string",
+            "nullable": true,
+            "title": "Backend Version"
+          },
+          "active_libraries": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Active Libraries"
+          },
+          "remote_backend": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Remote Backend"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse",
+        "description": "Response from ``GET /api/health`` endpoint.\n\nIf library path is provided in the request header, returns stats for that\nlibrary. Otherwise, returns general backend health."
       },
       "HermeneuticCircleState": {
         "properties": {
@@ -43791,6 +43864,29 @@
         ],
         "title": "LibrarySnapshot",
         "description": "A point-in-time snapshot of a library database and its vectors.\n\nSnapshots are stored as Parquet exports of DuckDB tables plus a copy\nof the LanceDB vector directory. They are named with a timestamp and\nan optional reason, and can be restored to recover from bad AI runs\nor schema changes.\n\nStored in:\n    ~/Library/Application Support/com.fichero.fichero/snapshots/{library_name}/"
+      },
+      "LibraryStatsResponse": {
+        "properties": {
+          "documents": {
+            "type": "integer",
+            "title": "Documents"
+          },
+          "artifacts": {
+            "type": "integer",
+            "title": "Artifacts"
+          },
+          "embedding_stats": {
+            "$ref": "#/components/schemas/EmbeddingStatsResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "documents",
+          "artifacts",
+          "embedding_stats"
+        ],
+        "title": "LibraryStatsResponse",
+        "description": "Response from ``GET /api/stats`` for the active library."
       },
       "LocalModelInfoResponse": {
         "properties": {
@@ -48913,6 +49009,25 @@
           "message"
         ],
         "title": "ReindexStartedResponse"
+      },
+      "ReinstallDefaultWorkflowsResponse": {
+        "properties": {
+          "seeded": {
+            "type": "integer",
+            "title": "Seeded"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seeded",
+          "status"
+        ],
+        "title": "ReinstallDefaultWorkflowsResponse",
+        "description": "Response from ``POST /api/workflows/reinstall-defaults``."
       },
       "RejectResponse": {
         "properties": {

@@ -59,6 +59,11 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from fichero.db import Database, db_manager
+from fichero.models import (
+    EmbeddingStatsResponse,
+    HealthResponse,
+    LibraryStatsResponse,
+)
 from fichero.paths import migrate_legacy_engine_state
 from fichero.remote_backend import build_remote_backend_status
 
@@ -764,10 +769,10 @@ async def get_library_database(
 
 
 # Health check endpoint
-@app.get("/api/health")
+@app.get("/api/health", response_model=HealthResponse)
 async def health_check(
     x_fichero_library_path: str | None = Header(None, alias="X-Fichero-Library-Path"),
-):
+) -> HealthResponse:
     """Health check endpoint.
 
     If library path is provided, returns stats for that library.
@@ -780,38 +785,38 @@ async def health_check(
         try:
             db = db_manager.get_database(x_fichero_library_path)
             doc_count = db.count(Document)
-            return {
-                "status": "healthy",
-                "library_path": x_fichero_library_path,
-                "database": str(db.path),
-                "document_count": doc_count,
-            }
+            return HealthResponse(
+                status="healthy",
+                library_path=x_fichero_library_path,
+                database=str(db.path),
+                document_count=doc_count,
+            )
         except Exception as e:
-            return {
-                "status": "unhealthy",
-                "library_path": x_fichero_library_path,
-                "error": str(e),
-            }
+            return HealthResponse(
+                status="unhealthy",
+                library_path=x_fichero_library_path,
+                error=str(e),
+            )
     else:
         # General backend health
-        return {
-            "status": "healthy",
-            "backend_version": "0.1.0",
-            "active_libraries": db_manager.active_count,
-            "remote_backend": build_remote_backend_status().as_dict(),
-        }
+        return HealthResponse(
+            status="healthy",
+            backend_version="0.1.0",
+            active_libraries=db_manager.active_count,
+            remote_backend=build_remote_backend_status().as_dict(),
+        )
 
 
-@app.get("/api/stats")
+@app.get("/api/stats", response_model=LibraryStatsResponse)
 async def get_stats(db: Database = Depends(get_library_database)):
     """Get library statistics for the current library."""
     from fichero.models import Document, Artifact
 
-    return {
-        "documents": db.count(Document),
-        "artifacts": db.count(Artifact),
-        "embedding_stats": db.embedding_stats(),
-    }
+    return LibraryStatsResponse(
+        documents=db.count(Document),
+        artifacts=db.count(Artifact),
+        embedding_stats=EmbeddingStatsResponse(**db.embedding_stats()),
+    )
 
 
 # Include route modules

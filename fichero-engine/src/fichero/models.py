@@ -1124,6 +1124,39 @@ class HealthResponse(BaseModel):
     library_path: str | None = None
     database: str | None = None
     document_count: int | None = None
+    error: str | None = None
+    backend_version: str | None = None
+    active_libraries: int | None = None
+    remote_backend: dict[str, Any] | None = None
+
+
+class EmbeddingStatsResponse(BaseModel):
+    """Response from ``GET /api/search/stats`` and embedded library stats."""
+
+    indexed_count: int
+    table_exists: bool
+
+
+class LibraryStatsResponse(BaseModel):
+    """Response from ``GET /api/stats`` for the active library."""
+
+    documents: int
+    artifacts: int
+    embedding_stats: EmbeddingStatsResponse
+
+
+class ReinstallDefaultWorkflowsResponse(BaseModel):
+    """Response from ``POST /api/workflows/reinstall-defaults``."""
+
+    seeded: int
+    status: str
+
+
+class AppleIntelligenceProbeResponse(BaseModel):
+    """Result of probing whether Apple Intelligence is usable on this Mac."""
+
+    available: bool
+    reason: str | None = None
 
 
 class EntityContextResponse(BaseModel):
@@ -1579,6 +1612,10 @@ __all__ = [
     "LibraryCreateRequest",
     "LibraryCreateResponse",
     "HealthResponse",
+    "EmbeddingStatsResponse",
+    "LibraryStatsResponse",
+    "ReinstallDefaultWorkflowsResponse",
+    "AppleIntelligenceProbeResponse",
     "EntityContextResponse",
     # Known library registry (#1131)
     "KnownLibrary",

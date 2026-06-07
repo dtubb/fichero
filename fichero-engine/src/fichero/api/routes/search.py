@@ -20,7 +20,7 @@ from fichero.db import (
     _fold_for_search,
     _search_match_terms,
 )
-from fichero.models import DocType, Document, SavedSearch
+from fichero.models import DocType, Document, EmbeddingStatsResponse, SavedSearch
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -691,10 +691,12 @@ async def enhanced_search(
     )
 
 
-@router.get("/stats")
-async def search_stats(db: Database = Depends(get_library_database)):
+@router.get("/stats", response_model=EmbeddingStatsResponse)
+async def search_stats(
+    db: Database = Depends(get_library_database),
+) -> EmbeddingStatsResponse:
     """Get embedding/search statistics."""
-    return db.embedding_stats()
+    return EmbeddingStatsResponse(**db.embedding_stats())
 
 
 class KeywordCloudEntry(BaseModel):
