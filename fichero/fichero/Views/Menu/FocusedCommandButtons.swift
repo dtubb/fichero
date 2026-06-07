@@ -97,6 +97,11 @@ struct SaveLibraryActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
+/// FocusedValue key for closing the current library from the active window.
+struct CloseLibraryActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
 /// FocusedValue key for running a workflow on selected documents
 struct RunWorkflowOnSelectionKey: FocusedValueKey {
     typealias Value = () -> Void
@@ -142,6 +147,11 @@ extension FocusedValues {
     var saveLibraryAction: SaveLibraryActionKey.Value? {
         get { self[SaveLibraryActionKey.self] }
         set { self[SaveLibraryActionKey.self] = newValue }
+    }
+
+    var closeLibraryAction: CloseLibraryActionKey.Value? {
+        get { self[CloseLibraryActionKey.self] }
+        set { self[CloseLibraryActionKey.self] = newValue }
     }
 
     var runWorkflowOnSelection: RunWorkflowOnSelectionKey.Value? {

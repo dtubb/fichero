@@ -71,10 +71,11 @@ struct LibraryWindow: View {
         ) { result in
             handleFileImport(result)
         }
-        .focusedValue(\.openLibraryAction) { showingFileImporter = true }
-        .focusedValue(\.newWindowAction) { handleNewWindow() }
-        .focusedValue(\.newLibraryAction) { handleNewLibrary() }
-        .focusedValue(\.saveLibraryAction) { handleSaveLibrary() }
+        .focusedValue(\.openLibraryAction, { showingFileImporter = true })
+        .focusedValue(\.newWindowAction, { handleNewWindow() })
+        .focusedValue(\.newLibraryAction, { handleNewLibrary() })
+        .focusedValue(\.saveLibraryAction, { handleSaveLibrary() })
+        .focusedValue(\.closeLibraryAction, closeLibraryAction)
         // Keep titlebar chrome minimal; ContentView manages in-window context.
         .navigationTitle("")
         .navigationSubtitle("")
@@ -275,6 +276,26 @@ struct LibraryWindow: View {
             } catch {
                 libraryWindowLogger.error("Failed to save: \(error.localizedDescription)")
             }
+        }
+    }
+
+    private var closeLibraryAction: (() -> Void)? {
+        guard let library = windowState.library,
+              library.id != LibraryManager.globalLibraryId else {
+            return nil
+        }
+
+        return {
+            closeLibraryFromCurrentWindow(library)
+        }
+    }
+
+    private func closeLibraryFromCurrentWindow(_ library: LibraryManager.LibraryReference) {
+        let wasCurrent = windowState.libraryId == library.id
+        libraryManager.closeAndUnregisterLibrary(library.id)
+        if wasCurrent {
+            windowState.libraryId = LibraryManager.globalLibraryId
+            persistedLibraryId = LibraryManager.globalLibraryId.uuidString
         }
     }
 }

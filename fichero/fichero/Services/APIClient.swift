@@ -250,6 +250,35 @@ class APIClient: ObservableObject {
         }
     }
 
+    /// POST without body using explicit query params.
+    func post<T: Decodable>(_ path: String, query: [String: String]) async throws -> T {
+        var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
+        if !query.isEmpty {
+            components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+        }
+
+        guard let url = components.url else {
+            throw APIError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        configureRequest(&request)
+
+        logger.info("POST \(url.absoluteString) (query only)")
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            logger.info("Response received, \(data.count) bytes")
+            try validateResponse(response, data: data)
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            logger.error("POST Error: \(String(describing: error))")
+            throw error
+        }
+    }
+
     func put<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
         let url = baseURL.appendingPathComponent(path)
 
