@@ -606,16 +606,23 @@ def _persist_additional_entities(
     """
     container_id = target_doc_id
     from fichero.knowledge_models import KnowledgeEntity, EntityType
-    from fichero.workflows.tools._entity_writer import save_claim
+    from fichero.workflows.tools._entity_writer import save_claim, upsert_entity
 
     for type_key, names in additional_entities.items():
         for name in names:
             name = name.strip()
             if not name:
                 continue
-            existing = db.query(KnowledgeEntity, canonical_name=name, entity_type=EntityType.other)
-            if existing:
-                e = existing[0]
+            entity_id = upsert_entity(
+                db,
+                canonical_name=name,
+                entity_type=EntityType.other,
+                source_document_id=container_id,
+            )
+            if entity_id is None:
+                continue
+            e = db.get(KnowledgeEntity, entity_id)
+            if e is not None:
                 # Append to list — don't clobber when the same name appears under
                 # multiple custom types (e.g. "silver" tagged as both "minerals"
                 # and "trade_goods").
@@ -625,27 +632,11 @@ def _persist_additional_entities(
                     existing_keys = [*existing_keys, type_key]
                     e.metadata = {**e.metadata, "custom_entity_type_keys": existing_keys}
                     changed = True
-                # #1562 — record the source page/doc scope. The caller now
-                # passes the per-child target_doc_id (page/image), so this
-                # accumulates each child the name was extracted from; the parent
-                # compiles the union across descendants.
                 if container_id and container_id not in (e.source_document_ids or []):
                     e.source_document_ids = [*(e.source_document_ids or []), container_id]
                     changed = True
                 if changed:
                     db.save(e)
-                entity_id = e.id
-            else:
-                entity = KnowledgeEntity(
-                    canonical_name=name,
-                    entity_type=EntityType.other,
-                    metadata={"custom_entity_type_keys": [type_key]},
-                    # #1562 — scope to the per-child target_doc_id supplied by
-                    # the caller (page/image), not the parent container.
-                    source_document_ids=[container_id] if container_id else [],
-                )
-                db.save(entity)
-                entity_id = entity.id
             # Minimal provenance claim — links entity to source document so KG
             # queries ("which docs mention X?") work for custom types just like
             # built-in types. No SVO at this stage; a follow-up pass can enrich.

@@ -10,7 +10,14 @@ from __future__ import annotations
 
 import pytest
 
-from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim, EntityType, LibraryEntityType
+from fichero.knowledge_models import (
+    EntityResolutionRule,
+    EntityResolutionRuleType,
+    KnowledgeEntity,
+    KnowledgeClaim,
+    EntityType,
+    LibraryEntityType,
+)
 from fichero.llm import LLMConfig
 from fichero.models import DocType, Document
 from fichero.workflows.tools import extract_all as extract_all_module
@@ -169,6 +176,21 @@ class TestPersistAdditionalEntities:
         keys = all_entities[0].metadata.get("custom_entity_type_keys", [])
         assert "crops" in keys
         assert "grains" in keys
+
+    def test_suppress_rule_skips_custom_entity_and_claim(self, db, test_package):
+        db.save(
+            EntityResolutionRule(
+                rule_type=EntityResolutionRuleType.suppress,
+                match_canonical_name="wheat",
+                match_entity_type=EntityType.other,
+                reason="noise",
+            )
+        )
+
+        _persist_additional_entities(db, {"crops": ["wheat"]}, "doc-suppressed")
+
+        assert db.query(KnowledgeEntity, canonical_name="wheat", entity_type=EntityType.other) == []
+        assert db.query(KnowledgeClaim, source_document_id="doc-suppressed") == []
 
 
 class TestCustomEntityPerChildScope:
