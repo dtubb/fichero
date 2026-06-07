@@ -1,7 +1,13 @@
 import FicheroAPIClient
+import OSLog
 import SwiftUI
 
 // MARK: - Document Entities Tab
+
+private let inspectorEntitiesLogger = Logger(
+    subsystem: "app.fichero.fichero",
+    category: "DocumentInspectorEntitiesTab"
+)
 
 struct DocumentInspectorEntitiesTab: View {
     let documentId: String
@@ -35,6 +41,10 @@ struct DocumentInspectorEntitiesTab: View {
         }
     }
 
+    private var hasActiveKindFilter: Bool {
+        !hiddenKinds.isEmpty
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -46,10 +56,12 @@ struct DocumentInspectorEntitiesTab: View {
                     Label(loadError, systemImage: "exclamationmark.triangle")
                         .font(.caption)
                         .foregroundStyle(.orange)
-                } else if grouped.isEmpty {
+                } else if entities.isEmpty {
                     Text("No entities for this document yet.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                } else if grouped.isEmpty {
+                    emptyVisibleGroupsState
                 } else {
                     ForEach(grouped, id: \.0) { kind, items in
                         entityKindSection(kind: kind, entities: items)
@@ -75,6 +87,33 @@ struct DocumentInspectorEntitiesTab: View {
             }
             .buttonStyle(.plain)
             .help("Reload entities")
+        }
+    }
+
+    @ViewBuilder
+    private var emptyVisibleGroupsState: some View {
+        if hasActiveKindFilter {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Loaded \(entities.count) entities, but the current filter hides every kind.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("Show all kinds") {
+                    hiddenKindsCSV = ""
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                Label(
+                    "Loaded \(entities.count) entities, but none mapped into a visible section.",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+
+                entityKindSection(kind: .other, entities: entities)
+            }
         }
     }
 
@@ -183,10 +222,19 @@ struct DocumentInspectorEntitiesTab: View {
         defer { isLoading = false }
 
         do {
-            entities = try await entityService.listEntitiesForDocument(documentId: documentId)
+            let loaded = try await entityService.listInspectorEntitiesForDocument(
+                documentId: documentId
+            )
+            inspectorEntitiesLogger.debug(
+                "Loaded \(loaded.count, privacy: .public) inspector entities for \(documentId, privacy: .public)"
+            )
+            entities = loaded
         } catch is CancellationError {
             // Superseded by a newer document selection.
         } catch {
+            inspectorEntitiesLogger.error(
+                "Failed to load inspector entities for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
             loadError = "Couldn't load entities: \(error.localizedDescription)"
             entities = []
         }
