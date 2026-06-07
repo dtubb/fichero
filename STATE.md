@@ -212,3 +212,8 @@ Closed/resolved tonight (18): +#1663,#1664,#1653.
 In flight: f_codex_surface (gpt-5.4, ~/code/fichero-surface) = #1728 surface Notes browser (AppState flag+Data-menu sheet) + verify/add Mind Palace SidebarModeBar icon + cautious Automation (flip only if wiring real). Frontend, Xcode build gate.
 Restart-needed-on-Daniel's-:8765 to take effect: #1727 (Inbox), #1707/#1731 (PDF storage), #1663/#1664 (relative paths). All backend code merged.
 Next bounded: backlog (data-independent), #1345 (/children doc: prefix — verify still open), #1720 follow-ups. #1740 Phase 1 fallback if thin.
+
+### Tick 10 (~04:11) — landed: #1728 surface built views (b23bfb7a, CLOSED) — Notes browser reachable (Data menu + sheet) + Mind Palace SidebarModeBar icon; Automation left OFF (stub service, filed follow-up #1742). Also closed #1611 (stale — DuckDB claims-index fix already on 0.0.2 @ 956248b3). 0.0.2 green.
+Closed/resolved tonight (20): +#1728,#1611. Filed #1742 (Automation wiring).
+In flight: f_codex_stubs (gpt-5.4, ~/code/fichero-spatialstubs) = #1740 PHASE 1 ONLY — feature-gated .workspace/.spatial ViewDisplayMode STUBS (flags OFF, nothing removed, ContentUnavailableView). The SAFE pre-approved fallback. Frontend, Xcode build gate. Do NOT let it do Phase 2+.
+Backlog now thin on bounded data-independent work — mostly design EPICs, IIIF-data-dependent backend (#1650-1662), needs-Daniel (#1709/#1715), deferred reorg (#1704). After stubs, consider GH-hygiene stale-close pass or pace down.
