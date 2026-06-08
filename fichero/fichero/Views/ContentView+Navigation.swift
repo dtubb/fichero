@@ -46,7 +46,28 @@ extension ContentView {
         switch viewMode {
         case .library:
             if let doc = libraryViewDocument, viewDisplayMode == .realitykit {
-                FolderRealityKitSurface(documentId: doc.id, selectedNodeId: .constant(nil))
+                FolderRealityKitSurface(
+                    documentId: doc.id,
+                    selectedNodeId: Binding(
+                        get: {
+                            if let selectedId = browserSelection.first {
+                                return "doc-\(selectedId)"
+                            }
+                            guard let detailDocument,
+                                  detailDocument.parentId == doc.id else {
+                                return nil
+                            }
+                            return "doc-\(detailDocument.id)"
+                        },
+                        set: { nodeId in
+                            guard let documentId = SpatialDocumentSelection.documentId(forNodeId: nodeId) else {
+                                return
+                            }
+                            kgFocusState.clear()
+                            selectDocument(withId: documentId)
+                        }
+                    )
+                )
             } else if viewDisplayMode == .workspace,
                       featureManager.isWorkspaceModeEnabled,
                       let doc = libraryViewDocument {

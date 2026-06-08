@@ -269,6 +269,17 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         // Keep content centered when the viewport size changes.
         updateContentInsets(scrollView: scrollView, imageView: context.coordinator.imageView!)
 
+        // Some first-paint paths reach here with a loaded image and real bounds
+        // but without the reveal callback having fired yet. Reveal eagerly so
+        // the image doesn't stay blank until the next interaction.
+        if scrollView.alphaValue < 1,
+           scrollView.bounds.width > 0,
+           scrollView.bounds.height > 0,
+           let imageView = context.coordinator.imageView as? NSImageView,
+           imageView.image != nil {
+            scrollView.alphaValue = 1
+        }
+
         // Update visible rect
         context.coordinator.updateVisibleRect()
     }

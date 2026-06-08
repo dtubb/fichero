@@ -151,3 +151,17 @@ struct CanvasDocumentPolicy {
         return nil
     }
 }
+
+/// Maps spatial scene node ids back to library document ids.
+struct SpatialDocumentSelection {
+    static func documentId(forNodeId nodeId: String?) -> String? {
+        guard let nodeId, !nodeId.isEmpty else { return nil }
+        if nodeId.hasPrefix("doc-") {
+            return String(nodeId.dropFirst("doc-".count))
+        }
+        if nodeId.hasPrefix("doc:") {
+            return String(nodeId.dropFirst("doc:".count))
+        }
+        return nil
+    }
+}
