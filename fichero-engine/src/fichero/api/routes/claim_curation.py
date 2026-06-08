@@ -11,17 +11,21 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
+from fichero.kg._common import is_trivial_claim
 from fichero.knowledge_models import (
     ClaimCurationState,
+    ClaimSuppressionRule,
+    ClaimSuppressionRuleAction,
     KnowledgeClaim,
     KnowledgeEntity,
     MutationLog,
     MutationOperationType,
 )
+from fichero.models import DocType, Document
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/claims", tags=["review-queue"])
@@ -78,6 +82,45 @@ class BatchClaimCurationRequest(BaseModel):
 class BatchClaimCurationResponse(BaseModel):
     updated: int
     claim_ids: list[str] = Field(default_factory=list, description="Claim IDs whose state actually changed.")
+
+
+class PruneTrivialClaimsRequest(BaseModel):
+    document_id: str | None = Field(
+        default=None,
+        description="Single document/page scope. Only claims directly attached to this document are checked.",
+    )
+    folder_id: str | None = Field(
+        default=None,
+        description="Folder scope. The folder and every descendant document are checked.",
+    )
+    library_wide: bool = Field(
+        default=False,
+        description="When true, scan the whole library and persist a global trivial-copula suppression rule.",
+    )
+    reason: str = Field(
+        default="Prune trivial is-a copula claims",
+        description="Audit note stored on any generated suppression rule.",
+    )
+    created_by: str = Field(
+        default="human",
+        description="Actor recorded on any generated suppression rule.",
+    )
+
+    @model_validator(mode="after")
+    def _validate_scope(self) -> "PruneTrivialClaimsRequest":
+        scopes = int(bool(self.document_id)) + int(bool(self.folder_id)) + int(self.library_wide)
+        if scopes != 1:
+            raise ValueError("Exactly one of document_id, folder_id, or library_wide=true is required")
+        return self
+
+
+class PruneTrivialClaimsResponse(BaseModel):
+    scope_type: str
+    scope_document_ids: list[str] = Field(default_factory=list)
+    identified_count: int
+    suppressed_count: int
+    suppressed_claim_ids: list[str] = Field(default_factory=list)
+    rules_written: int
 
 
 class QueueClaimItem(BaseModel):
@@ -171,6 +214,53 @@ def _log_claim_curation_mutation(
             changed_fields=["curation_state"],
         )
     )
+
+
+def _scope_doc_ids(db: Database, request: PruneTrivialClaimsRequest) -> tuple[str, set[str]]:
+    if request.document_id is not None:
+        document = db.get(Document, request.document_id)
+        if document is None:
+            raise HTTPException(status_code=404, detail=f"Document not found: {request.document_id}")
+        return "document", {request.document_id}
+
+    if request.folder_id is not None:
+        folder = db.get(Document, request.folder_id)
+        if folder is None:
+            raise HTTPException(status_code=404, detail=f"Folder not found: {request.folder_id}")
+        if folder.doc_type != DocType.folder:
+            raise HTTPException(status_code=400, detail=f"Document {request.folder_id} is not a folder")
+        from fichero.api.routes.claims import _descendant_doc_ids
+        return "folder", _descendant_doc_ids(db, request.folder_id)
+
+    return "library", set()
+
+
+def _ensure_library_wide_trivial_claim_rule(
+    db: Database,
+    *,
+    reason: str,
+    created_by: str,
+) -> bool:
+    for rule in db.query(ClaimSuppressionRule):
+        if not rule.suppress_is_a_copulas:
+            continue
+        if rule.match_subject_name is not None:
+            continue
+        if rule.match_predicate_verb is not None:
+            continue
+        if rule.match_object_phrase is not None:
+            continue
+        return False
+
+    db.save(
+        ClaimSuppressionRule(
+            action=ClaimSuppressionRuleAction.prune,
+            suppress_is_a_copulas=True,
+            reason=reason,
+            created_by=created_by,
+        )
+    )
+    return True
 
 
 # =============================================================================
@@ -326,6 +416,66 @@ async def batch_set_claim_curation_state(
 
     logger.info("Batch curation update: %s claims set to %s", len(updated_ids), request.curation_state.value)
     return BatchClaimCurationResponse(updated=len(updated_ids), claim_ids=updated_ids)
+
+
+@kg_claims_router.post(
+    "/prune-trivial",
+    response_model=PruneTrivialClaimsResponse,
+    summary="Prune trivially-true claims",
+)
+async def prune_trivial_claims(
+    request: PruneTrivialClaimsRequest,
+    db: Database = Depends(get_library_database),
+) -> PruneTrivialClaimsResponse:
+    scope_type, scoped_doc_ids = _scope_doc_ids(db, request)
+
+    identified: list[KnowledgeClaim] = []
+    for claim in db.all(KnowledgeClaim):
+        if scope_type != "library" and claim.source_document_id not in scoped_doc_ids:
+            continue
+        if is_trivial_claim(claim):
+            identified.append(claim)
+
+    now = datetime.now()
+    suppressed_ids: list[str] = []
+    for claim in identified:
+        next_confidence = min(claim.confidence, 0.2)
+        if (
+            claim.curation_state == ClaimCurationState.rejected
+            and claim.confidence == next_confidence
+        ):
+            continue
+        before_state = claim.model_dump(mode="json")
+        claim.curation_state = ClaimCurationState.rejected
+        claim.confidence = next_confidence
+        claim.updated_at = now
+        db.save(claim)
+        _log_claim_curation_mutation(db=db, claim=claim, before_state=before_state)
+        suppressed_ids.append(claim.id)
+
+    rules_written = 0
+    if request.library_wide and _ensure_library_wide_trivial_claim_rule(
+        db,
+        reason=request.reason,
+        created_by=request.created_by,
+    ):
+        rules_written = 1
+
+    logger.info(
+        "Pruned trivial claims: scope=%s identified=%s suppressed=%s rules_written=%s",
+        scope_type,
+        len(identified),
+        len(suppressed_ids),
+        rules_written,
+    )
+    return PruneTrivialClaimsResponse(
+        scope_type=scope_type,
+        scope_document_ids=sorted(scoped_doc_ids),
+        identified_count=len(identified),
+        suppressed_count=len(suppressed_ids),
+        suppressed_claim_ids=suppressed_ids,
+        rules_written=rules_written,
+    )
 
 
 @router.get(

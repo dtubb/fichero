@@ -15387,6 +15387,60 @@
         }
       }
     },
+    "/api/kg/claims/prune-trivial": {
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph",
+          "claim-curation"
+        ],
+        "summary": "Prune trivially-true claims",
+        "operationId": "prune_trivial_claims_api_kg_claims_prune_trivial_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PruneTrivialClaimsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PruneTrivialClaimsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/storage/thumbnail/{doc_id}": {
       "get": {
         "tags": [
@@ -49382,6 +49436,84 @@
         "type": "object",
         "title": "ProviderUpdate",
         "description": "Update provider settings."
+      },
+      "PruneTrivialClaimsRequest": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id",
+            "description": "Single document/page scope. Only claims directly attached to this document are checked."
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "Folder scope. The folder and every descendant document are checked."
+          },
+          "library_wide": {
+            "type": "boolean",
+            "title": "Library Wide",
+            "description": "When true, scan the whole library and persist a global trivial-copula suppression rule.",
+            "default": false
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Audit note stored on any generated suppression rule.",
+            "default": "Prune trivial is-a copula claims"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "description": "Actor recorded on any generated suppression rule.",
+            "default": "human"
+          }
+        },
+        "type": "object",
+        "title": "PruneTrivialClaimsRequest"
+      },
+      "PruneTrivialClaimsResponse": {
+        "properties": {
+          "scope_type": {
+            "type": "string",
+            "title": "Scope Type"
+          },
+          "scope_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scope Document Ids"
+          },
+          "identified_count": {
+            "type": "integer",
+            "title": "Identified Count"
+          },
+          "suppressed_count": {
+            "type": "integer",
+            "title": "Suppressed Count"
+          },
+          "suppressed_claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suppressed Claim Ids"
+          },
+          "rules_written": {
+            "type": "integer",
+            "title": "Rules Written"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_type",
+          "identified_count",
+          "suppressed_count",
+          "rules_written"
+        ],
+        "title": "PruneTrivialClaimsResponse"
       },
       "PykeenListResponse": {
         "properties": {

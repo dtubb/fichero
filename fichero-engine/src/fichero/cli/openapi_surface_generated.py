@@ -3536,6 +3536,20 @@ def register_generated_openapi_commands(
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("prune-trivially-true-claims")
+    def kg_prune_trivially_true_claims_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Prune trivially-true claims (POST /api/kg/claims/prune-trivial)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/claims/prune-trivial"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("delete-claim-rule")
     def kg_delete_claim_rule_delete(
         ctx: typer.Context,
