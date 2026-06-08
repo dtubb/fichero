@@ -1,6 +1,8 @@
 import FicheroAPIClient
 import SwiftUI
 
+// swiftlint:disable file_length type_body_length
+
 // MARK: - EntityKindRow
 
 /// One row inside an EntityKindBlock. The **name** is tappable —
@@ -11,6 +13,16 @@ import SwiftUI
 struct EntityKindRow: View {
     let item: GroupedItem
     let kind: EntityKind
+    var claimById: [String: Components.Schemas.KnowledgeClaim] = [:]
+    var selectedClaimIds: Set<String> = []
+    var claimScopeLabel: String?
+    var claimContextMenuTarget: ((Components.Schemas.KnowledgeClaim) -> [Components.Schemas.KnowledgeClaim])?
+    var onClaimTap: ((Components.Schemas.KnowledgeClaim) -> Void)?
+    var applyClaimBulkAction: ((
+        InspectorClaimBulkAction,
+        InspectorEntityBulkActionScope,
+        [Components.Schemas.KnowledgeClaim]
+    ) async -> Void)?
     var onNavigateToSource: ((String) -> Void)?
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
@@ -29,6 +41,10 @@ struct EntityKindRow: View {
         .system(size: CGFloat(max(defaultFontSize - 1, 10)))
     }
 
+    private var primaryClaim: Components.Schemas.KnowledgeClaim? {
+        claimById[item.claimId]
+    }
+
     var body: some View {
         // Layout:
         //   line 1: [name button]  (aka alias1, alias2)  (p. label)   → arrow  [select claim]
@@ -36,108 +52,15 @@ struct EntityKindRow: View {
         // Name is its own Button so a tap doesn't have to compete with
         // textSelection on the rest of the row.
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Button(action: focusPrimaryClaim) {
-                    Text(item.displayName)
-                        .font(bodyTextFont)
-                        .fontWeight(.medium)
-                        .foregroundStyle(
-                            claimFocusState.isClaimSelected(item.claimId) ? Color.accentColor : Color.primary
-                        )
-                }
-                .buttonStyle(.plain)
-                .help("Focus \"\(item.displayName)\"")
-                .accessibilityHint("Focuses this \(kind.label.lowercased())")
-
-                trailingText
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-
-                if let confidence = item.confidence {
-                    Text(String(format: "%.2f", confidence))
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.12))
-                        .clipShape(Capsule())
-                        .help("Claim confidence")
-                }
-
-                // Claim selection button for bidirectional sync
-                if let onClaimSelect = onClaimSelect {
-                    Button(action: {
-                        focusPrimaryClaim()
-                        onClaimSelect(
-                            item.claimId,
-                            item.sourceExcerpt,
-                            item.sourceDocumentId,
-                            item.sourcePageLabel,
-                            nil,
-                            nil
-                        )
-                    }, label: {
-                        Image(systemName: claimFocusState.isClaimSelected(item.claimId) ? "star.fill" : "star")
-                            .font(.system(size: 12))
-                            .foregroundStyle(
-                                claimFocusState.isClaimSelected(item.claimId) ? Color.accentColor : Color.secondary
-                            )
-                    })
-                    .buttonStyle(.plain)
-                    .help(
-                        claimFocusState.isClaimSelected(item.claimId)
-                            ? "Claim selected for highlighting"
-                            : "Select claim for highlighting"
-                    )
-                }
-
-                if let sourceId = item.sourceDocumentId,
-                   let navigate = onNavigateToSource {
-                    Button {
-                        navigate(sourceId)
-                    } label: {
-                        Image(systemName: "arrow.right.circle")
-                            .font(.body)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Go to source")
-                }
-            }
-
-            if !item.context.isEmpty,
-               item.context != item.displayName,
-               !item.displayName.contains(item.context) {
-                Text(item.context)
-                    .font(bodyTextFont)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
-
-            // Verbatim source quote — only when distinct from both the
-            // displayName and the curated context. Tap runs a library
-            // search for the exact text (#893).
-            if let excerpt = item.sourceExcerpt,
-               !excerpt.isEmpty,
-               excerpt != item.displayName,
-               excerpt != item.context {
-                Button {
-                    NotificationCenter.default.post(
-                        name: .ficheroEntitySearchRequested,
-                        object: nil,
-                        userInfo: ["name": excerpt]
-                    )
-                } label: {
-                    Text("\u{201C}\(excerpt)\u{201D}")
-                        .font(secondaryTextFont)
-                        .italic()
-                        .foregroundStyle(.secondary)
-                        .lineLimit(3)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-                .help("Search the library for this quote")
-            }
+            claimBlock(
+                claimId: item.claimId,
+                context: item.context,
+                sourceDocumentId: item.sourceDocumentId,
+                sourcePageLabel: item.sourcePageLabel,
+                sourceExcerpt: item.sourceExcerpt,
+                confidence: item.confidence,
+                isPrimary: true
+            )
 
             // Additional SVO claims for the same entity (#1109).
             // Each renders as an indented context + excerpt pair, visually
@@ -145,35 +68,15 @@ struct EntityKindRow: View {
             if !item.extraClaims.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(item.extraClaims, id: \.claimId) { extra in
-                        if !extra.context.isEmpty,
-                           extra.context != item.displayName,
-                           extra.context != item.context {
-                            Text(extra.context)
-                                .font(bodyTextFont)
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                        }
-                        if let excerpt = extra.sourceExcerpt,
-                           !excerpt.isEmpty,
-                           excerpt != extra.context,
-                           excerpt != item.displayName {
-                            Button {
-                                NotificationCenter.default.post(
-                                    name: .ficheroEntitySearchRequested,
-                                    object: nil,
-                                    userInfo: ["name": excerpt]
-                                )
-                            } label: {
-                                Text("\u{201C}\(excerpt)\u{201D}")
-                                    .font(secondaryTextFont)
-                                    .italic()
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(3)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Search the library for this quote")
-                        }
+                        claimBlock(
+                            claimId: extra.claimId,
+                            context: extra.context,
+                            sourceDocumentId: extra.sourceDocumentId,
+                            sourcePageLabel: extra.sourcePageLabel,
+                            sourceExcerpt: extra.sourceExcerpt,
+                            confidence: claimById[extra.claimId]?.confidence,
+                            isPrimary: false
+                        )
                     }
                 }
                 .padding(.leading, 8)
@@ -187,17 +90,6 @@ struct EntityKindRow: View {
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
-        .onTapGesture {
-            focusPrimaryClaim()
-        }
-        .contextMenu {
-            Button("Edit claim…") {
-                loadClaimForEditing()
-            }
-            Button("Delete claim…", role: .destructive) {
-                showDeleteConfirmation = true
-            }
-        }
         .alert("Delete claim?", isPresented: $showDeleteConfirmation) {
             Button("Delete", role: .destructive) { deleteClaim() }
             Button("Cancel", role: .cancel) {}
@@ -222,6 +114,10 @@ struct EntityKindRow: View {
     }
 
     private func focusPrimaryClaim() {
+        if let primaryClaim {
+            handleClaimTap(primaryClaim)
+            return
+        }
         kgFocusState.focusClaim(
             claimId: item.claimId,
             entityId: item.entityId,
@@ -292,4 +188,280 @@ struct EntityKindRow: View {
             }
         }
     }
+
+    // swiftlint:disable function_body_length cyclomatic_complexity function_parameter_count
+    @ViewBuilder
+    private func claimBlock(
+        claimId: String,
+        context: String,
+        sourceDocumentId: String?,
+        sourcePageLabel: String?,
+        sourceExcerpt: String?,
+        confidence: Double?,
+        isPrimary: Bool
+    ) -> some View {
+        let claim = claimById[claimId]
+        let isSelected = selectedClaimIds.contains(claimId)
+        let isFocused = claimFocusState.isClaimSelected(claimId)
+
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                if isPrimary {
+                    Button(action: {
+                        if let claim {
+                            handleClaimTap(claim)
+                        } else {
+                            focusPrimaryClaim()
+                        }
+                    }, label: {
+                        Text(item.displayName)
+                            .font(bodyTextFont)
+                            .fontWeight(.medium)
+                            .foregroundStyle(isFocused ? Color.accentColor : Color.primary)
+                    })
+                    .buttonStyle(.plain)
+                    .help("Focus \"\(item.displayName)\"")
+                    .accessibilityHint("Focuses this \(kind.label.lowercased())")
+
+                    trailingText
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                } else {
+                    Text("Related claim")
+                        .font(secondaryTextFont)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let curationState = claim?.curationState, curationState != .unreviewed {
+                    ClaimCurationBadge(state: curationState)
+                }
+
+                if let confidence {
+                    Text(String(format: "%.2f", confidence))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.12))
+                        .clipShape(Capsule())
+                        .help("Claim confidence")
+                }
+
+                if isPrimary, let onClaimSelect = onClaimSelect {
+                    Button(action: {
+                        if let claim {
+                            handleClaimTap(claim)
+                        } else {
+                            focusPrimaryClaim()
+                            onClaimSelect(
+                                claimId,
+                                sourceExcerpt,
+                                sourceDocumentId,
+                                sourcePageLabel,
+                                nil,
+                                nil
+                            )
+                        }
+                    }, label: {
+                        Image(systemName: isFocused ? "star.fill" : "star")
+                            .font(.system(size: 12))
+                            .foregroundStyle(isFocused ? Color.accentColor : Color.secondary)
+                    })
+                    .buttonStyle(.plain)
+                    .help(isFocused ? "Claim selected for highlighting" : "Select claim for highlighting")
+                }
+
+                if isPrimary,
+                   let sourceDocumentId,
+                   let navigate = onNavigateToSource {
+                    Button {
+                        navigate(sourceDocumentId)
+                    } label: {
+                        Image(systemName: "arrow.right.circle")
+                            .font(.body)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Go to source")
+                }
+            }
+
+            if !context.isEmpty,
+               context != item.displayName,
+               !item.displayName.contains(context) {
+                Text(context)
+                    .font(bodyTextFont)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+
+            if let excerpt = sourceExcerpt,
+               !excerpt.isEmpty,
+               excerpt != context,
+               excerpt != item.displayName {
+                Button {
+                    NotificationCenter.default.post(
+                        name: .ficheroEntitySearchRequested,
+                        object: nil,
+                        userInfo: ["name": excerpt]
+                    )
+                } label: {
+                    Text("\u{201C}\(excerpt)\u{201D}")
+                        .font(secondaryTextFont)
+                        .italic()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .help("Search the library for this quote")
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let claim {
+                handleClaimTap(claim)
+            }
+        }
+        .contextMenu {
+            if let claim {
+                claimBulkContextMenu(for: claim)
+                if isPrimary {
+                    Divider()
+                }
+            }
+            if isPrimary {
+                Button("Edit claim…") {
+                    loadClaimForEditing()
+                }
+                Button("Delete claim…", role: .destructive) {
+                    showDeleteConfirmation = true
+                }
+            }
+        }
+    }
+    // swiftlint:enable function_body_length cyclomatic_complexity function_parameter_count
+
+    private func handleClaimTap(_ claim: Components.Schemas.KnowledgeClaim) {
+        if let onClaimTap {
+            onClaimTap(claim)
+            return
+        }
+        kgFocusState.focusClaim(
+            claimId: claim.id,
+            entityId: claim.subjectEntityId ?? item.entityId,
+            sourceDocumentId: claim.sourceDocumentId ?? item.sourceDocumentId,
+            sourcePageLabel: claim.sourcePageLabel ?? item.sourcePageLabel
+        )
+    }
+
+    @ViewBuilder
+    private func claimBulkContextMenu(
+        for claim: Components.Schemas.KnowledgeClaim
+    ) -> some View {
+        if let claimScopeLabel, let claimContextMenuTarget, let applyClaimBulkAction {
+            let targetClaims = claimContextMenuTarget(claim)
+            Menu("Approve") {
+                claimBulkScopeButtons(
+                    scopeLabel: claimScopeLabel,
+                    action: .approve,
+                    targetClaims: targetClaims,
+                    applyClaimBulkAction: applyClaimBulkAction
+                )
+            }
+            Menu("Reject") {
+                claimBulkScopeButtons(
+                    scopeLabel: claimScopeLabel,
+                    action: .reject,
+                    targetClaims: targetClaims,
+                    applyClaimBulkAction: applyClaimBulkAction
+                )
+            }
+            Menu("Suppress") {
+                claimBulkScopeButtons(
+                    scopeLabel: claimScopeLabel,
+                    action: .suppress,
+                    targetClaims: targetClaims,
+                    applyClaimBulkAction: applyClaimBulkAction
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func claimBulkScopeButtons(
+        scopeLabel: String,
+        action: InspectorClaimBulkAction,
+        targetClaims: [Components.Schemas.KnowledgeClaim],
+        applyClaimBulkAction: @escaping (
+            InspectorClaimBulkAction,
+            InspectorEntityBulkActionScope,
+            [Components.Schemas.KnowledgeClaim]
+        ) async -> Void
+    ) -> some View {
+        Button(scopeLabel) {
+            Task {
+                await applyClaimBulkAction(
+                    action,
+                    .pageOrFolderOnly,
+                    targetClaims
+                )
+            }
+        }
+        Button("Library-wide") {
+            Task {
+                await applyClaimBulkAction(
+                    action,
+                    .libraryWide,
+                    targetClaims
+                )
+            }
+        }
+    }
 }
+
+struct ClaimCurationBadge: View {
+    let state: Components.Schemas.ClaimCurationState
+
+    var body: some View {
+        Text(label)
+            .font(.caption2)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.16), in: Capsule())
+            .foregroundStyle(color)
+    }
+
+    private var label: String {
+        switch state {
+        case .curated:
+            return "Approved"
+        case .rejected:
+            return "Rejected"
+        case .shortlisted:
+            return "Shortlisted"
+        case .unreviewed:
+            return "Unreviewed"
+        }
+    }
+
+    private var color: Color {
+        switch state {
+        case .curated:
+            return .green
+        case .rejected:
+            return .red
+        case .shortlisted:
+            return .orange
+        case .unreviewed:
+            return .gray
+        }
+    }
+}
+// swiftlint:enable file_length type_body_length

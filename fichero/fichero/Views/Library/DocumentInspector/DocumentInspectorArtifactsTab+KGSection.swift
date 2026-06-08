@@ -1,5 +1,8 @@
+import AppKit
 import FicheroAPIClient
 import SwiftUI
+
+// swiftlint:disable file_length
 
 // Inspector section that shows knowledge-graph entities and claims for
 // the currently selected document. Reads from `/api/claims` filtered
@@ -12,8 +15,10 @@ import SwiftUI
 // swiftlint:disable:next type_body_length
 struct KnowledgeGraphInspectorSection: View {
     let documentId: String
+    let documentScopeLabel: String
     let entityService: EntityServiceGenerated
     let artifactService: ArtifactServiceGenerated
+    let kgCurationService: KGCurationServiceGenerated
     /// Called when the user clicks the source-page arrow on an entity row.
     /// Receives the source page document id; ContentView decides how to
     /// navigate (typically: select the parent file in the grid). Optional
@@ -23,6 +28,10 @@ struct KnowledgeGraphInspectorSection: View {
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
     @StateObject private var loadState = KnowledgeGraphInspectorLoadState()
+    @State private var claimSelection: Set<String> = []
+    @State private var claimSelectionAnchor: String?
+    @State private var isApplyingBulkAction = false
+    @State private var claimActionMessage: String?
     private var claims: [Components.Schemas.KnowledgeClaim] {
         get { loadState.claims }
         nonmutating set { loadState.claims = newValue }
@@ -39,8 +48,6 @@ struct KnowledgeGraphInspectorSection: View {
         get { loadState.loadError }
         nonmutating set { loadState.loadError = newValue }
     }
-    @EnvironmentObject private var claimFocusState: ClaimFocusState
-
     /// Comma-joined raw values of EntityKinds the user has hidden from the
     /// KG list. Persisted across launches so the filter survives restarts.
     /// Default: all kinds visible.
@@ -66,6 +73,13 @@ struct KnowledgeGraphInspectorSection: View {
         )
     }
 
+    private var claimsById: [String: Components.Schemas.KnowledgeClaim] {
+        Dictionary(uniqueKeysWithValues: claims.compactMap { claim in
+            guard let id = claim.id else { return nil }
+            return (id, claim)
+        })
+    }
+
     private func setHidden(_ kind: EntityKind, hidden: Bool) {
         var set = hiddenKinds
         if hidden { set.insert(kind) } else { set.remove(kind) }
@@ -73,26 +87,20 @@ struct KnowledgeGraphInspectorSection: View {
     }
 
     private var grouped: [(EntityKind, [GroupedItem])] {
-        var claimById: [String: Components.Schemas.KnowledgeClaim] = [:]
-        for claim in claims {
-            if let id = claim.id {
-                claimById[id] = claim
-            }
-        }
         let hidden = hiddenKinds
         return canonicalGroups.compactMap { group -> (EntityKind, [GroupedItem])? in
             guard let kind = EntityKind(groupKind: group.kind), !hidden.contains(kind) else { return nil }
             var items: [GroupedItem] = []
             for item in group.items {
                 guard let firstClaimId = item.claimIds.first else { continue }
-                let firstClaim = claimById[firstClaimId]
+                let firstClaim = claimsById[firstClaimId]
                 let primaryContext = (item.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 let excerpt = (item.sourceExcerpt ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 let context = !primaryContext.isEmpty
                     ? primaryContext
                     : (!excerpt.isEmpty ? excerpt : (firstClaim?.text ?? item.canonicalName))
                 let extraClaims: [GroupedItem.ExtraClaim] = item.claimIds.dropFirst().compactMap { claimId in
-                    let claim = claimById[claimId]
+                    let claim = claimsById[claimId]
                     return GroupedItem.ExtraClaim(
                         claimId: claimId,
                         context: claim?.text ?? context,
@@ -124,6 +132,21 @@ struct KnowledgeGraphInspectorSection: View {
                 return leftConfidence > rightConfidence
             }
             return (kind, sorted)
+        }
+    }
+
+    private var orderedClaimIds: [String] {
+        grouped.flatMap { _, items in
+            items.flatMap { item in
+                [item.claimId] + item.extraClaims.map(\.claimId)
+            }
+        }
+    }
+
+    private var selectedClaims: [Components.Schemas.KnowledgeClaim] {
+        orderedClaimIds.compactMap { claimId in
+            guard claimSelection.contains(claimId) else { return nil }
+            return claimsById[claimId]
         }
     }
 
@@ -191,6 +214,14 @@ struct KnowledgeGraphInspectorSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeader
+            if claimSelection.count > 1 {
+                claimBulkActionBar
+            }
+            if let claimActionMessage {
+                Text(claimActionMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             if isLoading {
                 ProgressView().padding(.vertical, 8)
@@ -209,6 +240,12 @@ struct KnowledgeGraphInspectorSection: View {
                     EntityKindBlock(
                         kind: kind,
                         items: items,
+                        claimById: claimsById,
+                        selectedClaimIds: claimSelection,
+                        claimScopeLabel: documentScopeLabel,
+                        claimContextMenuTarget: contextMenuTargetClaims(for:),
+                        onClaimTap: handleClaimTap(_:),
+                        applyClaimBulkAction: applyBulkAction,
                         onNavigateToSource: onNavigateToSource,
                         onClaimSelect: onClaimSelect
                     )
@@ -226,6 +263,24 @@ struct KnowledgeGraphInspectorSection: View {
             )
         }
         .task(id: documentId) { await loadStatements() }
+    }
+
+    private var claimBulkActionBar: some View {
+        HStack(spacing: 8) {
+            Text("\(claimSelection.count) selected")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            claimBulkActionMenu(title: "Approve", systemImage: "checkmark.circle", action: .approve)
+            claimBulkActionMenu(title: "Reject", systemImage: "xmark.circle", action: .reject)
+            claimBulkActionMenu(title: "Suppress", systemImage: "eye.slash", action: .suppress)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.secondary.opacity(0.08))
+        )
     }
 
     private var sectionHeader: some View {
@@ -292,6 +347,93 @@ struct KnowledgeGraphInspectorSection: View {
         .foregroundStyle(.primary)
     }
 
+    private func claimBulkActionMenu(
+        title: String,
+        systemImage: String,
+        action: InspectorClaimBulkAction
+    ) -> some View {
+        Menu {
+            claimBulkScopeButtons(action: action, targetClaims: selectedClaims)
+        } label: {
+            Label(title, systemImage: systemImage)
+        }
+        .menuStyle(.borderlessButton)
+        .disabled(isApplyingBulkAction || selectedClaims.isEmpty)
+    }
+
+    @ViewBuilder
+    private func claimBulkScopeButtons(
+        action: InspectorClaimBulkAction,
+        targetClaims: [Components.Schemas.KnowledgeClaim]
+    ) -> some View {
+        Button(documentScopeLabel) {
+            Task {
+                await applyBulkAction(
+                    action,
+                    scope: .pageOrFolderOnly,
+                    targetClaims: targetClaims
+                )
+            }
+        }
+        Button("Library-wide") {
+            Task {
+                await applyBulkAction(
+                    action,
+                    scope: .libraryWide,
+                    targetClaims: targetClaims
+                )
+            }
+        }
+    }
+
+    private func contextMenuTargetClaims(
+        for claim: Components.Schemas.KnowledgeClaim
+    ) -> [Components.Schemas.KnowledgeClaim] {
+        guard let claimId = claim.id else { return [claim] }
+        if claimSelection.contains(claimId) {
+            return selectedClaims
+        }
+        return [claim]
+    }
+
+    private func handleClaimTap(_ claim: Components.Schemas.KnowledgeClaim) {
+        guard let claimId = claim.id else {
+            focusClaim(claim)
+            return
+        }
+
+        let modifiers = InspectorEntitySelectionModifiers(nsEventFlags: NSEvent.modifierFlags)
+        let reduced = InspectorEntityBulkSelection.reduceTap(
+            tappedId: claimId,
+            orderedIds: orderedClaimIds,
+            selection: claimSelection,
+            anchor: claimSelectionAnchor,
+            modifiers: modifiers
+        )
+        claimSelection = reduced.selection
+        claimSelectionAnchor = reduced.anchor
+
+        guard modifiers.isEmpty else { return }
+        focusClaim(claim)
+    }
+
+    private func focusClaim(_ claim: Components.Schemas.KnowledgeClaim) {
+        kgFocusState.focusClaim(
+            claimId: claim.id,
+            entityId: claim.subjectEntityId,
+            sourceDocumentId: claim.sourceDocumentId,
+            sourcePageLabel: claim.sourcePageLabel
+        )
+        onClaimSelect?(
+            claim.id,
+            claim.sourceExcerpt,
+            claim.sourceDocumentId,
+            claim.sourcePageLabel,
+            nil,
+            nil
+        )
+    }
+
     private func loadStatements() async {
         isLoading = true
         loadError = nil
@@ -304,12 +446,74 @@ struct KnowledgeGraphInspectorSection: View {
             )
             claims = response.claims
             canonicalGroups = response.groups
+            syncSelectionToLoadedClaims()
         } catch is CancellationError {
             // Task superseded by a newer page selection — not a load failure.
         } catch {
             loadError = "Couldn't load: \(error.localizedDescription)"
             claims = []
             canonicalGroups = []
+            claimSelection = []
+            claimSelectionAnchor = nil
+        }
+    }
+
+    private func syncSelectionToLoadedClaims() {
+        let validIds = Set(orderedClaimIds)
+        claimSelection = claimSelection.intersection(validIds)
+        if let claimSelectionAnchor, !validIds.contains(claimSelectionAnchor) {
+            self.claimSelectionAnchor = nil
+        }
+    }
+
+    private func applyBulkAction(
+        _ action: InspectorClaimBulkAction,
+        scope: InspectorEntityBulkActionScope,
+        targetClaims: [Components.Schemas.KnowledgeClaim]
+    ) async {
+        let claimIds = targetClaims.compactMap(\.id)
+        let missingIdCount = targetClaims.count - claimIds.count
+        guard !claimIds.isEmpty || (action == .suppress && scope == .libraryWide) else {
+            claimActionMessage = "Selected claims are missing IDs, so \(action.verb.lowercased()) was skipped."
+            return
+        }
+
+        isApplyingBulkAction = true
+        claimActionMessage = nil
+        defer { isApplyingBulkAction = false }
+
+        do {
+            let suppressRules = action == .suppress && scope == .libraryWide
+                ? InspectorClaimBulkSelection.libraryWideSuppressRules(for: targetClaims)
+                : []
+
+            if !claimIds.isEmpty {
+                _ = try await kgCurationService.batchSetClaimCurationState(
+                    claimIds: claimIds,
+                    curationState: action.curationState
+                )
+            }
+
+            if action == .suppress, scope == .libraryWide, !suppressRules.isEmpty {
+                _ = try await kgCurationService.batchCreateClaimRules(suppressRules)
+            }
+
+            await loadStatements()
+            claimSelection = []
+            claimSelectionAnchor = nil
+
+            var message = "\(action.verb) \(claimIds.count) claim"
+            message += claimIds.count == 1 ? "" : "s"
+            if action == .suppress, scope == .libraryWide {
+                message += " and wrote \(suppressRules.count) suppress rule"
+                message += suppressRules.count == 1 ? "" : "s"
+            }
+            if missingIdCount > 0 {
+                message += "; skipped \(missingIdCount) without IDs"
+            }
+            claimActionMessage = message
+        } catch {
+            claimActionMessage = "Couldn't \(action.verb.lowercased()) claims: \(error.localizedDescription)"
         }
     }
 }
@@ -333,3 +537,62 @@ extension KnowledgeGraphInspectorSection {
         csv.split(separator: ",").contains(Substring(kind.rawValue))
     }
 }
+
+enum InspectorClaimBulkAction: Equatable {
+    case approve
+    case reject
+    case suppress
+
+    var verb: String {
+        switch self {
+        case .approve: return "Approved"
+        case .reject: return "Rejected"
+        case .suppress: return "Suppressed"
+        }
+    }
+
+    var curationState: Components.Schemas.ClaimCurationState {
+        switch self {
+        case .approve: return .curated
+        case .reject, .suppress: return .rejected
+        }
+    }
+}
+
+struct InspectorClaimBulkSelection {
+    static func libraryWideSuppressRules(
+        for claims: [Components.Schemas.KnowledgeClaim]
+    ) -> [Components.Schemas.ClaimRuleCreateRequest] {
+        var seen = Set<String>()
+        return claims.compactMap { claim in
+            let subject = claim.subjectCanonical?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let predicate = claim.predicateVerb?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let object = claim.objectPhrase?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedSubject = (subject?.isEmpty == false) ? subject : nil
+            let normalizedPredicate = (predicate?.isEmpty == false) ? predicate : nil
+            let normalizedObject = (object?.isEmpty == false) ? object : nil
+            guard normalizedSubject != nil || normalizedPredicate != nil || normalizedObject != nil else {
+                return nil
+            }
+
+            let dedupeKey = [
+                normalizedSubject?.lowercased() ?? "",
+                normalizedPredicate?.lowercased() ?? "",
+                normalizedObject?.lowercased() ?? ""
+            ].joined(separator: "|")
+            guard seen.insert(dedupeKey).inserted else { return nil }
+
+            // Follow-up (#1763): prune-trivial when the selection is entirely is-a/copula claims.
+            return Components.Schemas.ClaimRuleCreateRequest(
+                action: .disable,
+                matchPredicateVerb: normalizedPredicate,
+                matchSubjectName: normalizedSubject,
+                matchObjectPhrase: normalizedObject,
+                suppressIsACopulas: false,
+                reason: "Bulk suppress from inspector",
+                createdBy: "human"
+            )
+        }
+    }
+}
+// swiftlint:enable file_length

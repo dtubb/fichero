@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 // MARK: - Per-kind list block
@@ -8,6 +9,16 @@ import SwiftUI
 struct EntityKindBlock: View {
     let kind: EntityKind
     let items: [GroupedItem]
+    var claimById: [String: Components.Schemas.KnowledgeClaim] = [:]
+    var selectedClaimIds: Set<String> = []
+    var claimScopeLabel: String?
+    var claimContextMenuTarget: ((Components.Schemas.KnowledgeClaim) -> [Components.Schemas.KnowledgeClaim])?
+    var onClaimTap: ((Components.Schemas.KnowledgeClaim) -> Void)?
+    var applyClaimBulkAction: ((
+        InspectorClaimBulkAction,
+        InspectorEntityBulkActionScope,
+        [Components.Schemas.KnowledgeClaim]
+    ) async -> Void)?
     var onNavigateToSource: ((String) -> Void)?
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
@@ -90,6 +101,12 @@ struct EntityKindBlock: View {
                             EntityKindRow(
                                 item: item,
                                 kind: kind,
+                                claimById: claimById,
+                                selectedClaimIds: selectedClaimIds,
+                                claimScopeLabel: claimScopeLabel,
+                                claimContextMenuTarget: claimContextMenuTarget,
+                                onClaimTap: onClaimTap,
+                                applyClaimBulkAction: applyClaimBulkAction,
                                 onNavigateToSource: onNavigateToSource,
                                 onClaimSelect: onClaimSelect
                             )

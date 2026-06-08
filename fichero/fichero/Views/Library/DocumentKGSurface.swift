@@ -103,6 +103,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
 /// and map visualizations under one fixed toolbar.
 struct DocumentKGSurface: View {
     let documentId: String
+    let documentScopeLabel: String
     let libraryPath: String
     var selectedEntityId: String?
     var selectedClaimId: String?
@@ -121,6 +122,7 @@ struct DocumentKGSurface: View {
     @Environment(KGFocusState.self) private var kgFocusState
     @EnvironmentObject private var entityService: EntityServiceGenerated
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
+    @EnvironmentObject private var kgCurationService: KGCurationServiceGenerated
 
     var body: some View {
         VStack(spacing: 0) {
@@ -178,8 +180,10 @@ struct DocumentKGSurface: View {
             ScrollView {
                 KnowledgeGraphInspectorSection(
                     documentId: documentId,
+                    documentScopeLabel: documentScopeLabel,
                     entityService: entityService,
                     artifactService: artifactService,
+                    kgCurationService: kgCurationService,
                     onClaimSelect: { claimId, _, sourceDocId, pageLabel, _, _ in
                         kgFocusState.focusClaim(
                             claimId: claimId,

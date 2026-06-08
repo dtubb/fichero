@@ -18,6 +18,7 @@ extension ContentView {
                 : document.id
             DocumentKGSurface(
                 documentId: kgDocumentId,
+                documentScopeLabel: document.docType == .page ? "This page only" : "This folder only",
                 libraryPath: libraryPath,
                 selectedEntityId: kgFocusState.focusedEntityId,
                 selectedClaimId: kgFocusState.focusedClaimId ?? claimFocusState.selectedClaimId,

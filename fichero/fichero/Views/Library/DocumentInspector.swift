@@ -219,8 +219,10 @@ struct DocumentInspector: View {
         ScrollView {
             KnowledgeGraphInspectorSection(
                 documentId: doc.id,
+                documentScopeLabel: doc.docType == .page ? "This page only" : "This folder only",
                 entityService: entityService,
                 artifactService: artifactService,
+                kgCurationService: kgCurationService,
                 onNavigateToSource: onNavigateToSource,
                 onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
                     NotificationCenter.default.post(
