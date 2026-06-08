@@ -18,6 +18,7 @@
       "workflows/tools/_entity_writer.py::upsert_entity",
       "workflows/tools/book_index.py::_write_topic_entity",
       "workflows/tools/citations_extract.py::extract_citations_for_document",
+      "workflows/tools/extract_entities_only.py::extract_entities_only",
       "workflows/tools/extract_all.py::_persist_additional_entities",
       "workflows/tools/extractors.py::_write_kg_rows"
     ],
