@@ -740,6 +740,7 @@ _SYSTEMIC_SIGNATURES = (
 # Fraction of chunks that must fail before we treat the run as systemically
 # broken rather than partially degraded.
 _SYSTEMIC_FAIL_FRACTION = 0.8
+_SYSTEMIC_MIN_FAILED_CHUNKS = 3
 
 
 def _record_text(record: Any) -> str:
@@ -945,14 +946,19 @@ def _classify_systemic_error(
     Two systemic signals:
     - an explicit infra signature (401/403, quota, "$large not configured",
       connection) present in any error, once at least half the chunks failed;
-    - a high fraction of chunks failing, or nearly all chunks failing with
-      the *same* message (the $large-unconfigured / provider-down pattern,
-      where every page re-raises an identical error).
+    - a sufficiently large batch of chunks failing at a high rate, or nearly
+      all chunks failing with the *same* message (the $large-unconfigured /
+      provider-down pattern, where every page re-raises an identical error).
+
+    The minimum-failed-chunk guard matters for folder-scope extraction:
+    when each page is its own one-chunk extract_all run, 1/1 or 1/2 transient
+    page failures must warn-and-continue instead of aborting the whole folder.
     """
     if not errors or n_chunks <= 0:
         return None
 
-    fail_fraction = len(errors) / n_chunks
+    failed_chunks = len(errors)
+    fail_fraction = failed_chunks / n_chunks
     infra_hit = next(
         (e for e in errors
          if any(sig in e.lower() for sig in _SYSTEMIC_SIGNATURES)),
@@ -960,10 +966,11 @@ def _classify_systemic_error(
     )
     most_common, count = Counter(errors).most_common(1)[0]
     repetitive = count / n_chunks >= _SYSTEMIC_FAIL_FRACTION
+    enough_failures_for_pattern = failed_chunks >= _SYSTEMIC_MIN_FAILED_CHUNKS
 
     if (
-        fail_fraction >= _SYSTEMIC_FAIL_FRACTION
-        or repetitive
+        (enough_failures_for_pattern and fail_fraction >= _SYSTEMIC_FAIL_FRACTION)
+        or (enough_failures_for_pattern and repetitive)
         or (infra_hit and fail_fraction >= 0.5)
     ):
         return infra_hit or most_common
