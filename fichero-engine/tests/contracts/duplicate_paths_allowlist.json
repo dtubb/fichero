@@ -8,6 +8,7 @@
       "workflows/tools/_entity_writer.py::save_claim",
       "workflows/tools/book_index.py::book_index_extract",
       "workflows/tools/citations_extract.py::extract_citations_for_document",
+      "workflows/tools/extract_svo_only.py::extract_svo_only",
       "workflows/tools/extract_all.py::_persist_additional_entities",
       "workflows/tools/extractors.py::_write_citation_usage_rows",
       "workflows/tools/extractors.py::_write_kg_rows"
@@ -19,6 +20,7 @@
       "workflows/tools/book_index.py::_write_topic_entity",
       "workflows/tools/citations_extract.py::extract_citations_for_document",
       "workflows/tools/extract_entities_only.py::extract_entities_only",
+      "workflows/tools/extract_svo_only.py::extract_svo_only",
       "workflows/tools/extract_all.py::_persist_additional_entities",
       "workflows/tools/extractors.py::_write_kg_rows"
     ],
