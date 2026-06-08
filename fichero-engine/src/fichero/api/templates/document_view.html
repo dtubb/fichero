@@ -270,6 +270,75 @@
             font: 500 12px/1.5 var(--font-system);
             margin-bottom: 10px;
         }
+
+        .timeline-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .timeline-meta {
+            color: var(--muted);
+            font: 500 12px/1.5 var(--font-system);
+        }
+
+        .timeline-list-items {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .timeline-item {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--panel);
+            padding: 10px 12px;
+            cursor: pointer;
+        }
+
+        .timeline-item.active {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .timeline-item-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .timeline-item-title {
+            font: 700 13px/1.4 var(--font-system);
+        }
+
+        .timeline-item-date {
+            color: var(--muted);
+            font: 600 11px/1.4 var(--font-mono);
+            white-space: nowrap;
+        }
+
+        .timeline-item-body {
+            margin-top: 6px;
+            color: var(--text);
+            font: 400 12px/1.55 var(--font-system);
+        }
+
+        .timeline-item-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .timeline-tag {
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.06);
+            color: var(--muted);
+            font: 600 10px/1.2 var(--font-system);
+            padding: 4px 8px;
+        }
+
     </style>
 </head>
 <body>
@@ -278,11 +347,13 @@
         <button type="button" data-tab="transcript" class="active">Transcript</button>
         <button type="button" data-tab="digest">Digest</button>
         <button type="button" data-tab="graph">Graph</button>
+        <button type="button" data-tab="timeline">Timeline</button>
     </nav>
     <main class="content">
         <section id="transcript-panel" class="panel"></section>
         <section id="digest-panel" class="panel hidden"></section>
         <section id="graph-panel" class="panel hidden"></section>
+        <section id="timeline-panel" class="panel hidden"></section>
     </main>
 </div>
 
@@ -316,6 +387,47 @@ function notify(kind, payload) {
         handler.postMessage({ kind, ...payload });
     }
 }
+
+function parseFlexibleDate(raw) {
+    const text = String(raw || "").trim();
+    if (!text || text.toLowerCase() === "unknown") return null;
+    if (/^\d{4}-\d{2}-\d{2}(t.*)?$/i.test(text) || /^\d{4}-\d{2}$/i.test(text) || /^\d{4}$/i.test(text)) {
+        const isoLike = text.length === 4 ? `${text}-01-01` : (text.length === 7 ? `${text}-01` : text);
+        const date = new Date(isoLike);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    const withoutWeekday = text.replace(/^[A-Za-z]+,\s*/, "");
+    const parsed = new Date(withoutWeekday);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function displayDateRange(start, end, fallbackLabel) {
+    if (fallbackLabel) return fallbackLabel;
+    if (!start) return "Undated";
+    const startLabel = start.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    if (!end || start.getTime() === end.getTime()) return startLabel;
+    const endLabel = end.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    return `${startLabel} to ${endLabel}`;
+}
+
+function bestDateValue(values, fallbackStart, fallbackEnd) {
+    for (const value of values || []) {
+        const start = parseFlexibleDate(value.start || value.label);
+        const end = parseFlexibleDate(value.end || value.start || value.label);
+        if (start) {
+            return { start, end: end || start, label: value.label || null, basis: value.basis || "asserted" };
+        }
+    }
+    const parsedStart = parseFlexibleDate(fallbackStart);
+    if (!parsedStart) return null;
+    return {
+        start: parsedStart,
+        end: parseFlexibleDate(fallbackEnd) || parsedStart,
+        label: null,
+        basis: "inferred",
+    };
+}
+
 
 function claimSummary(claim) {
     if (claim.subject_canonical && claim.predicate_verb && claim.object_phrase) {
@@ -696,14 +808,116 @@ function bindGraphScopeToggle(panel) {
     });
 }
 
+function timelineItems() {
+    const eventItems = entities
+        .filter((entity) => entity.entity_type === "event")
+        .map((entity) => {
+            const range = bestDateValue(entity.date_values, null, null);
+            if (!range) return null;
+            return {
+                id: `entity-${entity.id}`,
+                itemType: "entity",
+                entityId: entity.id,
+                claimId: null,
+                title: entity.canonical_name,
+                body: entity.description || "Event entity",
+                start: range.start,
+                end: range.end,
+                dateLabel: displayDateRange(range.start, range.end, range.label),
+                basis: range.basis,
+                tags: ["Event"],
+            };
+        })
+        .filter(Boolean);
+
+    const claimItems = claims
+        .map((claim) => {
+            const range = bestDateValue(claim.date_values, claim.time_start, claim.time_end);
+            if (!range) return null;
+            return {
+                id: `claim-${claim.id}`,
+                itemType: "claim",
+                entityId: claim.subject_entity_id || claim.entity_ids?.[0] || null,
+                claimId: claim.id,
+                title: claimSummary(claim),
+                body: claim.source_excerpt || claim.text,
+                start: range.start,
+                end: range.end,
+                dateLabel: displayDateRange(range.start, range.end, range.label),
+                basis: range.basis,
+                tags: ["Claim"].concat(claim.subject_canonical ? [claim.subject_canonical] : []),
+            };
+        })
+        .filter(Boolean);
+
+    return [...eventItems, ...claimItems].sort((lhs, rhs) => lhs.start - rhs.start);
+}
+
+function renderTimeline() {
+    const panel = document.getElementById("timeline-panel");
+    const items = timelineItems();
+    if (items.length === 0) {
+        panel.innerHTML = `<div class="empty">No dated events or claims are available for this document yet.</div>`;
+        return;
+    }
+
+    panel.innerHTML = `
+        <div class="timeline-list">
+            <div class="timeline-meta">${items.length} chronological item${items.length === 1 ? "" : "s"} from event entities and dated claims.</div>
+            <div class="timeline-list-items">
+                ${items.map((item) => `
+                    <article class="timeline-item ${state.activeClaimId === item.claimId || state.activeEntityId === item.entityId ? "active" : ""}" data-timeline-id="${item.id}">
+                        <div class="timeline-item-header">
+                            <div class="timeline-item-title">${escapeHtml(item.title)}</div>
+                            <div class="timeline-item-date">${escapeHtml(item.dateLabel)}</div>
+                        </div>
+                        <div class="timeline-item-body">${escapeHtml(item.body || "")}</div>
+                        <div class="timeline-item-tags">
+                            ${item.tags.map((tag) => `<span class="timeline-tag">${escapeHtml(tag)}</span>`).join("")}
+                            <span class="timeline-tag">${item.basis === "inferred" ? "Inferred" : "Asserted"}</span>
+                        </div>
+                    </article>
+                `).join("")}
+            </div>
+        </div>
+    `;
+
+    panel.querySelectorAll(".timeline-item").forEach((element) => {
+        element.addEventListener("click", () => {
+            const item = items.find((entry) => entry.id === element.dataset.timelineId);
+            if (!item) return;
+            state.activeEntityId = item.entityId;
+            state.activeClaimId = item.claimId;
+            if (item.claimId) {
+                const claim = claims.find((entry) => entry.id === item.claimId);
+                notify("claimSelected", {
+                    claimId: item.claimId,
+                    sourceDocumentId: claim?.source_document_id || documentData.id,
+                    pageNumber: claim?.page_number || null,
+                    pageLabel: claim?.source_page_label || null,
+                });
+            } else if (item.entityId) {
+                notify("entitySelected", {
+                    entityId: item.entityId,
+                    sourceDocumentId: documentData.id,
+                });
+            }
+            renderTimeline();
+            updateTranscriptHighlight();
+            updateGraphActiveNode();
+        });
+    });
+}
+
 function renderAll() {
     renderTranscript();
     renderDigest();
     renderGraph();
+    renderTimeline();
     document.querySelectorAll(".tabs button").forEach((button) => {
         button.classList.toggle("active", button.dataset.tab === state.tab);
     });
-    ["transcript", "digest", "graph"].forEach((tab) => {
+    ["transcript", "digest", "graph", "timeline"].forEach((tab) => {
         document.getElementById(`${tab}-panel`).classList.toggle("hidden", tab !== state.tab);
     });
 }
@@ -723,7 +937,7 @@ function applyTabVisibility() {
     document.querySelectorAll(".tabs button").forEach((button) => {
         button.classList.toggle("active", button.dataset.tab === state.tab);
     });
-    ["transcript", "digest", "graph"].forEach((tab) => {
+    ["transcript", "digest", "graph", "timeline"].forEach((tab) => {
         document.getElementById(`${tab}-panel`).classList.toggle("hidden", tab !== state.tab);
     });
 }
@@ -807,7 +1021,7 @@ window.addEventListener("resize", () => {
 window.fichero = {
     // Switch visible tab without re-rendering content panels.
     showTab(tab) {
-        if (!["transcript", "digest", "graph"].includes(tab)) return;
+        if (!["transcript", "digest", "graph", "timeline"].includes(tab)) return;
         state.tab = tab;
         applyTabVisibility();
         if (tab === "graph") {
@@ -835,6 +1049,7 @@ window.fichero = {
         });
         updateTranscriptHighlight();
         updateGraphActiveNode();
+        renderTimeline();
     },
 
     // Re-scope the graph to the active page unless the user asks for all claims.
@@ -872,6 +1087,7 @@ window.fichero = {
             updateTranscriptHighlight();
         }
         updateGraphActiveNode();
+        renderTimeline();
     },
 };
 

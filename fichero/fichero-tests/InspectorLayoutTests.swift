@@ -423,10 +423,10 @@ struct DocumentKGPaneRouteTests {
 
 struct KGSurfaceTabTests {
 
-    @Test("KGSurfaceTab has transcript, digest, graph in order")
+    @Test("KGSurfaceTab has transcript, digest, graph, claims, timeline, map in order")
     func orderingAndCount() {
         // Order drives the native toolbar's left-to-right button layout.
-        #expect(KGSurfaceTab.allCases == [.transcript, .digest, .graph])
+        #expect(KGSurfaceTab.allCases == [.transcript, .digest, .graph, .claims, .timeline, .map])
     }
 
     @Test("KGSurfaceTab rawValues match the JS tab ids in document_view.html")
@@ -436,6 +436,8 @@ struct KGSurfaceTabTests {
         #expect(KGSurfaceTab.transcript.rawValue == "transcript")
         #expect(KGSurfaceTab.digest.rawValue == "digest")
         #expect(KGSurfaceTab.graph.rawValue == "graph")
+        #expect(KGSurfaceTab.timeline.rawValue == "timeline")
+        #expect(KGSurfaceTab.map.rawValue == "map")
     }
 
     @Test("KGSurfaceTab id equals rawValue")
@@ -450,6 +452,19 @@ struct KGSurfaceTabTests {
         #expect(KGSurfaceTab.transcript.title == "Transcript")
         #expect(KGSurfaceTab.digest.title == "Digest")
         #expect(KGSurfaceTab.graph.title == "Graph")
+        #expect(KGSurfaceTab.claims.title == "Claims")
+        #expect(KGSurfaceTab.timeline.title == "Timeline")
+        #expect(KGSurfaceTab.map.title == "Map")
+    }
+
+    @Test("Timeline stays in WebKit while Claims and Map stay native")
+    func webKitTabs() {
+        #expect(KGSurfaceTab.transcript.usesWebKit)
+        #expect(KGSurfaceTab.digest.usesWebKit)
+        #expect(KGSurfaceTab.graph.usesWebKit)
+        #expect(KGSurfaceTab.timeline.usesWebKit)
+        #expect(!KGSurfaceTab.claims.usesWebKit)
+        #expect(!KGSurfaceTab.map.usesWebKit)
     }
 
     @Test("Every KGSurfaceTab has a non-empty SF Symbol")
