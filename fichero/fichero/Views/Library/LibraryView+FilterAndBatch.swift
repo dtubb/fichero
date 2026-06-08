@@ -34,7 +34,7 @@ extension LibraryView {
 
     var entityCollectionTaskKey: String {
         guard isShowingEntitiesCollection else { return "documents" }
-        return "entities:\(windowState.libraryId?.uuidString ?? "global")"
+        return "entities:\(windowState.libraryId.uuidString)"
     }
 
     var filteredEntities: [Components.Schemas.KnowledgeEntity] {
