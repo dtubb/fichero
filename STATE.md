@@ -455,3 +455,19 @@ NEXT: 2 backend lanes — (A) port #1662+#1756 into engine [code]; (B) #1758 sea
 - `f_prune` (~/code/fichero-prune, feat/prune-trivial-claims-1763) — #1763 prune-trivial: BACKEND conservative is-a/copula trivial-claim detector + `POST /api/kg/claims/prune-trivial` (scope-aware; library-wide writes suppress_is_a_copulas rule, idempotent) + tests + regen. Backend gate. NO swift edits.
 
 **Next tick:** gate f_prune first (backend). Gate f_notesui (frontend: scan → Xcode build windowtab1 → fix-in-place → merge). Then refill: importers #1757 (scope to ONE step) → KG&Herm #1689 claim merge/unmerge → entity-library-view surface → bounded backend wins.
+
+---
+## TICK — 2026-06-08 ~02:05 ADT (overnight)
+**Merged to 0.0.2 (HEAD `c88f28fa`):**
+- #1763 prune-trivial BACKEND — conservative is-a/copula trivial-claim detector hoisted to canonical `kg/_common.py::is_bare_is_a_copula` (collapsed a pre-existing private dup in _entity_writer) + `POST /api/kg/claims/prune-trivial` (scope-aware, idempotent library-wide suppress rule). 56 targeted tests green. #1763 KEPT OPEN for the inspector button.
+- #1759 UI — notes+annotations page/folder add/delete UI (NotesBrowserView + annotations tab; AnnotationScope {document/page/folder}; folder-scoped annotations hide reveal/crop/promote). #1759 fully CLOSED (highlight/underline TYPES = separate #1745).
+- This lane needed 3 in-place fixes + a pbxproj revert at the gate:
+  1. LESSON (pbxproj): worker HAND-EDITED project.pbxproj to register a test file with a WRONG doubled path → build "input file cannot be found". The test target is a **PBXFileSystemSynchronizedRootGroup** (auto-discovers files) — reverted pbxproj to pre-merge; sync'd group picked the file up. Never hand-add test files to pbxproj.
+  2. list path used a typed `Annotation` converter but list items are untyped `list[Any]` → `OpenAPIValueContainer`; switched `load` to the canonical container decoder (`annotation(from value:)`).
+  3. `addNote` signature changed to `scope: AnnotationScope`; an ImageEditorView caller still passed `documentId:` → updated to `.document(...)`. (fix-then-sweep: checked all addNote callers.)
+
+**Dispatched (2 lanes, disjoint — 1 frontend + 1 backend):**
+- `f_prunebtn` (~/code/fichero-prunebtn, feat/prune-trivial-button-1763) — small SwiftUI "Prune trivial" button in the claim inspector wired to the merged `prune-trivial` endpoint via KGCurationServiceGenerated. Frontend gate.
+- `f_import` (~/code/fichero-import-step, feat/import-step-discrete-1757) — #1757 STEP 1 ONLY: discrete "Import→Artifacts" runnable workflow preset reusing manifest_import/import_receipt idempotency. BACKEND only, no sprawl into steps 2-5. #1757 stays open. Backend gate.
+
+**Next tick:** gate f_import first (backend). Gate f_prunebtn (frontend: scan → Xcode build → fix-in-place → merge). Then refill: KG&Herm #1689 claim merge/unmerge → entity-library-view surface (entities in icon/list/column/map view modes) → #1757 step 2 → bounded backend wins.
