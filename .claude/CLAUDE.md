@@ -7,22 +7,26 @@ Fichero is a macOS document management system with LangChain-powered AI toolchai
 ## Session Configuration
 
 ```
-UPCOMING_BRANCH: 0.0.2
+WORKING_BRANCH: 0.0.2          # current working branch; NOT a release gate
 AUTONOMOUS_COMMITS: true
 AUTONOMOUS_PRS: true
 TASK_TRACKING: github
+RELEASE_MODEL: dated           # releases are cut by date, not semantic version
 ```
 
-**Branch discipline**: Each milestone gets its own branch and worktree at `~/code/fichero-<version>/`. Do NOT create per-task branches within a milestone — commit all milestone work directly to the milestone branch. When finishing a branch, push, create a PR, then merge it yourself.
+**Releases are dated, not versioned.** There is no 0.0.3 / N+2 milestone, no
+per-version branch, and **no per-version worktree** (`~/code/fichero-<version>` is retired).
+Commit work to the current working branch; cut a dated release when a slice is ready.
 
-**Worktree pattern**: `git worktree add ~/code/fichero-0.0.3 -b 0.0.3`
-Convention: `~/code/fichero-<version>` (e.g. `~/code/fichero-0.0.3`, `~/code/fichero-0.0.4`)
+**The organizing unit is the GitHub feature milestone** (Chat, KG & Hermeneutics,
+Window Chrome & Toolbars, Importers, …) — NOT a version number. Work **one milestone at a
+time**: groom it first (make sure the milestone's issues are all there and complete), work it
+to done, then pick the next. Features are **not gated behind a release** — the active lane is
+whatever milestone is in focus.
 
-**Two-ahead rule**: Never work more than one milestone ahead of what Daniel is testing.
-- Released: N (e.g. 0.0.1)
-- Daniel testing: N+1 (e.g. 0.0.2) — bug fixes happen here
-- Claude building: N+2 (e.g. 0.0.3) — one worktree, one agent loop
-- Do NOT start N+3 until Daniel approves N+1.
+**Branch discipline**: commit milestone work directly to the working branch; do NOT create
+per-task branches. For a risky/large slice, an isolated agent worktree under
+`.claude/worktrees/` is fine, but it is keyed to the work, not to a version.
 
 ## Iterate, never replace (HARD RULE)
 
