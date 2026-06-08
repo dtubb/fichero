@@ -24,6 +24,7 @@ struct DocumentInspectorEntitiesTab: View {
     @State private var selectionAnchor: String?
     @State private var isLoading = false
     @State private var isApplyingBulkAction = false
+    @State private var pendingMergePlan: InspectorEntityBulkSelection.MergePlan?
     @State private var loadError: String?
     @State private var actionMessage: String?
     @AppStorage("inspector.entities.hiddenKinds") private var hiddenKindsCSV: String = ""
@@ -100,6 +101,25 @@ struct DocumentInspectorEntitiesTab: View {
             .padding()
         }
         .task(id: documentId) { await loadEntities() }
+        .alert(
+            pendingMergePlan.map {
+                "Merge \($0.entityCount) entities into \"\($0.survivorName)\"?"
+            } ?? "Merge entities?",
+            isPresented: Binding(
+                get: { pendingMergePlan != nil },
+                set: { if !$0 { pendingMergePlan = nil } }
+            ),
+            presenting: pendingMergePlan
+        ) { plan in
+            Button("Merge") {
+                Task { await applyMerge(plan) }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingMergePlan = nil
+            }
+        } message: { plan in
+            Text("This keeps \(plan.survivorName) as the canonical entity and folds the others into it.")
+        }
     }
 
     private var header: some View {
@@ -128,6 +148,7 @@ struct DocumentInspectorEntitiesTab: View {
             bulkActionMenu(title: "Approve", systemImage: "checkmark.circle", action: .approve)
             bulkActionMenu(title: "Reject", systemImage: "xmark.circle", action: .reject)
             bulkActionMenu(title: "Suppress", systemImage: "eye.slash", action: .suppress)
+            mergeActionMenu(targetEntities: selectedEntities, menuTitle: "Merge")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -324,6 +345,8 @@ struct DocumentInspectorEntitiesTab: View {
             )
         }
         .disabled(isApplyingBulkAction || targetCount == 0)
+
+        mergeActionMenu(targetEntities: targetEntities, menuTitle: "Merge")
     }
 
     @ViewBuilder
@@ -363,6 +386,27 @@ struct DocumentInspectorEntitiesTab: View {
         }
         .menuStyle(.borderlessButton)
         .disabled(isApplyingBulkAction || selectedEntities.isEmpty)
+    }
+
+    private func mergeActionMenu(
+        targetEntities: [Components.Schemas.KnowledgeEntity],
+        menuTitle: String
+    ) -> some View {
+        let mergePlan = InspectorEntityBulkSelection.mergePlan(for: targetEntities)
+        return Menu {
+            if let mergePlan {
+                Button("Into \"\(mergePlan.survivorName)\"") {
+                    pendingMergePlan = mergePlan
+                }
+            } else {
+                Button("Requires 2+ same-kind saved entities") {}
+                    .disabled(true)
+            }
+        } label: {
+            Label(menuTitle, systemImage: "arrow.triangle.merge")
+        }
+        .menuStyle(.borderlessButton)
+        .disabled(isApplyingBulkAction || mergePlan == nil)
     }
 
     private func handleEntityTap(
@@ -458,6 +502,29 @@ struct DocumentInspectorEntitiesTab: View {
         }
     }
 
+    private func applyMerge(_ plan: InspectorEntityBulkSelection.MergePlan) async {
+        isApplyingBulkAction = true
+        actionMessage = nil
+        pendingMergePlan = nil
+        defer { isApplyingBulkAction = false }
+
+        do {
+            _ = try await kgCurationService.mergeEntities(
+                absorbingEntityId: plan.survivorId,
+                absorbedEntityIds: plan.absorbedEntityIds
+            )
+            actionMessage = "Merged \(plan.entityCount) entities into \(plan.survivorName)."
+            entitySelection = []
+            selectionAnchor = nil
+            await loadEntities()
+        } catch {
+            inspectorEntitiesLogger.error(
+                "Entity merge failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            actionMessage = "Couldn't merge entities: \(error.localizedDescription)"
+        }
+    }
+
     private func applyLocalStateUpdate(
         entityIds: Set<String>,
         state: Components.Schemas.EntityCurationState
@@ -496,6 +563,17 @@ struct InspectorEntityBulkSelection {
     struct ReductionResult {
         let selection: Set<String>
         let anchor: String?
+    }
+
+    struct MergePlan: Equatable, Identifiable {
+        let survivorId: String
+        let absorbedEntityIds: [String]
+        let survivorName: String
+        let entityCount: Int
+
+        var id: String {
+            "\(survivorId):\(absorbedEntityIds.sorted().joined(separator: ","))"
+        }
     }
 
     static func reduceTap(
@@ -549,6 +627,52 @@ struct InspectorEntityBulkSelection {
                 createdBy: "human"
             )
         }
+    }
+
+    static func mergePlan(
+        for entities: [Components.Schemas.KnowledgeEntity]
+    ) -> MergePlan? {
+        guard entities.count > 1 else { return nil }
+
+        let kinds = Set(entities.map { EntityKind(apiType: $0.entityType) ?? .other })
+        guard kinds.count == 1,
+              let survivor = mergeSurvivor(in: entities),
+              let survivorId = survivor.id
+        else {
+            return nil
+        }
+
+        let entityIds = entities.compactMap(\.id)
+        guard entityIds.count == entities.count else { return nil }
+
+        let absorbedEntityIds = entityIds.filter { $0 != survivorId }
+        guard !absorbedEntityIds.isEmpty else { return nil }
+
+        return MergePlan(
+            survivorId: survivorId,
+            absorbedEntityIds: absorbedEntityIds,
+            survivorName: survivor.canonicalName,
+            entityCount: entities.count
+        )
+    }
+
+    static func mergeSurvivor(
+        in entities: [Components.Schemas.KnowledgeEntity]
+    ) -> Components.Schemas.KnowledgeEntity? {
+        entities.sorted { lhs, rhs in
+            if lhs.corroborationCount != rhs.corroborationCount {
+                return lhs.corroborationCount > rhs.corroborationCount
+            }
+            if lhs.canonicalName.count != rhs.canonicalName.count {
+                return lhs.canonicalName.count > rhs.canonicalName.count
+            }
+
+            let lexical = lhs.canonicalName.localizedCaseInsensitiveCompare(rhs.canonicalName)
+            if lexical != .orderedSame {
+                return lexical == .orderedAscending
+            }
+            return (lhs.id ?? "") < (rhs.id ?? "")
+        }.first
     }
 }
 

@@ -1,7 +1,7 @@
 @testable import Fichero
 import XCTest
 
-// swiftlint:disable type_body_length
+// swiftlint:disable file_length type_body_length
 @MainActor
 final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
@@ -153,6 +153,52 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertEqual(rules.first?.ruleType, .suppress)
         XCTAssertEqual(rules.first?.matchCanonicalName, "Ada Lovelace")
         XCTAssertEqual(rules.first?.reason, "Bulk suppress from inspector")
+    }
+
+    func testInspectorEntityMergePlanPrefersHighestCorroborationCount() {
+        var lowest = makeKnowledgeEntity(id: "entity-1", name: "Andagoya", type: .place)
+        lowest.corroborationCount = 2
+
+        var highest = makeKnowledgeEntity(id: "entity-2", name: "Andagóya", type: .place)
+        highest.corroborationCount = 5
+
+        var middle = makeKnowledgeEntity(id: "entity-3", name: "the Andagoya district", type: .place)
+        middle.corroborationCount = 4
+
+        let plan = InspectorEntityBulkSelection.mergePlan(for: [lowest, highest, middle])
+
+        XCTAssertEqual(plan?.survivorId, "entity-2")
+        XCTAssertEqual(plan?.survivorName, "Andagóya")
+        XCTAssertEqual(plan?.absorbedEntityIds.sorted(), ["entity-1", "entity-3"])
+        XCTAssertEqual(plan?.entityCount, 3)
+    }
+
+    func testInspectorEntityMergePlanBreaksTiesByLongestNameThenLexical() {
+        var longest = makeKnowledgeEntity(id: "entity-1", name: "the Andagoya district", type: .place)
+        longest.corroborationCount = 3
+
+        var shorter = makeKnowledgeEntity(id: "entity-2", name: "Andagoya", type: .place)
+        shorter.corroborationCount = 3
+
+        let longestWinner = InspectorEntityBulkSelection.mergePlan(for: [shorter, longest])
+        XCTAssertEqual(longestWinner?.survivorId, "entity-1")
+
+        var lexicalA = makeKnowledgeEntity(id: "entity-3", name: "Andagoya", type: .place)
+        lexicalA.corroborationCount = 3
+
+        var lexicalB = makeKnowledgeEntity(id: "entity-4", name: "Andagóya", type: .place)
+        lexicalB.corroborationCount = 3
+
+        let lexicalWinner = InspectorEntityBulkSelection.mergePlan(for: [lexicalB, lexicalA])
+        XCTAssertEqual(lexicalWinner?.survivorId, "entity-3")
+        XCTAssertEqual(lexicalWinner?.survivorName, "Andagoya")
+    }
+
+    func testInspectorEntityMergePlanRejectsMixedKinds() {
+        let person = makeKnowledgeEntity(id: "entity-1", name: "Andagoya", type: .person)
+        let place = makeKnowledgeEntity(id: "entity-2", name: "Andagoya", type: .place)
+
+        XCTAssertNil(InspectorEntityBulkSelection.mergePlan(for: [person, place]))
     }
 
     func testInspectorEntitiesTabUsesGeneratedBulkCurationOnly() throws {
@@ -338,5 +384,22 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             updatedAt: Date()
         )
     }
+
+    private func makeKnowledgeEntity(
+        id: String,
+        name: String,
+        type: Components.Schemas.EntityTypeOutput
+    ) -> Components.Schemas.KnowledgeEntity {
+        Components.Schemas.KnowledgeEntity(
+            id: id,
+            canonicalName: name,
+            entityType: type,
+            aliases: nil,
+            description: nil,
+            language: nil,
+            metadata: nil,
+            mergedIntoId: nil
+        )
+    }
 }
-// swiftlint:enable type_body_length
+// swiftlint:enable file_length type_body_length
