@@ -471,3 +471,18 @@ NEXT: 2 backend lanes — (A) port #1662+#1756 into engine [code]; (B) #1758 sea
 - `f_import` (~/code/fichero-import-step, feat/import-step-discrete-1757) — #1757 STEP 1 ONLY: discrete "Import→Artifacts" runnable workflow preset reusing manifest_import/import_receipt idempotency. BACKEND only, no sprawl into steps 2-5. #1757 stays open. Backend gate.
 
 **Next tick:** gate f_import first (backend). Gate f_prunebtn (frontend: scan → Xcode build → fix-in-place → merge). Then refill: KG&Herm #1689 claim merge/unmerge → entity-library-view surface (entities in icon/list/column/map view modes) → #1757 step 2 → bounded backend wins.
+
+---
+## TICK — 2026-06-08 ~02:35 ADT (overnight)
+**Merged to 0.0.2 (HEAD `0418e311`):**
+- #1757 STEP 1 — discrete "Import→Artifacts" workflow tool + preset (`import_artifacts.py` reusing manifest_import receipt builders; idempotent by (doc_id, artifact_type)). 42 tests green. #1757 KEPT OPEN for steps 2-5.
+- #1763 Prune-trivial inspector button — typed `KGCurationServiceGenerated.pruneTrivialClaims(scope:)` → merged endpoint; confirm + refresh + count. Build green first try. **#1763 fully CLOSED** (entire claim-curation surface delivered: bulk MVP + suppression rules + prune detector/endpoint + button).
+- Both lanes clean — no in-place fixes needed this tick.
+
+**Dispatched (2 BACKEND lanes — chosen for efficient gating, both ruff+pytest only, disjoint files):**
+- `f_step2` (~/code/fichero-step2, feat/entities-step-discrete-1757) — #1757 STEP 2: discrete "Extract Entities" workflow tool+preset mirroring the step-1 template, reusing existing entity extractor + `_entity_writer` upsert (idempotent). #1757 stays open. Backend gate.
+- `f_claimmerge` (~/code/fichero-claimmerge, feat/claim-merge-backend-1689) — #1689 BACKEND: claim merge + unmerge endpoints mirroring entity-curation merge/split (+ ClaimMergeAudit, provenance-preserving, no hard-delete). The #1689 SwiftUI merge UI becomes a follow-up once this lands. Backend gate.
+
+**Next tick:** gate both (backend: ruff+pytest, merge, push, comment). Then refill: #1689 SwiftUI claim-merge UI (now unblocked) → entity-library-view surface (entities in icon/list/column/map modes) → #1757 step 3 (SVO/claims) → bounded backend wins. Prefer 1 frontend + 1 backend going forward (this all-backend round was to recover gating budget).
+
+### TONIGHT SCOREBOARD (for Daniel): 11 issues merged → #1767, #1592, #1751, #1766(closed), #1763 MVP+prune-backend+prune-button(closed), #1759 backend+UI(closed), #1757 step1. Curation surface (#1761/#1763/#1751/#1765) substantially COMPLETE. Search 503s fixed + scope selector. Notes/annotations page+folder. New-library Inbox bug fixed.
