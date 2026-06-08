@@ -298,20 +298,19 @@ final class AnnotationService: ObservableObject {
     /// Load annotations for a document into `annotations`. Never throws — on failure
     /// `annotations` is cleared and `error` is set so the tab can show an empty state.
     func load(documentId: String) async {
-        await load(query: .init(documentId: documentId), converter: annotation(from:))
+        await load(query: .init(documentId: documentId))
     }
 
     func load(pageId: String) async {
-        await load(query: .init(pageId: pageId), converter: annotation(from:))
+        await load(query: .init(pageId: pageId))
     }
 
     func load(folderId: String) async {
-        await load(query: .init(folderId: folderId), converter: folderAnnotation(from:))
+        await load(query: .init(folderId: folderId))
     }
 
     private func load(
-        query: Operations.ListAnnotationsApiAnnotationsGet.Input.Query,
-        converter: (Components.Schemas.Annotation) -> DocumentAnnotation?
+        query: Operations.ListAnnotationsApiAnnotationsGet.Input.Query
     ) async {
         syncLibraryPath()
         isLoading = true
@@ -330,7 +329,10 @@ final class AnnotationService: ObservableObject {
                 return
             }
             let decoded = try okResponse.body.json
-            annotations = decoded.items.compactMap(converter)
+            // List items arrive as untyped containers (backend `items: list[Any]`);
+            // DocumentAnnotation decodes them directly (carrying document/page/folder
+            // ids). Scope is already enforced by the query above.
+            annotations = decoded.items.compactMap { try? annotation(from: $0) }
         } catch {
             // Backend may not be wired yet during parallel development — degrade
             // to an empty list rather than crashing the inspector (#1276).

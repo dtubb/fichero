@@ -329,7 +329,7 @@ private extension ImageEditorView {
             Double(selection.height)
         ]
         let created = await annotationService.addNote(
-            documentId: activeDocument.id,
+            scope: .document(activeDocument.id),
             text: "",
             bbox: bbox,
             kind: .highlight
