@@ -29,6 +29,32 @@ def doc(db):
     return d
 
 
+@pytest.fixture
+def page_doc(db):
+    d = Document(
+        id="page-ann-test",
+        name="Page 1",
+        doc_type=DocType.page,
+        file_type=FileType.image,
+        status=Status.completed,
+        page_content="Page-scoped content",
+    )
+    db.save(d)
+    return d
+
+
+@pytest.fixture
+def folder_doc(db):
+    d = Document(
+        id="folder-ann-test",
+        name="Folder 1",
+        doc_type=DocType.folder,
+        status=Status.completed,
+    )
+    db.save(d)
+    return d
+
+
 # ---------------------------------------------------------------------------
 # CRUD endpoint tests
 # ---------------------------------------------------------------------------
@@ -76,6 +102,34 @@ class TestAnnotationCreate:
             json={"document_id": "nonexistent", "kind": "note"},
         )
         assert resp.status_code == 404
+
+    def test_create_page_scoped_annotation(self, client, page_doc):
+        resp = client.post(
+            "/api/annotations",
+            json={
+                "page_id": page_doc.id,
+                "kind": "highlight",
+                "text": "Page annotation",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["page_id"] == page_doc.id
+        assert data["document_id"] == page_doc.id
+
+    def test_create_folder_scoped_annotation(self, client, folder_doc):
+        resp = client.post(
+            "/api/annotations",
+            json={
+                "folder_id": folder_doc.id,
+                "kind": "note",
+                "text": "Folder annotation",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["folder_id"] == folder_doc.id
+        assert data["document_id"] is None
 
 
 class TestAnnotationList:
@@ -135,6 +189,37 @@ class TestAnnotationList:
         assert len(items) == 1
         assert items[0]["rating"] == 5
 
+    def test_list_by_page_scope(self, client, db, page_doc):
+        page_ann = Annotation(
+            document_id=page_doc.id,
+            page_id=page_doc.id,
+            kind=AnnotationKind.note,
+            text="page scope",
+        )
+        db.save(page_ann)
+        db.save(Annotation(document_id="other-doc", kind=AnnotationKind.note, text="other"))
+
+        resp = client.get("/api/annotations", params={"page_id": page_doc.id})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["count"] == 1
+        assert body["items"][0]["id"] == page_ann.id
+
+    def test_list_by_folder_scope(self, client, db, folder_doc, doc):
+        folder_ann = Annotation(
+            folder_id=folder_doc.id,
+            kind=AnnotationKind.note,
+            text="folder scope",
+        )
+        db.save(folder_ann)
+        db.save(Annotation(document_id=doc.id, kind=AnnotationKind.note, text="other"))
+
+        resp = client.get("/api/annotations", params={"folder_id": folder_doc.id})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["count"] == 1
+        assert body["items"][0]["id"] == folder_ann.id
+
 
 class TestAnnotationGet:
     def test_get_existing(self, client, db, doc):
@@ -185,6 +270,26 @@ class TestAnnotationDelete:
     def test_delete_missing_returns_404(self, client):
         resp = client.delete("/api/annotations/ghost")
         assert resp.status_code == 404
+
+    def test_delete_page_scoped_annotation(self, client, db, page_doc):
+        ann = Annotation(
+            document_id=page_doc.id,
+            page_id=page_doc.id,
+            kind=AnnotationKind.bookmark,
+        )
+        db.save(ann)
+
+        resp = client.delete(f"/api/annotations/{ann.id}")
+        assert resp.status_code == 204
+        assert db.get(Annotation, ann.id) is None
+
+    def test_delete_folder_scoped_annotation(self, client, db, folder_doc):
+        ann = Annotation(folder_id=folder_doc.id, kind=AnnotationKind.bookmark)
+        db.save(ann)
+
+        resp = client.delete(f"/api/annotations/{ann.id}")
+        assert resp.status_code == 204
+        assert db.get(Annotation, ann.id) is None
 
 
 # ---------------------------------------------------------------------------

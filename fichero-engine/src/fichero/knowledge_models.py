@@ -1244,6 +1244,8 @@ class Note(BaseModel):
     linked_entity_ids: list[str] = Field(default_factory=list)
     linked_claim_ids: list[str] = Field(default_factory=list)
     linked_document_ids: list[str] = Field(default_factory=list)
+    page_id: str | None = None
+    folder_id: str | None = None
     linked_structure_node_id: str | None = None
 
     # Luhmann-style numeric address (optional). "1.4a.2" denotes
@@ -1313,7 +1315,9 @@ class Annotation(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
     id: str = Field(default_factory=_new_id)
-    document_id: str
+    document_id: str | None = None
+    page_id: str | None = None
+    folder_id: str | None = None
     page_index: int | None = None  # 0-indexed page number (integer)
     page_label: str | None = None  # human-readable label e.g. "Page 14"
     # Sub-page anchors (reuse #913 substrate).

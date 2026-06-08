@@ -1071,6 +1071,26 @@
             }
           },
           {
+            "name": "page_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Page Id"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Folder Id"
+            }
+          },
+          {
             "name": "kind",
             "in": "query",
             "required": false,
@@ -1496,6 +1516,26 @@
               "type": "string",
               "nullable": true,
               "title": "Linked Document Id"
+            }
+          },
+          {
+            "name": "page_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Page Id"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Folder Id"
             }
           },
           {
@@ -33697,7 +33737,18 @@
           },
           "document_id": {
             "type": "string",
+            "nullable": true,
             "title": "Document Id"
+          },
+          "page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Id"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id"
           },
           "page_index": {
             "type": "integer",
@@ -33801,7 +33852,6 @@
         "additionalProperties": true,
         "type": "object",
         "required": [
-          "document_id",
           "kind"
         ],
         "title": "Annotation",
@@ -33811,7 +33861,18 @@
         "properties": {
           "document_id": {
             "type": "string",
+            "nullable": true,
             "title": "Document Id"
+          },
+          "page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Id"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id"
           },
           "kind": {
             "$ref": "#/components/schemas/AnnotationKind"
@@ -33900,7 +33961,6 @@
         },
         "type": "object",
         "required": [
-          "document_id",
           "kind"
         ],
         "title": "AnnotationCreateRequest"
@@ -33939,6 +33999,21 @@
       },
       "AnnotationPatchRequest": {
         "properties": {
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          },
+          "page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Id"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id"
+          },
           "text": {
             "type": "string",
             "nullable": true,
@@ -47075,6 +47150,16 @@
             "type": "array",
             "title": "Linked Document Ids"
           },
+          "page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Id"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id"
+          },
           "linked_structure_node_id": {
             "type": "string",
             "nullable": true,
@@ -47266,6 +47351,16 @@
             "type": "array",
             "nullable": true,
             "title": "Linked Document Ids"
+          },
+          "page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Id"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id"
           },
           "linked_structure_node_id": {
             "type": "string",
@@ -57320,6 +57415,16 @@
             "type": "array",
             "title": "Linked Document Ids",
             "default": []
+          },
+          "page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Id"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id"
           },
           "linked_structure_node_id": {
             "type": "string",

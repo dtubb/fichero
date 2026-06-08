@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.knowledge_models import Note, NoteKind, NoteLink
-from fichero.models import NoteListResponse
+from fichero.models import DocType, Document, NoteListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/notes")
@@ -37,9 +37,54 @@ class NoteCreateRequest(BaseModel):
     linked_entity_ids: list[str] = []
     linked_claim_ids: list[str] = []
     linked_document_ids: list[str] = []
+    page_id: str | None = None
+    folder_id: str | None = None
     linked_structure_node_id: str | None = None
     address: str | None = None
     parent_address: str | None = None
+
+
+def _validate_note_scope(
+    db: Database,
+    *,
+    page_id: str | None,
+    folder_id: str | None,
+) -> None:
+    if page_id and folder_id:
+        raise HTTPException(400, "Notes can be scoped to either a page or a folder, not both")
+    if page_id is not None:
+        page = db.get(Document, page_id)
+        if page is None:
+            raise HTTPException(404, f"Page not found: {page_id}")
+        if page.doc_type != DocType.page:
+            raise HTTPException(400, f"Document {page_id} is not a page")
+    if folder_id is not None:
+        folder = db.get(Document, folder_id)
+        if folder is None:
+            raise HTTPException(404, f"Folder not found: {folder_id}")
+        if folder.doc_type != DocType.folder:
+            raise HTTPException(400, f"Document {folder_id} is not a folder")
+
+
+def _note_links_document(note: Note, document_id: str) -> bool:
+    return (
+        document_id in (note.linked_document_ids or [])
+        or note.page_id == document_id
+        or note.folder_id == document_id
+    )
+
+
+def _scoped_document_links(
+    linked_document_ids: list[str],
+    *,
+    page_id: str | None,
+    folder_id: str | None,
+) -> list[str]:
+    merged: list[str] = []
+    for candidate in [*linked_document_ids, page_id, folder_id]:
+        if candidate and candidate not in merged:
+            merged.append(candidate)
+    return merged
 
 
 @router.post("", response_model=Note)
@@ -47,7 +92,14 @@ async def create_note(
     request: NoteCreateRequest,
     db: Database = Depends(get_library_database),
 ) -> Note:
-    note = Note(**request.model_dump())
+    _validate_note_scope(db, page_id=request.page_id, folder_id=request.folder_id)
+    payload = request.model_dump()
+    payload["linked_document_ids"] = _scoped_document_links(
+        payload["linked_document_ids"],
+        page_id=request.page_id,
+        folder_id=request.folder_id,
+    )
+    note = Note(**payload)
     db.save(note)
     return note
 
@@ -59,6 +111,8 @@ async def list_notes(
     linked_entity_id: str | None = Query(default=None),
     linked_claim_id: str | None = Query(default=None),
     linked_document_id: str | None = Query(default=None),
+    page_id: str | None = Query(default=None),
+    folder_id: str | None = Query(default=None),
     linked_structure_node_id: str | None = Query(default=None),
     q: str | None = Query(default=None, description="full-text body search"),
     db: Database = Depends(get_library_database),
@@ -73,7 +127,11 @@ async def list_notes(
     if linked_claim_id is not None:
         rows = [r for r in rows if linked_claim_id in (r.linked_claim_ids or [])]
     if linked_document_id is not None:
-        rows = [r for r in rows if linked_document_id in (r.linked_document_ids or [])]
+        rows = [r for r in rows if _note_links_document(r, linked_document_id)]
+    if page_id is not None:
+        rows = [r for r in rows if r.page_id == page_id or _note_links_document(r, page_id)]
+    if folder_id is not None:
+        rows = [r for r in rows if r.folder_id == folder_id or _note_links_document(r, folder_id)]
     if linked_structure_node_id is not None:
         rows = [r for r in rows if r.linked_structure_node_id == linked_structure_node_id]
     if q:
@@ -107,6 +165,8 @@ class NotePatchRequest(BaseModel):
     linked_entity_ids: list[str] | None = None
     linked_claim_ids: list[str] | None = None
     linked_document_ids: list[str] | None = None
+    page_id: str | None = None
+    folder_id: str | None = None
     linked_structure_node_id: str | None = None
     address: str | None = None
     parent_address: str | None = None
@@ -121,7 +181,21 @@ async def patch_note(
     note = db.get(Note, note_id)
     if note is None:
         raise HTTPException(404, f"Note not found: {note_id}")
-    for field, value in request.model_dump(exclude_unset=True).items():
+    updates = request.model_dump(exclude_unset=True)
+    next_page_id = updates.get("page_id", note.page_id)
+    next_folder_id = updates.get("folder_id", note.folder_id)
+    _validate_note_scope(db, page_id=next_page_id, folder_id=next_folder_id)
+    if (
+        "linked_document_ids" in updates
+        or "page_id" in updates
+        or "folder_id" in updates
+    ):
+        updates["linked_document_ids"] = _scoped_document_links(
+            updates.get("linked_document_ids", note.linked_document_ids or []),
+            page_id=next_page_id,
+            folder_id=next_folder_id,
+        )
+    for field, value in updates.items():
         setattr(note, field, value)
     note.updated_at = datetime.now()
     db.save(note)

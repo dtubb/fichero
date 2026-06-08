@@ -22,7 +22,7 @@ from fichero.knowledge_models import (
     AnnotationKind,
     KnowledgeClaim,
 )
-from fichero.models import AnnotationListResponse, Document
+from fichero.models import AnnotationListResponse, DocType, Document
 from fichero.storage import resolve_source
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,9 @@ router = APIRouter(prefix="/annotations")
 
 
 class AnnotationCreateRequest(BaseModel):
-    document_id: str
+    document_id: str | None = None
+    page_id: str | None = None
+    folder_id: str | None = None
     kind: AnnotationKind
     page_index: int | None = None
     page_label: str | None = None
@@ -47,14 +49,83 @@ class AnnotationCreateRequest(BaseModel):
     metadata: dict[str, Any] = {}
 
 
+class AnnotationScopePayload(BaseModel):
+    document_id: str | None = None
+    page_id: str | None = None
+    folder_id: str | None = None
+
+
+def _normalize_annotation_scope(
+    db: Database,
+    *,
+    document_id: str | None,
+    page_id: str | None,
+    folder_id: str | None,
+) -> AnnotationScopePayload:
+    if page_id and folder_id:
+        raise HTTPException(
+            400,
+            "Annotations can be scoped to either a page or a folder, not both",
+        )
+    resolved_document_id = document_id
+    resolved_page_id = page_id
+    resolved_folder_id = folder_id
+
+    if document_id is not None:
+        document = db.get(Document, document_id)
+        if document is None:
+            raise HTTPException(404, f"Document not found: {document_id}")
+        if document.doc_type == DocType.page:
+            if resolved_page_id and resolved_page_id != document_id:
+                raise HTTPException(400, "document_id and page_id must match for page-scoped annotations")
+            resolved_page_id = document_id
+        elif document.doc_type == DocType.folder:
+            if resolved_folder_id and resolved_folder_id != document_id:
+                raise HTTPException(400, "document_id and folder_id must match for folder-scoped annotations")
+            resolved_folder_id = document_id
+
+    if resolved_page_id is not None:
+        page = db.get(Document, resolved_page_id)
+        if page is None:
+            raise HTTPException(404, f"Page not found: {resolved_page_id}")
+        if page.doc_type != DocType.page:
+            raise HTTPException(400, f"Document {resolved_page_id} is not a page")
+        resolved_document_id = resolved_page_id
+
+    if resolved_folder_id is not None:
+        folder = db.get(Document, resolved_folder_id)
+        if folder is None:
+            raise HTTPException(404, f"Folder not found: {resolved_folder_id}")
+        if folder.doc_type != DocType.folder:
+            raise HTTPException(400, f"Document {resolved_folder_id} is not a folder")
+
+    if resolved_document_id is None and resolved_folder_id is None:
+        raise HTTPException(
+            400,
+            "Annotations require document_id/page_id or folder_id scope",
+        )
+
+    return AnnotationScopePayload(
+        document_id=resolved_document_id,
+        page_id=resolved_page_id,
+        folder_id=resolved_folder_id,
+    )
+
+
 @router.post("", response_model=Annotation, summary="Create an annotation")
 async def create_annotation(
     request: AnnotationCreateRequest,
     db: Database = Depends(get_library_database),
 ) -> Annotation:
-    if db.get(Document, request.document_id) is None:
-        raise HTTPException(404, f"Document not found: {request.document_id}")
-    ann = Annotation(**request.model_dump())
+    scope = _normalize_annotation_scope(
+        db,
+        document_id=request.document_id,
+        page_id=request.page_id,
+        folder_id=request.folder_id,
+    )
+    payload = request.model_dump()
+    payload.update(scope.model_dump())
+    ann = Annotation(**payload)
     db.save(ann)
     return ann
 
@@ -66,6 +137,8 @@ async def create_annotation(
 )
 async def list_annotations(
     document_id: str | None = Query(default=None),
+    page_id: str | None = Query(default=None),
+    folder_id: str | None = Query(default=None),
     kind: AnnotationKind | None = Query(default=None),
     tag: str | None = Query(default=None),
     min_rating: int | None = Query(default=None, ge=1, le=5),
@@ -73,7 +146,16 @@ async def list_annotations(
 ) -> AnnotationListResponse:
     rows = db.query(Annotation)
     if document_id is not None:
-        rows = [r for r in rows if r.document_id == document_id]
+        rows = [
+            r for r in rows
+            if r.document_id == document_id
+            or r.page_id == document_id
+            or r.folder_id == document_id
+        ]
+    if page_id is not None:
+        rows = [r for r in rows if r.page_id == page_id or r.document_id == page_id]
+    if folder_id is not None:
+        rows = [r for r in rows if r.folder_id == folder_id]
     if kind is not None:
         rows = [r for r in rows if r.kind == kind]
     if tag is not None:
@@ -96,6 +178,9 @@ async def get_annotation(
 
 
 class AnnotationPatchRequest(BaseModel):
+    document_id: str | None = None
+    page_id: str | None = None
+    folder_id: str | None = None
     text: str | None = None
     rating: int | None = None
     color: str | None = None
@@ -118,7 +203,20 @@ async def patch_annotation(
     ann = db.get(Annotation, annotation_id)
     if ann is None:
         raise HTTPException(404, f"Annotation not found: {annotation_id}")
-    for field, value in request.model_dump(exclude_unset=True).items():
+    updates = request.model_dump(exclude_unset=True)
+    if (
+        "document_id" in updates
+        or "page_id" in updates
+        or "folder_id" in updates
+    ):
+        scope = _normalize_annotation_scope(
+            db,
+            document_id=updates.get("document_id", ann.document_id),
+            page_id=updates.get("page_id", ann.page_id),
+            folder_id=updates.get("folder_id", ann.folder_id),
+        )
+        updates.update(scope.model_dump())
+    for field, value in updates.items():
         setattr(ann, field, value)
     ann.updated_at = datetime.now()
     db.save(ann)
@@ -161,6 +259,8 @@ async def get_crop(
     ann = db.get(Annotation, annotation_id)
     if ann is None:
         raise HTTPException(404, f"Annotation not found: {annotation_id}")
+    if ann.document_id is None:
+        raise HTTPException(400, "Folder-scoped annotations do not have crop content")
     doc = db.get(Document, ann.document_id)
     if doc is None:
         raise HTTPException(404, f"Document not found: {ann.document_id}")
@@ -209,6 +309,8 @@ async def promote_to_claim(
     ann = db.get(Annotation, annotation_id)
     if ann is None:
         raise HTTPException(404, f"Annotation not found: {annotation_id}")
+    if ann.document_id is None:
+        raise HTTPException(400, "Folder-scoped annotations cannot be promoted to claims")
 
     # Resolve the source excerpt — prefer the highlighted span, fall
     # back to the annotation's note text.

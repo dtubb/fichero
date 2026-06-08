@@ -1,6 +1,7 @@
 """Tests for zettelkasten notes routes (#917)."""
 
 from fichero.knowledge_models import Note, NoteKind, NoteLink
+from fichero.models import DocType, Document
 
 
 class TestNotesCRUD:
@@ -78,6 +79,58 @@ class TestNotesCRUD:
         )
         assert patched.status_code == 200
         assert patched.json()["linked_structure_node_id"] == "node-3"
+
+    def test_page_scoped_note_create_list_and_delete(self, client, db):
+        page = Document(id="page-note-1", name="Page 1", doc_type=DocType.page)
+        db.save(page)
+
+        created = client.post(
+            "/api/notes",
+            json={
+                "title": "Page note",
+                "body": "Scoped to a page",
+                "page_id": page.id,
+            },
+        )
+        assert created.status_code == 200
+        payload = created.json()
+        assert payload["page_id"] == page.id
+        assert page.id in payload["linked_document_ids"]
+
+        listed = client.get("/api/notes", params={"page_id": page.id})
+        assert listed.status_code == 200
+        assert listed.json()["count"] == 1
+        assert listed.json()["items"][0]["id"] == payload["id"]
+
+        deleted = client.delete(f"/api/notes/{payload['id']}")
+        assert deleted.status_code == 204
+        assert db.get(Note, payload["id"]) is None
+
+    def test_folder_scoped_note_create_list_and_delete(self, client, db):
+        folder = Document(id="folder-note-1", name="Folder 1", doc_type=DocType.folder)
+        db.save(folder)
+
+        created = client.post(
+            "/api/notes",
+            json={
+                "title": "Folder note",
+                "body": "Scoped to a folder",
+                "folder_id": folder.id,
+            },
+        )
+        assert created.status_code == 200
+        payload = created.json()
+        assert payload["folder_id"] == folder.id
+        assert folder.id in payload["linked_document_ids"]
+
+        listed = client.get("/api/notes", params={"folder_id": folder.id})
+        assert listed.status_code == 200
+        assert listed.json()["count"] == 1
+        assert listed.json()["items"][0]["id"] == payload["id"]
+
+        deleted = client.delete(f"/api/notes/{payload['id']}")
+        assert deleted.status_code == 204
+        assert db.get(Note, payload["id"]) is None
 
 
 class TestNoteLinks:
