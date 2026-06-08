@@ -3615,6 +3615,16 @@
       },
       {
         "method": "POST",
+        "path": "/kg/claims/merge",
+        "operation_id": "merge_claims_api_kg_claims_merge_post",
+        "summary": "Merge duplicate claims into a surviving claim",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ClaimMergeRequest",
+        "response_model": "ClaimAuditResponse"
+      },
+      {
+        "method": "POST",
         "path": "/kg/claims/prune-trivial",
         "operation_id": "prune_trivial_claims_api_kg_claims_prune_trivial_post",
         "summary": "Prune trivially-true claims",
@@ -3622,6 +3632,16 @@
         "query_params": [],
         "request_model": "PruneTrivialClaimsRequest",
         "response_model": "PruneTrivialClaimsResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/claims/unmerge",
+        "operation_id": "unmerge_claims_api_kg_claims_unmerge_post",
+        "summary": "Reverse a recorded claim merge",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ClaimUnmergeRequest",
+        "response_model": "ClaimAuditResponse"
       },
       {
         "method": "DELETE",

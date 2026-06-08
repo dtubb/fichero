@@ -770,6 +770,32 @@ class EntityMergeAudit(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class ClaimMergeOperationType(str, Enum):
+    merge = "merge"
+    unmerge = "unmerge"
+
+
+class ClaimMergeAudit(BaseModel):
+    """Immutable audit record for claim merge / unmerge operations."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    operation_type: ClaimMergeOperationType
+    source_claim_ids: list[str]
+    target_claim_id: str
+    merge_details: dict = Field(
+        default_factory=dict,
+        description=(
+            "Opaque audit payload capturing claim/link snapshots and "
+            "merge-side provenance changes so unmerge can restore state."
+        ),
+    )
+    reversal_id: str | None = None
+    created_by: str = "human"
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class ClassificationDimension(str, Enum):
     """Which classification axis a registry value belongs to (#915).
 
@@ -1607,6 +1633,13 @@ class KnowledgeClaim(BaseModel):
     # --- provenance & confidence ---
     entity_ids: list[str] = Field(default_factory=list)
     curation_state: ClaimCurationState = ClaimCurationState.unreviewed
+    merged_into_id: str | None = Field(
+        default=None,
+        description=(
+            "Canonical claim this row was merged into. Null for live claims; "
+            "set on absorbed duplicates so provenance survives unmerge."
+        ),
+    )
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     # --- prediction (PyKEEN) ---
     predicted_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
