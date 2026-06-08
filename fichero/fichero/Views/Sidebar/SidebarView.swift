@@ -171,7 +171,8 @@ struct SidebarView: View {
                         return
                     }
                     if id == "entities-browser" {
-                        sidebarMode = .knowledgeGraph
+                        sidebarMode = .library
+                        viewMode = .library(nil)
                         return
                     }
                     if id == "comparison-browser" {

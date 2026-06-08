@@ -39,10 +39,10 @@ extension LibraryView {
             .onMoveCommand { direction in
                 handleMoveCommand(direction)
             }
-            .focusedSceneValue(\.librarySelectAll, !filteredDocuments.isEmpty ? {
+            .focusedSceneValue(\.librarySelectAll, !(isShowingEntitiesCollection ? filteredEntities.isEmpty : filteredDocuments.isEmpty) ? {
                 selectAll()
             } : nil)
-            .focusedSceneValue(\.libraryDeleteSelection, !selection.isEmpty ? {
+            .focusedSceneValue(\.libraryDeleteSelection, !isShowingEntitiesCollection && !selection.isEmpty ? {
                 promptDeleteSelected()
             } : nil)
             .focusedSceneValue(\.librarySortField, $libraryToolbar.sortFieldRaw)
@@ -153,14 +153,23 @@ extension LibraryView {
 
     /// Open the first selected document in the inspector
     func openSelectedDocument() {
-        guard let firstId = selection.first,
-              let doc = filteredDocuments.first(where: { $0.id == firstId }) else { return }
+        guard let firstId = selection.first else { return }
+        if isShowingEntitiesCollection,
+           let entity = filteredEntities.first(where: { entitySelectionId(for: $0) == firstId }) {
+            focusEntityIfPossible(entity)
+            return
+        }
+        guard let doc = filteredDocuments.first(where: { $0.id == firstId }) else { return }
         detailDocument = doc
     }
 
     /// Select all visible documents
     func selectAll() {
-        selection = Set(filteredDocuments.map(\.id))
+        if isShowingEntitiesCollection {
+            selection = Set(filteredEntities.map { entitySelectionId(for: $0) })
+        } else {
+            selection = Set(filteredDocuments.map(\.id))
+        }
     }
 
     // MARK: - Arrow Key Navigation
@@ -188,29 +197,38 @@ extension LibraryView {
     /// All four arrows navigate within the content area (like Finder).
     /// Tab/Shift+Tab cycle focus between panes.
     func handleArrowKey(direction: ArrowDirection) -> KeyPress.Result {
-        let docs = filteredDocuments
-        guard !docs.isEmpty else { return .ignored }
+        let ids: [String]
+        if isShowingEntitiesCollection {
+            ids = filteredEntities.map { entitySelectionId(for: $0) }
+        } else {
+            ids = filteredDocuments.map(\.id)
+        }
+        guard !ids.isEmpty else { return .ignored }
 
         // Select first item if nothing is selected yet
-        guard let currentIndex = currentSelectionIndex(in: docs) else {
-            selection = [docs[0].id]; selectionAnchor = docs[0].id; return .handled
+        guard let currentIndex = currentSelectionIndex(in: ids) else {
+            selection = [ids[0]]
+            selectionAnchor = ids[0]
+            focusSelectedEntityIfNeeded()
+            return .handled
         }
 
         let step = stepSize(for: direction)
         guard step != 0 else { return .ignored }
         let targetIndex = currentIndex + step
-        guard targetIndex >= 0, targetIndex < docs.count else { return .handled }
+        guard targetIndex >= 0, targetIndex < ids.count else { return .handled }
 
-        applySelection(targetIndex: targetIndex, docs: docs)
+        applySelection(targetIndex: targetIndex, ids: ids)
         if displayMode == .icon || displayMode == .list || displayMode == .table {
-            listScrollTarget = docs[targetIndex].id
+            listScrollTarget = ids[targetIndex]
         }
+        focusSelectedEntityIfNeeded()
         return .handled
     }
 
-    private func currentSelectionIndex(in docs: [Document]) -> Int? {
+    private func currentSelectionIndex(in ids: [String]) -> Int? {
         guard let firstSelected = selection.first else { return nil }
-        return docs.firstIndex(where: { $0.id == firstSelected })
+        return ids.firstIndex(of: firstSelected)
     }
 
     private func stepSize(for direction: ArrowDirection) -> Int {
@@ -232,19 +250,19 @@ extension LibraryView {
         return 10
     }
 
-    private func applySelection(targetIndex: Int, docs: [Document]) {
-        let targetDoc = docs[targetIndex]
+    private func applySelection(targetIndex: Int, ids: [String]) {
+        let targetId = ids[targetIndex]
         if NSEvent.modifierFlags.contains(.shift),
            let anchor = selectionAnchor,
-           let anchorIndex = docs.firstIndex(where: { $0.id == anchor }) {
+           let anchorIndex = ids.firstIndex(of: anchor) {
             let range = min(anchorIndex, targetIndex)...max(anchorIndex, targetIndex)
-            selection = Set(docs[range].map(\.id))
+            selection = Set(range.map { ids[$0] })
         } else if NSEvent.modifierFlags.contains(.shift) {
-            selection.insert(targetDoc.id)
-            selectionAnchor = targetDoc.id
+            selection.insert(targetId)
+            selectionAnchor = targetId
         } else {
-            selection = [targetDoc.id]
-            selectionAnchor = targetDoc.id
+            selection = [targetId]
+            selectionAnchor = targetId
         }
     }
 
@@ -258,8 +276,13 @@ extension LibraryView {
         // Append to the buffer
         typeSelectBuffer += characters.lowercased()
 
-        // Find the first document whose name starts with the buffer
-        if let match = filteredDocuments.first(where: {
+        if isShowingEntitiesCollection,
+           let match = filteredEntities.first(where: {
+               $0.canonicalName.lowercased().hasPrefix(typeSelectBuffer)
+           }) {
+            selection = [entitySelectionId(for: match)]
+            focusEntityIfPossible(match)
+        } else if let match = filteredDocuments.first(where: {
             $0.name.lowercased().hasPrefix(typeSelectBuffer)
         }) {
             selection = [match.id]
@@ -271,6 +294,13 @@ extension LibraryView {
             guard !Task.isCancelled else { return }
             typeSelectBuffer = ""
         }
+    }
+
+    private func focusSelectedEntityIfNeeded() {
+        guard isShowingEntitiesCollection,
+              let firstId = selection.first,
+              let entity = filteredEntities.first(where: { entitySelectionId(for: $0) == firstId }) else { return }
+        focusEntityIfPossible(entity)
     }
 }
 

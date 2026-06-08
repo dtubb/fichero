@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
@@ -25,6 +26,52 @@ extension LibraryView {
             }
         }
         return docs.sorted(using: sortOrder)
+    }
+
+    var isShowingEntitiesCollection: Bool {
+        contentCollection == .entities
+    }
+
+    var entityCollectionTaskKey: String {
+        guard isShowingEntitiesCollection else { return "documents" }
+        return "entities:\(windowState.libraryId?.uuidString ?? "global")"
+    }
+
+    var filteredEntities: [Components.Schemas.KnowledgeEntity] {
+        var items = entities
+        if !searchText.isEmpty {
+            let query = searchText.localizedLowercase
+            items = items.filter { entity in
+                entity.canonicalName.localizedLowercase.contains(query)
+                    || entity.entityType?.rawValue.localizedLowercase.contains(query) == true
+                    || (entity.aliases ?? []).contains { $0.localizedLowercase.contains(query) }
+            }
+        }
+        return items.sorted { lhs, rhs in
+            let lhsName = lhs.canonicalName.localizedLowercase
+            let rhsName = rhs.canonicalName.localizedLowercase
+            if lhsName != rhsName {
+                return lhsName < rhsName
+            }
+            let lhsCorroboration = lhs.corroborationCount ?? 0
+            let rhsCorroboration = rhs.corroborationCount ?? 0
+            if lhsCorroboration != rhsCorroboration {
+                return lhsCorroboration > rhsCorroboration
+            }
+            return entitySelectionId(for: lhs) < entitySelectionId(for: rhs)
+        }
+    }
+
+    var isCollectionLoading: Bool {
+        isShowingEntitiesCollection ? isLoadingEntities : isLoading
+    }
+
+    var activeErrorMessage: String? {
+        isShowingEntitiesCollection ? entityLoadErrorMessage : errorMessage
+    }
+
+    var isCollectionEmpty: Bool {
+        isShowingEntitiesCollection ? filteredEntities.isEmpty : filteredDocuments.isEmpty
     }
 
     // MARK: - Filter Bar
@@ -75,10 +122,10 @@ extension LibraryView {
             ProgressView()
                 .controlSize(.large)
 
-            Text("Loading Documents...")
+            Text(isShowingEntitiesCollection ? "Loading Entities..." : "Loading Documents...")
                 .font(.headline)
 
-            Text("Connecting to library data")
+            Text(isShowingEntitiesCollection ? "Reading knowledge graph entities" : "Connecting to library data")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
@@ -91,7 +138,7 @@ extension LibraryView {
                 .font(.system(size: 40))
                 .foregroundColor(.orange)
 
-            Text("Couldn’t Load Documents")
+            Text(isShowingEntitiesCollection ? "Couldn’t Load Entities" : "Couldn’t Load Documents")
                 .font(.headline)
 
             Text(message)
@@ -101,7 +148,13 @@ extension LibraryView {
                 .frame(maxWidth: 460)
 
             Button("Retry") {
-                onRetry()
+                if isShowingEntitiesCollection {
+                    Task {
+                        await loadEntitiesIfNeeded()
+                    }
+                } else {
+                    onRetry()
+                }
             }
             .keyboardShortcut("r", modifiers: .command)
         }
@@ -111,11 +164,11 @@ extension LibraryView {
 
     var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "doc.text.magnifyingglass")
+            Image(systemName: isShowingEntitiesCollection ? "person.3.sequence" : "doc.text.magnifyingglass")
                 .font(.system(size: 48))
                 .foregroundColor(.secondary)
 
-            Text("No Documents")
+            Text(isShowingEntitiesCollection ? "No Entities" : "No Documents")
                 .font(.headline)
 
             if !searchText.isEmpty {
@@ -134,6 +187,10 @@ extension LibraryView {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .padding(.top, 4)
+            } else if isShowingEntitiesCollection {
+                Text("Select an entity to inspect it.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
             } else {
                 Text("Select a collection to view documents")
                     .font(.subheadline)
@@ -141,6 +198,40 @@ extension LibraryView {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    func loadEntitiesIfNeeded() async {
+        guard isShowingEntitiesCollection else { return }
+        isLoadingEntities = true
+        entityLoadErrorMessage = nil
+        defer { isLoadingEntities = false }
+        do {
+            let fetched = try await entityService.listEntities(limit: 1000)
+            guard !Task.isCancelled else { return }
+            entities = fetched
+            syncSelectionToLoadedEntities()
+        } catch {
+            guard !Task.isCancelled else { return }
+            entities = []
+            entityLoadErrorMessage = error.localizedDescription
+        }
+    }
+
+    func entitySelectionId(for entity: Components.Schemas.KnowledgeEntity) -> String {
+        entity.id ?? entity.stableInspectorId
+    }
+
+    func focusEntityIfPossible(_ entity: Components.Schemas.KnowledgeEntity) {
+        guard let entityId = entity.id, !entityId.isEmpty else { return }
+        kgFocusState.focusEntity(entityId: entityId)
+    }
+
+    func syncSelectionToLoadedEntities() {
+        let validIds = Set(filteredEntities.map { entitySelectionId(for: $0) })
+        selection = selection.intersection(validIds)
+        if let selectionAnchor, !validIds.contains(selectionAnchor) {
+            self.selectionAnchor = nil
+        }
     }
 
     // MARK: - Tap Handling
@@ -221,6 +312,64 @@ extension LibraryView {
         if sidebarHidden, canNavigateInto(doc) {
             onNavigateInto(doc)
         }
+    }
+
+    func handleEntityTap(_ entity: Components.Schemas.KnowledgeEntity) {
+        onRequestFocus()
+        let modifiers = NSEvent.modifierFlags
+        if modifiers.contains(.shift), let anchor = selectionAnchor {
+            handleEntityShiftClick(entity, anchor: anchor, commandKeyDown: modifiers.contains(.command))
+        } else if modifiers.contains(.command) {
+            handleEntityCommandClick(entity)
+        } else {
+            handleEntityPlainClick(entity)
+        }
+        focusEntityIfPossible(entity)
+    }
+
+    func handleEntityDoubleClick(_ entity: Components.Schemas.KnowledgeEntity) {
+        let entityId = entitySelectionId(for: entity)
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selection = [entityId]
+            selectionAnchor = entityId
+        }
+        listScrollCenterTarget = entityId
+        focusEntityIfPossible(entity)
+    }
+
+    private func handleEntityShiftClick(
+        _ entity: Components.Schemas.KnowledgeEntity,
+        anchor: String,
+        commandKeyDown: Bool
+    ) {
+        let items = filteredEntities
+        guard let anchorIndex = items.firstIndex(where: { entitySelectionId(for: $0) == anchor }),
+              let clickIndex = items.firstIndex(where: { entitySelectionId(for: $0) == entitySelectionId(for: entity) }) else {
+            return
+        }
+        let range = min(anchorIndex, clickIndex)...max(anchorIndex, clickIndex)
+        let rangeIds = Set(range.map { entitySelectionId(for: items[$0]) })
+        if commandKeyDown {
+            selection.formUnion(rangeIds)
+        } else {
+            selection = rangeIds
+        }
+    }
+
+    private func handleEntityCommandClick(_ entity: Components.Schemas.KnowledgeEntity) {
+        let entityId = entitySelectionId(for: entity)
+        if selection.contains(entityId) {
+            selection.remove(entityId)
+        } else {
+            selection.insert(entityId)
+        }
+        selectionAnchor = entityId
+    }
+
+    private func handleEntityPlainClick(_ entity: Components.Schemas.KnowledgeEntity) {
+        let entityId = entitySelectionId(for: entity)
+        selection = [entityId]
+        selectionAnchor = entityId
     }
 
     // MARK: - Open Affordances (#1685)

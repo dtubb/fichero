@@ -122,11 +122,12 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertEqual(AppViewMode.mindPalace.category, .folder)
     }
 
-    func testEntitiesSidebarEntryPointRoutesToKnowledgeGraph() throws {
+    func testEntitiesSidebarEntryPointRoutesToLibraryList() throws {
         let source = try Self.appSource("Views/Sidebar/SidebarView.swift")
 
         XCTAssertTrue(source.contains("id == \"entities-browser\""))
-        XCTAssertTrue(source.contains("sidebarMode = .knowledgeGraph"))
+        XCTAssertTrue(source.contains("sidebarMode = .library"))
+        XCTAssertTrue(source.contains("viewMode = .library(nil)"))
     }
 
     func testEntitiesSidebarEntryPointIsPinnedAndFeatureGated() throws {
@@ -136,6 +137,26 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(source.contains("systemImage: SidebarMode.knowledgeGraph.icon"))
         XCTAssertTrue(source.contains("FeatureManager.shared.isKnowledgeGraphEnabled"))
         XCTAssertTrue(source.contains("entitiesNavigationRow()"))
+    }
+
+    func testEntityLibrarySelectionLocksDisplayModeToList() throws {
+        let stateSource = try Self.appSource("Views/ContentView+State.swift")
+
+        XCTAssertTrue(stateSource.contains("var isEntityLibrarySelection: Bool"))
+        XCTAssertTrue(stateSource.contains("if isEntityLibrarySelection {"))
+        XCTAssertTrue(stateSource.contains("return [.list]"))
+        XCTAssertTrue(stateSource.contains("if newFolderId == \"entities-browser\""))
+        XCTAssertTrue(stateSource.contains("viewDisplayMode = .list"))
+    }
+
+    func testEntityLibrarySelectionRoutesBrowserSelectionIntoKGFocus() throws {
+        let stateSource = try Self.appSource("Views/ContentView+State.swift")
+        let navigationSource = try Self.appSource("Views/ContentView+Navigation.swift")
+
+        XCTAssertTrue(stateSource.contains("if isEntityLibrarySelection {"))
+        XCTAssertTrue(stateSource.contains("kgFocusState.focusEntity(entityId: firstId)"))
+        XCTAssertTrue(stateSource.contains("kgFocusState.clear()"))
+        XCTAssertTrue(navigationSource.contains("contentCollection: isEntityLibrarySelection ? .entities : .documents"))
     }
 
     func testSidebarPinnedRowsExposeMindPalaceResearchComparisonAndChatWithDocs() throws {

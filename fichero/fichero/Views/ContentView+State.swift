@@ -182,7 +182,7 @@ extension ContentView {
     /// This is independent of the current layout so toolbar pane buttons
     /// don't disappear when previews are temporarily hidden.
     var supportsReadingWorkspace: Bool {
-        sidebarMode == .library || sidebarMode == .search
+        (sidebarMode == .library && !isEntityLibrarySelection) || sidebarMode == .search
     }
 
     /// Available display modes for the current sidebar mode.
@@ -190,6 +190,9 @@ extension ContentView {
     var availableViewDisplayModes: [ViewDisplayMode] {
         switch sidebarMode {
         case .library:
+            if isEntityLibrarySelection {
+                return [.list]
+            }
             if let doc = libraryViewDocument, doc.docType == .folder || doc.isWorkspace {
                 var modes: [ViewDisplayMode] = [.icon, .list, .table, .map, .realitykit]
                 if featureManager.isWorkspaceModeEnabled {
@@ -224,6 +227,10 @@ extension ContentView {
     var libraryViewDocument: Document? {
         if case .library(let doc) = viewMode { return doc }
         return nil
+    }
+
+    var isEntityLibrarySelection: Bool {
+        selectedSidebarItemId == "entities-browser"
     }
 
     var paneAwareDetailMinWidth: Double {
@@ -509,6 +516,14 @@ extension ContentView {
     /// Restores per-folder view mode and drives the inspector from sidebar selection.
     func handleSidebarSelectionChange(_ newFolderId: String?) {
         if isRestoringNavigationHistory { return }
+        if newFolderId == "entities-browser" {
+            viewDisplayMode = .list
+            browserSelection.removeAll()
+            detailDocument = nil
+            kgFocusState.clear()
+            return
+        }
+        kgFocusState.clear()
         // Restore per-folder view mode when switching folders.
         // Priority: per-folder save > global default > current
         // SceneStorage value. The global default protects against
@@ -628,6 +643,19 @@ extension ContentView {
         // Persist browser selection to @SceneStorage
         if let encoded = try? JSONEncoder().encode(newSelection) {
             browserSelectionData = encoded
+        }
+        if isEntityLibrarySelection {
+            guard let firstId = newSelection.first else {
+                kgFocusState.clear()
+                detailDocument = nil
+                return
+            }
+            kgFocusState.focusEntity(entityId: firstId)
+            detailDocument = nil
+            return
+        }
+        if kgFocusState.focusedEntityId != nil {
+            kgFocusState.clear()
         }
         guard let firstId = newSelection.first,
               let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),

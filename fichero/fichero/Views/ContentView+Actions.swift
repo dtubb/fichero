@@ -159,6 +159,9 @@ extension ContentView {
         guard currentLayoutMode != .none else { return false }
         switch viewMode {
         case .library:
+            if isEntityLibrarySelection {
+                return false
+            }
             // Stable layout (default): a folder keeps the same panes as a file,
             // so selecting different items never reflows the window (#1452). The
             // legacy behaviour — folder collapses the preview so the grid takes
