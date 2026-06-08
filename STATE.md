@@ -486,3 +486,19 @@ NEXT: 2 backend lanes — (A) port #1662+#1756 into engine [code]; (B) #1758 sea
 **Next tick:** gate both (backend: ruff+pytest, merge, push, comment). Then refill: #1689 SwiftUI claim-merge UI (now unblocked) → entity-library-view surface (entities in icon/list/column/map modes) → #1757 step 3 (SVO/claims) → bounded backend wins. Prefer 1 frontend + 1 backend going forward (this all-backend round was to recover gating budget).
 
 ### TONIGHT SCOREBOARD (for Daniel): 11 issues merged → #1767, #1592, #1751, #1766(closed), #1763 MVP+prune-backend+prune-button(closed), #1759 backend+UI(closed), #1757 step1. Curation surface (#1761/#1763/#1751/#1765) substantially COMPLETE. Search 503s fixed + scope selector. Notes/annotations page+folder. New-library Inbox bug fixed.
+
+---
+## TICK — 2026-06-08 ~03:50 ADT (overnight)
+**Merged to 0.0.2 (HEAD `65b9b7c5`):**
+- #1757 STEP 2 — discrete "Extract Entities" workflow tool (`extract_entities_only.py`) + preset, reusing canonical `_entity_writer.upsert_entity` (idempotent). 3900 tests green. #1757 KEPT OPEN (steps 3-5).
+- CONTRACT-TEST HYGIENE (manager-direct): `test_ui_wiring_coverage[swiftui]` was RED on 0.0.2 (pre-existing, not step2) — tonight's 3 OpenAPI regens re-exposed 5 streaming/upload endpoints to the wiring detector. Allowlisted with reasons: storage display/source/thumbnail (direct authed URL streaming via addEngineAuth), documents/import (multipart), export/excel (binary download). Test green (3 passed). LESSON: OpenAPI regens can surface pre-existing endpoints into ui_wiring_allowlist_swiftui.json; binary/streaming/multipart endpoints legitimately bypass the typed client and belong on the allowlist.
+
+**Lane note:** f_claimmerge (#1689) hit a codex network error ("stream disconnected... Network unreachable") with ZERO edits — RE-KICKED in place, now Working again. (Watch for transient codex network drops; re-send the task, don't abandon.)
+
+**Running (2 BACKEND lanes, disjoint):**
+- `f_claimmerge` (~/code/fichero-claimmerge, feat/claim-merge-backend-1689) — #1689 claim merge/unmerge endpoints (api/routes), mirroring entity-curation merge/split + ClaimMergeAudit. Restarted after network drop.
+- `f_step3` (~/code/fichero-step3, feat/svo-step-discrete-1757) — #1757 STEP 3 "Extract SVO→Claims" discrete tool (workflows/tools), mirroring steps 1-2, reusing claim extractor/writer.
+
+**Next tick:** gate whichever committed (both backend: ruff+pytest). Then refill: #1689 SwiftUI claim-merge UI (unblocked once f_claimmerge lands) → entity-library-view surface (entities in icon/list/column/map modes) → #1757 step 4 (merge/dedup) → bounded backend wins. Resume 1 frontend + 1 backend when budget allows.
+
+### SCOREBOARD (Daniel): 12 merged tonight — #1767, #1592, #1751, #1766(closed), #1763 full(closed), #1759 full(closed), #1757 step1+step2. Plus a red contract-test fixed. Curation + search-503 + notes/annotations page+folder + inbox-bug all done; importer decomposition 2/5 steps in.
