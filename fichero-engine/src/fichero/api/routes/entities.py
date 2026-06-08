@@ -377,6 +377,12 @@ async def list_entities(
                 entity for entity in entities if not _is_date_like_entity(entity)
             ]
 
+    # Tombstoned (merged-away) entities carry ``merged_into_id`` but are kept
+    # as rows for audit/undo. They must never surface in the list the UI shows
+    # — otherwise a successful merge looks like it did nothing (#1849). Mirrors
+    # the soft-delete exclusion already done in kg_review / cleanup.
+    entities = [entity for entity in entities if entity.merged_into_id is None]
+
     needle = _normalize_text(q)
     if needle:
         entities = [

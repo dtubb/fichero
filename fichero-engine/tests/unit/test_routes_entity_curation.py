@@ -58,6 +58,51 @@ def _make_claim(db, doc: Document, entity: KnowledgeEntity, text: str = "A claim
 
 
 # ---------------------------------------------------------------------------
+# Regression: a merged-away (tombstoned) entity must NOT reappear in the
+# entity list the UI shows — otherwise merge "looks like it did nothing"
+# even though the DB merge succeeded.  (#1849)
+# ---------------------------------------------------------------------------
+
+
+class TestMergedEntitiesHiddenFromList:
+    def test_absorbed_entity_excluded_from_full_list(self, client, db):
+        absorber = _make_entity(db, "Alice")
+        absorbed = _make_entity(db, "Alicia")
+        r = client.post(
+            "/api/kg/entity-curation/merge",
+            json={
+                "absorbing_entity_id": absorber.id,
+                "absorbed_entity_ids": [absorbed.id],
+            },
+        )
+        assert r.status_code == 200
+        ids = {item["id"] for item in client.get("/api/entities").json()["items"]}
+        assert absorber.id in ids
+        assert absorbed.id not in ids  # tombstoned entity must be hidden
+
+    def test_absorbed_entity_excluded_from_doc_scoped_list(self, client, db):
+        """The document_id union loop must also drop tombstoned entities even
+        when their source_document_ids still intersect the requested doc."""
+        absorber = _make_entity(db, "Alice")
+        absorbed = _make_entity(db, "Alicia")
+        doc = _make_doc(db)
+        _make_claim(db, doc, absorbed, "Alicia was here.")
+        absorbed.source_document_ids = [doc.id]
+        db.save(absorbed)
+        r = client.post(
+            "/api/kg/entity-curation/merge",
+            json={
+                "absorbing_entity_id": absorber.id,
+                "absorbed_entity_ids": [absorbed.id],
+            },
+        )
+        assert r.status_code == 200
+        listed = client.get(f"/api/entities?document_id={doc.id}").json()
+        ids = {item["id"] for item in listed["items"]}
+        assert absorbed.id not in ids
+
+
+# ---------------------------------------------------------------------------
 # POST /api/kg/entity-curation/merge
 # ---------------------------------------------------------------------------
 
