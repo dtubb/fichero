@@ -35,6 +35,14 @@ class TestClassifySystemicError:
         cause = _classify_systemic_error(errors, 12)
         assert cause is not None
 
+    def test_single_transient_failure_is_not_systemic(self):
+        errors = ["temporary decode hiccup"]
+        assert _classify_systemic_error(errors, 1) is None
+
+    def test_two_transient_failures_still_not_systemic(self):
+        errors = ["temporary decode hiccup", "provider returned malformed json"]
+        assert _classify_systemic_error(errors, 2) is None
+
     def test_high_fraction_failed_is_systemic(self):
         # 13/15 failed — not literally all, but well past the threshold.
         errors = ["guardrail refusal"] * 13
@@ -60,6 +68,11 @@ class TestClassifySystemicError:
         errors = ["provider quota exceeded"] * 9
         cause = _classify_systemic_error(errors, 10)
         assert "quota" in cause.lower()
+
+    def test_auth_signature_detected_on_first_failed_chunk(self):
+        errors = ["HTTP 401 Unauthorized"]
+        cause = _classify_systemic_error(errors, 1)
+        assert cause == "HTTP 401 Unauthorized"
 
     def test_large_not_configured_signature_detected(self):
         errors = ["$large fallback not configured"] * 6
