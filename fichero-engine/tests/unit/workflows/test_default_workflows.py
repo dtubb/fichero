@@ -185,11 +185,13 @@ class TestLoadPresetFiles:
         stages independently (#1669)."""
         presets = {p["name"]: p for p in _load_preset_files()}
         stage0 = presets["1 · Import → Artifacts"]
+        stage0b = presets["2 · Extract Entities"]
+        stage0c = presets["3 · Extract SVO → Claims"]
         stage1 = presets["Catalogue Stage 1 - Transcribe Pages"]
         stage2 = presets["Catalogue Stage 2 - Extract Entities + KG"]
         stage3 = presets["Catalogue Stage 3 - Catalogue Artifacts"]
 
-        for preset in (stage0, stage1, stage2, stage3):
+        for preset in (stage0, stage0b, stage0c, stage1, stage2, stage3):
             assert preset.get("is_template") is True
             assert preset.get("is_system") is True
             assert preset.get("folder_path") == "/Catalogue"
@@ -210,6 +212,30 @@ class TestLoadPresetFiles:
             and e["target_port"] == "documents"
             for e in stage0["edges"]
         ), "stage 0 must feed selected documents into import_artifacts"
+
+        stage0b_tools = {n["tool"] for n in stage0b["nodes"]}
+        assert stage0b_tools == {"files", "extract_entities_only"}
+        extract_entities_node = next(
+            n for n in stage0b["nodes"] if n["tool"] == "extract_entities_only"
+        )
+        assert extract_entities_node["config"].get("provider_name") == "$small"
+
+        stage0c_tools = {n["tool"] for n in stage0c["nodes"]}
+        assert stage0c_tools == {"files", "extract_svo_only"}
+        assert "claims" in stage0c.get("tags", [])
+        extract_svo_node = next(
+            n for n in stage0c["nodes"] if n["tool"] == "extract_svo_only"
+        )
+        assert extract_svo_node["config"].get("provider_name") == "$small"
+        files_id = _node_id(stage0c, "files")
+        extract_svo_id = _node_id(stage0c, "extract_svo_only")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == extract_svo_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in stage0c["edges"]
+        ), "stage 3 must feed selected documents into extract_svo_only"
 
         stage1_tools = {n["tool"] for n in stage1["nodes"]}
         assert stage1_tools == {"files", "transcribe"}

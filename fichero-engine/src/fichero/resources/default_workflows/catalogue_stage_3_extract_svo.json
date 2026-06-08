@@ -1,0 +1,52 @@
+{
+  "name": "3 · Extract SVO → Claims",
+  "description": "Step 3 of the discrete import-artifacts pipeline. Reuse the transcription artifacts from step 1 plus the persisted entity rows from step 2 to extract and persist SVO KnowledgeClaim rows only. Safe to re-run: the canonical claim writer deduplicates repeated page-scoped claims.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Catalogue",
+  "tags": [
+    "preset",
+    "catalogue",
+    "stage",
+    "svo",
+    "claims",
+    "reviewable"
+  ],
+  "config": {
+    "preset_version": 1,
+    "stage": "extract_svo"
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 220,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "extract-svo",
+      "tool": "extract_svo_only",
+      "label": "Extract SVO claims",
+      "position_x": 320,
+      "position_y": 220,
+      "inputs": {},
+      "config": {
+        "output_language": "auto",
+        "provider_name": "$small"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-files-extract-svo-documents",
+      "source": "files-source",
+      "target": "extract-svo",
+      "source_port": "documents",
+      "target_port": "documents"
+    }
+  ]
+}
