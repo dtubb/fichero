@@ -28,6 +28,37 @@ Avoid — SwiftUI has the answer:
 
 ---
 
+## 2026 update — Observation-first, Golden Gate only (READ FIRST)
+
+**Target: macOS 26 "Golden Gate" only.** No back-deployment, **no `if #available` guards** —
+adopt 2026 APIs directly.
+
+**State management is Observation-first.** For ANY new view-model / store you introduce:
+- `@Observable` (Observation framework) — NOT `ObservableObject` / `@Published` / Combine.
+- `@State` to own an `@Observable`; `@Bindable` for two-way bindings; `@Environment(Type.self)`
+  for dependency injection. Use **lazy `@State` init** for Observable when construction is costly.
+- **Do NOT blanket-migrate existing `ObservableObject` services** (the `*Generated` wrappers,
+  `DocumentStore`, etc.) — that's out of scope and high blast-radius. New code is Observation;
+  existing code stays until a deliberate migration.
+
+**Modern SwiftUI to prefer (2026):**
+- Native `List` / `Section` selection (it's `NSTableView` underneath → free macOS selection
+  emphasis, context-menu target ring); `\.appearsActive` / `\.isEmphasized` for focus-loss.
+- Swipe actions on any view; List/Grid/Section content-reordering APIs; toolbar
+  visibility-priority + auto-minimizing; AsyncImage caching.
+- **Liquid Glass** / `.regularMaterial` for chrome; **SF Symbols 8** for glyphs.
+- `swift-collections` (`OrderedSet`/`OrderedDictionary`) where ordering/dedup matters.
+
+**Still mandatory (unchanged):** `@MainActor` + async/await with `Task.isCancelled` (never
+`DispatchQueue.main`); no `NotificationCenter` for state (use bindings / Observation /
+`@FocusedValue`); OSLog only; files < 400 lines; read from services/HTTP — **never local file
+paths** (engine may be remote). AppKit only behind a contained bridge — see `appkit_interop.md`.
+
+> The §1–§9 examples below still show the `ObservableObject`/`@Published` pattern. Those remain
+> valid for the *existing* code they describe, but **new code uses `@Observable`** per this section.
+
+---
+
 ## SwiftUI Best Practices (Mandatory)
 
 ### 1. Use Proper State Management
