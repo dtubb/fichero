@@ -23,6 +23,7 @@ struct EntityKindRow: View {
         InspectorEntityBulkActionScope,
         [Components.Schemas.KnowledgeClaim]
     ) async -> Void)?
+    var requestClaimMergeAction: (([Components.Schemas.KnowledgeClaim]) -> Void)?
     var requestPruneTrivialAction: ((InspectorEntityBulkActionScope) -> Void)?
     var onNavigateToSource: ((String) -> Void)?
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
@@ -362,10 +363,25 @@ struct EntityKindRow: View {
         )
     }
 
+    // swiftlint:disable function_body_length
     @ViewBuilder
     private func claimBulkContextMenu(
         for claim: Components.Schemas.KnowledgeClaim
     ) -> some View {
+        if let claimContextMenuTarget {
+            let targetClaims = claimContextMenuTarget(claim)
+            if let requestClaimMergeAction {
+                let mergePlan = InspectorClaimBulkSelection.mergePlan(for: targetClaims)
+                if let mergePlan {
+                    Button("Merge into \"\(mergePlan.survivorName)\"") {
+                        requestClaimMergeAction(targetClaims)
+                    }
+                } else {
+                    Button("Merge requires 2+ live claims") {}
+                        .disabled(true)
+                }
+            }
+        }
         if let claimScopeLabel, let claimContextMenuTarget, let applyClaimBulkAction {
             let targetClaims = claimContextMenuTarget(claim)
             Menu("Approve") {
@@ -404,6 +420,7 @@ struct EntityKindRow: View {
             }
         }
     }
+    // swiftlint:enable function_body_length
 
     @ViewBuilder
     private func claimBulkScopeButtons(

@@ -2455,8 +2455,9 @@ final class EntityServiceGenerated: ObservableObject {
     }
 }
 
-/// Typed wrappers for `/api/kg/curation-rules/*`.
-///
+// Typed wrappers for `/api/kg/curation-rules/*`.
+
+// swiftlint:disable type_body_length
 @MainActor
 final class KGCurationServiceGenerated: ObservableObject {
     private let client: FicheroClient
@@ -2707,6 +2708,52 @@ final class KGCurationServiceGenerated: ObservableObject {
         }
     }
 
+    func mergeClaims(
+        survivorId: String,
+        absorbedIds: [String]
+    ) async throws -> Components.Schemas.ClaimAuditResponse {
+        let body = Components.Schemas.ClaimMergeRequest(
+            survivingClaimId: survivorId,
+            absorbedClaimIds: absorbedIds
+        )
+        let response = try await client.api.mergeClaimsApiKgClaimsMergePost(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("mergeClaims unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func unmergeClaims(
+        auditId: String
+    ) async throws -> Components.Schemas.ClaimAuditResponse {
+        let body = Components.Schemas.ClaimUnmergeRequest(auditId: auditId)
+        let response = try await client.api.unmergeClaimsApiKgClaimsUnmergePost(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("unmergeClaims unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     func pruneTrivialClaims(
         scope: PruneTrivialScope
     ) async throws -> Components.Schemas.PruneTrivialClaimsResponse {
@@ -2728,3 +2775,4 @@ final class KGCurationServiceGenerated: ObservableObject {
         }
     }
 }
+// swiftlint:enable type_body_length
