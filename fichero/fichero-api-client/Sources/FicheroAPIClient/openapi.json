@@ -15387,6 +15387,114 @@
         }
       }
     },
+    "/api/kg/claims/merge": {
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph",
+          "claim-curation"
+        ],
+        "summary": "Merge duplicate claims into a surviving claim",
+        "operationId": "merge_claims_api_kg_claims_merge_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimMergeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimAuditResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/claims/unmerge": {
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph",
+          "claim-curation"
+        ],
+        "summary": "Reverse a recorded claim merge",
+        "operationId": "unmerge_claims_api_kg_claims_unmerge_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimUnmergeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimAuditResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/claims/prune-trivial": {
       "post": {
         "tags": [
@@ -36541,6 +36649,58 @@
         ],
         "title": "ClaimAssignTimePeriodResponse"
       },
+      "ClaimAuditResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "operation_type": {
+            "$ref": "#/components/schemas/ClaimMergeOperationType"
+          },
+          "source_claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Claim Ids"
+          },
+          "target_claim_id": {
+            "type": "string",
+            "title": "Target Claim Id"
+          },
+          "merge_details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Merge Details"
+          },
+          "reversal_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reversal Id"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "operation_type",
+          "source_claim_ids",
+          "target_claim_id",
+          "reversal_id",
+          "created_by",
+          "created_at"
+        ],
+        "title": "ClaimAuditResponse"
+      },
       "ClaimCountsResponse": {
         "properties": {
           "counts": {
@@ -36917,6 +37077,38 @@
         ],
         "title": "ClaimListResponse",
         "description": "Standardized envelope for GET /api/claims list endpoints."
+      },
+      "ClaimMergeOperationType": {
+        "type": "string",
+        "enum": [
+          "merge",
+          "unmerge"
+        ],
+        "title": "ClaimMergeOperationType"
+      },
+      "ClaimMergeRequest": {
+        "properties": {
+          "surviving_claim_id": {
+            "type": "string",
+            "title": "Surviving Claim Id",
+            "description": "Claim that remains canonical after the merge."
+          },
+          "absorbed_claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Absorbed Claim Ids",
+            "description": "Duplicate claims absorbed into the survivor."
+          }
+        },
+        "type": "object",
+        "required": [
+          "surviving_claim_id",
+          "absorbed_claim_ids"
+        ],
+        "title": "ClaimMergeRequest"
       },
       "ClaimPatchRequest": {
         "properties": {
@@ -37578,6 +37770,20 @@
           "theory"
         ],
         "title": "ClaimType"
+      },
+      "ClaimUnmergeRequest": {
+        "properties": {
+          "audit_id": {
+            "type": "string",
+            "title": "Audit Id",
+            "description": "ClaimMergeAudit.id from the merge being reversed."
+          }
+        },
+        "type": "object",
+        "required": [
+          "audit_id"
+        ],
+        "title": "ClaimUnmergeRequest"
       },
       "ClaimsPageResponse": {
         "properties": {
@@ -44135,6 +44341,12 @@
           "curation_state": {
             "$ref": "#/components/schemas/ClaimCurationState",
             "default": "unreviewed"
+          },
+          "merged_into_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Merged Into Id",
+            "description": "Canonical claim this row was merged into. Null for live claims; set on absorbed duplicates so provenance survives unmerge."
           },
           "confidence": {
             "type": "number",
@@ -51940,6 +52152,12 @@
           "curation_state": {
             "$ref": "#/components/schemas/ClaimCurationState",
             "default": "unreviewed"
+          },
+          "merged_into_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Merged Into Id",
+            "description": "Canonical claim this row was merged into. Null for live claims; set on absorbed duplicates so provenance survives unmerge."
           },
           "confidence": {
             "type": "number",

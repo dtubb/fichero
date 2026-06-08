@@ -91,6 +91,8 @@
     "/api/integrations/{app_name}/items/{external_id}": "baseline: not yet wired",
     "/api/integrations/{app_name}/open/{external_id}": "baseline: not yet wired",
     "/api/integrations/{app_name}/refresh": "baseline: not yet wired",
+    "/api/kg/claims/merge": "backend claim merge (#1689); SwiftUI claim-merge UI (mirroring EntityMergeSheet) is the tracked follow-up",
+    "/api/kg/claims/unmerge": "backend claim unmerge (#1689); SwiftUI claim-merge/unmerge UI is the tracked follow-up",
     "/api/kg/review/summary": "backend KG review-queue badge summary (#1356); SwiftUI badge wiring tracked in KG wiring backlog (#1422)",
     "/api/libraries/{lib}/entity-types": "baseline: not yet wired",
     "/api/libraries/{lib}/entity-types/{entity_type_key}": "baseline: not yet wired",

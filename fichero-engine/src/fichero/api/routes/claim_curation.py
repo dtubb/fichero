@@ -7,6 +7,7 @@ Provides queue views and batch transition operations.
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from datetime import datetime
 from typing import Any
 
@@ -18,9 +19,13 @@ from fichero.db import Database
 from fichero.kg._common import is_trivial_claim
 from fichero.knowledge_models import (
     ClaimCurationState,
+    ClaimMergeAudit,
+    ClaimMergeOperationType,
+    ClaimRelationType,
     ClaimSuppressionRule,
     ClaimSuppressionRuleAction,
     KnowledgeClaim,
+    KnowledgeClaimLink,
     KnowledgeEntity,
     MutationLog,
     MutationOperationType,
@@ -82,6 +87,29 @@ class BatchClaimCurationRequest(BaseModel):
 class BatchClaimCurationResponse(BaseModel):
     updated: int
     claim_ids: list[str] = Field(default_factory=list, description="Claim IDs whose state actually changed.")
+
+
+class ClaimMergeRequest(BaseModel):
+    surviving_claim_id: str = Field(description="Claim that remains canonical after the merge.")
+    absorbed_claim_ids: list[str] = Field(
+        min_length=1,
+        description="Duplicate claims absorbed into the survivor.",
+    )
+
+
+class ClaimUnmergeRequest(BaseModel):
+    audit_id: str = Field(description="ClaimMergeAudit.id from the merge being reversed.")
+
+
+class ClaimAuditResponse(BaseModel):
+    id: str
+    operation_type: ClaimMergeOperationType
+    source_claim_ids: list[str]
+    target_claim_id: str
+    merge_details: dict[str, Any] = Field(default_factory=dict)
+    reversal_id: str | None
+    created_by: str
+    created_at: datetime
 
 
 class PruneTrivialClaimsRequest(BaseModel):
@@ -214,6 +242,223 @@ def _log_claim_curation_mutation(
             changed_fields=["curation_state"],
         )
     )
+
+
+def _claim_audit_response(audit: ClaimMergeAudit) -> ClaimAuditResponse:
+    return ClaimAuditResponse(
+        id=audit.id,
+        operation_type=audit.operation_type,
+        source_claim_ids=audit.source_claim_ids,
+        target_claim_id=audit.target_claim_id,
+        merge_details=audit.merge_details,
+        reversal_id=audit.reversal_id,
+        created_by=audit.created_by,
+        created_at=audit.created_at,
+    )
+
+
+def _merge_unique_by_id(existing: list[Any], incoming: list[Any]) -> list[Any]:
+    seen = {getattr(item, "id", None) for item in existing}
+    merged = list(existing)
+    for item in incoming:
+        item_id = getattr(item, "id", None)
+        if item_id not in seen:
+            merged.append(item)
+            seen.add(item_id)
+    return merged
+
+
+def _claim_support_key(support: Any) -> tuple[str | None, str | None, int | None, int | None]:
+    return (
+        getattr(support, "source_document_id", None),
+        getattr(support, "source_page_label", None),
+        getattr(support, "source_char_start", None),
+        getattr(support, "source_char_end", None),
+    )
+
+
+def _merge_claim_provenance(
+    db: Database,
+    survivor: KnowledgeClaim,
+    absorbed_claims: list[KnowledgeClaim],
+) -> dict[str, Any]:
+    """Conservatively fold corroborating claim evidence into the survivor.
+
+    The survivor keeps its existing scalar source fields so its primary citation
+    remains stable, while the absorbed claims contribute only the additive,
+    multi-source provenance fields that can safely union without ambiguity.
+    """
+    from fichero.workflows.tools._entity_writer import _weighted_corroboration_count
+
+    existing_support_keys = {
+        _claim_support_key(support) for support in survivor.source_supports
+    }
+    added_support_ids: list[str | None] = []
+    for claim in absorbed_claims:
+        for support in claim.source_supports:
+            key = _claim_support_key(support)
+            if key in existing_support_keys:
+                continue
+            survivor.source_supports.append(support)
+            existing_support_keys.add(key)
+            added_support_ids.append(getattr(support, "id", None))
+
+    source_ids = {
+        sid
+        for sid in [
+            survivor.source_document_id,
+            *survivor.source_ids,
+            *survivor.corroborating_source_ids,
+            *(support.source_document_id for support in survivor.source_supports),
+        ]
+        if sid
+    }
+    for claim in absorbed_claims:
+        source_ids.update(
+            sid for sid in [
+                claim.source_document_id,
+                *claim.source_ids,
+                *claim.corroborating_source_ids,
+                *(support.source_document_id for support in claim.source_supports),
+            ]
+            if sid
+        )
+
+    page_labels = {
+        label
+        for label in [
+            survivor.source_page_label,
+            *survivor.source_page_labels,
+            *(claim.source_page_label for claim in absorbed_claims),
+            *(label for claim in absorbed_claims for label in claim.source_page_labels),
+        ]
+        if label
+    }
+    languages = {
+        lang
+        for lang in [
+            survivor.language,
+            survivor.source_language,
+            *survivor.source_languages,
+            *(claim.language for claim in absorbed_claims),
+            *(claim.source_language for claim in absorbed_claims),
+            *(lang for claim in absorbed_claims for lang in claim.source_languages),
+        ]
+        if lang
+    }
+    translation_chain = {
+        step
+        for step in [
+            *survivor.translation_chain,
+            *(step for claim in absorbed_claims for step in claim.translation_chain),
+        ]
+        if step
+    }
+    entity_ids = {
+        entity_id
+        for entity_id in [
+            *survivor.entity_ids,
+            *(entity_id for claim in absorbed_claims for entity_id in claim.entity_ids),
+        ]
+        if entity_id
+    }
+
+    survivor.source_ids = sorted(source_ids - {survivor.source_document_id})
+    survivor.corroborating_source_ids = sorted(source_ids)
+    survivor.corroboration_count = len(source_ids) if source_ids else survivor.corroboration_count
+    if source_ids:
+        survivor.weighted_corroboration_count = _weighted_corroboration_count(db, set(source_ids))
+    survivor.source_page_labels = sorted(page_labels)
+    survivor.source_languages = sorted(languages)
+    survivor.translation_chain = sorted(translation_chain)
+    survivor.entity_ids = sorted(entity_ids)
+    survivor.date_values = _merge_unique_by_id(
+        survivor.date_values,
+        [value for claim in absorbed_claims for value in claim.date_values],
+    )
+    survivor.place_values = _merge_unique_by_id(
+        survivor.place_values,
+        [value for claim in absorbed_claims for value in claim.place_values],
+    )
+    survivor.attribution_chain = _merge_unique_by_id(
+        survivor.attribution_chain,
+        [value for claim in absorbed_claims for value in claim.attribution_chain],
+    )
+    survivor.confidence = max([survivor.confidence, *(claim.confidence for claim in absorbed_claims)])
+    evidential_values = [
+        value
+        for value in [survivor.evidential_confidence, *(claim.evidential_confidence for claim in absorbed_claims)]
+        if value is not None
+    ]
+    if evidential_values:
+        survivor.evidential_confidence = max(evidential_values)
+
+    return {
+        "added_source_support_ids": [support_id for support_id in added_support_ids if support_id],
+        "source_ids": survivor.corroborating_source_ids,
+        "entity_ids": survivor.entity_ids,
+    }
+
+
+def _link_signature(link: KnowledgeClaimLink) -> tuple[Any, ...]:
+    return (
+        link.claim_id,
+        link.related_claim_id,
+        link.relation_type.value,
+        link.evidence,
+        tuple(sorted((link.metadata or {}).items())),
+    )
+
+
+def _repoint_claim_links(
+    *,
+    db: Database,
+    survivor_id: str,
+    absorbed_ids: set[str],
+) -> dict[str, Any]:
+    touched_before: dict[str, dict[str, Any]] = {}
+    duplicates_deleted: list[str] = []
+
+    links = list(db.query(KnowledgeClaimLink))
+    signatures: dict[tuple[Any, ...], str] = {}
+    for link in links:
+        touched = link.claim_id in absorbed_ids or link.related_claim_id in absorbed_ids
+        if touched:
+            touched_before[link.id] = link.model_dump(mode="json")
+            if link.claim_id in absorbed_ids:
+                link.claim_id = survivor_id
+            if link.related_claim_id in absorbed_ids:
+                link.related_claim_id = survivor_id
+
+        should_delete = (
+            link.claim_id == link.related_claim_id
+            and link.relation_type == ClaimRelationType.duplicate_of
+        )
+        signature = _link_signature(link)
+        if not should_delete and signature in signatures and signatures[signature] != link.id:
+            should_delete = True
+
+        if should_delete:
+            duplicates_deleted.append(link.id)
+            db.delete(link)
+            continue
+
+        signatures[signature] = link.id
+        if touched:
+            db.save(link)
+
+    return {
+        "before_by_id": touched_before,
+        "deleted_link_ids": duplicates_deleted,
+    }
+
+
+def _restore_claim_snapshot(db: Database, snapshot: dict[str, Any]) -> None:
+    db.save(KnowledgeClaim.model_validate(snapshot))
+
+
+def _restore_link_snapshot(db: Database, snapshot: dict[str, Any]) -> None:
+    db.save(KnowledgeClaimLink.model_validate(snapshot))
 
 
 def _scope_doc_ids(db: Database, request: PruneTrivialClaimsRequest) -> tuple[str, set[str]]:
@@ -416,6 +661,125 @@ async def batch_set_claim_curation_state(
 
     logger.info("Batch curation update: %s claims set to %s", len(updated_ids), request.curation_state.value)
     return BatchClaimCurationResponse(updated=len(updated_ids), claim_ids=updated_ids)
+
+
+@kg_claims_router.post(
+    "/merge",
+    response_model=ClaimAuditResponse,
+    summary="Merge duplicate claims into a surviving claim",
+)
+async def merge_claims(
+    request: ClaimMergeRequest,
+    db: Database = Depends(get_library_database),
+) -> ClaimAuditResponse:
+    survivor = db.get(KnowledgeClaim, request.surviving_claim_id)
+    if survivor is None:
+        raise HTTPException(status_code=404, detail=f"Surviving claim not found: {request.surviving_claim_id}")
+    if survivor.merged_into_id is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Claim {survivor.id} was already merged into {survivor.merged_into_id}",
+        )
+
+    absorbed_ids = list(dict.fromkeys(request.absorbed_claim_ids))
+    if survivor.id in absorbed_ids:
+        raise HTTPException(status_code=400, detail="Surviving claim cannot also be absorbed")
+
+    absorbed_claims: list[KnowledgeClaim] = []
+    for claim_id in absorbed_ids:
+        claim = db.get(KnowledgeClaim, claim_id)
+        if claim is None:
+            raise HTTPException(status_code=404, detail=f"Absorbed claim not found: {claim_id}")
+        if claim.merged_into_id is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Claim {claim_id} was already merged into {claim.merged_into_id}",
+            )
+        absorbed_claims.append(claim)
+
+    now = datetime.now()
+    survivor_before = survivor.model_dump(mode="json")
+    absorbed_before = {claim.id: claim.model_dump(mode="json") for claim in absorbed_claims}
+
+    provenance_changes = _merge_claim_provenance(db, survivor, absorbed_claims)
+    link_changes = _repoint_claim_links(
+        db=db,
+        survivor_id=survivor.id,
+        absorbed_ids={claim.id for claim in absorbed_claims},
+    )
+
+    for claim in absorbed_claims:
+        claim.merged_into_id = survivor.id
+        claim.curation_state = ClaimCurationState.rejected
+        claim.updated_at = now
+        db.save(claim)
+
+    survivor.updated_at = now
+    db.save(survivor)
+
+    audit = ClaimMergeAudit(
+        operation_type=ClaimMergeOperationType.merge,
+        source_claim_ids=[claim.id for claim in absorbed_claims],
+        target_claim_id=survivor.id,
+        merge_details={
+            "survivor_before": survivor_before,
+            "absorbed_before": absorbed_before,
+            "provenance_changes": provenance_changes,
+            "link_changes": link_changes,
+        },
+        created_by="human",
+        created_at=now,
+    )
+    db.save(audit)
+    audit.reversal_id = audit.id
+    db.save(audit)
+    return _claim_audit_response(audit)
+
+
+@kg_claims_router.post(
+    "/unmerge",
+    response_model=ClaimAuditResponse,
+    summary="Reverse a recorded claim merge",
+)
+async def unmerge_claims(
+    request: ClaimUnmergeRequest,
+    db: Database = Depends(get_library_database),
+) -> ClaimAuditResponse:
+    audit = db.get(ClaimMergeAudit, request.audit_id)
+    if audit is None:
+        raise HTTPException(status_code=404, detail=f"Claim merge audit not found: {request.audit_id}")
+    if audit.operation_type != ClaimMergeOperationType.merge:
+        raise HTTPException(status_code=409, detail="Only merge audits can be unmerged")
+    if audit.reversal_id != audit.id:
+        raise HTTPException(status_code=409, detail="This merge was already unmerged")
+
+    merge_details = deepcopy(audit.merge_details or {})
+    survivor_snapshot = merge_details.get("survivor_before")
+    absorbed_snapshots = merge_details.get("absorbed_before", {})
+    link_snapshots = (merge_details.get("link_changes") or {}).get("before_by_id", {})
+    if not survivor_snapshot or not absorbed_snapshots:
+        raise HTTPException(status_code=409, detail="Merge audit is missing reversible snapshots")
+
+    _restore_claim_snapshot(db, survivor_snapshot)
+    for snapshot in absorbed_snapshots.values():
+        _restore_claim_snapshot(db, snapshot)
+    for snapshot in link_snapshots.values():
+        _restore_link_snapshot(db, snapshot)
+
+    now = datetime.now()
+    undo = ClaimMergeAudit(
+        operation_type=ClaimMergeOperationType.unmerge,
+        source_claim_ids=audit.source_claim_ids,
+        target_claim_id=audit.target_claim_id,
+        merge_details={"reversed_audit_id": audit.id},
+        reversal_id=audit.id,
+        created_by="human",
+        created_at=now,
+    )
+    db.save(undo)
+    audit.reversal_id = undo.id
+    db.save(audit)
+    return _claim_audit_response(undo)
 
 
 @kg_claims_router.post(

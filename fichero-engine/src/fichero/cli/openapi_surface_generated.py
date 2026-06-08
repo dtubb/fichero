@@ -3536,6 +3536,20 @@ def register_generated_openapi_commands(
             return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("merge-duplicate-claims-into-a-surviving-claim")
+    def kg_merge_duplicate_claims_into_a_surviving_claim_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Merge duplicate claims into a surviving claim (POST /api/kg/claims/merge)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/claims/merge"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("prune-trivially-true-claims")
     def kg_prune_trivially_true_claims_post(
         ctx: typer.Context,
@@ -3545,6 +3559,20 @@ def register_generated_openapi_commands(
         """Prune trivially-true claims (POST /api/kg/claims/prune-trivial)."""
         def op_call(client: FicheroClient) -> Any:
             path = "/api/kg/claims/prune-trivial"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("reverse-a-recorded-claim-merge")
+    def kg_reverse_a_recorded_claim_merge_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Reverse a recorded claim merge (POST /api/kg/claims/unmerge)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/kg/claims/unmerge"
             params = None
             payload = _load_json_payload(body, body_file, required=True)
             return client.request("POST", path, params=params, json=payload)

@@ -8,8 +8,10 @@ at /api.
 
 from fichero.knowledge_models import (
     KnowledgeClaim,
+    KnowledgeClaimLink,
     KnowledgeEntity,
     ClaimCurationState,
+    ClaimRelationType,
     ClaimSuppressionRule,
     ClaimType,
     EpistemicStatus,
@@ -195,6 +197,162 @@ class TestBatchClaimCuration:
         assert r.status_code == 200
         assert r.json() == {"updated": 0, "claim_ids": []}
         assert db.all(MutationLog) == []
+
+
+class TestClaimMerge:
+    def test_merge_consolidates_provenance_and_repoints_links(self, client, db):
+        db.save(_make_entity("Alice", "ent-1"))
+        db.save(_make_entity("Alicia", "ent-2"))
+        survivor = _make_claim(
+            "claim-survivor",
+            text="Alice was born in 1923.",
+            entity_ids=["ent-1"],
+            source_document_id="doc-1",
+            subject_canonical="Alice",
+            predicate_verb="was born in",
+            object_phrase="1923",
+        )
+        survivor.source_page_label = "1"
+        survivor.source_ids = ["doc-1"]
+        survivor.corroborating_source_ids = ["doc-1"]
+        survivor.corroboration_count = 1
+        survivor.source_languages = ["en"]
+        absorbed = _make_claim(
+            "claim-absorbed",
+            text="Alice was born in 1923.",
+            entity_ids=["ent-2"],
+            source_document_id="doc-2",
+            subject_canonical="Alice",
+            predicate_verb="was born in",
+            object_phrase="1923",
+        )
+        absorbed.source_page_label = "2"
+        absorbed.source_ids = ["doc-2"]
+        absorbed.corroborating_source_ids = ["doc-2"]
+        absorbed.corroboration_count = 1
+        absorbed.source_languages = ["es"]
+        db.save(survivor)
+        db.save(absorbed)
+        db.save(KnowledgeClaimLink(
+            id="dup-link",
+            claim_id=absorbed.id,
+            related_claim_id=survivor.id,
+            relation_type=ClaimRelationType.duplicate_of,
+        ))
+        db.save(KnowledgeClaimLink(
+            id="supports-link",
+            claim_id=absorbed.id,
+            related_claim_id="claim-other",
+            relation_type=ClaimRelationType.supports,
+        ))
+
+        r = client.post(
+            "/api/kg/claims/merge",
+            json={
+                "surviving_claim_id": survivor.id,
+                "absorbed_claim_ids": [absorbed.id],
+            },
+        )
+
+        assert r.status_code == 200
+        body = r.json()
+        assert body["operation_type"] == "merge"
+        assert body["target_claim_id"] == survivor.id
+        assert body["source_claim_ids"] == [absorbed.id]
+
+        survivor_after = db.get(KnowledgeClaim, survivor.id)
+        absorbed_after = db.get(KnowledgeClaim, absorbed.id)
+        assert sorted(survivor_after.corroborating_source_ids) == ["doc-1", "doc-2"]
+        assert sorted(survivor_after.source_ids) == ["doc-2"]
+        assert sorted(survivor_after.entity_ids) == ["ent-1", "ent-2"]
+        assert sorted(survivor_after.source_page_labels) == ["1", "2"]
+        assert absorbed_after.merged_into_id == survivor.id
+        assert absorbed_after.curation_state == ClaimCurationState.rejected
+        assert db.get(KnowledgeClaimLink, "dup-link") is None
+        repointed = db.get(KnowledgeClaimLink, "supports-link")
+        assert repointed.claim_id == survivor.id
+        assert repointed.related_claim_id == "claim-other"
+
+    def test_unmerge_restores_claims_and_links(self, client, db):
+        survivor = _make_claim("claim-survivor", source_document_id="doc-1")
+        absorbed = _make_claim("claim-absorbed", source_document_id="doc-2")
+        db.save(survivor)
+        db.save(absorbed)
+        db.save(KnowledgeClaimLink(
+            id="dup-link",
+            claim_id=absorbed.id,
+            related_claim_id=survivor.id,
+            relation_type=ClaimRelationType.duplicate_of,
+        ))
+
+        merge = client.post(
+            "/api/kg/claims/merge",
+            json={
+                "surviving_claim_id": survivor.id,
+                "absorbed_claim_ids": [absorbed.id],
+            },
+        )
+        assert merge.status_code == 200
+        audit_id = merge.json()["id"]
+
+        unmerge = client.post("/api/kg/claims/unmerge", json={"audit_id": audit_id})
+
+        assert unmerge.status_code == 200
+        assert unmerge.json()["operation_type"] == "unmerge"
+        restored_survivor = db.get(KnowledgeClaim, survivor.id)
+        restored_absorbed = db.get(KnowledgeClaim, absorbed.id)
+        assert restored_survivor.merged_into_id is None
+        assert restored_absorbed.merged_into_id is None
+        assert restored_absorbed.curation_state == ClaimCurationState.unreviewed
+        restored_link = db.get(KnowledgeClaimLink, "dup-link")
+        assert restored_link is not None
+        assert restored_link.claim_id == absorbed.id
+        assert restored_link.related_claim_id == survivor.id
+
+    def test_merge_rejects_already_merged_claim(self, client, db):
+        survivor = _make_claim("claim-survivor")
+        second_survivor = _make_claim("claim-survivor-2")
+        absorbed = _make_claim("claim-absorbed")
+        db.save(survivor)
+        db.save(second_survivor)
+        db.save(absorbed)
+        first = client.post(
+            "/api/kg/claims/merge",
+            json={
+                "surviving_claim_id": survivor.id,
+                "absorbed_claim_ids": [absorbed.id],
+            },
+        )
+        assert first.status_code == 200
+
+        second = client.post(
+            "/api/kg/claims/merge",
+            json={
+                "surviving_claim_id": second_survivor.id,
+                "absorbed_claim_ids": [absorbed.id],
+            },
+        )
+        assert second.status_code == 409
+
+    def test_unmerge_is_not_idempotent(self, client, db):
+        survivor = _make_claim("claim-survivor")
+        absorbed = _make_claim("claim-absorbed")
+        db.save(survivor)
+        db.save(absorbed)
+        merge = client.post(
+            "/api/kg/claims/merge",
+            json={
+                "surviving_claim_id": survivor.id,
+                "absorbed_claim_ids": [absorbed.id],
+            },
+        )
+        audit_id = merge.json()["id"]
+
+        first = client.post("/api/kg/claims/unmerge", json={"audit_id": audit_id})
+        second = client.post("/api/kg/claims/unmerge", json={"audit_id": audit_id})
+
+        assert first.status_code == 200
+        assert second.status_code == 409
 
 
 class TestPruneTrivialClaims:
