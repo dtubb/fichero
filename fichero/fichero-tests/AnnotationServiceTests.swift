@@ -16,12 +16,13 @@ final class AnnotationServiceTests: XCTestCase {
     func testAnnotationServiceWiresDetailCropAndPromoteEndpoints() throws {
         let source = try Self.appSource("Services/AnnotationService.swift")
 
-        XCTAssertTrue(source.contains("/api/annotations/\\(id)"))
-        XCTAssertTrue(source.contains("/api/annotations/\\(id)/crop"))
-        XCTAssertTrue(source.contains("/api/annotations/\\(id)/promote-to-claim"))
-        XCTAssertTrue(source.contains("method: \"PATCH\""))
-        XCTAssertTrue(source.contains("method: \"DELETE\""))
-        XCTAssertTrue(source.contains("method: \"POST\""))
+        XCTAssertTrue(source.contains("client.api.getAnnotationApiAnnotationsAnnotationIdGet"))
+        XCTAssertTrue(source.contains("client.api.getCropApiAnnotationsAnnotationIdCropGet"))
+        XCTAssertTrue(source.contains("client.api.promoteToClaimApiAnnotationsAnnotationIdPromoteToClaimPost"))
+        XCTAssertTrue(source.contains("client.api.deleteAnnotationApiAnnotationsAnnotationIdDelete"))
+        XCTAssertFalse(source.contains("URLRequest("))
+        XCTAssertFalse(source.contains("URLSession"))
+        XCTAssertFalse(source.contains("URL(string:"))
     }
 
     func testDocumentInspectorAnnotationsTabWiresRowActions() throws {
@@ -32,6 +33,37 @@ final class AnnotationServiceTests: XCTestCase {
         XCTAssertTrue(source.contains("service.cropAnnotation(id: annotation.id)"))
         XCTAssertTrue(source.contains("service.promoteToClaim(id: annotation.id)"))
         XCTAssertTrue(source.contains("service.delete(id: annotation.id)"))
+    }
+
+    func testAnnotationServiceUsesExplicitPageAndFolderScopeFields() throws {
+        let source = try Self.appSource("Services/AnnotationService.swift")
+
+        XCTAssertTrue(source.contains("query: .init(pageId: pageId)"))
+        XCTAssertTrue(source.contains("query: .init(folderId: folderId)"))
+        XCTAssertTrue(source.contains("pageId: pageId"))
+        XCTAssertTrue(source.contains("folderId: folderId"))
+        XCTAssertTrue(source.contains("folderAnnotation(from:"))
+    }
+
+    func testDocumentInspectorAnnotationsTabSelectsScopeFromDocumentType() throws {
+        let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorAnnotationsTab.swift")
+
+        XCTAssertTrue(source.contains("case .folder:"))
+        XCTAssertTrue(source.contains("return .folder(document.id)"))
+        XCTAssertTrue(source.contains("case .page:"))
+        XCTAssertTrue(source.contains("return .page(document.id)"))
+        XCTAssertTrue(source.contains("await service.load(folderId: document.id)"))
+        XCTAssertTrue(source.contains("await service.load(pageId: document.id)"))
+    }
+
+    func testFolderScopedAnnotationsHideRevealDependentActions() throws {
+        let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorAnnotationsTab.swift")
+
+        XCTAssertTrue(source.contains("if annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan)"))
+        XCTAssertTrue(source.contains("if annotation.canRevealSource {"))
+        XCTAssertTrue(source.contains("guard let documentId = annotation.documentId else { return }"))
+        XCTAssertTrue(source.contains("guard await service.delete(id: annotation.id) else { return }"))
+        XCTAssertTrue(source.contains("await loadAnnotations()"))
     }
 
     func testMatchesSearchByText() {

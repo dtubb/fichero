@@ -8,6 +8,7 @@ extension Notification.Name {
     static let annotationSelectedInInspector = Notification.Name("annotationSelectedInInspector")
 }
 
+// swiftlint:disable type_body_length
 /// Annotations tab for the Document Inspector (#1276).
 ///
 /// Lists a document's annotations, lets the user add a quick note and delete any
@@ -37,7 +38,7 @@ struct DocumentInspectorAnnotationsTab: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: document.id) {
             service.libraryPath = apiClient.currentLibraryPath
-            await service.load(documentId: document.id)
+            await loadAnnotations()
         }
         .sheet(item: $editingAnnotation) { annotation in
             annotationEditSheet(annotation)
@@ -119,17 +120,19 @@ struct DocumentInspectorAnnotationsTab: View {
                         } label: {
                             Label("Edit Text", systemImage: "pencil")
                         }
-                        if annotation.hasRegion || annotation.hasSpan {
+                        if annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan) {
                             Button {
                                 Task { await copyCrop(annotation) }
                             } label: {
                                 Label("Copy Cropped Content", systemImage: "crop")
                             }
                         }
-                        Button {
-                            Task { await promoteToClaim(annotation) }
-                        } label: {
-                            Label("Promote to Claim", systemImage: "arrow.up.doc")
+                        if annotation.canRevealSource {
+                            Button {
+                                Task { await promoteToClaim(annotation) }
+                            } label: {
+                                Label("Promote to Claim", systemImage: "arrow.up.doc")
+                            }
                         }
                         Divider()
                         Button(role: .destructive) {
@@ -169,7 +172,7 @@ struct DocumentInspectorAnnotationsTab: View {
         let linkedClaimIds = activeClaimId.map { [$0] } ?? []
         Task {
             let created = await service.addNote(
-                documentId: document.id,
+                scope: annotationScope,
                 text: trimmed,
                 linkedClaimIds: linkedClaimIds
             )
@@ -180,7 +183,10 @@ struct DocumentInspectorAnnotationsTab: View {
     }
 
     private func delete(_ annotation: DocumentAnnotation) {
-        Task { await service.delete(id: annotation.id) }
+        Task {
+            guard await service.delete(id: annotation.id) else { return }
+            await loadAnnotations()
+        }
     }
 
     private func beginEditing(_ annotation: DocumentAnnotation) {
@@ -219,7 +225,8 @@ struct DocumentInspectorAnnotationsTab: View {
     /// reading surface can observe. Decoupled so the inspector doesn't need a
     /// direct reference to the viewer (#1276).
     private func reveal(_ annotation: DocumentAnnotation) {
-        var info: [String: Any] = ["documentId": annotation.documentId]
+        guard let documentId = annotation.documentId else { return }
+        var info: [String: Any] = ["documentId": documentId]
         if let pageLabel = annotation.pageLabel { info["pageLabel"] = pageLabel }
         if let bbox = annotation.bbox { info["bbox"] = bbox }
         if let charStart = annotation.charStart { info["charStart"] = charStart }
@@ -241,6 +248,28 @@ struct DocumentInspectorAnnotationsTab: View {
             return nil
         }
         return claimFocusState.selectedClaimId
+    }
+
+    private var annotationScope: AnnotationScope {
+        switch document.docType {
+        case .folder:
+            return .folder(document.id)
+        case .page:
+            return .page(document.id)
+        default:
+            return .document(document.id)
+        }
+    }
+
+    private func loadAnnotations() async {
+        switch document.docType {
+        case .folder:
+            await service.load(folderId: document.id)
+        case .page:
+            await service.load(pageId: document.id)
+        default:
+            await service.load(documentId: document.id)
+        }
     }
 
     private func annotationEditSheet(_ annotation: DocumentAnnotation) -> some View {
@@ -274,6 +303,7 @@ struct DocumentInspectorAnnotationsTab: View {
         .padding()
     }
 }
+// swiftlint:enable type_body_length
 
 // MARK: - Row
 
@@ -302,7 +332,7 @@ private struct AnnotationRow: View {
                     }
                 }
                 Spacer(minLength: 0)
-                if annotation.hasRegion || annotation.hasSpan {
+                if annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan) {
                     Image(systemName: "arrow.right.circle")
                         .foregroundStyle(.tertiary)
                         .help("Reveal source")

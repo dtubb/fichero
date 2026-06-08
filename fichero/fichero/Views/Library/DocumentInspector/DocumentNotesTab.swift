@@ -25,7 +25,7 @@ struct DocumentNotesTab: View {
         }
         .task(id: document.id) {
             service.libraryPath = apiClient.currentLibraryPath
-            await service.load(linkedDocumentId: document.id)
+            await loadNotes()
         }
     }
 
@@ -131,7 +131,7 @@ struct DocumentNotesTab: View {
                 .font(.caption)
                 Button(role: .destructive) {
                     guard let noteId = note.id else { return }
-                    Task { try? await service.delete(noteId: noteId) }
+                    Task { await deleteNote(noteId: noteId) }
                 } label: {
                     Image(systemName: "trash")
                         .font(.caption)
@@ -177,7 +177,7 @@ struct DocumentNotesTab: View {
         isSaving = true
         Task {
             do {
-                _ = try await service.create(body: trimmed, linkedDocumentId: document.id)
+                _ = try await createNote(body: trimmed)
                 newText = ""
                 newFieldFocused = false
             } catch {
@@ -203,5 +203,36 @@ struct DocumentNotesTab: View {
         let rel = RelativeDateTimeFormatter()
         rel.unitsStyle = .abbreviated
         return rel.localizedString(for: date, relativeTo: Date())
+    }
+
+    private func loadNotes() async {
+        switch document.docType {
+        case .folder:
+            await service.load(folderId: document.id)
+        case .page:
+            await service.load(pageId: document.id)
+        default:
+            await service.load(linkedDocumentId: document.id)
+        }
+    }
+
+    private func createNote(body: String) async throws -> NoteItem {
+        switch document.docType {
+        case .folder:
+            return try await service.create(body: body, folderId: document.id)
+        case .page:
+            return try await service.create(body: body, pageId: document.id)
+        default:
+            return try await service.create(body: body, linkedDocumentId: document.id)
+        }
+    }
+
+    private func deleteNote(noteId: String) async {
+        do {
+            try await service.delete(noteId: noteId)
+            await loadNotes()
+        } catch {
+            logger.error("delete note failed: \(error.localizedDescription)")
+        }
     }
 }

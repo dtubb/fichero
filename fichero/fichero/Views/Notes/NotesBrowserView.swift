@@ -3,6 +3,7 @@ import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "NotesBrowserView")
 
+// swiftlint:disable type_body_length
 /// Standalone notes browser (#1500). Lists every Note record, filterable by
 /// kind / tag / full-text, and lets the user create free-floating notes
 /// (zettels, hubs, fleeting notes) without a document open. Reuses the
@@ -210,6 +211,11 @@ struct NotesBrowserView: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
                     .background(Capsule().fill(Color.accentColor.opacity(0.15)))
+                if let scopeLabel = noteScopeLabel(note) {
+                    Text(scopeLabel)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 ForEach(note.tags ?? [], id: \.self) { tag in
                     Text("#\(tag)")
                         .font(.caption2)
@@ -224,7 +230,7 @@ struct NotesBrowserView: View {
                 .font(.caption)
                 Button(role: .destructive) {
                     guard let noteId = note.id else { return }
-                    Task { try? await service.delete(noteId: noteId) }
+                    Task { await deleteNote(noteId: noteId) }
                 } label: {
                     Image(systemName: "trash").font(.caption)
                 }
@@ -290,4 +296,20 @@ struct NotesBrowserView: View {
             logger.error("update note failed: \(error.localizedDescription)")
         }
     }
+
+    private func noteScopeLabel(_ note: NoteItem) -> String? {
+        if note.folderId?.isEmpty == false { return "Folder" }
+        if note.pageId?.isEmpty == false { return "Page" }
+        return nil
+    }
+
+    private func deleteNote(noteId: String) async {
+        do {
+            try await service.delete(noteId: noteId)
+            await reload()
+        } catch {
+            logger.error("delete note failed: \(error.localizedDescription)")
+        }
+    }
 }
+// swiftlint:enable type_body_length
