@@ -241,6 +241,109 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertEqual(rules.first?.reason, "Bulk suppress from inspector")
     }
 
+    func testInspectorClaimMergePlanPrefersHighestCorroborationCountThenSupport() {
+        var lower = makeKnowledgeClaim(
+            id: "claim-1",
+            subject: "Andagoya",
+            predicate: "served as",
+            object: "alcalde"
+        )
+        lower.corroborationCount = 2
+        lower.weightedCorroborationCount = 2.0
+
+        var highest = makeKnowledgeClaim(
+            id: "claim-2",
+            subject: "Andagóya",
+            predicate: "served as",
+            object: "alcalde mayor"
+        )
+        highest.corroborationCount = 5
+        highest.weightedCorroborationCount = 5.0
+
+        var middle = makeKnowledgeClaim(
+            id: "claim-3",
+            subject: "the Andagoya district",
+            predicate: "served as",
+            object: "district seat"
+        )
+        middle.corroborationCount = 4
+        middle.weightedCorroborationCount = 4.0
+
+        let plan = InspectorClaimBulkSelection.mergePlan(for: [lower, highest, middle])
+
+        XCTAssertEqual(plan?.survivorId, "claim-2")
+        XCTAssertEqual(plan?.survivorName, "Andagóya served as alcalde mayor")
+        XCTAssertEqual(plan?.absorbedClaimIds.sorted(), ["claim-1", "claim-3"])
+        XCTAssertEqual(plan?.claimCount, 3)
+    }
+
+    func testInspectorClaimMergePlanBreaksTiesByWeightedSupportThenLexical() {
+        var lowerWeighted = makeKnowledgeClaim(
+            id: "claim-1",
+            subject: "Andagoya",
+            predicate: "is",
+            object: "a district"
+        )
+        lowerWeighted.corroborationCount = 3
+        lowerWeighted.weightedCorroborationCount = 3.2
+
+        var higherWeighted = makeKnowledgeClaim(
+            id: "claim-2",
+            subject: "Andagóya",
+            predicate: "is",
+            object: "a district"
+        )
+        higherWeighted.corroborationCount = 3
+        higherWeighted.weightedCorroborationCount = 3.8
+
+        let weightedWinner = InspectorClaimBulkSelection.mergePlan(
+            for: [lowerWeighted, higherWeighted]
+        )
+        XCTAssertEqual(weightedWinner?.survivorId, "claim-2")
+
+        var lexicalA = makeKnowledgeClaim(
+            id: "claim-3",
+            subject: "Andagoya",
+            predicate: "is",
+            object: "a district"
+        )
+        lexicalA.corroborationCount = 3
+        lexicalA.weightedCorroborationCount = 3.0
+
+        var lexicalB = makeKnowledgeClaim(
+            id: "claim-4",
+            subject: "Andagóya",
+            predicate: "is",
+            object: "a district"
+        )
+        lexicalB.corroborationCount = 3
+        lexicalB.weightedCorroborationCount = 3.0
+
+        let lexicalWinner = InspectorClaimBulkSelection.mergePlan(for: [lexicalB, lexicalA])
+        XCTAssertEqual(lexicalWinner?.survivorId, "claim-3")
+        XCTAssertEqual(lexicalWinner?.survivorName, "Andagoya is a district")
+    }
+
+    func testInspectorClaimMergePlanRejectsMergedClaims() {
+        var canonical = makeKnowledgeClaim(
+            id: "claim-1",
+            subject: "Andagoya",
+            predicate: "is",
+            object: "a place"
+        )
+        canonical.mergedIntoId = nil
+
+        var absorbed = makeKnowledgeClaim(
+            id: "claim-2",
+            subject: "andagoya",
+            predicate: "is",
+            object: "a place"
+        )
+        absorbed.mergedIntoId = "claim-1"
+
+        XCTAssertNil(InspectorClaimBulkSelection.mergePlan(for: [canonical, absorbed]))
+    }
+
     func testKnowledgeGraphInspectorSectionUsesGeneratedClaimBulkCurationOnly() throws {
         let source = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift"
@@ -252,14 +355,20 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
         XCTAssertTrue(source.contains("batchSetClaimCurationState"))
         XCTAssertTrue(source.contains("batchCreateClaimRules"))
+        XCTAssertTrue(source.contains("kgCurationService.mergeClaims"))
+        XCTAssertTrue(source.contains("claimMergeActionMenu(targetClaims: selectedClaims, menuTitle: \"Merge\")"))
         XCTAssertTrue(source.contains("Menu(\"Prune trivial\")"))
         XCTAssertTrue(source.contains("kgCurationService.pruneTrivialClaims"))
+        XCTAssertTrue(source.contains("// TODO(#1689): claim unmerge UI"))
         XCTAssertTrue(rowSource.contains("Menu(\"Suppress\")"))
+        XCTAssertTrue(rowSource.contains("Button(\"Merge into \\\"\\(mergePlan.survivorName)\\\"\")"))
         XCTAssertTrue(rowSource.contains("Menu(\"Prune trivial\")"))
         XCTAssertFalse(source.contains("URLSession"))
         XCTAssertFalse(source.contains("URLRequest"))
         XCTAssertFalse(source.contains("URL(string:"))
         XCTAssertTrue(serviceSource.contains("batchSetClaimCurationStateApiKgClaimsBatchCurationPatch"))
+        XCTAssertTrue(serviceSource.contains("mergeClaimsApiKgClaimsMergePost"))
+        XCTAssertTrue(serviceSource.contains("unmergeClaimsApiKgClaimsUnmergePost"))
         XCTAssertTrue(serviceSource.contains("pruneTrivialClaimsApiKgClaimsPruneTrivialPost"))
     }
 
