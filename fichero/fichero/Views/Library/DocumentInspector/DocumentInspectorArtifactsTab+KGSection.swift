@@ -906,14 +906,9 @@ private extension Components.Schemas.KnowledgeClaim {
             return text
         }
 
-        let pieces = [
-            subjectCanonical?.trimmingCharacters(in: .whitespacesAndNewlines),
-            predicateVerb?.trimmingCharacters(in: .whitespacesAndNewlines),
-            objectPhrase?.trimmingCharacters(in: .whitespacesAndNewlines)
-        ].compactMap { value in
-            guard let value, !value.isEmpty else { return nil }
-            return value
-        }
+        let pieces = [subjectCanonical, predicateVerb, objectPhrase]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
         if !pieces.isEmpty {
             return pieces.joined(separator: " ")
         }
