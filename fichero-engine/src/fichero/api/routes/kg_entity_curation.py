@@ -106,6 +106,41 @@ def _entity_embeddings_table_name(db: Database) -> str | None:
     return None
 
 
+def search_entities_semantic_impl(
+    *,
+    db: Database,
+    q: str,
+    entity_type: EntityType | None = None,
+    limit: int = 20,
+) -> KGGraphListResponse:
+    """Shared semantic entity retrieval for the route and /api/search."""
+    table_name = _entity_embeddings_table_name(db)
+    if table_name is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Entity embeddings not yet indexed. POST /kg/entity-curation/semantic/embed "
+                "first or rebuild KG vectors."
+            ),
+        )
+    try:
+        query_vector = db._embed_text(q)  # type: ignore[attr-defined]
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Embedding generation failed: {exc}") from exc
+    results = db.search_vectors(table_name, query_vector, limit=limit)
+    entity_ids = [r["id"] for r in results]
+    if not entity_ids:
+        return KGGraphListResponse(items=[], count=0)
+    entities = {e.id: e for e in db.all(KnowledgeEntity) if e.id in entity_ids}
+    score_map = {r["id"]: _vector_similarity(r) for r in results}
+    items = [
+        {**entities[eid].model_dump(), "similarity_score": score_map.get(eid, 0.0)}
+        for eid in entity_ids
+        if eid in entities and (entity_type is None or entities[eid].entity_type == entity_type)
+    ]
+    return KGGraphListResponse(items=items, count=len(items))
+
+
 def _audit_response(audit: EntityMergeAudit) -> EntityAuditResponse:
     return EntityAuditResponse(
         id=audit.id,
@@ -416,31 +451,12 @@ async def search_entities_semantic(
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     """Semantic entity search via LanceDB."""
-    table_name = _entity_embeddings_table_name(db)
-    if table_name is None:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "Entity embeddings not yet indexed. POST /kg/entity-curation/semantic/embed "
-                "first or rebuild KG vectors."
-            ),
-        )
-    try:
-        query_vector = db._embed_text(q)  # type: ignore[attr-defined]
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Embedding generation failed: {exc}") from exc
-    results = db.search_vectors(table_name, query_vector, limit=limit)
-    entity_ids = [r["id"] for r in results]
-    if not entity_ids:
-        return KGGraphListResponse(items=[], count=0)
-    entities = {e.id: e for e in db.all(KnowledgeEntity) if e.id in entity_ids}
-    score_map = {r["id"]: _vector_similarity(r) for r in results}
-    items = [
-        {**entities[eid].model_dump(), "similarity_score": score_map.get(eid, 0.0)}
-        for eid in entity_ids
-        if eid in entities and (entity_type is None or entities[eid].entity_type == entity_type)
-    ]
-    return KGGraphListResponse(items=items, count=len(items))
+    return search_entities_semantic_impl(
+        db=db,
+        q=q,
+        entity_type=entity_type,
+        limit=limit,
+    )
 
 
 # ---------------------------------------------------------------------------

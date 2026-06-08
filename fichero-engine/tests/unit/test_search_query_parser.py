@@ -72,6 +72,18 @@ class TestEntityScopes:
         plan = parse_query("places:Quibdó")
         assert plan.scopes == {"places": ["Quibdó"]}
 
+    def test_entities_scope(self) -> None:
+        plan = parse_query("entities:Asprilla")
+        assert plan.scopes == {"entities": ["Asprilla"]}
+        assert plan.semantic_scopes == {"entities": ["Asprilla"]}
+        assert plan.artifact_scopes == {}
+
+    def test_claims_scope(self) -> None:
+        plan = parse_query("claims:mine")
+        assert plan.scopes == {"claims": ["mine"]}
+        assert plan.semantic_scopes == {"claims": ["mine"]}
+        assert plan.artifact_scopes == {}
+
     def test_scope_with_freetext(self) -> None:
         plan = parse_query("people:Asprilla gold")
         assert plan.scopes == {"people": ["Asprilla"]}
@@ -136,6 +148,13 @@ class TestIntentFlags:
         plan = parse_query("people:Asprilla")
         assert not plan.has_freetext_intent
         assert plan.has_entity_scope
+        assert plan.has_scope
+
+    def test_pure_claim_scope_no_freetext_intent(self) -> None:
+        plan = parse_query("claims:mine")
+        assert not plan.has_freetext_intent
+        assert not plan.has_entity_scope
+        assert plan.has_scope
 
     def test_pure_freetext_no_scope(self) -> None:
         plan = parse_query("Asprilla")

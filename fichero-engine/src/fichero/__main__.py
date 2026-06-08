@@ -1069,6 +1069,7 @@ def artifacts_get(
 # alias for `fulltext` so users with that mental model don't get a 400.
 _SEARCH_TYPE_CHOICES = ("semantic", "fulltext", "hybrid", "keyword")
 _SEARCH_TYPE_ALIASES = {"keyword": "fulltext"}
+_SEARCH_SCOPE_CHOICES = ("content", "entities", "claims")
 
 
 def _validate_search_type(value: str) -> str:
@@ -1079,6 +1080,25 @@ def _validate_search_type(value: str) -> str:
             f"'{value}' is not one of {list(_SEARCH_TYPE_CHOICES)}."
         )
     return _SEARCH_TYPE_ALIASES.get(normalized, normalized)
+
+
+def _normalize_search_scopes(values: list[str]) -> list[str] | None:
+    """Accept repeated and comma-separated --scope flags."""
+    if not values:
+        return None
+    normalized_scopes: list[str] = []
+    for raw_value in values:
+        for part in raw_value.split(","):
+            scope = part.strip().lower()
+            if not scope:
+                continue
+            if scope not in _SEARCH_SCOPE_CHOICES:
+                raise typer.BadParameter(
+                    f"'{scope}' is not one of {list(_SEARCH_SCOPE_CHOICES)}."
+                )
+            if scope not in normalized_scopes:
+                normalized_scopes.append(scope)
+    return normalized_scopes or None
 
 
 @app.command()
@@ -1098,8 +1118,14 @@ def search(
     in_folder: Optional[str] = typer.Option(
         None, "--in-folder", help="Restrict results to this folder ID."
     ),
+    scope: list[str] = typer.Option(
+        [],
+        "--scope",
+        help="Search scopes: content, entities, claims. Repeat or pass a comma-separated list.",
+    ),
 ) -> None:
     """Search documents. Use --in-doc / --in-folder to scope results."""
+    include = _normalize_search_scopes(scope)
     if ctx.obj["json"]:
         _invoke(
             ctx,
@@ -1107,6 +1133,7 @@ def search(
                 query,
                 limit=limit,
                 search_type=search_type,
+                include=include,
                 doc_id=in_doc,
                 folder_id=in_folder,
             ),
@@ -1118,6 +1145,7 @@ def search(
                 query,
                 limit=limit,
                 search_type=search_type,
+                include=include,
                 doc_id=in_doc,
                 folder_id=in_folder,
             )
@@ -1127,8 +1155,12 @@ def search(
 
     from fichero.cli.formatters import render_claim
 
+    payload = data.model_dump(mode="json") if hasattr(data, "model_dump") else data
+
     # Try to render as search results with custom formatting first
-    results = data.get("results") if isinstance(data, dict) else data
+    results = payload.get("results") if isinstance(payload, dict) else payload
+    entity_hits = payload.get("entity_hits") if isinstance(payload, dict) else None
+    claim_hits = payload.get("claim_hits") if isinstance(payload, dict) else None
     if isinstance(results, list) and results:
         typer.echo(f"results ({len(results)}):")
         for r in results:
@@ -1138,8 +1170,30 @@ def search(
             else:
                 # Fall back to custom search result formatting
                 typer.echo(_render_search_result_item(r))
+    elif isinstance(payload, dict):
+        typer.echo(_render_search_results(payload))
     else:
-        typer.echo(_render_search_results(data))
+        typer.echo(_render_search_results(payload))
+
+    if isinstance(entity_hits, list) and entity_hits:
+        typer.echo(f"entity hits ({len(entity_hits)}):")
+        for entity in entity_hits:
+            if not isinstance(entity, dict):
+                typer.echo(f"  - {entity}")
+                continue
+            name = entity.get("canonical_name") or entity.get("name") or "(unnamed entity)"
+            entity_id = str(entity.get("id") or "?")[:8]
+            score = entity.get("similarity_score")
+            score_str = f"{score:.3f}" if isinstance(score, (int, float)) else "  -  "
+            typer.echo(f"  {score_str}  {entity_id}  {name}")
+
+    if isinstance(claim_hits, list) and claim_hits:
+        typer.echo(f"claim hits ({len(claim_hits)}):")
+        for claim in claim_hits:
+            if isinstance(claim, dict) and "subject_canonical" in claim:
+                typer.echo(f"  {render_claim(claim)}")
+            else:
+                typer.echo(f"  - {claim}")
 
 
 def _render_search_result_item(r: Any) -> str:

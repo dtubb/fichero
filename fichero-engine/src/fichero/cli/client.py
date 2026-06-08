@@ -892,6 +892,7 @@ class FicheroClient:
         limit: int = 10,
         search_type: str = "hybrid",
         min_score: float = 0.3,
+        include: list[str] | None = None,
         doc_id: str | None = None,
         folder_id: str | None = None,
     ) -> SearchResponse:
@@ -901,6 +902,8 @@ class FicheroClient:
             "search_type": search_type,
             "min_score": min_score,
         }
+        if include is not None:
+            body["include"] = include
         filters: dict = {}
         if doc_id:
             filters["document_id"] = doc_id
