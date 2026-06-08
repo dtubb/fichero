@@ -136,10 +136,7 @@ extension SidebarView {
             workflowsNavigationRow()
         }
 
-        if FeatureManager.shared.isBatchesEnabled {
-            batchesNavigationRow()
-        }
-
+        // Batches hidden from the sidebar — superseded by Activity (Daniel, 2026-06-08).
         if FeatureManager.shared.isWorkflowsEnabled {
             comparisonNavigationRow()
         }
@@ -152,9 +149,7 @@ extension SidebarView {
             researchNavigationRow()
         }
 
-        if FeatureManager.shared.isMindPalaceEnabled {
-            mindPalaceNavigationRow()
-        }
+        // Mind Palace hidden — folded into library folders, not a separate workspace (Daniel, 2026-06-08).
 
         if FeatureManager.shared.isKnowledgeGraphEnabled {
             entitiesNavigationRow()

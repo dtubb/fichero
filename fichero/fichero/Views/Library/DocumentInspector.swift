@@ -182,7 +182,7 @@ struct DocumentInspector: View {
     private func availableTabs(for doc: Document?) -> [InspectorTab] {
         guard let doc else { return InspectorTab.allCases }
         var tabs: [InspectorTab] = [
-            .content, .outline, .annotations, .notes, .entities, .knowledgeGraph, .artifacts
+            .content, .annotations, .notes, .knowledgeGraph, .outline, .entities, .artifacts
         ]
         if doc.fileType == .image || doc.fileType == .pdf || doc.docType == .page {
             tabs.append(.edits)
