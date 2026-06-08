@@ -82,6 +82,7 @@ from fichero.workflows.tools import cleanup  # per-section page/folder canonical
 from fichero.workflows.tools import import_artifacts  # noqa: F401  (#1757 step 1)
 from fichero.workflows.tools import extract_entities_only  # noqa: F401  (#1757 step 2)
 from fichero.workflows.tools import extract_svo_only  # noqa: F401  (#1757 step 3)
+from fichero.workflows.tools import merge_dedup_only  # noqa: F401  (#1757 step 4)
 
 # Audio tools (use shared audio_base)
 from fichero.workflows.tools import audio_transcribe
@@ -170,6 +171,7 @@ __all__ = [
     "import_artifacts",
     "extract_entities_only",
     "extract_svo_only",
+    "merge_dedup_only",
     # Audio
     "audio_transcribe",
     # Video

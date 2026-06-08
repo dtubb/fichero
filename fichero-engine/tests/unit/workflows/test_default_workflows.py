@@ -187,11 +187,12 @@ class TestLoadPresetFiles:
         stage0 = presets["1 · Import → Artifacts"]
         stage0b = presets["2 · Extract Entities"]
         stage0c = presets["3 · Extract SVO → Claims"]
+        stage0d = presets["4 · Merge / Dedup"]
         stage1 = presets["Catalogue Stage 1 - Transcribe Pages"]
         stage2 = presets["Catalogue Stage 2 - Extract Entities + KG"]
         stage3 = presets["Catalogue Stage 3 - Catalogue Artifacts"]
 
-        for preset in (stage0, stage0b, stage0c, stage1, stage2, stage3):
+        for preset in (stage0, stage0b, stage0c, stage0d, stage1, stage2, stage3):
             assert preset.get("is_template") is True
             assert preset.get("is_system") is True
             assert preset.get("folder_path") == "/Catalogue"
@@ -236,6 +237,20 @@ class TestLoadPresetFiles:
             and e["target_port"] == "documents"
             for e in stage0c["edges"]
         ), "stage 3 must feed selected documents into extract_svo_only"
+
+        stage0d_tools = {n["tool"] for n in stage0d["nodes"]}
+        assert stage0d_tools == {"files", "merge_dedup_only"}
+        assert "merge" in stage0d.get("tags", [])
+        assert "dedup" in stage0d.get("tags", [])
+        merge_dedup_id = _node_id(stage0d, "merge_dedup_only")
+        files_id = _node_id(stage0d, "files")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == merge_dedup_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in stage0d["edges"]
+        ), "stage 4 must feed selected documents into merge_dedup_only"
 
         stage1_tools = {n["tool"] for n in stage1["nodes"]}
         assert stage1_tools == {"files", "transcribe"}

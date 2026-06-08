@@ -11,7 +11,8 @@
       "workflows/tools/extract_svo_only.py::extract_svo_only",
       "workflows/tools/extract_all.py::_persist_additional_entities",
       "workflows/tools/extractors.py::_write_citation_usage_rows",
-      "workflows/tools/extractors.py::_write_kg_rows"
+      "workflows/tools/extractors.py::_write_kg_rows",
+      "workflows/tools/merge_dedup_only.py::merge_dedup_only"
     ],
     "kg_write:KnowledgeEntity": [
       "api/routes/entities.py::upsert_entity",
@@ -22,7 +23,8 @@
       "workflows/tools/extract_entities_only.py::extract_entities_only",
       "workflows/tools/extract_svo_only.py::extract_svo_only",
       "workflows/tools/extract_all.py::_persist_additional_entities",
-      "workflows/tools/extractors.py::_write_kg_rows"
+      "workflows/tools/extractors.py::_write_kg_rows",
+      "workflows/tools/merge_dedup_only.py::merge_dedup_only"
     ],
     "route:DELETE /notes/{note_id}": [
       "api/routes/mind_palace.py::delete_note",
