@@ -203,8 +203,10 @@ struct DocumentInspector: View {
     @ViewBuilder
     private func entitiesTab(for doc: Document) -> some View {
         DocumentInspectorEntitiesTab(
+            document: doc,
             documentId: doc.id,
             entityService: entityService,
+            kgCurationService: library.kgCurationService,
             onEntitySelect: { entityId in
                 kgFocusState.focusEntity(entityId: entityId)
             }
