@@ -304,10 +304,11 @@ class TestChatStructuredDispatch:
     async def test_non_apple_picks_json_schema_when_profile_advertises_it(self):
         """Profile-driven method selection (#844 item 7): when
         model.profile.structured_output is True, prefer json_schema —
-        faster + cheaper than tool-calling. Native OpenAI/Anthropic/
-        Gemini advertise this; OpenRouter-passthrough models often
-        don't."""
-        cfg = LLMConfig(provider="openai", model="gpt-5")
+        faster + cheaper than tool-calling. Native Anthropic/Gemini/
+        Mistral advertise this; OpenRouter-passthrough models often
+        don't. (openai/openrouter have explicit overrides — #1802/#1803 —
+        so this test uses a native provider that hits the profile branch.)"""
+        cfg = LLMConfig(provider="anthropic", model="claude-sonnet-4.6")
 
         invoke_result = _Result(answer="from-openai")
         ainvoke_mock = AsyncMock(return_value=invoke_result)
@@ -323,8 +324,10 @@ class TestChatStructuredDispatch:
             )
 
         assert result is invoke_result
+        # json_schema is paired with strict=False so LangChain coerces into the
+        # pydantic model without OpenAI's rigid schema gate (#1803).
         base_model.with_structured_output.assert_called_once_with(
-            _Result, method="json_schema", include_raw=True
+            _Result, method="json_schema", include_raw=True, strict=False
         )
 
     @pytest.mark.asyncio
@@ -369,6 +372,29 @@ class TestChatStructuredDispatch:
 
         base_model.with_structured_output.assert_called_once_with(
             _Result, include_raw=True
+        )
+
+    @pytest.mark.asyncio
+    async def test_openrouter_uses_function_calling(self):
+        """OpenRouter routes structured output through function_calling
+        (#1802). json_mode 400s the OpenAI route ('messages' must contain
+        'json') and strict json_schema returns an empty body on Bedrock-
+        Claude; tool-calling works on both once the Bedrock-hostile
+        parallel_tool_calls param is stripped at the request layer."""
+        cfg = LLMConfig(provider="openrouter", model="anthropic/claude-3.5-haiku")
+
+        invoke_result = _Result(answer="ok")
+        structured_model = MagicMock()
+        structured_model.ainvoke = AsyncMock(return_value=invoke_result)
+        base_model = MagicMock()
+        base_model.profile = {"structured_output": True}
+        base_model.with_structured_output = MagicMock(return_value=structured_model)
+
+        with patch("fichero.llm.get_langchain_model", return_value=base_model):
+            await chat_structured(prompt="hi", schema=_Result, config=cfg)
+
+        base_model.with_structured_output.assert_called_once_with(
+            _Result, method="function_calling", include_raw=True
         )
 
     @pytest.mark.asyncio
@@ -1089,3 +1115,86 @@ class TestSupportsLocale:
         """When fm-bridge isn't installed, returns False without raising."""
         with patch("pathlib.Path.is_file", return_value=False):
             assert await apple_intelligence_supports_locale("en") is False
+
+
+class _FakeRequest:
+    """Minimal stand-in for httpx.Request for hook unit tests — exposes
+    the attributes _openrouter_strip_parallel_tool_use reads/writes."""
+
+    def __init__(self, body: bytes, content_type: str = "application/json"):
+        import httpx
+
+        self._content = body
+        self.stream = httpx.ByteStream(body)
+        self.headers = {
+            "content-type": content_type,
+            "content-length": str(len(body)),
+        }
+
+    @property
+    def content(self) -> bytes:
+        return self._content
+
+
+class TestOpenRouterStripParallelToolUse:
+    """The httpx request hook that keeps function_calling structured output
+    working on the OpenRouter→Bedrock-Claude route (#1802)."""
+
+    @pytest.mark.asyncio
+    async def test_strips_parallel_tool_calls_field(self):
+        import json
+
+        from fichero.llm import _openrouter_strip_parallel_tool_use
+
+        body = {
+            "model": "anthropic/claude-3.5-haiku",
+            "messages": [{"role": "user", "content": "hi"}],
+            "parallel_tool_calls": False,
+            "tool_choice": {"type": "function", "function": {"name": "X"}},
+        }
+        req = _FakeRequest(json.dumps(body).encode())
+        await _openrouter_strip_parallel_tool_use(req)
+
+        out = json.loads(req.content.decode())
+        assert "parallel_tool_calls" not in out
+        # Everything else is preserved verbatim.
+        assert out["model"] == "anthropic/claude-3.5-haiku"
+        assert out["tool_choice"] == body["tool_choice"]
+        assert req.headers["content-length"] == str(len(req.content))
+
+    @pytest.mark.asyncio
+    async def test_strips_nested_disable_parallel_tool_use(self):
+        import json
+
+        from fichero.llm import _openrouter_strip_parallel_tool_use
+
+        body = {
+            "tool_choice": {"type": "auto", "disable_parallel_tool_use": True},
+        }
+        req = _FakeRequest(json.dumps(body).encode())
+        await _openrouter_strip_parallel_tool_use(req)
+
+        out = json.loads(req.content.decode())
+        assert "disable_parallel_tool_use" not in out["tool_choice"]
+        assert out["tool_choice"]["type"] == "auto"
+
+    @pytest.mark.asyncio
+    async def test_passes_through_clean_body_untouched(self):
+        import json
+
+        from fichero.llm import _openrouter_strip_parallel_tool_use
+
+        original = json.dumps({"model": "m", "messages": []}).encode()
+        req = _FakeRequest(original)
+        await _openrouter_strip_parallel_tool_use(req)
+        # No offending key → body is left byte-identical.
+        assert req.content == original
+
+    @pytest.mark.asyncio
+    async def test_ignores_non_json_body(self):
+        from fichero.llm import _openrouter_strip_parallel_tool_use
+
+        original = b"--multipart-boundary--"
+        req = _FakeRequest(original, content_type="multipart/form-data")
+        await _openrouter_strip_parallel_tool_use(req)
+        assert req.content == original
