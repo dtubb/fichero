@@ -220,10 +220,13 @@ final class AnnotationService: ObservableObject {
     }
 
     private func annotation(from generated: Components.Schemas.Annotation) -> DocumentAnnotation? {
-        guard let id = generated.id else { return nil }
+        // documentId is optional on the wire since #1759 (folder-scoped
+        // annotations carry folder_id, not document_id). This per-document
+        // converter only surfaces annotations bound to a document.
+        guard let id = generated.id, let documentId = generated.documentId else { return nil }
         return DocumentAnnotation(
             id: id,
-            documentId: generated.documentId,
+            documentId: documentId,
             pageLabel: generated.pageLabel,
             charStart: generated.charStart,
             charEnd: generated.charEnd,
