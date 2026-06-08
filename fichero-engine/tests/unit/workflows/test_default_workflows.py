@@ -184,16 +184,32 @@ class TestLoadPresetFiles:
         remains unchanged while users can run transcription and entity/KG
         stages independently (#1669)."""
         presets = {p["name"]: p for p in _load_preset_files()}
+        stage0 = presets["1 · Import → Artifacts"]
         stage1 = presets["Catalogue Stage 1 - Transcribe Pages"]
         stage2 = presets["Catalogue Stage 2 - Extract Entities + KG"]
         stage3 = presets["Catalogue Stage 3 - Catalogue Artifacts"]
 
-        for preset in (stage1, stage2, stage3):
+        for preset in (stage0, stage1, stage2, stage3):
             assert preset.get("is_template") is True
             assert preset.get("is_system") is True
             assert preset.get("folder_path") == "/Catalogue"
             assert "stage" in preset.get("tags", [])
             assert "reviewable" in preset.get("tags", [])
+
+        stage0_tools = {n["tool"] for n in stage0["nodes"]}
+        assert stage0_tools == {"files", "import_artifacts"}
+        assert "import" in stage0.get("tags", [])
+        import_node = next(n for n in stage0["nodes"] if n["tool"] == "import_artifacts")
+        assert import_node["config"] == {}
+        files_id = _node_id(stage0, "files")
+        import_id = _node_id(stage0, "import_artifacts")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == import_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in stage0["edges"]
+        ), "stage 0 must feed selected documents into import_artifacts"
 
         stage1_tools = {n["tool"] for n in stage1["nodes"]}
         assert stage1_tools == {"files", "transcribe"}

@@ -79,6 +79,7 @@ from fichero.workflows.tools import book_structure
 from fichero.workflows.tools import detect_structure
 from fichero.workflows.tools import citations_extract
 from fichero.workflows.tools import cleanup  # per-section page/folder canonical cleanup
+from fichero.workflows.tools import import_artifacts  # noqa: F401  (#1757 step 1)
 
 # Audio tools (use shared audio_base)
 from fichero.workflows.tools import audio_transcribe
@@ -164,6 +165,7 @@ __all__ = [
     "detect_structure",
     "citations_extract",
     "cleanup",
+    "import_artifacts",
     # Audio
     "audio_transcribe",
     # Video
