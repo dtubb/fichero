@@ -58,3 +58,39 @@ because that's the surface Daniel lives in. Scope each bridge to the single fail
 - Not an excuse to skip `List` where `List` already does the job.
 
 Tracking: see the "Mac-assed app" EPIC and its children in GitHub Issues.
+
+---
+
+## Addendum 2026-06-08 — SwiftUI 2026 raises the bar (WWDC26)
+
+The recipes above came from a **May-2026, pre-WWDC** blog. The 2026 OS / SwiftUI
+release closes several of those gaps natively, so the order of preference tightens:
+
+**Prefer SwiftUI 2026 native first**, AppKit-bridge only where it *still* can't reach:
+- List/Grid/Section **content reordering** APIs (replaces hand-rolled move logic).
+- **Swipe actions on any view** (row actions: approve/reject/merge without a menu).
+- **Toolbar** visibility-priority + auto-minimizing (the 3-pane toolbar-precision gap).
+- **AsyncImage caching** (reading-surface thumbnails — all via storage HTTP, never local paths).
+- **Lazy `@State` init for Observable** (cheaper view-model construction at scale).
+- `\.appearsActive` / `\.isEmphasized` for selection emphasis on focus loss.
+
+**When a bridge is still needed**, the mechanism is the "Use SwiftUI with AppKit"
+toolkit: `NSHostingView`/`NSHostingController`, the Observation framework for
+auto-updating AppKit from `@Observable`, and AppKit gesture-recognizer bridging.
+Same containment discipline; fold into the existing stack.
+
+**Does NOT apply to us:** the new disk-access **Document protocol** (snapshot diffing
+against local files) — Fichero's engine may be remote; data is HTTP, not local disk.
+Swift's `FileDocument`/`ReferenceFileDocument` model is not our architecture.
+
+**Profiling (#1815):** Xcode 27 **Instruments / Top Functions** is the SwiftUI-side
+profiler to pair with the backend perf harness (the 225 ms doc-scoped entity path).
+
+**Data structures:** adopt **swift-collections** (`OrderedSet`, `OrderedDictionary`)
+for stable ordered grouping + entity/claim dedup substrate.
+
+**Best Mac element for an item:** a `List` row (it's `NSTableView` underneath →
+free selection/emphasis/context-menu-target). Convert custom `ScrollView`+`VStack`
+item lists to `List` **only with an interaction spot-check**, since some of ours
+(e.g. the inspector Entities tab) have *deliberately-built* standard-macOS multi-select
+that a blind swap could regress — iterate, don't replace working selection behavior.
