@@ -1,3 +1,5 @@
+// swiftlint:disable file_length
+import FicheroAPIClient
 import SwiftUI
 
 // MARK: - Mail-Style Row (like Apple Mail)
@@ -303,6 +305,77 @@ struct DocumentThumbnailView: View {
     }
 }
 
+struct EntityThumbnailKindStyle {
+    let label: String
+    let systemName: String
+    let tint: Color
+}
+
+struct EntityThumbnailView: View {
+    let entity: Components.Schemas.KnowledgeEntity
+    let isSelected: Bool
+    let secondaryText: String
+    let kindStyle: EntityThumbnailKindStyle
+    var scale: CGFloat = 1.0
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(.windowBackgroundColor))
+                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
+
+                VStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(kindStyle.tint.opacity(0.16))
+                            .frame(width: 50 * scale, height: 50 * scale)
+
+                        Image(systemName: kindStyle.systemName)
+                            .font(.system(size: 24 * scale, weight: .semibold))
+                            .foregroundStyle(kindStyle.tint)
+                    }
+
+                    Text(kindStyle.label.uppercased())
+                        .font(.system(size: 9 * scale, weight: .semibold))
+                        .tracking(0.6)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 8)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+            )
+
+            VStack(spacing: 2) {
+                Text(entity.canonicalName)
+                    .font(.caption)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(isSelected ? .accentColor : .primary)
+
+                Text(secondaryText)
+                    .font(.caption2)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 100 * scale)
+        .padding(6)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+        )
+    }
+}
+
 // MARK: - TextPreviewThumbnail
 
 /// Monospaced text thumbnail for JSON/text documents when no image thumbnail exists (#625).
@@ -334,3 +407,4 @@ struct TextPreviewThumbnail: View {
             .allowsHitTesting(false)
     }
 }
+// swiftlint:enable file_length
