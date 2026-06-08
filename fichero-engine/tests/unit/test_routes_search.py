@@ -6,9 +6,15 @@ The enhanced_search endpoint falls back gracefully when no embeddings exist
 so tests can exercise it without a seeded vector store.
 """
 
-from fichero.db import SearchAnchor, SearchExcerpt
+from __future__ import annotations
+
+from fastapi import HTTPException
+
+from fichero.api.routes import search as search_routes
+from fichero.knowledge_models import ClaimType, EntityType
+from fichero.db import SearchAnchor, SearchExcerpt, SearchResult
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
-from fichero.models import DocType, Document, FileType, SavedSearch
+from fichero.models import DocType, Document, FileType, KGGraphListResponse, SavedSearch
 
 
 # ---------------------------------------------------------------------------
@@ -28,6 +34,71 @@ def _make_saved_search(db, query: str = "test query") -> SavedSearch:
     )
     db.save(s)
     return s
+
+
+def _seed_semantic_search_scope_library(db):
+    doc = Document(
+        id="doc-search-scope",
+        name="search-scope.txt",
+        page_content="Asprilla worked the mine and wrote about it.",
+        doc_type=DocType.file,
+        file_type=FileType.text,
+    )
+    entity = KnowledgeEntity(
+        id="entity-asprilla",
+        canonical_name="Asprilla",
+        entity_type=EntityType.person,
+        aliases=[],
+    )
+    claim = KnowledgeClaim(
+        id="claim-asprilla",
+        text="Asprilla worked the mine.",
+        claim_type=ClaimType.fact,
+        source_document_id=doc.id,
+        source_excerpt="Asprilla worked the mine.",
+        subject_canonical="Asprilla",
+        predicate_verb="worked",
+        object_phrase="the mine",
+        entity_ids=[entity.id],
+    )
+    db.save(doc)
+    db.save(entity)
+    db.save(claim)
+    return doc, entity, claim
+
+
+def _mock_content_search(doc: Document) -> tuple[list[SearchResult], int, dict]:
+    return (
+        [
+            SearchResult(
+                document_id=doc.id,
+                score=0.91,
+                content_preview=doc.page_content or "",
+                metadata={
+                    "name": doc.name,
+                    "doc_type": doc.doc_type.value if hasattr(doc.doc_type, "value") else doc.doc_type,
+                    "file_type": doc.file_type.value if hasattr(doc.file_type, "value") else doc.file_type,
+                },
+                highlights=[],
+            )
+        ],
+        1,
+        {"search_type": "fulltext", "execution_time_ms": 1.0, "has_more": False},
+    )
+
+
+def _mock_entity_hits(entity: KnowledgeEntity) -> KGGraphListResponse:
+    return KGGraphListResponse(
+        items=[{**entity.model_dump(), "similarity_score": 0.9}],
+        count=1,
+    )
+
+
+def _mock_claim_hits(claim: KnowledgeClaim) -> KGGraphListResponse:
+    return KGGraphListResponse(
+        items=[{**claim.model_dump(), "similarity_score": 0.9}],
+        count=1,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -274,6 +345,126 @@ class TestEnhancedSearch:
         anchor = result["transcript_excerpts"][0]["anchor"]
         assert anchor["document_id"] == page2.id
         assert result["transcript_excerpts"][0]["match_start"] is not None
+
+    def test_default_search_includes_content_entities_and_claims(self, client, db, monkeypatch):
+        doc, entity, claim = _seed_semantic_search_scope_library(db)
+        monkeypatch.setattr(type(db), "search", lambda self, **kwargs: _mock_content_search(doc))
+        monkeypatch.setattr(
+            search_routes,
+            "search_entities_semantic_impl",
+            lambda **kwargs: _mock_entity_hits(entity),
+        )
+        monkeypatch.setattr(
+            search_routes,
+            "search_claims_semantic_impl",
+            lambda **kwargs: _mock_claim_hits(claim),
+        )
+
+        r = client.post(
+            "/api/search",
+            json={"query": "Asprilla", "search_type": "fulltext", "min_score": 0.0},
+        )
+
+        assert r.status_code == 200
+        body = r.json()
+        assert [result["document_id"] for result in body["results"]] == [doc.id]
+        assert [item["id"] for item in body["entity_hits"]] == [entity.id]
+        assert [item["id"] for item in body["claim_hits"]] == [claim.id]
+
+    def test_entities_scope_query_returns_only_entity_hits(self, client, db, monkeypatch):
+        _, entity, _ = _seed_semantic_search_scope_library(db)
+        monkeypatch.setattr(
+            search_routes,
+            "search_entities_semantic_impl",
+            lambda **kwargs: _mock_entity_hits(entity),
+        )
+
+        r = client.post(
+            "/api/search",
+            json={"query": "entities:Asprilla", "search_type": "fulltext", "min_score": 0.0},
+        )
+
+        assert r.status_code == 200
+        body = r.json()
+        assert body["results"] == []
+        assert [item["id"] for item in body["entity_hits"]] == [entity.id]
+        assert body["claim_hits"] == []
+
+    def test_include_subsets_gate_each_search_surface(self, client, db, monkeypatch):
+        doc, entity, claim = _seed_semantic_search_scope_library(db)
+        monkeypatch.setattr(type(db), "search", lambda self, **kwargs: _mock_content_search(doc))
+        monkeypatch.setattr(
+            search_routes,
+            "search_entities_semantic_impl",
+            lambda **kwargs: _mock_entity_hits(entity),
+        )
+        monkeypatch.setattr(
+            search_routes,
+            "search_claims_semantic_impl",
+            lambda **kwargs: _mock_claim_hits(claim),
+        )
+
+        cases = [
+            (["content"], 1, 0, 0),
+            (["entities"], 0, 1, 0),
+            (["claims"], 0, 0, 1),
+            (["content", "entities"], 1, 1, 0),
+            (["content", "claims"], 1, 0, 1),
+            (["entities", "claims"], 0, 1, 1),
+        ]
+
+        for include, result_count, entity_count, claim_count in cases:
+            r = client.post(
+                "/api/search",
+                json={
+                    "query": "Asprilla",
+                    "search_type": "fulltext",
+                    "min_score": 0.0,
+                    "include": include,
+                },
+            )
+            assert r.status_code == 200
+            body = r.json()
+            assert len(body["results"]) == result_count
+            assert len(body["entity_hits"]) == entity_count
+            assert len(body["claim_hits"]) == claim_count
+            if result_count:
+                assert body["results"][0]["document_id"] == doc.id
+            if entity_count:
+                assert body["entity_hits"][0]["id"] == entity.id
+            if claim_count:
+                assert body["claim_hits"][0]["id"] == claim.id
+
+    def test_missing_vector_tables_skip_kg_scopes_without_503(self, client, db, monkeypatch):
+        doc = Document(
+            id="doc-no-vectors",
+            name="doc-no-vectors.txt",
+            page_content="Asprilla worked the mine and wrote about it.",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        db.save(doc)
+        monkeypatch.setattr(type(db), "search", lambda self, **kwargs: _mock_content_search(doc))
+
+        def _missing_entities(**kwargs):
+            raise HTTPException(status_code=503, detail="Entity embeddings not yet indexed.")
+
+        def _missing_claims(**kwargs):
+            raise HTTPException(status_code=503, detail="Claim embeddings not yet indexed.")
+
+        monkeypatch.setattr(search_routes, "search_entities_semantic_impl", _missing_entities)
+        monkeypatch.setattr(search_routes, "search_claims_semantic_impl", _missing_claims)
+
+        r = client.post(
+            "/api/search",
+            json={"query": "Asprilla", "search_type": "fulltext", "min_score": 0.0},
+        )
+
+        assert r.status_code == 200
+        body = r.json()
+        assert [result["document_id"] for result in body["results"]] == [doc.id]
+        assert body["entity_hits"] == []
+        assert body["claim_hits"] == []
 
 
 # ---------------------------------------------------------------------------

@@ -50,6 +50,43 @@ def _embed_claims_sync(db: Database, claims: list[KnowledgeClaim]) -> int:
     return db.embed_claims(claims)
 
 
+def search_claims_semantic_impl(
+    *,
+    db: Database,
+    q: str,
+    claim_type: ClaimType | None = None,
+    curation_state: ClaimCurationState | None = None,
+    limit: int = 20,
+) -> KGGraphListResponse:
+    """Shared semantic claim retrieval for the route and /api/search."""
+    if KG_CLAIM_EMBEDDINGS_TABLE not in db._lance_tables():
+        raise HTTPException(
+            status_code=503,
+            detail="Claim embeddings not yet indexed. POST /kg/claim-search/embed first.",
+        )
+
+    try:
+        query_vector = db._embed_text(q)  # type: ignore[attr-defined]
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Embedding generation failed: {exc}") from exc
+
+    results = db.search_vectors(KG_CLAIM_EMBEDDINGS_TABLE, query_vector, limit=limit)
+    claim_ids = [r["id"] for r in results]
+    if not claim_ids:
+        return KGGraphListResponse(items=[], count=0)
+
+    claims = {c.id: c for c in db.all(KnowledgeClaim) if c.id in claim_ids}
+    score_map = {r["id"]: _vector_similarity(r) for r in results}
+    items = [
+        {**claims[cid].model_dump(), "similarity_score": score_map.get(cid, 0.0)}
+        for cid in claim_ids
+        if cid in claims
+        and (claim_type is None or claims[cid].claim_type == claim_type)
+        and (curation_state is None or claims[cid].curation_state == curation_state)
+    ]
+    return KGGraphListResponse(items=items, count=len(items))
+
+
 @router.post("/embed", response_model=EmbedClaimsResponse)
 async def embed_claims(
     request: _EmbedClaimRequest | None = None,
@@ -82,32 +119,13 @@ async def search_claims_semantic(
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     """Semantic claim search via LanceDB cosine similarity."""
-    if KG_CLAIM_EMBEDDINGS_TABLE not in db._lance_tables():
-        raise HTTPException(
-            status_code=503,
-            detail="Claim embeddings not yet indexed. POST /kg/claim-search/embed first.",
-        )
-
-    try:
-        query_vector = db._embed_text(q)  # type: ignore[attr-defined]
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Embedding generation failed: {exc}") from exc
-
-    results = db.search_vectors(KG_CLAIM_EMBEDDINGS_TABLE, query_vector, limit=limit)
-    claim_ids = [r["id"] for r in results]
-    if not claim_ids:
-        return KGGraphListResponse(items=[], count=0)
-
-    claims = {c.id: c for c in db.all(KnowledgeClaim) if c.id in claim_ids}
-    score_map = {r["id"]: _vector_similarity(r) for r in results}
-    items = [
-        {**claims[cid].model_dump(), "similarity_score": score_map.get(cid, 0.0)}
-        for cid in claim_ids
-        if cid in claims
-        and (claim_type is None or claims[cid].claim_type == claim_type)
-        and (curation_state is None or claims[cid].curation_state == curation_state)
-    ]
-    return KGGraphListResponse(items=items, count=len(items))
+    return search_claims_semantic_impl(
+        db=db,
+        q=q,
+        claim_type=claim_type,
+        curation_state=curation_state,
+        limit=limit,
+    )
 
 
 @router.get("/{claim_id}/similar", response_model=KGGraphListResponse)

@@ -5,9 +5,11 @@ Produces a structured plan from a user-typed query string so the route
 can apply different retrieval strategies for different parts. Supports:
 
 - Quoted phrases: `"el escribano"` → exact substring of the whole phrase
-- Field scopes:    `people:Asprilla`  → match only the people artifact table
-                   `places:Quibdó`    → only places
+- Field scopes:    `people:Asprilla`   → match only the people artifact table
+                   `places:Quibdó`     → only places
                    `organizations:`, `dates:`, `events:`, `keywords:`
+                   `entities:Asprilla` → search KG entity vectors only
+                   `claims:mine`       → search KG claim vectors only
 - NOT exclusions:  `gold -mining`     → matches "gold" but excludes docs
                                         containing "mining"
 - Plain terms:     anything else      → standard substring + semantic
@@ -26,12 +28,13 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-# All entity types the catalogue/extract_all workflow emits. Adding a
-# new type to extract_all means adding it here AND to _entity_match_results
-# in routes/search.py.
-ENTITY_TYPES = frozenset(
+# Scope prefixes supported by /api/search. Adding a new artifact scope also
+# means teaching routes/search.py how to consume it.
+ARTIFACT_SCOPE_TYPES = frozenset(
     {"people", "places", "organizations", "dates", "events", "keywords"}
 )
+SEMANTIC_SCOPE_TYPES = frozenset({"entities", "claims"})
+SCOPE_TYPES = ARTIFACT_SCOPE_TYPES | SEMANTIC_SCOPE_TYPES
 
 
 @dataclass
@@ -43,8 +46,9 @@ class SearchPlan:
             semantic + fulltext retrievers.
         phrases: Quoted exact-substring phrases (each must match).
         excludes: NOT-prefixed terms — docs containing any are dropped.
-        scopes: Mapping entity_type -> list of values to match in that
-            artifact table. e.g. {'people': ['Asprilla'], 'places': ['Quibdó']}.
+        scopes: Mapping scope prefix -> list of values to match. Artifact
+            scopes target extracted document metadata; `entities` / `claims`
+            target the KG vector stores.
         original: The raw query string for logging / round-trip tags.
     """
 
@@ -66,12 +70,35 @@ class SearchPlan:
 
     @property
     def has_entity_scope(self) -> bool:
-        """Whether the entity bridge should run with explicit scope."""
+        """Backward-compatible alias for artifact-scoped document search."""
+        return bool(self.artifact_scopes)
+
+    @property
+    def has_scope(self) -> bool:
+        """Whether the query includes any structured scope prefix."""
         return bool(self.scopes)
+
+    @property
+    def artifact_scopes(self) -> dict[str, list[str]]:
+        """Scopes that target document artifact metadata."""
+        return {
+            scope: values
+            for scope, values in self.scopes.items()
+            if scope in ARTIFACT_SCOPE_TYPES
+        }
+
+    @property
+    def semantic_scopes(self) -> dict[str, list[str]]:
+        """Scopes that target KG vector retrieval."""
+        return {
+            scope: values
+            for scope, values in self.scopes.items()
+            if scope in SEMANTIC_SCOPE_TYPES
+        }
 
 
 _QUOTED_RE = re.compile(r'"([^"]+)"')
-_SCOPE_RE = re.compile(rf'(?P<field>{"|".join(ENTITY_TYPES)}):(?P<value>\S+)')
+_SCOPE_RE = re.compile(rf'(?P<field>{"|".join(SCOPE_TYPES)}):(?P<value>\S+)')
 _EXCLUDE_RE = re.compile(r"(?:^|\s)-(\S+)")
 
 
@@ -97,7 +124,7 @@ def parse_query(raw: str) -> SearchPlan:
     # 1. Scoped phrases like `people:"José Antonio"` first — they have a
     # field followed by a quoted value.
     scoped_phrase_re = re.compile(
-        rf'(?P<field>{"|".join(ENTITY_TYPES)}):"(?P<value>[^"]+)"'
+        rf'(?P<field>{"|".join(SCOPE_TYPES)}):"(?P<value>[^"]+)"'
     )
     for match in scoped_phrase_re.finditer(remaining):
         plan.scopes.setdefault(match.group("field"), []).append(match.group("value"))

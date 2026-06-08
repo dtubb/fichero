@@ -51519,6 +51519,563 @@
         "title": "SearchAnchor",
         "description": "Stable character-position anchor within the indexed transcript text."
       },
+      "SearchClaimHit": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "source_document_id": {
+            "type": "string",
+            "title": "Source Document Id"
+          },
+          "source_segment_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Segment Id"
+          },
+          "source_page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Page Label"
+          },
+          "source_excerpt": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Excerpt"
+          },
+          "source_ref": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Ref"
+          },
+          "source_char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char Start"
+          },
+          "source_char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Source Char End"
+          },
+          "grounds": {
+            "type": "string",
+            "nullable": true,
+            "title": "Grounds",
+            "description": "Evidence: 'the heirs filed in 1933'."
+          },
+          "warrant": {
+            "type": "string",
+            "nullable": true,
+            "title": "Warrant",
+            "description": "Rule connecting grounds \u2192 claim."
+          },
+          "backing": {
+            "type": "string",
+            "nullable": true,
+            "title": "Backing",
+            "description": "Support for the warrant \u2014 why the rule holds."
+          },
+          "qualifier": {
+            "type": "string",
+            "nullable": true,
+            "title": "Qualifier",
+            "description": "'presumably' / 'usually' / 'in most cases'."
+          },
+          "rebuttal": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rebuttal",
+            "description": "Known exception / counter-evidence."
+          },
+          "time_start": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time Start",
+            "description": "Start of the time period the claim refers to, ISO 8601 (year / month / day). 'X became alcalde in 1933' \u2192 1933-01-01."
+          },
+          "time_end": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time End",
+            "description": "End of the time period \u2014 equal to time_start for instant events, later for ranges. 'X served from 1933 to 1937' \u2192 time_end=1937-12-31."
+          },
+          "time_precision": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time Precision",
+            "description": "'year' | 'month' | 'day' | 'range' | 'unknown'"
+          },
+          "date_values": {
+            "items": {
+              "$ref": "#/components/schemas/EvidentialDateRange"
+            },
+            "type": "array",
+            "title": "Date Values",
+            "description": "Structured temporal evidence ranges. Each value records basis/assertion type, confidence, and source anchoring."
+          },
+          "source_bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Source Bbox",
+            "description": "[x, y, width, height] in PDF page coordinates. Populated via PyMuPDF page.search(excerpt) for PDF-backed claims; None for text-only or when the search misses."
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/SourceType",
+            "default": "document"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Ids"
+          },
+          "source_page_labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Page Labels"
+          },
+          "source_languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Languages"
+          },
+          "claim_type": {
+            "$ref": "#/components/schemas/ClaimType",
+            "nullable": true
+          },
+          "epistemic_status": {
+            "$ref": "#/components/schemas/EpistemicStatus",
+            "nullable": true
+          },
+          "subject_canonical": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Canonical",
+            "description": "Canonical name of the subject entity in this claim's S-V-O triple. For entity-bearing claims this matches the entity's canonical_name and (when present) subject_entity_id resolves to the entity row. For date-style claims the subject is the normalised date string."
+          },
+          "subject_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Entity Id",
+            "description": "Resolved KnowledgeEntity.id when the subject canonical name matches a known entity. Lets the graph view do an O(1) lookup instead of name matching at render time."
+          },
+          "predicate_verb": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate Verb",
+            "description": "Verb / verb phrase of the SVO triple. Examples: 'served as', 'wrote', 'is located in'. Composed with object_phrase to form the human-readable claim text."
+          },
+          "object_phrase": {
+            "type": "string",
+            "nullable": true,
+            "title": "Object Phrase",
+            "description": "Object phrase of the SVO triple \u2014 the rest of the predicate after the verb. Example: 'the alcalde of Popay\u00e1n'."
+          },
+          "svo_subject": {
+            "type": "string",
+            "nullable": true,
+            "title": "Svo Subject",
+            "description": "Subject of the SVO triple. Alias for subject_canonical with consistent naming. Populated from extract_all output using normalized entity names."
+          },
+          "svo_verb": {
+            "type": "string",
+            "nullable": true,
+            "title": "Svo Verb",
+            "description": "Verb of the SVO triple. Uses slug_verb from kg/_common.py for canonical normalization. Populated from extract_all output with fallback to synthesized values."
+          },
+          "svo_object": {
+            "type": "string",
+            "nullable": true,
+            "title": "Svo Object",
+            "description": "Object of the SVO triple. Complements svo_subject and svo_verb to form complete structured triples. Populated from extract_all output."
+          },
+          "entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Entity Ids"
+          },
+          "curation_state": {
+            "$ref": "#/components/schemas/ClaimCurationState",
+            "default": "unreviewed"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "default": 0.5
+          },
+          "predicted_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Predicted Confidence"
+          },
+          "predicted_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Predicted By"
+          },
+          "prediction": {
+            "$ref": "#/components/schemas/PredictionMetadata",
+            "nullable": true
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider",
+            "description": "LLM provider that proposed this claim (e.g. 'openai', 'anthropic', 'apple'). None for human-authored claims and legacy rows written before #1113."
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model",
+            "description": "Model that produced this claim, optionally suffixed with '+heuristic-svo' when local SVO synthesis filled in verb/object the LLM didn't return. Examples: 'gpt-4o-mini', 'apple-intelligence+heuristic-svo'."
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "source_metadata": {
+            "$ref": "#/components/schemas/SourceMetadata",
+            "nullable": true,
+            "description": "Structured citation and archival metadata for the primary source"
+          },
+          "speaker_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Speaker Name",
+            "description": "Free-text speaker label as it appears in the source \u2014 'the witness Pedro', 'the petitioner Maria'. May not match any known entity (use speaker_entity_id when it does)."
+          },
+          "speaker_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Speaker Entity Id",
+            "description": "Resolved KnowledgeEntity.id when speaker_name matches a known entity \u2014 lets the inspector navigate by speaker."
+          },
+          "subject_of_inquiry_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject Of Inquiry Entity Id",
+            "description": "When the claim is testimony ABOUT a third party (Pedro testified about Maria), this names that third party. Distinct from subject_entity_id (the SVO subject = Pedro)."
+          },
+          "scribe_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Scribe Name",
+            "description": "Who physically wrote the source text. The scribe is often different from the speaker (Maria petitions; the scribe writes); their hand may inflect bias or formula."
+          },
+          "scribe_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Scribe Entity Id"
+          },
+          "editor_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Editor Name",
+            "description": "Editor of the curated collection / edition this claim was extracted from. For uncurated raw documents this is null."
+          },
+          "editor_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Editor Entity Id"
+          },
+          "quotation_kind": {
+            "$ref": "#/components/schemas/QuotationKind",
+            "nullable": true,
+            "description": "How literally the claim reproduces the source \u2014 verbatim vs paraphrase changes the warrant strength."
+          },
+          "provenance_layer": {
+            "$ref": "#/components/schemas/ProvenanceLayer",
+            "description": "Where on the page the source text lives. Defaults to main_text; PDF-bbox margin heuristics promote to marginalia / footnote / interlinear.",
+            "default": "main_text"
+          },
+          "source_language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Language",
+            "description": "Original language of THIS claim's source text (ISO 639-1). May differ from the document's primary language when a doc contains multilingual passages \u2014 a 17c Spanish record may embed a Latin formula. Mirrors `language` for back-compat; the extractor writes both."
+          },
+          "translation_chain": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Translation Chain",
+            "description": "Translation history as 'lang:source' tags, e.g. ['es:original', 'en:apple-translate', 'en:human-edit']. Empty list means the text is in its original language."
+          },
+          "audience": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audience",
+            "description": "Whom the claim was addressed to \u2014 'the Cabildo of Popay\u00e1n', 'the Audiencia'. Extracted from 'to the X' / 'addressed to Y' patterns in the source."
+          },
+          "source_genre": {
+            "$ref": "#/components/schemas/SourceGenre",
+            "nullable": true,
+            "description": "Genre of the source passage. Per-passage (not per-doc) \u2014 a 19c compiled collection may reprint petitions alongside royal decrees and private letters."
+          },
+          "claim_recorded_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Recorded At",
+            "description": "When THIS claim's text was recorded, ISO 8601. Distinct from time_start (when the events happened) and from the document's date \u2014 a 1933 archive copy may reproduce an 1820 letter, so the letter's claim has time_start=1820 but claim_recorded_at=1820 (the letter's date), while a scribal annotation on the same page might have claim_recorded_at=1965."
+          },
+          "claim_geo": {
+            "$ref": "#/components/schemas/GeoPoint",
+            "nullable": true,
+            "description": "Spatial scope of the claim \u2014 distinct from entity locations. 'Pedro left Popay\u00e1n for Quito' has claim_geo pinned to the journey path's midpoint, not Pedro's birthplace."
+          },
+          "claim_location": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Location",
+            "description": "Free-text location where this claim's events occurred or are spatially scoped to. Complements claim_geo for human-readable place names when exact coordinates are unavailable."
+          },
+          "place_values": {
+            "items": {
+              "$ref": "#/components/schemas/EvidentialPlace"
+            },
+            "type": "array",
+            "title": "Place Values",
+            "description": "Structured spatial evidence values. Supports named sets, regions, paths, and points with basis/confidence."
+          },
+          "temporal_context": {
+            "type": "string",
+            "nullable": true,
+            "title": "Temporal Context",
+            "description": "Contextual notes about the temporal scope beyond the time_start/time_end range. Example: 'during the rainy season' or 'following the 1933 decree'. Captures imprecise temporal modifiers that don't fit ISO 8601."
+          },
+          "claim_speaker": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Speaker",
+            "description": "The speaker or source voice of the claim within the source text. Distinct from speaker_name (which may be a witness in testimony); claim_speaker is the direct voice articulating the claim. Example: 'the petitioner' or 'the scribe's annotation'."
+          },
+          "confidence_source": {
+            "type": "string",
+            "nullable": true,
+            "title": "Confidence Source",
+            "description": "Where the `confidence` value came from: 'llm_logprob' / 'heuristic' / 'human_review' / 'corroboration' / 'default'. Lets the inspector explain why a claim is rated 0.7 instead of treating the number as load-bearing."
+          },
+          "attribution_chain": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionStep"
+            },
+            "type": "array",
+            "title": "Attribution Chain",
+            "description": "Ordered attribution chain: speaker/asserter, reporter, recorder/source document, editor, translator, extractor."
+          },
+          "source_supports": {
+            "items": {
+              "$ref": "#/components/schemas/SourceSupport"
+            },
+            "type": "array",
+            "title": "Source Supports",
+            "description": "Per-source evidential support for this canonical claim, including source-anchored date/place values."
+          },
+          "corroboration_count": {
+            "type": "integer",
+            "title": "Corroboration Count",
+            "description": "Number of distinct source documents supporting this claim.",
+            "default": 1
+          },
+          "weighted_corroboration_count": {
+            "type": "number",
+            "title": "Weighted Corroboration Count",
+            "description": "Authority-weighted support count for this claim. Primary sources contribute 1.0, secondary 0.6, tertiary 0.3.",
+            "default": 1.0
+          },
+          "corroborating_source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Corroborating Source Ids"
+          },
+          "evidential_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Evidential Confidence"
+          },
+          "evidential_confidence_source": {
+            "type": "string",
+            "nullable": true,
+            "title": "Evidential Confidence Source",
+            "description": "Why the evidential confidence was assigned."
+          },
+          "predicate_canonical": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate Canonical",
+            "description": "Normalised predicate from kg/_common.py::CANONICAL_VERBS (~40-50 verbs across ontological / spatial / temporal / speech / role / kinship / property / causal / quantitative categories). Used for queries + SPARQL parity; predicate_verb is kept free-text for display."
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By",
+            "default": "human"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "similarity_score": {
+            "type": "number",
+            "title": "Similarity Score",
+            "default": 0.0
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "text",
+          "source_document_id"
+        ],
+        "title": "SearchClaimHit"
+      },
+      "SearchEntityHit": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "entity_type": {
+            "$ref": "#/components/schemas/EntityType-Output",
+            "default": "other"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "date_values": {
+            "items": {
+              "$ref": "#/components/schemas/EvidentialDateRange"
+            },
+            "type": "array",
+            "title": "Date Values"
+          },
+          "place_values": {
+            "items": {
+              "$ref": "#/components/schemas/EvidentialPlace"
+            },
+            "type": "array",
+            "title": "Place Values"
+          },
+          "attribution_chain": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionStep"
+            },
+            "type": "array",
+            "title": "Attribution Chain"
+          },
+          "source_supports": {
+            "items": {
+              "$ref": "#/components/schemas/SourceSupport"
+            },
+            "type": "array",
+            "title": "Source Supports"
+          },
+          "source_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Document Ids",
+            "description": "Document/page ids this entity was extracted from (per-page scope; parent aggregates via descendants). #1562"
+          },
+          "curation_state": {
+            "$ref": "#/components/schemas/EntityCurationState",
+            "default": "unreviewed"
+          },
+          "corroboration_count": {
+            "type": "integer",
+            "title": "Corroboration Count",
+            "default": 0
+          },
+          "merged_into_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Merged Into Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "similarity_score": {
+            "type": "number",
+            "title": "Similarity Score",
+            "default": 0.0
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "canonical_name"
+        ],
+        "title": "SearchEntityHit"
+      },
       "SearchExcerpt": {
         "properties": {
           "text": {
@@ -51653,6 +52210,15 @@
         "title": "SearchExplanation",
         "description": "Complete search explanation with attribution and metrics."
       },
+      "SearchInclude": {
+        "type": "string",
+        "enum": [
+          "content",
+          "entities",
+          "claims"
+        ],
+        "title": "SearchInclude"
+      },
       "SearchMetrics": {
         "properties": {
           "total_candidates": {
@@ -51773,6 +52339,13 @@
             "title": "Limit",
             "default": 10
           },
+          "include": {
+            "items": {
+              "$ref": "#/components/schemas/SearchInclude"
+            },
+            "type": "array",
+            "title": "Include"
+          },
           "min_score": {
             "type": "number",
             "title": "Min Score",
@@ -51834,6 +52407,20 @@
             },
             "type": "array",
             "title": "Results"
+          },
+          "entity_hits": {
+            "items": {
+              "$ref": "#/components/schemas/SearchEntityHit"
+            },
+            "type": "array",
+            "title": "Entity Hits"
+          },
+          "claim_hits": {
+            "items": {
+              "$ref": "#/components/schemas/SearchClaimHit"
+            },
+            "type": "array",
+            "title": "Claim Hits"
           },
           "count": {
             "type": "integer",

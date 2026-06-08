@@ -6,12 +6,15 @@ Semantic search using LanceDB vector embeddings.
 
 import logging
 from datetime import datetime
+from enum import Enum
 from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.api.main import get_library_database
+from fichero.api.routes.kg_claim_search import search_claims_semantic_impl
+from fichero.api.routes.kg_entity_curation import search_entities_semantic_impl
 from fichero.search.query_parser import parse_query
 from fichero.db import (
     Database,
@@ -20,10 +23,17 @@ from fichero.db import (
     _fold_for_search,
     _search_match_terms,
 )
+from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.models import DocType, Document, EmbeddingStatsResponse, SavedSearch
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class SearchInclude(str, Enum):
+    content = "content"
+    entities = "entities"
+    claims = "claims"
 
 
 def _safe_isoformat(value) -> str:
@@ -393,12 +403,98 @@ def _entity_match_results(
     return out
 
 
+def _search_scope_queries(
+    *,
+    plan: Any,
+    scope_name: str,
+    fallback_query: str | None,
+) -> list[str]:
+    values = [value.strip() for value in plan.scopes.get(scope_name, []) if value.strip()]
+    if values:
+        return values
+    if fallback_query:
+        return [fallback_query]
+    return []
+
+
+def _fallback_semantic_query(plan: Any, retrieval_query: str) -> str | None:
+    query = retrieval_query.strip()
+    if not query:
+        return None
+    if not plan.scopes:
+        return query
+    if plan.has_freetext_intent:
+        return query
+    return None
+
+
+def _dedupe_semantic_hits(items: list[dict[str, Any]], *, limit: int) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for item in items:
+        item_id = str(item.get("id") or "")
+        if not item_id or item_id in seen_ids:
+            continue
+        seen_ids.add(item_id)
+        deduped.append(item)
+        if len(deduped) >= limit:
+            break
+    return deduped
+
+
+def _run_entity_semantic_queries(
+    *,
+    db: Database,
+    queries: list[str],
+    limit: int,
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for query in queries:
+        try:
+            response = search_entities_semantic_impl(db=db, q=query, limit=limit)
+        except HTTPException as exc:
+            logger.warning("entity semantic search skipped for query %r: %s", query, exc.detail)
+            continue
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("entity semantic search failed for query %r: %s", query, exc)
+            continue
+        items.extend(item for item in response.items if isinstance(item, dict))
+    return _dedupe_semantic_hits(items, limit=limit)
+
+
+def _run_claim_semantic_queries(
+    *,
+    db: Database,
+    queries: list[str],
+    limit: int,
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for query in queries:
+        try:
+            response = search_claims_semantic_impl(db=db, q=query, limit=limit)
+        except HTTPException as exc:
+            logger.warning("claim semantic search skipped for query %r: %s", query, exc.detail)
+            continue
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("claim semantic search failed for query %r: %s", query, exc)
+            continue
+        items.extend(item for item in response.items if isinstance(item, dict))
+    return _dedupe_semantic_hits(items, limit=limit)
+
+
 # Request/Response models
 class SearchRequest(BaseModel):
     """Request model for enhanced search."""
 
     query: str
     limit: int = 10
+    include: list[SearchInclude] = Field(
+        default_factory=lambda: [
+            SearchInclude.content,
+            SearchInclude.entities,
+            SearchInclude.claims,
+        ]
+    )
     # 0.55 filters out the unthresholded-semantic noise floor: a query like
     # "racial inequality" over a 15-doc corpus returns every page at
     # 42-50% cosine similarity (#1054). At 0.55 the post-RRF filter
@@ -422,11 +518,21 @@ class SearchRequest(BaseModel):
     highlight_results: bool = True
 
 
+class SearchEntityHit(KnowledgeEntity):
+    similarity_score: float = 0.0
+
+
+class SearchClaimHit(KnowledgeClaim):
+    similarity_score: float = 0.0
+
+
 class SearchResponse(BaseModel):
     """Response model for enhanced search results."""
 
     query: str
     results: list[SearchResult]
+    entity_hits: list[SearchEntityHit] = Field(default_factory=list)
+    claim_hits: list[SearchClaimHit] = Field(default_factory=list)
     count: int
     total_results: int  # Total results before pagination
     search_type: str  # Type of search performed
@@ -513,6 +619,8 @@ async def enhanced_search(
         return SearchResponse(
             query="",
             results=recents,
+            entity_hits=[],
+            claim_hits=[],
             count=len(recents),
             total_results=len(recents),
             search_type="recent",
@@ -547,13 +655,18 @@ async def enhanced_search(
     # post-filter for phrases + excludes and union-in entity scopes.
     plan = parse_query(request.query)
     retrieval_query = plan.free_text or " ".join(plan.phrases) or request.query
+    fallback_semantic_query = _fallback_semantic_query(plan, retrieval_query)
+    include_set = set(request.include)
+    search_content = SearchInclude.content in include_set
+    search_entities = SearchInclude.entities in include_set
+    search_claims = SearchInclude.claims in include_set
 
     # Pure scope queries (e.g. `people:Asprilla` alone) skip the
     # text retriever entirely — answers are 100% from the entity bridge.
-    skip_retriever = plan.has_entity_scope and not plan.has_freetext_intent
+    skip_retriever = plan.has_scope and not plan.has_freetext_intent
 
     # Perform enhanced search
-    if skip_retriever:
+    if not search_content or skip_retriever:
         results, total_count, search_stats = (
             [],
             0,
@@ -592,17 +705,17 @@ async def enhanced_search(
     # we restrict to that entity_type. Otherwise we fall back to scanning
     # all entity types, which is what makes clicking a blue lozenge
     # always return the doc the lozenge came from. (#481 / B4)
-    bridge_run = (
+    bridge_run = search_content and (
         request.search_type in ("hybrid", "fulltext") or skip_retriever
     )
     if bridge_run:
         seen_ids = {r.document_id for r in results}
         slots_remaining = max(0, request.limit - len(results))
         if slots_remaining > 0:
-            entity_hits: list[SearchResult] = []
-            if plan.has_entity_scope:
+            artifact_hits: list[SearchResult] = []
+            if plan.artifact_scopes:
                 # Scoped: emit one batch per (type, value) and dedupe.
-                for entity_type, values in plan.scopes.items():
+                for entity_type, values in plan.artifact_scopes.items():
                     for value in values:
                         hits = _entity_match_results(
                             db,
@@ -613,17 +726,17 @@ async def enhanced_search(
                         )
                         for hit in hits:
                             seen_ids.add(hit.document_id)
-                        entity_hits.extend(hits)
+                        artifact_hits.extend(hits)
             else:
-                entity_hits = _entity_match_results(
+                artifact_hits = _entity_match_results(
                     db,
                     query=request.query,
                     limit=slots_remaining,
                     exclude_doc_ids=seen_ids,
                 )
-            if entity_hits:
-                results = list(results) + entity_hits
-                total_count = total_count + len(entity_hits)
+            if artifact_hits:
+                results = list(results) + artifact_hits
+                total_count = total_count + len(artifact_hits)
 
     # The noise-floor hack is no longer needed now that embeddings are
     # L2-normalised and scores are real cosine similarities (see
@@ -678,9 +791,38 @@ async def enhanced_search(
         except Exception as exc:  # noqa: BLE001
             logger.warning("did-you-mean failed: %s", exc)
 
+    entity_hits = (
+        _run_entity_semantic_queries(
+            db=db,
+            queries=_search_scope_queries(
+                plan=plan,
+                scope_name="entities",
+                fallback_query=fallback_semantic_query,
+            ),
+            limit=request.limit,
+        )
+        if search_entities
+        else []
+    )
+    claim_hits = (
+        _run_claim_semantic_queries(
+            db=db,
+            queries=_search_scope_queries(
+                plan=plan,
+                scope_name="claims",
+                fallback_query=fallback_semantic_query,
+            ),
+            limit=request.limit,
+        )
+        if search_claims
+        else []
+    )
+
     return SearchResponse(
         query=request.query,
         results=results,
+        entity_hits=[SearchEntityHit.model_validate(item) for item in entity_hits],
+        claim_hits=[SearchClaimHit.model_validate(item) for item in claim_hits],
         count=len(results),
         total_results=total_count,
         search_type=search_stats.get("search_type", request.search_type),
