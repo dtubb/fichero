@@ -6,19 +6,16 @@ The review queue manages KnowledgeClaim curation state transitions
 at /api.
 """
 
-import pytest
-from unittest.mock import MagicMock
-
 from fichero.knowledge_models import (
     KnowledgeClaim,
     KnowledgeEntity,
     ClaimCurationState,
+    ClaimSuppressionRule,
     ClaimType,
     EpistemicStatus,
     MutationLog,
-    SourceType,
-    EntityType,
 )
+from fichero.models import DocType, Document
 
 
 # ---------------------------------------------------------------------------
@@ -35,17 +32,25 @@ def _make_claim(
     text: str = "Paris is the capital of France.",
     curation_state: ClaimCurationState = ClaimCurationState.unreviewed,
     entity_ids: list[str] | None = None,
+    source_document_id: str = "doc-1",
+    confidence: float = 0.8,
+    subject_canonical: str | None = None,
+    predicate_verb: str | None = None,
+    object_phrase: str | None = None,
 ) -> KnowledgeClaim:
     return KnowledgeClaim(
         id=claim_id,
         text=text,
-        source_document_id="doc-1",
-        source_ids=["doc-1"],
+        source_document_id=source_document_id,
+        source_ids=[source_document_id],
         claim_type=ClaimType.fact,
         epistemic_status=EpistemicStatus.tentative,
         curation_state=curation_state,
-        confidence=0.8,
+        confidence=confidence,
         entity_ids=entity_ids or [],
+        subject_canonical=subject_canonical,
+        predicate_verb=predicate_verb,
+        object_phrase=object_phrase,
     )
 
 
@@ -190,6 +195,115 @@ class TestBatchClaimCuration:
         assert r.status_code == 200
         assert r.json() == {"updated": 0, "claim_ids": []}
         assert db.all(MutationLog) == []
+
+
+class TestPruneTrivialClaims:
+    def test_prunes_document_scoped_trivial_claims_only(self, client, db):
+        db.save(Document(id="doc-1", name="Page 1", doc_type=DocType.page))
+        db.save(Document(id="doc-2", name="Page 2", doc_type=DocType.page))
+        trivial = _make_claim(
+            "c-trivial",
+            text="Andagoya is a place.",
+            source_document_id="doc-1",
+            subject_canonical="Andagoya",
+            predicate_verb="is",
+            object_phrase="a place",
+            confidence=0.9,
+        )
+        substantive = _make_claim(
+            "c-substantive",
+            text="Andagoya was founded in 1851.",
+            source_document_id="doc-1",
+            subject_canonical="Andagoya",
+            predicate_verb="was founded in",
+            object_phrase="1851",
+        )
+        out_of_scope = _make_claim(
+            "c-out-of-scope",
+            text="Tumaco is a place.",
+            source_document_id="doc-2",
+            subject_canonical="Tumaco",
+            predicate_verb="is",
+            object_phrase="a place",
+        )
+        db.save(trivial)
+        db.save(substantive)
+        db.save(out_of_scope)
+
+        r = client.post("/api/kg/claims/prune-trivial", json={"document_id": "doc-1"})
+
+        assert r.status_code == 200
+        assert r.json() == {
+            "scope_type": "document",
+            "scope_document_ids": ["doc-1"],
+            "identified_count": 1,
+            "suppressed_count": 1,
+            "suppressed_claim_ids": ["c-trivial"],
+            "rules_written": 0,
+        }
+        assert db.get(KnowledgeClaim, "c-trivial").curation_state == ClaimCurationState.rejected
+        assert db.get(KnowledgeClaim, "c-trivial").confidence == 0.2
+        assert db.get(KnowledgeClaim, "c-substantive").curation_state == ClaimCurationState.unreviewed
+        assert db.get(KnowledgeClaim, "c-out-of-scope").curation_state == ClaimCurationState.unreviewed
+
+    def test_prunes_folder_scope_via_descendants(self, client, db):
+        db.save(Document(id="folder-1", name="Folder", doc_type=DocType.folder))
+        db.save(Document(id="page-1", name="Page", doc_type=DocType.page, parent_id="folder-1"))
+        db.save(Document(id="page-2", name="Page 2", doc_type=DocType.page))
+        db.save(_make_claim(
+            "c-folder",
+            text="Andagoya is a place.",
+            source_document_id="page-1",
+            subject_canonical="Andagoya",
+            predicate_verb="is",
+            object_phrase="a place",
+        ))
+        db.save(_make_claim(
+            "c-other",
+            text="Tumaco is a place.",
+            source_document_id="page-2",
+            subject_canonical="Tumaco",
+            predicate_verb="is",
+            object_phrase="a place",
+        ))
+
+        r = client.post("/api/kg/claims/prune-trivial", json={"folder_id": "folder-1"})
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["scope_type"] == "folder"
+        assert payload["scope_document_ids"] == ["folder-1", "page-1"]
+        assert payload["identified_count"] == 1
+        assert payload["suppressed_count"] == 1
+        assert payload["suppressed_claim_ids"] == ["c-folder"]
+        assert db.get(KnowledgeClaim, "c-folder").curation_state == ClaimCurationState.rejected
+        assert db.get(KnowledgeClaim, "c-other").curation_state == ClaimCurationState.unreviewed
+
+    def test_library_wide_run_is_idempotent_and_writes_one_rule(self, client, db):
+        db.save(_make_claim(
+            "c-library",
+            text="Andagoya is a place.",
+            subject_canonical="Andagoya",
+            predicate_verb="is",
+            object_phrase="a place",
+        ))
+
+        first = client.post("/api/kg/claims/prune-trivial", json={"library_wide": True})
+        second = client.post("/api/kg/claims/prune-trivial", json={"library_wide": True})
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json()["identified_count"] == 1
+        assert first.json()["suppressed_count"] == 1
+        assert first.json()["rules_written"] == 1
+        assert second.json()["identified_count"] == 1
+        assert second.json()["suppressed_count"] == 0
+        assert second.json()["rules_written"] == 0
+
+        rules = db.all(ClaimSuppressionRule)
+        assert len(rules) == 1
+        assert rules[0].suppress_is_a_copulas is True
+        assert rules[0].match_subject_name is None
 
 
 # ---------------------------------------------------------------------------

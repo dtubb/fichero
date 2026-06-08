@@ -19,6 +19,7 @@ from functools import wraps
 from typing import Optional
 
 from fichero.db import Database
+from fichero.kg._common import is_bare_is_a_copula
 from fichero.knowledge_models import (
     AttributionRole,
     AttributionStep,
@@ -46,39 +47,6 @@ from fichero.knowledge_models import (
 logger = logging.getLogger(__name__)
 
 _ENTITY_UPSERT_LOCK = threading.RLock()
-_GENERIC_COPULA_OBJECTS = frozenset({
-    "citation",
-    "citations",
-    "concept",
-    "concepts",
-    "document",
-    "documents",
-    "event",
-    "events",
-    "group",
-    "groups",
-    "idea",
-    "ideas",
-    "location",
-    "locations",
-    "organization",
-    "organizations",
-    "organisation",
-    "organisations",
-    "other",
-    "others",
-    "person",
-    "persons",
-    "people",
-    "place",
-    "places",
-    "region",
-    "regions",
-    "thing",
-    "things",
-    "topic",
-    "topics",
-})
 
 
 def _serialized_entity_upsert(func):
@@ -209,24 +177,6 @@ def _apply_entity_resolution_rules(
     )
     return None
 
-
-def _is_bare_is_a_copula(
-    predicate_verb: str | None,
-    object_phrase: str | None,
-) -> bool:
-    if _norm_rule_text(predicate_verb) not in {"is", "are", "was", "were", "be"}:
-        return False
-    cleaned = re.sub(r"^[\s\[\]\(\)\"'`]+|[\s\[\]\(\)\"'`.,;:!?]+$", "", object_phrase or "")
-    tokens = [token for token in _norm_rule_text(cleaned).split() if token]
-    if not tokens:
-        return False
-    while tokens and tokens[0] in {"a", "an", "the"}:
-        tokens = tokens[1:]
-    while len(tokens) > 1 and tokens[0] in {"kind", "sort", "type"} and tokens[1] == "of":
-        tokens = tokens[2:]
-    return len(tokens) == 1 and tokens[0] in _GENERIC_COPULA_OBJECTS
-
-
 def _matching_claim_suppression_rules(
     db: Database,
     subject_canonical: str | None,
@@ -244,7 +194,7 @@ def _matching_claim_suppression_rules(
             continue
         if rule.match_object_phrase and _norm_rule_text(rule.match_object_phrase) != object_norm:
             continue
-        if rule.suppress_is_a_copulas and not _is_bare_is_a_copula(predicate_verb, object_phrase):
+        if rule.suppress_is_a_copulas and not is_bare_is_a_copula(predicate_verb, object_phrase):
             continue
         matches.append(rule)
     matches.sort(key=lambda rule: (rule.created_at, rule.id))
@@ -256,7 +206,7 @@ def _effective_claim_suppression_action(
     predicate_verb: str | None,
     object_phrase: str | None,
 ) -> ClaimSuppressionRuleAction:
-    if rule.suppress_is_a_copulas and _is_bare_is_a_copula(predicate_verb, object_phrase):
+    if rule.suppress_is_a_copulas and is_bare_is_a_copula(predicate_verb, object_phrase):
         return ClaimSuppressionRuleAction.demote
     return rule.action
 

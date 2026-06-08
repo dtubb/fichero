@@ -88,6 +88,110 @@ def extract_svo(claim: "KnowledgeClaim") -> tuple[str, str]:
     return verb, obj_text
 
 
+_GENERIC_COPULA_OBJECTS = frozenset({
+    "citation",
+    "citations",
+    "concept",
+    "concepts",
+    "document",
+    "documents",
+    "event",
+    "events",
+    "group",
+    "groups",
+    "idea",
+    "ideas",
+    "location",
+    "locations",
+    "organization",
+    "organizations",
+    "organisation",
+    "organisations",
+    "other",
+    "others",
+    "people",
+    "person",
+    "persons",
+    "place",
+    "places",
+    "region",
+    "regions",
+    "thing",
+    "things",
+    "topic",
+    "topics",
+})
+
+_COPULA_VERBS = frozenset({"is", "are", "was", "were", "be"})
+
+
+def _norm_rule_text(value: str | None) -> str:
+    return " ".join(str(value or "").split()).strip().casefold()
+
+
+def is_bare_is_a_copula(
+    predicate_verb: str | None,
+    object_phrase: str | None,
+    *,
+    predicate_canonical: str | None = None,
+) -> bool:
+    """Return True for conservative, trivially-generic type copulas.
+
+    This intentionally catches only low-information category assertions like
+    "Andagoya is a place" or "Pedro was a person". False positives are worse
+    than false negatives, so the heuristic stays narrow:
+
+    - the predicate must clearly be a copula / ``is_a`` relation
+    - the object must reduce to one generic type noun after stripping
+      articles and "kind/type/sort of" wrappers
+    """
+    canonical = _norm_rule_text(predicate_canonical)
+    predicate = _norm_rule_text(predicate_verb)
+    if canonical != "is_a" and predicate not in _COPULA_VERBS:
+        return False
+
+    cleaned = re.sub(
+        r"^[\s\[\]\(\)\"'`]+|[\s\[\]\(\)\"'`.,;:!?]+$",
+        "",
+        object_phrase or "",
+    )
+    tokens = [token for token in _norm_rule_text(cleaned).split() if token]
+    if not tokens:
+        return False
+    while tokens and tokens[0] in {"a", "an", "the"}:
+        tokens = tokens[1:]
+    while len(tokens) > 1 and tokens[0] in {"kind", "sort", "type"} and tokens[1] == "of":
+        tokens = tokens[2:]
+    return len(tokens) == 1 and tokens[0] in _GENERIC_COPULA_OBJECTS
+
+
+def is_trivial_claim(claim: "KnowledgeClaim") -> bool:
+    """Conservative detector for low-information, trivially-true claims."""
+    metadata = claim.metadata or {}
+    subject = (
+        getattr(claim, "subject_canonical", None)
+        or getattr(claim, "svo_subject", None)
+        or metadata.get("subject")
+    )
+    predicate = (
+        getattr(claim, "predicate_verb", None)
+        or getattr(claim, "svo_verb", None)
+        or metadata.get("verb")
+    )
+    object_phrase = (
+        getattr(claim, "object_phrase", None)
+        or getattr(claim, "svo_object", None)
+        or metadata.get("object")
+    )
+    if not _norm_rule_text(subject):
+        return False
+    return is_bare_is_a_copula(
+        predicate,
+        object_phrase,
+        predicate_canonical=getattr(claim, "predicate_canonical", None),
+    )
+
+
 # Keys the extractor prompt uses in its kwarg-style examples
 # ("name='X', verb='Y', object='Z'"). Weaker / fallback models
 # sometimes echo that whole literal string back into a *single*

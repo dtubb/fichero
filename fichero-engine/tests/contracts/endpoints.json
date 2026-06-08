@@ -3614,6 +3614,16 @@
         "response_model": "BatchClaimCurationResponse"
       },
       {
+        "method": "POST",
+        "path": "/kg/claims/prune-trivial",
+        "operation_id": "prune_trivial_claims_api_kg_claims_prune_trivial_post",
+        "summary": "Prune trivially-true claims",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PruneTrivialClaimsRequest",
+        "response_model": "PruneTrivialClaimsResponse"
+      },
+      {
         "method": "DELETE",
         "path": "/kg/curation-rules/claim-rules",
         "operation_id": "delete_claim_rule_api_kg_curation_rules_claim_rules_delete",
