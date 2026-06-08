@@ -277,10 +277,17 @@ NSLayoutConstraint.activate(...)  // ❌ Use SwiftUI layout
 - **Trackpad swipe** — `NSEvent.addLocalMonitorForEvents(matching: .swipe)` (no SwiftUI equivalent on macOS 15)
 - Native file pickers use SwiftUI `.fileImporter` — do NOT bridge those.
 
+**Two sanctioned reasons to bridge** (see `appkit_interop.md` for the full decision):
+1. **Capability gap** — SwiftUI literally can't do it (the bridges listed above).
+2. **Behavioral-fidelity gap** — SwiftUI renders it but can't match a decades-old Mac
+   interaction a power user feels the absence of (selection emphasis on focus loss,
+   context-menu target focus ring, drag-session visibility, type-in-search + arrow-through
+   results). Same containment discipline; fold into the existing list/inspector stack.
+
 **Before adding a NEW AppKit bridge:**
 1. Check Sosumi MCP for a SwiftUI equivalent
 2. Search Ref MCP for documentation
-3. Confirm a genuine capability gap, then wrap it in an `NSViewRepresentable`
+3. Confirm a genuine capability OR fidelity gap, then wrap it in an `NSViewRepresentable`
 
 ---
 
