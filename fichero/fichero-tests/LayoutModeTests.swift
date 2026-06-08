@@ -244,4 +244,21 @@ final class LayoutModeTests: XCTestCase {
         XCTAssertTrue(CanvasDocumentPolicy.shouldUsePDFCanvas(for: pdfPage))
         XCTAssertTrue(CanvasDocumentPolicy.shouldUsePDFCanvas(for: pdfFile))
     }
+
+    func testSpatialDocumentSelectionParsesDocumentNodeIds() {
+        XCTAssertEqual(
+            SpatialDocumentSelection.documentId(forNodeId: "doc-page-1"),
+            "page-1"
+        )
+        XCTAssertEqual(
+            SpatialDocumentSelection.documentId(forNodeId: "doc:page-2"),
+            "page-2"
+        )
+    }
+
+    func testSpatialDocumentSelectionIgnoresUnknownNodeIds() {
+        XCTAssertNil(SpatialDocumentSelection.documentId(forNodeId: nil))
+        XCTAssertNil(SpatialDocumentSelection.documentId(forNodeId: "entity-1"))
+        XCTAssertNil(SpatialDocumentSelection.documentId(forNodeId: ""))
+    }
 }
