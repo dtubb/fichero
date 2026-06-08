@@ -81,21 +81,15 @@ class TestLoadPresetFiles:
         assert data_feeders, "no edge feeds catalogue.data"
         assert {e["source"] for e in data_feeders} == {"merge_extracts"}
 
-    def test_catalogue_each_preset_is_configured_for_folder_fan_out(self):
-        """Catalogue Each should stay wired as the bulk fan-out preset."""
+    def test_legacy_catalogue_duplicate_presets_do_not_ship(self):
         presets = {p["name"]: p for p in _load_preset_files()}
-        catalogue_each = presets["Catalogue Each"]
-
-        assert catalogue_each.get("is_template") is True
-        assert catalogue_each.get("is_system") is True
-        assert catalogue_each.get("folder_path") == "/Catalogue"
-        assert catalogue_each.get("config", {}).get("fan_out_enabled") is True
-        assert "fan_out" in catalogue_each.get("tags", [])
-
-        node_tools = {n["tool"] for n in catalogue_each["nodes"]}
-        assert "folder" in node_tools
-        assert "transcribe" in node_tools
-        assert "catalogue" in node_tools
+        removed = {
+            "Catalogue Each",
+            "Catalogue Stage 1 - Transcribe Pages",
+            "Catalogue Stage 2 - Extract Entities + KG",
+            "Catalogue Stage 3 - Catalogue Artifacts",
+        }
+        assert not (removed & set(presets))
 
     def test_default_templates_have_folder_path_groups(self):
         """Templates ship with `folder_path` values so the Run Workflow
@@ -190,12 +184,9 @@ class TestLoadPresetFiles:
         stage0d = presets["4 · Merge / Dedup"]
         stage0e = presets["5 · KG Persist / Finalize"]
         full_pipeline = presets["Catalogue Full Pipeline"]
-        stage1 = presets["Catalogue Stage 1 - Transcribe Pages"]
-        stage2 = presets["Catalogue Stage 2 - Extract Entities + KG"]
-        stage3 = presets["Catalogue Stage 3 - Catalogue Artifacts"]
 
         for preset in (
-            stage0, stage0b, stage0c, stage0d, stage0e, full_pipeline, stage1, stage2, stage3
+            stage0, stage0b, stage0c, stage0d, stage0e, full_pipeline
         ):
             assert preset.get("is_template") is True
             assert preset.get("is_system") is True
@@ -308,45 +299,6 @@ class TestLoadPresetFiles:
                 and e["target_port"] == "documents"
                 for e in full_pipeline["edges"]
             ), f"full pipeline must feed documents into {target_tool}"
-
-        stage1_tools = {n["tool"] for n in stage1["nodes"]}
-        assert stage1_tools == {"files", "transcribe"}
-        transcribe_node = next(n for n in stage1["nodes"] if n["tool"] == "transcribe")
-        assert transcribe_node["config"].get("update_page_content") is True
-        assert "provider_name" not in transcribe_node["config"], (
-            "transcribe stage must use the vision default, not the text $small alias"
-        )
-
-        stage2_tools = {n["tool"] for n in stage2["nodes"]}
-        assert stage2_tools == {"files", "aggregate", "extract_all"}
-        extract_node = next(n for n in stage2["nodes"] if n["tool"] == "extract_all")
-        assert extract_node["config"].get("provider_name") == "$small"
-        assert extract_node["config"].get("persist_kg") is True
-
-        extract_id = _node_id(stage2, "extract_all")
-        assert not any(
-            e["source"] == extract_id and e["source_port"] == "kg_payload"
-            for e in stage2["edges"]
-        ), "stage 2 must persist KG inline inside extract_all"
-
-        stage3_tools = {n["tool"] for n in stage3["nodes"]}
-        assert stage3_tools == {"files", "aggregate", "catalogue"}
-        catalogue_node = next(n for n in stage3["nodes"] if n["tool"] == "catalogue")
-        assert catalogue_node["config"].get("provider_name") == "$small"
-        assert catalogue_node["config"].get("output_language") == "auto"
-
-        aggregate_id = _node_id(stage3, "aggregate")
-        catalogue_id = _node_id(stage3, "catalogue")
-        assert any(
-            e["source"] == aggregate_id
-            and e["target"] == catalogue_id
-            and e["source_port"] == "text"
-            and e["target_port"] == "text"
-            for e in stage3["edges"]
-        ), "stage 3 must feed page text into catalogue without re-running extraction"
-
-        assert "extract_all" not in stage3_tools
-        assert "kg_writer" not in stage3_tools
 
     def test_catalogue_small_uses_dollar_small_throughout(self):
         """Every LLM-using node in the default Catalogue preset references
@@ -1161,6 +1113,30 @@ class TestSeedDefaultWorkflows:
         assert "Catalogue (composable)" in deleted_names
         assert "Catalogue" in saved_names
         assert seeded == len(saved_names)
+
+    def test_removed_legacy_catalogue_stage_presets_are_pruned_on_normal_seed(self):
+        from fichero.models import Workflow
+
+        db = MagicMock()
+        legacy_names = [
+            "Catalogue Each",
+            "Catalogue Stage 1 - Transcribe Pages",
+            "Catalogue Stage 2 - Extract Entities + KG",
+            "Catalogue Stage 3 - Catalogue Artifacts",
+        ]
+        legacy = []
+        for name in legacy_names:
+            workflow = Workflow(name=name)
+            workflow.is_template = True
+            legacy.append(workflow)
+        db.all.return_value = legacy
+        db.save = MagicMock()
+        db.delete = MagicMock()
+
+        seed_default_workflows(db)
+
+        deleted_names = [call.args[0].name for call in db.delete.call_args_list]
+        assert set(legacy_names).issubset(set(deleted_names))
 
     def test_db_failure_during_list_returns_zero_without_raising(self):
         db = MagicMock()

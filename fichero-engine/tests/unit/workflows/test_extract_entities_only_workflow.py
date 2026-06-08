@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.integration._seedlib import seed
 
@@ -11,6 +12,9 @@ from fichero.models import Artifact, DocType, Document, FileType, Workflow
 from fichero.workflows.builder import build_graph
 from fichero.workflows.default_workflows import _load_preset_files
 from fichero.workflows.runtime import build_initial_state, to_workflow_def
+from fichero.workflows.tools.extract_all import _EntitiesOnly, _EntityOnly
+from fichero.workflows.tools.extract_entities_only import extract_entities_only
+from fichero.llm import LLMConfig
 
 import fichero.workflows.tools  # noqa: F401
 
@@ -91,6 +95,51 @@ def test_extract_entities_preset_persists_entities_and_is_idempotent(tmp_path: P
         and artifact.artifact_type == "transcription"
     ]
     assert len(transcription_artifacts) == 2
+
+
+def test_extract_entities_tool_accepts_singleton_document_payload_without_unpack_error(
+    tmp_path: Path,
+):
+    library_path, parent_doc_id, page_doc_ids = _seed_importable_pdf_library(tmp_path)
+    db = db_manager.get_database(library_path)
+
+    page = db.get(Document, page_doc_ids[0])
+    assert page is not None
+
+    async def fake_entities(**kwargs):
+        del kwargs
+        return _EntitiesOnly(
+            people=[_EntityOnly(name="Ada Mock", aliases=[])],
+            places=[_EntityOnly(name="Mockton", aliases=[])],
+            organizations=[],
+            dates=[],
+            events=[],
+        )
+
+    with patch(
+        "fichero.workflows.tools.extract_entities_only.chat_structured_with_fallback",
+        new=fake_entities,
+    ):
+        result = asyncio.run(
+            extract_entities_only(
+                inputs={"documents": {"id": page.id}},
+                state={
+                    "library_path": str(library_path),
+                    "selected_doc_ids": [parent_doc_id],
+                    "task_id": "extract-entities-singleton-doc",
+                },
+                llm_config=LLMConfig(provider="mock", model="mock"),
+            )
+        )
+
+    assert result["count"] == 1
+    assert result["summary"] == {
+        "documents_processed": 1,
+        "entity_mentions_processed": 2,
+        "entities_created": 2,
+        "entities_reused": 0,
+        "entities_suppressed": 0,
+    }
 
 
 def _seed_importable_pdf_library(tmp_path: Path) -> tuple[Path, str, list[str]]:

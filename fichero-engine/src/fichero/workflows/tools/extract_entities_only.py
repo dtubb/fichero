@@ -44,6 +44,22 @@ _ENTITY_TYPES = {
 }
 
 
+def _normalize_raw_documents(raw_documents: Any) -> list[Any]:
+    """Coerce workflow payloads into the list shape _coerce_documents expects.
+
+    Some callers hand us a singleton dict/model instead of the usual
+    Files.documents list. Treat that as one selected document rather than
+    iterating the mapping keys and losing the selection.
+    """
+    if raw_documents is None:
+        return []
+    if isinstance(raw_documents, list):
+        return raw_documents
+    if isinstance(raw_documents, tuple):
+        return list(raw_documents)
+    return [raw_documents]
+
+
 def _transcription_text(document: Document, db) -> str:
     metadata = dict(document.metadata or {})
     raw_transcription = metadata.get("transcription")
@@ -145,16 +161,25 @@ async def extract_entities_only(
         }
 
     db = db_manager.get_database(library_path)
-    raw_documents = list(inputs.get("documents") or [])
+    raw_documents = _normalize_raw_documents(inputs.get("documents"))
     if not raw_documents:
         fallback = await files_tool(
             inputs={},
             state=state,
             llm_config=LLMConfig(provider="", model=""),
         )
-        raw_documents = list(fallback.get("documents") or [])
+        raw_documents = _normalize_raw_documents(fallback.get("documents"))
 
     documents = _coerce_documents(raw_documents, db, library_path)
+    if not documents and raw_documents:
+        fallback = await files_tool(
+            inputs={},
+            state=state,
+            llm_config=LLMConfig(provider="", model=""),
+        )
+        fallback_documents = _normalize_raw_documents(fallback.get("documents"))
+        if fallback_documents != raw_documents:
+            documents = _coerce_documents(fallback_documents, db, library_path)
     records = _records_for_documents(documents, db)
     if not records:
         return {
