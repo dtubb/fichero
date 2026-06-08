@@ -1684,16 +1684,22 @@ async def chat_structured(
         config.provider.lower() == "openrouter"
         or "openrouter" in (config.api_base or "").lower()
     ):
-        # OpenRouter forwards Claude/etc. to backends (e.g. Amazon Bedrock) that
-        # REJECT the tool_choice key `disable_parallel_tool_use` that LangChain's
-        # function_calling path injects (via parallel_tool_calls=False) → hard 400
-        # "extraneous key [disable_parallel_tool_use] is not permitted", failing
-        # every call. json_schema (strict response_format) silently returns an
-        # EMPTY body on Bedrock-Claude → "expected value at line 1 column 1". The
-        # robust path is json_mode (response_format={"type":"json_object"}): the
-        # model must emit valid JSON (schema is described in the prompt) and we
-        # parse it — no tool_choice, no strict-schema requirement. (#1799)
-        method = "json_mode"
+        # OpenRouter forwards Claude/etc. to backends (e.g. Amazon Bedrock).
+        # The two non-tool-calling paths both fail here:
+        #   - json_schema (strict response_format) → Bedrock-Claude returns an
+        #     EMPTY body → "expected value at line 1 column 1".
+        #   - json_mode (response_format={"type":"json_object"}) → the OpenAI
+        #     route 400s ("'messages' must contain the word 'json' …") because
+        #     LangChain doesn't inject the literal token, and Bedrock under-
+        #     fills nested sections.
+        # The robust path is function_calling — every OpenRouter-routed model
+        # supports tool-calling — but LangChain pairs it with
+        # parallel_tool_calls=False, whose Bedrock translation
+        # (tool_choice.disable_parallel_tool_use) is rejected as an extraneous
+        # key. We strip that param at the request layer in get_langchain_model
+        # (`_openrouter_strip_parallel_tool_use`) so function_calling works on
+        # BOTH the OpenAI and Bedrock-Claude routes. (#1802)
+        method = "function_calling"
     elif config.provider.lower() == "openai":
         # OpenAI's response_format=json_schema linter rejects schemas with an
         # open map (our `additional_entities: dict[str, list[str]]`) even with
@@ -2473,6 +2479,73 @@ _OPENAI_COMPATIBLE_BASE_URLS: dict[str, str] = {
 # so ChatOpenAI's required-key check doesn't reject empty.
 _KEYLESS_OPENAI_COMPATIBLE: set[str] = {"ollama", "lmstudio", "omlx"}
 
+# Sentinel for dict.pop "was-present" detection without colliding on a
+# legitimately-stored None value.
+_MISSING = object()
+
+
+async def _openrouter_strip_parallel_tool_use(request: Any) -> None:
+    """httpx request hook: drop the `parallel_tool_calls` field (and the
+    nested `tool_choice.disable_parallel_tool_use` key) from OpenRouter
+    chat-completion bodies before they leave the box.
+
+    Why: LangChain's `with_structured_output(method="function_calling")`
+    path sets `parallel_tool_calls=False` so the model returns exactly one
+    tool call. OpenAI-direct accepts this, but OpenRouter forwards Claude
+    to Amazon Bedrock, whose schema validator hard-400s on the resulting
+    `tool_choice` extension key `disable_parallel_tool_use` —
+    "extraneous key [disable_parallel_tool_use] is not permitted" — failing
+    every structured call (#1802). We already bind exactly one schema tool,
+    so single-tool behaviour is the effective default; dropping the hint is
+    lossless and keeps the reliable tool-calling path instead of degrading
+    to json_mode (which OpenAI routes reject for lacking the literal word
+    "json") or strict json_schema (which Bedrock-Claude answers with an
+    empty body).
+
+    Security: rewrites only the request *body* shape — never touches
+    headers' auth, TLS, or the URL — and logs nothing (no payloads, no
+    keys). Non-JSON bodies and bodies without the offending key pass
+    through untouched.
+    """
+    import json as _json
+
+    ctype = request.headers.get("content-type", "")
+    if not ctype.startswith("application/json"):
+        return
+    try:
+        body = _json.loads(request.content.decode())
+    except Exception:
+        # Streaming/multipart or anything we can't parse — leave it alone.
+        return
+    if not isinstance(body, dict):
+        return
+
+    changed = body.pop("parallel_tool_calls", _MISSING) is not _MISSING
+    tool_choice = body.get("tool_choice")
+    if isinstance(tool_choice, dict):
+        if tool_choice.pop("disable_parallel_tool_use", _MISSING) is not _MISSING:
+            changed = True
+    if not changed:
+        return
+
+    import httpx
+
+    new_content = _json.dumps(body).encode()
+    request.stream = httpx.ByteStream(new_content)
+    request._content = new_content
+    request.headers["content-length"] = str(len(new_content))
+
+
+def _make_openrouter_http_client() -> Any:
+    """Build an httpx.AsyncClient that strips Bedrock-hostile tool-calling
+    params from every OpenRouter request (see
+    `_openrouter_strip_parallel_tool_use`)."""
+    import httpx
+
+    return httpx.AsyncClient(
+        event_hooks={"request": [_openrouter_strip_parallel_tool_use]},
+    )
+
 
 def get_langchain_model(config: LLMConfig) -> Any:
     """Create a LangChain ChatModel from Fichero LLMConfig.
@@ -2589,10 +2662,15 @@ def get_langchain_model(config: LLMConfig) -> Any:
             # via the `reasoning` extra_body field — works for Claude
             # (thinking) and gpt-5/o-series (reasoning_effort) alike.
             kwargs["extra_body"] = {"reasoning": {"effort": effort}}
+        # Strip `parallel_tool_calls` / `disable_parallel_tool_use` from the
+        # outgoing body so function_calling structured output survives the
+        # OpenRouter→Bedrock-Claude route (#1802). See
+        # `_openrouter_strip_parallel_tool_use`.
         return ChatOpenAI(
             model=model_name,
             api_key=api_key,
             base_url=config.api_base or "https://openrouter.ai/api/v1",
+            http_async_client=_make_openrouter_http_client(),
             **kwargs,
         )
 

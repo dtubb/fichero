@@ -1653,17 +1653,22 @@ async def extract_all(
         call_start = time.monotonic()
         try:
             async with extraction_sem:
+                # Apple Intelligence (on-device) needs the schema echoed into
+                # the prompt to populate the 6-section _Extraction structure.
+                # Empirically, with include_schema_in_prompt=False the bridge's
+                # grammar constraint alone collapses this large/nested schema to
+                # `{}` — every field empty — whereas True yields fully-populated
+                # people/places/dates/events. (The original #843 token-saving
+                # rationale holds for small flat schemas but breaks _Extraction.)
+                # The flag is Apple-only; LangChain providers ignore it, so a
+                # provider check keeps the saving everywhere it's safe. (#1802)
+                schema_in_prompt = llm_config.provider.lower() == "apple"
                 extraction = await chat_structured_with_fallback(
                     prompt=chunk_text,
                     schema=_Extraction,
                     config=llm_config,
                     system=instructions,
-                    # Apple Intelligence has a ~4K window; the schema is
-                    # already enforced at decode time, so the auto-injected
-                    # schema dump in the prompt is wasted tokens. Our system
-                    # instructions cover behavior; let the grammar carry the
-                    # shape (#843).
-                    include_schema_in_prompt=False,
+                    include_schema_in_prompt=schema_in_prompt,
                 )
                 if _extraction_is_thin(extraction, chunk_text):
                     # Thin output normally triggers an auto-fallback to $large;
