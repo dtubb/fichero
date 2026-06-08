@@ -339,6 +339,8 @@ class TestSearchRoutes:
         assert response.status_code == 200
         data = response.json()
         assert "indexed_count" in data
+        assert "entity_indexed_count" in data
+        assert "claim_indexed_count" in data
 
 
 class TestIngestRoutes:

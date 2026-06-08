@@ -1142,6 +1142,10 @@ class EmbeddingStatsResponse(BaseModel):
 
     indexed_count: int
     table_exists: bool
+    entity_indexed_count: int = 0
+    entity_table_exists: bool = False
+    claim_indexed_count: int = 0
+    claim_table_exists: bool = False
 
 
 class LibraryStatsResponse(BaseModel):

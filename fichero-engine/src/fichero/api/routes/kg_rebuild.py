@@ -75,7 +75,8 @@ class RebuildResponse(BaseModel):
     """Stats describing what got refreshed."""
     entities: int
     claims: int
-    vector_indexed: int
+    entity_vectors_indexed: int
+    claim_vectors_indexed: int
     triples_written: int
 
 

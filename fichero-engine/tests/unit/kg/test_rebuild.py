@@ -16,7 +16,8 @@ class TestRebuildKg:
         assert stats == {
             "entities": 0,
             "claims": 0,
-            "vector_indexed": 0,
+            "entity_vectors_indexed": 0,
+            "claim_vectors_indexed": 0,
             "triples_written": 0,
         }
 
@@ -29,7 +30,8 @@ class TestRebuildKg:
         db.save(ent)
         stats = rebuild.rebuild_kg(db, vectors=True, triples=False)
         assert stats["entities"] == 1
-        assert stats["vector_indexed"] == 1
+        assert stats["entity_vectors_indexed"] == 1
+        assert stats["claim_vectors_indexed"] == 0
         # Confirm it's findable.
         from fichero.kg import entity_vectors
         hits = entity_vectors.find_similar(
@@ -86,4 +88,5 @@ class TestRebuildKg:
         # Only one hit for this id even after two backfills.
         ids = [h[0] for h in hits if h[0] == ent.id]
         assert len(ids) == 1
-        assert stats2["vector_indexed"] == 1
+        assert stats2["entity_vectors_indexed"] == 1
+        assert stats2["claim_vectors_indexed"] == 0

@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
+from fichero.db_embeddings import KG_CLAIM_EMBEDDINGS_TABLE
 from fichero.models import KGGraphListResponse
 from fichero.knowledge_models import (
     ClaimCurationState,
@@ -23,9 +24,6 @@ from fichero.knowledge_models import (
 )
 
 router = APIRouter(prefix="/kg/claim-search")
-
-KG_CLAIM_EMBEDDINGS_TABLE = "kg_claim_embeddings"
-
 
 class EmbedClaimsResponse(BaseModel):
     embedded: int
@@ -36,21 +34,20 @@ class _EmbedClaimRequest(BaseModel):
     claim_ids: list[str] | None = None
 
 
+def _vector_similarity(row: dict) -> float:
+    """Return a stable similarity score from LanceDB row metadata."""
+    if row.get("_score") is not None:
+        return float(row["_score"])
+    distance = row.get("_distance")
+    if distance is None:
+        return 0.0
+    value = 1.0 - (float(distance) ** 2) / 2.0
+    return max(-1.0, min(1.0, value))
+
+
 def _embed_claims_sync(db: Database, claims: list[KnowledgeClaim]) -> int:
     """CPU-bound work for embed_claims. Runs off the event loop."""
-    texts = [c.text for c in claims]
-    vectors = db._embed_texts(texts)  # type: ignore[attr-defined]
-    records = [
-        {
-            "id": c.id,
-            "text": c.text,
-            "vector": v,
-            "claim_type": c.claim_type.value if c.claim_type else None,
-        }
-        for c, v in zip(claims, vectors)
-    ]
-    db.save_vectors(KG_CLAIM_EMBEDDINGS_TABLE, records)
-    return len(records)
+    return db.embed_claims(claims)
 
 
 @router.post("/embed", response_model=EmbedClaimsResponse)
@@ -102,7 +99,7 @@ async def search_claims_semantic(
         return KGGraphListResponse(items=[], count=0)
 
     claims = {c.id: c for c in db.all(KnowledgeClaim) if c.id in claim_ids}
-    score_map = {r["id"]: r.get("_score", 0.0) for r in results}
+    score_map = {r["id"]: _vector_similarity(r) for r in results}
     items = [
         {**claims[cid].model_dump(), "similarity_score": score_map.get(cid, 0.0)}
         for cid in claim_ids
@@ -135,7 +132,7 @@ async def find_similar_claims(
     results = [r for r in results if r["id"] != claim_id]
     ids = [r["id"] for r in results]
     claim_map = {c.id: c for c in db.all(KnowledgeClaim) if c.id in ids}
-    score_map = {r["id"]: r.get("_score", 0.0) for r in results}
+    score_map = {r["id"]: _vector_similarity(r) for r in results}
     items = [
         {**claim_map[rid].model_dump(), "similarity_score": score_map.get(rid, 0.0)}
         for rid in ids

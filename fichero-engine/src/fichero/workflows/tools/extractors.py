@@ -1988,7 +1988,12 @@ def _write_kg_rows(
         )
         return
 
-    from fichero.knowledge_models import ClaimType, EpistemicStatus, EntityType
+    from fichero.knowledge_models import (
+        ClaimType,
+        EntityType,
+        EpistemicStatus,
+        KnowledgeClaim,
+    )
     from fichero.workflows.tools._entity_writer import upsert_entity, save_claim
     from fichero.kg._common import slug_verb
 
@@ -2229,6 +2234,7 @@ def _write_kg_rows(
     items_in = len(items)
     entities_written = 0
     claims_written = 0
+    claims_to_embed: list[KnowledgeClaim] = []
     # #1017 layer 2: collect boundary-invariant violations so silent
     # drops (anchorless items, degenerate descriptions) surface in the
     # activity log instead of just shrinking the items_in→written gap.
@@ -2478,6 +2484,9 @@ def _write_kg_rows(
             )
             if claim_id is not None:
                 claims_written += 1
+                claim = db.get(KnowledgeClaim, claim_id)
+                if claim is not None:
+                    claims_to_embed.append(claim)
             continue
 
         # Entity-bearing section.
@@ -2525,6 +2534,9 @@ def _write_kg_rows(
                 )
                 if claim_id is not None:
                     claims_written += 1
+                    claim = db.get(KnowledgeClaim, claim_id)
+                    if claim is not None:
+                        claims_to_embed.append(claim)
             continue
         aliases = (
             item.get("alternative_spellings")
@@ -2624,6 +2636,12 @@ def _write_kg_rows(
         entities_written += 1
         if claim_id is not None:
             claims_written += 1
+            claim = db.get(KnowledgeClaim, claim_id)
+            if claim is not None:
+                claims_to_embed.append(claim)
+
+    if claims_to_embed:
+        db.schedule_claim_embeddings(claims_to_embed)
 
     # #1003: structured per-page summary. If items_in > 0 but
     # entities_written + claims_written == 0, a page's items were all
