@@ -1680,6 +1680,29 @@ async def chat_structured(
     method: str | None
     if config.provider.lower() in {"omlx", "lmstudio", "ollama"}:
         method = None
+    elif (
+        config.provider.lower() == "openrouter"
+        or "openrouter" in (config.api_base or "").lower()
+    ):
+        # OpenRouter forwards Claude/etc. to backends (e.g. Amazon Bedrock) that
+        # REJECT the tool_choice key `disable_parallel_tool_use` that LangChain's
+        # function_calling path injects (via parallel_tool_calls=False) → hard 400
+        # "extraneous key [disable_parallel_tool_use] is not permitted", failing
+        # every call. json_schema (strict response_format) silently returns an
+        # EMPTY body on Bedrock-Claude → "expected value at line 1 column 1". The
+        # robust path is json_mode (response_format={"type":"json_object"}): the
+        # model must emit valid JSON (schema is described in the prompt) and we
+        # parse it — no tool_choice, no strict-schema requirement. (#1799)
+        method = "json_mode"
+    elif config.provider.lower() == "openai":
+        # OpenAI's response_format=json_schema linter rejects schemas with an
+        # open map (our `additional_entities: dict[str, list[str]]`) even with
+        # strict=False — "Invalid schema for response_format … 'required' must
+        # include every key". function_calling binds the SAME pydantic schema as
+        # a tool, whose argument-schema validation is lenient (open maps allowed)
+        # and which OpenAI-direct accepts without the parallel_tool_calls issue
+        # that only bites OpenRouter→Bedrock. (#1803)
+        method = "function_calling"
     else:
         # Profile-driven method selection (#844 item 7). LangChain ≥1.1
         # exposes `model.profile` — a dict of capability flags powered by
@@ -1703,6 +1726,14 @@ async def chat_structured(
     structured_kwargs: dict[str, Any] = {"include_raw": True}
     if method is not None:
         structured_kwargs["method"] = method
+    # OpenAI's `json_schema` method defaults to strict=True, which validates the
+    # emitted JSON-schema rigidly and 400s on schemas it considers malformed
+    # (e.g. our open `additional_entities` map, or a `required` array that
+    # doesn't list every property) — "Invalid schema for response_format".
+    # strict=False keeps LangChain's structured coercion (output still parsed
+    # into the pydantic model) without OpenAI's strict-schema gate. (#1803)
+    if method == "json_schema":
+        structured_kwargs["strict"] = False
     structured_model = model.with_structured_output(schema, **structured_kwargs)
 
     messages: list[Any] = []

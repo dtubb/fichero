@@ -175,13 +175,21 @@ async def _yield_page_work(
 # combined call now produces structurally-identical output to the
 # single-section path. (#1113 — without this the combined call left
 # claim.predicate_verb / object_phrase NULL on every row.)
+# Defaults make these optional so a model that returns a partial item
+# (e.g. {name, source_text} with no verb/object, or a loose {name, fact})
+# still validates and we salvage the entity/claim instead of failing the
+# whole page with 66 "field required" errors → 0 claims. The prompt still
+# asks for verb/object, so capable models fill them; this is the safety net.
 _VERB = Field(
+    default="",
     description="Specific predicate verb phrase.",
 )
 _OBJ = Field(
+    default="",
     description="Specific object or complement.",
 )
 _SRC = Field(
+    default="",
     description="Short exact supporting quote.",
 )
 
@@ -210,9 +218,9 @@ class _Organization(BaseModel):
 
 
 class _DateItem(BaseModel):
-    date: str = Field(description="as written")
+    date: str = Field(default="", description="as written")
     date_normalized: str = Field(
-        description="YYYY-MM-DD, YYYY-MM, YYYY, or range"
+        default="", description="YYYY-MM-DD, YYYY-MM, YYYY, or range"
     )
     verb: str = _VERB
     object: str = _OBJ
@@ -230,8 +238,8 @@ class _Event(BaseModel):
 class _Quote(BaseModel):
     name: str | None = Field(default=None, description="speaker name, or null")
     verb: str = Field(default="said", description="attribution verb")
-    object: str = Field(description="exact quote")
-    source_text: str = Field(description="short exact source phrase")
+    object: str = Field(default="", description="exact quote")
+    source_text: str = Field(default="", description="short exact source phrase")
 
 
 class _Extraction(BaseModel):
@@ -1658,8 +1666,14 @@ async def extract_all(
                     include_schema_in_prompt=False,
                 )
                 if _extraction_is_thin(extraction, chunk_text):
-                    raise RuntimeError(
-                        "thin structured extraction output (no auto-fallback enabled)"
+                    # Thin output normally triggers an auto-fallback to $large;
+                    # when that isn't configured, KEEP the sparse extraction
+                    # rather than discarding the whole page. Short diary pages
+                    # legitimately yield few entities — failing them produced
+                    # 0 claims across the run. (#1803)
+                    logger.warning(
+                        f"extract_all chunk {idx}: thin extraction output — "
+                        "keeping it (no auto-fallback configured)"
                     )
         except ProviderQuotaError:
             raise
