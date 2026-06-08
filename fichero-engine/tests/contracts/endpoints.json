@@ -616,6 +616,11 @@
             "type": "string"
           },
           {
+            "name": "folder_id",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "kind",
             "required": false,
             "type": "string"
@@ -624,6 +629,11 @@
             "name": "min_rating",
             "required": false,
             "type": "integer"
+          },
+          {
+            "name": "page_id",
+            "required": false,
+            "type": "string"
           },
           {
             "name": "tag",
@@ -5942,6 +5952,11 @@
         "path_params": [],
         "query_params": [
           {
+            "name": "folder_id",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "kind",
             "required": false,
             "type": "string"
@@ -5963,6 +5978,11 @@
           },
           {
             "name": "linked_structure_node_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "page_id",
             "required": false,
             "type": "string"
           },

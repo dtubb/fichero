@@ -574,8 +574,10 @@ def register_generated_openapi_commands(
     def annotations_list_filterable_by_document_kind_tag_get(
         ctx: typer.Context,
         document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
+        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Query parameter: folder_id."),
         kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
         min_rating: Optional[int] = typer.Option(None, "--min-rating", help="Query parameter: min_rating."),
+        page_id: Optional[str] = typer.Option(None, "--page-id", help="Query parameter: page_id."),
         tag: Optional[str] = typer.Option(None, "--tag", help="Query parameter: tag."),
     ) -> None:
         """List annotations, filterable by document / kind / tag (GET /api/annotations)."""
@@ -583,8 +585,10 @@ def register_generated_openapi_commands(
             path = "/api/annotations"
             params = {
                 "document_id": document_id,
+                "folder_id": folder_id,
                 "kind": kind,
                 "min_rating": min_rating,
+                "page_id": page_id,
                 "tag": tag,
             }
             return client.request("GET", path, params=params)
@@ -5877,11 +5881,13 @@ def register_generated_openapi_commands(
     @target_app.command("list")
     def notes_list_get(
         ctx: typer.Context,
+        folder_id: Optional[str] = typer.Option(None, "--folder-id", help="Query parameter: folder_id."),
         kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
         linked_claim_id: Optional[str] = typer.Option(None, "--linked-claim-id", help="Query parameter: linked_claim_id."),
         linked_document_id: Optional[str] = typer.Option(None, "--linked-document-id", help="Query parameter: linked_document_id."),
         linked_entity_id: Optional[str] = typer.Option(None, "--linked-entity-id", help="Query parameter: linked_entity_id."),
         linked_structure_node_id: Optional[str] = typer.Option(None, "--linked-structure-node-id", help="Query parameter: linked_structure_node_id."),
+        page_id: Optional[str] = typer.Option(None, "--page-id", help="Query parameter: page_id."),
         q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
         tag: Optional[str] = typer.Option(None, "--tag", help="Query parameter: tag."),
     ) -> None:
@@ -5889,11 +5895,13 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             path = "/api/notes"
             params = {
+                "folder_id": folder_id,
                 "kind": kind,
                 "linked_claim_id": linked_claim_id,
                 "linked_document_id": linked_document_id,
                 "linked_entity_id": linked_entity_id,
                 "linked_structure_node_id": linked_structure_node_id,
+                "page_id": page_id,
                 "q": q,
                 "tag": tag,
             }

@@ -1323,24 +1323,31 @@ def notes_create(
     linked_document_ids: Optional[list[str]] = typer.Option(
         None, "--doc", help="Repeatable linked document ID."
     ),
+    page_id: Optional[str] = typer.Option(None, "--page", help="Primary page scope document ID."),
+    folder_id: Optional[str] = typer.Option(None, "--folder", help="Primary folder scope document ID."),
     address: Optional[str] = typer.Option(None, "--address"),
     parent_address: Optional[str] = typer.Option(None, "--parent-address"),
 ) -> None:
     """Create a Zettelkasten note."""
+    kwargs = {
+        "title": title,
+        "body": body,
+        "kind": kind,
+        "tags": tags,
+        "linked_note_ids": linked_note_ids,
+        "linked_entity_ids": linked_entity_ids,
+        "linked_claim_ids": linked_claim_ids,
+        "linked_document_ids": linked_document_ids,
+        "address": address,
+        "parent_address": parent_address,
+    }
+    if page_id is not None:
+        kwargs["page_id"] = page_id
+    if folder_id is not None:
+        kwargs["folder_id"] = folder_id
     _invoke(
         ctx,
-        lambda c: c.create_note(
-            title=title,
-            body=body,
-            kind=kind,
-            tags=tags,
-            linked_note_ids=linked_note_ids,
-            linked_entity_ids=linked_entity_ids,
-            linked_claim_ids=linked_claim_ids,
-            linked_document_ids=linked_document_ids,
-            address=address,
-            parent_address=parent_address,
-        ),
+        lambda c: c.create_note(**kwargs),
     )
 
 
@@ -1352,19 +1359,26 @@ def notes_list(
     linked_entity_id: Optional[str] = typer.Option(None, "--entity"),
     linked_claim_id: Optional[str] = typer.Option(None, "--claim"),
     linked_document_id: Optional[str] = typer.Option(None, "--doc"),
+    page_id: Optional[str] = typer.Option(None, "--page", help="Filter by page scope document ID."),
+    folder_id: Optional[str] = typer.Option(None, "--folder", help="Filter by folder scope document ID."),
     query: Optional[str] = typer.Option(None, "--query", "-q", help="Text search."),
 ) -> None:
     """List Zettelkasten notes."""
+    kwargs = {
+        "kind": kind,
+        "tag": tag,
+        "linked_entity_id": linked_entity_id,
+        "linked_claim_id": linked_claim_id,
+        "linked_document_id": linked_document_id,
+        "query": query,
+    }
+    if page_id is not None:
+        kwargs["page_id"] = page_id
+    if folder_id is not None:
+        kwargs["folder_id"] = folder_id
     _invoke(
         ctx,
-        lambda c: c.list_notes(
-            kind=kind,
-            tag=tag,
-            linked_entity_id=linked_entity_id,
-            linked_claim_id=linked_claim_id,
-            linked_document_id=linked_document_id,
-            query=query,
-        ),
+        lambda c: c.list_notes(**kwargs),
     )
 
 

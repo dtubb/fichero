@@ -291,25 +291,32 @@ class FicheroClient:
         linked_entity_ids: list[str] | None = None,
         linked_claim_ids: list[str] | None = None,
         linked_document_ids: list[str] | None = None,
+        page_id: str | None = None,
+        folder_id: str | None = None,
         address: str | None = None,
         parent_address: str | None = None,
     ) -> Note:
         """Create a Zettelkasten note."""
+        payload = {
+            "title": title,
+            "body": body,
+            "kind": kind.value if isinstance(kind, NoteKind) else kind,
+            "tags": tags or [],
+            "linked_note_ids": linked_note_ids or [],
+            "linked_entity_ids": linked_entity_ids or [],
+            "linked_claim_ids": linked_claim_ids or [],
+            "linked_document_ids": linked_document_ids or [],
+            "address": address,
+            "parent_address": parent_address,
+        }
+        if page_id is not None:
+            payload["page_id"] = page_id
+        if folder_id is not None:
+            payload["folder_id"] = folder_id
         raw = self.request(
             "POST",
             "/api/notes",
-            json={
-                "title": title,
-                "body": body,
-                "kind": kind.value if isinstance(kind, NoteKind) else kind,
-                "tags": tags or [],
-                "linked_note_ids": linked_note_ids or [],
-                "linked_entity_ids": linked_entity_ids or [],
-                "linked_claim_ids": linked_claim_ids or [],
-                "linked_document_ids": linked_document_ids or [],
-                "address": address,
-                "parent_address": parent_address,
-            },
+            json=payload,
         )
         return Note.model_validate(raw)
 
@@ -321,20 +328,27 @@ class FicheroClient:
         linked_entity_id: str | None = None,
         linked_claim_id: str | None = None,
         linked_document_id: str | None = None,
+        page_id: str | None = None,
+        folder_id: str | None = None,
         query: str | None = None,
     ) -> list[Note]:
         """List Zettelkasten notes, optionally filtered."""
+        params = {
+            "kind": kind.value if isinstance(kind, NoteKind) else kind,
+            "tag": tag,
+            "linked_entity_id": linked_entity_id,
+            "linked_claim_id": linked_claim_id,
+            "linked_document_id": linked_document_id,
+            "q": query,
+        }
+        if page_id is not None:
+            params["page_id"] = page_id
+        if folder_id is not None:
+            params["folder_id"] = folder_id
         raw = self.request(
             "GET",
             "/api/notes",
-            params={
-                "kind": kind.value if isinstance(kind, NoteKind) else kind,
-                "tag": tag,
-                "linked_entity_id": linked_entity_id,
-                "linked_claim_id": linked_claim_id,
-                "linked_document_id": linked_document_id,
-                "q": query,
-            },
+            params=params,
         )
         return [Note.model_validate(item) for item in _expect_list(raw, "/api/notes")]
 
