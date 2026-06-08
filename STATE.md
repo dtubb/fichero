@@ -290,3 +290,128 @@ NEXT: port #1662 fix (backend, after Marshall report). Curation (#73) needs a pl
 ### ~10:40am gate — apiarch2 merged (0.0.2 green): ResearchService→generated client, typed response models (providers/search/workflows/main), openapi regen. #70 progressing.
 MARSHALL one-folder report (NCM_Diary_1925): import DOES create transcript artifacts (151) + entity-list artifacts (when entities non-empty) — but NO explicit per-page "import receipt" artifact (#1756: add import_receipt so import visibly registers an artifact). Watched a page through the pipeline: start 1 artifact(transcription)/0 entities/0 claims → after run: 14 entities, 32 persisted claims. #1662 fix VALID — claims now written (39 total in folder from 3 pages). Worker wrote DISCRETE_CATALOGUE_STEPS_PROPOSAL.md (steps 1 import→artifacts, 2 entities, 3 svo→claims, ...). RECOMMENDATIONS to port into fichero engine: (#1756) add explicit import_receipt artifact on import; (#1662) promote inline claim persistence into the engine default workflow (remove broken kg_writer edge).
 NEXT: 2 backend lanes — (A) port #1662+#1756 into engine [code]; (B) #1758 search/embed/pykeen AUDIT [read-only report]. Disjoint engine modules.
+
+## 2026-06-07 ~11:20am — gated BOTH backend lanes; SEARCH AUDIT findings for Daniel
+0.0.2 HEAD = 65c4008c. Both lanes DONE, gated (ruff + targeted pytest green), merged, pushed, worktrees+tmux cleaned.
+
+### #1662 + #1756 (engine pipeline) — MERGED (f1eca1fb)
+- extract_all `persist_kg: false→true` + removed broken `kg_writer` node/edge across catalogue.json, catalogue_stage_2_entities_kg.json, ner_per_page_local.json → SVO claims persist inline.
+- manifest_import.py: idempotent per-page `import_receipt` artifact for every imported page.
+- 86 targeted + full suite (3839) green. **Takes effect on Daniel's next :8765 engine restart.**
+
+### #1758 SEARCH/EMBED/PYKEEN AUDIT — DANIEL'S EXPLICIT CONCERN. doc: docs/architecture/search_audit.md
+- **Search WORKS for document text** (semantic+fulltext+hybrid RRF over LanceDB `embeddings`; search.py:470, db.py:1059).
+- **NOT "search everything":** no claim/entity vector search in /api/search; scope only knows people:/places:/orgs:/dates:/events:/keywords: artifact scopes. Entity/claim "search" = metadata enrichment on doc hits only. → filed #1766 (scope selector + claims:/entities:).
+- **Embeddings GAP:** Marshall = 449 doc embeddings, but entity+claim semantic search return **503** — entities/claims NOT embedded (kg_entities legacy 15 rows, kg_entity_embeddings absent, claim embeddings absent). → filed #1767 (embed entities+claims + backfill + auto-embed on import).
+- **PyKEEN** trains technically (228 triples/87 ent/31 rel) but predict useless on sparse corpus. Dormant.
+- Bounded fix landed: entity semantic search falls back to kg_entities table (kg_entity_curation.py) instead of 503.
+
+### Issues filed/placed this session (Daniel's curation+architecture direction)
+- #1761 Curation — entity-resolution registry (persistent merge/alias/reclassify/split rules the import checker obeys).
+- #1763 Curation — claim/SVO curation registry (dedup + disable-but-keep + prune trivially-true, persists).
+- #1765 Curation — human-verification layer (curation_state on entities+artifacts; approve/reject/edit).
+- #1762 Library&Reading — one adaptive Inspector named by scope + up/down-scope nav (inspector+webkit share scope state).
+- #1768 KG&Herm — inspector shows COMPLETE schema-driven field set of claim/entity/artifact.
+- #1764 KG&Herm — BUG: extraction outputs Spanish on English-about-Colombia docs (output_language auto-detect flips on Spanish proper nouns). Fix opts: robust detect / pin library-doc primary-language preference / translate-SVO view.
+- DESIGN SPLIT (Daniel): inspector = native Mac controls FAST editing (multi-select/merge/combine); WebKit = read+navigate only, not an editor.
+
+### LANES: 0 codex lanes active. Running: Claude planning agent (sonnet, feature-dev:code-architect, bg) = curation implementation plan → post to #1751 when it returns.
+### NEXT: post curation plan to #1751 when planner returns → then bounded Phase-0 slice (#1694/#1752 exclude-from-processing toggle, backend+inspector). Then #1759 notes/annotations audit. HOLD canvas/spatial (Daniel redesigning) except #1746.
+### FOR DANIEL — GOOD TIME TO TEST: backend pipeline is ready NOW. Restart your :8765 engine → re-run a Marshall folder → expect (a) an import_receipt artifact per page on import, (b) SVO claims persisting (claim count > 0). Curation/editing UI is still being PLANNED (not built) — hold UI curation testing until that lands.
+
+## 2026-06-07 ~11:35am — list/search-view UX cluster + Views-reorg answer
+- Daniel restarted :8765 — import_receipt + inline-claim-persistence now LIVE for him to test.
+- VIEWS REORG: **DONE** (prior session). 326/340 view files in feature subfolders; only 14 top-level = ContentView + its 11 deliberate extensions. No open issue tracks it. Remaining option: decompose ContentView god-view further (not filed; offer to Daniel).
+- Filed list/search UX: #1769 (search→list view + clickable excerpts, Search), #1770 (restore clickable blue entity lozenges in list + add to column view — EntityLozenge exists at DocumentInspectorArtifactsTab.swift:516, likely regressed), #1771 (declutter list view; EVALUATE green/red status icons [DocumentInspector.swift:718] + page-count [ContentView+ViewBuilders.swift:229] — propose-don't-delete, Daniel to confirm).
+- LANE: f_codex_listview (gpt-5.4, ~/code/fichero-listview, ui/search-listview-lozenges) = #1769/#1770/#1771. Brief bakes Daniel's HARD rule: NO hand-rolled URLs/models (generated client only), iterate-in-place, no local paths, swiftlint, don't push.
+- GATE PLAN for this lane (Daniel's instruction): after swiftlint+Xcode MCP build (windowtab1), run a code-reviewer agent to VERIFY hookup uses the generated client (no hand-rolled URL/model) before merge.
+- LANES NOW: 1 codex (listview) + 1 Claude curation planner (bg). ≤2 OK.
+
+## 2026-06-07 ~11:50am — curation plan posted; backend foundation lane dispatched
+- CURATION PLAN (code-architect, file-grounded) posted to #1751: two-table persistent-rule store (EntityResolutionRule + ClaimSuppressionRule) consulted at the entity/claim write gate; inspector + entity-as-library as write surfaces reusing existing LibraryView selection; 12-step gateable sequence. Step 5 (writer-gate, upsert_entity str→str|None, HIGH BLAST RADIUS) flagged reviewer-gated + caller-sweep.
+- Daniel refinement: entities viewable in ALL library view modes (icon/list/column/map/spatial) as a first-class collection (#1686); curation verbs (merge/combine/unmerge) live THERE in addition to the inspector. Strengthens the plan (LibraryView selection machinery reused) — inspector=single-object precision, entity-library-views=bulk curation. Backend foundation unchanged.
+- LANE 2 (backend) dispatched: f_codex_curation_be (gpt-5.4, ~/code/fichero-curation-be, feat/curation-foundation-1761) = Steps 1+3+4 ONLY (exclude_from_processing field + batch-exclude endpoint + manifest skip; 5 rule models + curation_state on KnowledgeEntity; kg_curation_rules CRUD routes + openapi regen). Step 5 EXCLUDED (separate reviewer-gated lane). Backend gate ruff+pytest.
+- LANES NOW (2, disjoint, ≤2 OK): f_codex_listview (frontend #1769/#1770/#1771) + f_codex_curation_be (backend foundation). No shared files. Both gated separately; listview also gets a code-reviewer hookup gate.
+- NEXT: gate whichever lane finishes first. Then Step 5 writer-gate lane (reviewer-gated, after foundation lands) + Swift curation steps (after listview merges — shared LibraryView/Inspector).
+
+## 2026-06-07 ~12:30pm — BOTH lanes gated+merged; Spanish-fix lane dispatched
+0.0.2 HEAD = fdcae0a3. Both lanes shipped this tick:
+- **CURATION FOUNDATION merged (4c6128f5):** exclude_from_processing field + batch-exclude endpoint + manifest skip (#1694 CLOSED); 5 persistent-rule models (EntityResolutionRule/ClaimSuppressionRule + enums) + curation_state on KnowledgeEntity; kg_curation_rules CRUD+batch routes + openapi regen. ruff + 120 tests green. Step 5 (writer-gate enforcement) NOT yet done — next reviewer-gated lane. Commented #1761/#1763/#1765.
+- **LISTVIEW UX merged (fdcae0a3):** search→list-view + clickable excerpts (#1769 CLOSED), entity lozenges in list+column (#1770 CLOSED). code-reviewer APPROVE (NO hand-rolled URLs/models — worker even removed last apiClient.get calls). Xcode build green 162s.
+  - CAUGHT + REVERTED a regression: worker had hardcoded availableViewDisplayModes removing .spatial/.workspace (over-deletion under "declutter"). Restored the FeatureManager-gated modes before merge — Daniel WANTS spatial as a view mode. LESSON: workers over-interpret "declutter/remove cruft" into removing real features; always diff for unrequested removals.
+  - #1771 LEFT OPEN — FOR DANIEL: status icons (green/red) = Document.status; recommend hide-by-default in row chrome (meaningful only during ingest) — AWAITING DANIEL'S CONFIRM before hiding. Page-count: no active column anymore; leave only in PDF thumbnail/reading UI (don't re-add to rows).
+- LANE NOW: f_codex_lang (gpt-5.4, ~/code/fichero-lang, fix/output-language-detect-1764) = robust output-language detect + pinnable primary-language override (#1764). Backend, ruff+pytest.
+- NEXT: gate f_codex_lang; then Step 5 writer-gate lane (reviewer-gated, sweep upsert_entity callers — HIGH BLAST RADIUS) — its own focused lane (overlaps extract_all with #1764, so AFTER lang merges). Then Swift curation steps (7-11). Keep ≤2 lanes.
+
+## 2026-06-07 ~12:55pm — #1764 merged; Step 5 writer-gate lane dispatched
+- **#1764 Spanish fix MERGED (32344077), CLOSED.** lang_detect now samples running prose (≥6 words + stopword signal) not noun-heavy fragments → English-with-Spanish-proper-nouns stays English; weak detection falls back to default. + optional app-level primary_language AI-default override threaded into extract_all (openapi regen). ruff + 51 targeted (3853 full) green. FOR DANIEL: re-run a Marshall folder → claims/keywords should be English now; or pin a primary language in AI Defaults.
+- **LANE: f_codex_rulegate** (gpt-5.4, ~/code/fichero-rulegate, feat/curation-writer-gate-1761) = Curation Step 5 — enforce EntityResolutionRule + ClaimSuppressionRule at the _entity_writer.py write gate (upsert return str→str|None + caller sweep across manifest_import/extract_all/extractors; claim prune/disable/demote + copula-demote; persistence-across-import test). HIGH BLAST RADIUS — brief mandates get_blast_radius + find_references FIRST. Backend ruff+pytest, THEN code-reviewer (sonnet) before merge.
+- LANES NOW: 1 (rulegate). ≤2 OK.
+- NEXT: gate rulegate (reviewer-gated). Then Swift curation steps 7-11 (native Mac controls, after foundation; entity-as-library bulk curation per #1686). #1760 cache-flush quick win available. #1771 still OPEN awaiting Daniel's status-icon call.
+
+## 2026-06-07 ~13:25pm — Curation Step 5 MERGED; persistent-rule loop COMPLETE backend-side
+- **Step 5 write-gate MERGED (d3e7cca4).** upsert_entity consults EntityResolutionRule under the lock (suppress/reclassify/merge_into/alias; return str→str|None, all 4 callers sweep None cleanly); save_claim consults ClaimSuppressionRule (prune/disable/demote + copula auto-demote). code-reviewer APPROVE — no unguarded None, clean no-op when no rules, persistence-across-import tested (import→add rule→re-import honors it). ruff + 3865 tests green.
+  - **THE CURATION PERSISTENCE PROMISE IS NOW REAL backend-side**: human merge/suppress/reclassify/prune fixes survive future imports.
+  - Filed #1772 (pre-UI follow-ups, MUST land before curation UI ships): (1) entity-rule matching is case-SENSITIVE while claims are case-insensitive — undermines "fix folder 5, import 6" if casing differs; (2) redirect-cap(8) leaks instead of suppressing. Zero current impact (no rules yet).
+- **LANE: f_codex_curation_swift** (gpt-5.4, ~/code/fichero-curation-swift, feat/curation-swift-service-1752) = Swift FOUNDATION: #1752 exclude toggle UI (context menu + inspector header, generated batchExclude) + step 7 KGCurationServiceGenerated service layer. Generated-client only. EXPLICITLY NOT the bulk-curation inspector UI (Daniel still designing #1762/#1765/#1686). Gate: swiftlint + Xcode build + code-reviewer hookup check.
+- LANES NOW: 1. ≤2 OK.
+- NEXT: gate curation-swift (reviewer + Xcode build). Then #1772 (rule-gate correctness, before UI) and/or #1767 (embed entities+claims — Daniel's search concern) as a backend lane. The heavier inspector/entity-library bulk-curation UI WAITS on Daniel locking its design. #1771 still OPEN — Daniel's status-icon call.
+
+## 2026-06-07 ~13:58pm — Swift curation lane over-stopped; re-directed
+- f_codex_curation_swift initially STOPPED with zero edits: correctly refused to hand-roll the missing batchSetCurationState endpoint, but over-interpreted "stop+report" as halt-everything. RE-DIRECTED via tmux to build the buildable parts: #1752 exclude toggle (generated batch_exclude op confirmed present) + KGCurationServiceGenerated for entity-rules/claim-rules CRUD+batch (confirmed present); skip ONLY batchSetCurationState.
+- GAP filed on #1765: batch curation-state endpoints (PATCH /kg/entities|claims/batch-curation, plan step 6) NOT built — needed before inspector approve/reject UI. Small backend lane.
+- LESSON: brief workers to "skip the missing piece and continue with the rest" explicitly, not just "stop+report" — gpt-5.4 halts the whole task on STOP.
+- LANES: 1 (curation_swift, re-running). NEXT: gate it (reviewer + Xcode build); then a small backend lane for #1765 step-6 batch-curation-state endpoints, or #1772 rule-gate correctness, or #1767 embeddings.
+
+## 2026-06-07 ~14:20pm — TMUX ENTER LESSON + 2 lanes confirmed running
+- LESSON (Daniel flagged): after `tmux send-keys '<codex cmd>' C-m`, the codex TUI can SWALLOW the first Enter while booting — the prompt sits unsent. ALWAYS re-capture the pane and send an extra `C-m`, confirm the "• Working" spinner before trusting the lane is running. (Hit this twice today: the curation_swift re-direct + the rulefix launch.)
+- LANES NOW (2, both confirmed Working):
+  - f_codex_curation_swift = #1752 exclude toggle UI + KGCurationServiceGenerated service layer (skip batchSetCurationState). FRONTEND.
+  - f_codex_rulefix = #1772 case-insensitive entity-rule matching + redirect-cap-suppress. BACKEND (_entity_writer.py + maybe kg_curation_rules.py). Disjoint from curation_swift.
+- NEXT: gate both (curation_swift: reviewer + Xcode build; rulefix: ruff+pytest). Then #1765 step-6 batch-curation-state endpoints, then #1767 embeddings.
+
+## 2026-06-07 ~7:55pm — gated both stale lanes; bulk-curation design LOCKED; step-6 lane dispatched
+- Wakeup at 15:22 never fired (gap); resumed 7:44pm. Both lanes were done+uncommitted — gated both now.
+- **#1772 MERGED (132f5487), CLOSED:** case-insensitive entity-rule matching + redirect-cycle suppress. ruff + 46/3867 tests.
+- **#1752 MERGED (c952772f), CLOSED:** exclude-from-processing toggle (context menu + inspector header, generated batchExclude) + KGCurationServiceGenerated (entity/claim rule CRUD+batch, registered per library). Manager FIXED 4 build errors in-place: private access to +Header extension, non-Sendable asyncMap→sequential loop, 2× invalid `if let` on non-optional windowState.libraryId. Xcode build green 142s. code-reviewer skipped (token-conscious) — relied on hand-rolled-scan (clean) + Xcode build.
+  - LESSON: worker repeated the same `if let x = nonOptionalUUID` mistake in 2 files; scan whole diff for a class of error when you find one.
+- **BULK-CURATION UI DESIGN LOCKED (Daniel)** → memory + #1751: surface=BOTH (inspector + entity-library views); merge survivor=most-corroborated; action scope=user-choosable (page/folder vs library-wide, library-wide writes the rule); affordances all eventually, MVP=context-menu+action-bar.
+- **LANE: f_codex_curstate** (gpt-5.4, ~/code/fichero-curstate, feat/batch-curation-state-1765) = #1765 step6: PATCH /kg/entities|claims/batch-curation + MutationLog + openapi regen. Unblocks the approve/reject UI. Backend ruff+pytest.
+- CADENCE: Daniel set ~30min (was hourly). #1771 still OPEN — status-icon call. NEXT after curstate: #1767 embeddings (Daniel's search concern), or start bulk-curation UI to the locked spec once backend endpoints land.
+
+## 2026-06-07 ~8:05pm — curation backend COMPLETE; bulk-curation MVP lane started
+- **#1765 step6 MERGED (3c25ed2d):** PATCH /api/kg/entities|claims/batch-curation (+ MutationLog + openapi regen). 3871 tests. (Worker made a small new claim_curation.py route file — clean, registered, mirrors kg_entity_curation.py.)
+- **CURATION BACKEND NOW FULLY COMPLETE**: rule store + write-gate enforcement + persistence-across-import + exclude-from-processing + batch curation-state. Only the UI remains.
+- **#1771 CLOSED** (Daniel): keep status icons as-is (spinner is the useful part).
+- Daniel: build the bulk-curation MVP autonomously, no need to weigh in unless I have questions.
+- **LANE: f_codex_curui** (gpt-5.4, ~/code/fichero-curui, feat/bulk-curation-mvp-1751) = MVP slice: entity multi-select in the inspector entities tab + context-menu Approve/Reject/Suppress, with page/folder-vs-library-wide scope choice (library-wide Suppress writes an EntityResolutionRule). NO Merge (fast-follow). Generated client only. Gate: swiftlint + Xcode build + scan-for-hand-rolled.
+- NEXT after curui gates: bulk-curation Merge action + claim curation + entity-library-view surface; or #1767 embeddings. ~30min cadence.
+
+## 2026-06-07 ~9:12pm — entity bulk-curation MVP SHIPPED; embeddings lane dispatched
+- **#1751 entity bulk-curation MVP MERGED (d5a880cf):** multi-select entities in inspector → Approve/Reject/Suppress + page/folder-vs-library-wide scope (library-wide Suppress writes deduped EntityResolutionRule). curation_state badge. code-reviewer APPROVE. Manager fixed 4 build errors in-place: (1) suppress rule matchEntityType=nil (EntityTypeOutput vs request-enum mismatch — nil = any type, correct for suppress-by-name); (2) explicit `return` in entityRow (let-bindings before the Button block implicit return); (3) kgCurationService via @EnvironmentObject not `library.x` (LibraryWindow already injects it); (4) badge only for non-unreviewed. Xcode green 108s.
+- FIRST USER-FACING CURATION UI is live. Fast-follows remain: Merge action, claim parity, entity-library-view surface.
+- **LANE: f_codex_embed** (gpt-5.4, ~/code/fichero-embed, feat/embed-entities-claims-1767) = #1767 embed entities+claims (fix the 503s from the search audit): canonical kg_entity_embeddings + claim vectors, auto-embed on import/extract (non-blocking), backfill, stats. BACKEND ruff+pytest — clean unattended lane (no Xcode babysitting).
+- CADENCE ~30min. NEXT: gate embed lane; then curation fast-follows (Merge/claim/entity-library) or #1766 search scope selector.
+
+## 2026-06-07 ~9:20pm — OVERNIGHT PLAN (Daniel: work all night, 45-min cadence)
+200+ open issues. Loop autonomously, ≤2 codex lanes, gate everything to 0.0.2, MILESTONE-FIRST-REVIEW.
+**Night target order (skip held/design-blocked):**
+1. **Curation fast-follows (#73):** Merge action (most-corroborated survivor + existing entity-merge endpoint + library-wide writes merge_into rule); claim-curation parity (mirror entity MVP in claims/KG section, uses /kg/claims/batch-curation); entity-library-view surface (same actions in icon/list/column views per locked design).
+2. **Search (#17, Daniel's concern):** gate #1767 embeddings first; then #1766 scope selector (claims:/entities: + include array).
+3. **KG & Hermeneutics (#55, 14):** #1759 notes/annotations add/delete per-page+folder; claim merge/unmerge UI #1689; other bounded.
+4. **Importers (#57, 5):** #1757 discrete catalogue steps (now #1662/#1756 landed).
+5. **Bounded backend wins:** Settings & Providers (#20,11), Activity & Automation (#56,11), API Surface (#70,6), Developer Experience (#64,9) — review each, pick well-scoped non-design issues.
+6. **Library & Reading Surface (#60, 39):** ONLY the bounded bugs / non-canvas-redesign ones — review carefully, skip anything tied to the canvas/spatial redesign Daniel is shaping.
+**HOLD:** canvas/spatial feature builds (Mind Palace #12, redesign) except #1746; Researcher epics (#1488-blocked) except bounded; anything needing a Daniel design decision → file a question issue, don't guess.
+**Discipline:** backend lanes ruff+pytest; frontend = scan-for-hand-rolled + code-reviewer (sonnet) + Xcode build windowtab1 with IN-PLACE fixes (known error classes: private-access across extensions, non-Sendable closure→sequential loop, invalid if-let on non-optional, missing return when let precedes view expr, service via @EnvironmentObject not library.x, generated EntityTypeOutput vs request-enum→nil). Diff for UNREQUESTED REMOVALS. tmux: send EXTRA C-m + confirm "• Working". Never restart :8765, never push main, commit to 0.0.2 each gate. Update STATE every tick.
+
+---
+## TICK — 2026-06-07 ~22:14 ADT (overnight)
+**Merged to 0.0.2:**
+- #1767 embed entities+claims → canonical LanceDB tables + `_vector_similarity` (LanceDB _distance→cosine). Fixes entity/claim semantic-search 503s. `kg rebuild`/backfill fills both vector tables; `/api/search/stats` reports doc+entity+claim coverage. Gate green (ruff + 3874 pytest). HEAD `7f70edaa`. Commented #1767 telling Daniel a `fichero kg rebuild` on Marshall resolves the 503s. Worktree cleaned.
+
+**Dispatched (2 lanes, disjoint):**
+- `f_inbox` (~/code/fichero-inbox, fix/inbox-autocreate-1592) — **#1592 new-library-no-Inbox**. Root cause found: `add_known_library` registers the path but never opens the new lib's DB, so lazy `ensure_inbox_folder` (db_manager.get_database:104) never fires at registration; live :8765 had a stale cached conn. Fix = eagerly `db_manager.get_database(pkg_path)` on register + integration test. (#1727 closed this prematurely.)
+- `f_merge` (~/code/fichero-entity-merge, feat/entity-merge-action-1751) — entity **Merge** action in bulk-curation UI; survivor = most-corroborated (Daniel-locked); wires to existing `POST /kg/entity-curation/merge` via generated client in KGCurationServiceGenerated.
+
+**Next tick:** gate f_inbox first (backend: ruff+pytest, merge, close #1592 noting :8765 needs a fresh open to pick up Marshall's Inbox). Gate f_merge (scan hand-rolled → reviewer → Xcode BuildProject windowtab1 → fix-in-place → merge). Then fill freed slots from plan order: search #1766 scope selector → KG&Herm #1759 notes → importers #1757.
