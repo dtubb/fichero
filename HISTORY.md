@@ -2508,3 +2508,12 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - Stabilized Library/Search reading layout: Canvas/Reading toolbar buttons remain visible, enter Widescreen when pressed from None/Standard, and folders/groups render container placeholders instead of hiding the canvas pane.
 - Verified Marshall storage endpoints return real JPEG thumbnails/display images from the live backend, and updated #1680/#1681/#1666 with findings.
 - Added focused Swift tests for image-load identity, canvas document policy, and pane toggle policy; focused Xcode tests passed, and touched-file SwiftLint exited cleanly.
+
+## 2026-06-08 — Demo + multi-provider extraction session
+
+- Demo to Andy LANDED (20-page English Marshall20Entities library).
+- Fixed KG extraction across all 3 providers + merged to 0.0.2 (c29fa52f): OpenAI function_calling (default), OpenRouter httpx strip-hook (both OpenAI + Bedrock-Claude), Apple include_schema_in_prompt. Full suite green (3921 passed). Closed #1802/#1821/#1822/#1823.
+- Earlier: f607c7d6 extraction schema fixes (verb/object optional, strict=False for OpenAI, thin-output kept); #1799 folder-scope fail-fast; demo UI fixes (inspector tab order, hide Mind Palace/Batches, Delete action, blank-image fix, WebKit timeline+map, entity-detail mentions).
+- Diagnosed search/embedding quality gaps (e5 prefixes missing, whole-page embedding, no KG-fusion) + entity dedup.
+- Filed the full product roadmap as issues #1774–#1834: providers/consolidation, search/index/chat, dedup/NLP, provenance+undo EPIC, cost, fallback chain, LOOVE, profiling, corpus, pyarrow, bounding-boxes, paleography, omlx.
+- Policy established: workers write tests, manager runs them; one lean lane at a time (RAM).
