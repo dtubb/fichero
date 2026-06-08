@@ -19,6 +19,7 @@ struct EntityKindBlock: View {
         InspectorEntityBulkActionScope,
         [Components.Schemas.KnowledgeClaim]
     ) async -> Void)?
+    var requestPruneTrivialAction: ((InspectorEntityBulkActionScope) -> Void)?
     var onNavigateToSource: ((String) -> Void)?
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
@@ -107,6 +108,7 @@ struct EntityKindBlock: View {
                                 claimContextMenuTarget: claimContextMenuTarget,
                                 onClaimTap: onClaimTap,
                                 applyClaimBulkAction: applyClaimBulkAction,
+                                requestPruneTrivialAction: requestPruneTrivialAction,
                                 onNavigateToSource: onNavigateToSource,
                                 onClaimSelect: onClaimSelect
                             )

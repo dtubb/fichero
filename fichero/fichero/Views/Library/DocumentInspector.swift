@@ -219,7 +219,7 @@ struct DocumentInspector: View {
         ScrollView {
             KnowledgeGraphInspectorSection(
                 documentId: doc.id,
-                documentScopeLabel: doc.docType == .page ? "This page only" : "This folder only",
+                documentScope: doc.docType == .page ? .page : .folder,
                 entityService: entityService,
                 artifactService: artifactService,
                 kgCurationService: kgCurationService,
