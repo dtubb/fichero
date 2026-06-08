@@ -13,6 +13,7 @@ struct DocumentInspector: View {
     @SceneStorage("inspectorSelectedTab") private var selectedTab: InspectorTab = .content
     @EnvironmentObject private var entityService: EntityServiceGenerated
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
+    @EnvironmentObject private var kgCurationService: KGCurationServiceGenerated
     @ObservedObject private var featureManager = FeatureManager.shared
     @ObservedObject private var claimFocusState = ClaimFocusState.shared
     /// Cross-view KG focus. When an entity is focused (a lozenge / WebKit-graph
@@ -206,7 +207,7 @@ struct DocumentInspector: View {
             document: doc,
             documentId: doc.id,
             entityService: entityService,
-            kgCurationService: library.kgCurationService,
+            kgCurationService: kgCurationService,
             onEntitySelect: { entityId in
                 kgFocusState.focusEntity(entityId: entityId)
             }

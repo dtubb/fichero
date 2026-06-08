@@ -214,7 +214,7 @@ struct DocumentInspectorEntitiesTab: View {
     ) -> some View {
         let stableId = entity.stableInspectorId
         let isSelected = entitySelection.contains(stableId)
-        Button {
+        return Button {
             handleEntityTap(entity, kind: kind)
         } label: {
             VStack(alignment: .leading, spacing: 3) {
@@ -542,7 +542,7 @@ struct InspectorEntityBulkSelection {
             return Components.Schemas.EntityRuleCreateRequest(
                 ruleType: .suppress,
                 matchCanonicalName: canonicalName,
-                matchEntityType: entity.entityType,
+                matchEntityType: nil,
                 targetCanonicalName: nil,
                 targetEntityType: nil,
                 reason: "Bulk suppress from inspector",
