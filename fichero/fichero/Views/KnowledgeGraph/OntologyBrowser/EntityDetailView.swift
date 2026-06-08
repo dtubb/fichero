@@ -122,7 +122,7 @@ struct EntityDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     headerSection
                     aliasesSection
-                    // biographySection
+                    mentionsSection
                     metadataSection
                     claimsSection
                     auditSection
