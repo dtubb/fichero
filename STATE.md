@@ -415,3 +415,17 @@ NEXT: 2 backend lanes — (A) port #1662+#1756 into engine [code]; (B) #1758 sea
 - `f_merge` (~/code/fichero-entity-merge, feat/entity-merge-action-1751) — entity **Merge** action in bulk-curation UI; survivor = most-corroborated (Daniel-locked); wires to existing `POST /kg/entity-curation/merge` via generated client in KGCurationServiceGenerated.
 
 **Next tick:** gate f_inbox first (backend: ruff+pytest, merge, close #1592 noting :8765 needs a fresh open to pick up Marshall's Inbox). Gate f_merge (scan hand-rolled → reviewer → Xcode BuildProject windowtab1 → fix-in-place → merge). Then fill freed slots from plan order: search #1766 scope selector → KG&Herm #1759 notes → importers #1757.
+
+---
+## TICK — 2026-06-07 ~23:12 ADT (overnight)
+**Merged to 0.0.2 (HEAD `41328f6f`):**
+- #1592 — auto-seed Inbox on library registration. `add_known_library` now eagerly opens the new lib's DB (idempotent `ensure_inbox_folder`), guarded. Regression test added. Closed #1592 (supersedes prematurely-closed #1727); noted Marshall picks up its Inbox on next fresh open (no :8765 restart).
+- #1751 entity **Merge** action in bulk-curation UI (survivor=most-corroborated). Gate caught 2 build errors → fixed in-place: (a) `mergeEntities` lives on `EntityServiceGenerated` not `kgCurationService` — view already had `entityService` param; (b) `corroborationCount` is generated `Int?` (default-but-not-required) → unwrap `?? 0` before `>`. Xcode BuildProject green (104s).
+- LESSON: a property with `default` but not in OpenAPI `required` generates as Swift Optional — must `?? default` before comparison ops.
+- GOTCHA: a bare `git stash pop` popped a STRAY pre-existing stash (HISTORY-worker.md WIP from another branch); discarded it. Only stash STATE.md when it actually has changes, pop by specific ref.
+
+**Dispatched (2 lanes, disjoint):**
+- `f_search` (~/code/fichero-search-scope, feat/search-scope-backend-1766) — #1766 BACKEND half: claims:/entities: query-parser tokens + SearchRequest `include` array (default content+entities+claims) + real retrieval from the now-populated entity/claim vector tables (reuse search_entities/claims_semantic) + CLI + OpenAPI regen. SwiftUI scope selector deferred to a follow-up lane.
+- `f_claim` (~/code/fichero-claim-curation, feat/claim-curation-parity-1763) — claim bulk-curation parity in inspector: mirror entity tab's multi-select + Approve/Reject/Suppress + scope on the claims surface, wiring existing `PATCH /api/kg/claims/batch-curation` + claim suppression rules via KGCurationServiceGenerated.
+
+**Next tick:** gate f_search first (backend). Gate f_claim (frontend: hand-rolled scan → reviewer → Xcode BuildProject windowtab1 → fix-in-place → merge). Then refill: SwiftUI search-scope selector (#1766 UI half) → KG&Herm #1759 notes/annotations → importers #1757.
