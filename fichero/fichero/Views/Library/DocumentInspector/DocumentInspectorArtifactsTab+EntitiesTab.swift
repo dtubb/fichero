@@ -509,7 +509,7 @@ struct DocumentInspectorEntitiesTab: View {
         defer { isApplyingBulkAction = false }
 
         do {
-            _ = try await kgCurationService.mergeEntities(
+            _ = try await entityService.mergeEntities(
                 absorbingEntityId: plan.survivorId,
                 absorbedEntityIds: plan.absorbedEntityIds
             )
@@ -660,8 +660,10 @@ struct InspectorEntityBulkSelection {
         in entities: [Components.Schemas.KnowledgeEntity]
     ) -> Components.Schemas.KnowledgeEntity? {
         entities.sorted { lhs, rhs in
-            if lhs.corroborationCount != rhs.corroborationCount {
-                return lhs.corroborationCount > rhs.corroborationCount
+            let lhsCorroboration = lhs.corroborationCount ?? 0
+            let rhsCorroboration = rhs.corroborationCount ?? 0
+            if lhsCorroboration != rhsCorroboration {
+                return lhsCorroboration > rhsCorroboration
             }
             if lhs.canonicalName.count != rhs.canonicalName.count {
                 return lhs.canonicalName.count > rhs.canonicalName.count
