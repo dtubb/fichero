@@ -108,6 +108,14 @@ def _entities_for_records(records: list[dict[str, Any]], db) -> dict[str, dict[s
             required=False,
             description="Selected document metadata, typically from Files.documents",
         ),
+        PortDef(
+            id="barrier",
+            name="Barrier (sync)",
+            port_type="input",
+            data_type=DataType.ANY,
+            required=False,
+            description="Optional dependency-only input used by chained presets.",
+        ),
     ],
     output_ports=[
         PortDef(
