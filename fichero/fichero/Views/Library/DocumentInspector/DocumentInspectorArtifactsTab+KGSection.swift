@@ -40,6 +40,7 @@ struct KnowledgeGraphInspectorSection: View {
     @State private var isApplyingBulkAction = false
     @State private var isPruningTrivialClaims = false
     @State private var pendingMergePlan: InspectorClaimBulkSelection.MergePlan?
+    @State private var pendingDeleteConfirmation: PendingClaimDeleteConfirmation?
     @State private var claimActionMessage: String?
     @State private var pendingPruneConfirmation: PendingPruneConfirmation?
     private var claims: [Components.Schemas.KnowledgeClaim] {
@@ -265,6 +266,7 @@ struct KnowledgeGraphInspectorSection: View {
                         onClaimTap: handleClaimTap(_:),
                         applyClaimBulkAction: applyBulkAction,
                         requestClaimMergeAction: requestMergeAction(for:),
+                        requestClaimDeleteAction: requestDeleteAction(for:),
                         requestPruneTrivialAction: requestPruneTrivialAction,
                         onNavigateToSource: onNavigateToSource,
                         onClaimSelect: onClaimSelect
@@ -303,6 +305,23 @@ struct KnowledgeGraphInspectorSection: View {
             Text("This keeps \(plan.survivorName) as the canonical claim and folds the others into it.")
         }
         .alert(
+            pendingDeleteConfirmation?.title ?? "Delete claim?",
+            isPresented: Binding(
+                get: { pendingDeleteConfirmation != nil },
+                set: { if !$0 { pendingDeleteConfirmation = nil } }
+            ),
+            presenting: pendingDeleteConfirmation
+        ) { pending in
+            Button("Delete", role: .destructive) {
+                Task { await applyDelete(pending) }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeleteConfirmation = nil
+            }
+        } message: { pending in
+            Text(pending.message)
+        }
+        .alert(
             pendingPruneConfirmation?.title ?? "Prune trivial claims?",
             isPresented: Binding(
                 get: { pendingPruneConfirmation != nil },
@@ -331,6 +350,7 @@ struct KnowledgeGraphInspectorSection: View {
             claimBulkActionMenu(title: "Reject", systemImage: "xmark.circle", action: .reject)
             claimBulkActionMenu(title: "Suppress", systemImage: "eye.slash", action: .suppress)
             claimMergeActionMenu(targetClaims: selectedClaims, menuTitle: "Merge")
+            deleteActionButton(targetClaims: selectedClaims)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -443,6 +463,18 @@ struct KnowledgeGraphInspectorSection: View {
         .disabled(isMutatingClaims || mergePlan == nil)
     }
 
+    private func deleteActionButton(
+        targetClaims: [Components.Schemas.KnowledgeClaim]
+    ) -> some View {
+        Button(role: .destructive) {
+            requestDeleteAction(for: targetClaims)
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+        .buttonStyle(.borderless)
+        .disabled(isMutatingClaims || targetClaims.isEmpty)
+    }
+
     @ViewBuilder
     private func claimBulkScopeButtons(
         action: InspectorClaimBulkAction,
@@ -486,6 +518,10 @@ struct KnowledgeGraphInspectorSection: View {
             return selectedClaims
         }
         return [claim]
+    }
+
+    private func requestDeleteAction(for targetClaims: [Components.Schemas.KnowledgeClaim]) {
+        pendingDeleteConfirmation = PendingClaimDeleteConfirmation(claims: targetClaims)
     }
 
     private func handleClaimTap(_ claim: Components.Schemas.KnowledgeClaim) {
@@ -619,6 +655,42 @@ struct KnowledgeGraphInspectorSection: View {
 
     private func requestMergeAction(for targetClaims: [Components.Schemas.KnowledgeClaim]) {
         pendingMergePlan = InspectorClaimBulkSelection.mergePlan(for: targetClaims)
+    }
+
+    private func applyDelete(_ pending: PendingClaimDeleteConfirmation) async {
+        let claimIds = pending.claims.compactMap(\.id)
+        let missingIdCount = pending.claims.count - claimIds.count
+        guard !claimIds.isEmpty else {
+            claimActionMessage = "Selected claims are missing IDs, so delete was skipped."
+            pendingDeleteConfirmation = nil
+            return
+        }
+
+        isApplyingBulkAction = true
+        claimActionMessage = nil
+        pendingDeleteConfirmation = nil
+        defer { isApplyingBulkAction = false }
+
+        do {
+            for claimId in claimIds {
+                try await entityService.deleteClaim(claimId)
+            }
+            await loadStatements()
+            claimSelection = []
+            claimSelectionAnchor = nil
+
+            var message = "Deleted \(claimIds.count) claim"
+            message += claimIds.count == 1 ? "" : "s"
+            if missingIdCount > 0 {
+                message += "; skipped \(missingIdCount) without IDs"
+            }
+            claimActionMessage = message
+        } catch {
+            inspectorClaimsLogger.error(
+                "Claim delete failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            claimActionMessage = "Couldn't delete claims: \(error.localizedDescription)"
+        }
     }
 
     // swiftlint:disable:next todo
@@ -767,6 +839,28 @@ struct PendingPruneConfirmation: Identifiable {
     let scope: KGCurationServiceGenerated.PruneTrivialScope
     let title: String
     let message: String
+}
+
+struct PendingClaimDeleteConfirmation: Identifiable {
+    let claims: [Components.Schemas.KnowledgeClaim]
+
+    var id: String {
+        claims.compactMap(\.id).sorted().joined(separator: "|")
+    }
+
+    var title: String {
+        if claims.count == 1, let claim = claims.first {
+            return "Delete \"\(claim.displayMergeName)\"?"
+        }
+        return "Delete \(claims.count) claims?"
+    }
+
+    var message: String {
+        if claims.count == 1 {
+            return "This removes the claim from the knowledge graph. Related entities stay in place."
+        }
+        return "This removes the selected claims from the knowledge graph. Related entities stay in place."
+    }
 }
 
 enum InspectorClaimBulkAction: Equatable {

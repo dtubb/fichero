@@ -25,6 +25,7 @@ struct DocumentInspectorEntitiesTab: View {
     @State private var isLoading = false
     @State private var isApplyingBulkAction = false
     @State private var pendingMergePlan: InspectorEntityBulkSelection.MergePlan?
+    @State private var pendingDeleteConfirmation: PendingEntityDeleteConfirmation?
     @State private var loadError: String?
     @State private var actionMessage: String?
     @AppStorage("inspector.entities.hiddenKinds") private var hiddenKindsCSV: String = ""
@@ -120,6 +121,23 @@ struct DocumentInspectorEntitiesTab: View {
         } message: { plan in
             Text("This keeps \(plan.survivorName) as the canonical entity and folds the others into it.")
         }
+        .alert(
+            pendingDeleteConfirmation?.title ?? "Delete entity?",
+            isPresented: Binding(
+                get: { pendingDeleteConfirmation != nil },
+                set: { if !$0 { pendingDeleteConfirmation = nil } }
+            ),
+            presenting: pendingDeleteConfirmation
+        ) { pending in
+            Button("Delete", role: .destructive) {
+                Task { await applyDelete(pending) }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeleteConfirmation = nil
+            }
+        } message: { pending in
+            Text(pending.message)
+        }
     }
 
     private var header: some View {
@@ -149,6 +167,7 @@ struct DocumentInspectorEntitiesTab: View {
             bulkActionMenu(title: "Reject", systemImage: "xmark.circle", action: .reject)
             bulkActionMenu(title: "Suppress", systemImage: "eye.slash", action: .suppress)
             mergeActionMenu(targetEntities: selectedEntities, menuTitle: "Merge")
+            deleteActionButton(targetEntities: selectedEntities)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -347,6 +366,7 @@ struct DocumentInspectorEntitiesTab: View {
         .disabled(isApplyingBulkAction || targetCount == 0)
 
         mergeActionMenu(targetEntities: targetEntities, menuTitle: "Merge")
+        deleteContextMenuButton(targetEntities: targetEntities)
     }
 
     @ViewBuilder
@@ -409,6 +429,28 @@ struct DocumentInspectorEntitiesTab: View {
         .disabled(isApplyingBulkAction || mergePlan == nil)
     }
 
+    private func deleteActionButton(
+        targetEntities: [Components.Schemas.KnowledgeEntity]
+    ) -> some View {
+        Button(role: .destructive) {
+            requestDeleteAction(for: targetEntities)
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+        .buttonStyle(.borderless)
+        .disabled(isApplyingBulkAction || targetEntities.isEmpty)
+    }
+
+    @ViewBuilder
+    private func deleteContextMenuButton(
+        targetEntities: [Components.Schemas.KnowledgeEntity]
+    ) -> some View {
+        Button("Delete…", role: .destructive) {
+            requestDeleteAction(for: targetEntities)
+        }
+        .disabled(isApplyingBulkAction || targetEntities.isEmpty)
+    }
+
     private func handleEntityTap(
         _ entity: Components.Schemas.KnowledgeEntity,
         kind: EntityKind
@@ -440,6 +482,10 @@ struct DocumentInspectorEntitiesTab: View {
             return selectedEntities
         }
         return [entity]
+    }
+
+    private func requestDeleteAction(for targetEntities: [Components.Schemas.KnowledgeEntity]) {
+        pendingDeleteConfirmation = PendingEntityDeleteConfirmation(entities: targetEntities)
     }
 
     private func syncSelectionToLoadedEntities() {
@@ -522,6 +568,42 @@ struct DocumentInspectorEntitiesTab: View {
                 "Entity merge failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
             actionMessage = "Couldn't merge entities: \(error.localizedDescription)"
+        }
+    }
+
+    private func applyDelete(_ pending: PendingEntityDeleteConfirmation) async {
+        let entityIds = pending.entities.compactMap(\.id)
+        let missingIdCount = pending.entities.count - entityIds.count
+        guard !entityIds.isEmpty else {
+            actionMessage = "Selected entities are missing IDs, so delete was skipped."
+            pendingDeleteConfirmation = nil
+            return
+        }
+
+        isApplyingBulkAction = true
+        actionMessage = nil
+        pendingDeleteConfirmation = nil
+        defer { isApplyingBulkAction = false }
+
+        do {
+            for entityId in entityIds {
+                try await entityService.deleteEntity(entityId)
+            }
+            entitySelection = []
+            selectionAnchor = nil
+            await loadEntities()
+
+            var message = "Deleted \(entityIds.count) entit"
+            message += entityIds.count == 1 ? "y" : "ies"
+            if missingIdCount > 0 {
+                message += "; skipped \(missingIdCount) without IDs"
+            }
+            actionMessage = message
+        } catch {
+            inspectorEntitiesLogger.error(
+                "Entity delete failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            actionMessage = "Couldn't delete entities: \(error.localizedDescription)"
         }
     }
 
@@ -724,6 +806,28 @@ enum InspectorEntityBulkAction {
 enum InspectorEntityBulkActionScope {
     case pageOrFolderOnly
     case libraryWide
+}
+
+struct PendingEntityDeleteConfirmation: Identifiable {
+    let entities: [Components.Schemas.KnowledgeEntity]
+
+    var id: String {
+        entities.map(\.stableInspectorId).sorted().joined(separator: "|")
+    }
+
+    var title: String {
+        if entities.count == 1, let name = entities.first?.canonicalName {
+            return "Delete \"\(name)\"?"
+        }
+        return "Delete \(entities.count) entities?"
+    }
+
+    var message: String {
+        if entities.count == 1 {
+            return "This removes the entity and any claims that reference it from the knowledge graph."
+        }
+        return "This removes the selected entities and any claims that reference them from the knowledge graph."
+    }
 }
 
 struct EntityCurationBadge: View {
