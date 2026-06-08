@@ -518,3 +518,18 @@ NEXT: 2 backend lanes — (A) port #1662+#1756 into engine [code]; (B) #1758 sea
 **Next tick:** gate f_step4 first (backend). Gate f_claimui (frontend: scan → Xcode build → fix-in-place → merge). Then refill: entity-library-view surface (entities in icon/list/column/map modes) → #1757 step 5 (KG persist) + chaining → bounded backend wins.
 
 ### SCOREBOARD (Daniel): 14 merged tonight + a red contract test fixed. Curation surface COMPLETE (#1763/#1751/#1761/#1765) + claim merge/unmerge backend (#1689). Search 503-fix + scope selector (#1767/#1766). Notes/annotations page+folder (#1759). New-library Inbox (#1592). Importer decomposition 3/5 (#1757 steps 1-3).
+
+---
+## TICK — 2026-06-08 ~05:40 ADT (overnight)
+**Merged to 0.0.2 (HEAD `af959dcb`):**
+- #1757 STEP 4 — discrete "Merge/Dedup" tool (`merge_dedup_only.py`) APPLYING existing entity-resolution + claim-suppression rules + trivial detector (no new heuristics), idempotent, allowlisted on both KG write surfaces. Pipeline 4/5. #1757 open for step 5.
+- #1689 UI — claim merge/unmerge UI (KGSection, mirrors entity merge; typed `mergeClaims`/`unmergeClaims` wrappers; survivor by corroboration; confirm+refresh). Build caught 1 error (ambiguous `compactMap` over `[String?]` → rewrote as `compactMap { $0?.trim }.filter{...}`), fixed in-place, green. **#1689 fully CLOSED** — knowledge-consistency mandate now holds for claims (edit/merge/unmerge/delete/curation across entities AND claims). Claim *unmerge UI* affordance left as TODO (backend+wrapper exist).
+- LESSON: `compactMap` over `[String?]` with a `guard let...return nil` closure → "Generic parameter 'ElementOfResult' could not be inferred"; rewrite as `.compactMap { $0?.transform }.filter { ... }`.
+
+**Running (1 backend + 1 frontend, disjoint):**
+- `f_step5` (~/code/fichero-step5, feat/kgpersist-step-discrete-1757) — #1757 STEP 5 KG-persist/finalize (triangulation/corroboration + embed pass, reuse existing) + CHAIN all 5 steps into a full-pipeline preset. Completes #1757 → can CLOSE after merge. Backend gate.
+- `f_entityview` (~/code/fichero-entityview, feat/entity-library-view-1635) — entity-as-library: entities as a first-class collection in LIST view (bounded MVP; reuse EntityServiceGenerated + list rendering; KEEP existing view modes). Frontend gate. (icon/column/map/spatial deferred.)
+
+**Next tick:** gate f_step5 first (backend; if it finalizes #1757, close it). Gate f_entityview (frontend Xcode gate; watch for removed view modes). Then refill: entity-library-view icon/column modes → bounded backend wins (Settings/Providers, Activity) → bounded Library bugs.
+
+### SCOREBOARD (Daniel): 16 merged tonight + a red contract test fixed. COMPLETE: curation surface (#1763/#1751/#1761/#1765), claim+entity merge/unmerge (#1689), search 503-fix+scope (#1767/#1766), notes/annotations page+folder (#1759), inbox bug (#1592). Importer decomposition 4/5 (#1757), step 5 + chaining in flight.
