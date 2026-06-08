@@ -14,7 +14,11 @@ extension OntologyBrowser {
                     claims: entityClaims,
                     isLoadingClaims: isLoadingClaims,
                     onNavigateToSource: { claim in
-                        ClaimSummaryCard.postOpenClaimSource(for: claim)
+                        kgFocusState.focusEntity(
+                            entityId: entity.id,
+                            sourceDocumentId: claim.sourceDocumentId,
+                            sourcePageLabel: claim.sourcePageLabel
+                        )
                     }
                 )
                 // `.task(id: entityId)` re-keys on selection change so

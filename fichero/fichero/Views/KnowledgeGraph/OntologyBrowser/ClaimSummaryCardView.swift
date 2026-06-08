@@ -6,6 +6,7 @@ import SwiftUI
 
 struct ClaimSummaryCard: View {
     let claim: Components.Schemas.KnowledgeClaim
+    var focusedEntityId: String?
     var onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)?
 
     /// Expanded → reveals the verbatim source excerpt + fetches
@@ -210,6 +211,7 @@ struct ClaimSummaryCard: View {
     private func focusClaim() {
         kgFocusState.focusClaim(
             claimId: claim.id,
+            entityId: focusedEntityId,
             sourceDocumentId: claim.sourceDocumentId,
             sourcePageLabel: claim.sourcePageLabel
         )

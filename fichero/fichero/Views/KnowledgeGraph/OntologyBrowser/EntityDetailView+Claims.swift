@@ -13,22 +13,6 @@ extension EntityDetailView {
 
                 Spacer()
 
-                // Toggle the biography (reconstructed-paragraph) view
-                // on/off. Off by default — the claim cards are the
-                // canonical surface; biography is a reading affordance.
-                // (#989)
-                Button {
-                    biographyMode.toggle()
-                } label: {
-                    Image(systemName: biographyMode
-                            ? "text.alignleft"
-                            : "text.justify")
-                        .font(.caption)
-                        .foregroundStyle(biographyMode ? Color.accentColor : Color.secondary)
-                }
-                .buttonStyle(.plain)
-                .help(biographyMode ? "Hide biography paragraph" : "Show biography paragraph")
-
                 // Source-groups mode: switch to per-source-document
                 // grouped prose view backed by the entity inspector
                 // endpoint. (#1183)
@@ -96,13 +80,6 @@ extension EntityDetailView {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 12)
-            } else if biographyMode {
-                biographyComposedText
-                    .font(.body)
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
             } else {
                 // LazyVStack so the inspector stays at 60fps even when
                 // an entity has hundreds of claims (real corpora hit
@@ -117,6 +94,7 @@ extension EntityDetailView {
                     ForEach(visibleClaims, id: \.id) { claim in
                         ClaimSummaryCard(
                             claim: claim,
+                            focusedEntityId: entity.id,
                             onNavigateToSource: onNavigateToSource
                         )
                     }
