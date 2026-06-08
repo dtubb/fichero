@@ -442,3 +442,16 @@ NEXT: 2 backend lanes — (A) port #1662+#1756 into engine [code]; (B) #1758 sea
 - `f_notes` (~/code/fichero-notes-audit, feat/notes-annotations-backend-1759) — #1759 BACKEND-ONLY audit+fix: notes+annotations add/delete/list at page AND folder scope, tests, + `docs/architecture/api/notes_annotations_audit.md` gap-report for the SwiftUI follow-up. Explicitly NO Swift edits (stays disjoint from the Xcode lane).
 
 **Next tick:** gate f_notes first (backend). Gate f_scopeui (hand-rolled scan → reviewer if large → Xcode BuildProject windowtab1 → fix-in-place → merge). Then refill: importers #1757 (scope to step 1: import→artifacts discrete runnable step) → KG&Herm #1689 claim merge/unmerge → bounded backend wins.
+
+---
+## TICK — 2026-06-08 ~01:08 ADT (overnight)
+**Merged to 0.0.2 (HEAD `cc7f2f2c`):**
+- #1759 BACKEND — notes + annotations add/delete/list at page AND folder scope (added page_id/folder_id to Note+Annotation models, no migration; Annotation.document_id loosened to optional). + CLI + OpenAPI regen + `docs/architecture/api/notes_annotations_audit.md` handoff. 3890 pytest green. #1759 KEPT OPEN for SwiftUI half.
+- #1766 UI — search scope selector (Content·Entities·Claims) bound to typed `SearchRequest.include`; SearchResponse bridge retains entity/claim hits (rendering = small TODO). #1766 fully CLOSED.
+- CROSS-LAYER FALLOUT (caught by Xcode gate): #1759 loosening `Annotation.document_id`→optional made generated Swift `documentId` optional, breaking `AnnotationService.swift:226`. Fixed in-place: per-document converter now skips document-less (folder-scoped) annotations. LESSON: loosening a required backend field → generated client field becomes Optional → existing Swift assuming non-optional breaks. After any merge that changes a model's required-ness, the NEXT Xcode build may break elsewhere — gate caught it.
+
+**Dispatched (2 lanes, disjoint — 1 frontend + 1 backend):**
+- `f_notesui` (~/code/fichero-notes-ui, feat/notes-annotations-ui-1759) — #1759 SwiftUI half: wire NotesBrowserView + annotation UI to the new page/folder add/delete endpoints (guided by the handoff doc); folder-scoped annotation path gets its own converter. Frontend gate.
+- `f_prune` (~/code/fichero-prune, feat/prune-trivial-claims-1763) — #1763 prune-trivial: BACKEND conservative is-a/copula trivial-claim detector + `POST /api/kg/claims/prune-trivial` (scope-aware; library-wide writes suppress_is_a_copulas rule, idempotent) + tests + regen. Backend gate. NO swift edits.
+
+**Next tick:** gate f_prune first (backend). Gate f_notesui (frontend: scan → Xcode build windowtab1 → fix-in-place → merge). Then refill: importers #1757 (scope to ONE step) → KG&Herm #1689 claim merge/unmerge → entity-library-view surface → bounded backend wins.
