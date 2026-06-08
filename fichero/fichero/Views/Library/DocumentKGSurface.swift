@@ -1,4 +1,3 @@
-import FicheroAPIClient
 import SwiftUI
 
 enum KGGraphRendererFramework: String {
@@ -93,14 +92,14 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
     /// True for tabs rendered inside the shared WKWebView (#1346).
     var usesWebKit: Bool {
         switch self {
-        case .transcript, .digest, .graph, .timeline: return true
-        case .claims, .map: return false
+        case .transcript, .digest, .graph, .timeline, .map: return true
+        case .claims: return false
         }
     }
 }
 
-/// Hosts the WebKit document KG plus the native document-scoped claims and map
-/// views under one fixed toolbar.
+/// Hosts the WebKit document KG plus the native document-scoped claims view
+/// under one fixed toolbar.
 struct DocumentKGSurface: View {
     let documentId: String
     let documentScope: InspectorClaimDocumentScope
@@ -113,8 +112,6 @@ struct DocumentKGSurface: View {
     @ObservedObject var scrollSync: DocumentScrollSyncState
 
     @State private var activeTab: KGSurfaceTab = .transcript
-    @State private var internalSelectedEntityId: String?
-    @State private var documentEntities: [Components.Schemas.KnowledgeEntity] = []
     @Environment(KGFocusState.self) private var kgFocusState
     @EnvironmentObject private var entityService: EntityServiceGenerated
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
@@ -135,17 +132,13 @@ struct DocumentKGSurface: View {
 
             content
         }
-        .task(id: documentId) {
-            documentEntities = (try? await entityService.listEntitiesForDocument(
-                documentId: documentId)) ?? []
-        }
     }
 
     @ViewBuilder
     private var content: some View {
         // Keep the WKWebView alive across tab switches via ZStack + opacity
         // so scroll position survives when the user moves between transcript/
-        // digest/graph/timeline and the native claims/map tabs. (#1346)
+        // digest/graph/timeline/map and the native claims tab. (#1346)
         ZStack {
             DocumentKGWebPane(
                 documentId: documentId,
@@ -170,7 +163,7 @@ struct DocumentKGSurface: View {
     @ViewBuilder
     private var nativeTabContent: some View {
         switch activeTab {
-        case .transcript, .digest, .graph, .timeline:
+        case .transcript, .digest, .graph, .timeline, .map:
             EmptyView()
         case .claims:
             ScrollView {
@@ -190,12 +183,6 @@ struct DocumentKGSurface: View {
                 )
                 .padding()
             }
-        case .map:
-            KGMapView(
-                entities: documentEntities,
-                selectedEntityId: $internalSelectedEntityId,
-                sourceDocumentId: documentId
-            )
         }
     }
 

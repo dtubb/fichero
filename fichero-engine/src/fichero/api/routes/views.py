@@ -75,6 +75,17 @@ def _claim_payload(
             "time_end": claim.time_end,
             "time_precision": claim.time_precision,
             "confidence_source": claim.confidence_source,
+            "claim_location": claim.claim_location,
+            "claim_geo": (
+                {
+                    "lat": claim.claim_geo.lat,
+                    "lon": claim.claim_geo.lon,
+                    "precision_m": claim.claim_geo.precision_m,
+                    "place_name": claim.claim_geo.place_name,
+                }
+                if claim.claim_geo
+                else None
+            ),
             "date_values": [
                 {
                     "id": value.id,
@@ -86,6 +97,20 @@ def _claim_payload(
                     "confidence": value.confidence,
                 }
                 for value in (claim.date_values or [])
+            ],
+            "place_values": [
+                {
+                    "id": value.id,
+                    "label": value.label,
+                    "lat": value.lat,
+                    "lon": value.lon,
+                    "precision_m": value.precision_m,
+                    "geometry_type": value.geometry_type.value,
+                    "basis": value.basis.value,
+                    "confidence": value.confidence,
+                    "places": list(value.places or []),
+                }
+                for value in (claim.place_values or [])
             ],
             "entity_names": [
                 entities_by_id[entity_id].canonical_name
@@ -173,6 +198,20 @@ async def document_view(
                     "confidence": value.confidence,
                 }
                 for value in (entity.date_values or [])
+            ],
+            "place_values": [
+                {
+                    "id": value.id,
+                    "label": value.label,
+                    "lat": value.lat,
+                    "lon": value.lon,
+                    "precision_m": value.precision_m,
+                    "geometry_type": value.geometry_type.value,
+                    "basis": value.basis.value,
+                    "confidence": value.confidence,
+                    "places": list(value.places or []),
+                }
+                for value in (entity.place_values or [])
             ],
             "source_document_ids": list(entity.source_document_ids or []),
             "metadata": dict(entity.metadata or {}),

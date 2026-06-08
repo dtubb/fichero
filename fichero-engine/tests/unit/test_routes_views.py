@@ -62,6 +62,7 @@ class TestDocumentViewRoute:
         assert "Digest" in response.text
         assert "Graph" in response.text
         assert "Timeline" in response.text
+        assert "Map" in response.text
 
     def test_html_uses_apple_system_fonts_and_native_tab_bridge(self, client, db):
         # #1228 follow-up: fonts are Apple system defaults, the in-page tab bar
@@ -186,13 +187,28 @@ class TestDocumentViewRoute:
                 "basis": "asserted",
             }],
         )
+        place = KnowledgeEntity(
+            id="place-1",
+            canonical_name="Andagoya",
+            entity_type=EntityType.location,
+            source_document_ids=[doc.id],
+            place_values=[{
+                "label": "Andagoya",
+                "lat": 5.093,
+                "lon": -76.695,
+                "basis": "asserted",
+            }],
+        )
         db.save(event)
+        db.save(place)
 
         response = client.get(f"/view/document/{doc.id}")
         assert response.status_code == 200
         assert '"id": "event-1"' in response.text
         assert '"entity_type": "event"' in response.text
         assert '"date_values": [{"id":' in response.text
+        assert '"id": "place-1"' in response.text
+        assert '"place_values": [{"id":' in response.text
 
     def test_missing_document_returns_404(self, client):
         response = client.get("/view/document/no-such-document")

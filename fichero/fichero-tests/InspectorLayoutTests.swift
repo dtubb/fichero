@@ -457,14 +457,14 @@ struct KGSurfaceTabTests {
         #expect(KGSurfaceTab.map.title == "Map")
     }
 
-    @Test("Timeline stays in WebKit while Claims and Map stay native")
+    @Test("Timeline and Map tabs stay inside the shared WebKit pane")
     func webKitTabs() {
         #expect(KGSurfaceTab.transcript.usesWebKit)
         #expect(KGSurfaceTab.digest.usesWebKit)
         #expect(KGSurfaceTab.graph.usesWebKit)
         #expect(KGSurfaceTab.timeline.usesWebKit)
+        #expect(KGSurfaceTab.map.usesWebKit)
         #expect(!KGSurfaceTab.claims.usesWebKit)
-        #expect(!KGSurfaceTab.map.usesWebKit)
     }
 
     @Test("Every KGSurfaceTab has a non-empty SF Symbol")
