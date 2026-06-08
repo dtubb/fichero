@@ -108,19 +108,25 @@ def add_known_library(
             lib = existing[0]
             lib.last_accessed = datetime.now()
             db.save(lib)
-            return lib
+            library = lib
+        else:
+            # Create new registration
+            if name is None:
+                name = pkg_path.name  # e.g. "My Library.fichero" → "My Library.fichero"
 
-        # Create new registration
-        if name is None:
-            name = pkg_path.name  # e.g. "My Library.fichero" → "My Library.fichero"
+            library = KnownLibrary(
+                path=str(pkg_path),
+                name=name,
+                added_at=datetime.now(),
+                last_accessed=datetime.now(),
+            )
+            db.save(library)
 
-        library = KnownLibrary(
-            path=str(pkg_path),
-            name=name,
-            added_at=datetime.now(),
-            last_accessed=datetime.now(),
-        )
-        db.save(library)
+        try:
+            db_manager.get_database(str(pkg_path))
+        except Exception as exc:
+            logger.warning("Inbox seeding skipped for %s: %s", pkg_path, exc)
+
         return library
     except Exception as e:
         logger.error("Failed to add known library: %s", e)
