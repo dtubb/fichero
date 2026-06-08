@@ -215,6 +215,50 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(serviceSource.contains("batchSetEntityCurationStateApiKgEntitiesBatchCurationPatch"))
     }
 
+    func testClaimLibraryWideSuppressRulesDeduplicateTriples() {
+        let claims = [
+            makeKnowledgeClaim(
+                id: "claim-1",
+                subject: "Andagoya",
+                predicate: "is",
+                object: "a place"
+            ),
+            makeKnowledgeClaim(
+                id: "claim-2",
+                subject: "andagoya",
+                predicate: "is",
+                object: "a place"
+            )
+        ]
+
+        let rules = InspectorClaimBulkSelection.libraryWideSuppressRules(for: claims)
+
+        XCTAssertEqual(rules.count, 1)
+        XCTAssertEqual(rules.first?.action, .disable)
+        XCTAssertEqual(rules.first?.matchSubjectName, "Andagoya")
+        XCTAssertEqual(rules.first?.matchPredicateVerb, "is")
+        XCTAssertEqual(rules.first?.matchObjectPhrase, "a place")
+        XCTAssertEqual(rules.first?.reason, "Bulk suppress from inspector")
+    }
+
+    func testKnowledgeGraphInspectorSectionUsesGeneratedClaimBulkCurationOnly() throws {
+        let source = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift"
+        )
+        let rowSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntityKindRow.swift"
+        )
+        let serviceSource = try Self.appSource("Services/ArtifactServiceGenerated.swift")
+
+        XCTAssertTrue(source.contains("batchSetClaimCurationState"))
+        XCTAssertTrue(source.contains("batchCreateClaimRules"))
+        XCTAssertTrue(rowSource.contains("Menu(\"Suppress\")"))
+        XCTAssertFalse(source.contains("URLSession"))
+        XCTAssertFalse(source.contains("URLRequest"))
+        XCTAssertFalse(source.contains("URL(string:"))
+        XCTAssertTrue(serviceSource.contains("batchSetClaimCurationStateApiKgClaimsBatchCurationPatch"))
+    }
+
     // testFetchButtonHelpersExposeExpectedLabelsAndIcons removed: the
     // KnowledgeGraphInspectorSection.fetchButtonHelp(for:)/fetchButtonIcon(for:)
     // helpers no longer exist in production, so the test no longer compiles.
@@ -401,5 +445,20 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             mergedIntoId: nil
         )
     }
+}
+
+private func makeKnowledgeClaim(
+    id: String,
+    subject: String,
+    predicate: String,
+    object: String
+) -> Components.Schemas.KnowledgeClaim {
+    Components.Schemas.KnowledgeClaim(
+        id: id,
+        text: "\(subject) \(predicate) \(object)",
+        subjectCanonical: subject,
+        predicateVerb: predicate,
+        objectPhrase: object
+    )
 }
 // swiftlint:enable file_length type_body_length

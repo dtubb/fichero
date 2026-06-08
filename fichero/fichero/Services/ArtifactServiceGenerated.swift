@@ -2650,4 +2650,29 @@ final class KGCurationServiceGenerated: ObservableObject {
             throw ServiceError.unexpectedResponse(code)
         }
     }
+
+    func batchSetClaimCurationState(
+        claimIds: [String],
+        curationState: Components.Schemas.ClaimCurationState
+    ) async throws -> Components.Schemas.BatchClaimCurationResponse {
+        let body = Components.Schemas.BatchClaimCurationRequest(
+            claimIds: claimIds,
+            curationState: curationState
+        )
+        let response = try await client.api.batchSetClaimCurationStateApiKgClaimsBatchCurationPatch(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("batchSetClaimCurationState unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
 }
