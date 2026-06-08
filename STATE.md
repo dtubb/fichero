@@ -548,3 +548,21 @@ NEXT: 2 backend lanes — (A) port #1662+#1756 into engine [code]; (B) #1758 sea
 **Next tick:** gate f_extg first (backend). Gate f_iconview (frontend Xcode gate; watch removed view modes). Then refill: entity column/map view (#1773) → bounded backend wins → bounded Library bugs. MILESTONE-FIRST-REVIEW each new milestone.
 
 ### SCOREBOARD (Daniel): 18 merged + 1 red test fixed overnight. COMPLETE: full curation surface (#1763/#1751/#1761*/#1765*), entity+claim merge/unmerge (#1689), search 503-fix+scope selector (#1767/#1766), notes/annotations page+folder (#1759), new-library Inbox (#1592), entity-as-library list view, AND the complete 5-step+chained importer pipeline (#1757). (*#1761/#1765 backends largely built earlier — worth a verify-and-close pass.)
+
+---
+## TICK — 2026-06-08 ~07:30 ADT — LOOP PAUSED (Daniel awake)
+**Merged to 0.0.2 (HEAD `5cf32b35`):**
+- #1652 — extensibility-guarantee contract test (`test_extensibility_guarantee.py`, 4 tests) + `docs/architecture/api/extensibility_guarantee.md`. Enforces additive/no-migration (extra="allow", registry entity types, open artifact_type, _ensure_table picks up new fields). #1652 CLOSED.
+- #1773 — entity ICON view (tiles mirroring document icon chrome, reuse list-MVP selection). Build green first try. entity-as-library now = list + icon. #1773 OPEN for column/map/spatial.
+
+**Overnight total: 20 issues merged, 0 regressions, every one gated.**
+
+**LOOP PAUSED** — Daniel woke and is steering. No lanes running. Did NOT auto-dispatch/reschedule. Awaiting his direction.
+
+**Ready-to-go next items (when Daniel says go):**
+- entity column view + map view (#1773) — frontend, templated by list/icon.
+- verify-and-close pass on #1761 (entity-resolution registry) + #1765 (human-verification curation_state) — backends largely built earlier; confirm + close or finish the gap.
+- bounded backend wins: Settings/Providers (#484 release-gate wire), Activity & Automation (#1742), API surface.
+- bounded Library & Reading Surface bugs.
+
+**FOR DANIEL when testing:** `git pull` on the worktree + restart the :8765 engine to pick up backend changes (search embeddings/scopes, notes/annotations page+folder scope, the 5-step pipeline presets, Spanish-language fix #1764, Marshall Inbox auto-create). The engine changes take effect only on restart — I never restart your live backend.
