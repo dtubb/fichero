@@ -1,36 +1,17 @@
-"""Embedding-based entity vectors in LanceDB.
+"""Canonical entity embeddings in LanceDB.
 
-Phase B of the KG rollup (#899). Encodes the canonical_name +
-description of every KnowledgeEntity into a 384-dim dense vector
-using ``sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2``
-(via fastembed, already a project dep — multilingual so Spanish
-archive material works alongside English).
-
-Vectors land in a LanceDB table per library (``kg_entities``). The
-existing ``upsert_entity`` calls into this module on the fuzzy-match
-fallback path: cosine similarity against same-type entities replaces
-the SequenceMatcher heuristic.
-
-Confidence bands (proposed thresholds, tuneable per #899 Phase D):
-- ``>=0.92`` → auto-merge. Surface-form variant, accent drift, or
-  near-identical title.
-- ``0.75 – 0.92`` → flag as predicted match. Don't auto-merge yet;
-  emit a log line + (future) push onto a review queue for the
-  curation UI.
-- ``<0.75`` → distinct entity, create new row + index its vector.
-
-The model is lazy-imported on first use (per the
-``feedback_lazy_import`` memory) so the engine cold-start stays
-fast for users who don't catalogue.
+This module keeps the older ``entity_vectors`` API surface used by the KG
+writer, but routes all reads/writes through the same embedding model and
+canonical table as the search endpoints.
 """
 
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Optional
 
-import numpy as np
-
+from fichero.db_embeddings import KG_ENTITY_EMBEDDINGS_TABLE
 from fichero.kg._common import enum_value
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -39,120 +20,89 @@ if TYPE_CHECKING:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-
-# Embedding model — paraphrase-multilingual-MiniLM-L12-v2.
-# 384-dim, ~220MB on disk, ES + EN handled by the same checkpoint.
-# Picked over BGE-large or mpnet-base for cold-start time + RAM
-# footprint on the on-device deployment.
-EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-EMBED_DIM = 384
-
-# LanceDB table name — one per library, keyed by entity id.
-TABLE = "kg_entities"
-
-# Default confidence bands. Stored as module constants so callers
-# (and #899 Phase D's calibration work) can override.
+TABLE = KG_ENTITY_EMBEDDINGS_TABLE
 AUTO_MERGE_THRESHOLD = 0.92
 REVIEW_THRESHOLD = 0.75
+_OVERLAP_STOPWORDS = {
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "into",
+    "over",
+    "under",
+    "this",
+    "that",
+    "was",
+    "were",
+    "are",
+    "but",
+    "not",
+    "por",
+    "para",
+    "con",
+    "los",
+    "las",
+    "del",
+}
 
 
-# Cached embedding model singleton — lazy-loaded.
-_model = None
+def _token_overlap(left: str | None, right: str | None) -> float:
+    """Cheap lexical overlap guard for semantic-merge decisions."""
+    left_tokens = _content_tokens(left)
+    right_tokens = _content_tokens(right)
+    if not left_tokens or not right_tokens:
+        return 0.0
+    return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
 
 
-def _get_model():
-    """Lazy-load the fastembed model.
-
-    First call downloads the model (~220MB) and incurs a few-second
-    init; subsequent calls are free. Loading happens off the FastAPI
-    hot path because ``upsert_entity`` runs inside catalogue workflows,
-    not request handlers.
-    """
-    global _model
-    if _model is None:
-        from fastembed import TextEmbedding
-
-        logger.info("entity_vectors: loading embedding model %s (lazy)", EMBED_MODEL)
-        _model = TextEmbedding(model_name=EMBED_MODEL)
-    return _model
+def _content_tokens(text: str | None) -> set[str]:
+    """Normalized content tokens, excluding stopwords and tiny words."""
+    return {
+        token
+        for token in "".join(
+            ch if ch.isalnum() or ch.isspace() else " " for ch in (text or "").lower()
+        ).split()
+        if len(token) > 2 and token not in _OVERLAP_STOPWORDS
+    }
 
 
-def encode(text: str) -> np.ndarray:
-    """Encode a single string to a 384-dim float32 vector.
-
-    fastembed's API is generator-based for batch; we wrap for the
-    one-at-a-time call site in upsert_entity.
-    """
-    if not text or not text.strip():
-        return np.zeros(EMBED_DIM, dtype=np.float32)
-    model = _get_model()
-    vec = next(iter(model.embed([text])))
-    return np.asarray(vec, dtype=np.float32)
+def _distance_to_similarity(row: dict) -> float:
+    """Convert LanceDB distance output into cosine similarity."""
+    if "_score" in row and row["_score"] is not None:
+        return float(row["_score"])
+    distance = row.get("_distance")
+    if distance is None:
+        return 0.0
+    value = 1.0 - (float(distance) ** 2) / 2.0
+    return max(-1.0, min(1.0, value))
 
 
-def _l2_normalized(vec: np.ndarray) -> np.ndarray:
-    """L2-normalize so cosine similarity == 1 - cosine distance.
+def _adjust_similarity(
+    *,
+    raw_score: float,
+    query_name: str,
+    row_name: str,
+    query_description: str | None,
+    row_description: str | None,
+) -> float:
+    """Re-rank raw vector similarity with lightweight lexical guardrails."""
+    name_overlap = _token_overlap(query_name, row_name)
+    description_overlap = _token_overlap(query_description, row_description)
+    description_tokens = min(
+        len(_content_tokens(query_description)),
+        len(_content_tokens(row_description)),
+    )
 
-    Both ``index_entity`` (write) and ``find_similar`` (query) must
-    normalize identically — otherwise LanceDB's cosine distance won't
-    land in ``[0, 2]`` for the ``1 - d`` score conversion to work.
-    """
-    norm = float(np.linalg.norm(vec))
-    return vec / norm if norm > 0 else vec
-
-
-def _entity_text(canonical_name: str, description: Optional[str]) -> str:
-    """Compose the text we encode for an entity.
-
-    We embed the canonical_name with the description appended — the
-    description carries the SVO predicate set by the catalogue
-    extractor, which is exactly the discriminating signal between
-    "Narrator's Account of Racial Economic Exclusion" and "Sale of
-    the Estate." Without it, we'd be matching on bare titles and
-    losing the contextual signal.
-    """
-    name = (canonical_name or "").strip()
-    desc = (description or "").strip()
-    if desc:
-        return f"{name}. {desc}"
-    return name
-
-
-def _ensure_table(db: "Database"):
-    """Get or create the kg_entities table in this library's LanceDB.
-
-    Schema: id (str), entity_type (str), canonical_name (str),
-    description (str), vector (float32[EMBED_DIM]).
-    """
-    lance = db.lance
-    # list_tables is the modern API; table_names() is deprecated but
-    # we still try it for older LanceDB installs.
-    if hasattr(lance, "list_tables"):
-        raw = lance.list_tables()
-    else:  # pragma: no cover
-        raw = lance.table_names()
-    # Newer LanceDB wraps the list in an object with a .tables attr;
-    # older returns a plain list. Normalize. (Mirrors the pattern in
-    # fichero/db.py:_lance_tables.)
-    if hasattr(raw, "tables"):
-        table_names = raw.tables
-    elif isinstance(raw, dict):
-        table_names = list(raw.keys())
-    else:
-        table_names = list(raw)
-    if TABLE in table_names:
-        return lance.open_table(TABLE)
-
-    import pyarrow as pa
-
-    schema = pa.schema([
-        pa.field("id", pa.string()),
-        pa.field("entity_type", pa.string()),
-        pa.field("canonical_name", pa.string()),
-        pa.field("description", pa.string()),
-        pa.field("vector", pa.list_(pa.float32(), EMBED_DIM)),
-    ])
-    return lance.create_table(TABLE, schema=schema)
+    score = raw_score
+    if description_overlap >= 0.95 and description_tokens >= 4 and raw_score >= 0.65:
+        score = max(score, AUTO_MERGE_THRESHOLD)
+    if name_overlap == 0.0 and description_tokens < 4:
+        score = min(score, REVIEW_THRESHOLD - 0.01)
+    if name_overlap == 0.0 and description_overlap == 0.0:
+        score = min(score, REVIEW_THRESHOLD - 0.01)
+    return score
 
 
 def index_entity(
@@ -162,31 +112,24 @@ def index_entity(
     canonical_name: str,
     description: Optional[str] = None,
 ) -> None:
-    """Add or update an entity's vector in LanceDB.
-
-    Idempotent — call again with the same id to refresh (e.g. after
-    an alias merge updates the description). Existing rows with the
-    same id are deleted first so we don't accumulate stale vectors.
-    """
+    """Add or update an entity's vector in the canonical table."""
     try:
-        table = _ensure_table(db)
-        vec = _l2_normalized(encode(_entity_text(canonical_name, description)))
+        from fichero.knowledge_models import KnowledgeEntity
 
-        # Delete any prior vector for this id to keep the table 1:1
-        # with KnowledgeEntity rows.
-        table.delete(f"id = '{entity_id}'")
-
-        table.add([{
-            "id": entity_id,
-            "entity_type": enum_value(entity_type),
-            "canonical_name": canonical_name,
-            "description": description or "",
-            "vector": vec.tolist(),
-        }])
+        entity = db.get(KnowledgeEntity, entity_id)
+        if entity is None:
+            entity = SimpleNamespace(
+                id=entity_id,
+                canonical_name=canonical_name,
+                entity_type=entity_type,
+                aliases=[],
+                description=description,
+            )
+        else:
+            if description and not entity.description:
+                entity.description = description
+        db.embed_entities([entity])
     except Exception as exc:
-        # Don't take down the catalogue workflow if vector indexing
-        # fails. The DuckDB row is the canonical store; vectors are
-        # an accelerator for fuzzy match. Log + carry on.
         logger.warning("entity_vectors.index_entity: %s", exc)
 
 
@@ -197,48 +140,40 @@ def find_similar(
     description: Optional[str] = None,
     top_k: int = 5,
 ) -> list[tuple[str, float, str]]:
-    """Cosine-search same-type entities by name+description similarity.
-
-    Returns a list of ``(entity_id, cosine_score, matched_canonical_name)``
-    tuples sorted by descending score, up to ``top_k`` hits. Empty
-    list if the table is empty or the search fails — callers must
-    treat as no-match (fall through to the SequenceMatcher path).
-
-    The score is cosine similarity in ``[-1, 1]``; LanceDB returns
-    distance, so we convert via ``score = 1 - distance``.
-    """
+    """Search canonical entity vectors by semantic similarity."""
     try:
-        table = _ensure_table(db)
-        type_value = enum_value(entity_type)
-
-        # No rows in this library yet → nothing to match.
-        try:
-            row_count = table.count_rows()
-        except Exception:
-            row_count = None
-        if row_count == 0:
+        if TABLE not in db._lance_tables():
             return []
 
-        # Explicitly request cosine — LanceDB defaults to L2, which is
-        # unbounded and won't map to a 0–1 confidence band. We also
-        # L2-normalize the query vector so `1 - distance` is true
-        # cosine similarity rather than an approximation.
-        vec = _l2_normalized(encode(_entity_text(canonical_name, description)))
-        results = (
-            table.search(vec.tolist())
-            .distance_type("cosine")
-            .where(f"entity_type = '{type_value}'")
-            .limit(top_k)
-            .to_list()
+        probe = SimpleNamespace(
+            canonical_name=canonical_name,
+            entity_type=entity_type,
+            aliases=[],
+            description=description,
         )
+        query_vector = db._embed_text(db.entity_embedding_text(probe))  # type: ignore[attr-defined]
+        results = db.search_vectors(TABLE, query_vector, limit=max(top_k * 5, top_k))
 
         hits: list[tuple[str, float, str]] = []
+        expected_type = enum_value(entity_type)
         for row in results:
-            # _distance is cosine distance in [0, 2]; similarity = 1 - d
-            # for L2-normalized vectors lands in [-1, 1] with 1.0 = identical.
-            distance = row.get("_distance", 0.0)
-            score = 1.0 - distance
-            hits.append((row["id"], score, row.get("canonical_name", "")))
+            if row.get("entity_type") != expected_type:
+                continue
+            hits.append(
+                (
+                    row["id"],
+                    _adjust_similarity(
+                        raw_score=_distance_to_similarity(row),
+                        query_name=canonical_name,
+                        row_name=str(row.get("canonical_name", "")),
+                        query_description=description,
+                        row_description=str(row.get("description", "")),
+                    ),
+                    str(row.get("canonical_name", "")),
+                )
+            )
+            if len(hits) >= top_k:
+                break
         return hits
     except Exception as exc:
         logger.warning("entity_vectors.find_similar: %s", exc)
@@ -246,9 +181,12 @@ def find_similar(
 
 
 def remove(db: "Database", entity_id: str) -> None:
-    """Drop an entity's vector — used when an entity is merged away."""
+    """Drop an entity's vector from the canonical table."""
     try:
-        table = _ensure_table(db)
-        table.delete(f"id = '{entity_id}'")
+        if TABLE not in db._lance_tables():
+            return
+        table = db.lance.open_table(TABLE)
+        safe_id = entity_id.replace("'", "''")
+        table.delete(f"id = '{safe_id}'")
     except Exception as exc:
         logger.warning("entity_vectors.remove: %s", exc)

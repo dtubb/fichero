@@ -34,12 +34,12 @@ def rebuild_kg(
     """Backfill entity vectors and/or rebuild the RDF triple file.
 
     Returns a stats dict describing what was processed:
-    ``{"entities": N, "claims": M, "vector_indexed": N, "triples_written": K}``.
+    ``{"entities": N, "claims": M, "entity_vectors_indexed": N,
+    "claim_vectors_indexed": M, "triples_written": K}``.
 
-    Vectors path: iterates every KnowledgeEntity row and calls
-    ``entity_vectors.index_entity`` for each. Existing rows are
-    overwritten by id, so a partial backfill that gets interrupted
-    can be re-run safely.
+    Vectors path: rewrites the canonical entity + claim embedding tables
+    from the DuckDB rows. Existing rows are replaced by id, so a partial
+    backfill that gets interrupted can be re-run safely.
 
     RDF path: queries all entities + claims, builds an in-memory
     graph via ``triples.build_graph``, then serializes to
@@ -54,7 +54,8 @@ def rebuild_kg(
     stats = {
         "entities": 0,
         "claims": 0,
-        "vector_indexed": 0,
+        "entity_vectors_indexed": 0,
+        "claim_vectors_indexed": 0,
         "triples_written": 0,
     }
 
@@ -64,23 +65,14 @@ def rebuild_kg(
     stats["claims"] = len(claims)
 
     if vectors:
-        from fichero.kg import entity_vectors
-
-        for ent in entities:
-            try:
-                entity_vectors.index_entity(
-                    db=db,
-                    entity_id=ent.id,
-                    entity_type=ent.entity_type,
-                    canonical_name=ent.canonical_name,
-                    description=ent.description,
-                )
-                stats["vector_indexed"] += 1
-            except Exception as exc:
-                logger.warning(
-                    "rebuild_kg: vector index failed for entity %s: %s",
-                    ent.id, exc,
-                )
+        try:
+            stats["entity_vectors_indexed"] = db.embed_entities(entities)
+        except Exception as exc:
+            logger.warning("rebuild_kg: entity vector backfill failed: %s", exc)
+        try:
+            stats["claim_vectors_indexed"] = db.embed_claims(claims)
+        except Exception as exc:
+            logger.warning("rebuild_kg: claim vector backfill failed: %s", exc)
 
     if triples:
         try:

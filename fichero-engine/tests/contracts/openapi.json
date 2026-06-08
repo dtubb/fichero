@@ -40081,6 +40081,26 @@
           "table_exists": {
             "type": "boolean",
             "title": "Table Exists"
+          },
+          "entity_indexed_count": {
+            "type": "integer",
+            "title": "Entity Indexed Count",
+            "default": 0
+          },
+          "entity_table_exists": {
+            "type": "boolean",
+            "title": "Entity Table Exists",
+            "default": false
+          },
+          "claim_indexed_count": {
+            "type": "integer",
+            "title": "Claim Indexed Count",
+            "default": 0
+          },
+          "claim_table_exists": {
+            "type": "boolean",
+            "title": "Claim Table Exists",
+            "default": false
           }
         },
         "type": "object",
@@ -49514,9 +49534,13 @@
             "type": "integer",
             "title": "Claims"
           },
-          "vector_indexed": {
+          "entity_vectors_indexed": {
             "type": "integer",
-            "title": "Vector Indexed"
+            "title": "Entity Vectors Indexed"
+          },
+          "claim_vectors_indexed": {
+            "type": "integer",
+            "title": "Claim Vectors Indexed"
           },
           "triples_written": {
             "type": "integer",
@@ -49527,7 +49551,8 @@
         "required": [
           "entities",
           "claims",
-          "vector_indexed",
+          "entity_vectors_indexed",
+          "claim_vectors_indexed",
           "triples_written"
         ],
         "title": "RebuildResponse",

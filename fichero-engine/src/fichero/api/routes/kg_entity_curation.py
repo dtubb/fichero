@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database
 from fichero.db import Database
+from fichero.db_embeddings import KG_ENTITY_EMBEDDINGS_TABLE
 from fichero.knowledge_models import (
     EntityMergeAudit,
     EntityMergeOperationType,
@@ -32,7 +33,6 @@ from fichero.models import EntityAuditListResponse, KGGraphListResponse
 router = APIRouter(prefix="/kg/entity-curation")
 kg_entities_router = APIRouter(prefix="/kg/entities", tags=["knowledge-graph"])
 
-KG_ENTITY_EMBEDDINGS_TABLE = "kg_entity_embeddings"
 LEGACY_KG_ENTITY_EMBEDDINGS_TABLE = "kg_entities"
 
 
@@ -77,6 +77,17 @@ class BatchEntityCurationResponse(BaseModel):
 
 class _EmbedEntityRequest(BaseModel):
     entity_ids: list[str] | None = None
+
+
+def _vector_similarity(row: dict[str, Any]) -> float:
+    """Return a stable similarity score from LanceDB row metadata."""
+    if row.get("_score") is not None:
+        return float(row["_score"])
+    distance = row.get("_distance")
+    if distance is None:
+        return 0.0
+    value = 1.0 - (float(distance) ** 2) / 2.0
+    return max(-1.0, min(1.0, value))
 
 
 def _entity_embeddings_table_name(db: Database) -> str | None:
@@ -370,20 +381,7 @@ def _embed_entities_sync(
     entities: list[KnowledgeEntity],
 ) -> int:
     """CPU-bound work for embed_entities. Runs off the event loop."""
-    texts = [
-        e.canonical_name + (" " + " ".join(e.aliases) if e.aliases else "")
-        for e in entities
-    ]
-    vectors = db._embed_texts(texts)  # type: ignore[attr-defined]
-    records = [
-        {
-            "id": e.id, "text": e.canonical_name, "aliases": e.aliases,
-            "entity_type": e.entity_type.value, "vector": v,
-        }
-        for e, v in zip(entities, vectors)
-    ]
-    db.save_vectors(KG_ENTITY_EMBEDDINGS_TABLE, records)
-    return len(records)
+    return db.embed_entities(entities)
 
 
 @router.post("/semantic/embed", response_model=EmbedEntitiesResponse)
@@ -436,7 +434,7 @@ async def search_entities_semantic(
     if not entity_ids:
         return KGGraphListResponse(items=[], count=0)
     entities = {e.id: e for e in db.all(KnowledgeEntity) if e.id in entity_ids}
-    score_map = {r["id"]: r.get("_score", 0.0) for r in results}
+    score_map = {r["id"]: _vector_similarity(r) for r in results}
     items = [
         {**entities[eid].model_dump(), "similarity_score": score_map.get(eid, 0.0)}
         for eid in entity_ids

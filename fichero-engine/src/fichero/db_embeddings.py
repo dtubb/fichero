@@ -8,6 +8,7 @@ and are only valid when mixed into a Database subclass.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import os
@@ -17,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Default embedding model (FastEmbed - no scikit-learn dependency)
 DEFAULT_MODEL = "intfloat/multilingual-e5-large"
+KG_ENTITY_EMBEDDINGS_TABLE = "kg_entity_embeddings"
+KG_CLAIM_EMBEDDINGS_TABLE = "kg_claim_embeddings"
 
 
 def _l2_normalize(vec: list[float]) -> list[float]:
@@ -61,6 +64,12 @@ def _dequantize_int8(qvec: list[int], scale: float) -> list[float]:
     return [float(x) * scale for x in qvec]
 
 
+def _join_text_parts(parts: list[str | None]) -> str:
+    """Join non-empty text fragments into one embedding payload."""
+    values = [part.strip() for part in parts if part and part.strip()]
+    return " ".join(values)
+
+
 class DatabaseEmbeddingMixin:
     """Embedding helper methods mixed into Database.
 
@@ -101,13 +110,26 @@ class DatabaseEmbeddingMixin:
         Returns:
             Dict with indexed_count, table_exists
         """
+        doc_stats = self._vector_table_stats("embeddings")
+        entity_stats = self._vector_table_stats(KG_ENTITY_EMBEDDINGS_TABLE)
+        claim_stats = self._vector_table_stats(KG_CLAIM_EMBEDDINGS_TABLE)
+        return {
+            "indexed_count": doc_stats["indexed_count"],
+            "table_exists": doc_stats["table_exists"],
+            "entity_indexed_count": entity_stats["indexed_count"],
+            "entity_table_exists": entity_stats["table_exists"],
+            "claim_indexed_count": claim_stats["indexed_count"],
+            "claim_table_exists": claim_stats["table_exists"],
+        }
+
+    def _vector_table_stats(self, table_name: str) -> dict[str, int | bool]:
+        """Count rows in one LanceDB vector table if present."""
         try:
-            if "embeddings" not in self._lance_tables():
+            if table_name not in self._lance_tables():
                 return {"indexed_count": 0, "table_exists": False}
 
-            table = self.lance.open_table("embeddings")
-            count = table.count_rows()
-            return {"indexed_count": count, "table_exists": True}
+            table = self.lance.open_table(table_name)
+            return {"indexed_count": table.count_rows(), "table_exists": True}
         except Exception:
             return {"indexed_count": 0, "table_exists": False}
 
@@ -189,3 +211,136 @@ class DatabaseEmbeddingMixin:
         self._ensure_embedder()
         embeddings = list(self._embedder.embed(texts))
         return [_l2_normalize(e.tolist()) for e in embeddings]
+
+    def entity_embedding_text(self, entity) -> str:
+        """Compose the canonical text stored/searched for one entity."""
+        entity_type = (
+            entity.entity_type.value
+            if getattr(entity, "entity_type", None) is not None
+            else None
+        )
+        aliases = ", ".join(entity.aliases or [])
+        return _join_text_parts(
+            [
+                entity.canonical_name,
+                aliases,
+                entity.description,
+                entity_type,
+            ]
+        )
+
+    def claim_embedding_text(self, claim) -> str:
+        """Compose the canonical text stored/searched for one claim."""
+        subject = claim.subject_canonical or claim.svo_subject
+        predicate = (
+            claim.predicate_verb or claim.svo_verb or claim.predicate_canonical
+        )
+        obj = claim.object_phrase or claim.svo_object
+        source_text = claim.source_excerpt or claim.text
+        return _join_text_parts(
+            [
+                subject,
+                predicate,
+                obj,
+                source_text,
+            ]
+        )
+
+    def embed_entities(self, entities) -> int:
+        """Write entity embeddings into the canonical LanceDB table."""
+        entities = [entity for entity in entities if entity is not None]
+        if not entities:
+            return 0
+
+        texts = [self.entity_embedding_text(entity) for entity in entities]
+        vectors = self._embed_texts(texts)
+        records = [
+            {
+                "id": entity.id,
+                "text": text,
+                "canonical_name": entity.canonical_name,
+                "aliases_text": ", ".join(entity.aliases or []),
+                "description": entity.description or "",
+                "entity_type": entity.entity_type.value if entity.entity_type else None,
+                "vector": vector,
+            }
+            for entity, text, vector in zip(entities, texts, vectors)
+        ]
+        self.save_vectors(KG_ENTITY_EMBEDDINGS_TABLE, records, replace=True)
+        return len(records)
+
+    def embed_claims(self, claims) -> int:
+        """Write claim embeddings into the canonical LanceDB table."""
+        claims = [claim for claim in claims if claim is not None]
+        if not claims:
+            return 0
+
+        texts = [self.claim_embedding_text(claim) for claim in claims]
+        vectors = self._embed_texts(texts)
+        records = [
+            {
+                "id": claim.id,
+                "text": text,
+                "source_text": claim.source_excerpt or claim.text,
+                "claim_text": claim.text,
+                "subject": claim.subject_canonical or claim.svo_subject or "",
+                "predicate": (
+                    claim.predicate_verb
+                    or claim.svo_verb
+                    or claim.predicate_canonical
+                    or ""
+                ),
+                "object": claim.object_phrase or claim.svo_object or "",
+                "claim_type": claim.claim_type.value if claim.claim_type else "",
+                "curation_state": (
+                    claim.curation_state.value if claim.curation_state else ""
+                ),
+                "vector": vector,
+            }
+            for claim, text, vector in zip(claims, texts, vectors)
+        ]
+        self.save_vectors(KG_CLAIM_EMBEDDINGS_TABLE, records, replace=True)
+        return len(records)
+
+    def schedule_entity_embedding(self, entity) -> None:
+        """Best-effort background embed for a just-written entity."""
+        self._schedule_embedding_task([entity], label="entity")
+
+    def schedule_claim_embedding(self, claim) -> None:
+        """Best-effort background embed for a just-written claim."""
+        self.schedule_claim_embeddings([claim])
+
+    def schedule_claim_embeddings(self, claims) -> None:
+        """Best-effort background embed for a batch of written claims."""
+        self._schedule_embedding_task(list(claims), label="claim")
+
+    def _schedule_embedding_task(self, records, *, label: str) -> None:
+        """Run embedding work off-loop when possible; degrade to sync otherwise."""
+        def _run() -> None:
+            from fichero.db import Database
+
+            worker_db = Database(self.path)
+            try:
+                if label == "entity":
+                    worker_db.embed_entities(records)
+                else:
+                    worker_db.embed_claims(records)
+            finally:
+                worker_db.close()
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            try:
+                _run()
+            except Exception as exc:
+                logger.warning("Failed to auto-embed %s synchronously: %s", label, exc)
+            return
+
+        async def _runner() -> None:
+            try:
+                await asyncio.to_thread(_run)
+            except Exception as exc:
+                logger.warning("Failed to auto-embed %s in background: %s", label, exc)
+
+        loop.create_task(_runner())

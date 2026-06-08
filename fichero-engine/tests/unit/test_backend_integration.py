@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from fichero.db import Database, SearchResult
-from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero.models import DocType, Document, FileType
 from fichero.ingest import ingest_file, ingest_folder, IngestMode
 
@@ -175,16 +175,38 @@ class TestDatabaseSearch:
         # Initially no embeddings
         stats = db.embedding_stats()
         assert stats["indexed_count"] == 0
+        assert stats["entity_indexed_count"] == 0
+        assert stats["claim_indexed_count"] == 0
 
         # Add embedding
         doc = Document(name="test.pdf", page_content="Some content here")
+        entity = KnowledgeEntity(
+            canonical_name="Marshall",
+            entity_type=EntityType.person,
+        )
+        claim = KnowledgeClaim(
+            text="Marshall kept a diary.",
+            source_document_id=doc.id,
+            subject_canonical="Marshall",
+            predicate_verb="kept",
+            object_phrase="a diary",
+            source_excerpt="Marshall kept a diary.",
+        )
         db.save(doc)
+        db.save(entity)
+        db.save(claim)
 
-        with patch.object(db, '_embed_text', return_value=[0.1] * 384):
+        with patch.object(db, '_embed_text', return_value=[0.1] * 384), patch.object(
+            db, "_embed_texts", side_effect=[[[0.1] * 384], [[0.1] * 384]]
+        ):
             db.embed(doc)
+            db.embed_entities([entity])
+            db.embed_claims([claim])
 
         stats = db.embedding_stats()
         assert stats["indexed_count"] == 1
+        assert stats["entity_indexed_count"] == 1
+        assert stats["claim_indexed_count"] == 1
         db.close()
 
     def test_entity_alias_expansion_resolves_related_surface_forms(self, tmp_path):

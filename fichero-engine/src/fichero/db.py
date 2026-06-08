@@ -675,10 +675,31 @@ class Database(DatabaseEmbeddingMixin):
                 table_names.append(str(table))
         return table_names
 
-    def save_vectors(self, table_name: str, data: list[dict]) -> None:
-        """Save data to LanceDB table (creates or appends)."""
+    def save_vectors(
+        self,
+        table_name: str,
+        data: list[dict],
+        *,
+        replace: bool = False,
+        key_field: str = "id",
+    ) -> None:
+        """Save data to LanceDB table (creates or appends).
+
+        When ``replace`` is True, existing rows with the same key are deleted
+        first so reindex/backfill passes stay idempotent.
+        """
+        if not data:
+            return
+
         if table_name in self._lance_tables():
             table = self.lance.open_table(table_name)
+            if replace:
+                for row in data:
+                    key = row.get(key_field)
+                    if key is None:
+                        continue
+                    safe_key = str(key).replace("'", "''")
+                    table.delete(f"{key_field} = '{safe_key}'")
             table.add(data)
         else:
             self.lance.create_table(table_name, data)
@@ -738,7 +759,7 @@ class Database(DatabaseEmbeddingMixin):
             "vector_scale": quantized_scale,
         }
 
-        self.save_vectors("embeddings", [record])
+        self.save_vectors("embeddings", [record], replace=True)
 
     def search_similar(
         self, query_vector: list[float], limit: int = 10, model: Type[T] | None = None
