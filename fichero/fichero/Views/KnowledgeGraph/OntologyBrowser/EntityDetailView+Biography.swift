@@ -12,11 +12,9 @@ extension EntityDetailView {
         let pageLabel: String?
 
         var lineLabel: String {
-            let parts = [dateLabel, pageLabel].compactMap { value in
-                guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-                      !trimmed.isEmpty else { return nil }
-                return trimmed
-            }
+            let parts = [dateLabel, pageLabel]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
             return parts.isEmpty ? "Mentioned in source" : parts.joined(separator: " · ")
         }
     }
