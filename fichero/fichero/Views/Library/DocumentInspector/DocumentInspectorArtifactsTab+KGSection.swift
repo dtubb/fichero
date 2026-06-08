@@ -27,6 +27,7 @@ struct KnowledgeGraphInspectorSection: View {
     /// Called when the user clicks on a claim to select it for highlighting
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
+    @Environment(KGFocusState.self) private var kgFocusState
     @StateObject private var loadState = KnowledgeGraphInspectorLoadState()
     @State private var claimSelection: Set<String> = []
     @State private var claimSelectionAnchor: String?
@@ -418,14 +419,15 @@ struct KnowledgeGraphInspectorSection: View {
     }
 
     private func focusClaim(_ claim: Components.Schemas.KnowledgeClaim) {
+        guard let claimId = claim.id else { return }
         kgFocusState.focusClaim(
-            claimId: claim.id,
+            claimId: claimId,
             entityId: claim.subjectEntityId,
             sourceDocumentId: claim.sourceDocumentId,
             sourcePageLabel: claim.sourcePageLabel
         )
         onClaimSelect?(
-            claim.id,
+            claimId,
             claim.sourceExcerpt,
             claim.sourceDocumentId,
             claim.sourcePageLabel,
@@ -502,16 +504,23 @@ struct KnowledgeGraphInspectorSection: View {
             claimSelection = []
             claimSelectionAnchor = nil
 
-            var message = "\(action.verb) \(claimIds.count) claim"
-            message += claimIds.count == 1 ? "" : "s"
-            if action == .suppress, scope == .libraryWide {
-                message += " and wrote \(suppressRules.count) suppress rule"
-                message += suppressRules.count == 1 ? "" : "s"
+            if claimIds.isEmpty && suppressRules.isEmpty {
+                // Nothing was actually applied — don't report a false success.
+                claimActionMessage = missingIdCount > 0
+                    ? "Selected claims are missing IDs, so \(action.verb.lowercased()) was skipped."
+                    : "Nothing to \(action.verb.lowercased())."
+            } else {
+                var message = "\(action.verb) \(claimIds.count) claim"
+                message += claimIds.count == 1 ? "" : "s"
+                if action == .suppress, scope == .libraryWide {
+                    message += " and wrote \(suppressRules.count) suppress rule"
+                    message += suppressRules.count == 1 ? "" : "s"
+                }
+                if missingIdCount > 0 {
+                    message += "; skipped \(missingIdCount) without IDs"
+                }
+                claimActionMessage = message
             }
-            if missingIdCount > 0 {
-                message += "; skipped \(missingIdCount) without IDs"
-            }
-            claimActionMessage = message
         } catch {
             claimActionMessage = "Couldn't \(action.verb.lowercased()) claims: \(error.localizedDescription)"
         }
