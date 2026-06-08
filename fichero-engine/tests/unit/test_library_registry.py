@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 import os
-import tempfile
 from datetime import datetime, timedelta
-from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 
 from fichero.db import Database  # noqa: E402
-from fichero.models import KnownLibrary  # noqa: E402
+from fichero.models import DocType, Document, KnownLibrary  # noqa: E402
 
 
 @pytest.fixture
@@ -135,7 +132,6 @@ class TestLibraryRegistryCRUD:
         lib2 = KnownLibrary(path=str(temp_library_path), name="Second")
 
         db.save(lib1)
-        lib1_id = lib1.id
 
         # Attempting to save with same path but different ID doesn't insert a second row
         # Instead it's UPSERT behavior — on conflict of the id (PRIMARY KEY),
@@ -287,6 +283,48 @@ class TestGlobalRegistryHeaderless:
         paths = [lib["path"] for lib in listed.json()["libraries"]]
         assert str(lib_path.resolve()) in paths
         assert listed.json()["count"] == 1
+
+    def test_add_seeds_single_root_inbox(self, global_client, tmp_path):
+        """Registering a real .fichero package eagerly seeds one root Inbox."""
+        from fichero.db_manager import db_manager
+
+        lib_path = tmp_path / "Marshall Diaries.fichero"
+        lib_path.mkdir(parents=True, exist_ok=True)
+        db_path = lib_path / "fichero.duckdb"
+
+        db_manager.close_database(lib_path)
+        try:
+            first = global_client.post(
+                "/api/registry/add",
+                params={"path": str(lib_path)},
+            )
+            assert first.status_code == 200, first.text
+            assert db_path.exists()
+
+            second = global_client.post(
+                "/api/registry/add",
+                params={"path": str(lib_path)},
+            )
+            assert second.status_code == 200, second.text
+
+            library_db = Database(path=db_path)
+            try:
+                inboxes = library_db.query(
+                    Document,
+                    name="Inbox",
+                    parent_id=None,
+                    doc_type=DocType.folder,
+                )
+            finally:
+                library_db.conn.close()
+
+            assert len(inboxes) == 1
+            inbox = inboxes[0]
+            assert inbox.name == "Inbox"
+            assert inbox.parent_id is None
+            assert inbox.doc_type == DocType.folder
+        finally:
+            db_manager.close_database(lib_path)
 
 
 # Placeholder fixtures — these would be provided by conftest.py in a real project
