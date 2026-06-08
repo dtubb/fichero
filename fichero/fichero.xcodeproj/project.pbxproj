@@ -186,6 +186,7 @@
 		56DCD53ACD6483561CF542B3 /* KGTemporalSpatial.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43EAB861267206E7A929830F /* KGTemporalSpatial.swift */; };
 		5D064ECAAD353BDB778B8580 /* AnnotationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61D7DC57117008EBCFE607A9 /* AnnotationService.swift */; };
 		5E8 /* SidebarItemBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9 /* SidebarItemBuilder.swift */; };
+		5EEC36AAEF503FACE8498DB0 /* NoteServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEAEF72C01550D969DA0253 /* NoteServiceTests.swift */; };
 		5F01DCF2F7EC8E307F172402 /* DisplayAttributesStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E5C6B2FBD2462E90B5F43D /* DisplayAttributesStrip.swift */; };
 		60CB18CE86D7EC81918F1BD2 /* OpenAffordances.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16622C4E0F3AB58187B2AFF6 /* OpenAffordances.swift */; };
 		618EC62E8F7BA72F72B5A0A1 /* NewEntitySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 675E69DE1A8C941ABBEBB0E0 /* NewEntitySheet.swift */; };
@@ -550,6 +551,7 @@
 		1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Helpers.swift"; sourceTree = "<group>"; };
 		1DE62C7312D0E473288483C9 /* ForceDirectedGraphView+Render.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ForceDirectedGraphView+Render.swift"; sourceTree = "<group>"; };
 		1DEAE79F9381616EC474F4ED /* HeuristicReviewSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeuristicReviewSheet.swift; sourceTree = "<group>"; };
+		1EEAEF72C01550D969DA0253 /* NoteServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NoteServiceTests.swift; sourceTree = "<group>"; };
 		1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LocalModelsSettingsView.swift; path = fichero/Views/Settings/LocalModelsSettingsView.swift; sourceTree = SOURCE_ROOT; };
 		200BCF2B2F3D501800D7851A /* ContentView+State.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+State.swift"; sourceTree = "<group>"; };
 		200BCF352F3D547F00D7851A /* ContentView+ViewBuilders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ContentView+ViewBuilders.swift"; sourceTree = "<group>"; };
@@ -1128,6 +1130,7 @@
 				414 /* Resources */,
 				413 /* Services */,
 				411 /* Views */,
+				82B86C79232828B3E76A6A90 /* fichero-tests */,
 			);
 			path = fichero;
 			sourceTree = "<group>";
@@ -1462,6 +1465,15 @@
 				F92B0E47A1378F8B2AE6EFB3 /* AddToRoomPicker.swift */,
 			);
 			path = MindPalace;
+			sourceTree = "<group>";
+		};
+		82B86C79232828B3E76A6A90 /* fichero-tests */ = {
+			isa = PBXGroup;
+			children = (
+				1EEAEF72C01550D969DA0253 /* NoteServiceTests.swift */,
+			);
+			name = "fichero-tests";
+			path = "fichero-tests";
 			sourceTree = "<group>";
 		};
 		A13E7C1B2F27E01E00EC9EE1 /* Modes */ = {
@@ -2473,6 +2485,7 @@
 				0A798A14E8BC54C9115FBAF7 /* FileMenuCommands.swift in Sources */,
 				C5477C82B7FC56CD91C51A2F /* CollectionSpatialStub.swift in Sources */,
 				D8480D2BEC0E080EB4E2ECCE /* CollectionWorkspaceStub.swift in Sources */,
+				5EEC36AAEF503FACE8498DB0 /* NoteServiceTests.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
