@@ -250,6 +250,72 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertTrue(labels.contains("AI"))
     }
 
+    func testMentionSummariesDeduplicateSourcePagesAndFormatDate() throws {
+        let first = try decodeClaim("""
+        {
+          "id": "claim-1",
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "source_page_label": "12",
+          "time_start": "1923-01-01"
+        }
+        """)
+        let duplicatePage = try decodeClaim("""
+        {
+          "id": "claim-2",
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "source_page_label": "12",
+          "time_start": "1923-01-02"
+        }
+        """)
+        let secondPage = try decodeClaim("""
+        {
+          "id": "claim-3",
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "source_page_label": "13",
+          "temporal_context": "Early January 1923"
+        }
+        """)
+
+        let mentions = EntityDetailView.mentionSummaries(
+            from: [first, duplicatePage, secondPage],
+            documents: [:]
+        )
+
+        XCTAssertEqual(mentions.count, 2)
+        XCTAssertEqual(mentions[0].claim.id, "claim-1")
+        XCTAssertEqual(mentions[0].lineLabel, "Monday, January 1, 1923 · p. 12")
+        XCTAssertEqual(mentions[1].lineLabel, "Early January 1923 · p. 13")
+    }
+
+    func testMentionDateLabelFallsBackToDocumentMetadata() throws {
+        let claim = try decodeClaim("""
+        {
+          "id": "claim-1",
+          "text": "ignored",
+          "source_document_id": "doc-1"
+        }
+        """)
+        let document = Document(
+            id: "doc-1",
+            docType: .page,
+            name: "Page 1",
+            sequence: 7,
+            metadata: ["event_date": AnyCodable("1923-01-02")]
+        )
+
+        XCTAssertEqual(
+            EntityDetailView.mentionDateLabel(for: claim, document: document),
+            "Tuesday, January 2, 1923"
+        )
+        XCTAssertEqual(
+            EntityDetailView.normalizedPageLabel(for: claim, document: document),
+            "p. 7"
+        )
+    }
+
     private func decodeClaim(_ json: String) throws -> Components.Schemas.KnowledgeClaim {
         let data = Data(json.utf8)
         let decoder = JSONDecoder()
