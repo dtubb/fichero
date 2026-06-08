@@ -429,3 +429,16 @@ NEXT: 2 backend lanes — (A) port #1662+#1756 into engine [code]; (B) #1758 sea
 - `f_claim` (~/code/fichero-claim-curation, feat/claim-curation-parity-1763) — claim bulk-curation parity in inspector: mirror entity tab's multi-select + Approve/Reject/Suppress + scope on the claims surface, wiring existing `PATCH /api/kg/claims/batch-curation` + claim suppression rules via KGCurationServiceGenerated.
 
 **Next tick:** gate f_search first (backend). Gate f_claim (frontend: hand-rolled scan → reviewer → Xcode BuildProject windowtab1 → fix-in-place → merge). Then refill: SwiftUI search-scope selector (#1766 UI half) → KG&Herm #1759 notes/annotations → importers #1757.
+
+---
+## TICK — 2026-06-08 ~00:12 ADT (overnight)
+**Merged to 0.0.2 (HEAD `12e18b52`):**
+- #1766 BACKEND — claims:/entities: search scopes + `include` array (default content+entities+claims) + real entity/claim vector retrieval (reused `*_semantic_impl`, graceful 503-degradation) + CLI + OpenAPI regen. ruff + new tests green. #1766 KEPT OPEN for the SwiftUI scope-selector half.
+- #1763 — claim bulk-curation parity in inspector (multi-select Approve/Reject/Suppress + scope; library-wide Suppress writes deduped ClaimSuppressionRule). code-reviewer caught + I fixed in-place: (a) `kgFocusState` env object undeclared in KGSection [worker added `focusClaim` referencing it] → added `@Environment(KGFocusState.self)`; (b) `claim.id` String?→String unwrap; (c) silent false-success "Suppressed 0 claims" no-op → now reports nothing-to-do. Xcode build green (121s). #1763 KEPT OPEN for prune-trivial follow-up.
+- LESSON: `@Environment(SomeObservable.self)` properties must be declared in EVERY view struct that references them — they don't inherit across sibling structs in the same file; a worker copying a call without the declaration → "Cannot find X in scope".
+
+**Dispatched (2 lanes, disjoint — 1 frontend + 1 backend):**
+- `f_scopeui` (~/code/fichero-scope-ui, feat/search-scope-ui-1766) — #1766 SwiftUI scope selector (Content·Entities·Claims segmented control bound to the new typed `SearchRequest.include`; surface entity/claim hits if cheap, else TODO). Frontend gate.
+- `f_notes` (~/code/fichero-notes-audit, feat/notes-annotations-backend-1759) — #1759 BACKEND-ONLY audit+fix: notes+annotations add/delete/list at page AND folder scope, tests, + `docs/architecture/api/notes_annotations_audit.md` gap-report for the SwiftUI follow-up. Explicitly NO Swift edits (stays disjoint from the Xcode lane).
+
+**Next tick:** gate f_notes first (backend). Gate f_scopeui (hand-rolled scan → reviewer if large → Xcode BuildProject windowtab1 → fix-in-place → merge). Then refill: importers #1757 (scope to step 1: import→artifacts discrete runnable step) → KG&Herm #1689 claim merge/unmerge → bounded backend wins.
