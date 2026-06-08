@@ -252,11 +252,47 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
         XCTAssertTrue(source.contains("batchSetClaimCurationState"))
         XCTAssertTrue(source.contains("batchCreateClaimRules"))
+        XCTAssertTrue(source.contains("Menu(\"Prune trivial\")"))
+        XCTAssertTrue(source.contains("kgCurationService.pruneTrivialClaims"))
         XCTAssertTrue(rowSource.contains("Menu(\"Suppress\")"))
+        XCTAssertTrue(rowSource.contains("Menu(\"Prune trivial\")"))
         XCTAssertFalse(source.contains("URLSession"))
         XCTAssertFalse(source.contains("URLRequest"))
         XCTAssertFalse(source.contains("URL(string:"))
         XCTAssertTrue(serviceSource.contains("batchSetClaimCurationStateApiKgClaimsBatchCurationPatch"))
+        XCTAssertTrue(serviceSource.contains("pruneTrivialClaimsApiKgClaimsPruneTrivialPost"))
+    }
+
+    func testPruneTrivialClaimsRequestUsesDocumentScope() {
+        let request = KGCurationServiceGenerated.makePruneTrivialClaimsRequest(
+            scope: .document(documentId: "page-1")
+        )
+
+        XCTAssertEqual(request.documentId, "page-1")
+        XCTAssertNil(request.folderId)
+        XCTAssertFalse(request.libraryWide ?? false)
+        XCTAssertEqual(request.reason, "Prune trivial is-a copula claims")
+        XCTAssertEqual(request.createdBy, "human")
+    }
+
+    func testPruneTrivialClaimsRequestUsesFolderScope() {
+        let request = KGCurationServiceGenerated.makePruneTrivialClaimsRequest(
+            scope: .folder(folderId: "folder-1")
+        )
+
+        XCTAssertNil(request.documentId)
+        XCTAssertEqual(request.folderId, "folder-1")
+        XCTAssertFalse(request.libraryWide ?? false)
+    }
+
+    func testPruneTrivialClaimsRequestUsesLibraryWideScope() {
+        let request = KGCurationServiceGenerated.makePruneTrivialClaimsRequest(
+            scope: .libraryWide
+        )
+
+        XCTAssertNil(request.documentId)
+        XCTAssertNil(request.folderId)
+        XCTAssertTrue(request.libraryWide ?? false)
     }
 
     // testFetchButtonHelpersExposeExpectedLabelsAndIcons removed: the

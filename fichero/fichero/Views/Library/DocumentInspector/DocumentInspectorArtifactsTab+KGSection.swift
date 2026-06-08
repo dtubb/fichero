@@ -15,7 +15,7 @@ import SwiftUI
 // swiftlint:disable:next type_body_length
 struct KnowledgeGraphInspectorSection: View {
     let documentId: String
-    let documentScopeLabel: String
+    let documentScope: InspectorClaimDocumentScope
     let entityService: EntityServiceGenerated
     let artifactService: ArtifactServiceGenerated
     let kgCurationService: KGCurationServiceGenerated
@@ -32,7 +32,9 @@ struct KnowledgeGraphInspectorSection: View {
     @State private var claimSelection: Set<String> = []
     @State private var claimSelectionAnchor: String?
     @State private var isApplyingBulkAction = false
+    @State private var isPruningTrivialClaims = false
     @State private var claimActionMessage: String?
+    @State private var pendingPruneConfirmation: PendingPruneConfirmation?
     private var claims: [Components.Schemas.KnowledgeClaim] {
         get { loadState.claims }
         nonmutating set { loadState.claims = newValue }
@@ -72,6 +74,14 @@ struct KnowledgeGraphInspectorSection: View {
                 .split(separator: ",")
                 .compactMap { EntityKind(rawValue: String($0)) }
         )
+    }
+
+    private var documentScopeLabel: String {
+        documentScope.label
+    }
+
+    private var isMutatingClaims: Bool {
+        isApplyingBulkAction || isPruningTrivialClaims
     }
 
     private var claimsById: [String: Components.Schemas.KnowledgeClaim] {
@@ -247,6 +257,7 @@ struct KnowledgeGraphInspectorSection: View {
                         claimContextMenuTarget: contextMenuTargetClaims(for:),
                         onClaimTap: handleClaimTap(_:),
                         applyClaimBulkAction: applyBulkAction,
+                        requestPruneTrivialAction: requestPruneTrivialAction,
                         onNavigateToSource: onNavigateToSource,
                         onClaimSelect: onClaimSelect
                     )
@@ -264,6 +275,23 @@ struct KnowledgeGraphInspectorSection: View {
             )
         }
         .task(id: documentId) { await loadStatements() }
+        .alert(
+            pendingPruneConfirmation?.title ?? "Prune trivial claims?",
+            isPresented: Binding(
+                get: { pendingPruneConfirmation != nil },
+                set: { if !$0 { pendingPruneConfirmation = nil } }
+            ),
+            presenting: pendingPruneConfirmation
+        ) { pending in
+            Button("Prune", role: .destructive) {
+                Task { await applyPruneTrivialClaims(scope: pending.scope) }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingPruneConfirmation = nil
+            }
+        } message: { pending in
+            Text(pending.message)
+        }
     }
 
     private var claimBulkActionBar: some View {
@@ -290,6 +318,10 @@ struct KnowledgeGraphInspectorSection: View {
         // is now just the filter + view-mode + reload controls, right-aligned.
         HStack(spacing: 8) {
             Spacer()
+            Menu("Prune trivial") {
+                pruneTrivialScopeButtons()
+            }
+            .disabled(isMutatingClaims)
             // Filter Menu — Tinderbox-style "displayed attributes" picker.
             // Each entity kind has its own checkbox; persistence lives in
             // @AppStorage so the choice survives restarts and applies to
@@ -359,7 +391,7 @@ struct KnowledgeGraphInspectorSection: View {
             Label(title, systemImage: systemImage)
         }
         .menuStyle(.borderlessButton)
-        .disabled(isApplyingBulkAction || selectedClaims.isEmpty)
+        .disabled(isMutatingClaims || selectedClaims.isEmpty)
     }
 
     @ViewBuilder
@@ -384,6 +416,16 @@ struct KnowledgeGraphInspectorSection: View {
                     targetClaims: targetClaims
                 )
             }
+        }
+    }
+
+    @ViewBuilder
+    private func pruneTrivialScopeButtons() -> some View {
+        Button(documentScopeLabel) {
+            requestPruneTrivialAction(.pageOrFolderOnly)
+        }
+        Button("Library-wide") {
+            requestPruneTrivialAction(.libraryWide)
         }
     }
 
@@ -525,6 +567,69 @@ struct KnowledgeGraphInspectorSection: View {
             claimActionMessage = "Couldn't \(action.verb.lowercased()) claims: \(error.localizedDescription)"
         }
     }
+
+    private func requestPruneTrivialAction(_ scope: InspectorEntityBulkActionScope) {
+        pendingPruneConfirmation = PendingPruneConfirmation(
+            scope: pruneScope(for: scope),
+            title: pruneConfirmationTitle(for: scope),
+            message: pruneConfirmationMessage(for: scope)
+        )
+    }
+
+    private func pruneScope(
+        for scope: InspectorEntityBulkActionScope
+    ) -> KGCurationServiceGenerated.PruneTrivialScope {
+        switch scope {
+        case .pageOrFolderOnly:
+            return documentScope.pruneScope(documentId: documentId)
+        case .libraryWide:
+            return .libraryWide
+        }
+    }
+
+    private func pruneConfirmationTitle(for scope: InspectorEntityBulkActionScope) -> String {
+        switch scope {
+        case .pageOrFolderOnly:
+            return "Prune trivially-true claims in \(documentScope.confirmationTarget)?"
+        case .libraryWide:
+            return "Prune trivially-true claims across the whole library?"
+        }
+    }
+
+    private func pruneConfirmationMessage(for scope: InspectorEntityBulkActionScope) -> String {
+        switch scope {
+        case .pageOrFolderOnly:
+            return "This updates claim curation state for the current scope and refreshes the inspector list."
+        case .libraryWide:
+            return "This scans the whole library, updates matching claims, and may write a persistent suppress is-a copulas rule."
+        }
+    }
+
+    private func applyPruneTrivialClaims(
+        scope: KGCurationServiceGenerated.PruneTrivialScope
+    ) async {
+        isPruningTrivialClaims = true
+        claimActionMessage = nil
+        defer {
+            isPruningTrivialClaims = false
+            pendingPruneConfirmation = nil
+        }
+
+        do {
+            let response = try await kgCurationService.pruneTrivialClaims(scope: scope)
+            await loadStatements()
+            claimSelection = []
+            claimSelectionAnchor = nil
+
+            var message = "Pruned \(response.suppressedCount) trivial claim"
+            if response.suppressedCount != 1 {
+                message += "s"
+            }
+            claimActionMessage = message
+        } catch {
+            claimActionMessage = "Couldn't prune trivial claims: \(error.localizedDescription)"
+        }
+    }
 }
 
 // MARK: - KnowledgeGraphInspectorSection utilities
@@ -545,6 +650,45 @@ extension KnowledgeGraphInspectorSection {
     static func isKindStored(_ kind: EntityKind, in csv: String) -> Bool {
         csv.split(separator: ",").contains(Substring(kind.rawValue))
     }
+}
+
+enum InspectorClaimDocumentScope {
+    case page
+    case folder
+
+    var label: String {
+        switch self {
+        case .page:
+            return "This page only"
+        case .folder:
+            return "This folder only"
+        }
+    }
+
+    var confirmationTarget: String {
+        switch self {
+        case .page:
+            return "this page"
+        case .folder:
+            return "this folder"
+        }
+    }
+
+    func pruneScope(documentId: String) -> KGCurationServiceGenerated.PruneTrivialScope {
+        switch self {
+        case .page:
+            return .document(documentId: documentId)
+        case .folder:
+            return .folder(folderId: documentId)
+        }
+    }
+}
+
+struct PendingPruneConfirmation: Identifiable {
+    let id = UUID()
+    let scope: KGCurationServiceGenerated.PruneTrivialScope
+    let title: String
+    let message: String
 }
 
 enum InspectorClaimBulkAction: Equatable {

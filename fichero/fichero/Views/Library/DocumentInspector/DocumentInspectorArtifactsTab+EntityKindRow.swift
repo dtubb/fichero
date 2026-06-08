@@ -23,6 +23,7 @@ struct EntityKindRow: View {
         InspectorEntityBulkActionScope,
         [Components.Schemas.KnowledgeClaim]
     ) async -> Void)?
+    var requestPruneTrivialAction: ((InspectorEntityBulkActionScope) -> Void)?
     var onNavigateToSource: ((String) -> Void)?
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
@@ -390,6 +391,16 @@ struct EntityKindRow: View {
                     targetClaims: targetClaims,
                     applyClaimBulkAction: applyClaimBulkAction
                 )
+            }
+            if let requestPruneTrivialAction {
+                Menu("Prune trivial") {
+                    Button(claimScopeLabel) {
+                        requestPruneTrivialAction(.pageOrFolderOnly)
+                    }
+                    Button("Library-wide") {
+                        requestPruneTrivialAction(.libraryWide)
+                    }
+                }
             }
         }
     }

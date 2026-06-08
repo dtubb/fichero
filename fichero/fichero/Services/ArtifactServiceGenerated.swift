@@ -2470,6 +2470,37 @@ final class KGCurationServiceGenerated: ObservableObject {
         case unexpectedResponse(Int)
     }
 
+    enum PruneTrivialScope: Equatable {
+        case document(documentId: String)
+        case folder(folderId: String)
+        case libraryWide
+    }
+
+    static func makePruneTrivialClaimsRequest(
+        scope: PruneTrivialScope,
+        reason: String = "Prune trivial is-a copula claims",
+        createdBy: String = "human"
+    ) -> Components.Schemas.PruneTrivialClaimsRequest {
+        var request = Components.Schemas.PruneTrivialClaimsRequest()
+        switch scope {
+        case .document(let documentId):
+            request.documentId = documentId
+            request.folderId = nil
+            request.libraryWide = false
+        case .folder(let folderId):
+            request.documentId = nil
+            request.folderId = folderId
+            request.libraryWide = false
+        case .libraryWide:
+            request.documentId = nil
+            request.folderId = nil
+            request.libraryWide = true
+        }
+        request.reason = reason
+        request.createdBy = createdBy
+        return request
+    }
+
     func listEntityRules() async throws -> [Components.Schemas.EntityRuleReadResponse] {
         let response = try await client.api.listEntityRulesApiKgCurationRulesEntityRulesGet(
             headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
@@ -2672,6 +2703,27 @@ final class KGCurationServiceGenerated: ObservableObject {
             throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let code, _):
             kgCurationServiceLogger.error("batchSetClaimCurationState unexpected response: \(code)")
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
+    func pruneTrivialClaims(
+        scope: PruneTrivialScope
+    ) async throws -> Components.Schemas.PruneTrivialClaimsResponse {
+        let body = Self.makePruneTrivialClaimsRequest(scope: scope)
+        let response = try await client.api.pruneTrivialClaimsApiKgClaimsPruneTrivialPost(
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
+            body: .json(body)
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            kgCurationServiceLogger.error("pruneTrivialClaims unexpected response: \(code)")
             throw ServiceError.unexpectedResponse(code)
         }
     }
