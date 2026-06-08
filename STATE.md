@@ -533,3 +533,18 @@ NEXT: 2 backend lanes — (A) port #1662+#1756 into engine [code]; (B) #1758 sea
 **Next tick:** gate f_step5 first (backend; if it finalizes #1757, close it). Gate f_entityview (frontend Xcode gate; watch for removed view modes). Then refill: entity-library-view icon/column modes → bounded backend wins (Settings/Providers, Activity) → bounded Library bugs.
 
 ### SCOREBOARD (Daniel): 16 merged tonight + a red contract test fixed. COMPLETE: curation surface (#1763/#1751/#1761/#1765), claim+entity merge/unmerge (#1689), search 503-fix+scope (#1767/#1766), notes/annotations page+folder (#1759), inbox bug (#1592). Importer decomposition 4/5 (#1757), step 5 + chaining in flight.
+
+---
+## TICK — 2026-06-08 ~06:32 ADT (overnight→morning)
+**Merged to 0.0.2 (HEAD `365897c8`):**
+- #1757 STEP 5 + CHAINING — `kg_persist_finalize.py` (reuses `triangulation.persist_support_counts` + `embed_entities/claims` + `rebuild_kg`) + `catalogue_full_pipeline.json` chaining all 5 stage tools. 3912 tests green. **#1757 fully CLOSED** — complete 5-step + chained importer pipeline (human curates between steps OR runs whole thing).
+- entity-as-library LIST MVP — entities as a first-class collection in library LIST view (EntityServiceGenerated, full kbd nav + multi-select + inspector focus, existing view modes preserved). Build caught 1 error (optional-chain on non-optional `windowState.libraryId`) → fixed in-place. Filed **#1773** for icon/column/map/spatial follow-ups.
+- Bookkeeping: closed #1767 (was implemented+merged tonight but left open).
+
+**Running (1 frontend + 1 backend, disjoint):**
+- `f_iconview` (~/code/fichero-iconview, feat/entity-icon-view-1773) — #1773 entity ICON view (tiles mirroring document icon mode, reuse list-MVP wiring). Frontend gate.
+- `f_extg` (~/code/fichero-extguarantee, feat/extensibility-guarantee-1652) — #1652 contract test + doc enforcing additive/no-migration extensibility (extra="allow" on extensible models, registry-driven entity types, free artifact_type, _ensure_table picks up new fields). Backend gate.
+
+**Next tick:** gate f_extg first (backend). Gate f_iconview (frontend Xcode gate; watch removed view modes). Then refill: entity column/map view (#1773) → bounded backend wins → bounded Library bugs. MILESTONE-FIRST-REVIEW each new milestone.
+
+### SCOREBOARD (Daniel): 18 merged + 1 red test fixed overnight. COMPLETE: full curation surface (#1763/#1751/#1761*/#1765*), entity+claim merge/unmerge (#1689), search 503-fix+scope selector (#1767/#1766), notes/annotations page+folder (#1759), new-library Inbox (#1592), entity-as-library list view, AND the complete 5-step+chained importer pipeline (#1757). (*#1761/#1765 backends largely built earlier — worth a verify-and-close pass.)
