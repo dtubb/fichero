@@ -24,6 +24,7 @@ struct EntityKindRow: View {
         [Components.Schemas.KnowledgeClaim]
     ) async -> Void)?
     var requestClaimMergeAction: (([Components.Schemas.KnowledgeClaim]) -> Void)?
+    var requestClaimDeleteAction: (([Components.Schemas.KnowledgeClaim]) -> Void)?
     var requestPruneTrivialAction: ((InspectorEntityBulkActionScope) -> Void)?
     var onNavigateToSource: ((String) -> Void)?
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
@@ -32,7 +33,6 @@ struct EntityKindRow: View {
     @Environment(KGFocusState.self) private var kgFocusState
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
     @State private var claimForEditing: Components.Schemas.KnowledgeClaim?
-    @State private var showDeleteConfirmation = false
     @State private var rowError: String?
 
     private var bodyTextFont: Font {
@@ -92,12 +92,6 @@ struct EntityKindRow: View {
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
-        .alert("Delete claim?", isPresented: $showDeleteConfirmation) {
-            Button("Delete", role: .destructive) { deleteClaim() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This removes the claim from the knowledge graph. Related entities stay in place.")
-        }
         .sheet(isPresented: Binding(
             get: { claimForEditing != nil },
             set: { if !$0 { claimForEditing = nil } }
@@ -172,19 +166,6 @@ struct EntityKindRow: View {
         Task {
             do {
                 claimForEditing = try await library.entityService.getClaim(item.claimId)
-            } catch {
-                rowError = error.localizedDescription
-            }
-        }
-    }
-
-    private func deleteClaim() {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
-        rowError = nil
-        Task {
-            do {
-                try await library.entityService.deleteClaim(item.claimId)
-                NotificationCenter.default.post(name: .ficheroClaimDeleted, object: item.claimId)
             } catch {
                 rowError = error.localizedDescription
             }
@@ -342,9 +323,6 @@ struct EntityKindRow: View {
                 Button("Edit claim…") {
                     loadClaimForEditing()
                 }
-                Button("Delete claim…", role: .destructive) {
-                    showDeleteConfirmation = true
-                }
             }
         }
     }
@@ -416,6 +394,11 @@ struct EntityKindRow: View {
                     Button("Library-wide") {
                         requestPruneTrivialAction(.libraryWide)
                     }
+                }
+            }
+            if let requestClaimDeleteAction {
+                Button("Delete…", role: .destructive) {
+                    requestClaimDeleteAction(targetClaims)
                 }
             }
         }

@@ -215,6 +215,32 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(serviceSource.contains("batchSetEntityCurationStateApiKgEntitiesBatchCurationPatch"))
     }
 
+    func testInspectorDeleteActionsUseGeneratedEntityAndClaimClients() throws {
+        let entitiesSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
+        )
+        let claimsSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift"
+        )
+        let rowSource = try Self.appSource(
+            "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntityKindRow.swift"
+        )
+        let serviceSource = try Self.appSource("Services/ArtifactServiceGenerated.swift")
+
+        XCTAssertTrue(entitiesSource.contains("deleteActionButton(targetEntities: selectedEntities)"))
+        XCTAssertTrue(entitiesSource.contains("Button(\"Delete…\", role: .destructive)"))
+        XCTAssertTrue(entitiesSource.contains("try await entityService.deleteEntity(entityId)"))
+        XCTAssertTrue(claimsSource.contains("deleteActionButton(targetClaims: selectedClaims)"))
+        XCTAssertTrue(claimsSource.contains("requestClaimDeleteAction: requestDeleteAction(for:)"))
+        XCTAssertTrue(claimsSource.contains("try await entityService.deleteClaim(claimId)"))
+        XCTAssertTrue(rowSource.contains("Button(\"Delete…\", role: .destructive)"))
+        XCTAssertTrue(rowSource.contains("requestClaimDeleteAction(targetClaims)"))
+        XCTAssertFalse(entitiesSource.contains("URLSession"))
+        XCTAssertFalse(claimsSource.contains("URLSession"))
+        XCTAssertTrue(serviceSource.contains("deleteEntityApiEntitiesEntityIdDelete"))
+        XCTAssertTrue(serviceSource.contains("deleteClaimApiClaimsClaimIdDelete"))
+    }
+
     func testClaimLibraryWideSuppressRulesDeduplicateTriples() {
         let claims = [
             makeKnowledgeClaim(

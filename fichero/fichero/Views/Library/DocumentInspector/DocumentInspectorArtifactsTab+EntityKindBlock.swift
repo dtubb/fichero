@@ -20,6 +20,7 @@ struct EntityKindBlock: View {
         [Components.Schemas.KnowledgeClaim]
     ) async -> Void)?
     var requestClaimMergeAction: (([Components.Schemas.KnowledgeClaim]) -> Void)?
+    var requestClaimDeleteAction: (([Components.Schemas.KnowledgeClaim]) -> Void)?
     var requestPruneTrivialAction: ((InspectorEntityBulkActionScope) -> Void)?
     var onNavigateToSource: ((String) -> Void)?
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
@@ -110,6 +111,7 @@ struct EntityKindBlock: View {
                                 onClaimTap: onClaimTap,
                                 applyClaimBulkAction: applyClaimBulkAction,
                                 requestClaimMergeAction: requestClaimMergeAction,
+                                requestClaimDeleteAction: requestClaimDeleteAction,
                                 requestPruneTrivialAction: requestPruneTrivialAction,
                                 onNavigateToSource: onNavigateToSource,
                                 onClaimSelect: onClaimSelect
