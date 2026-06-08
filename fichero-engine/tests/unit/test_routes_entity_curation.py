@@ -101,6 +101,21 @@ class TestMergedEntitiesHiddenFromList:
         ids = {item["id"] for item in listed["items"]}
         assert absorbed.id not in ids
 
+    def test_absorbed_entity_excluded_from_alias_map(self, client, db):
+        absorber = _make_entity(db, "Alice")
+        absorbed = _make_entity(db, "Alicia")
+        r = client.post(
+            "/api/kg/entity-curation/merge",
+            json={
+                "absorbing_entity_id": absorber.id,
+                "absorbed_entity_ids": [absorbed.id],
+            },
+        )
+        assert r.status_code == 200
+        alias_map = client.get("/api/entities/alias-map").json()
+        mapped_ids = {entry["entity_id"] for entry in alias_map["entries"]}
+        assert absorbed.id not in mapped_ids  # tombstone must not seed the map
+
 
 # ---------------------------------------------------------------------------
 # POST /api/kg/entity-curation/merge

@@ -409,6 +409,10 @@ async def get_entity_alias_map(
     entries: list[EntityAliasMapEntry] = []
     seen: set[str] = set()
     for entity in db.all(KnowledgeEntity):
+        # Skip tombstoned (merged-away) entities — their aliases now belong to
+        # the absorber and must not resurface in the reviewer map (#1849).
+        if entity.merged_into_id is not None:
+            continue
         # Canonical name as an alias entry
         norm_canonical = _normalize_text(entity.canonical_name)
         if norm_canonical not in seen:
