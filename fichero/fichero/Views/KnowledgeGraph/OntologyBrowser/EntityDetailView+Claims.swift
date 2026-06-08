@@ -94,6 +94,7 @@ extension EntityDetailView {
                     ForEach(visibleClaims, id: \.id) { claim in
                         ClaimSummaryCard(
                             claim: claim,
+                            focusedEntityId: entity.id,
                             onNavigateToSource: onNavigateToSource
                         )
                     }

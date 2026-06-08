@@ -250,6 +250,13 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertTrue(labels.contains("AI"))
     }
 
+    func testClaimFocusPreservesEntityInspectionContext() throws {
+        let source = try Self.appSource("Views/KnowledgeGraph/OntologyBrowser/ClaimSummaryCardView.swift")
+
+        XCTAssertTrue(source.contains("var focusedEntityId: String?"))
+        XCTAssertTrue(source.contains("entityId: focusedEntityId"))
+    }
+
     func testMentionSummariesDeduplicateSourcePagesAndFormatDate() throws {
         let first = try decodeClaim("""
         {
