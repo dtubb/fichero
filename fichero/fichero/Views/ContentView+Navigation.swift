@@ -58,6 +58,7 @@ extension ContentView {
             } else {
                 LibraryView(
                     documents: selectedDocuments,
+                    contentCollection: isEntityLibrarySelection ? .entities : .documents,
                     isLoading: documentStore.isLoading,
                     isConnected: documentStore.isConnected,
                     errorMessage: documentStore.error?.localizedDescription,

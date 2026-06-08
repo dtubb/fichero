@@ -1,10 +1,17 @@
 import Combine
+import FicheroAPIClient
 import SwiftUI
 import UniformTypeIdentifiers
+
+enum LibraryContentCollection {
+    case documents
+    case entities
+}
 
 /// Grid/List/Table/Map view of documents
 struct LibraryView: View {
     let documents: [Document]
+    let contentCollection: LibraryContentCollection
     let isLoading: Bool
     let isConnected: Bool
     let errorMessage: String?
@@ -81,7 +88,9 @@ struct LibraryView: View {
     @Environment(\.openWindow) var openWindow
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
     @EnvironmentObject var documentStore: DocumentStore
+    @EnvironmentObject var entityService: EntityServiceGenerated
     @Environment(WorkflowExecutionObserver.self) var executionObserver
+    @Environment(KGFocusState.self) var kgFocusState
     @ObservedObject var featureManager = FeatureManager.shared
     @ObservedObject var workflowRunProviderCache = WorkflowRunProviderCache.shared
 
@@ -119,6 +128,9 @@ struct LibraryView: View {
 
     // Map view positions
     @State var mapPositions: [String: CGPoint] = [:]
+    @State var entities: [Components.Schemas.KnowledgeEntity] = []
+    @State var isLoadingEntities = false
+    @State var entityLoadErrorMessage: String?
 
     // Delete confirmation state
     @State var showDeleteConfirmation = false
@@ -180,11 +192,11 @@ struct LibraryView: View {
                 // Main content
                 if !isConnected {
                     connectionErrorState
-                } else if isLoading {
+                } else if isCollectionLoading {
                     loadingState
-                } else if let errorMessage {
-                    errorState(message: errorMessage)
-                } else if filteredDocuments.isEmpty {
+                } else if let activeErrorMessage {
+                    errorState(message: activeErrorMessage)
+                } else if isCollectionEmpty {
                     emptyState
                 } else {
                     switch displayMode {
@@ -227,7 +239,7 @@ struct LibraryView: View {
             }
             .focusedSceneValue(
                 \.runWorkflowOnSelection,
-                (!selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled) ? {
+                (!isShowingEntitiesCollection && !selection.isEmpty && featureManager.isWorkflowRunOnSelectionEnabled) ? {
                     selectedDocumentIdsForBatch = Array(selection)
                     showWorkflowPicker = true
                 } : nil
@@ -268,6 +280,9 @@ struct LibraryView: View {
                 // identity and don't redraw.
                 guard hasProcessingDocuments, let parentId = folderId else { return }
                 Task { await documentStore.refreshPendingStatusesOnly(in: parentId) }
+            }
+            .task(id: entityCollectionTaskKey) {
+                await loadEntitiesIfNeeded()
             }
             // Suppress implicit animations on folder change — icons should appear
             // instantly, not slide in cascading from the top.
@@ -332,6 +347,7 @@ struct LibraryView: View {
 #Preview("Empty") {
     LibraryView(
         documents: [],
+        contentCollection: .documents,
         isLoading: false,
         isConnected: true,
         errorMessage: nil,
@@ -349,6 +365,7 @@ struct LibraryView: View {
 #Preview("Disconnected") {
     LibraryView(
         documents: [],
+        contentCollection: .documents,
         isLoading: false,
         isConnected: false,
         errorMessage: nil,

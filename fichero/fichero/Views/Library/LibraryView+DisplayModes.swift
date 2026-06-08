@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 // MARK: - Display Modes Extension
@@ -187,38 +188,67 @@ extension LibraryView {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(filteredDocuments) { doc in
-                        MailStyleRow(
-                            document: doc,
-                            isSelected: selection.contains(doc.id),
-                            visibleEntityTypes: listVisibleEntityTypes
-                        ) { tag in
-                            searchText = tag
-                            showFilterBar = true
-                        }
-                        .id(doc.id)
-                        .draggable(doc.id)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            selection.contains(doc.id)
-                                ? Color.accentColor.opacity(0.12)
-                                : Color.clear
-                        )
-                        .contentShape(Rectangle())
-                        .onTapGesture(count: 2) {
-                            handleDoubleClick(doc)
-                        }
-                        .onTapGesture {
-                            handleTap(doc)
-                            onRequestFocus()
-                        }
-                        .contextMenu {
-                            documentContextMenu(for: doc)
-                        }
+                    if isShowingEntitiesCollection {
+                        ForEach(filteredEntities, id: \.stableInspectorId) { entity in
+                            let entityId = entitySelectionId(for: entity)
+                            EntityRow(
+                                entity: entity,
+                                claimCount: entity.corroborationCount ?? 0,
+                                style: .browser
+                            )
+                            .id(entityId)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                selection.contains(entityId)
+                                    ? Color.accentColor.opacity(0.12)
+                                    : Color.clear
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) {
+                                handleEntityDoubleClick(entity)
+                            }
+                            .onTapGesture {
+                                handleEntityTap(entity)
+                            }
 
-                        Divider()
-                            .padding(.leading, 12)
+                            Divider()
+                                .padding(.leading, 12)
+                        }
+                    } else {
+                        ForEach(filteredDocuments) { doc in
+                            MailStyleRow(
+                                document: doc,
+                                isSelected: selection.contains(doc.id),
+                                visibleEntityTypes: listVisibleEntityTypes
+                            ) { tag in
+                                searchText = tag
+                                showFilterBar = true
+                            }
+                            .id(doc.id)
+                            .draggable(doc.id)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                selection.contains(doc.id)
+                                    ? Color.accentColor.opacity(0.12)
+                                    : Color.clear
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) {
+                                handleDoubleClick(doc)
+                            }
+                            .onTapGesture {
+                                handleTap(doc)
+                                onRequestFocus()
+                            }
+                            .contextMenu {
+                                documentContextMenu(for: doc)
+                            }
+
+                            Divider()
+                                .padding(.leading, 12)
+                        }
                     }
                 }
             }
