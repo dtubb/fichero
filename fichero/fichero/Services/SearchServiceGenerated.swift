@@ -17,6 +17,17 @@ struct KeywordCloudEntryDTO: Decodable, Identifiable {
 @MainActor
 // swiftlint:disable:next type_body_length
 class SearchServiceGenerated: ObservableObject {
+    struct SearchRequestOptions {
+        let query: String
+        let limit: Int
+        let include: [Components.Schemas.SearchInclude]?
+        let minScore: Double
+        let searchType: String
+        let sortBy: String
+        let sortDirection: String
+        let offset: Int
+    }
+
     private let client: FicheroClient
 
     /// Initialize with FicheroClient (preferred)
@@ -35,6 +46,7 @@ class SearchServiceGenerated: ObservableObject {
     func search(
         query: String,
         limit: Int = 10,
+        include: [Components.Schemas.SearchInclude]? = nil,
         minScore: Double = 0.0,
         searchType: String = "hybrid",
         filters: [String: any Sendable]? = nil,
@@ -47,15 +59,20 @@ class SearchServiceGenerated: ObservableObject {
             return Components.Schemas.SearchRequest.FiltersPayload(additionalProperties: container)
         }
 
-        let searchRequest = Components.Schemas.SearchRequest(
+        let options = SearchRequestOptions(
             query: query,
             limit: limit,
+            include: include,
             minScore: minScore,
             searchType: searchType,
-            filters: filtersPayload,
             sortBy: sortBy,
             sortDirection: sortDirection,
             offset: offset
+        )
+
+        let searchRequest = Self.makeSearchRequest(
+            options,
+            filtersPayload: filtersPayload
         )
 
         let response = try await client.api.enhancedSearchApiSearchPost(
@@ -342,6 +359,7 @@ class SearchServiceGenerated: ObservableObject {
     func searchCompatible(
         query: String,
         limit: Int = 10,
+        include: [Components.Schemas.SearchInclude]? = nil,
         minScore: Double = 0.0,
         searchType: String = "hybrid",
         filters: [String: String]? = nil,
@@ -357,6 +375,7 @@ class SearchServiceGenerated: ObservableObject {
         let response = try await search(
             query: query,
             limit: limit,
+            include: include,
             minScore: minScore,
             searchType: searchType,
             filters: filtersAsAny,
@@ -366,6 +385,23 @@ class SearchServiceGenerated: ObservableObject {
         )
 
         return convertToManualSearchResponse(response)
+    }
+
+    static func makeSearchRequest(
+        _ options: SearchRequestOptions,
+        filtersPayload: Components.Schemas.SearchRequest.FiltersPayload?
+    ) -> Components.Schemas.SearchRequest {
+        Components.Schemas.SearchRequest(
+            query: options.query,
+            limit: options.limit,
+            include: options.include,
+            minScore: options.minScore,
+            searchType: options.searchType,
+            filters: filtersPayload,
+            sortBy: options.sortBy,
+            sortDirection: options.sortDirection,
+            offset: options.offset
+        )
     }
 
     /// Convert generated SearchResponse to manual SearchResponse type
@@ -389,6 +425,8 @@ class SearchServiceGenerated: ObservableObject {
 
         return SearchResponse(
             results: results,
+            entityHits: generated.entityHits ?? [],
+            claimHits: generated.claimHits ?? [],
             count: generated.count,
             totalResults: generated.totalResults,
             query: generated.query,

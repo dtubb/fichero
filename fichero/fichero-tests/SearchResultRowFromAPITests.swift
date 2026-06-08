@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import SwiftUI
 import XCTest
 
@@ -162,5 +163,47 @@ final class SearchResultRowFromAPITests: XCTestCase {
         let source = try String(contentsOf: url, encoding: .utf8)
 
         XCTAssertTrue(source.contains("transcriptExcerpts: generated.transcriptExcerpts"))
+    }
+
+    func testSearchScopeSelectionDefaultsToAllScopes() {
+        let selection = SearchScopeSelection.all
+
+        XCTAssertTrue(selection.contains(.content))
+        XCTAssertTrue(selection.contains(.entities))
+        XCTAssertTrue(selection.contains(.claims))
+        XCTAssertEqual(
+            selection.apiIncludes.map(\.rawValue),
+            ["content", "entities", "claims"]
+        )
+    }
+
+    func testSearchScopeSelectionNeverDropsLastScope() {
+        var selection = SearchScopeSelection(scopes: [.content])
+
+        selection.toggle(.content)
+
+        XCTAssertTrue(selection.contains(.content))
+        XCTAssertEqual(selection.apiIncludes.map(\.rawValue), ["content"])
+    }
+
+    func testSearchServiceRequestBuilderCarriesIncludeValues() throws {
+        let request = SearchServiceGenerated.makeSearchRequest(
+            SearchServiceGenerated.SearchRequestOptions(
+                query: "scope me",
+                limit: 25,
+                include: [
+                    Components.Schemas.SearchInclude(rawValue: "entities")!,
+                    Components.Schemas.SearchInclude(rawValue: "claims")!
+                ],
+                minScore: 0.0,
+                searchType: "hybrid",
+                sortBy: "relevance",
+                sortDirection: "desc",
+                offset: 0
+            ),
+            filtersPayload: nil
+        )
+
+        XCTAssertEqual(request.include?.map(\.rawValue), ["entities", "claims"])
     }
 }

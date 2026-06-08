@@ -1,7 +1,68 @@
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "SearchView")
+
+enum SearchScope: String, CaseIterable, Identifiable, Codable {
+    case content
+    case entities
+    case claims
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .content:
+            "Content"
+        case .entities:
+            "Entities"
+        case .claims:
+            "Claims"
+        }
+    }
+
+    var helpText: String {
+        switch self {
+        case .content:
+            "Search document text"
+        case .entities:
+            "Search extracted entities"
+        case .claims:
+            "Search extracted claims"
+        }
+    }
+}
+
+struct SearchScopeSelection: Equatable {
+    private(set) var scopes: Set<SearchScope>
+
+    static let all = SearchScopeSelection(scopes: Set(SearchScope.allCases))
+
+    init(scopes: Set<SearchScope>) {
+        self.scopes = scopes.isEmpty ? Set(SearchScope.allCases) : scopes
+    }
+
+    func contains(_ scope: SearchScope) -> Bool {
+        scopes.contains(scope)
+    }
+
+    mutating func toggle(_ scope: SearchScope) {
+        if scopes.contains(scope) {
+            guard scopes.count > 1 else { return }
+            scopes.remove(scope)
+        } else {
+            scopes.insert(scope)
+        }
+    }
+
+    var apiIncludes: [Components.Schemas.SearchInclude] {
+        SearchScope.allCases.compactMap { scope in
+            guard scopes.contains(scope) else { return nil }
+            return Components.Schemas.SearchInclude(rawValue: scope.rawValue)
+        }
+    }
+}
 
 /// Helper methods for SearchView
 extension SearchView {
@@ -150,6 +211,7 @@ extension SearchView {
                 let response = try await searchService.searchCompatible(
                     query: queryText,
                     limit: 50,
+                    include: searchScopeSelection.apiIncludes,
                     minScore: 0.0,  // Backend defaults; UI shows everything ≥ floor.
                     searchType: "hybrid",
                     filters: nil,

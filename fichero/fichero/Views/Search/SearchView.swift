@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 /// Search view with query input, filters, and results
@@ -14,6 +15,7 @@ struct SearchView: View {
     @State var searchError: String?
     @State var indexedCount: Int?
     @State var isReindexing: Bool = false
+    @State var searchScopeSelection: SearchScopeSelection = .all
 
     /// Token used to debounce live-as-you-type search. Each keystroke
     /// schedules a query and stamps a fresh UUID; the scheduled task only
@@ -59,7 +61,11 @@ struct SearchView: View {
     @EnvironmentObject var windowState: WindowState
 
     var body: some View {
-        resultsPanel
+        VStack(spacing: 0) {
+            scopeSelectorBar
+            Divider()
+            resultsPanel
+        }
             // SearchView owns its own toolbar search field via .searchable
             // (#481). Each mode-specific view in this app owns the toolbar
             // search slot for that mode; SwiftUI/AppKit only allows one
@@ -174,7 +180,56 @@ struct SearchView: View {
 // MARK: - View Components
 
 extension SearchView {
+    var scopeSelectorBar: some View {
+        HStack(spacing: 8) {
+            Text("Search")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ForEach(SearchScope.allCases) { scope in
+                let isSelected = searchScopeSelection.contains(scope)
+                Button {
+                    searchScopeSelection.toggle(scope)
+                    if !queryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        performSearch()
+                    }
+                } label: {
+                    Text(scope.label)
+                        .font(.caption.weight(.medium))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+                        .background(
+                            Capsule().fill(
+                                isSelected
+                                    ? Color.accentColor.opacity(0.14)
+                                    : Color.secondary.opacity(0.10)
+                            )
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(
+                                    isSelected
+                                        ? Color.accentColor.opacity(0.25)
+                                        : Color.secondary.opacity(0.12),
+                                    lineWidth: 0.5
+                                )
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(scope.helpText)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
     var resultsPanel: some View {
+        // swiftlint:disable:next todo
+        // TODO(#1766): render entity/claim hit rows once SearchResultsDisplay has a mixed-result section layout.
         // Search uses the window toolbar search field, so avoid duplicate in-view toolbar chrome.
         SearchResultsDisplay(
             searchResults: searchResults,
