@@ -502,3 +502,19 @@ NEXT: 2 backend lanes — (A) port #1662+#1756 into engine [code]; (B) #1758 sea
 **Next tick:** gate whichever committed (both backend: ruff+pytest). Then refill: #1689 SwiftUI claim-merge UI (unblocked once f_claimmerge lands) → entity-library-view surface (entities in icon/list/column/map modes) → #1757 step 4 (merge/dedup) → bounded backend wins. Resume 1 frontend + 1 backend when budget allows.
 
 ### SCOREBOARD (Daniel): 12 merged tonight — #1767, #1592, #1751, #1766(closed), #1763 full(closed), #1759 full(closed), #1757 step1+step2. Plus a red contract-test fixed. Curation + search-503 + notes/annotations page+folder + inbox-bug all done; importer decomposition 2/5 steps in.
+
+---
+## TICK — 2026-06-08 ~04:42 ADT (overnight)
+**Merged to 0.0.2 (HEAD `722492e1`):**
+- #1689 BACKEND — `/api/kg/claims/merge` + `/unmerge` mirroring entity-curation merge/split; ClaimMergeAudit; absorbed claims rejected+merged_into (no hard-delete, provenance preserved); unmerge restores from audit. 24 claim-route + full suite (3902) green. New endpoints allowlisted in swiftui wiring test. #1689 KEPT OPEN for the UI.
+- #1757 STEP 3 — discrete "Extract SVO→Claims" tool (`extract_svo_only.py`) reusing `extractors._write_kg_rows` (allowlisted writer) + steps 1-2 helpers; idempotent. 42 tests green. Pipeline now 3/5. #1757 open for steps 4-5.
+- Both clean — only the routine wiring-allowlist add for the 2 new claim endpoints.
+- GOTCHA caught: `cd <worktree> && git merge <branch>` ran the merge INSIDE the worktree (no-op "Already up to date") — must merge from the MAIN worktree (use `git -C /Users/danieltubb/code/fichero merge ...` or don't cd). Re-ran correctly.
+
+**Running (1 frontend + 1 backend, disjoint):**
+- `f_claimui` (~/code/fichero-claimmergeui, feat/claim-merge-ui-1689) — #1689 SwiftUI claim merge/unmerge UI mirroring EntityMergeSheet, wired to the new claim merge endpoints via generated client. Frontend gate.
+- `f_step4` (~/code/fichero-step4, feat/merge-step-discrete-1757) — #1757 STEP 4 "Merge/Dedup" discrete tool: APPLIES existing entity-resolution + claim-suppression rules + prune-trivial (no new heuristics), idempotent. Backend gate.
+
+**Next tick:** gate f_step4 first (backend). Gate f_claimui (frontend: scan → Xcode build → fix-in-place → merge). Then refill: entity-library-view surface (entities in icon/list/column/map modes) → #1757 step 5 (KG persist) + chaining → bounded backend wins.
+
+### SCOREBOARD (Daniel): 14 merged tonight + a red contract test fixed. Curation surface COMPLETE (#1763/#1751/#1761/#1765) + claim merge/unmerge backend (#1689). Search 503-fix + scope selector (#1767/#1766). Notes/annotations page+folder (#1759). New-library Inbox (#1592). Importer decomposition 3/5 (#1757 steps 1-3).
