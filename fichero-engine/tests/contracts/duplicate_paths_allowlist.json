@@ -5,6 +5,7 @@
       "api/routes/annotations.py::promote_to_claim",
       "api/routes/claims.py::create_claim",
       "api/routes/mcp_tools.py::mcp_knowledge_claim_create",
+      "workflows/tools/kg_persist_finalize.py::kg_persist_finalize",
       "workflows/tools/_entity_writer.py::save_claim",
       "workflows/tools/book_index.py::book_index_extract",
       "workflows/tools/citations_extract.py::extract_citations_for_document",

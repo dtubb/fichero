@@ -188,11 +188,15 @@ class TestLoadPresetFiles:
         stage0b = presets["2 · Extract Entities"]
         stage0c = presets["3 · Extract SVO → Claims"]
         stage0d = presets["4 · Merge / Dedup"]
+        stage0e = presets["5 · KG Persist / Finalize"]
+        full_pipeline = presets["Catalogue Full Pipeline"]
         stage1 = presets["Catalogue Stage 1 - Transcribe Pages"]
         stage2 = presets["Catalogue Stage 2 - Extract Entities + KG"]
         stage3 = presets["Catalogue Stage 3 - Catalogue Artifacts"]
 
-        for preset in (stage0, stage0b, stage0c, stage0d, stage1, stage2, stage3):
+        for preset in (
+            stage0, stage0b, stage0c, stage0d, stage0e, full_pipeline, stage1, stage2, stage3
+        ):
             assert preset.get("is_template") is True
             assert preset.get("is_system") is True
             assert preset.get("folder_path") == "/Catalogue"
@@ -251,6 +255,59 @@ class TestLoadPresetFiles:
             and e["target_port"] == "documents"
             for e in stage0d["edges"]
         ), "stage 4 must feed selected documents into merge_dedup_only"
+
+        stage0e_tools = {n["tool"] for n in stage0e["nodes"]}
+        assert stage0e_tools == {"files", "kg_persist_finalize"}
+        assert "kg" in stage0e.get("tags", [])
+        assert "finalize" in stage0e.get("tags", [])
+        kg_finalize_id = _node_id(stage0e, "kg_persist_finalize")
+        files_id = _node_id(stage0e, "files")
+        assert any(
+            e["source"] == files_id
+            and e["target"] == kg_finalize_id
+            and e["source_port"] == "documents"
+            and e["target_port"] == "documents"
+            for e in stage0e["edges"]
+        ), "stage 5 must feed selected documents into kg_persist_finalize"
+
+        full_tools = [n["tool"] for n in full_pipeline["nodes"]]
+        assert full_tools == [
+            "files",
+            "import_artifacts",
+            "extract_entities_only",
+            "extract_svo_only",
+            "merge_dedup_only",
+            "kg_persist_finalize",
+        ]
+        full_nodes = {node["tool"]: node["id"] for node in full_pipeline["nodes"]}
+        expected_barriers = [
+            ("import_artifacts", "extract_entities_only"),
+            ("extract_entities_only", "extract_svo_only"),
+            ("extract_svo_only", "merge_dedup_only"),
+            ("merge_dedup_only", "kg_persist_finalize"),
+        ]
+        for source_tool, target_tool in expected_barriers:
+            assert any(
+                e["source"] == full_nodes[source_tool]
+                and e["target"] == full_nodes[target_tool]
+                and e["source_port"] == "summary"
+                and e["target_port"] == "barrier"
+                for e in full_pipeline["edges"]
+            ), f"full pipeline must serialize {source_tool} -> {target_tool}"
+        for target_tool in (
+            "import_artifacts",
+            "extract_entities_only",
+            "extract_svo_only",
+            "merge_dedup_only",
+            "kg_persist_finalize",
+        ):
+            assert any(
+                e["source"] == full_nodes["files"]
+                and e["target"] == full_nodes[target_tool]
+                and e["source_port"] == "documents"
+                and e["target_port"] == "documents"
+                for e in full_pipeline["edges"]
+            ), f"full pipeline must feed documents into {target_tool}"
 
         stage1_tools = {n["tool"] for n in stage1["nodes"]}
         assert stage1_tools == {"files", "transcribe"}
