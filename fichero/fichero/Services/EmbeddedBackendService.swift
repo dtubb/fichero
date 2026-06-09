@@ -67,7 +67,7 @@ final class EmbeddedBackendService: ObservableObject {
                 try await waitForBackend(timeout: 1.5)
                 status = .running
                 isExternalBackend = true
-                logger.info("✅ Connected to external backend")
+                logger.info("Connected to external backend")
             } catch {
                 logger.info("No external backend; host runs without managing one")
                 status = .running
@@ -85,7 +85,7 @@ final class EmbeddedBackendService: ObservableObject {
                 try await waitForBackend(timeout: 5)
                 status = .running
                 isExternalBackend = true
-                logger.info("✅ Connected to configured external backend")
+                logger.info("Connected to configured external backend")
                 return
             } catch {
                 status = .failed
@@ -107,7 +107,7 @@ final class EmbeddedBackendService: ObservableObject {
             try await waitForBackend(timeout: 5)
             status = .running
             isExternalBackend = true
-            logger.info("✅ Connected to external backend (will not manage lifecycle)")
+            logger.info("Connected to external backend (will not manage lifecycle)")
             return
         } catch {
             logger.info("No external backend found, launching embedded backend...")
@@ -130,7 +130,7 @@ final class EmbeddedBackendService: ObservableObject {
     func stop() {
         // Don't stop external backends (user-managed)
         if isExternalBackend {
-            logger.info("🔌 Using external backend - leaving it running (user-managed)")
+            logger.info("Using external backend - leaving it running (user-managed)")
             status = .stopped
             return
         }
@@ -141,7 +141,7 @@ final class EmbeddedBackendService: ObservableObject {
             return
         }
 
-        logger.info("🛑 Stopping embedded backend (PID: \(pid))...")
+        logger.info("Stopping embedded backend (PID: \(pid))...")
 
         // Clear state immediately
         backendPID = nil
@@ -156,7 +156,7 @@ final class EmbeddedBackendService: ObservableObject {
             // Check if process is still running
             if kill(pid, 0) != 0 {
                 // Process no longer exists
-                logger.info("✅ Backend stopped gracefully after \(attempt * 100)ms")
+                logger.info("Backend stopped gracefully after \(attempt * 100)ms")
                 return
             }
             // Sleep for 100ms
@@ -165,16 +165,16 @@ final class EmbeddedBackendService: ObservableObject {
 
         // Force kill if still running after 5 seconds
         if kill(pid, 0) == 0 {
-            logger.warning("⚠️ Backend didn't shut down gracefully after 5s, force killing...")
+            logger.warning("Backend didn't shut down gracefully after 5s, force killing...")
             kill(pid, SIGKILL)
 
             // Give it one more second to die
             Thread.sleep(forTimeInterval: 1.0)
 
             if kill(pid, 0) == 0 {
-                logger.error("❌ Failed to kill backend process (PID: \(pid))")
+                logger.error("Failed to kill backend process (PID: \(pid))")
             } else {
-                logger.info("✅ Backend force-killed successfully")
+                logger.info("Backend force-killed successfully")
             }
         }
     }
@@ -182,8 +182,8 @@ final class EmbeddedBackendService: ObservableObject {
     deinit {
         // Clean up backend on service deallocation (shouldn't happen in normal app lifecycle)
         if let pid = backendPID, !isExternalBackend {
-            logger.warning("⚠️  EmbeddedBackendService deinit - terminating backend (PID: \(pid))")
-            logger.warning("⚠️  This shouldn't happen in normal app lifecycle - backend should be stopped via stop()")
+            logger.warning("EmbeddedBackendService deinit - terminating backend (PID: \(pid))")
+            logger.warning("This shouldn't happen in normal app lifecycle - backend should be stopped via stop()")
             kill(pid, SIGTERM)
         }
     }
@@ -264,12 +264,12 @@ final class EmbeddedBackendService: ObservableObject {
         try process.run()
 
         let pid = process.processIdentifier
-        logger.info("✅ Backend process launched successfully (PID: \(pid))")
+        logger.info("Backend process launched successfully (PID: \(pid))")
 
         // Store PID and process reference
         backendPID = pid
         isExternalBackend = false
-        logger.info("📍 Tracking embedded backend PID: \(pid)")
+        logger.info("Tracking embedded backend PID: \(pid)")
     }
 
     private func waitForBackend(timeout: TimeInterval) async throws {

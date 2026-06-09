@@ -18,7 +18,7 @@ extension SidebarView {
             unifiedRow(for: item)
         }
         .dropDestination(for: SidebarDragID.self) { ids, offset in
-            sidebarRowLogger.debug("🎯 unifiedRows .dropDestination FIRED with \(ids.count) ids at offset \(offset)")
+            sidebarRowLogger.debug("unifiedRows .dropDestination FIRED with \(ids.count) ids at offset \(offset)")
             handleExternalInsertionDrop(
                 droppedIds: ids.map(\.id),
                 at: offset,
@@ -40,16 +40,16 @@ extension SidebarView {
     ) {
         let sourceDesc = source.map(\.description).joined(separator: ",")
         sidebarRowLogger.debug(
-            "🔵 unifiedRows .onMove FIRED — source=\(sourceDesc) dest=\(destination) items=\(items.count)"
+            "unifiedRows .onMove FIRED — source=\(sourceDesc) dest=\(destination) items=\(items.count)"
         )
 
         // Defensive Inbox guard (belt + suspenders with `.moveDisabled`).
         if source.contains(where: { items[$0].icon == "tray.fill" }) {
-            sidebarRowLogger.debug("🔵 unifiedRows .onMove BAILED — Inbox guard")
+            sidebarRowLogger.debug("unifiedRows .onMove BAILED — Inbox guard")
             return
         }
         guard let libraryId, let library = libraryManager.getLibrary(id: libraryId) else {
-            sidebarRowLogger.debug("🔵 unifiedRows .onMove BAILED — no libraryId/library")
+            sidebarRowLogger.debug("unifiedRows .onMove BAILED — no libraryId/library")
             return
         }
 

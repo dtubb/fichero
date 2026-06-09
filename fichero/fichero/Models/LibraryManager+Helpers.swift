@@ -158,7 +158,7 @@ extension LibraryManager {
                     parentId: nil
                 )
                 libraryManagerLogger.info(
-                    "✅ Created default Inbox folder in \(library.displayName) library: \(inbox.id)"
+                    "Created default Inbox folder in \(library.displayName) library: \(inbox.id)"
                 )
 
                 // Reload documents to include the new Inbox
@@ -167,7 +167,7 @@ extension LibraryManager {
                 libraryManagerLogger.info("Reloaded collections, now have \(reloadedCount) documents")
             } catch {
                 libraryManagerLogger.error(
-                    "❌ Failed to create Inbox folder in \(library.displayName): \(error.localizedDescription)"
+                    "Failed to create Inbox folder in \(library.displayName): \(error.localizedDescription)"
                 )
             }
         } else {

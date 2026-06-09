@@ -41,7 +41,7 @@ extension SidebarItemRow {
         sidebarRowLogger.debug("  - Current row's item: \(item.name) (id: \(item.id))")
 
         guard let itemToRename = findItemById(itemId, in: allCachedItems) else {
-            sidebarRowLogger.warning("⚠️ Could not find item with ID \(itemId) in cached items")
+            sidebarRowLogger.warning("Could not find item with ID \(itemId) in cached items")
             return
         }
 

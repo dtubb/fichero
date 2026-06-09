@@ -350,7 +350,7 @@ private struct AnnotationRow: View {
         if let page = annotation.pageLabel, !page.isEmpty { parts.append("p. \(page)") }
         if annotation.hasRegion { parts.append("region") }
         if !annotation.linkedClaimIds.isEmpty { parts.append("\(annotation.linkedClaimIds.count) claim") }
-        if let rating = annotation.rating { parts.append(String(repeating: "★", count: max(0, min(5, rating)))) }
+        if let rating = annotation.rating { parts.append(String(repeating: "*", count: max(0, min(5, rating)))) }
         for tag in annotation.tags.prefix(3) { parts.append("#\(tag)") }
         return parts
     }

@@ -227,12 +227,12 @@ extension SidebarItemRow {
                       case .folder(let folderPath) = targetFolder.itemType else { return }
                 try await store.moveWorkflow(actualItemId, toFolder: folderPath)
             default:
-                sidebarRowLogger.debug(" ⚠️ routeMove: kind \(String(describing: kind)) has no move handler")
+                sidebarRowLogger.debug(" routeMove: kind \(String(describing: kind)) has no move handler")
                 return
             }
-            sidebarRowLogger.debug(" ✅ Move successful — UI updates via @Published")
+            sidebarRowLogger.debug(" Move successful — UI updates via @Published")
         } catch {
-            sidebarRowLogger.debug(" ❌ Move failed: \(error.localizedDescription)")
+            sidebarRowLogger.debug(" Move failed: \(error.localizedDescription)")
         }
     }
 
@@ -248,9 +248,9 @@ extension SidebarItemRow {
 
         do {
             _ = try await documentStore.moveDocument(actualItemId, toParent: actualTargetId)
-            sidebarRowLogger.debug(" ✅ Move successful - UI updates automatically via @Published")
+            sidebarRowLogger.debug(" Move successful - UI updates automatically via @Published")
         } catch {
-            sidebarRowLogger.debug(" ❌ Move failed: \(error.localizedDescription)")
+            sidebarRowLogger.debug(" Move failed: \(error.localizedDescription)")
         }
     }
 }

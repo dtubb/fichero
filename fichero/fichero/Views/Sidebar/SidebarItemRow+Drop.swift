@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 extension SidebarItemRow {
     func handleRowDrop(_ providers: [NSItemProvider]) -> Bool {
         #if DEBUG
-        sidebarRowLogger.debug("📥 handleRowDrop fired on \(item.name) with \(providers.count) provider(s)")
+        sidebarRowLogger.debug("handleRowDrop fired on \(item.name) with \(providers.count) provider(s)")
         for (idx, provider) in providers.enumerated() {
             let utis = provider.registeredTypeIdentifiers.joined(separator: ", ")
             let canURL = provider.canLoadObject(ofClass: URL.self)
@@ -88,7 +88,7 @@ extension SidebarItemRow {
             .tag(child.id)
         }
         .dropDestination(for: SidebarDragID.self) { ids, offset in
-            sidebarRowLogger.debug("🎯 nested .dropDestination FIRED with \(ids.count) ids at offset \(offset)")
+            sidebarRowLogger.debug("nested .dropDestination FIRED with \(ids.count) ids at offset \(offset)")
             handleNestedInsertionDrop(
                 droppedIds: ids.map(\.id),
                 at: offset,

@@ -62,11 +62,11 @@ struct ArtifactEntitiesView: View {
         switch style {
         case .singleLine:
             HStack(spacing: 8) {
-                chip("👤", names: people, max: 2)
-                chip("📍", names: places, max: 2)
-                chip("🏢", names: organizations, max: 1)
-                chip("📅", names: dates, max: 1)
-                chip("⚡", names: events, max: 1)
+                chip(systemName: "person", names: people, max: 2)
+                chip(systemName: "mappin", names: places, max: 2)
+                chip(systemName: "building.2", names: organizations, max: 1)
+                chip(systemName: "calendar", names: dates, max: 1)
+                chip(systemName: "bolt", names: events, max: 1)
             }
             .font(.caption)
             .lineLimit(1)
@@ -97,12 +97,12 @@ struct ArtifactEntitiesView: View {
     }
 
     @ViewBuilder
-    private func chip(_ icon: String, names: [String], max: Int) -> some View {
+    private func chip(systemName: String, names: [String], max: Int) -> some View {
         if !names.isEmpty {
             let shown = Array(names.prefix(max))
             let extra = names.count - shown.count
             let suffix = extra > 0 ? " +\(extra)" : ""
-            Text("\(icon) \(shown.joined(separator: ", "))\(suffix)")
+            Label("\(shown.joined(separator: ", "))\(suffix)", systemImage: systemName)
                 .foregroundStyle(.secondary)
         }
     }

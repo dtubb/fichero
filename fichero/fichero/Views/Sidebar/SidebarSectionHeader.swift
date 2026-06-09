@@ -73,7 +73,7 @@ struct LibrarySectionHeader: View {
             }
             .dropDestination(for: SidebarDragID.self, action: { ids, _ in
                 Logger(subsystem: "app.fichero.fichero", category: "LibraryHeaderDrop")
-                    .debug("🎯 LibrarySectionHeader .dropDestination FIRED with \(ids.count) ids")
+                    .debug("LibrarySectionHeader .dropDestination FIRED with \(ids.count) ids")
                 guard let onSidebarItemDrop else { return false }
                 onSidebarItemDrop(ids.map(\.id))
                 return true
