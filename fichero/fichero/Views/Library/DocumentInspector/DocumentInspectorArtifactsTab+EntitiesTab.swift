@@ -306,9 +306,6 @@ struct DocumentInspectorEntitiesTab: View {
         )
         .contextMenu { entityContextMenu(for: entity) }
         .help("Inspect \(entity.canonicalName)")
-        .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            entityRowSwipeActions(for: entity)
-        }
     }
 
     /// Canonical name — double-click the name (or use the Rename context
@@ -385,28 +382,6 @@ struct DocumentInspectorEntitiesTab: View {
                 await loadEntities()
             }
         }
-    }
-
-    @ViewBuilder
-    private func entityRowSwipeActions(
-        for entity: Components.Schemas.KnowledgeEntity
-    ) -> some View {
-        Button {
-            Task {
-                await applyBulkAction(.approve, scope: .pageOrFolderOnly, targetEntities: [entity])
-            }
-        } label: {
-            Label("Approve", systemImage: "checkmark.circle")
-        }
-        .tint(.green)
-        Button {
-            Task {
-                await applyBulkAction(.reject, scope: .pageOrFolderOnly, targetEntities: [entity])
-            }
-        } label: {
-            Label("Reject", systemImage: "xmark.circle")
-        }
-        .tint(.red)
     }
 
     private func setHidden(_ kind: EntityKind, hidden: Bool) {

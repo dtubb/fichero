@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 #if canImport(RealityKit)
 import RealityKit
@@ -355,7 +356,6 @@ struct SpatialScene3D: View {
         let scale = Float(max(node.scale, 0.25))
         let cardWidth: Float = 0.8 * scale
         let cardHeight: Float = cardWidth / pageAspectRatio
-        let thumbnailUrl = node.thumbnailUrl
         let nodeColor = MindPalaceTheme.materialColor(for: node.nodeType)
         let mesh: MeshResource
         let materials: [any RealityFoundation.Material]
@@ -369,7 +369,7 @@ struct SpatialScene3D: View {
             mesh = MeshResource.generateSphere(radius: radius)
             materials = [SimpleMaterial(color: nodeColor, isMetallic: false)]
             collisionShape = ShapeResource.generateSphere(radius: radius)
-        case .source where thumbnailUrl != nil, .source:
+        case .source:
             mesh = MeshResource.generatePlane(
                 width: cardWidth,
                 height: cardHeight,
@@ -397,10 +397,10 @@ struct SpatialScene3D: View {
         // visionOS. One line, no per-platform branch.
         entity.components.set(HoverEffectComponent())
 
-        if let thumbnailUrl, node.nodeType == .source {
+        if let sourceId = node.sourceId, !sourceId.isEmpty, node.nodeType == .source {
             Task { @MainActor in
                 do {
-                    let texture = try await MindPalaceTextureCache.shared.texture(for: thumbnailUrl)
+                    let texture = try await MindPalaceTextureCache.shared.texture(forSourceId: sourceId)
                     entity.model?.materials = [UnlitMaterial(texture: texture)]
                 } catch {
                     // Keep the colored placeholder when the page image cannot be loaded.
@@ -438,16 +438,26 @@ struct SpatialScene3D: View {
 }
 
 #if canImport(RealityKit)
+/// Caches RealityKit textures for Mind Palace source-page nodes, keyed by the
+/// node's backend `sourceId`. Page bytes are fetched through the shared
+/// `StorageServiceGenerated` (the canonical, authenticated thumbnail path) so
+/// the 3D scene no longer hand-builds a storage URL or calls `URLSession`
+/// directly (#1902).
 actor MindPalaceTextureCache {
     static let shared = MindPalaceTextureCache()
 
-    private var cache: [URL: TextureResource] = [:]
+    private static let logger = Logger(
+        subsystem: "app.fichero.fichero",
+        category: "MindPalaceTextureCache"
+    )
 
-    func texture(for url: URL) async throws -> TextureResource {
-        if let cached = cache[url] { return cached }
+    private var cache: [String: TextureResource] = [:]
 
-        let (data, contentType) = try await fetchImageData(from: url)
-        let fileExtension = Self.fileExtension(for: contentType)
+    func texture(forSourceId sourceId: String) async throws -> TextureResource {
+        if let cached = cache[sourceId] { return cached }
+
+        let data = try await fetchImageData(forSourceId: sourceId)
+        let fileExtension = Self.fileExtension(for: data)
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension(fileExtension)
@@ -455,32 +465,28 @@ actor MindPalaceTextureCache {
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
         let texture = try await TextureResource(contentsOf: tempURL)
-        cache[url] = texture
+        cache[sourceId] = texture
         return texture
     }
 
-    private func fetchImageData(from url: URL) async throws -> (Data, String) {
-        var request = URLRequest(url: url)
-        let libraryPath = await LibraryManager.shared.globalLibrary?.apiClient.currentLibraryPath
-        request.addEngineAuth(libraryPath: libraryPath)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+    private func fetchImageData(forSourceId sourceId: String) async throws -> Data {
+        guard let data = try await LibraryManager.shared.globalLibrary?
+            .storageService.thumbnailData(for: sourceId) else {
+            Self.logger.error("No library available to load page thumbnail for \(sourceId, privacy: .public)")
             throw URLError(.badServerResponse)
         }
-        let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "application/octet-stream"
-        return (data, contentType)
+        return data
     }
 
-    private static func fileExtension(for contentType: String) -> String {
-        switch contentType.lowercased() {
-        case let value where value.contains("png"): return "png"
-        case let value where value.contains("jpeg"): return "jpg"
-        case let value where value.contains("jpg"): return "jpg"
-        case let value where value.contains("webp"): return "webp"
-        case let value where value.contains("heic"): return "heic"
-        default: return "png"
-        }
+    /// Pick a loader-friendly temp-file extension from the image's leading
+    /// magic bytes — no Content-Type header needed now the bytes come back
+    /// undecoded from the storage service.
+    private static func fileExtension(for data: Data) -> String {
+        let header = [UInt8](data.prefix(4))
+        if header.starts(with: [0x89, 0x50, 0x4E, 0x47]) { return "png" }
+        if header.starts(with: [0xFF, 0xD8, 0xFF]) { return "jpg" }
+        if header.starts(with: [0x52, 0x49, 0x46, 0x46]) { return "webp" }
+        return "png"
     }
 }
 #endif

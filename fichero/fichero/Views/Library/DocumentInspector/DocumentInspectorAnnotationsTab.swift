@@ -141,13 +141,6 @@ struct DocumentInspectorAnnotationsTab: View {
                                 Label("Delete Annotation", systemImage: "trash")
                             }
                         }
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                delete(annotation)
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
                 }
             }
             .listStyle(.inset)

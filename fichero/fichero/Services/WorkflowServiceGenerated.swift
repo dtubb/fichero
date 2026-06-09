@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Combine
 import OSLog
@@ -354,6 +355,30 @@ class WorkflowServiceGenerated: ObservableObject {
         default:
             throw WorkflowServiceError.unexpectedResponse
         }
+    }
+
+    /// Fetch the rendered LangGraph diagram for a workflow as an `NSImage`.
+    ///
+    /// The backend's `visualization.png` route returns raw PNG bytes, but the
+    /// OpenAPI schema mis-declares the 200 body as `application/json`, so the
+    /// generated client can't model it. This performs the authenticated binary
+    /// GET itself (same `addEngineAuth` + `URLSession` pattern as
+    /// `StorageServiceGenerated`), keeping the diagram view free of hand-built
+    /// URLs and raw `URLSession` (#1893). Returns `nil` on any non-200.
+    func fetchDiagramImage(workflowId: String) async throws -> NSImage? {
+        let url = client.baseURL
+            .appendingPathComponent("api/workflow-execution/workflows")
+            .appendingPathComponent(workflowId)
+            .appendingPathComponent("visualization.png")
+        var request = URLRequest(url: url)
+        request.addEngineAuth(libraryPath: client.currentLibraryPath)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            logger.warning("fetchDiagramImage: non-200 for workflow \(workflowId)")
+            return nil
+        }
+        return NSImage(data: data)
     }
 
     /// Reinstall default workflows from backend presets (Transcribe, Catalogue).

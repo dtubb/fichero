@@ -165,21 +165,10 @@ struct WorkflowDiagramPreview: View {
 
     private func loadDiagram() async {
         do {
-            let url = apiClient.baseURL
-                .appendingPathComponent("workflow-execution")
-                .appendingPathComponent("workflows")
-                .appendingPathComponent(workflowId)
-                .appendingPathComponent("visualization.png")
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.addEngineAuth(libraryPath: apiClient.currentLibraryPath)
-
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return
-            }
-            diagramImage = NSImage(data: data)
+            // Route the binary PNG fetch through the typed workflow service
+            // (#1893) — no hand-built URL or raw URLSession in the view.
+            let service = WorkflowServiceGenerated(ficheroClient: makeGeneratedClient())
+            diagramImage = try await service.fetchDiagramImage(workflowId: workflowId)
         } catch {
             // Diagram loading failure is not fatal
         }
@@ -188,8 +177,6 @@ struct WorkflowDiagramPreview: View {
     private func loadCode() async {
         do {
             // Route the JSON code fetch through the generated client (#1714).
-            // The co-located PNG download in `loadDiagram()` stays raw URLSession
-            // (binary image, not modellable through the generated client).
             let client = makeGeneratedClient()
             let response = try await client.api.getWorkflowCodeApiWorkflowExecutionWorkflowsWorkflowIdCodeGet(.init(
                 path: .init(workflowId: workflowId),

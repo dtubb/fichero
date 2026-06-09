@@ -93,6 +93,15 @@ class StorageServiceGenerated: ObservableObject {
         }
     }
 
+    /// Raw thumbnail bytes for `docId`, bypassing the decoded-`Image` cache.
+    /// RealityKit's `TextureResource(contentsOf:)` needs a file on disk, so the
+    /// Mind Palace 3D scene fetches undecoded bytes through this authenticated
+    /// storage path instead of hand-building a URL and calling `URLSession`
+    /// directly (#1902).
+    func thumbnailData(for docId: String) async throws -> Data {
+        try await fetchImageData(from: thumbnailURL(for: docId))
+    }
+
     /// Get display-quality image for a document. Memoised per-service-instance.
     func getDisplayImage(_ docId: String) async throws -> Image {
         if let cached = displayCache[docId] {

@@ -73,14 +73,6 @@ struct DocumentNotesTab: View {
                 ForEach(service.notes) { note in
                     noteRow(note)
                         .listRowInsets(EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10))
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                guard let noteId = note.id else { return }
-                                Task { await deleteNote(noteId: noteId) }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
                         .contextMenu {
                             noteContextMenu(note)
                         }
