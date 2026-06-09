@@ -24,7 +24,7 @@ SWIFT_DIR = ROOT / "fichero" / "fichero"
 RULE_DOC = "docs/ROADMAP.md"
 
 KNOWN_VIOLATIONS: dict[str, str] = {
-    'fichero/fichero/App/WelcomeView+OnboardingWizardActions.swift:195:commented-code': '#1916 baseline',
+    'fichero/fichero/App/WelcomeView+OnboardingWizardActions.swift:197:commented-code': '#1916 baseline (shifted by line-wrap; pre-existing dead code, #1948)',
     'fichero/fichero/Services/ChatServiceGenerated.swift:120:todo-no-issue': '#1916 baseline',
     'fichero/fichero/Services/ProviderServiceGenerated.swift:11:todo-no-issue': '#1916 baseline',
     'fichero/fichero/Services/WorkflowExecutionObserver+Events.swift:9:todo-no-issue': '#1916 baseline',
