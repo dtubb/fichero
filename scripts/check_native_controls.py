@@ -14,6 +14,7 @@ Usage:
 """
 from __future__ import annotations
 
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -22,22 +23,41 @@ ROOT = Path(__file__).resolve().parent.parent
 VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
 RULE_DOC = "docs/ROADMAP.md"
 
+# Rekeyed to stable content signatures so unrelated line shifts do not churn the backlog.
 KNOWN_VIOLATIONS: dict[str, str] = {
-    'Activity/ActivityOverviewView+Cards.swift:25': '#1912 baseline',
-    'Components/WorkflowPreviewSheet.swift:36': '#1912 baseline',
-    'KnowledgeGraph/OntologyBrowser/EntitySourceGroupsView.swift:67': '#1912 baseline',
-    'KnowledgeGraph/OntologyBrowser/HeuristicReviewSheet.swift:59': '#1912 baseline',
-    'KnowledgeGraph/OntologyBrowser/SpeakerComparisonView.swift:25': '#1912 baseline',
-    'Library/ArtifactsBrowserView.swift:161': '#1912 baseline',
-    'Library/ImageEditor/ImageEditChainPanel.swift:76': '#1912 baseline',
-    'Library/LibraryView+DisplayModes.swift:210': '#1912 baseline',
-    'Library/PDFReadingView.swift:53': '#1912 baseline',
-    'Library/WorkspaceItemPicker.swift:224': '#1912 baseline',
-    'Research/ResearchTasksPane.swift:197': '#1912 baseline (shifted by store migration)',
-    'Research/ResearchTasksPane.swift:264': '#1912 baseline (shifted by store migration)',
-    'Search/SearchFiltersPanel.swift:16': '#1912 baseline',
-    'Workflow/WorkflowChainListView/ChainDetailContent.swift:10': '#1912 baseline',
+    "Activity/ActivityOverviewView+Cards.swift#76a86e98cc": "#1912 baseline",
+    "Components/WorkflowPreviewSheet.swift#c12b63740a": "#1912 baseline",
+    "KnowledgeGraph/OntologyBrowser/EntitySourceGroupsView.swift#c6a609c38d": "#1912 baseline",
+    "KnowledgeGraph/OntologyBrowser/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
+    "KnowledgeGraph/OntologyBrowser/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",
+    "Library/ArtifactsBrowserView.swift#c7e293c42d": "#1912 baseline",
+    "Library/ImageEditor/ImageEditChainPanel.swift#83a0175036": "#1912 baseline",
+    "Library/LibraryView+DisplayModes.swift#8e613f7b50": "#1912 baseline",
+    "Library/PDFReadingView.swift#12a18b04b8": "#1912 baseline",
+    "Library/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
+    "Research/ResearchTasksPane.swift#1d731da4e7": "#1912 baseline (shifted by store migration)",
+    "Research/ResearchTasksPane.swift#f50acbd404": "#1912 baseline (shifted by store migration)",
+    "Search/SearchFiltersPanel.swift#3c0b0dafd9": "#1912 baseline",
+    "Workflow/WorkflowChainListView/ChainDetailContent.swift#c804133262": "#1912 baseline",
 }
+
+ALLOWLIST_FILES = {
+    # Non-list drawing/canvas or display surfaces.
+    "Library/LibraryView+TableMapViews.swift",
+    "Library/PageContentPane.swift",
+    "Library/ArtifactPanel.swift",
+    "Chat/ChatMessagesList.swift",
+    # Form-based settings detail views - Form+Section+ForEach is proper form usage,
+    # not a hand-rolled row collection.
+    "AIProviders/ProvidersView+ProviderDetailView.swift",
+    "MCPServers/MCPServerDetailView.swift",
+    # Free-form detail / log / grid surfaces - not selectable row collections.
+    "Actions/ActionDetailView.swift",  # mixed detail content; ForEach is for a tag-chip FlowLayout
+    "Activity/ActivityLogView.swift",  # streaming log viewer with auto-scroll
+    "ModelComparison/ComparisonResultView.swift",  # LazyVGrid card grid for model results
+    "Search/SearchResultsDisplay.swift",  # icon mode uses LazyVGrid; list mode already uses native List
+}
+
 APPKIT_BRIDGE_MARKERS = (
     "AttributedTextEditor",
     "MacPlainTextEditor",
@@ -47,23 +67,6 @@ APPKIT_BRIDGE_MARKERS = (
     "ScrollWheelZoom",
     "TrackingImageView",
 )
-
-ALLOWLIST_FILES = {
-    # Non-list drawing/canvas or display surfaces.
-    "Library/LibraryView+TableMapViews.swift",
-    "Library/PageContentPane.swift",
-    "Library/ArtifactPanel.swift",
-    "Chat/ChatMessagesList.swift",
-    # Form-based settings detail views — Form+Section+ForEach is proper form
-    # usage, not a hand-rolled row collection.
-    "AIProviders/ProvidersView+ProviderDetailView.swift",
-    "MCPServers/MCPServerDetailView.swift",
-    # Free-form detail / log / grid surfaces — not selectable row collections.
-    "Actions/ActionDetailView.swift",          # mixed detail content; ForEach is for a tag-chip FlowLayout
-    "Activity/ActivityLogView.swift",           # streaming log viewer with auto-scroll
-    "ModelComparison/ComparisonResultView.swift",  # LazyVGrid card grid for model results
-    "Search/SearchResultsDisplay.swift",       # icon mode uses LazyVGrid; list mode already uses native List
-}
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT = re.compile(r"(?<!:)//.*")
@@ -101,7 +104,8 @@ def _strip_preview_blocks(text: str) -> str:
 
 
 def code_lines(text: str) -> list[str]:
-    text = _strip_preview_blocks(_BLOCK_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text))
+    text = _BLOCK_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
+    text = _strip_preview_blocks(text)
     return [_LINE_COMMENT.sub("", line) for line in text.splitlines()]
 
 
@@ -124,6 +128,18 @@ def _matching_close(lines: list[str], start_index: int) -> int:
     return min(len(lines) - 1, start_index + 80)
 
 
+def _normalized_snippet(lines: list[str], start_index: int) -> tuple[int, str]:
+    end = _matching_close(lines, start_index)
+    snippet = "\n".join(lines[start_index : end + 1])
+    snippet = re.sub(r"\s+", " ", snippet).strip()
+    return end, snippet
+
+
+def _signature_key(rel: str, snippet: str) -> str:
+    digest = hashlib.sha1(snippet.encode("utf-8")).hexdigest()[:10]
+    return f"{rel}#{digest}"
+
+
 def violations_for(path: Path) -> list[tuple[int, str]]:
     try:
         lines = code_lines(path.read_text(errors="ignore"))
@@ -144,9 +160,16 @@ def scan() -> dict[str, str]:
     for path in sorted(VIEWS_DIR.rglob("*.swift")):
         if is_excluded(path):
             continue
+        try:
+            lines = code_lines(path.read_text(errors="ignore"))
+        except OSError:
+            continue
         rel = path.relative_to(VIEWS_DIR).as_posix()
-        for line_no, reason in violations_for(path):
-            found[f"{rel}:{line_no}"] = reason
+        for line_no, _reason in violations_for(path):
+            end_idx, snippet = _normalized_snippet(lines, line_no - 1)
+            found[_signature_key(rel, snippet)] = (
+                f"ScrollView + LazyVStack/VStack + ForEach row collection (lines {line_no}-{end_idx + 1})"
+            )
     return found
 
 
