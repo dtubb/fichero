@@ -16,6 +16,7 @@ Usage:
 """
 from __future__ import annotations
 
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -25,65 +26,65 @@ SWIFT_DIR = ROOT / "fichero" / "fichero"
 RULE_DOC = "docs/ROADMAP.md"
 
 KNOWN_VIOLATIONS: dict[str, str] = {
-    'fichero/fichero/Models/LibraryManager+Helpers.swift:161:emoji': '#1913 baseline',
-    'fichero/fichero/Models/LibraryManager+Helpers.swift:170:emoji': '#1913 baseline',
-    'fichero/fichero/Services/EmbeddedBackendService.swift:70:emoji': '#1913 baseline',
-    'fichero/fichero/Services/EmbeddedBackendService.swift:88:emoji': '#1913 baseline',
-    'fichero/fichero/Services/EmbeddedBackendService.swift:110:emoji': '#1913 baseline',
-    'fichero/fichero/Services/EmbeddedBackendService.swift:133:emoji': '#1913 baseline',
-    'fichero/fichero/Services/EmbeddedBackendService.swift:144:emoji': '#1913 baseline',
-    'fichero/fichero/Services/EmbeddedBackendService.swift:159:emoji': '#1913 baseline',
-    'fichero/fichero/Services/EmbeddedBackendService.swift:168:emoji': '#1913 baseline',
-    'fichero/fichero/Services/EmbeddedBackendService.swift:175:emoji': '#1913 baseline',
-    'fichero/fichero/Services/EmbeddedBackendService.swift:177:emoji': '#1913 baseline',
-    'fichero/fichero/Services/EmbeddedBackendService.swift:185:emoji': '#1913 baseline',
-    'fichero/fichero/Services/EmbeddedBackendService.swift:186:emoji': '#1913 baseline',
-    'fichero/fichero/Services/EmbeddedBackendService.swift:267:emoji': '#1913 baseline',
-    'fichero/fichero/Services/EmbeddedBackendService.swift:272:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Library/ArtifactEntityViews.swift:65:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Library/ArtifactEntityViews.swift:66:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Library/ArtifactEntityViews.swift:67:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Library/ArtifactEntityViews.swift:68:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Library/ArtifactEntityViews.swift:69:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorAnnotationsTab.swift:353:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+Drop.swift:8:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+Drop.swift:91:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:25:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:28:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:51:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:90:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:97:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:101:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:114:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:131:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:134:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:138:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:218:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:224:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:249:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:252:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:267:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:290:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:306:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:311:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:323:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:325:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:347:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:364:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:369:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:374:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:378:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+Helpers.swift:230:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+Helpers.swift:233:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+Helpers.swift:235:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+Helpers.swift:251:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+Helpers.swift:253:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarItemRow+Rename.swift:44:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarSectionHeader.swift:76:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarView+UnifiedRows.swift:21:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarView+UnifiedRows.swift:43:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarView+UnifiedRows.swift:48:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Sidebar/SidebarView+UnifiedRows.swift:52:emoji': '#1913 baseline',
+    "fichero/fichero/Models/LibraryManager+Helpers.swift#998f025dc1": "#1913 baseline",
+    "fichero/fichero/Models/LibraryManager+Helpers.swift#e7e9bf57a1": "#1913 baseline",
+    "fichero/fichero/Services/EmbeddedBackendService.swift#250d04df8f": "#1913 baseline",
+    "fichero/fichero/Services/EmbeddedBackendService.swift#454091be88": "#1913 baseline",
+    "fichero/fichero/Services/EmbeddedBackendService.swift#22159b57a5": "#1913 baseline",
+    "fichero/fichero/Services/EmbeddedBackendService.swift#23a822622f": "#1913 baseline",
+    "fichero/fichero/Services/EmbeddedBackendService.swift#88f9ebd730": "#1913 baseline",
+    "fichero/fichero/Services/EmbeddedBackendService.swift#9658490640": "#1913 baseline",
+    "fichero/fichero/Services/EmbeddedBackendService.swift#3c1bd504e8": "#1913 baseline",
+    "fichero/fichero/Services/EmbeddedBackendService.swift#cae8e7ae47": "#1913 baseline",
+    "fichero/fichero/Services/EmbeddedBackendService.swift#eaab792d1e": "#1913 baseline",
+    "fichero/fichero/Services/EmbeddedBackendService.swift#8ff7a98841": "#1913 baseline",
+    "fichero/fichero/Services/EmbeddedBackendService.swift#d7dc7e1435": "#1913 baseline",
+    "fichero/fichero/Services/EmbeddedBackendService.swift#db45421877": "#1913 baseline",
+    "fichero/fichero/Services/EmbeddedBackendService.swift#0186ffbd87": "#1913 baseline",
+    "fichero/fichero/Views/Library/ArtifactEntityViews.swift#00765d227e": "#1913 baseline",
+    "fichero/fichero/Views/Library/ArtifactEntityViews.swift#761c2f0c16": "#1913 baseline",
+    "fichero/fichero/Views/Library/ArtifactEntityViews.swift#843f4a532a": "#1913 baseline",
+    "fichero/fichero/Views/Library/ArtifactEntityViews.swift#50d0228821": "#1913 baseline",
+    "fichero/fichero/Views/Library/ArtifactEntityViews.swift#d1e408277f": "#1913 baseline",
+    "fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorAnnotationsTab.swift#074340dfc5": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+Drop.swift#28d9eccb0f": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+Drop.swift#1b97ffd731": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#48776b4383": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#34b86466ce": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#d6e6802761": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#608a0ac4c7": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#cfc4119f1d": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#561985c7c5": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#b71beb96fd": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#687138d915": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#f18a1d2a94": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#d98a903978": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#42fe92e145": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#75ccc654cd": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#32f744d6e8": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#92f00f3f9a": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#635b8bb6e0": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#bbb00320af": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#ac59dea688": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#db6b9b6432": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#30363524da": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#2f16a682db": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#f2f03cf46b": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#171066f586": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#e8a0dc4030": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#b69868dc56": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift#e5a80c4f76": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+Helpers.swift#f1b40702ab": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+Helpers.swift#47eff589b2": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+Helpers.swift#7a391923fd": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+Helpers.swift#b49f947ddf": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+Helpers.swift#7e557f9e65": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarItemRow+Rename.swift#b4f0b7ab00": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarSectionHeader.swift#2bb83366b0": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarView+UnifiedRows.swift#b51da1152b": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarView+UnifiedRows.swift#7ea19d65a1": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarView+UnifiedRows.swift#b0818da9cc": "#1913 baseline",
+    "fichero/fichero/Views/Sidebar/SidebarView+UnifiedRows.swift#592a54e784": "#1913 baseline",
 }
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT = re.compile(r"(?<!:)//.*")
@@ -95,6 +96,21 @@ _EMOJI = re.compile(
     "]"
 )
 _CUSTOM_FONT = re.compile(r"\.font\s*\(\s*\.custom\s*\(|\bFont\s*\(\s*name\s*:")
+
+
+def _normalized_snippet(snippet: str) -> str:
+    return re.sub(r"\s+", " ", snippet).strip()
+
+
+def _signature_key(rel: str, snippet: str) -> str:
+    digest = hashlib.sha1(_normalized_snippet(snippet).encode("utf-8")).hexdigest()[:10]
+    return f"{rel}#{digest}"
+
+
+def _window_snippet(lines: list[str], line_no: int, radius: int = 2) -> str:
+    start = max(0, line_no - 1 - radius)
+    end = min(len(lines), line_no + radius)
+    return "\n".join(lines[start:end])
 
 
 def _strip_preview_blocks(text: str) -> str:
@@ -143,9 +159,9 @@ def scan() -> dict[str, str]:
         rel = path.relative_to(ROOT).as_posix()
         for line_no, line in enumerate(lines, 1):
             if _EMOJI.search(line):
-                found[f"{rel}:{line_no}:emoji"] = line.strip()
+                found[_signature_key(rel, _window_snippet(lines, line_no))] = line.strip()
             if _CUSTOM_FONT.search(line):
-                found[f"{rel}:{line_no}:custom-font"] = line.strip()
+                found[_signature_key(rel, _window_snippet(lines, line_no))] = line.strip()
     return found
 
 

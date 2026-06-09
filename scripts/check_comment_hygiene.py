@@ -15,6 +15,7 @@ Usage:
 """
 from __future__ import annotations
 
+import hashlib
 import re
 import sys
 from pathlib import Path
@@ -24,17 +25,17 @@ SWIFT_DIR = ROOT / "fichero" / "fichero"
 RULE_DOC = "docs/ROADMAP.md"
 
 KNOWN_VIOLATIONS: dict[str, str] = {
-    'fichero/fichero/App/WelcomeView+OnboardingWizardActions.swift:197:commented-code': '#1916 baseline (shifted by line-wrap; pre-existing dead code, #1948)',
-    'fichero/fichero/Services/ChatServiceGenerated.swift:120:todo-no-issue': '#1916 baseline',
-    'fichero/fichero/Services/ProviderServiceGenerated.swift:11:todo-no-issue': '#1916 baseline',
-    'fichero/fichero/Services/WorkflowExecutionObserver+Events.swift:9:todo-no-issue': '#1916 baseline',
-    'fichero/fichero/Services/WorkflowStreamService+Parsing.swift:8:todo-no-issue': '#1916 baseline',
-    'fichero/fichero/Views/Activity/ActivityProgressView+DataLoading.swift:20:todo-no-issue': '#1916 baseline',
-    'fichero/fichero/Views/Library/ImageViewer/ImageWithCursorTracking.swift:253:commented-code': '#1916 baseline',
-    'fichero/fichero/Views/Library/ImageViewerComponents.swift:381:commented-code': '#1916 baseline',
-    'fichero/fichero/Views/Library/LibraryView+KeyboardShortcuts.swift:65:commented-code': '#1916 baseline',
-    'fichero/fichero/Views/Library/PDFPageView.swift:363:commented-code': '#1916 baseline',
-    'fichero/fichero/Views/Sheets/DocumentPickerSheet.swift:168:todo-no-issue': '#1916 baseline',
+    "fichero/fichero/App/WelcomeView+OnboardingWizardActions.swift#dd649b36a8": "#1916 baseline (shifted by line-wrap; pre-existing dead code, #1948)",
+    "fichero/fichero/Services/ChatServiceGenerated.swift#9190295867": "#1916 baseline",
+    "fichero/fichero/Services/ProviderServiceGenerated.swift#42e66be4ac": "#1916 baseline",
+    "fichero/fichero/Services/WorkflowExecutionObserver+Events.swift#700bbac44e": "#1916 baseline",
+    "fichero/fichero/Services/WorkflowStreamService+Parsing.swift#a55c320098": "#1916 baseline",
+    "fichero/fichero/Views/Activity/ActivityProgressView+DataLoading.swift#120f59f170": "#1916 baseline",
+    "fichero/fichero/Views/Library/ImageViewer/ImageWithCursorTracking.swift#b359bd483c": "#1916 baseline",
+    "fichero/fichero/Views/Library/ImageViewerComponents.swift#c7669329ed": "#1916 baseline",
+    "fichero/fichero/Views/Library/LibraryView+KeyboardShortcuts.swift#d5e49f726d": "#1916 baseline",
+    "fichero/fichero/Views/Library/PDFPageView.swift#21f2204213": "#1916 baseline",
+    "fichero/fichero/Views/Sheets/DocumentPickerSheet.swift#727654079f": "#1916 baseline",
 }
 _TODO = re.compile(r"\b(?:TODO|FIXME)\b")
 _ISSUE = re.compile(r"#\d+")
@@ -45,6 +46,21 @@ _RULE_PROSE = re.compile(
     r"\b(?:rule|guardrail|architecture|default|workaround|because|without|should|must|TODO: convert port\\.default_ if needed)\b",
     re.IGNORECASE,
 )
+
+
+def _normalized_snippet(snippet: str) -> str:
+    return re.sub(r"\s+", " ", snippet).strip()
+
+
+def _signature_key(rel: str, snippet: str) -> str:
+    digest = hashlib.sha1(_normalized_snippet(snippet).encode("utf-8")).hexdigest()[:10]
+    return f"{rel}#{digest}"
+
+
+def _window_snippet(lines: list[str], line_no: int, radius: int = 1) -> str:
+    start = max(0, line_no - 1 - radius)
+    end = min(len(lines), line_no + radius)
+    return "\n".join(lines[start:end])
 
 
 def _ordinary_comment(line: str) -> str | None:
@@ -68,7 +84,7 @@ def _flush_block(
     prose = [line for line in block if _RULE_PROSE.search(line)]
     if len(codeish) >= 3 and len(prose) < len(block):
         rel = path.relative_to(ROOT).as_posix()
-        found[f"{rel}:{start_line}:commented-code"] = "3+ consecutive code-like comment lines"
+        found[_signature_key(rel, "\n".join(block))] = "3+ consecutive code-like comment lines"
 
 
 def scan() -> dict[str, str]:
@@ -90,7 +106,7 @@ def scan() -> dict[str, str]:
                 continue
 
             if _TODO.search(comment) and not _ISSUE.search(comment):
-                found[f"{rel}:{line_no}:todo-no-issue"] = comment
+                found[_signature_key(rel, _window_snippet(lines, line_no))] = comment
 
             if _CODEISH.search(comment):
                 if not block:
