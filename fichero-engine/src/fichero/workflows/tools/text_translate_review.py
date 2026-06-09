@@ -121,7 +121,8 @@ Rules:
   no notes about what you changed, no preamble.
 - If the draft is already accurate and faithful, return it unchanged
   verbatim. Do not paraphrase or reformat.
-- Preserve paragraph structure and any [ilegible] markers."""
+- Preserve paragraph structure and any [ilegible] / [uncertain] markers
+  verbatim. Do not resolve or delete them."""
 
 
 def build_text_translate_review_prompt(config: dict) -> str:

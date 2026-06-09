@@ -152,6 +152,7 @@ Your task: Review the reflowed text for any remaining issues:
 Make minimal, targeted corrections only. Preserve:
 - Paragraph structure and blank lines
 - Original spelling and vocabulary (don't "fix" archaic or regional terms)
+- Any [ilegible] / [uncertain] markers, exactly as written
 - Quotations and emphasized text as-is
 - Proper nouns and unusual capitalization
 

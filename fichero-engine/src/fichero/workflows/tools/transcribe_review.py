@@ -80,8 +80,10 @@ Common error patterns to look for:
 Rules:
 - Output ONLY the corrected transcription. No commentary, no diff, no
   notes about what you changed, no preamble.
-- Preserve original orthography of the manuscript. Do NOT modernise.
-- Keep [ilegible], [tachado: ...], [rúbrica], [sin texto] conventions.
+- Preserve original orthography of the manuscript, including accents and
+  diacritics, verbatim. Do NOT modernise.
+- Keep [ilegible], [uncertain], [tachado: ...], [rúbrica], [sin texto]
+  conventions.
 - If the prior transcription is already correct, return it unchanged
   verbatim. Do not paraphrase or reformat.
 - Do not invent text that is not visibly present.

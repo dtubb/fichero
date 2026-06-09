@@ -131,7 +131,6 @@ class TextCleaner:
             "poor resolution",
             "cannot be discerned",
             "parts of the text are damaged",
-            "illegible",
             "cannot be fully interpreted",
             "visible wear and tear",
             "unknown language or script",

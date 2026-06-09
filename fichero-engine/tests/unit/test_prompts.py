@@ -11,7 +11,6 @@ from fichero.prompts import (
     PromptMetadata,
     PromptNotFound,
     _parse_prompt_file,
-    _list_prompt_files,
     get_prompt,
     list_versions,
     load_prompt,
@@ -186,8 +185,17 @@ class TestShippedPrompts:
         # No leftover {output_language} placeholder.
         assert "{output_language}" not in rendered
 
+    def test_catalogue_narrative_latest_preserves_uncertainty_markers(self):
+        rendered = load_prompt(
+            "catalogue", "narrative",
+            output_language="English",
+        )
+        assert "[ilegible]" in rendered
+        assert "[uncertain]" in rendered
+
     def test_catalogue_build_prompt_uses_registry(self):
         from fichero.workflows.tools.catalogue import _build_prompt
         out = _build_prompt("Spanish")
         assert "Spanish" in out
         assert "expert archivist" in out
+        assert "[ilegible]" in out

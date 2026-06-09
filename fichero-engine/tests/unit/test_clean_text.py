@@ -55,6 +55,8 @@ class TestBuildPrompt:
         ]:
             prompt = _build_prompt(*combo)
             assert _GUARDRAIL in prompt
+            assert "[ilegible]" in prompt
+            assert "[uncertain]" in prompt
             assert "Do NOT summarize" in prompt
             assert "Output ONLY the cleaned text" in prompt
 
@@ -175,6 +177,18 @@ TTP. HERALDO.
         assert "000000000000000000" not in cleaned
         assert "23908" not in cleaned
         assert "290029090" not in cleaned
+
+    def test_programmatic_cleaner_preserves_ilegible_markers(self):
+        raw_text = (
+            "La firma es [ilegible] y la fecha [uncertain].\n"
+            "Chocó conserva sus acentos."
+        )
+
+        cleaned = clean_ocr_text(raw_text)
+
+        assert "[ilegible]" in cleaned
+        assert "[uncertain]" in cleaned
+        assert "Chocó" in cleaned
 
     @pytest.mark.asyncio
     async def test_programmatic_is_default_and_does_not_call_llm(self):

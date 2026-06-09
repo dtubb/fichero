@@ -80,6 +80,12 @@ class TestGarbageText:
         assert is_low is True
         assert reason and "uncertainty" in reason.lower()
 
+    def test_canonical_ilegible_markers_trip_the_gate(self):
+        text = "[ilegible] [ilegible] [ilegible] transcripcion"
+        is_low, reason = assess_text_quality(text)
+        assert is_low is True
+        assert reason and "uncertainty" in reason.lower()
+
     def test_mostly_uncertain_tokens_is_low_quality(self):
         text = "[UNCERTAIN] [ILLEGIBLE] [UNCERTAIN] [ILLEGIBLE] word [UNCERTAIN]"
         is_low, reason = assess_text_quality(text)

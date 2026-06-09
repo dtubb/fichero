@@ -93,7 +93,7 @@ Rules:
   signatures (transcribe the signed name as written), printed labels,
   handwritten annotations.
 - For text you cannot confidently read, use explicit uncertainty markers:
-  [ILLEGIBLE] for unreadable text and [UNCERTAIN] for plausible-but-low-
+  [ilegible] for unreadable text and [uncertain] for plausible-but-low-
   confidence readings. Place the marker inline at the uncertain span.
   Do not guess. Do not fill in.
 - Do NOT invent dates, numbers, names, or words that are not legibly

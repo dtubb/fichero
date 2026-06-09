@@ -366,6 +366,8 @@ def _build_entity_only_instructions(output_language: str) -> str:
     return (
         f"You are an expert archivist extracting entity names from a document. "
         f"Extract ONLY the entity names - no facts, no claims, just the names. "
+        f"If a mention is obscured, do not guess it; keep any [ilegible] / "
+        f"[uncertain] markers exactly as written. "
         f"Write in {output_language}.\n\n"
         f"Sections to extract:\n"
         f"- people: named people (proper names only)\n"
@@ -385,7 +387,8 @@ def _build_per_entity_claim_instructions(output_language: str) -> str:
         f"For each claim, provide:\n"
         f"1. The predicate verb (e.g., 'served as', 'located in', 'wrote')\n"
         f"2. The object/complement (e.g., 'alcalde of Popayán', 'a mining region')\n"
-        f"3. The exact source text where this claim appears\n"
+        f"3. The exact source text where this claim appears, preserving any "
+        f"   [ilegible] / [uncertain] markers and original accents exactly\n"
         f"Write in {output_language}. Only include facts directly supported by the text."
     )
 
@@ -708,7 +711,8 @@ def _build_instructions(output_language: str, custom_entity_types: list[str] | N
         f"is a location', or 'cash is a concept'. Entity type is "
         f"metadata only. For each useful entity or index term, extract "
         f"specific SVO facts grounded in nearby text, with source_text "
-        f"as a short exact quote from the page. Cover repeated useful "
+        f"as a short exact quote from the page, preserving any [ilegible] / "
+        f"[uncertain] markers exactly as written. Cover repeated useful "
         f"facts for the same entity when the text supports them. Only "
         f"include facts the text supports — do not speculate or invent. "
         f"Keywords are book-index terms for finding this page later: "
