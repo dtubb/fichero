@@ -265,6 +265,43 @@ def _is_date_like_entity(entity: KnowledgeEntity) -> bool:
     return bool(_BARE_DATE_NAME_RE.match((entity.canonical_name or "").strip()))
 
 
+def _entity_ids_scoped_to_docs(db: Database, doc_ids: set[str]) -> set[str]:
+    """Entity ids whose own ``source_document_ids`` intersect ``doc_ids``.
+
+    Pushes the per-page scope union (#1562) down to SQL instead of scanning
+    every entity row in Python. ``source_document_ids`` is a JSON-encoded
+    list, so we match the doc id embedded as ``"<id>"`` — the same JSON-LIKE
+    shape already used for ``entity_ids`` elsewhere in this module. Returns
+    only ids (cheap); callers hydrate via ``db.get`` so the entity is built
+    exactly once. (#1815)
+    """
+    if not doc_ids:
+        return set()
+
+    found: set[str] = set()
+    doc_id_list = list(doc_ids)
+    # OR the LIKE clauses, chunked to keep the statement bounded on huge
+    # folder scopes. Fully parameterized — no identifier interpolation.
+    for start in range(0, len(doc_id_list), 200):
+        chunk = doc_id_list[start : start + 200]
+        clauses = " OR ".join(
+            f"source_document_ids LIKE $d{i}" for i in range(len(chunk))
+        )
+        params = {f"d{i}": f'%"{doc_id}"%' for i, doc_id in enumerate(chunk)}
+        try:
+            rows = db.conn.execute(
+                f"SELECT id FROM knowledgeentitys WHERE {clauses}",
+                params,
+            ).fetchall()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("scoped-entity-id lookup failed: %s", exc)
+            return found
+        for (eid,) in rows:
+            if eid:
+                found.add(eid)
+    return found
+
+
 def _build_alias_to_entity_id_map(db: Database) -> dict[str, str]:
     """Build a mapping of normalized aliases to entity IDs."""
     alias_map: dict[str, str] = {}
@@ -340,32 +377,27 @@ async def list_entities(
         from fichero.api.routes.claims import _descendant_doc_ids
 
         doc_ids = _descendant_doc_ids(db, document_id)
-        # Get all claims for this document and any descendant page/chunk docs.
-        all_claims = db.query(KnowledgeClaim)
-        doc_claims = [c for c in all_claims if c.source_document_id in doc_ids]
+        # Claims for this document and any descendant page/chunk docs. Push
+        # the source_document_id filter to SQL (IN) instead of scanning every
+        # claim row in Python — the O(claims) melt at GHG scale (#1815).
+        doc_claims = db.query_in(KnowledgeClaim, "source_document_id", doc_ids)
 
         # Extract entity IDs from those claims
         entity_ids: set[str] = set()
         for c in doc_claims:
             entity_ids.update(c.entity_ids or [])
 
-        # Fetch the claim-referenced entities.
-        entities = [db.get(KnowledgeEntity, eid) for eid in entity_ids]
-        entities = [e for e in entities if e is not None]
-
         # #1562 — belt-and-suspenders union: also include entities whose
         # own per-page scope (source_document_ids, recorded at upsert by
         # _entity_writer) intersects the requested doc scope. This covers
         # the case where an entity's CLAIMS carry the PARENT id (legacy /
         # non-aggregate flow) but the entity itself was scoped to a page,
-        # so per-page table views still surface it. Dedup by entity id.
-        seen_ids = {e.id for e in entities}
-        for entity in db.all(KnowledgeEntity):
-            if entity.id in seen_ids:
-                continue
-            if doc_ids.intersection(entity.source_document_ids or []):
-                entities.append(entity)
-                seen_ids.add(entity.id)
+        # so per-page table views still surface it. Resolved via a SQL
+        # JSON-LIKE id lookup instead of a full db.all(KnowledgeEntity)
+        # scan (#1815). Union the two id sets, then hydrate each once.
+        entity_ids.update(_entity_ids_scoped_to_docs(db, doc_ids))
+        entities = [db.get(KnowledgeEntity, eid) for eid in entity_ids]
+        entities = [e for e in entities if e is not None]
     else:
         entities = (
             db.query(KnowledgeEntity, entity_type=entity_type)

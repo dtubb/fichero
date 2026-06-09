@@ -613,6 +613,58 @@ class Database(DatabaseEmbeddingMixin):
             for row in rows
         ]
 
+    def query_in(self, model: Type[T], column: str, values) -> list[T]:
+        """Query rows where `column` matches any of `values` (SQL ``IN``).
+
+        ``query`` only supports single-equality filters; this pushes a
+        set-membership filter down to SQL with a parameterized ``IN (...)``
+        so callers stop pulling a whole table into Python just to filter it
+        (the ``list_entities`` document-scope hot path, #1815).
+
+        ``values`` is de-duplicated and chunked (DuckDB caps bound
+        parameters), and enum members are unwrapped to their ``.value`` to
+        match how they are stored. Returns ``[]`` for an empty ``values``.
+        """
+        sql_table = self._sql_table_name(model)
+        self._ensure_table(model)
+
+        # Validate column name to prevent SQL injection (same guard as query()).
+        if not _VALID_IDENTIFIER.match(column):
+            raise ValueError(f"Invalid column name: {column}")
+
+        # Normalize enums and de-dup while preserving determinism.
+        normalized: list[Any] = []
+        seen: set[Any] = set()
+        for v in values:
+            nv = v.value if hasattr(v, "value") else v
+            if nv in seen:
+                continue
+            seen.add(nv)
+            normalized.append(nv)
+
+        if not normalized:
+            return []
+
+        out: list[T] = []
+        # Chunk to stay well under DuckDB's bound-parameter ceiling on huge
+        # folder scopes (mirrors _collect_folder_descendants_helper).
+        for start in range(0, len(normalized), 500):
+            chunk = normalized[start : start + 500]
+            placeholders = ",".join(f"$v{i}" for i in range(len(chunk)))
+            params = {f"v{i}": val for i, val in enumerate(chunk)}
+            rows = self._execute(
+                f"SELECT * FROM {sql_table} WHERE {column} IN ({placeholders})",
+                params,
+            ).fetchall()
+            if not rows:
+                continue
+            columns = [desc[0] for desc in self.conn.description]
+            out.extend(
+                model(**self._parse_json_fields(model, dict(zip(columns, row))))
+                for row in rows
+            )
+        return out
+
     def delete(self, obj: BaseModel) -> None:
         """Delete an object by ID."""
         sql_table = self._sql_table_name(obj)
