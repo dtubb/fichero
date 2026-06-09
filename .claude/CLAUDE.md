@@ -65,8 +65,15 @@ This rule is embedded in every worker dispatch prompt.
 ## Build + Test + Lint
 
 ```bash
-# Backend server
+# Backend server (production-style: no autoreload)
 PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765
+
+# Backend server (DEV with autoreload) — ALWAYS scope --reload-dir to the engine
+# source. A bare `--reload` watches the whole repo tree, which includes worker
+# worktrees under .claude/worktrees/ (the Agent tool hardcodes that path) and
+# triggers a reload storm + RAM blowup on every worker edit. Scope it:
+PYTHONPATH=fichero-engine/src .venv/bin/uvicorn fichero.api.main:app --port 8765 \
+  --reload --reload-dir fichero-engine/src
 
 # Python tests
 PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
