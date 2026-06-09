@@ -78,6 +78,11 @@ class AppDatabase:
         logger.info(f"Opened app-wide database: {path}")
         self._initialize_schema()
 
+    def commit(self) -> None:
+        """Commit pending app-wide database work through the typed wrapper."""
+        with self._lock:
+            self.conn.commit()
+
     def _initialize_schema(self):
         """Create tables if they don't exist."""
 

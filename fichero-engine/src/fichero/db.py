@@ -35,7 +35,7 @@ Usage:
 
 from pathlib import Path
 from types import UnionType
-from typing import TypeVar, Type, get_origin, get_args, Union, Any
+from typing import TypeVar, Type, get_origin, get_args, Union, Any, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 import math
@@ -664,6 +664,222 @@ class Database(DatabaseEmbeddingMixin):
                 for row in rows
             )
         return out
+
+    def commit(self) -> None:
+        """Commit pending DuckDB work through the typed DB wrapper."""
+        self.conn.commit()
+
+    def knowledge_claim_entity_id_values(
+        self,
+        *,
+        source_document_id: str | None = None,
+        entity_id: str | None = None,
+    ) -> list[Any]:
+        """Return raw ``entity_ids`` column values from knowledge claims.
+
+        The column stores JSON/list payloads depending on migration vintage;
+        callers keep the existing defensive parsing behavior.
+        """
+        if source_document_id is not None and entity_id is not None:
+            rows = self._execute(
+                """
+                SELECT entity_ids FROM knowledgeclaims
+                WHERE source_document_id = $source_document_id
+                  AND entity_ids LIKE $needle
+                """,
+                {
+                    "source_document_id": source_document_id,
+                    "needle": f'%"{entity_id}"%',
+                },
+            ).fetchall()
+        elif source_document_id is not None:
+            rows = self._execute(
+                "SELECT entity_ids FROM knowledgeclaims WHERE source_document_id = $id",
+                {"id": source_document_id},
+            ).fetchall()
+        elif entity_id is not None:
+            rows = self._execute(
+                "SELECT entity_ids FROM knowledgeclaims WHERE entity_ids LIKE $needle",
+                {"needle": f'%"{entity_id}"%'},
+            ).fetchall()
+        else:
+            rows = self._execute("SELECT entity_ids FROM knowledgeclaims").fetchall()
+        return [row[0] for row in rows]
+
+    def knowledge_claim_source_document_ids_for_entity(
+        self, entity_id: str
+    ) -> list[str | None]:
+        """Return source document ids for claims whose entity list mentions an id."""
+        rows = self._execute(
+            "SELECT source_document_id FROM knowledgeclaims WHERE entity_ids LIKE $needle",
+            {"needle": f'%"{entity_id}"%'},
+        ).fetchall()
+        return [row[0] for row in rows]
+
+    def knowledge_entity_canonical_name(self, entity_id: str) -> str | None:
+        """Return a single entity's canonical name, if present."""
+        row = self._execute(
+            "SELECT canonical_name FROM knowledgeentitys WHERE id = $id",
+            {"id": entity_id},
+        ).fetchone()
+        return row[0] if row and row[0] else None
+
+    def knowledge_entity_ids_scoped_to_documents(self, doc_ids: set[str]) -> set[str]:
+        """Entity ids whose ``source_document_ids`` JSON list intersects doc ids."""
+        if not doc_ids:
+            return set()
+
+        found: set[str] = set()
+        doc_id_list = list(doc_ids)
+        for start in range(0, len(doc_id_list), 200):
+            chunk = doc_id_list[start : start + 200]
+            clauses = " OR ".join(
+                f"source_document_ids LIKE $d{i}" for i in range(len(chunk))
+            )
+            params = {f"d{i}": f'%"{doc_id}"%' for i, doc_id in enumerate(chunk)}
+            rows = self._execute(
+                f"SELECT id FROM knowledgeentitys WHERE {clauses}",
+                params,
+            ).fetchall()
+            for (entity_id,) in rows:
+                if entity_id:
+                    found.add(entity_id)
+        return found
+
+    def entity_document_link_rows(self, entity_id: str, limit: int) -> list[tuple]:
+        """Documents that mention an entity, with claim count and first excerpt."""
+        return self._execute(
+            """
+            SELECT c.source_document_id,
+                   d.name,
+                   d.doc_type,
+                   d.file_type,
+                   COUNT(*) AS claim_count,
+                   MIN(c.source_excerpt) AS first_excerpt
+            FROM knowledgeclaims c
+            LEFT JOIN documents d ON d.id = c.source_document_id
+            WHERE c.entity_ids LIKE $needle
+            GROUP BY c.source_document_id, d.name, d.doc_type, d.file_type
+            ORDER BY claim_count DESC, d.name
+            LIMIT $limit
+            """,
+            {"needle": f'%"{entity_id}"%', "limit": limit},
+        ).fetchall()
+
+    def knowledge_claim_excerpts_for_entity(
+        self, entity_id: str, limit: int
+    ) -> list[str]:
+        """Representative non-empty claim excerpts for an entity."""
+        rows = self._execute(
+            """
+            SELECT source_excerpt FROM knowledgeclaims
+            WHERE entity_ids LIKE $needle
+              AND source_excerpt IS NOT NULL
+              AND length(source_excerpt) > 0
+            ORDER BY length(source_excerpt) ASC
+            LIMIT $limit
+            """,
+            {"needle": f'%"{entity_id}"%', "limit": limit},
+        ).fetchall()
+        return [excerpt for (excerpt,) in rows if excerpt]
+
+    def entity_document_claim_counts(
+        self, entity_id: str, limit: int
+    ) -> list[tuple[str, int]]:
+        """Source document ids and claim counts for biography assembly."""
+        rows = self._execute(
+            """
+            SELECT source_document_id, COUNT(*) AS claim_count
+            FROM knowledgeclaims
+            WHERE entity_ids LIKE $needle
+            GROUP BY source_document_id
+            ORDER BY claim_count DESC
+            LIMIT $limit
+            """,
+            {"needle": f'%"{entity_id}"%', "limit": limit},
+        ).fetchall()
+        return [(doc_id, int(claim_count or 0)) for doc_id, claim_count in rows]
+
+    def artifact_data_for_types(self, artifact_types: Sequence[str]) -> list[Any]:
+        """Return artifact data blobs for a fixed set of artifact types."""
+        if not artifact_types:
+            return []
+        placeholders = ",".join(f"$t{i}" for i in range(len(artifact_types)))
+        params = {f"t{i}": artifact_type for i, artifact_type in enumerate(artifact_types)}
+        rows = self._execute(
+            f"SELECT data FROM artifacts WHERE artifact_type IN ({placeholders})",
+            params,
+        ).fetchall()
+        return [row[0] for row in rows]
+
+    def document_page_content(self, document_id: str) -> str | None:
+        """Return a document's full page content by id."""
+        row = self._execute(
+            "SELECT page_content FROM documents WHERE id = $id",
+            {"id": document_id},
+        ).fetchone()
+        return row[0] if row else None
+
+    def artifact_entity_document_matches(
+        self,
+        *,
+        query: str,
+        limit: int,
+        artifact_types: Sequence[str],
+    ) -> list[tuple]:
+        """Documents whose extracted artifact JSON contains a query substring."""
+        if not query.strip() or not artifact_types:
+            return []
+        placeholders = ",".join(f"$t{i}" for i in range(len(artifact_types)))
+        params: dict[str, object] = {
+            "needle": f"%{query.strip().lower()}%",
+            "limit": limit,
+        }
+        for i, artifact_type in enumerate(artifact_types):
+            params[f"t{i}"] = artifact_type
+        return self._execute(
+            f"""
+            SELECT DISTINCT a.document_id, d.name, d.doc_type, d.file_type
+            FROM artifacts a
+            JOIN documents d ON d.id = a.document_id
+            WHERE a.artifact_type IN ({placeholders})
+              AND lower(CAST(a.data AS VARCHAR)) LIKE $needle
+            LIMIT $limit
+            """,
+            params,
+        ).fetchall()
+
+    def recent_content_document_rows(self, limit: int) -> list[tuple]:
+        """Most recently updated documents with non-empty page content."""
+        return self._execute(
+            """
+            SELECT d.id, d.name, d.doc_type, d.file_type, d.updated_at, d.page_content
+            FROM documents d
+            WHERE d.page_content IS NOT NULL AND length(d.page_content) > 0
+            ORDER BY d.updated_at DESC
+            LIMIT $limit
+            """,
+            {"limit": limit},
+        ).fetchall()
+
+    def keyword_artifact_rows(self) -> list[tuple[Any, str]]:
+        """Keyword artifact data plus document id for keyword cloud counts."""
+        return self._execute(
+            "SELECT data, document_id FROM artifacts WHERE artifact_type = 'keywords'"
+        ).fetchall()
+
+    def knowledge_table_signature(self, table_name: str) -> tuple[int, str]:
+        """Return ``(count, max_updated_at)`` for cacheable KG tables."""
+        if not _VALID_IDENTIFIER.match(table_name):
+            raise ValueError(f"Invalid table name: {table_name}")
+        if table_name not in {"knowledgeclaims", "knowledgeentitys"}:
+            raise ValueError(f"Unsupported knowledge table: {table_name}")
+        row = self._execute(
+            f"SELECT COUNT(*), MAX(updated_at) FROM {table_name}"
+        ).fetchone()
+        if not row:
+            return (0, "")
+        return (int(row[0] or 0), str(row[1]) if row[1] is not None else "")
 
     def delete(self, obj: BaseModel) -> None:
         """Delete an object by ID."""

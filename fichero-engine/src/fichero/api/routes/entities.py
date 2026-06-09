@@ -279,28 +279,11 @@ def _entity_ids_scoped_to_docs(db: Database, doc_ids: set[str]) -> set[str]:
     if not doc_ids:
         return set()
 
-    found: set[str] = set()
-    doc_id_list = list(doc_ids)
-    # OR the LIKE clauses, chunked to keep the statement bounded on huge
-    # folder scopes. Fully parameterized — no identifier interpolation.
-    for start in range(0, len(doc_id_list), 200):
-        chunk = doc_id_list[start : start + 200]
-        clauses = " OR ".join(
-            f"source_document_ids LIKE $d{i}" for i in range(len(chunk))
-        )
-        params = {f"d{i}": f'%"{doc_id}"%' for i, doc_id in enumerate(chunk)}
-        try:
-            rows = db.conn.execute(
-                f"SELECT id FROM knowledgeentitys WHERE {clauses}",
-                params,
-            ).fetchall()
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("scoped-entity-id lookup failed: %s", exc)
-            return found
-        for (eid,) in rows:
-            if eid:
-                found.add(eid)
-    return found
+    try:
+        return db.knowledge_entity_ids_scoped_to_documents(doc_ids)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("scoped-entity-id lookup failed: %s", exc)
+        return set()
 
 
 def _build_alias_to_entity_id_map(db: Database) -> dict[str, str]:
@@ -552,9 +535,7 @@ async def top_entities(
     / dates / events / other) restricts the cloud to one kind.
     """
     try:
-        rows = db.conn.execute(
-            "SELECT entity_ids FROM knowledgeclaims",
-        ).fetchall()
+        raw_entity_id_values = db.knowledge_claim_entity_id_values()
     except Exception as exc:  # noqa: BLE001
         logger.warning("top-entities lookup failed: %s", exc)
         return TopEntityListResponse(items=[], count=0)
@@ -563,7 +544,7 @@ async def top_entities(
     from collections import Counter
 
     counter: Counter[str] = Counter()
-    for (raw,) in rows:
+    for raw in raw_entity_id_values:
         if not raw:
             continue
         try:
@@ -618,12 +599,12 @@ async def entity_claim_counts(
 
     counter: Counter[str] = Counter()
     try:
-        rows = db.conn.execute("SELECT entity_ids FROM knowledgeclaims").fetchall()
+        raw_entity_id_values = db.knowledge_claim_entity_id_values()
     except Exception as exc:  # noqa: BLE001
         logger.warning("entity-claim-counts lookup failed: %s", exc)
         return ClaimCountsResponse(counts={})
 
-    for (raw,) in rows:
+    for raw in raw_entity_id_values:
         if not raw:
             continue
         try:
@@ -942,25 +923,8 @@ async def get_entity_documents(
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
 
-    needle = f'%"{entity_id}"%'
     try:
-        rows = db.conn.execute(
-            """
-            SELECT c.source_document_id,
-                   d.name,
-                   d.doc_type,
-                   d.file_type,
-                   COUNT(*) AS claim_count,
-                   MIN(c.source_excerpt) AS first_excerpt
-            FROM knowledgeclaims c
-            LEFT JOIN documents d ON d.id = c.source_document_id
-            WHERE c.entity_ids LIKE $needle
-            GROUP BY c.source_document_id, d.name, d.doc_type, d.file_type
-            ORDER BY claim_count DESC, d.name
-            LIMIT $limit
-            """,
-            {"needle": needle, "limit": limit},
-        ).fetchall()
+        rows = db.entity_document_link_rows(entity_id, limit)
     except Exception as exc:  # noqa: BLE001
         logger.warning("entity-documents lookup failed: %s", exc)
         return EntityDocumentListResponse(items=[], count=0)
@@ -999,12 +963,8 @@ async def get_entity_co_occurrence(
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
 
-    needle = f'%"{entity_id}"%'
     try:
-        claim_rows = db.conn.execute(
-            "SELECT entity_ids FROM knowledgeclaims WHERE entity_ids LIKE $needle",
-            {"needle": needle},
-        ).fetchall()
+        raw_entity_id_values = db.knowledge_claim_entity_id_values(entity_id=entity_id)
     except Exception as exc:  # noqa: BLE001
         logger.warning("co-occurrence lookup failed: %s", exc)
         return EntityCoOccurrenceListResponse(items=[], count=0)
@@ -1013,7 +973,7 @@ async def get_entity_co_occurrence(
     from collections import Counter
 
     counter: Counter[str] = Counter()
-    for (raw,) in claim_rows:
+    for raw in raw_entity_id_values:
         if not raw:
             continue
         try:
@@ -1088,26 +1048,11 @@ async def entity_drill_down(
         entity_id, limit=co_occurrence_limit, db=db
     )
 
-    needle = f'%"{entity_id}"%'
-    excerpts: list[str] = []
     try:
-        rows = db.conn.execute(
-            """
-            SELECT source_excerpt FROM knowledgeclaims
-            WHERE entity_ids LIKE $needle
-              AND source_excerpt IS NOT NULL
-              AND length(source_excerpt) > 0
-            ORDER BY length(source_excerpt) ASC
-            LIMIT $limit
-            """,
-            {"needle": needle, "limit": excerpts_limit},
-        ).fetchall()
+        excerpts = db.knowledge_claim_excerpts_for_entity(entity_id, excerpts_limit)
     except Exception as exc:  # noqa: BLE001
         logger.warning("excerpt lookup failed: %s", exc)
-        rows = []
-    for (excerpt,) in rows:
-        if excerpt:
-            excerpts.append(excerpt)
+        excerpts = []
 
     return EntityDrillDownResponse(
         entity=entity,
@@ -1187,22 +1132,11 @@ def assemble_entity_biography(
     claims = claims[:claims_limit]
 
     # --- source documents: aggregate claim counts per document ---
-    needle = f'%"{entity_id}"%'
-    doc_rows: list[tuple] = []
     try:
-        doc_rows = db.conn.execute(
-            """
-            SELECT source_document_id, COUNT(*) AS claim_count
-            FROM knowledgeclaims
-            WHERE entity_ids LIKE $needle
-            GROUP BY source_document_id
-            ORDER BY claim_count DESC
-            LIMIT $limit
-            """,
-            {"needle": needle, "limit": documents_limit},
-        ).fetchall()
+        doc_rows = db.entity_document_claim_counts(entity_id, documents_limit)
     except Exception as exc:  # noqa: BLE001
         logger.warning("biography document lookup failed: %s", exc)
+        doc_rows = []
 
     from fichero.models import Document as _Document
 
@@ -1220,17 +1154,14 @@ def assemble_entity_biography(
         )
 
     # --- co-occurring entities ---
-    claim_rows: list[tuple] = []
     try:
-        claim_rows = db.conn.execute(
-            "SELECT entity_ids FROM knowledgeclaims WHERE entity_ids LIKE $needle",
-            {"needle": needle},
-        ).fetchall()
+        raw_entity_id_values = db.knowledge_claim_entity_id_values(entity_id=entity_id)
     except Exception as exc:  # noqa: BLE001
         logger.warning("biography co-occurrence lookup failed: %s", exc)
+        raw_entity_id_values = []
 
     counter: Counter[str] = Counter()
-    for (raw,) in claim_rows:
+    for raw in raw_entity_id_values:
         if not raw:
             continue
         try:

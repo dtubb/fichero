@@ -64,18 +64,15 @@ def _suggest_for_no_results(
         return []
 
     try:
-        rows = db.conn.execute(
-            """
-            SELECT data FROM artifacts
-            WHERE artifact_type IN ('people', 'places', 'organizations', 'keywords')
-            """,
-        ).fetchall()
+        data_blobs = db.artifact_data_for_types(
+            ("people", "places", "organizations", "keywords")
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning("did-you-mean lookup failed: %s", exc)
         return []
 
     candidates: set[str] = set()
-    for (data_blob,) in rows:
+    for data_blob in data_blobs:
         if not data_blob:
             continue
         # data is JSON-serialised; parse defensively.
@@ -223,10 +220,7 @@ def _apply_phrase_and_exclude_filters(
     out: list[SearchResult] = []
     for r in results:
         try:
-            row = db.conn.execute(
-                "SELECT page_content FROM documents WHERE id = $id", {"id": r.document_id}
-            ).fetchone()
-            content = (row[0] or "") if row else ""
+            content = db.document_page_content(r.document_id) or ""
         except Exception:
             content = r.content_preview or ""
         folded = _fold_for_search(content)
@@ -361,23 +355,12 @@ def _entity_match_results(
     """
     if not query.strip() or not entity_types:
         return []
-    needle = f"%{query.strip().lower()}%"
-    placeholders = ",".join(f"$t{i}" for i in range(len(entity_types)))
-    params: dict[str, object] = {"needle": needle, "limit": limit}
-    for i, t in enumerate(entity_types):
-        params[f"t{i}"] = t
     try:
-        rows = db.conn.execute(
-            f"""
-            SELECT DISTINCT a.document_id, d.name, d.doc_type, d.file_type
-            FROM artifacts a
-            JOIN documents d ON d.id = a.document_id
-            WHERE a.artifact_type IN ({placeholders})
-              AND lower(CAST(a.data AS VARCHAR)) LIKE $needle
-            LIMIT $limit
-            """,
-            params,
-        ).fetchall()
+        rows = db.artifact_entity_document_matches(
+            query=query,
+            limit=limit,
+            artifact_types=entity_types,
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning("entity-match search failed: %s", exc)
         return []
@@ -588,16 +571,7 @@ async def enhanced_search(
         # Empty-query → recent documents. Lets the search pane double
         # as a "show me what's indexed" view instead of dead-empty.
         try:
-            rows = db.conn.execute(
-                """
-                SELECT d.id, d.name, d.doc_type, d.file_type, d.updated_at, d.page_content
-                FROM documents d
-                WHERE d.page_content IS NOT NULL AND length(d.page_content) > 0
-                ORDER BY d.updated_at DESC
-                LIMIT $limit
-                """,
-                {"limit": request.limit},
-            ).fetchall()
+            rows = db.recent_content_document_rows(request.limit)
         except Exception:
             rows = []
         recents = [
@@ -870,9 +844,7 @@ async def keyword_cloud(
     "browse by tag" affordance for users who don't know what to type.
     """
     try:
-        rows = db.conn.execute(
-            "SELECT data, document_id FROM artifacts WHERE artifact_type = 'keywords'"
-        ).fetchall()
+        rows = db.keyword_artifact_rows()
     except Exception as exc:  # noqa: BLE001
         logger.warning("keyword cloud query failed: %s", exc)
         return KeywordCloudListResponse(items=[], count=0)

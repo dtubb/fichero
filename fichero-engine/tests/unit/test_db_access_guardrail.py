@@ -75,15 +75,7 @@ ALLOWLIST: frozenset[str] = frozenset(
 # These predate the guardrail (#1876). Do NOT add to this list -- add a typed
 # method to db.py instead. Drive this set to empty.
 # --------------------------------------------------------------------------
-KNOWN_VIOLATIONS: frozenset[str] = frozenset(
-    {
-        "api/main.py",  # app_db.conn.commit() during startup recovery
-        "api/routes/documents.py",  # db.conn.execute("SELECT ...")
-        "api/routes/entities.py",  # db.conn.execute("SELECT ...")
-        "api/routes/search.py",  # db.conn.execute("SELECT ...")
-        "kg/graph.py",  # db.conn.execute("SELECT COUNT(*) ...")
-    }
-)
+KNOWN_VIOLATIONS: frozenset[str] = frozenset()
 
 # A string literal counts as raw SQL only if it has real SQL *structure*; this
 # avoids flagging SPARQL queries ("SELECT ?p WHERE { ... }") and HTTP verbs.

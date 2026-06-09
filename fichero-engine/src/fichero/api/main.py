@@ -386,7 +386,7 @@ def _collapse_duplicate_providers() -> None:
                 app_db.reparent_model(model_id, canonical_id)
             for dup in duplicates:
                 app_db.delete_provider(dup.id)
-            app_db.conn.commit()
+            app_db.commit()
             logger.info(
                 "Collapsed %d duplicate %s providers named %r into %s (reparented %d models)",
                 len(duplicates),

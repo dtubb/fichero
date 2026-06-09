@@ -418,15 +418,11 @@ def _cache_signature(db: "Database") -> tuple:
     rows. Returns a hashable tuple suitable as the dict-cache value.
     """
     try:
-        claims = db.conn.execute(
-            "SELECT COUNT(*), MAX(updated_at) FROM knowledgeclaims"
-        ).fetchone()
+        claims = db.knowledge_table_signature("knowledgeclaims")
     except Exception:
         claims = (0, None)
     try:
-        entities = db.conn.execute(
-            "SELECT COUNT(*), MAX(updated_at) FROM knowledgeentitys"
-        ).fetchone()
+        entities = db.knowledge_table_signature("knowledgeentitys")
     except Exception:
         entities = (0, None)
     # Stringify timestamps so the tuple is hashable / comparable

@@ -1006,16 +1006,15 @@ async def related_documents(
 
     # Step 1: gather distinct entity_ids from this doc's claims.
     try:
-        rows = db.conn.execute(
-            "SELECT entity_ids FROM knowledgeclaims WHERE source_document_id = $id",
-            {"id": doc_id},
-        ).fetchall()
+        raw_entity_id_values = db.knowledge_claim_entity_id_values(
+            source_document_id=doc_id
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning("related-documents claim lookup failed: %s", exc)
         return RelatedDocumentListResponse(items=[], count=0)
 
     seed_entity_ids: set[str] = set()
-    for (raw,) in rows:
+    for raw in raw_entity_id_values:
         if not raw:
             continue
         try:
@@ -1036,16 +1035,14 @@ async def related_documents(
     counter: Counter[str] = Counter()
     sample_per_doc: dict[str, set[str]] = {}
     for entity_id in seed_entity_ids:
-        needle = f'%"{entity_id}"%'
         try:
-            related_rows = db.conn.execute(
-                "SELECT source_document_id FROM knowledgeclaims WHERE entity_ids LIKE $needle",
-                {"needle": needle},
-            ).fetchall()
+            related_doc_ids = db.knowledge_claim_source_document_ids_for_entity(
+                entity_id
+            )
         except Exception:
             continue
         seen_ids_for_entity: set[str] = set()
-        for (other_doc_id,) in related_rows:
+        for other_doc_id in related_doc_ids:
             if not other_doc_id or other_doc_id == doc_id or other_doc_id in seen_ids_for_entity:
                 continue
             seen_ids_for_entity.add(other_doc_id)
@@ -1065,14 +1062,11 @@ async def related_documents(
         sample_names: list[str] = []
         for sample_eid in list(sample_per_doc.get(other_id, set()))[:3]:
             try:
-                row = db.conn.execute(
-                    "SELECT canonical_name FROM knowledgeentitys WHERE id = $id",
-                    {"id": sample_eid},
-                ).fetchone()
+                name = db.knowledge_entity_canonical_name(sample_eid)
             except Exception:
-                row = None
-            if row and row[0]:
-                sample_names.append(row[0])
+                name = None
+            if name:
+                sample_names.append(name)
         doc_type_str = other.doc_type.value if hasattr(other.doc_type, "value") else (
             str(other.doc_type) if other.doc_type else None
         )
