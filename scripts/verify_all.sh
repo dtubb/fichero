@@ -20,6 +20,9 @@ if swiftlint lint --quiet fichero/fichero/; then echo "✅ swiftlint"; else echo
 echo "── architecture guardrails (view→store, db.py access) ──"
 if python3 scripts/check_view_endpoint_access.py; then echo "✅ view→store guardrail"; else echo "❌ view→store guardrail"; fail=1; fi
 if PYTHONPATH=fichero-engine/src .venv/bin/pytest -q fichero-engine/tests/unit/test_db_access_guardrail.py >/dev/null 2>&1; then echo "✅ db-access guardrail"; else echo "❌ db-access guardrail"; fail=1; fi
+for g in check_native_controls check_no_emoji_sf_symbols check_comment_hygiene check_feature_flags; do
+  if python3 "scripts/$g.py" >/dev/null 2>&1; then echo "✅ $g"; else echo "❌ $g"; fail=1; fi
+done
 
 # OpenAPI contract: openapi.json must match the Pydantic models (CLI + Swift
 # client both generate from it — drift breaks both). validate_model_sync.py is
