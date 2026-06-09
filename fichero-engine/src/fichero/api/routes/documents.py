@@ -201,10 +201,50 @@ class WorkspaceItemsResponse(BaseModel):
     count: int
 
 
-def _workspace_doc_or_404(db: Database, doc_id: str) -> Document:
-    doc = db.get(Document, doc_id)
+def _normalize_document_id(doc_id: str) -> str:
+    """Accept both bare ids and ``doc:``-prefixed sidebar ids."""
+    return doc_id.removeprefix("doc:")
+
+
+def _document_or_404(db: Database, doc_id: str) -> Document:
+    normalized_id = _normalize_document_id(doc_id)
+    doc = db.get(Document, normalized_id)
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    return doc
+
+
+def _filter_resolvable_documents(
+    db: Database,
+    docs: list[Document],
+    *,
+    parent_id: str | None = None,
+) -> list[Document]:
+    """Drop rows that no longer round-trip through ``GET /documents/{id}``.
+
+    Browsing does a child-list fetch and then follows up with single-document
+    and media requests. If a child id no longer resolves, omit it from the
+    list response so the client never gets an id that immediately 404s.
+    """
+    resolvable: list[Document] = []
+    skipped_ids: list[str] = []
+    for doc in docs:
+        if db.get(Document, doc.id) is None:
+            skipped_ids.append(doc.id)
+            continue
+        resolvable.append(doc)
+    if skipped_ids:
+        logger.warning(
+            "Skipping %d unresolvable child document(s) under %s: %s",
+            len(skipped_ids),
+            parent_id or "<unknown>",
+            ", ".join(skipped_ids),
+        )
+    return resolvable
+
+
+def _workspace_doc_or_404(db: Database, doc_id: str) -> Document:
+    doc = _document_or_404(db, doc_id)
     if doc.doc_type != DocType.folder:
         raise HTTPException(status_code=400, detail="Document is not a folder")
     return doc
@@ -285,8 +325,10 @@ async def list_documents(
     """List documents with optional filters from the current library."""
     # Build filter kwargs
     filters = {}
+    normalized_parent_id: str | None = None
     if parent_id is not None:
-        filters["parent_id"] = parent_id
+        normalized_parent_id = _normalize_document_id(parent_id)
+        filters["parent_id"] = normalized_parent_id
     if doc_type is not None:
         filters["doc_type"] = doc_type
     if file_type is not None:
@@ -299,6 +341,11 @@ async def list_documents(
         docs = list(db.query(Document, **filters))
     else:
         docs = list(db.all(Document))
+
+    if normalized_parent_id is not None:
+        docs = _filter_resolvable_documents(
+            db, docs, parent_id=normalized_parent_id
+        )
 
     # Order by user-defined sort_order before paginating so drag-drop
     # positions survive a refresh and clients don't re-sort (#572).
@@ -347,10 +394,7 @@ async def get_document(
     doc_id: str, db: Database = Depends(get_library_database)
 ) -> Document:
     """Get a single document by ID."""
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
-    return doc
+    return _document_or_404(db, doc_id)
 
 
 @router.get(
@@ -389,11 +433,10 @@ async def get_document_note(
     doc_id: str, db: Database = Depends(get_library_database)
 ) -> DocumentNote:
     """Get the user note for a document."""
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    normalized_id = _normalize_document_id(doc_id)
+    _document_or_404(db, normalized_id)
 
-    notes = list(db.query(DocumentNote, document_id=doc_id))
+    notes = list(db.query(DocumentNote, document_id=normalized_id))
     if not notes:
         raise HTTPException(status_code=404, detail=f"Document note not found: {doc_id}")
     return notes[0]
@@ -406,17 +449,16 @@ async def put_document_note(
     db: Database = Depends(get_library_database),
 ) -> DocumentNote:
     """Create or replace a document's user note."""
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    normalized_id = _normalize_document_id(doc_id)
+    _document_or_404(db, normalized_id)
 
-    notes = list(db.query(DocumentNote, document_id=doc_id))
+    notes = list(db.query(DocumentNote, document_id=normalized_id))
     if notes:
         note = notes[0]
         note.content = request.content
         note.updated_at = datetime.now()
     else:
-        note = DocumentNote(document_id=doc_id, content=request.content)
+        note = DocumentNote(document_id=normalized_id, content=request.content)
 
     db.save(note)
     return note
@@ -427,11 +469,10 @@ async def delete_document_note(
     doc_id: str, db: Database = Depends(get_library_database)
 ) -> None:
     """Delete the user note for a document."""
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    normalized_id = _normalize_document_id(doc_id)
+    _document_or_404(db, normalized_id)
 
-    notes = list(db.query(DocumentNote, document_id=doc_id))
+    notes = list(db.query(DocumentNote, document_id=normalized_id))
     if not notes:
         raise HTTPException(status_code=404, detail=f"Document note not found: {doc_id}")
     db.delete(notes[0])
@@ -523,8 +564,13 @@ async def get_children(
     # Callers (e.g. the catalogue workflow) sometimes pass a doc:-prefixed id
     # (e.g. "doc:abc123").  Documents are stored with bare hex ids, so strip
     # the prefix before every DB lookup so both forms resolve correctly (#1345).
-    normalized_id = doc_id.removeprefix("doc:")
-    children = _ordered_by_sort_order(list(db.query(Document, parent_id=normalized_id)))
+    normalized_id = _normalize_document_id(doc_id)
+    children = _filter_resolvable_documents(
+        db,
+        list(db.query(Document, parent_id=normalized_id)),
+        parent_id=normalized_id,
+    )
+    children = _ordered_by_sort_order(children)
     if not children:
         # Verify parent exists only when there are no children to return.
         # During long-running workflows, a transient parent lookup miss can

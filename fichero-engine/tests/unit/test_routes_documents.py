@@ -88,6 +88,12 @@ class TestGetDocument:
         assert r.status_code == 200
         assert r.json()["id"] == doc.id
 
+    def test_get_doc_prefixed_existing_returns_same_document(self, client, db):
+        doc = _make_doc(db, "My Doc")
+        r = client.get(f"/api/documents/doc:{doc.id}")
+        assert r.status_code == 200
+        assert r.json()["id"] == doc.id
+
     def test_get_missing_returns_404(self, client):
         r = client.get("/api/documents/nonexistent")
         assert r.status_code == 404
@@ -211,6 +217,29 @@ class TestGetChildren:
         assert r.status_code == 200
         ids = [d["id"] for d in r.json()["items"]]
         assert child.id in ids
+
+    def test_excludes_children_that_no_longer_resolve(self, client, db, monkeypatch):
+        from fichero.db import Database
+
+        parent = _make_doc(db, "Parent")
+        good_child = _make_doc(db, "Good Child", parent_id=parent.id)
+        stale_child = _make_doc(db, "Stale Child", parent_id=parent.id)
+
+        real_get = Database.get
+
+        def flaky_get(self, model, doc_id):
+            if model is Document and doc_id == stale_child.id:
+                return None
+            return real_get(self, model, doc_id)
+
+        monkeypatch.setattr(Database, "get", flaky_get)
+
+        r = client.get(f"/api/documents/{parent.id}/children")
+
+        assert r.status_code == 200
+        ids = [d["id"] for d in r.json()["items"]]
+        assert good_child.id in ids
+        assert stale_child.id not in ids
 
 
 # ---------------------------------------------------------------------------

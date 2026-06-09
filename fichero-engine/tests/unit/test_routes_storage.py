@@ -49,6 +49,41 @@ class TestThumbnailRoute:
 
 class TestPdfStorageRoutes:
     @pytest.mark.parametrize(
+        ("endpoint_template", "expected_content_type_prefix"),
+        [
+            ("/api/storage/thumbnail/doc:{doc_id}", "image/jpeg"),
+            ("/api/storage/display/doc:{doc_id}", "image/jpeg"),
+            ("/api/storage/source/doc:{doc_id}", "application/pdf"),
+        ],
+    )
+    def test_doc_prefixed_storage_routes_resolve_existing_document(
+        self,
+        client,
+        db,
+        test_package,
+        endpoint_template,
+        expected_content_type_prefix,
+    ):
+        pdf_path = _write_test_pdf(test_package / "files" / "pd" / "book.pdf")
+        parent = Document(
+            id="pdf-parent-prefixed",
+            name="book.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            path=str(pdf_path.relative_to(test_package)),
+            status=Status.completed,
+            metadata={},
+        )
+        db.save(parent)
+
+        response = client.get(endpoint_template.format(doc_id=parent.id))
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith(
+            expected_content_type_prefix
+        )
+
+    @pytest.mark.parametrize(
         ("endpoint_template", "path_getter"),
         [
             ("/api/storage/thumbnail/{doc_id}", expected_thumbnail_path),

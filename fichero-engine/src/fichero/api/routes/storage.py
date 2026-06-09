@@ -42,6 +42,19 @@ class DocumentDebugResponse(BaseModel):
     metadata: dict
 
 
+def _normalize_document_id(doc_id: str) -> str:
+    """Accept both bare ids and ``doc:``-prefixed sidebar ids."""
+    return doc_id.removeprefix("doc:")
+
+
+def _document_or_404(db: Database, doc_id: str) -> Document:
+    normalized_id = _normalize_document_id(doc_id)
+    doc = db.get(Document, normalized_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    return doc
+
+
 def _inline_content_disposition(filename: str) -> str:
     """Build a Content-Disposition header safe for non-ASCII filenames."""
     ascii_fallback = (
@@ -63,9 +76,7 @@ async def get_thumbnail(
     Returns 404 if document not found or no thumbnail available.
     """
     package_path = Path(x_fichero_library_path)
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    doc = _document_or_404(db, doc_id)
 
     from fichero.storage import get_thumbnail, ensure_thumbnail
 
@@ -98,9 +109,7 @@ async def get_display_image(
     Larger than thumbnail, suitable for preview display.
     """
     package_path = Path(x_fichero_library_path)
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    doc = _document_or_404(db, doc_id)
 
     from fichero.storage import get_display, ensure_display
 
@@ -132,9 +141,7 @@ async def get_source_file(
 
     Returns 404 if source is not accessible (e.g., external file moved).
     """
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    doc = _document_or_404(db, doc_id)
 
     from fichero.storage import resolve_source
 
@@ -227,9 +234,7 @@ async def debug_document_paths(
     from fichero.storage import resolve_source, _thumb_path
 
     package_path = Path(x_fichero_library_path)
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    doc = _document_or_404(db, doc_id)
 
     source_path = resolve_source(doc, library_root=db.path.parent)
     thumb_path = _thumb_path(doc.id, package_path)
