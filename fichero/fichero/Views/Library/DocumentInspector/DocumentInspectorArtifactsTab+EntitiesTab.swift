@@ -15,17 +15,18 @@ private let inspectorEntitiesLogger = Logger(
 struct DocumentInspectorEntitiesTab: View {
     let document: Document
     let documentId: String
-    let entityService: EntityServiceGenerated
-    let kgCurationService: KGCurationServiceGenerated
     var onEntitySelect: ((String) -> Void)?
 
-    @State private var entities: [Components.Schemas.KnowledgeEntity] = []
+    /// The single endpoint accessor for this document's entities (#1885). The
+    /// view no longer owns a fetched copy or calls the services directly — it
+    /// observes the store and routes mutations through its named actions; the
+    /// store (and, once it emits, the change-stream) republishes the list.
+    @Environment(EntityStore.self) private var entityStore
+
     @State private var entitySelection: Set<String> = []
-    @State private var isLoading = false
     @State private var isApplyingBulkAction = false
     @State private var pendingMergePlan: InspectorEntityBulkSelection.MergePlan?
     @State private var pendingDeleteConfirmation: PendingEntityDeleteConfirmation?
-    @State private var loadError: String?
     @State private var actionMessage: String?
     /// In-place rename state — the id of the entity whose name is being
     /// edited inline, plus the draft text. (#1865)
@@ -43,7 +44,7 @@ struct DocumentInspectorEntitiesTab: View {
     }
 
     private var grouped: [(EntityKind, [Components.Schemas.KnowledgeEntity])] {
-        let grouped = Dictionary(grouping: entities) { entity in
+        let grouped = Dictionary(grouping: entityStore.entities) { entity in
             EntityKind(apiType: entity.entityType) ?? .other
         }
         return EntityKind.displayOrder.compactMap { kind in
@@ -87,16 +88,16 @@ struct DocumentInspectorEntitiesTab: View {
                     .padding(.horizontal)
             }
 
-            if isLoading {
+            if entityStore.isLoading {
                 ProgressView()
                     .padding(.vertical, 8)
                     .padding(.horizontal)
-            } else if let loadError {
+            } else if let loadError = entityStore.loadError {
                 Label(loadError, systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .padding(.horizontal)
-            } else if entities.isEmpty {
+            } else if entityStore.entities.isEmpty {
                 Text("No entities for this document yet.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -113,11 +114,18 @@ struct DocumentInspectorEntitiesTab: View {
             }
         }
         .padding(.top)
-        .task(id: documentId) { await loadEntities() }
+        // The store owns fetching; the view just scopes it to this document.
+        .task(id: documentId) { await entityStore.loadEntities(forDocument: documentId) }
+        .onChange(of: entityStore.entities.map(\.stableInspectorId)) { _, _ in
+            syncSelectionToLoadedEntities()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .ficheroEntityUpdated)) { _ in
-            // An entity was renamed elsewhere (e.g. the EntityDetailView
-            // header) — refresh so the new name shows here too. (#1865)
-            Task { await loadEntities() }
+            // Interim cross-view bridge: an entity was renamed in a NOT-yet-
+            // migrated surface (EntityDetailView header, #1865) which still
+            // posts this. Nudge the store to refresh so the new name shows
+            // here too. Retire this once the backend emits `entity.updated`
+            // on the change-stream (#1863) — then the store refreshes itself.
+            Task { await entityStore.reload() }
         }
         .alert(
             pendingMergePlan.map {
@@ -159,13 +167,13 @@ struct DocumentInspectorEntitiesTab: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Text("\(entities.count) entities")
+            Text("\(entityStore.entities.count) entities")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()
             filterMenu
             Button {
-                Task { await loadEntities() }
+                Task { await entityStore.loadEntities(forDocument: documentId, force: true) }
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
@@ -198,7 +206,7 @@ struct DocumentInspectorEntitiesTab: View {
     private var emptyVisibleGroupsState: some View {
         if hasActiveKindFilter {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Loaded \(entities.count) entities, but the current filter hides every kind.")
+                Text("Loaded \(entityStore.entities.count) entities, but the current filter hides every kind.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button("Show all kinds") {
@@ -210,7 +218,7 @@ struct DocumentInspectorEntitiesTab: View {
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 Label(
-                    "Loaded \(entities.count) entities, but none mapped into a visible section.",
+                    "Loaded \(entityStore.entities.count) entities, but none mapped into a visible section.",
                     systemImage: "exclamationmark.triangle"
                 )
                 .font(.caption)
@@ -218,7 +226,7 @@ struct DocumentInspectorEntitiesTab: View {
                 .padding(.horizontal)
 
                 List(selection: $entitySelection) {
-                    entityKindSection(kind: .other, entities: entities)
+                    entityKindSection(kind: .other, entities: entityStore.entities)
                 }
                 .listStyle(.plain)
                 .frame(maxHeight: .infinity)
@@ -346,9 +354,10 @@ struct DocumentInspectorEntitiesTab: View {
         renameFieldFocused = false
     }
 
-    /// Commit the inline rename through the typed entity service.
-    /// Optimistic: the row updates immediately; a failed PATCH reverts
-    /// via the reload. (#1865)
+    /// Commit the inline rename through the entity store; the store PATCHes and
+    /// republishes the list. We still post `.ficheroEntityUpdated` so the
+    /// not-yet-migrated surfaces (EntityDetailView header) refresh — that
+    /// cross-view nudge is retired once the change-stream emits. (#1865)
     private func commitRename(for entity: Components.Schemas.KnowledgeEntity) {
         let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         renamingEntityId = nil
@@ -357,29 +366,19 @@ struct DocumentInspectorEntitiesTab: View {
               !trimmed.isEmpty,
               trimmed != entity.canonicalName else { return }
 
-        // Optimistic local update.
-        entities = entities.map { current in
-            guard current.id == entityId else { return current }
-            var updated = current
-            updated.canonicalName = trimmed
-            return updated
-        }
-
         Task {
             do {
-                _ = try await entityService.patchEntity(entityId, canonicalName: trimmed)
+                try await entityStore.rename(entityId: entityId, to: trimmed)
                 NotificationCenter.default.post(
                     name: .ficheroEntityUpdated,
                     object: entityId,
                     userInfo: ["canonicalName": trimmed]
                 )
-                await loadEntities()
             } catch {
                 inspectorEntitiesLogger.error(
                     "Entity rename failed for \(entityId, privacy: .public): \(error.localizedDescription, privacy: .public)"
                 )
                 actionMessage = "Couldn't rename entity: \(error.localizedDescription)"
-                await loadEntities()
             }
         }
     }
@@ -388,32 +387,6 @@ struct DocumentInspectorEntitiesTab: View {
         var set = hiddenKinds
         if hidden { set.insert(kind) } else { set.remove(kind) }
         hiddenKindsCSV = set.map(\.rawValue).sorted().joined(separator: ",")
-    }
-
-    private func loadEntities() async {
-        isLoading = true
-        loadError = nil
-        defer { isLoading = false }
-
-        do {
-            let loaded = try await entityService.listInspectorEntitiesForDocument(
-                documentId: documentId
-            )
-            inspectorEntitiesLogger.debug(
-                "Loaded \(loaded.count, privacy: .public) inspector entities for \(documentId, privacy: .public)"
-            )
-            entities = loaded
-            syncSelectionToLoadedEntities()
-        } catch is CancellationError {
-            // Superseded by a newer document selection.
-        } catch {
-            inspectorEntitiesLogger.error(
-                "Failed to load inspector entities for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
-            )
-            loadError = "Couldn't load entities: \(error.localizedDescription)"
-            entities = []
-            entitySelection = []
-        }
     }
 
     @ViewBuilder
@@ -584,19 +557,11 @@ struct DocumentInspectorEntitiesTab: View {
             let suppressRules = action == .suppress && scope == .libraryWide
                 ? InspectorEntityBulkSelection.libraryWideSuppressRules(for: targetEntities)
                 : []
-            if !entityIds.isEmpty {
-                _ = try await kgCurationService.batchSetEntityCurationState(
-                    entityIds: entityIds,
-                    curationState: action.curationState
-                )
-                applyLocalStateUpdate(entityIds: Set(entityIds), state: action.curationState)
-            }
-
-            if action == .suppress, scope == .libraryWide {
-                if !suppressRules.isEmpty {
-                    _ = try await kgCurationService.batchCreateEntityRules(suppressRules)
-                }
-            }
+            try await entityStore.setCuration(
+                entityIds: entityIds,
+                to: action.curationState,
+                suppressRules: suppressRules
+            )
 
             var message = "\(action.verb) \(entityIds.count) entit"
             message += entityIds.count == 1 ? "y" : "ies"
@@ -623,13 +588,12 @@ struct DocumentInspectorEntitiesTab: View {
         defer { isApplyingBulkAction = false }
 
         do {
-            _ = try await entityService.mergeEntities(
-                absorbingEntityId: plan.survivorId,
-                absorbedEntityIds: plan.absorbedEntityIds
+            try await entityStore.merge(
+                absorbedIds: plan.absorbedEntityIds,
+                into: plan.survivorId
             )
             actionMessage = "Merged \(plan.entityCount) entities into \(plan.survivorName)."
             entitySelection = []
-            await loadEntities()
         } catch {
             inspectorEntitiesLogger.error(
                 "Entity merge failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
@@ -653,11 +617,8 @@ struct DocumentInspectorEntitiesTab: View {
         defer { isApplyingBulkAction = false }
 
         do {
-            for entityId in entityIds {
-                try await entityService.deleteEntity(entityId)
-            }
+            try await entityStore.delete(entityIds: entityIds)
             entitySelection = []
-            await loadEntities()
 
             var message = "Deleted \(entityIds.count) entit"
             message += entityIds.count == 1 ? "y" : "ies"
@@ -670,18 +631,6 @@ struct DocumentInspectorEntitiesTab: View {
                 "Entity delete failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
             actionMessage = "Couldn't delete entities: \(error.localizedDescription)"
-        }
-    }
-
-    private func applyLocalStateUpdate(
-        entityIds: Set<String>,
-        state: Components.Schemas.EntityCurationState
-    ) {
-        entities = entities.map { entity in
-            guard let id = entity.id, entityIds.contains(id) else { return entity }
-            var updated = entity
-            updated.curationState = state
-            return updated
         }
     }
 

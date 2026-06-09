@@ -206,8 +206,6 @@ struct DocumentInspector: View {
         DocumentInspectorEntitiesTab(
             document: doc,
             documentId: doc.id,
-            entityService: entityService,
-            kgCurationService: kgCurationService,
             onEntitySelect: { entityId in
                 kgFocusState.focusEntity(entityId: entityId)
             }
@@ -354,6 +352,7 @@ private struct DocumentInspectorImageEditsTab: View {
     DocumentInspector(document: nil)
         .environmentObject(library.artifactService)
         .environmentObject(library.entityService)
+        .environment(library.entityStore)
         .environment(KGFocusState.shared)
         .frame(width: 280, height: 400)
 }
@@ -381,6 +380,7 @@ private struct DocumentInspectorImageEditsTab: View {
     DocumentInspector(document: mockDocument)
         .environmentObject(library.artifactService)
         .environmentObject(library.entityService)
+        .environment(library.entityStore)
         .environment(KGFocusState.shared)
         .frame(width: 280, height: 400)
 }

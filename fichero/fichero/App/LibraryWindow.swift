@@ -62,6 +62,13 @@ struct LibraryWindow: View {
                 .environmentObject(library.kgCurationService)
                 .environmentObject(library.researchService)
                 .environment(executionObserver)
+                // Observable data layer (#1851 / #1863): inject the per-library
+                // entity store and start its change-stream. `start()` is
+                // idempotent across windows; the stream fans mutations back to
+                // every window's stores.
+                .environment(library.entityStore)
+                .environment(library.changeStream)
+                .task(id: library.id) { library.changeStream.start() }
             } else {
                 // Welcome screen - no library open yet
                 WelcomeView(onCreateLibrary: createNewLibrary, onOpenLibrary: { showingFileImporter = true })

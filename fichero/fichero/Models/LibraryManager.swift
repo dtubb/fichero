@@ -77,6 +77,29 @@ class LibraryManager: ObservableObject {
         let chainService: ChainService
         let researchService: ResearchService
 
+        // Observable domain stores (#1851 / #1885) — wrap the transport wrappers
+        // above. One per library, shared across that library's windows, so a
+        // mutation in one window reaches every window's views through the shared
+        // store. Lazy: built on first use. See
+        // docs/architecture/swiftui/observable_data_layer.md.
+        lazy var entityStore: EntityStore = EntityStore(
+            entityService: entityService,
+            kgCurationService: kgCurationService,
+            libraryPath: url.path
+        )
+
+        /// One SSE change-stream per library (#1863), fanning events to the
+        /// stores above. `start()` is idempotent — each window kicks it from
+        /// its `.task`; only the first connects.
+        lazy var changeStream: LibraryChangeStream = {
+            let stream = LibraryChangeStream(
+                baseURL: self.apiClient.baseURL,
+                libraryPath: self.url.path
+            )
+            stream.register(self.entityStore)
+            return stream
+        }()
+
         // Security-scoped resource tracking
         private nonisolated(unsafe) var isAccessingSecurityScope: Bool = false
 

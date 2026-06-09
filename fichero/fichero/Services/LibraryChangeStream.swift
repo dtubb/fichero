@@ -1,0 +1,235 @@
+import Foundation
+import Observation
+import OSLog
+
+private let changeStreamLogger = Logger(
+    subsystem: "app.fichero.fichero",
+    category: "LibraryChangeStream"
+)
+
+// MARK: - ChangeEvent
+
+/// A single data-layer change broadcast to a library's windows (#1863).
+///
+/// The Swift mirror of the backend `ChangeEvent`
+/// (`api/change_stream.py`). `type` is `"{domain}.{verb}"` —
+/// e.g. `entity.created`, `entity.updated`, `entity.deleted`, `entity.merged`,
+/// `claim.updated`, `document.updated`. The id lists are domain-typed so a
+/// document-scoped store can cheaply decide whether it cares.
+struct ChangeEvent: Decodable, Sendable {
+    let type: String
+    let entityIds: [String]
+    let claimIds: [String]
+    let documentIds: [String]
+    let runId: String?
+    let actor: String
+    let originWindow: String?
+    let timestamp: String?
+
+    /// `"entity"` from `"entity.updated"`.
+    var domain: String {
+        type.split(separator: ".").first.map(String.init) ?? type
+    }
+
+    /// `"updated"` from `"entity.updated"` (`"merged"`, `"deleted"`, …).
+    var verb: String {
+        type.split(separator: ".").dropFirst().joined(separator: ".")
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case entityIds = "entity_ids"
+        case claimIds = "claim_ids"
+        case documentIds = "document_ids"
+        case runId = "run_id"
+        case actor
+        case originWindow = "origin_window"
+        case timestamp = "ts"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decode(String.self, forKey: .type)
+        entityIds = try container.decodeIfPresent([String].self, forKey: .entityIds) ?? []
+        claimIds = try container.decodeIfPresent([String].self, forKey: .claimIds) ?? []
+        documentIds = try container.decodeIfPresent([String].self, forKey: .documentIds) ?? []
+        runId = try container.decodeIfPresent(String.self, forKey: .runId)
+        actor = try container.decodeIfPresent(String.self, forKey: .actor) ?? "system"
+        originWindow = try container.decodeIfPresent(String.self, forKey: .originWindow)
+        timestamp = try container.decodeIfPresent(String.self, forKey: .timestamp)
+    }
+}
+
+// MARK: - ChangeEventConsumer
+
+/// A domain store the change-stream fans events to (EntityStore, ClaimStore, …).
+@MainActor
+protocol ChangeEventConsumer: AnyObject {
+    /// Event domains this consumer handles, e.g. `["entity"]`. The stream only
+    /// delivers events whose `domain` is in this set.
+    nonisolated var changeDomains: Set<String> { get }
+
+    /// Apply one change event (already domain-filtered and self-echo-deduped).
+    func apply(_ event: ChangeEvent)
+
+    /// Re-fetch current scope after a reconnect — covers events missed while
+    /// the SSE connection was down (spec §5.5, in-process queue has no replay).
+    func resync() async
+}
+
+// MARK: - LibraryChangeStream
+
+/// Per-library change-event SSE consumer (#1863). The generalization of
+/// `WorkflowStreamService` from one workflow thread to one library: it owns the
+/// `URLSession.bytes` loop on `GET /api/changes/stream`, decodes `data:` lines
+/// into `ChangeEvent`, and fans each to the registered stores by domain.
+///
+/// One per library (registered on `LibraryReference`, shared across that
+/// library's windows). Reconnects with backoff on drop and resyncs its stores
+/// after each reconnect. `start()` is idempotent.
+@MainActor
+@Observable
+final class LibraryChangeStream {
+    private let baseURL: URL
+    private let libraryPath: String
+
+    /// This stream's origin tag — used for self-echo de-dup (spec §3.5) once
+    /// optimistic local updates and the `X-Fichero-Origin-Window` header land.
+    let windowId: String
+
+    private struct WeakConsumer {
+        weak var value: (any ChangeEventConsumer)?
+    }
+    private var consumers: [WeakConsumer] = []
+
+    // Plumbing, not observed UI state — exclude from @Observable tracking, and
+    // `nonisolated(unsafe)` so `deinit` (nonisolated in Swift 6) can cancel it
+    // (only mutated on the main actor; `Task.cancel()` is safe from anywhere).
+    @ObservationIgnored nonisolated(unsafe) private var task: Task<Void, Never>?
+    private var started = false
+
+    private(set) var isConnected = false
+
+    init(baseURL: URL, libraryPath: String, windowId: String = UUID().uuidString) {
+        self.baseURL = baseURL
+        self.libraryPath = libraryPath
+        self.windowId = windowId
+    }
+
+    deinit {
+        task?.cancel()
+    }
+
+    /// Register a store to receive events for its `changeDomains`. Held weakly —
+    /// the store's owner (`LibraryReference`) keeps it alive.
+    func register(_ consumer: any ChangeEventConsumer) {
+        consumers.append(WeakConsumer(value: consumer))
+    }
+
+    /// Open the SSE subscription (idempotent — safe to call from every window's
+    /// `.task`; only the first call connects).
+    func start() {
+        guard !started else { return }
+        started = true
+        task = Task { [weak self] in
+            await self?.runLoop()
+        }
+    }
+
+    func stop() {
+        task?.cancel()
+        task = nil
+        started = false
+        isConnected = false
+    }
+
+    // MARK: - Internals
+
+    private func runLoop() async {
+        var backoffNanos: UInt64 = 1_000_000_000  // 1s, doubles to a 30s cap
+        var hasConnectedBefore = false
+        while !Task.isCancelled {
+            do {
+                try await subscribeOnce(resyncOnConnect: hasConnectedBefore)
+                hasConnectedBefore = true
+                backoffNanos = 1_000_000_000  // clean end → reset backoff
+            } catch {
+                if !Task.isCancelled {
+                    changeStreamLogger.debug(
+                        "change-stream dropped: \(error.localizedDescription, privacy: .public)"
+                    )
+                }
+            }
+            isConnected = false
+            if Task.isCancelled { break }
+            try? await Task.sleep(nanoseconds: backoffNanos)
+            backoffNanos = min(backoffNanos * 2, 30_000_000_000)
+        }
+    }
+
+    private func subscribeOnce(resyncOnConnect: Bool) async throws {
+        guard let url = URL(string: "\(baseURL)/changes/stream") else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        request.addEngineAuth(libraryPath: libraryPath)
+
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        guard http.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+
+        isConnected = true
+        // On a *re*connect we may have missed events while down — resync stores.
+        if resyncOnConnect {
+            await resyncConsumers()
+        }
+
+        for try await line in bytes.lines {
+            guard !Task.isCancelled else { break }
+            if line.isEmpty || line.hasPrefix(":") || line.hasPrefix("event:") {
+                continue  // keepalive comment / blank / event-type line
+            }
+            if line.hasPrefix("data:") {
+                let json = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
+                if let event = decode(json) {
+                    route(event)
+                }
+            }
+        }
+    }
+
+    private func decode(_ json: String) -> ChangeEvent? {
+        guard let data = json.data(using: .utf8) else { return nil }
+        do {
+            return try JSONDecoder().decode(ChangeEvent.self, from: data)
+        } catch {
+            changeStreamLogger.debug(
+                "change-stream undecodable frame: \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
+
+    private func route(_ event: ChangeEvent) {
+        // Self-echo de-dup seam (spec §3.5): drop events this window initiated.
+        if let origin = event.originWindow, origin == windowId { return }
+        let domain = event.domain
+        for box in consumers {
+            guard let consumer = box.value else { continue }
+            if consumer.changeDomains.contains(domain) {
+                consumer.apply(event)
+            }
+        }
+    }
+
+    private func resyncConsumers() async {
+        for box in consumers {
+            await box.value?.resync()
+        }
+    }
+}
