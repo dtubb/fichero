@@ -76,6 +76,7 @@ struct DocumentInspectorInfoTab: View {
                 if document.isWorkspace {
                     Section("Curated Items") {
                         WorkspaceCuratedItemsSection(folderId: document.id)
+                            .selectionDisabled(true)
                     }
                 }
 
@@ -117,18 +118,22 @@ struct DocumentInspectorInfoTab: View {
 
                 Section("Related Claims") {
                     RelatedClaimsPanel(documentId: document.id)
+                        .selectionDisabled(true)
                 }
 
                 Section("Citations") {
                     CitationGraphPanel(documentId: document.id)
+                        .selectionDisabled(true)
                 }
 
                 Section("Bibliography") {
                     DocumentBibliographyPanel(documentId: document.id)
+                        .selectionDisabled(true)
                 }
 
                 Section("Workflow History") {
                     WorkflowProvenancePanel(documentId: document.id)
+                        .selectionDisabled(true)
                 }
             }
             .listStyle(.inset)

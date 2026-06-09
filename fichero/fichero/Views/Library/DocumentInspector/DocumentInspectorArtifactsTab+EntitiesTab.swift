@@ -105,9 +105,6 @@ struct DocumentInspectorEntitiesTab: View {
                     }
                 }
                 .listStyle(.plain)
-                .onChange(of: entitySelection) { _, newValue in
-                    handleSelectionChange(to: newValue)
-                }
             }
         }
         .padding(.top)
@@ -214,9 +211,7 @@ struct DocumentInspectorEntitiesTab: View {
                     entityKindSection(kind: .other, entities: entities)
                 }
                 .listStyle(.plain)
-                .onChange(of: entitySelection) { _, newValue in
-                    handleSelectionChange(to: newValue)
-                }
+                .frame(maxHeight: .infinity)
             }
         }
     }
@@ -298,26 +293,37 @@ struct DocumentInspectorEntitiesTab: View {
             }
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            TapGesture(count: 2).onEnded { openEntity(entity) }
+        )
         .contextMenu { entityContextMenu(for: entity) }
         .help("Inspect \(entity.canonicalName)")
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            Button {
-                Task {
-                    await applyBulkAction(.approve, scope: .pageOrFolderOnly, targetEntities: [entity])
-                }
-            } label: {
-                Label("Approve", systemImage: "checkmark.circle")
-            }
-            .tint(.green)
-            Button {
-                Task {
-                    await applyBulkAction(.reject, scope: .pageOrFolderOnly, targetEntities: [entity])
-                }
-            } label: {
-                Label("Reject", systemImage: "xmark.circle")
-            }
-            .tint(.red)
+            entityRowSwipeActions(for: entity)
         }
+    }
+
+    @ViewBuilder
+    private func entityRowSwipeActions(
+        for entity: Components.Schemas.KnowledgeEntity
+    ) -> some View {
+        Button {
+            Task {
+                await applyBulkAction(.approve, scope: .pageOrFolderOnly, targetEntities: [entity])
+            }
+        } label: {
+            Label("Approve", systemImage: "checkmark.circle")
+        }
+        .tint(.green)
+        Button {
+            Task {
+                await applyBulkAction(.reject, scope: .pageOrFolderOnly, targetEntities: [entity])
+            }
+        } label: {
+            Label("Reject", systemImage: "xmark.circle")
+        }
+        .tint(.red)
     }
 
     private func setHidden(_ kind: EntityKind, hidden: Bool) {
@@ -469,9 +475,8 @@ struct DocumentInspectorEntitiesTab: View {
         .disabled(isApplyingBulkAction || targetEntities.isEmpty)
     }
 
-    private func handleSelectionChange(to newValue: Set<String>) {
-        guard newValue.count == 1, let selectedId = newValue.first else { return }
-        guard let entity = orderedEntities.first(where: { $0.stableInspectorId == selectedId }) else { return }
+    /// Single-click selects (native List); double-click opens the entity. (Daniel: Finder-style.)
+    private func openEntity(_ entity: Components.Schemas.KnowledgeEntity) {
         if let id = entity.id {
             onEntitySelect?(id)
         } else {
