@@ -21,6 +21,12 @@ echo "── architecture guardrails (view→store, db.py access) ──"
 if python3 scripts/check_view_endpoint_access.py; then echo "✅ view→store guardrail"; else echo "❌ view→store guardrail"; fail=1; fi
 if PYTHONPATH=fichero-engine/src .venv/bin/pytest -q fichero-engine/tests/unit/test_db_access_guardrail.py >/dev/null 2>&1; then echo "✅ db-access guardrail"; else echo "❌ db-access guardrail"; fail=1; fi
 
+# OpenAPI contract: openapi.json must match the Pydantic models (CLI + Swift
+# client both generate from it — drift breaks both). validate_model_sync.py is
+# read-only; run sync_openapi_schema.sh to regenerate when it fails.
+echo "── OpenAPI contract sync ──"
+if PYTHONPATH=fichero-engine/src .venv/bin/python fichero-engine/scripts/validate_model_sync.py >/dev/null 2>&1; then echo "✅ openapi in sync"; else echo "❌ openapi drift — run fichero-engine/scripts/sync_openapi_schema.sh"; fail=1; fi
+
 echo "── xcodebuild test (Swift suite + CrossLanguageGate → Python gate) ──"
 if xcodebuild test \
     -project fichero/fichero.xcodeproj \

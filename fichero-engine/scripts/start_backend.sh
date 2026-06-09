@@ -44,4 +44,8 @@ if [ "$SKIP_VALIDATION" = false ]; then
 fi
 
 export FICHERO_VALIDATE_MODELS=1
-PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m uvicorn fichero.api.main:app --port 8765 --reload
+# Scope --reload to the engine source ONLY. A bare --reload watches the CWD (repo
+# root), which includes agent worktrees under .claude/worktrees/ — every worker
+# edit then triggers a reload storm + RAM blowup. --reload-dir fixes that.
+PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" -m uvicorn fichero.api.main:app --port 8765 \
+  --reload --reload-dir "$API_ROOT/src"
