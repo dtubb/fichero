@@ -25,7 +25,13 @@
 
 **Process notes:** jcodemunch index is STALE — workers verify-by-reading-disk; workers must run pytest from their WORKTREE (not the main venv — that scans a stale tree). Manager build/test-verifies every batch before integrating.
 
-**Next queued (data-layer order from the spec):** ClaimStore + retire the NotificationCenter bus (#1862); migrate KGSection/Ontology/Notes/Annotations + remaining `@StateObject` views to stores; EntityStore document-keyed buckets (#1908); db.conn→typed sweep (#1909); frontend guardrail (#1876); then claim dedup #1805, e5 prefixes #1795, undo #1832, citations tab #1850, feature set #1867-1874.
+**Session ended ~6:45am 2026-06-09 (context full → compact).** ~16 batches landed + verified on `0.0.2` (tip `81ddf8dd`). Both guardrails enforce (#1876 closed). Worker model: **parallel** agents in isolated worktrees (Opus/Sonnet via Agent tool; **codex via `codex -C <worktree> exec --full-auto "<prompt>"`** for backend; run several at once, merge each back) → manager build/test-verifies → cherry-picks to 0.0.2 → cleans worktree. **Give each worker 3–10 RELATED issues** (so they use their full context), then review — don't dribble 1 issue at a time.
+
+**IN FLIGHT (integrate FIRST next session):** a **codex** worker on **#1909** (db.conn→typed db.py sweep) in worktree `.claude/worktrees/codex-1909`, branch `codex/db-conn-1909`, log `/tmp/codex-1909.log`. When done: review its diff, run `pytest test_db_access_guardrail.py + route tests`, `ruff`, cherry-pick to 0.0.2, remove the worktree.
+
+**Next queued (data-layer order from the spec `observable_data_layer.md`):** **ClaimStore** (mirror EntityStore, subscribe to `claim.*` events) → then **retire the NotificationCenter bus** (#1862) once ClaimStore + EntityDetailView are migrated; EntityStore document-keyed buckets for multi-window (#1908); migrate the remaining `@StateObject service` views (the frontend guardrail's 17 KNOWN_VIOLATIONS) to stores; then claim dedup #1805, e5 prefixes #1795 (needs re-embed), undo #1832, citations tab #1850, feature set #1867-1874.
+
+**Hard rules for next session:** build/test-verify EVERY worker batch before integrating (caught 2 broken integrations tonight); workers run pytest from THEIR worktree (not main venv — scans stale tree); jcodemunch index is STALE so verify-by-reading-disk; never run `xcodebuild test`/`verify_all.sh` on Daniel's machine (use Xcode MCP `BuildProject` + `swiftlint`); no swipe / no modal-edit / List-not-Table / single-click-select-double-click-open.
 
 **Source-of-truth EPICs:** #1859 (Mac-assed/2026 audit S1–S9), #1838 (Mac-assed), #1851 (observers-everywhere), #1863 (backend change-stream, multi-window), #1832 (undo). Audit doc: `docs/architecture/swiftui/mac_assed_audit_2026.md`.
 
