@@ -3,14 +3,14 @@ import SwiftUI
 
 /// Action Library view for browsing and using reusable workflow actions
 struct ActionLibraryView: View {
-    @StateObject private var service = ActionsService()
+    @Environment(ActionStore.self) private var actionStore
     @State private var searchText = ""
     @State private var selectedCategory: String?
     @State private var selectedAction: ActionItem?
     @State private var showingCreateSheet = false
 
     var filteredActions: [ActionItem] {
-        var result = service.actions
+        var result = actionStore.actions
 
         if let category = selectedCategory {
             result = result.filter { $0.category == category }
@@ -36,7 +36,7 @@ struct ActionLibraryView: View {
                 .navigationSplitViewColumnWidth(min: 250, ideal: 300)
         } detail: {
             if let action = selectedAction {
-                ActionDetailView(action: action, service: service)
+                ActionDetailView(action: action, service: actionStore.actionsService)
             } else {
                 ContentUnavailableView(
                     "Select an Action",
@@ -47,8 +47,8 @@ struct ActionLibraryView: View {
         }
         .searchable(text: $searchText, prompt: "Search actions...")
         .task {
-            await service.loadActions()
-            await service.loadCategories()
+            await actionStore.loadActions()
+            await actionStore.loadCategories()
         }
     }
 
@@ -60,7 +60,7 @@ struct ActionLibraryView: View {
                 Label("All Actions", systemImage: "square.stack.3d.up")
                     .tag(nil as String?)
 
-                ForEach(service.categories, id: \.self) { category in
+                ForEach(actionStore.categories, id: \.self) { category in
                     Label(category.capitalized, systemImage: iconForCategory(category))
                         .tag(category as String?)
                 }
@@ -68,19 +68,19 @@ struct ActionLibraryView: View {
 
             Section("Quick Access") {
                 NavigationLink {
-                    QuickAccessList(title: "Built-in", fetchActions: service.loadBuiltinActions)
+                    QuickAccessList(title: "Built-in", fetchActions: actionStore.loadBuiltinActions)
                 } label: {
                     Label("Built-in", systemImage: "building.columns")
                 }
 
                 NavigationLink {
-                    QuickAccessList(title: "Custom", fetchActions: service.loadCustomActions)
+                    QuickAccessList(title: "Custom", fetchActions: actionStore.loadCustomActions)
                 } label: {
                     Label("Custom", systemImage: "person")
                 }
 
                 NavigationLink {
-                    QuickAccessList(title: "Popular", fetchActions: { await service.loadPopularActions() })
+                    QuickAccessList(title: "Popular", fetchActions: { await actionStore.loadPopularActions() })
                 } label: {
                     Label("Popular", systemImage: "star")
                 }
@@ -99,7 +99,7 @@ struct ActionLibraryView: View {
             }
         }
         .sheet(isPresented: $showingCreateSheet) {
-            CreateActionSheet(service: service)
+            CreateActionSheet(store: actionStore)
         }
     }
 
@@ -107,7 +107,7 @@ struct ActionLibraryView: View {
 
     private var actionsList: some View {
         Group {
-            if service.isLoading {
+            if actionStore.isLoading {
                 ProgressView("Loading actions...")
             } else if filteredActions.isEmpty {
                 ContentUnavailableView(
@@ -177,7 +177,7 @@ struct QuickAccessList: View {
 // MARK: - Create Action Sheet
 
 struct CreateActionSheet: View {
-    let service: ActionsService
+    let store: ActionStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
@@ -224,7 +224,7 @@ struct CreateActionSheet: View {
                             request.description = description
                             request.category = category
                             request.tags = tagList
-                            _ = try? await service.createAction(request)
+                            _ = try? await store.createAction(request)
                             dismiss()
                         }
                     }
@@ -240,4 +240,5 @@ struct CreateActionSheet: View {
 
 #Preview {
     ActionLibraryView()
+        .environment(ActionStore(service: ActionsService()))
 }

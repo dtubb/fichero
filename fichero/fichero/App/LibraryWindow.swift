@@ -70,6 +70,9 @@ struct LibraryWindow: View {
                 .environment(library.claimStore)
                 .environment(library.noteStore)
                 .environment(library.annotationStore)
+                .environment(library.actionStore)
+                .environment(library.researchStore)
+                .environment(library.searchStore)
                 .environment(library.changeStream)
                 .task(id: library.id) { library.changeStream.start() }
             } else {

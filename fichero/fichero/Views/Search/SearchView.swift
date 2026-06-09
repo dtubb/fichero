@@ -8,13 +8,8 @@ struct SearchView: View {
     @Binding var detailDocument: Document?
     @Binding var displayMode: ViewDisplayMode  // Universal view mode from toolbar
 
+    // ─── View-local state (UI scaffolding, debounce, persistence) ───
     @State var queryText: String = ""
-    @State var searchResults: [SearchResult] = []
-    @State var searchStats: SearchResponse?
-    @State var isSearching: Bool = false
-    @State var searchError: String?
-    @State var indexedCount: Int?
-    @State var isReindexing: Bool = false
     @State var searchScopeSelection: SearchScopeSelection = .all
 
     /// Token used to debounce live-as-you-type search. Each keystroke
@@ -32,12 +27,6 @@ struct SearchView: View {
     @SceneStorage("searchSortBy") var sortBy: String = "relevance"
     @SceneStorage("searchSortDirection") var sortDirection: String = "desc"
 
-    /// Top-N keywords across the library — fetched on first appear,
-    /// rendered in the empty state as clickable pills. Each tap runs a
-    /// search for that keyword. Empty array when the keyword extractor
-    /// hasn't run on this library yet.
-    @State var keywordCloud: [KeywordCloudEntryDTO] = []
-
     /// JSON-encoded `[String]` of recent queries — most recent first,
     /// dedup'd, capped at 10. @SceneStorage persists across launches.
     /// Used by the empty-state to surface "Recent" pills.
@@ -49,14 +38,14 @@ struct SearchView: View {
 
     func recordRecentSearch(_ query: String) {
         let updated = RecentSearchesStore.recording(query, into: recentSearches)
-        // Only write back if the list actually changed — avoids
-        // touching @SceneStorage on whitespace-only submits.
         if updated != recentSearches {
             recentSearchQueriesJSON = RecentSearchesStore.encode(updated)
         }
     }
 
-    @EnvironmentObject var searchService: SearchServiceGenerated
+    // ─── Observable data layer (#1903) ───
+    @Environment(SearchStore.self) private var searchStore
+
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var windowState: WindowState
 
@@ -78,7 +67,7 @@ struct SearchView: View {
             // to it so the user can return to the same query later.
             .toolbar {
                 if savedSearch == nil
-                    && !searchResults.isEmpty
+                    && !searchStore.results.isEmpty
                     && !queryText.trimmingCharacters(in: .whitespaces).isEmpty {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -92,7 +81,7 @@ struct SearchView: View {
                 // Sort menu — visible when results exist. Pickers persist
                 // via @SceneStorage in SearchView. Re-runs the query on
                 // change (see .onChange(of: sortBy / sortDirection)).
-                if !searchResults.isEmpty {
+                if !searchStore.results.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
                         Menu {
                             Picker("Sort by", selection: $sortBy) {
@@ -120,18 +109,13 @@ struct SearchView: View {
                 }
                 // Pull index health so the empty state can surface
                 // "Index Library" when there are no embeddings yet (#481).
-                Task { await loadIndexStats() }
+                Task { await searchStore.loadIndexStats() }
                 // Keyword cloud — top-N tags across the library, rendered
                 // in the empty-state as clickable pills.
-                Task {
-                    let cloud = (try? await searchService.keywordCloud(limit: 30)) ?? []
-                    await MainActor.run { keywordCloud = cloud }
-                }
+                Task { await searchStore.loadKeywordCloud(limit: 30) }
             }
             .onChange(of: savedSearch?.id) { _, _ in
-                guard let search = savedSearch else {
-                    return
-                }
+                guard let search = savedSearch else { return }
                 queryText = search.query
                 performSearch()
             }
@@ -139,9 +123,7 @@ struct SearchView: View {
                 // Empty query resets results so the previous-run state
                 // doesn't linger when the user clears the field.
                 if newValue.trimmingCharacters(in: .whitespaces).isEmpty {
-                    searchResults = []
-                    searchStats = nil
-                    searchError = nil
+                    Task { await searchStore.performSearch(query: "") }
                     return
                 }
                 // Live re-search as you type, debounced by 300 ms. Each
@@ -232,7 +214,7 @@ extension SearchView {
         // TODO(#1766): render entity/claim hit rows once SearchResultsDisplay has a mixed-result section layout.
         // Search uses the window toolbar search field, so avoid duplicate in-view toolbar chrome.
         SearchResultsDisplay(
-            searchResults: searchResults,
+            searchResults: searchStore.results,
             displayMode: displayMode,
             selection: $selection,
             onLoadDocument: loadDocument,
@@ -240,11 +222,11 @@ extension SearchView {
                 openExcerpt(result)
             },
             currentQuery: queryText,
-            isSearching: isSearching,
-            indexedCount: indexedCount,
-            isReindexing: isReindexing,
+            isSearching: searchStore.isSearching,
+            indexedCount: searchStore.indexedCount,
+            isReindexing: searchStore.isReindexing,
             onReindex: { Task { await reindexLibrary() } },
-            suggestions: searchStats?.suggestions ?? [],
+            suggestions: searchStore.searchStats?.suggestions ?? [],
             onSuggestionTap: { suggestion in
                 queryText = suggestion
                 performSearch()
@@ -254,7 +236,7 @@ extension SearchView {
                 queryText = recent
                 performSearch()
             },
-            keywordCloud: keywordCloud,
+            keywordCloud: searchStore.keywordCloud,
             onKeywordTap: { keyword in
                 // Keyword cloud taps fire a scoped query — the cloud
                 // lives over the 'keywords' artifact type, so a tap on
@@ -280,5 +262,6 @@ extension SearchView {
         detailDocument: .constant(nil),
         displayMode: .constant(.icon)
     )
+    .environment(SearchStore(searchService: SearchServiceGenerated(ficheroClient: FicheroClient(libraryPath: ""))))
     .frame(width: 800, height: 600)
 }

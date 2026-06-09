@@ -78,6 +78,7 @@ class LibraryManager: ObservableObject {
         let researchService: ResearchService
         let noteService: NoteService
         let annotationService: AnnotationService
+        let actionsService: ActionsService
 
         // Observable domain stores (#1851 / #1885) — wrap the transport wrappers
         // above. One per library, shared across that library's windows, so a
@@ -109,6 +110,20 @@ class LibraryManager: ObservableObject {
         /// `annotation.*` change events.
         lazy var annotationStore: AnnotationStore = AnnotationStore(annotationService: annotationService)
 
+        /// Per-library action store (#1905). Wraps `actionsService`, owns the
+        /// action list + categories, and reacts to `action.*` change events.
+        lazy var actionStore: ActionStore = ActionStore(service: actionsService)
+
+        /// Per-library research store (#1904). Wraps `researchService`, owns the
+        /// per-project data (plans, tasks, checklists, sources, notes), and
+        /// reacts to `research.*` change events.
+        lazy var researchStore: ResearchStore = ResearchStore(researchService: researchService)
+
+        /// Per-library search store (#1903). Wraps `searchService`, owns the
+        /// current result set and index stats, and invalidates stale results on
+        /// `document.*` change events.
+        lazy var searchStore: SearchStore = SearchStore(searchService: searchService)
+
         /// One SSE change-stream per library (#1863), fanning events to the
         /// stores above. `start()` is idempotent — each window kicks it from
         /// its `.task`; only the first connects.
@@ -121,6 +136,9 @@ class LibraryManager: ObservableObject {
             stream.register(self.claimStore)
             stream.register(self.noteStore)
             stream.register(self.annotationStore)
+            stream.register(self.actionStore)
+            stream.register(self.researchStore)
+            stream.register(self.searchStore)
             return stream
         }()
 
@@ -186,6 +204,7 @@ class LibraryManager: ObservableObject {
             self.researchService = ResearchService(ficheroClient: self.ficheroClient)
             self.noteService = NoteService(ficheroClient: self.ficheroClient)
             self.annotationService = AnnotationService(ficheroClient: self.ficheroClient)
+            self.actionsService = ActionsService(client: self.ficheroClient)
 
             // Start accessing security-scoped resource if requested
             if startAccessing {

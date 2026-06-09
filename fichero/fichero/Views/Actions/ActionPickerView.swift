@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 /// Action picker view for the workflow inspector - allows dragging actions onto canvas
 struct ActionPickerView: View {
-    @StateObject private var service = ActionLibraryService()
+    @Environment(ActionStore.self) private var actionStore
     @State private var searchText = ""
     @State private var selectedCategory: String = "all"
 
@@ -43,7 +43,7 @@ struct ActionPickerView: View {
                         selectedCategory = "recent"
                     }
 
-                    ForEach(service.categories, id: \.self) { category in
+                    ForEach(actionStore.categories, id: \.self) { category in
                         CategoryTab(
                             title: category.capitalized,
                             isSelected: selectedCategory == category
@@ -63,16 +63,16 @@ struct ActionPickerView: View {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.flexible())], spacing: 8) {
                     ForEach(filteredActions) { action in
-                        DraggableActionCard(action: action, service: service)
+                        DraggableActionCard(action: action)
                     }
                 }
                 .padding(8)
             }
         }
         .task {
-            await service.loadCategories()
-            await service.loadActions()
-            await service.loadRecentActions()
+            await actionStore.loadCategories()
+            await actionStore.loadActions()
+            await actionStore.loadRecentActions()
         }
     }
 
@@ -81,11 +81,11 @@ struct ActionPickerView: View {
 
         switch selectedCategory {
         case "all":
-            result = service.actions
+            result = actionStore.actions
         case "recent":
-            result = service.recentActions
+            result = actionStore.recentActions
         default:
-            result = service.actions.filter { $0.category == selectedCategory }
+            result = actionStore.actions.filter { $0.category == selectedCategory }
         }
 
         if !searchText.isEmpty {
@@ -125,7 +125,7 @@ struct CategoryTab: View {
 
 struct DraggableActionCard: View {
     let action: ActionItem
-    let service: ActionLibraryService
+    @Environment(ActionStore.self) private var actionStore
     @State private var isDragging = false
 
     var body: some View {
@@ -166,7 +166,7 @@ struct DraggableActionCard: View {
             isDragging = true
             // Record usage when dragged
             Task { @MainActor in
-                await service.recordUse(action.id)
+                await actionStore.recordUse(action.id)
             }
             return NSItemProvider(object: ActionDragData(action: action))
         }
@@ -232,7 +232,7 @@ extension UTType {
 // MARK: - Compact Action Picker (for inspector sidebar)
 
 struct CompactActionPicker: View {
-    @StateObject private var service = ActionLibraryService()
+    @Environment(ActionStore.self) private var actionStore
     @State private var searchText = ""
     @State private var expandedCategories: Set<String> = ["transcription", "extraction"]
 
@@ -266,7 +266,7 @@ struct CompactActionPicker: View {
                         }
                     )) {
                         ForEach(groupedActions[category] ?? []) { action in
-                            CompactActionRow(action: action, service: service)
+                            CompactActionRow(action: action)
                         }
                     } label: {
                         HStack {
@@ -282,12 +282,12 @@ struct CompactActionPicker: View {
             .listStyle(.plain)
         }
         .task {
-            await service.loadActions()
+            await actionStore.loadActions()
         }
     }
 
     private var groupedActions: [String: [ActionItem]] {
-        var filtered = service.actions
+        var filtered = actionStore.actions
         if !searchText.isEmpty {
             let query = searchText.lowercased()
             filtered = filtered.filter {
@@ -314,7 +314,6 @@ struct CompactActionPicker: View {
 
 struct CompactActionRow: View {
     let action: ActionItem
-    let service: ActionLibraryService
 
     var body: some View {
         HStack(spacing: 6) {
@@ -339,5 +338,6 @@ struct CompactActionRow: View {
 
 #Preview {
     ActionPickerView()
+        .environment(ActionStore(service: ActionsService()))
         .frame(width: 300, height: 500)
 }

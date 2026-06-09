@@ -90,8 +90,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Integrations/IntegrationsView.swift": "#1899 — @StateObject IntegrationsService()",
     "Notes/NotesBrowserView.swift": "#1882 — @StateObject NoteService()",
     "Workflow/WorkflowExecutionView.swift": "#1892 — @StateObject WorkflowExecutionService()",
-    "Actions/ActionPickerView.swift": "#1898 — @StateObject ActionLibraryService()",
-    "Actions/ActionLibraryView.swift": "#1898 — @StateObject ActionsService()",
     # client.api.* called directly from the view (raw transport)
     "Settings/LocalModelsSettingsView.swift": "#1894 — client.api.* local-models calls in view",
     "Chat/ComparisonDetailView+Actions.swift": "#1900 — client.api.getComparison… in view",

@@ -68,8 +68,7 @@ struct SearchScopeSelection: Equatable {
 extension SearchView {
     func clearFilters() {
         queryText = ""
-        searchResults = []
-        searchError = nil
+        // onChange(of: queryText) fires and delegates to store via performSearch(query:"")
     }
 
     func loadDocument(_ id: String) {
@@ -134,114 +133,37 @@ extension SearchView {
         }
     }
 
-    /// Refresh the indexed-doc count from /api/search/stats so the empty
-    /// state can surface "Index Library" / "X indexed" messaging. Cheap;
-    /// runs on appear and after reindex completion. (#481)
-    @MainActor
-    func loadIndexStats() async {
-        do {
-            let stats = try await searchService.stats()
-            indexedCount = stats.indexedCount
-        } catch {
-            logger.debug("Search stats fetch failed: \(error.localizedDescription)")
-        }
-    }
-
-    /// Trigger a background reindex of the active library. The backend
-    /// endpoint returns immediately; we poll /stats every 3 s while
-    /// indexedCount climbs, until two consecutive polls return the same
-    /// value (settled). (#481)
+    /// Trigger a background reindex and, once settled, re-run the active query.
     @MainActor
     func reindexLibrary() async {
-        guard !isReindexing else { return }
-        isReindexing = true
-        defer { isReindexing = false }
-        do {
-            _ = try await searchService.reindexAll()
-        } catch {
-            logger.error("Reindex kickoff failed: \(error.localizedDescription)")
-            return
-        }
-        // Poll stats. Stop when count stops climbing for two consecutive
-        // polls (i.e. it's settled), or after a generous 5-min cap.
-        var previous: Int = -1
-        var stableTicks = 0
-        let maxTicks = 100  // 5 minutes at 3 s
-        for _ in 0..<maxTicks {
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            do {
-                let stats = try await searchService.stats()
-                indexedCount = stats.indexedCount
-                if stats.indexedCount == previous {
-                    stableTicks += 1
-                    if stableTicks >= 2 { break }
-                } else {
-                    stableTicks = 0
-                    previous = stats.indexedCount
-                }
-            } catch {
-                logger.debug("Index poll failed: \(error.localizedDescription)")
-            }
-        }
-        // Re-run the user's query if they have one — search now has data.
+        await searchStore.reindexLibrary()
         if !queryText.trimmingCharacters(in: .whitespaces).isEmpty {
             performSearch()
         }
     }
 
+    /// Dispatch a search via the store. Keeps `displayMode` sync and
+    /// records the query in @SceneStorage history.
     func performSearch() {
         guard !queryText.trimmingCharacters(in: .whitespaces).isEmpty else {
-            searchResults = []
-            searchStats = nil
-            searchError = nil
+            Task { await searchStore.performSearch(query: "") }
             return
         }
 
-        logger.info("Starting enhanced search for: \(queryText)")
+        logger.info("Starting search for: \(queryText)")
         if displayMode != .list {
             displayMode = .list
         }
-        isSearching = true
-        searchError = nil
 
         Task {
-            do {
-                logger.info("Calling searchService.search with enhanced parameters...")
-
-                let response = try await searchService.searchCompatible(
-                    query: queryText,
-                    limit: 50,
-                    include: searchScopeSelection.apiIncludes,
-                    minScore: 0.0,  // Backend defaults; UI shows everything ≥ floor.
-                    searchType: "hybrid",
-                    filters: nil,
-                    sortBy: sortBy,
-                    sortOrder: sortDirection,
-                    offset: 0,
-                    useFuzzyMatch: false,
-                    highlightResults: true
-                )
-
-                logger.info("Got \(response.count) results (total: \(response.totalResults))")
-                await MainActor.run {
-                    searchResults = response.results
-                    searchStats = response
-                    isSearching = false
-                    // Record the query in @SceneStorage history once it
-                    // returned a real result set; suppress 'recents'
-                    // pollution when the user is just typing fragments.
-                    if !response.results.isEmpty {
-                        recordRecentSearch(queryText)
-                    }
-                }
-            } catch {
-                logger.error("Search error: \(String(describing: error))")
-                await MainActor.run {
-                    searchError = error.localizedDescription
-                    searchResults = []
-                    searchStats = nil
-                    isSearching = false
-                }
+            await searchStore.performSearch(
+                query: queryText,
+                include: searchScopeSelection.apiIncludes,
+                sortBy: sortBy,
+                sortOrder: sortDirection
+            )
+            if !searchStore.results.isEmpty {
+                recordRecentSearch(queryText)
             }
         }
     }
@@ -258,5 +180,4 @@ extension SearchView {
             userInfo: info
         )
     }
-
 }
