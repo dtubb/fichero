@@ -1,5 +1,22 @@
 # STATE.md — Fichero
 
+## SESSION-END HANDOFF — 2026-06-09 ~4:10pm (for incoming CODEX manager)
+**0.0.2 @ `9955e0a0` (pushed, clean — no worktrees, no lanes running).** All implementation = codex; manager gates (Xcode FULL build / pytest / run-script) before cherry-pick.
+
+**LANDED today (verified+pushed):** #1948 line-insensitive guardrail keys · #1957 doc:-prefix+skip-unresolvable (404 fix) · #1917/#1958 versioned thumbnail cache+perf_span · #1911 WorkflowStore→@Observable+change-stream · #1925 4 completeness-matrix guardrails (endpoint×{store,cli}, undo, CRUD, action-surface) · #289/#1398 transcription-fidelity prompts (preserve uncertainty/diacritics/illegible markers) · #1960 Source Annotations→native List · #1961 granular in-place EntityStore updates (no wholesale rerender) · #1851 observer-pattern audit guardrail (115 legacy files seeded, RATCHETS down) · pruned 50 stale orphan branches → check_unmerged_work green.
+
+**NEXT KEYSTONE (brief saved /tmp/documentstore-observable.txt):** DocumentStore ObservableObject→@Observable + @Environment (god-node, 16 consumers). Stalled this session on a codex 'Update available!' prompt — produced nothing, deferred clean. Template = WorkflowStore migration (already in codebase). Gotchas: @ObservationIgnored on lazy/service/cancellables props; SidebarObservers `.$collections.sink`→re-arming `observeDocumentStore` (mirror observeWorkflowStore); `$documentStore` bindings→@Bindable; LibraryWindow:47 .environmentObject→.environment. LIKELY FIXES #1964 (Info tab not loading — it uses @EnvironmentObject documentStore) + #1963 (library can't select). Then grind the rest of the observer sweep store-by-store (serial — shared registry); guardrail scripts/check_observer_pattern.py tracks the 115.
+
+**OPEN BUGS FROM RUNTIME TESTING (filed):** #1967 CRASH (WorkflowExecutionObserver @Environment not propagated into sheets/popovers — audit all presented views; URGENT) · #1964 Info tab not loading · #1963 library click+marquee select · #1961 entities single-click (granular fix landed; re-test — if still dead it's the row .simultaneousGesture count:2 swallowing taps) · #1966 ForEach dup-ID (EntityLozenge keys on name) · #1970 Source Annotations single-click+full-size.
+
+**NEW HARD RULES (memory):** `no-wholesale-list-rerender` (mutate one item in place, never full-reload on single edit; stable identity; no gestures fighting List(selection:)) · `semantic-system-fonts` (all text = semantic macOS styles .title/.headline/.body…, NO .system(size:); scales with system text size; standard controls; List-vs-Table per fit; tabs between sidebars Xcode-style).
+
+**DIRECTION EPICs:** #1962 Finder-style selection everywhere (single-click select+multi+marquee, double-click/Enter opens) · #1969 semantic fonts everywhere · #1971 standard-controls audit (icon/list/table) · #1965 artifacts→List+editor+batch-delete · #1968 tabs between sidebars · #1851 observer sweep.
+
+**📋 READY FOR DANIEL TO TEST:** #1943 artifacts · #1953 thumbnails · #1960 Source Annotations List · #1961 entities granular updates (re-test single-click).
+
+---
+### (archived earlier handoffs)
 ## RESET HANDOFF — 2026-06-09 ~2:35pm (CODEX-ONLY; grind mode)
 **0.0.2 @ `5976191b` (pushed).** Manager runs lean; ALL implementation is codex.
 **LANDED since 2:15pm:** #1925 action-surface matrix guardrail · #289/#1398 transcription-fidelity re-apply (preserve uncertainty/diacritics/illegible markers, 108 tests green) · #1960 Source Annotations → native List (FULL build green).

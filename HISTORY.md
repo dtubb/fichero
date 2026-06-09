@@ -2524,3 +2524,10 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - **Backend**: DB+embedding snapshot/rollback (#1934); entity+claim accent-fold dedup + embedding over-merge precision gate; db.conn→typed db.py sweep (#1909, KNOWN_VIOLATIONS=0); claim/document change-emit; #1943 service-consistency (artifact-list+batch via generated client — Daniel to runtime-test).
 - **Mac polish**: native-List conversions + sanctions (#1912), emoji→SF Symbols (partial), Reveal-in-Finder remote-safe, bigger thumbnails (#1953 — Daniel to test, may need cache clear).
 - **Process**: docs/ROADMAP.md (tier order) + docs/VERIFY.md; /choose-next + /dispatch-worker skills; worker model = external-worktree codex/claude via tmux+send-keys, NEVER broad-pkill, < /dev/null, verify-then-integrate. ~50 issues filed (#1838-1959), ~30 closed.
+
+## 2026-06-09 (afternoon) — observable/infra grind + runtime-bug triage
+
+- Landed: thumbnail cache+perf (#1917/#1958), doc-404 fix (#1957), guardrail re-keying (#1948), WorkflowStore→@Observable (#1911), 4 completeness-matrix guardrails + observer-pattern audit guardrail (#1925/#1851), transcription-fidelity prompts (#289/#1398), Source Annotations→List (#1960), granular EntityStore updates (#1961). Pruned 50 stale orphan branches.
+- New hard rules: no-wholesale-list-rerender, semantic-system-fonts. Worker file-set partition rule.
+- Filed runtime bugs/EPICs #1960-#1971 (selection-everywhere, Info-tab, crash, fonts, std-controls, tabs).
+- Deferred DocumentStore @Observable keystone (codex stalled on update prompt; brief saved). Session ended clean for incoming codex manager.
