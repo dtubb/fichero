@@ -56,6 +56,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+THUMBNAIL_MAX_DIMENSION = 1024
+DISPLAY_MAX_DIMENSION = 1000
+
 
 # =============================================================================
 # Configuration (Pydantic Settings)
@@ -77,10 +80,10 @@ class StorageSettings(BaseSettings):
     base_path: Path = engine_state_dir()
 
     # Thumbnail settings
-    thumb_width: int = 200
-    thumb_height: int = 200
-    display_width: int = 1000
-    display_height: int = 1000
+    thumb_width: int = THUMBNAIL_MAX_DIMENSION
+    thumb_height: int = THUMBNAIL_MAX_DIMENSION
+    display_width: int = DISPLAY_MAX_DIMENSION
+    display_height: int = DISPLAY_MAX_DIMENSION
     quality: int = 85
 
     # Thread pool size for background generation

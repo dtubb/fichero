@@ -35,10 +35,10 @@ class TestStorageSettings:
 
     def test_size_tuples(self):
         """Size properties should return tuples."""
-        from fichero.storage import StorageSettings
+        from fichero.storage import StorageSettings, THUMBNAIL_MAX_DIMENSION
 
         s = StorageSettings()
-        assert s.thumb_size == (200, 200)
+        assert s.thumb_size == (THUMBNAIL_MAX_DIMENSION, THUMBNAIL_MAX_DIMENSION)
         assert s.display_size == (1000, 1000)
 
     def test_custom_sizes(self):
@@ -276,7 +276,11 @@ class TestThumbnailGeneration:
     def test_ensure_thumbnail_creates_file(self, tmp_path):
         """Should create thumbnail file."""
         from fichero import storage
-        from fichero.storage import ensure_thumbnail, StorageSettings
+        from fichero.storage import (
+            THUMBNAIL_MAX_DIMENSION,
+            ensure_thumbnail,
+            StorageSettings,
+        )
 
         try:
             from PIL import Image
@@ -304,6 +308,50 @@ class TestThumbnailGeneration:
             assert result is not None
             assert result.exists()
             assert "ab" in str(result)  # Sharded path
+            with Image.open(result) as thumb:
+                assert max(thumb.size) == 500
+                assert max(thumb.size) <= THUMBNAIL_MAX_DIMENSION
+        finally:
+            storage.settings = original_settings
+
+    @pytest.mark.skipif(
+        not Path("/System").exists(),
+        reason="Requires Pillow"
+    )
+    def test_ensure_thumbnail_caps_long_edge_at_max_dimension(self, tmp_path):
+        """Large source images should be capped at the configured thumbnail size."""
+        from fichero import storage
+        from fichero.storage import (
+            THUMBNAIL_MAX_DIMENSION,
+            ensure_thumbnail,
+            StorageSettings,
+        )
+
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("Pillow not installed")
+
+        source = tmp_path / "source-large.jpg"
+        img = Image.new("RGB", (2400, 1600), color="blue")
+        img.save(source)
+
+        test_settings = StorageSettings(base_path=tmp_path)
+        original_settings = storage.settings
+        storage.settings = test_settings
+
+        try:
+            doc = Mock()
+            doc.id = "wide123"
+            doc.path = str(source)
+            doc.metadata = {}
+
+            result = ensure_thumbnail(doc)
+
+            assert result is not None
+            with Image.open(result) as thumb:
+                assert max(thumb.size) == THUMBNAIL_MAX_DIMENSION
+                assert thumb.size == (THUMBNAIL_MAX_DIMENSION, 683)
         finally:
             storage.settings = original_settings
 
