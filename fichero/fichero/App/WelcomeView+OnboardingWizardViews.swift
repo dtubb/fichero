@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import FicheroAPIClient
 import OSLog
 import SwiftUI
@@ -17,6 +18,7 @@ extension OnboardingWizardView {
                 .font(.largeTitle)
                 .fontWeight(.semibold)
 
+            // swiftlint:disable:next line_length
             Text("Fichero is a research tool for documents. Drop in PDFs, images, or scans and use AI to transcribe, catalogue, and extract people, places, and dates.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -62,12 +64,14 @@ extension OnboardingWizardView {
                     .apple,
                     title: "Apple Intelligence",
                     badge: nil,
+                    // swiftlint:disable:next line_length
                     blurb: "Free. Private. Runs on your Mac. Requires macOS 26+ on Apple Silicon. Note: not very good with handwritten text — use a cloud provider for that."
                 )
                 choiceCard(
                     .local,
                     title: "Local models",
                     badge: nil,
+                    // swiftlint:disable:next line_length
                     blurb: "Free. Private. Run Ollama or LM Studio on your Mac. Best with 32 GB of memory or more. You install and manage the models."
                 )
             }
@@ -188,18 +192,21 @@ extension OnboardingWizardView {
                     .link,
                     title: IngestMode.link.displayName,
                     badge: "Recommended",
+                    // swiftlint:disable:next line_length
                     blurb: "Files stay where they are; Fichero just references them. No duplicates, no copies. Best for libraries that already live in folders you want to keep."
                 )
                 importModeCard(
                     .copy,
                     title: IngestMode.copy.displayName,
                     badge: nil,
+                    // swiftlint:disable:next line_length
                     blurb: "Files are duplicated into the library. The original is left untouched. Use when you want a self-contained library you can move around."
                 )
                 importModeCard(
                     .move,
                     title: IngestMode.move.displayName,
                     badge: nil,
+                    // swiftlint:disable:next line_length
                     blurb: "Files are moved into the library. The original location no longer has them. Use when you're consolidating loose files into one place."
                 )
             }
@@ -320,6 +327,7 @@ extension OnboardingWizardView {
                 Text("Pick a different option from the previous step, or set this up later in Settings → Models.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            // swiftlint:disable:next line_length
             Text("Heads up: Apple Intelligence isn't very good with handwritten text. For old manuscripts, scanned forms, or cursive, pick a cloud provider here or in Settings later.")
                 .font(.callout).foregroundStyle(.secondary)
         }

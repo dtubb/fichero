@@ -433,7 +433,9 @@ extension LibraryView {
             Label("Rename", systemImage: "pencil")
         }
 
-        if let path = document.path, !path.isEmpty {
+        // Only available when the engine is local — a remote engine means
+        // document.path is a server-side path, not a path on this Mac (#1861).
+        if EngineConfig.engineIsLocal, let path = document.path, !path.isEmpty {
             Button {
                 let url = URL(fileURLWithPath: path)
                 NSWorkspace.shared.activateFileViewerSelecting([url])

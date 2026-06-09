@@ -61,16 +61,19 @@ struct EditorView: View {
 
             Spacer()
 
-            // Actions
+            // Actions — "Reveal in Finder" only makes sense when the engine
+            // is on this Mac; hide it entirely for remote engines (#1881).
             HStack(spacing: 12) {
-                Button(
-                    action: { openInFinder(doc) },
-                    label: {
-                        Image(systemName: "folder")
-                    }
-                )
-                .buttonStyle(.plain)
-                .help("Reveal in Finder")
+                if EngineConfig.engineIsLocal {
+                    Button(
+                        action: { openInFinder(doc) },
+                        label: {
+                            Image(systemName: "folder")
+                        }
+                    )
+                    .buttonStyle(.plain)
+                    .help("Reveal in Finder")
+                }
 
                 Button(
                     action: { openWithDefault(doc) },
