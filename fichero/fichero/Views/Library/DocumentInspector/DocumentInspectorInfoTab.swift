@@ -1,7 +1,7 @@
 import FicheroAPIClient
 import SwiftUI
 
-/// Info tab content for DocumentInspector
+/// Info tab — two-step progressive disclosure: attribute name + summary, select to reveal detail / edit.
 struct DocumentInspectorInfoTab: View {
     let document: Document
 
@@ -10,6 +10,7 @@ struct DocumentInspectorInfoTab: View {
     @EnvironmentObject private var documentStore: DocumentStore
     @State var isUpdatingExclude = false
     @State var excludeFromProcessingOverride: Bool?
+    @State private var selectedAttribute: InfoAttribute? = nil
 
     var isExcludedFromProcessing: Bool {
         excludeFromProcessingOverride ?? document.excludeFromProcessing
@@ -20,9 +21,13 @@ struct DocumentInspectorInfoTab: View {
             headerSection
                 .padding(.bottom, 8)
 
-            Form {
+            List(selection: $selectedAttribute) {
                 Section("Status") {
-                    LabeledContent("State") {
+                    InfoAttributeRow(
+                        name: "State",
+                        summary: document.status.rawValue.capitalized,
+                        isSelected: selectedAttribute == .state
+                    ) {
                         HStack(spacing: 6) {
                             StatusBadge(status: document.status)
                             if document.status == .processing {
@@ -30,24 +35,44 @@ struct DocumentInspectorInfoTab: View {
                             }
                         }
                     }
-                    LabeledContent("Created") {
-                        Text(document.createdAt, style: .date)
+                    .tag(InfoAttribute.state)
+
+                    InfoAttributeRow(
+                        name: "Created",
+                        summary: document.createdAt.formatted(date: .abbreviated, time: .omitted),
+                        isSelected: selectedAttribute == .created
+                    ) {
+                        Text(document.createdAt, format: .dateTime)
+                            .foregroundStyle(.secondary)
                     }
-                    LabeledContent("Modified") {
-                        Text(document.updatedAt, style: .relative)
+                    .tag(InfoAttribute.created)
+
+                    InfoAttributeRow(
+                        name: "Modified",
+                        summary: document.updatedAt.formatted(.relative(presentation: .named)),
+                        isSelected: selectedAttribute == .modified
+                    ) {
+                        Text(document.updatedAt, format: .dateTime)
+                            .foregroundStyle(.secondary)
                     }
+                    .tag(InfoAttribute.modified)
                 }
 
                 Section("Class") {
-                    DocumentPrototypePicker(
-                        documentId: document.id,
-                        initialKey: document.prototypeKey
-                    )
+                    InfoAttributeRow(
+                        name: "Class",
+                        summary: document.prototypeKey ?? "Default",
+                        isSelected: selectedAttribute == .documentClass
+                    ) {
+                        DocumentPrototypePicker(
+                            documentId: document.id,
+                            initialKey: document.prototypeKey
+                        )
+                    }
+                    .tag(InfoAttribute.documentClass)
                 }
 
                 // Workspace curated items + per-item node class (#1570 Phase 1).
-                // Only shown for workspace folders — folded into the existing
-                // inspector Form as one more Section (conservative placement).
                 if document.isWorkspace {
                     Section("Curated Items") {
                         WorkspaceCuratedItemsSection(folderId: document.id)
@@ -55,18 +80,38 @@ struct DocumentInspectorInfoTab: View {
                 }
 
                 Section("File") {
-                    LabeledContent("Kind") {
+                    InfoAttributeRow(
+                        name: "Kind",
+                        summary: document.docType.rawValue.capitalized,
+                        isSelected: selectedAttribute == .kind
+                    ) {
                         Text(document.docType.rawValue.capitalized)
+                            .foregroundStyle(.secondary)
                     }
+                    .tag(InfoAttribute.kind)
+
                     if let fileType = document.fileType {
-                        LabeledContent("Type") {
+                        InfoAttributeRow(
+                            name: "Type",
+                            summary: fileType.rawValue.capitalized,
+                            isSelected: selectedAttribute == .fileType
+                        ) {
                             Text(fileType.rawValue.capitalized)
+                                .foregroundStyle(.secondary)
                         }
+                        .tag(InfoAttribute.fileType)
                     }
+
                     if let fileSize = document.metadata["File_Size"]?.value as? Int {
-                        LabeledContent("Size") {
+                        InfoAttributeRow(
+                            name: "Size",
+                            summary: ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file),
+                            isSelected: selectedAttribute == .fileSize
+                        ) {
                             Text(ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file))
+                                .foregroundStyle(.secondary)
                         }
+                        .tag(InfoAttribute.fileSize)
                     }
                 }
 
@@ -86,10 +131,11 @@ struct DocumentInspectorInfoTab: View {
                     WorkflowProvenancePanel(documentId: document.id)
                 }
             }
-            .formStyle(.grouped)
+            .listStyle(.inset)
         }
         .onChange(of: document.id) { _, _ in
             excludeFromProcessingOverride = nil
+            selectedAttribute = nil
         }
     }
 
@@ -121,5 +167,50 @@ struct DocumentInspectorInfoTab: View {
             return library
         }
         return libraryManager.globalLibrary
+    }
+}
+
+// MARK: - Supporting types
+
+private enum InfoAttribute: Hashable {
+    case state, created, modified, kind, fileType, fileSize, documentClass
+}
+
+private struct InfoAttributeRow<Detail: View>: View {
+    let name: String
+    let summary: String
+    let isSelected: Bool
+    private let detail: () -> Detail
+
+    init(name: String, summary: String, isSelected: Bool, @ViewBuilder detail: @escaping () -> Detail) {
+        self.name = name
+        self.summary = summary
+        self.isSelected = isSelected
+        self.detail = detail
+    }
+
+    @Environment(\.isEmphasized) private var isEmphasized
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isSelected ? 6 : 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(name)
+                    .fontWeight(.medium)
+                Spacer()
+                if !isSelected {
+                    Text(summary)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            if isSelected {
+                detail()
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+            }
+        }
+        .padding(.vertical, 2)
+        .animation(.easeInOut(duration: 0.15), value: isSelected)
     }
 }

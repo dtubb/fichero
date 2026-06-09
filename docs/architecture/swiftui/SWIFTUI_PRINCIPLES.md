@@ -37,9 +37,17 @@ adopt 2026 APIs directly.
 - `@Observable` (Observation framework) — NOT `ObservableObject` / `@Published` / Combine.
 - `@State` to own an `@Observable`; `@Bindable` for two-way bindings; `@Environment(Type.self)`
   for dependency injection. Use **lazy `@State` init** for Observable when construction is costly.
-- **Do NOT blanket-migrate existing `ObservableObject` services** (the `*Generated` wrappers,
-  `DocumentStore`, etc.) — that's out of scope and high blast-radius. New code is Observation;
-  existing code stays until a deliberate migration.
+- **Migrate existing view-local `ObservableObject` view-models to `@Observable` as you touch each
+  surface** — this IS in scope (inspector models, sidebar state managers, per-feature models like
+  `ImageEditorModel`, `OntologyBrowserLoadState`). Update their consumers from `@StateObject`/
+  `@ObservedObject` to `@State`/`@Bindable`.
+- **Exception — stage carefully, don't migrate blindly:** the app-wide god-objects
+  (`DocumentStore`, `LibraryManager`, `AppState`, and the `*Generated` service wrappers consumed
+  across many views). These have huge blast radius — migrate them in a deliberate, dedicated pass,
+  never as a side-effect of a list-conversion PR.
+- **Replace `NotificationCenter`-as-mutation-bus with an `@Observable` store.** Posting
+  `.ficheroClaimUpdated`-style notifications to fan mutations across views is the anti-pattern; an
+  observed store (or the service's published change) is the modern path.
 
 **Modern SwiftUI to prefer (2026):**
 - Native `List` / `Section` selection (it's `NSTableView` underneath → free macOS selection
