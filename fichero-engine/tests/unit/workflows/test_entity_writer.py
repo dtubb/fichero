@@ -1205,3 +1205,139 @@ class TestAdminQualifierHelpers:
         assert not _admin_qualifier_match("", "")
         assert not _admin_qualifier_match("the", "el")
         assert not _admin_qualifier_match("department", "departamento")
+
+
+class TestAccentFoldingHelpers:
+    """#1811 — pure-function tests for diacritic folding + the
+    normalized identity key that collapses near-duplicate names."""
+
+    def test_fold_accents_strips_diacritics(self):
+        from fichero.workflows.tools._entity_writer import _fold_accents
+
+        assert _fold_accents("Peña") == "Pena"
+        assert _fold_accents("Bogotá") == "Bogota"
+        assert _fold_accents("Chocó") == "Choco"
+        # No diacritics → unchanged.
+        assert _fold_accents("San Pablo") == "San Pablo"
+
+    def test_normalized_match_key_collapses_variants(self):
+        from fichero.workflows.tools._entity_writer import _normalized_match_key
+
+        # Accents fold together.
+        assert _normalized_match_key("Peña") == _normalized_match_key("Pena")
+        # Trailing punctuation + case noise removed.
+        assert _normalized_match_key("San Pablo.") == _normalized_match_key("san pablo")
+        # Articles + admin-qualifier suffixes stripped.
+        assert _normalized_match_key("the Chocó") == _normalized_match_key("Choco")
+        assert _normalized_match_key("Chocó department") == _normalized_match_key("Choco")
+
+    def test_normalized_match_key_keeps_distinct_names_distinct(self):
+        from fichero.workflows.tools._entity_writer import _normalized_match_key
+
+        # Different place names must NOT share a key.
+        assert _normalized_match_key("San Pablo") != _normalized_match_key("San Juan")
+        # "Chocó River" keeps the non-admin qualifier — distinct from the
+        # department.
+        assert _normalized_match_key("Chocó River") != _normalized_match_key("Chocó")
+
+
+class TestFuzzyMatchAccentAware:
+    """#1811 — `_fuzzy_match_existing` must surface accent / trivial-typo
+    / article variants as the SAME entity, while keeping genuinely
+    distinct names apart (high precision, no over-merge)."""
+
+    def _ent(self, name: str) -> KnowledgeEntity:
+        return KnowledgeEntity(canonical_name=name, entity_type=EntityType.location)
+
+    def test_accent_variant_matches(self):
+        # "Peña" vs "Pena" scored 0.75 via raw SequenceMatcher (below the
+        # 0.78 threshold) and used to create a duplicate. Folding makes
+        # them identical.
+        from fichero.workflows.tools._entity_writer import _fuzzy_match_existing
+
+        existing = [self._ent("Pena")]
+        match = _fuzzy_match_existing(existing, "Peña")
+        assert match is not None
+        assert match.canonical_name == "Pena"
+
+    def test_trivial_suffix_typo_matches(self):
+        from fichero.workflows.tools._entity_writer import _fuzzy_match_existing
+
+        existing = [self._ent("San Pablo")]
+        match = _fuzzy_match_existing(existing, "San Pabloo")
+        assert match is not None
+        assert match.canonical_name == "San Pablo"
+
+    def test_article_variant_matches(self):
+        from fichero.workflows.tools._entity_writer import _fuzzy_match_existing
+
+        existing = [self._ent("Atrato")]
+        match = _fuzzy_match_existing(existing, "the Atrato")
+        assert match is not None
+        assert match.canonical_name == "Atrato"
+
+    def test_distinct_names_do_not_match(self):
+        # The critical negative test: distinct places must stay distinct.
+        from fichero.workflows.tools._entity_writer import _fuzzy_match_existing
+
+        existing = [self._ent("San Pablo")]
+        assert _fuzzy_match_existing(existing, "San Juan") is None
+
+
+class TestAccentDedupIntegration:
+    """#1811 — end-to-end through `upsert_entity`: accent variants
+    collapse onto one row; distinct names stay separate.
+
+    The embedding stage (Stage 2) is disabled so these tests isolate the
+    *deterministic* accent-folding path this change touches. Without that
+    isolation the semantic embedder can independently merge (or, for
+    'San Pablo'/'San Juan', over-merge) names regardless of surface form,
+    which would mask whether the folding fix is what collapses the dupes.
+    """
+
+    @staticmethod
+    def _disable_embeddings(monkeypatch):
+        from fichero.kg import entity_vectors
+
+        monkeypatch.setattr(entity_vectors, "find_similar", lambda **_: [])
+        monkeypatch.setattr(entity_vectors, "index_entity", lambda **_: None)
+
+    def test_accent_variants_collapse_to_one_entity(self, db, monkeypatch):
+        self._disable_embeddings(monkeypatch)
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db, canonical_name="Peña", entity_type=EntityType.person
+        )
+        second = upsert_entity(
+            db, canonical_name="Pena", entity_type=EntityType.person
+        )
+        assert first == second
+        rows = db.query(KnowledgeEntity, entity_type=EntityType.person)
+        assert len(rows) == 1
+
+    def test_typo_suffix_collapses_to_one_entity(self, db, monkeypatch):
+        self._disable_embeddings(monkeypatch)
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db, canonical_name="San Pablo", entity_type=EntityType.location
+        )
+        second = upsert_entity(
+            db, canonical_name="San Pabloo", entity_type=EntityType.location
+        )
+        assert first == second
+
+    def test_distinct_places_stay_separate(self, db, monkeypatch):
+        self._disable_embeddings(monkeypatch)
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        san_pablo = upsert_entity(
+            db, canonical_name="San Pablo", entity_type=EntityType.location
+        )
+        san_juan = upsert_entity(
+            db, canonical_name="San Juan", entity_type=EntityType.location
+        )
+        assert san_pablo != san_juan
+        rows = db.query(KnowledgeEntity, entity_type=EntityType.location)
+        assert len(rows) == 2

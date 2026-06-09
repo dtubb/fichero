@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+import unicodedata
 from functools import wraps
 from typing import Optional
 
@@ -264,10 +265,38 @@ _ADMIN_PREFIXES = frozenset({
 })
 
 
+def _fold_accents(s: str) -> str:
+    """Strip diacritics so "Peña" folds onto "Pena" (#1811).
+
+    NFKD-decompose then drop the combining marks. Case is left to the
+    caller (token helpers lowercase separately). Folding is deliberately
+    accent-only — it does NOT transliterate (ñ→n is a side effect of
+    decomposition, but ß/ø/đ that have no canonical decomposition are
+    left intact rather than guessed at), keeping the transform lossless
+    enough that distinct names ("Müller" vs "Mahler") don't collide.
+    """
+    decomposed = unicodedata.normalize("NFKD", s)
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+
+
 def _tokenise_lower(s: str) -> list[str]:
     """Split a name into lowercase alphanumeric tokens."""
     cleaned = "".join(c if c.isalnum() or c.isspace() else " " for c in s.lower())
     return [tok for tok in cleaned.split() if tok]
+
+
+def _normalized_match_key(name: str) -> str:
+    """Conservative high-precision identity key for a name (#1811).
+
+    Accent-fold, lowercase, strip punctuation/whitespace, drop leading
+    articles and trailing admin-subdivision qualifiers, then re-join.
+    Two names with the same key are the *same* entity for matching
+    purposes — this captures accent variants ("Peña"/"Pena"), trailing
+    punctuation ("San Pablo."), case, and article/qualifier noise
+    ("the X"/"X department") without any fuzzy tolerance, so it never
+    collapses genuinely distinct names ("San Pablo" vs "San Juan").
+    """
+    return " ".join(_strip_admin_qualifiers(_tokenise_lower(_fold_accents(name))))
 
 
 def _strip_admin_qualifiers(tokens: list[str]) -> list[str]:
@@ -301,8 +330,12 @@ def _admin_qualifier_match(a: str, b: str) -> bool:
                                            upsert's type-conflict check;
                                            this is name-only)
     """
-    core_a = _strip_admin_qualifiers(_tokenise_lower(a))
-    core_b = _strip_admin_qualifiers(_tokenise_lower(b))
+    # Accent-fold (#1811) so "Peña" / "Pena department" reduce to the
+    # same core tokens. Folding happens here rather than in
+    # `_tokenise_lower` so the tokeniser's surface-preserving contract
+    # (used elsewhere) is unchanged.
+    core_a = _strip_admin_qualifiers(_tokenise_lower(_fold_accents(a)))
+    core_b = _strip_admin_qualifiers(_tokenise_lower(_fold_accents(b)))
     return bool(core_a) and core_a == core_b
 
 
@@ -354,19 +387,35 @@ def _fuzzy_match_existing(
     if not canonical_name or not existing:
         return None
 
-    # Normalise: lower, drop punctuation. Token-set similarity is
-    # more forgiving of reordering than raw SequenceMatcher.ratio.
+    # Normalise: accent-fold (#1811), lower, drop punctuation. Token-set
+    # similarity is more forgiving of reordering than raw
+    # SequenceMatcher.ratio. Diacritic folding makes "Peña"/"Pena" and
+    # "Bogotá"/"Bogota" score as identical instead of 0.75 (which fell
+    # under the 0.78 threshold and silently created near-duplicates).
     def _tokens(s: str) -> set[str]:
-        cleaned = "".join(c if c.isalnum() or c.isspace() else " " for c in s.lower())
+        folded = _fold_accents(s.lower())
+        cleaned = "".join(c if c.isalnum() or c.isspace() else " " for c in folded)
         return {tok for tok in cleaned.split() if len(tok) > 2}
 
+    # High-precision short-circuit: identical normalized identity key
+    # (accent/case/punctuation/article/admin-qualifier folded) is a
+    # guaranteed-safe merge — no fuzzy tolerance, so distinct names
+    # can never collide here.
+    needle_key = _normalized_match_key(canonical_name)
+    if needle_key:
+        for ent in existing:
+            if _normalized_match_key(ent.canonical_name) == needle_key:
+                return ent
+
     needle_tokens = _tokens(canonical_name)
-    needle_lower = canonical_name.lower()
+    needle_lower = _fold_accents(canonical_name.lower())
 
     best: tuple[float, Optional[KnowledgeEntity]] = (0.0, None)
     for ent in existing:
         # Two metrics, take the max so either signal can hit threshold.
-        seq_ratio = SequenceMatcher(None, needle_lower, ent.canonical_name.lower()).ratio()
+        seq_ratio = SequenceMatcher(
+            None, needle_lower, _fold_accents(ent.canonical_name.lower())
+        ).ratio()
         ent_tokens = _tokens(ent.canonical_name)
         if needle_tokens and ent_tokens:
             intersection = len(needle_tokens & ent_tokens)
