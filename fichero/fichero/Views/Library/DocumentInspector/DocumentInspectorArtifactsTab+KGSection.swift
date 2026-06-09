@@ -34,7 +34,7 @@ struct KnowledgeGraphInspectorSection: View {
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
     @Environment(KGFocusState.self) private var kgFocusState
-    @StateObject private var loadState = KnowledgeGraphInspectorLoadState()
+    @State private var loadState = KnowledgeGraphInspectorLoadState()
     @State private var claimSelection: Set<String> = []
     @State private var claimSelectionAnchor: String?
     @State private var isApplyingBulkAction = false

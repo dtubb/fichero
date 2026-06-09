@@ -35,8 +35,8 @@ struct SidebarView: View {
     @StateObject var sidebarState: SidebarState
 
     // Rename and delete state (internal for extension access)
-    @StateObject var renameState = RenameStateManager()
-    @StateObject var deleteState = DeleteStateManager()
+    @State var renameState = RenameStateManager()
+    @State var deleteState = DeleteStateManager()
 
     // Cached sidebar items - rebuilt when service data changes (via Combine observers)
     @State var cachedLibraryHeaders: [SidebarItem] = []

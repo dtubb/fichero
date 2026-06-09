@@ -1,4 +1,7 @@
+import OSLog
 import SwiftUI
+
+private let sidebarExtLogger = Logger(subsystem: "app.fichero.fichero", category: "SidebarExtensions")
 
 // MARK: - Sidebar Bottom Toolbar
 
@@ -188,7 +191,7 @@ extension View {
 }
 
 private struct SidebarDeleteAlertsModifier: ViewModifier {
-    @ObservedObject var deleteState: DeleteStateManager
+    @Bindable var deleteState: DeleteStateManager
     let performDelete: @MainActor (SidebarItem) async -> Void
 
     // `confirmationDialog` is more reliable than `.alert(presenting:)`
@@ -314,7 +317,7 @@ extension View {
                 }
             case .failure(let error):
                 // Log but don't show error - user cancelled or other benign issue
-                print("File import cancelled or failed: \(error.localizedDescription)")
+                sidebarExtLogger.debug("File import cancelled or failed: \(error.localizedDescription)")
             }
         }
     }

@@ -7,12 +7,13 @@ import SwiftUI
 /// This class handles macOS security-scoped bookmarks to persist folder access permissions
 /// across app launches. Required for accessing files outside the app's sandbox.
 @MainActor
-class FolderAccessManager: ObservableObject {
+@Observable
+class FolderAccessManager {
     static let shared = FolderAccessManager()
 
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "FolderAccess")
     private let bookmarksKey = "FolderAccessBookmarks"
-    @Published private(set) var accessedFolders: [URL] = []
+    private(set) var accessedFolders: [URL] = []
 
     private init() {
         restoreBookmarks()

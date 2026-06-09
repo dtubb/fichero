@@ -1,11 +1,12 @@
 import SwiftUI
 
 /// Manages rename state for sidebar items.
-/// Use @StateObject in parent view, pass as @ObservedObject to children.
+/// Use @State in parent view, pass as @Bindable to children.
 @MainActor
-class RenameStateManager: ObservableObject {
-    @Published var renamingItemId: String?
-    @Published var editingName: String = ""
+@Observable
+class RenameStateManager {
+    var renamingItemId: String?
+    var editingName: String = ""
 
     func startRename(itemId: String, currentName: String) {
         renamingItemId = itemId
@@ -19,13 +20,14 @@ class RenameStateManager: ObservableObject {
 }
 
 /// Manages delete confirmation state for sidebar items.
-/// Use @StateObject in parent view, pass as @ObservedObject to children.
+/// Use @State in parent view, pass as @Bindable to children.
 @MainActor
-class DeleteStateManager: ObservableObject {
-    @Published var showingDeleteConfirmation = false
-    @Published var showingDeleteError = false
-    @Published var itemToDelete: SidebarItem?
-    @Published var deleteErrorMessage = ""
+@Observable
+class DeleteStateManager {
+    var showingDeleteConfirmation = false
+    var showingDeleteError = false
+    var itemToDelete: SidebarItem?
+    var deleteErrorMessage = ""
 
     func showDeleteConfirmation(for item: SidebarItem) {
         itemToDelete = item

@@ -305,7 +305,7 @@ private struct DocumentInspectorImageEditsTab: View {
     let document: Document
 
     @EnvironmentObject private var apiClient: APIClient
-    @StateObject private var model = ImageEditorModel()
+    @State private var model = ImageEditorModel()
 
     var body: some View {
         VStack(spacing: 0) {

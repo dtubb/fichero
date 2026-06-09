@@ -14,7 +14,8 @@ enum KGGraphRendererFramework: String {
 }
 
 @MainActor
-final class DocumentScrollSyncState: ObservableObject {
+@Observable
+final class DocumentScrollSyncState {
     enum Pane {
         case pdf
         case web
@@ -109,7 +110,7 @@ struct DocumentKGSurface: View {
     var activePageNumber: Int?
     var pageCount: Int?
     var onPageSelected: (Int) -> Void = { _ in }
-    @ObservedObject var scrollSync: DocumentScrollSyncState
+    var scrollSync: DocumentScrollSyncState
 
     @State private var activeTab: KGSurfaceTab = .transcript
     @Environment(KGFocusState.self) private var kgFocusState

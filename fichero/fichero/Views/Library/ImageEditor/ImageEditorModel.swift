@@ -12,25 +12,26 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "ImageEd
 /// backend op, refresh the chain, then re-render the *edited* preview so the
 /// canvas reflects the new chain immediately.
 @MainActor
-final class ImageEditorModel: ObservableObject {
+@Observable
+final class ImageEditorModel {
     /// Currently displayed preview (original or edited, per `showEdited`).
-    @Published var preview: PreviewImage?
+    var preview: PreviewImage?
     /// Cached original preview (apply_edits=false) for A/B compare UI.
-    @Published var originalPreview: PreviewImage?
+    var originalPreview: PreviewImage?
     /// Cached edited preview (apply_edits=true) for A/B compare UI.
-    @Published var editedPreview: PreviewImage?
+    var editedPreview: PreviewImage?
     /// The document's saved edit chain.
-    @Published var chain: ImageEditChain
+    var chain: ImageEditChain
     /// #469 toggle — false shows the untouched source, true shows the chain applied.
-    @Published var showEdited: Bool = true
+    var showEdited: Bool = true
     /// 1-indexed page (PDF documents); always 1 for single images.
-    @Published var page: Int = 1
+    var page: Int = 1
     /// True while any op / load is in flight (drives the busy overlay + disables controls).
-    @Published var isBusy: Bool = false
-    @Published var errorMessage: String?
+    var isBusy: Bool = false
+    var errorMessage: String?
     /// Bidirectional selection between inspector and canvas (#1420).
     /// The inspector highlights this step; the canvas could show an overlay handle.
-    @Published var selectedStepIndex: Int?
+    var selectedStepIndex: Int?
 
     private var service: ImageEditingServiceGenerated?
     private(set) var documentId: String = ""

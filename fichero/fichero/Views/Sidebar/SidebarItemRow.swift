@@ -65,8 +65,8 @@ struct SidebarItemRow: View {
     let allCachedItems: [SidebarItem]
     @Binding var expandedItems: Set<String>
     @Binding var selectedItemId: String?
-    @ObservedObject var renameState: RenameStateManager
-    @ObservedObject var deleteState: DeleteStateManager
+    @Bindable var renameState: RenameStateManager
+    @Bindable var deleteState: DeleteStateManager
     @ObservedObject var libraryManager: LibraryManager
 
     @Environment(WorkflowExecutionObserver.self) var executionObserver

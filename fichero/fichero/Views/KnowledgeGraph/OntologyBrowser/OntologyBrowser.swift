@@ -18,14 +18,14 @@ struct OntologyBrowser: View {
     @Environment(KGFocusState.self) var kgFocusState
     /// Finder-style Open in New Tab / New Window for ontology rows (#1685).
     @Environment(\.openWindow) var openWindow
-    @StateObject var loadState = OntologyBrowserLoadState()
+    @State var loadState = OntologyBrowserLoadState()
     @SceneStorage("ontology.selectedEntityId") var selectedEntityId: String?
     @State var navHistory = NavigationHistoryManager()
     @State var isNavigatingHistory = false
     @State var searchText = ""
     @State var isSearching = false
     @State var isDateBucketExpanded = false
-    @StateObject var graphScrollSync = DocumentScrollSyncState()
+    @State var graphScrollSync = DocumentScrollSyncState()
 
     /// Swap the detail pane between entity-claims view (default) and a
     /// force-directed graph over the filtered entity set. (#902, partial #889)

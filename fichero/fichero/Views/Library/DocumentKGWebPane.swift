@@ -178,7 +178,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
     var activePageNumber: Int?
     var pageCount: Int?
     var onPageSelected: (Int) -> Void = { _ in }
-    @ObservedObject var scrollSync: DocumentScrollSyncState
+    var scrollSync: DocumentScrollSyncState
     @Environment(KGFocusState.self) private var kgFocusState
 
     func makeCoordinator() -> Coordinator {

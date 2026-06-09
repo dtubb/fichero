@@ -29,7 +29,7 @@ struct ImageEditorView: View {
 
     @EnvironmentObject private var apiClient: APIClient
     @EnvironmentObject private var documentStore: DocumentStore
-    @StateObject private var model = ImageEditorModel()
+    @State private var model = ImageEditorModel()
 
     /// Document currently loaded in the editor. Seeded from `document` and
     /// updated by prev/next so the canvas follows even when the host doesn't
