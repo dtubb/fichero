@@ -7,6 +7,7 @@ but not wired/enforced · ❌ not built yet (issue filed).
 ## Architecture / observable pattern
 - ✅ **Endpoints are used** — no dead routes (`check_endpoint_usage.py`, #1920)
 - ✅ **No direct endpoint calls in SwiftUI** — views go through @Observable stores (`check_view_endpoint_access.py`, #1911)
+- ✅ **Observer-pattern ratchet** — flag legacy @EnvironmentObject/@StateObject/direct-library access in Views (`check_observer_pattern.py`, #1851/#1875)
 - ✅ **Logic in backend, no raw SQL outside db.py** (`test_db_access_guardrail.py`, #1876)
 - ✅ **CLI ↔ SwiftUI ↔ OpenAPI** consume the same contract (`validate_model_sync.py` + endpoint matrix)
 - ⏳ **Completeness matrices** — endpoint×{store,cli,swift}, undo coverage, CRUD per entity, action×{menu,context-menu,toolbar,keyboard} (#1925)
