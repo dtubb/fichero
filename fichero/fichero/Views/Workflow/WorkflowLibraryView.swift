@@ -13,7 +13,7 @@ enum WorkflowLibraryTab: String, CaseIterable {
 
 // View for browsing and managing saved workflows and workflow chains
 struct WorkflowLibraryView: View {
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
     @EnvironmentObject var apiClient: APIClient
     @State private var selectedTab: WorkflowLibraryTab = .workflows
 
@@ -49,7 +49,7 @@ struct WorkflowLibraryView: View {
 // View for browsing and managing saved workflows
 // swiftlint:disable:next type_body_length
 struct WorkflowListView: View {
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
     @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated
     @State private var searchText = ""
     @State private var selectedWorkflowId: String?
@@ -546,6 +546,6 @@ struct WorkflowListView: View {
 #Preview {
     let ficheroClient = FicheroClient(libraryPath: "/tmp/preview.fichero")
     return WorkflowLibraryView(displayMode: .list)
-        .environmentObject(WorkflowStore(ficheroClient: ficheroClient))
+        .environment(WorkflowStore(ficheroClient: ficheroClient))
         .environmentObject(WorkflowServiceGenerated(ficheroClient: ficheroClient))
 }

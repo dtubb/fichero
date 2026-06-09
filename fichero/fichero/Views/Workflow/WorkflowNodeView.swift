@@ -14,7 +14,7 @@ struct WorkflowNodeView: View {
     var onInputPortDetach: ((PortInfo, String) -> Void)?  // Detach from connected input
     var executionState: NodeExecutionState?  // Optional execution state for progress display
     @ObservedObject private var featureManager = FeatureManager.shared
-    @EnvironmentObject private var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) private var workflowStore
 
     private let width: CGFloat = 140
     private let height: CGFloat = 100

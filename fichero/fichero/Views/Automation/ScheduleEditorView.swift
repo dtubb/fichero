@@ -7,7 +7,7 @@ let scheduleEditorLogger = Logger(subsystem: "app.fichero.fichero", category: "S
 /// Similar to workflow canvas - used instead of dialog sheets
 struct ScheduleEditorView: View {
     @EnvironmentObject var apiClient: APIClient
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
 
     /// Existing schedule to edit, or nil for new schedule creation
     let existingSchedule: ScheduleInfo?
@@ -136,6 +136,6 @@ struct ScheduleEditorView: View {
 
     ScheduleEditorView(existingSchedule: nil)
         .environmentObject(library.automationService)
-        .environmentObject(library.workflowStore)
+        .environment(library.workflowStore)
         .frame(width: 600, height: 500)
 }

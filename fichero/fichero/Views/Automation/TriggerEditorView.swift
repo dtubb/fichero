@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Trigger
 /// Similar to workflow canvas - used instead of dialog sheets
 struct TriggerEditorView: View {
     @EnvironmentObject var apiClient: APIClient
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
 
     /// Existing trigger to edit, or nil for new trigger creation
     let existingTrigger: TriggerInfo?
@@ -216,6 +216,6 @@ struct TriggerEditorView: View {
 
     TriggerEditorView(existingTrigger: nil)
         .environmentObject(library.automationService)
-        .environmentObject(library.workflowStore)
+        .environment(library.workflowStore)
         .frame(width: 700, height: 600)
 }

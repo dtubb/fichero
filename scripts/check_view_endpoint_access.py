@@ -83,17 +83,13 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "ModelComparison/NodeComparisonSheet.swift": "#1900 — @StateObject ModelComparisonService()",
     "Library/NodeClassPicker.swift": "#1886 — @StateObject WorkspacePickerService()",
     "Library/WorkspaceItemPicker.swift": "#1886 — @StateObject WorkspacePickerService()",
-    "Library/DocumentInspector/DocumentInspectorAnnotationsTab.swift": "#1883 — @StateObject AnnotationService()",
-    "Library/DocumentInspector/DocumentNotesTab.swift": "#1882 — @StateObject NoteService()",
-    "Library/ImageEditor/ImageEditorView.swift": "#1883 — @StateObject AnnotationService()",
-    "KnowledgeGraph/OntologyBrowser/EntityDetailView+Notes.swift": "#1889 — @StateObject NoteService()",
     "Integrations/IntegrationsView.swift": "#1899 — @StateObject IntegrationsService()",
-    "Notes/NotesBrowserView.swift": "#1882 — @StateObject NoteService()",
-    "Workflow/WorkflowExecutionView.swift": "#1892 — @StateObject WorkflowExecutionService()",
     # client.api.* called directly from the view (raw transport)
     "Settings/LocalModelsSettingsView.swift": "#1894 — client.api.* local-models calls in view",
     "Chat/ComparisonDetailView+Actions.swift": "#1900 — client.api.getComparison… in view",
-    "Workflow/WorkflowDiagramPreview.swift": "#1893 — client.api.getWorkflowCode… in view",
+    # Migrated to stores (de-baselined): WorkflowDiagramPreview + WorkflowExecutionView
+    # → WorkflowStore (#1911); Notes/Annotation tabs + ImageEditor + EntityDetail+Notes
+    # → NoteStore/AnnotationStore (#1882/#1883/#1889).
 }
 
 # ── Comment / preview stripping ──────────────────────────────────────────────

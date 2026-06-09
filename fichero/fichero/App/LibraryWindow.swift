@@ -49,7 +49,7 @@ struct LibraryWindow: View {
                 .environmentObject(library.searchService)
                 .environmentObject(library.conversationServiceGenerated)
                 .environmentObject(library.chatServiceGenerated)
-                .environmentObject(library.workflowStore)
+                .environment(library.workflowStore)
                 .environmentObject(library.workflowServiceGenerated)
                 .environmentObject(library.workflowStreamService)
                 .environmentObject(library.importService)

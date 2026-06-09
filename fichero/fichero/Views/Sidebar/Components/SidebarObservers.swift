@@ -37,12 +37,11 @@ extension SidebarView {
                 .sink { _ in rebuildCaches() }
                 .store(in: &cancellables)
 
-            // Observe workflow changes - use $workflows which fires AFTER mutation
-            library.workflowStore.$workflows
-                .dropFirst()
-                .receive(on: RunLoop.main)
-                .sink { _ in rebuildCaches() }
-                .store(in: &cancellables)
+            // Observe workflow changes. WorkflowStore is now @Observable (#1911),
+            // so it has no Combine `$workflows` publisher — use Observation
+            // tracking, re-armed after each fire, to mirror the old behaviour
+            // (rebuild caches AFTER a workflow mutation completes).
+            observeWorkflowStore(library.workflowStore)
         }
 
         // Observe chain changes (global ChainService)
@@ -53,6 +52,20 @@ extension SidebarView {
                 chains = newChains
             }
             .store(in: &cancellables)
+    }
+
+    /// Observe an @Observable WorkflowStore's `workflows` array and rebuild the
+    /// sidebar caches when it changes. `withObservationTracking` fires once, so
+    /// we re-arm it on each change to keep observing for the view's lifetime.
+    func observeWorkflowStore(_ store: WorkflowStore) {
+        withObservationTracking {
+            _ = store.workflows
+        } onChange: {
+            Task { @MainActor in
+                rebuildCaches()
+                observeWorkflowStore(store)
+            }
+        }
     }
 
     /// Load automation data (schedules and triggers)

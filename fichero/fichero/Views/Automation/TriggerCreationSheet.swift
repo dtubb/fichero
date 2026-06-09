@@ -6,7 +6,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Trigger
 /// Sheet for creating a new file trigger
 struct TriggerCreationSheet: View {
     @EnvironmentObject var apiClient: APIClient
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""

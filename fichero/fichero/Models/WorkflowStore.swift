@@ -1,27 +1,33 @@
+import AppKit
 import FicheroAPIClient
 import Foundation
+import Observation
 import OSLog
-import SwiftUI
 
 // swiftlint:disable file_length
 
 // Store for managing workflows with backend persistence
 @MainActor
+@Observable
 // swiftlint:disable:next type_body_length
-class WorkflowStore: ObservableObject {
-    @Published var workflows: [WorkflowSidebarItem] = []
-    @Published var selectedWorkflow: WorkflowSidebarItem?
-    @Published var isLoading = false
-    @Published var isSaving = false
-    @Published var isConnected = false
-    @Published var error: Error?
+final class WorkflowStore: ChangeEventConsumer {
+    private(set) var workflows: [WorkflowSidebarItem] = []
+    private(set) var selectedWorkflow: WorkflowSidebarItem?
+    private(set) var isLoading = false
+    private(set) var isSaving = false
+    private(set) var isConnected = false
+    private(set) var error: Error?
 
     /// Cached backend tool metadata, keyed by lowercased tool name. Populated
     /// by `loadWorkflows()` so the canvas's `WorkflowNodeView` can render the
     /// correct icon/color for any registered tool — palette and graph share
     /// one source of truth (#725). Empty until first successful load; views
     /// fall back to a hardcoded dictionary for unknown tools.
-    @Published var toolRegistry: [String: ToolInfo] = [:]
+    private(set) var toolRegistry: [String: ToolInfo] = [:]
+
+    /// Bumped when a `workflow.*` change event arrives so interested views can
+    /// invalidate their cached workflow-dependent UI.
+    private(set) var changeToken: Int = 0
 
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowStore")
     private let workflowService: WorkflowServiceGenerated
@@ -103,6 +109,25 @@ class WorkflowStore: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    func fetchWorkflowDiagramImage(_ workflowId: String) async throws -> NSImage? {
+        try await workflowService.fetchDiagramImage(workflowId: workflowId)
+    }
+
+    func fetchWorkflowPythonCode(_ workflowId: String) async throws -> String? {
+        let response = try await ficheroClient.api.getWorkflowCodeApiWorkflowExecutionWorkflowsWorkflowIdCodeGet(.init(
+            path: .init(workflowId: workflowId),
+            headers: .init(xFicheroLibraryPath: ficheroClient.currentLibraryPath ?? "")
+        ))
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.pythonCode
+        case .unprocessableContent:
+            throw WorkflowStoreError.executionFailed("Validation error")
+        case .undocumented(let statusCode, _):
+            throw WorkflowStoreError.executionFailed("Failed to load code (HTTP \(statusCode))")
+        }
     }
 
     func saveWorkflow(_ workflow: WorkflowDefinition) async throws -> WorkflowSidebarItem {
@@ -410,6 +435,10 @@ class WorkflowStore: ObservableObject {
 
     // MARK: - Workflow Execution
 
+    // @ObservationIgnored: a lazily-built transport, not observable UI state.
+    // @Observable would otherwise try to wrap this `lazy var` in an init
+    // accessor, which is illegal on a computed/lazy property.
+    @ObservationIgnored
     private lazy var executionService: WorkflowExecutionService = {
         WorkflowExecutionService(libraryPath: ficheroClient.currentLibraryPath)
     }()
@@ -479,6 +508,18 @@ class WorkflowStore: ObservableObject {
             self.error = error
             throw error
         }
+    }
+
+    // MARK: - ChangeEventConsumer
+
+    nonisolated var changeDomains: Set<String> { ["workflow"] }
+
+    func apply(_ event: ChangeEvent) {
+        changeToken &+= 1
+    }
+
+    func resync() async {
+        await loadWorkflows()
     }
 }
 

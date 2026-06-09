@@ -1,4 +1,3 @@
-import FicheroAPIClient
 import SwiftUI
 
 /// Sheet view showing the LangGraph visualization and Python code for a workflow
@@ -7,7 +6,7 @@ struct WorkflowDiagramPreview: View {
     let workflowName: String
     @Binding var isPresented: Bool
 
-    @EnvironmentObject var apiClient: APIClient
+    @Environment(WorkflowStore.self) var workflowStore
 
     @State private var diagramImage: NSImage?
     @State private var pythonCode: String?
@@ -165,10 +164,7 @@ struct WorkflowDiagramPreview: View {
 
     private func loadDiagram() async {
         do {
-            // Route the binary PNG fetch through the typed workflow service
-            // (#1893) — no hand-built URL or raw URLSession in the view.
-            let service = WorkflowServiceGenerated(ficheroClient: makeGeneratedClient())
-            diagramImage = try await service.fetchDiagramImage(workflowId: workflowId)
+            diagramImage = try await workflowStore.fetchWorkflowDiagramImage(workflowId)
         } catch {
             // Diagram loading failure is not fatal
         }
@@ -176,35 +172,19 @@ struct WorkflowDiagramPreview: View {
 
     private func loadCode() async {
         do {
-            // Route the JSON code fetch through the generated client (#1714).
-            let client = makeGeneratedClient()
-            let response = try await client.api.getWorkflowCodeApiWorkflowExecutionWorkflowsWorkflowIdCodeGet(.init(
-                path: .init(workflowId: workflowId),
-                headers: .init(xFicheroLibraryPath: apiClient.currentLibraryPath ?? "")
-            ))
-            switch response {
-            case .ok(let okResponse):
-                pythonCode = try okResponse.body.json.pythonCode
-            case .unprocessableContent:
-                self.error = "Validation error"
-            case .undocumented(let statusCode, _):
-                self.error = "Failed to load code (HTTP \(statusCode))"
-            }
+            pythonCode = try await workflowStore.fetchWorkflowPythonCode(workflowId)
         } catch {
-            // Code loading failure sets error only if diagram also failed
-            if diagramImage == nil {
+            guard diagramImage == nil else { return }
+            if let storeError = error as? WorkflowStoreError {
+                switch storeError {
+                case .executionFailed(let message):
+                    self.error = message
+                default:
+                    self.error = error.localizedDescription
+                }
+            } else {
                 self.error = error.localizedDescription
             }
         }
-    }
-
-    /// Build a generated client from the injected `APIClient` host + library path.
-    /// `apiClient.baseURL` carries the `/api` suffix; FicheroClient expects the host
-    /// root (openapi paths already include `/api`), so strip the path here.
-    private func makeGeneratedClient() -> FicheroClient {
-        var components = URLComponents(url: apiClient.baseURL, resolvingAgainstBaseURL: false)
-        components?.path = ""
-        let host = components?.url ?? apiClient.baseURL
-        return FicheroClient(baseURL: host, libraryPath: apiClient.currentLibraryPath)
     }
 }

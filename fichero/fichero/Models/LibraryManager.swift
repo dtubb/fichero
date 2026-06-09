@@ -139,6 +139,7 @@ class LibraryManager: ObservableObject {
             stream.register(self.actionStore)
             stream.register(self.researchStore)
             stream.register(self.searchStore)
+            stream.register(self.workflowStore)
             return stream
         }()
 

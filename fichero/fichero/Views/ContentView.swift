@@ -51,7 +51,7 @@ struct ContentView: View {
     @EnvironmentObject var conversationService: ConversationServiceGenerated
     @EnvironmentObject var importService: ImportServiceGenerated
     @EnvironmentObject var windowState: WindowState
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
     @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
@@ -397,6 +397,9 @@ struct ContentView: View {
             }
             .onChange(of: viewDisplayMode) { _, newMode in
                 handleViewDisplayModeChange(newMode)
+            }
+            .onChange(of: workflowStore.changeToken) { _, _ in
+                Task { await workflowStore.loadWorkflows() }
             }
             .modifier(
                 MainContentModifiers(

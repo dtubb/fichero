@@ -18,7 +18,7 @@ struct DocumentTabView: View {
     @EnvironmentObject var searchService: SearchServiceGenerated
     @EnvironmentObject var conversationService: ConversationServiceGenerated
     @EnvironmentObject var chatService: ChatServiceGenerated
-    @EnvironmentObject var workflowStore: WorkflowStore
+    @Environment(WorkflowStore.self) var workflowStore
     @EnvironmentObject var importService: ImportServiceGenerated
     @EnvironmentObject var documentService: DocumentServiceGenerated
     @EnvironmentObject var storageService: StorageServiceGenerated
@@ -91,7 +91,7 @@ struct DocumentTabView: View {
                     .environmentObject(searchService)
                     .environmentObject(conversationService)
                     .environmentObject(chatService)
-                    .environmentObject(workflowStore)
+                    .environment(workflowStore)
                     .environmentObject(importService)
                     .environmentObject(documentService)
                     .environmentObject(storageService)
