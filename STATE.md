@@ -1,5 +1,36 @@
 # STATE.md — Fichero
 
+## 2026-06-08 (overnight) — autonomous Mac-assed run (Claude in charge)
+
+**Mode:** Daniel out for the night; I run the loop — dispatch worker batches (claude=frontend, codex-style=backend), build/test-verify each, integrate, dispatch next. Workers in their own worktrees; I build via Xcode MCP + run heavy pytest (one heavy backend lane at a time).
+
+**Landed tonight (each manager-verified — build/test/lint green — pushed to 0.0.2):**
+- `071c9042` inspector tabs → native List + two-step attributes; `3c77cb9f` single-click-select/double-click-open + 2 review HIGHs
+- `8bde477c` backend `list_entities` doc-scoped hot path 316→45ms (~7×, `query_in` parameterized IN)
+- `5e5b708a` EntityDetailView modernize (native List, no emoji, hide raw hash, Liquid Glass, split) + in-place rename
+- `1d3ac1ee` URLSession/print cleanup (DocumentPicker OSLog; LocalModels/WorkspaceItem already migrated)
+- `f9e7a85a` entity dedup #1811 — accent-fold + normalized-key short-circuit (Pena/Peña, San Pablo/San Pabloo)
+- Decisions in `appkit_interop.md`: List-vs-Table, no swipe, edit-via-navigation; `SWIFTUI_PRINCIPLES.md`: Observation-first + data-layer; audit doc `mac_assed_audit_2026.md`.
+- **Closed:** #1811 #1849 #1853 #1860 #1864 #1865 #1877 #1879 #1880. **Filed:** audit #1875 (+29: #1877–1905), guardrails #1876, features #1867–1874, over-merge #1907, +EPICs.
+
+**Hard design rules (in `appkit_interop.md` / `SWIFTUI_PRINCIPLES.md`):**
+- Inspector items = `List` (multi-select, hierarchy, drag-reorder); `Table` only for the multi-column library browser. AppKit NSOutlineView only if List can't reach.
+- **No swipe actions** (not Mac) → context menu + toolbar + keyboard.
+- **Editing is navigation, not modal** — inline rename / push-detail-with-Back, never sheets.
+- Single-click select, double-click open everywhere.
+- Existing view-local `ObservableObject` → `@Observable` IS in scope; god-objects staged.
+- Golden Gate only; no `if #available`.
+
+**Workers running now:** frontend `ae40061f` (remove non-Mac `.swipeActions` from inspector lists #1885 + finish raw-URLSession #1893/#1891/#1902, verify-first); backend `a3e67f30` (embedding over-merge precision gate #1907). On completion: manager build/test-verifies → integrates → dispatches next. **Note:** jcodemunch index is stale — workers must verify-by-reading-disk (caught a false-positive on #1877/#1879).
+
+**Next queued:** finish per-view Mac-assed fixes (#1882-1900); the foundational **observable data-layer** (migrate ~12 `@StateObject service` views to injected `@Observable` stores + backend change-stream #1863 — needs a design pass, it's the keystone); e5 prefixes #1795 (note: needs re-embed consistency); undo #1832; citations tab #1850; feature set #1867-1874.
+
+**Source-of-truth EPICs:** #1859 (Mac-assed/2026 audit S1–S9), #1838 (Mac-assed), #1851 (observers-everywhere), #1863 (backend change-stream, multi-window), #1832 (undo). Audit doc: `docs/architecture/swiftui/mac_assed_audit_2026.md`.
+
+**Next batches queued:** S1 local-path fixes (#1860/#1861), S2 NotificationCenter→@Observable (#1862), S3 @Observable migrations, citations tab (#1850), No-Selection chrome (#1854), horizontal layout (#1856), observers wiring (#1851/#1857), then undo (#1832).
+
+---
+
 ## 2026-06-08 (PM) — Demo + multi-provider extraction session
 
 **Branch:** `0.0.2` at `c29fa52f`, pushed.
