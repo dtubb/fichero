@@ -1,5 +1,14 @@
 # STATE.md — Fichero
 
+## RESET HANDOFF — 2026-06-09 ~2:35pm (CODEX-ONLY; grind mode)
+**0.0.2 @ `5976191b` (pushed).** Manager runs lean; ALL implementation is codex.
+**LANDED since 2:15pm:** #1925 action-surface matrix guardrail · #289/#1398 transcription-fidelity re-apply (preserve uncertainty/diacritics/illegible markers, 108 tests green) · #1960 Source Annotations → native List (FULL build green).
+**RUNTIME FINDINGS (Daniel testing #1943):** entities-list click/select unreliable = WHOLE-LIST RE-RENDER on every edit — root-caused: EntityStore rename/setCuration/merge/delete all `await reload()` (replaces whole array → rebuilds rows → resets selection). Fix in flight (fe/entity-granular-update #1961: granular in-place updates). NEW HARD RULE in memory `no-wholesale-list-rerender`.
+**OBSERVER SWEEP (Daniel: 'review all views for observer pattern'):** audit of 343 views: 76 @EnvironmentObject, 33 LibraryManager-direct, 28 .environmentObject, 11 @StateObject=Service(), 8 client.api-in-view, 7 ObservableObject view-models, 2 Combine $publisher. Grinding down store-by-store (serial — shared registry). Building ratcheting guardrail now.
+**IN FLIGHT:** tmux fichero-workers:entity-granular (#1961 click fix, ~/code/fichero-worktrees/entity-granular) + :observer-guardrail (scripts/ ratchet #1851, ~/code/fichero-worktrees/observer-guardrail).
+**READY FOR DANIEL TO TEST:** #1943 artifacts · #1953 thumbnails · #1960 Source Annotations List · #1961 entities-click (after it lands).
+---
+### (prior handoff 2:15pm)
 ## RESET HANDOFF — 2026-06-09 ~2:15pm (CODEX-ONLY; Claude weekly budget low)
 **0.0.2 @ `a361fa9a` (pushed).** Manager runs lean; ALL implementation is codex.
 **LANDED since 1:20pm:** #1911 WorkflowStore ObservableObject→@Observable + change-stream + 14 consumers + 2 views (FULL Xcode build green; fixed 2 codex misses: @ObservationIgnored lazy service, SidebarObservers `$workflows`→withObservationTracking) · #1925 3 completeness-matrix guardrails (endpoint×{store,cli}, undo, CRUD) · pruned 49 stale orphan worktree-agent/* branches.
