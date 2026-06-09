@@ -644,6 +644,78 @@ class TestSaveClaim:
         )
         assert len(rows) == 1
 
+    def test_claim_svo_dedup_collapses_normalized_near_duplicate(self, db):
+        """#1805: identical SVO keys collapse despite accent/case/punctuation noise."""
+        from fichero.workflows.tools._entity_writer import save_claim, upsert_entity
+
+        entity_id = upsert_entity(
+            db, canonical_name="Peña", entity_type=EntityType.person
+        )
+        first = save_claim(
+            db,
+            text="Peña served as the alcalde of Popayán.",
+            source_document_id="doc_claim_dedup_1",
+            entity_ids=[entity_id],
+            source_page_label="Page 4",
+            subject_canonical="Peña",
+            predicate_verb="served as",
+            object_phrase="the alcalde of Popayán",
+        )
+        second = save_claim(
+            db,
+            text="PENA served as alcalde of Popayan!",
+            source_document_id="doc_claim_dedup_1",
+            entity_ids=[entity_id],
+            source_page_label="Page 4",
+            subject_canonical="Pena",
+            predicate_verb="served as",
+            object_phrase="alcalde of popayan",
+        )
+
+        assert first == second
+        rows = db.query(
+            KnowledgeClaim,
+            source_document_id="doc_claim_dedup_1",
+            source_page_label="Page 4",
+        )
+        assert len(rows) == 1
+
+    def test_claim_svo_dedup_preserves_distinct_claims(self, db):
+        """#1805 negative: shared subject/predicate does not merge different objects."""
+        from fichero.workflows.tools._entity_writer import save_claim, upsert_entity
+
+        entity_id = upsert_entity(
+            db, canonical_name="San Pablo", entity_type=EntityType.location
+        )
+        first = save_claim(
+            db,
+            text="San Pablo was located in Chocó.",
+            source_document_id="doc_claim_dedup_2",
+            entity_ids=[entity_id],
+            source_page_label="Page 8",
+            subject_canonical="San Pablo",
+            predicate_verb="was located in",
+            object_phrase="Chocó",
+        )
+        second = save_claim(
+            db,
+            text="San Pablo was located in Cauca.",
+            source_document_id="doc_claim_dedup_2",
+            entity_ids=[entity_id],
+            source_page_label="Page 8",
+            subject_canonical="San Pablo",
+            predicate_verb="was located in",
+            object_phrase="Cauca",
+        )
+
+        assert first != second
+        rows = db.query(
+            KnowledgeClaim,
+            source_document_id="doc_claim_dedup_2",
+            source_page_label="Page 8",
+        )
+        assert len(rows) == 2
+
     def test_within_page_dedup_does_not_cross_pages(self, db):
         """Same text + same entity on a DIFFERENT page is intentional —
         Davidson can be mentioned on both page 1 and page 2 of the
@@ -1239,6 +1311,32 @@ class TestAccentFoldingHelpers:
         # "Chocó River" keeps the non-admin qualifier — distinct from the
         # department.
         assert _normalized_match_key("Chocó River") != _normalized_match_key("Chocó")
+
+    def test_normalized_claim_svo_key_collapses_surface_variants(self):
+        from fichero.workflows.tools._entity_writer import _normalized_claim_svo_key
+
+        assert _normalized_claim_svo_key(
+            "The Peña",
+            "served as",
+            "the alcalde of Popayán.",
+        ) == _normalized_claim_svo_key(
+            "Pena",
+            "served as",
+            "alcalde of popayan",
+        )
+
+    def test_normalized_claim_svo_key_keeps_distinct_claims_distinct(self):
+        from fichero.workflows.tools._entity_writer import _normalized_claim_svo_key
+
+        assert _normalized_claim_svo_key(
+            "San Pablo",
+            "was located in",
+            "Chocó",
+        ) != _normalized_claim_svo_key(
+            "San Pablo",
+            "was located in",
+            "Cauca",
+        )
 
 
 class TestFuzzyMatchAccentAware:

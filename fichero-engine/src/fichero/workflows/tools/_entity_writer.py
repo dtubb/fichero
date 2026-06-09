@@ -299,6 +299,26 @@ def _normalized_match_key(name: str) -> str:
     return " ".join(_strip_admin_qualifiers(_tokenise_lower(_fold_accents(name))))
 
 
+def _normalized_claim_svo_key(
+    subject: str | None,
+    predicate: str | None,
+    object_phrase: str | None,
+) -> tuple[str, str, str] | None:
+    """High-precision identity key for structured SVO claims (#1805).
+
+    Mirrors the entity normalized key for each SVO component: accent-fold,
+    case-fold, punctuation/whitespace folding, and article/admin-qualifier
+    stripping. It deliberately does not translate or synonym-match; two
+    claims collapse only when all three normalized components are identical.
+    """
+    parts = (
+        _normalized_match_key(subject or ""),
+        _normalized_match_key(predicate or ""),
+        _normalized_match_key(object_phrase or ""),
+    )
+    return parts if all(parts) else None
+
+
 def _strip_admin_qualifiers(tokens: list[str]) -> list[str]:
     """Drop leading articles ('the', 'el', 'la') and trailing
     administrative-subdivision words ('department', 'province').
@@ -906,14 +926,51 @@ def _same_structured_claim(a: KnowledgeClaim, b: KnowledgeClaim) -> bool:
     if set(a.entity_ids) != set(b.entity_ids):
         return False
 
-    a_svo = (a.svo_subject or a.subject_canonical, a.svo_verb, a.svo_object)
-    b_svo = (b.svo_subject or b.subject_canonical, b.svo_verb, b.svo_object)
+    a_svo = (
+        a.svo_subject or a.subject_canonical,
+        a.svo_verb or a.predicate_canonical or a.predicate_verb,
+        a.svo_object or a.object_phrase,
+    )
+    b_svo = (
+        b.svo_subject or b.subject_canonical,
+        b.svo_verb or b.predicate_canonical or b.predicate_verb,
+        b.svo_object or b.object_phrase,
+    )
     if all(a_svo) and all(b_svo):
-        return a_svo == b_svo
+        a_key = _normalized_claim_svo_key(*a_svo)
+        b_key = _normalized_claim_svo_key(*b_svo)
+        return a_key is not None and a_key == b_key
 
     from difflib import SequenceMatcher
 
     return SequenceMatcher(None, a.text, b.text).ratio() >= 0.92
+
+
+def _same_claim_identity(
+    prior: KnowledgeClaim,
+    *,
+    entity_ids: set[str],
+    text: str,
+    svo_subject: str | None,
+    svo_verb: str | None,
+    svo_object: str | None,
+) -> bool:
+    """Return True when an incoming save would duplicate ``prior``."""
+    if set(prior.entity_ids) != entity_ids:
+        return False
+
+    incoming_key = _normalized_claim_svo_key(svo_subject, svo_verb, svo_object)
+    prior_key = _normalized_claim_svo_key(
+        prior.svo_subject or prior.subject_canonical,
+        prior.svo_verb or prior.predicate_canonical or prior.predicate_verb,
+        prior.svo_object or prior.object_phrase,
+    )
+    if incoming_key is not None and prior_key is not None:
+        return incoming_key == prior_key
+
+    from difflib import SequenceMatcher
+
+    return SequenceMatcher(None, prior.text, text).ratio() >= 0.9
 
 
 def _find_cross_source_canonical_claim(
@@ -1615,21 +1672,7 @@ def save_claim(
     Returns ``None`` when a matching `ClaimSuppressionRule` prunes the
     claim at write time.
     """
-    from difflib import SequenceMatcher
-
     entity_ids_set = set(entity_ids or [])
-    if source_page_label and source_document_id:
-        existing = db.query(
-            KnowledgeClaim,
-            source_document_id=source_document_id,
-            source_page_label=source_page_label,
-        )
-        for prior in existing:
-            if set(prior.entity_ids) != entity_ids_set:
-                continue
-            ratio = SequenceMatcher(None, prior.text, text).ratio()
-            if ratio >= 0.9:
-                return prior.id
 
     # Promoted SVO fields (#984): also accept subject/verb/object via
     # the kwargs above; fall back to metadata['subject'/'verb'/'object']
@@ -1639,6 +1682,37 @@ def save_claim(
     sc = subject_canonical or (meta.get("subject") if isinstance(meta.get("subject"), str) else None)
     sv = predicate_verb or (meta.get("verb") if isinstance(meta.get("verb"), str) else None)
     so = object_phrase or (meta.get("object") if isinstance(meta.get("object"), str) else None)
+
+    # Predicate canonicalisation (#1123 Phase C): every claim that
+    # carries a free-text predicate_verb also gets the canonical slug
+    # looked up at write time. Unknown verbs → None (honest absence
+    # over guessed mapping). Callers don't need to import canonical_verb
+    # at every save site; centralising here means new vocabulary
+    # additions in kg/_common.py reach every existing writer for free.
+    from fichero.kg._common import canonical_verb as _canonical_verb
+    pred_canonical = _canonical_verb(sv)
+
+    incoming_svo_subject = svo_subject if svo_subject is not None else sc
+    incoming_svo_verb = svo_verb if svo_verb is not None else pred_canonical
+    incoming_svo_object = svo_object if svo_object is not None else so
+
+    if source_page_label and source_document_id:
+        existing = db.query(
+            KnowledgeClaim,
+            source_document_id=source_document_id,
+            source_page_label=source_page_label,
+        )
+        for prior in existing:
+            if _same_claim_identity(
+                prior,
+                entity_ids=entity_ids_set,
+                text=text,
+                svo_subject=incoming_svo_subject,
+                svo_verb=incoming_svo_verb or sv,
+                svo_object=incoming_svo_object,
+            ):
+                return prior.id
+
     suppression_action = _claim_suppression_action(
         db,
         subject_canonical=sc,
@@ -1661,15 +1735,6 @@ def save_claim(
     elif suppression_action == ClaimSuppressionRuleAction.demote:
         claim_curation_state = ClaimCurationState.rejected
         claim_confidence = min(confidence, 0.2)
-
-    # Predicate canonicalisation (#1123 Phase C): every claim that
-    # carries a free-text predicate_verb also gets the canonical slug
-    # looked up at write time. Unknown verbs → None (honest absence
-    # over guessed mapping). Callers don't need to import canonical_verb
-    # at every save site; centralising here means new vocabulary
-    # additions in kg/_common.py reach every existing writer for free.
-    from fichero.kg._common import canonical_verb as _canonical_verb
-    pred_canonical = _canonical_verb(sv)
 
     # Attribution heuristics (#1123 Phase D): derive speaker / audience /
     # quotation_kind from the claim text + excerpt when not explicitly
@@ -1746,9 +1811,9 @@ def save_claim(
         predicate_verb=sv,
         predicate_canonical=pred_canonical,
         object_phrase=so,
-        svo_subject=svo_subject if svo_subject is not None else sc,
-        svo_verb=svo_verb if svo_verb is not None else pred_canonical,
-        svo_object=svo_object if svo_object is not None else so,
+        svo_subject=incoming_svo_subject,
+        svo_verb=incoming_svo_verb,
+        svo_object=incoming_svo_object,
         # Provider attribution (#1113) — which LLM (and any heuristic
         # post-processing) produced this claim. Surface in the inspector
         # so users can audit per-model claim quality.
