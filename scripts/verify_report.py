@@ -308,6 +308,32 @@ class IssueClient:
         return output.rsplit("/", 1)[-1] if output else "created"
 
 
+def aggregate(violations: list[Violation]) -> list[Violation]:
+    """Roll up per-finding violations into ONE issue per guardrail.
+
+    Why: filing one issue per finding would create hundreds of issues and do
+    hundreds of `gh` searches on every run. We instead emit a single rollup per
+    guardrail with a STABLE fingerprint (location='all', rule='rollup') so a
+    re-run dedups to the same issue and never spams. The body lists the current
+    findings (capped) so the issue stays small and token-cheap.
+    """
+    from collections import OrderedDict
+
+    groups: "OrderedDict[str, list[Violation]]" = OrderedDict()
+    for v in violations:
+        groups.setdefault(v.guardrail, []).append(v)
+
+    rollups: list[Violation] = []
+    for guardrail, items in groups.items():
+        shown = items[:25]
+        lines = [f"- `{v.location}` — {v.rule}: {v.detail}"[:300] for v in shown]
+        if len(items) > len(shown):
+            lines.append(f"- …and {len(items) - len(shown)} more")
+        detail = f"{len(items)} finding(s):\n" + "\n".join(lines)
+        rollups.append(Violation(guardrail, "all", "rollup", detail))
+    return rollups
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
@@ -316,7 +342,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     apply = args.apply
-    violations = collect_violations()
+    violations = aggregate(collect_violations())  # ≤ one rollup issue per guardrail
     client = IssueClient()
 
     known: list[Violation] = []
