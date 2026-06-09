@@ -28,6 +28,7 @@ from fichero.knowledge_models import (
 )
 from fichero.models import Artifact, DocType, Document, FileType, Status
 from fichero.models import DocumentListResponse, DocumentNote, RelatedDocumentListResponse
+from fichero.storage import auto_snapshot_before_risky_operation
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -946,6 +947,11 @@ async def delete_document(
         children = db.query(Document, parent_id=current_id)
         stack.extend(child.id for child in children)
 
+    auto_snapshot_before_risky_operation(
+        x_fichero_library_path,
+        reason=f"Before deleting document subtree {doc_id} ({len(to_delete_ids)} document(s))",
+    )
+
     for current_id in to_delete_ids:
         artifacts = db.query(Artifact, document_id=current_id)
         for artifact in artifacts:
@@ -1273,6 +1279,7 @@ async def move_document(
 @router.post("/cleanup-orphans")
 async def cleanup_orphan_documents(
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
 ) -> OrphanCleanupResponse:
     """Remove unreachable/orphan document rows.
 
@@ -1301,6 +1308,12 @@ async def cleanup_orphan_documents(
 
     orphaned = [item for item in all_docs if item.id not in reachable]
     artifacts_deleted = 0
+
+    if orphaned:
+        auto_snapshot_before_risky_operation(
+            x_fichero_library_path,
+            reason=f"Before cleanup of {len(orphaned)} orphan document(s)",
+        )
 
     for orphan in orphaned:
         artifacts = db.query(Artifact, document_id=orphan.id)

@@ -264,6 +264,8 @@ class SnapshotRestoreResponse(BaseModel):
     library_path: str
     duckdb_restored_path: str | None
     lance_restored_path: str | None
+    duckdb_backup_path: str | None = None
+    lance_backup_path: str | None = None
     note: str
 
 
@@ -344,9 +346,9 @@ async def get_snapshot(snapshot_id: str) -> LibrarySnapshot:
 async def restore_library_snapshot(snapshot_id: str) -> SnapshotRestoreResponse:
     """Restore a library from a snapshot.
 
-    Restoration creates NEW database and vector files alongside the originals.
-    The current library is NOT modified. After restoration, update
-    X-Fichero-Library-Path to point to the restored library to use it.
+    Restoration swaps the captured database and vector files back into the
+    original library package. The pre-restore files are retained with a
+    .pre-restore suffix.
     """
     try:
         result = restore_snapshot(snapshot_id)

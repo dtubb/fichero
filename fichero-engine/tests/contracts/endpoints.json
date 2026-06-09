@@ -1189,6 +1189,18 @@
         "response_model": "ChainExecutionResponse"
       }
     ],
+    "changes": [
+      {
+        "method": "GET",
+        "path": "/changes/stream",
+        "operation_id": "stream_library_changes_api_changes_stream_get",
+        "summary": "Stream Library Changes",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
     "chat": [
       {
         "method": "POST",

@@ -949,6 +949,7 @@ from fichero.storage_snapshots import (  # noqa: F401, E402 (re-exported)
     _load_all_snapshot_records,
     _save_snapshot_record,
     _snapshot_records_path,
+    auto_snapshot_before_risky_operation,
     delete_snapshot,
     list_snapshots,
     restore_snapshot,

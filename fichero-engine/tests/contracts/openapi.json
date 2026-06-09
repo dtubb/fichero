@@ -1002,6 +1002,47 @@
         }
       }
     },
+    "/api/changes/stream": {
+      "get": {
+        "tags": [
+          "changes"
+        ],
+        "summary": "Stream Library Changes",
+        "description": "Subscribe to the per-library change-event stream.\n\nLibrary scope comes from the ``X-Fichero-Library-Path`` header (same as\nevery other library route). A window opens one connection and receives a\n``ChangeEvent`` for every mutation in its library, from any source.",
+        "operationId": "stream_library_changes_api_changes_stream_get",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/annotations": {
       "post": {
         "tags": [
@@ -4784,6 +4825,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -4949,6 +5000,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -5009,6 +5070,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -5116,6 +5187,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -5345,6 +5426,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -5456,6 +5547,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -6011,6 +6112,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -6070,6 +6181,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -7063,6 +7184,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -7877,6 +8008,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -8345,6 +8486,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -14831,6 +14982,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -14884,6 +15045,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -15351,6 +15522,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -15405,6 +15586,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -15458,6 +15649,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -16035,7 +16236,7 @@
           "snapshots"
         ],
         "summary": "Restore Library Snapshot",
-        "description": "Restore a library from a snapshot.\n\nRestoration creates NEW database and vector files alongside the originals.\nThe current library is NOT modified. After restoration, update\nX-Fichero-Library-Path to point to the restored library to use it.",
+        "description": "Restore a library from a snapshot.\n\nRestoration swaps the captured database and vector files back into the\noriginal library package. The pre-restore files are retained with a\n.pre-restore suffix.",
         "operationId": "restore_library_snapshot_api_storage_snapshots__snapshot_id__restore_post",
         "parameters": [
           {
@@ -21968,6 +22169,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -22020,6 +22231,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -53360,6 +53581,16 @@
             "type": "string",
             "nullable": true,
             "title": "Lance Restored Path"
+          },
+          "duckdb_backup_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Duckdb Backup Path"
+          },
+          "lance_backup_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Lance Backup Path"
           },
           "note": {
             "type": "string",

@@ -1157,6 +1157,22 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('changes')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for changes endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='changes')
+
+    @target_app.command("stream-library")
+    def changes_stream_library_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Stream Library Changes (GET /api/changes/stream)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/changes/stream"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('chat')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for chat endpoints.', no_args_is_help=True)

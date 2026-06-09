@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -26,6 +27,31 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_RETAINED_SNAPSHOTS = 10
+
+
+def _file_size(path: Path) -> int:
+    return path.stat().st_size if path.exists() and path.is_file() else 0
+
+
+def _dir_size(path: Path) -> int:
+    if not path.exists():
+        return 0
+    if path.is_file():
+        return _file_size(path)
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+
+
+def _write_manifest(snapshot_root: Path, manifest: dict) -> None:
+    (snapshot_root / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
+def _quote_identifier(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
+
 
 def snapshot_library(
     library_path: str,
@@ -34,6 +60,7 @@ def snapshot_library(
     initiator_id: str | None = None,
     run_id: str | None = None,
     auto_expire_days: int | None = None,
+    max_snapshots: int = DEFAULT_RETAINED_SNAPSHOTS,
 ) -> "LibrarySnapshot":
     """Create a point-in-time snapshot of a library.
 
@@ -65,54 +92,79 @@ def snapshot_library(
     library_name = library_path_p.stem  # "MyLibrary" from "MyLibrary.fichero"
     snapshot_id = str(uuid4())
 
+    created_at = datetime.now()
+
     # Snapshot directory: snapshots/{library_name}/{snapshot_id}/
     snapshot_root = settings.snapshots_dir / library_name / snapshot_id
     duckdb_export_dir = snapshot_root / "duckdb_export"
+    duckdb_file_dir = snapshot_root / "duckdb_file"
+    vectors_copy_dir = snapshot_root / "vectors_copy"
     lance_copy_dir = snapshot_root / "lance_copy"
 
     snapshot_root.mkdir(parents=True, exist_ok=True)
     duckdb_export_dir.mkdir(parents=True, exist_ok=True)
-    lance_copy_dir.mkdir(parents=True, exist_ok=True)
+    duckdb_file_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. Export DuckDB to Parquet
+    # 1. Copy the DuckDB file as the restore source and keep the existing
+    # Parquet export as a portable diagnostic sidecar for older callers.
     duckdb_size = 0
     db_path = library_path_p / "fichero.duckdb"
     if db_path.exists():
         try:
+            try:
+                checkpoint_conn = duckdb.connect(str(db_path))
+                checkpoint_conn.execute("CHECKPOINT")
+                checkpoint_conn.close()
+            except Exception as exc:
+                logger.warning("DuckDB checkpoint skipped before snapshot: %s", exc)
+
+            duckdb_copy_path = duckdb_file_dir / "fichero.duckdb"
+            shutil.copy2(db_path, duckdb_copy_path)
+            duckdb_size = duckdb_copy_path.stat().st_size
+
             export_conn = duckdb.connect(str(db_path), read_only=True)
             # Get list of tables
             tables = export_conn.execute("SHOW TABLES").fetchall()
             for (table_name,) in tables:
                 out_path = duckdb_export_dir / f"{table_name}.parquet"
+                safe_out_path = str(out_path).replace("'", "''")
                 export_conn.execute(
-                    f"COPY {table_name} TO '{out_path}' (FORMAT parquet)"
+                    f"COPY {_quote_identifier(table_name)} TO '{safe_out_path}' (FORMAT parquet)"
                 )
-                duckdb_size += out_path.stat().st_size
             export_conn.close()
             logger.info(
-                f"Exported DuckDB ({duckdb_size / 1024 / 1024:.1f} MB) to {duckdb_export_dir}"
+                "Copied DuckDB (%0.1f MB) to %s",
+                duckdb_size / 1024 / 1024,
+                duckdb_copy_path,
             )
         except Exception as e:
-            raise RuntimeError(f"DuckDB export failed: {e}") from e
+            raise RuntimeError(f"DuckDB snapshot failed: {e}") from e
     else:
         logger.warning(f"No DuckDB found at {db_path}, skipping export")
 
-    # 2. Copy LanceDB vectors
+    # 2. Copy LanceDB vectors. Current libraries use "vectors"; older comments
+    # and snapshots used "lance", so preserve both when present.
     lance_size = 0
-    lance_src = library_path_p / "lance"
-    if lance_src.exists():
+    copied_embeddings: dict[str, str] = {}
+    for dirname, target_dir in (("vectors", vectors_copy_dir), ("lance", lance_copy_dir)):
+        embedding_src = library_path_p / dirname
+        if not embedding_src.exists():
+            continue
         try:
-            shutil.copytree(lance_src, lance_copy_dir, dirs_exist_ok=True)
-            lance_size = sum(
-                f.stat().st_size for f in lance_copy_dir.rglob("*") if f.is_file()
-            )
-            logger.info(
-                f"Copied LanceDB ({lance_size / 1024 / 1024:.1f} MB) to {lance_copy_dir}"
-            )
+            shutil.copytree(embedding_src, target_dir, dirs_exist_ok=True)
+            copied_embeddings[dirname] = str(target_dir.relative_to(settings.snapshots_dir))
+            lance_size += _dir_size(target_dir)
+            logger.info("Copied %s embeddings to %s", dirname, target_dir)
         except Exception as e:
             raise RuntimeError(f"LanceDB copy failed: {e}") from e
-    else:
+    if not copied_embeddings:
         logger.info("No LanceDB directory found, skipping vector export")
+
+    primary_lance_path = copied_embeddings.get("vectors") or copied_embeddings.get("lance")
+    if primary_lance_path is None:
+        # Keep the model field stable even for libraries with no embeddings.
+        vectors_copy_dir.mkdir(parents=True, exist_ok=True)
+        primary_lance_path = str(vectors_copy_dir.relative_to(settings.snapshots_dir))
 
     # Count files
     file_count = sum(1 for _ in snapshot_root.rglob("*") if _.is_file())
@@ -131,19 +183,44 @@ def snapshot_library(
         initiator_id=initiator_id,
         run_id=run_id,
         snapshot_path=str(snapshot_root),
-        duckdb_path=str(duckdb_export_dir.relative_to(settings.snapshots_dir)),
-        lance_path=str(lance_copy_dir.relative_to(settings.snapshots_dir)),
+        duckdb_path=str(duckdb_file_dir.relative_to(settings.snapshots_dir)),
+        lance_path=primary_lance_path,
         file_count=file_count,
         duckdb_size_bytes=duckdb_size,
         lance_size_bytes=lance_size,
+        created_at=created_at,
         expires_at=expires_at,
     )
+
+    manifest = {
+        "id": snapshot_id,
+        "created_at": created_at.isoformat(),
+        "library_path": str(library_path_p),
+        "library_name": library_name,
+        "reason": reason,
+        "initiator": initiator,
+        "initiator_id": initiator_id,
+        "run_id": run_id,
+        "paths": {
+            "duckdb": snapshot.duckdb_path,
+            "duckdb_export": str(duckdb_export_dir.relative_to(settings.snapshots_dir)),
+            "embeddings": copied_embeddings,
+        },
+        "sizes": {
+            "duckdb_size_bytes": duckdb_size,
+            "lance_size_bytes": lance_size,
+            "total_size_bytes": duckdb_size + lance_size,
+        },
+        "file_count": file_count,
+    }
+    _write_manifest(snapshot_root, manifest)
+    snapshot.file_count = sum(1 for _ in snapshot_root.rglob("*") if _.is_file())
 
     # Save snapshot metadata
     _save_snapshot_record(snapshot)
 
     # Enforce retention policy
-    _enforce_retention(library_name)
+    _enforce_retention(library_name, max_snapshots=max_snapshots)
 
     logger.info(
         f"Created snapshot {snapshot_id} for {library_name}: {file_count} files"
@@ -180,9 +257,10 @@ def list_snapshots(
 def restore_snapshot(snapshot_id: str) -> dict:
     """Restore a library from a snapshot.
 
-    Restores DuckDB Parquet files back into a new .duckdb file and copies
-    LanceDB vectors back. The current library files are NOT overwritten —
-    restoration creates new files with a .restored-{timestamp} suffix.
+    Restores the captured DuckDB file and LanceDB vectors into the original
+    library package. Current files are first moved aside with a
+    .pre-restore-{timestamp} suffix so restore never deletes the user's
+    pre-restore data.
 
     Args:
         snapshot_id: ID of the snapshot to restore
@@ -199,33 +277,87 @@ def restore_snapshot(snapshot_id: str) -> dict:
     if not snapshot:
         raise FileNotFoundError(f"Snapshot not found: {snapshot_id}")
 
-    # duckdb_path and lance_path are relative to snapshots_dir
-    db_src = settings.snapshots_dir / snapshot.duckdb_path
+    lib_path = Path(snapshot.library_path)
+    if not lib_path.exists():
+        raise FileNotFoundError(f"Library not found: {lib_path}")
+
+    # Drop cached connections before swapping files. Existing open OS handles
+    # may still read the old inode, but new DatabaseManager calls will reopen
+    # the restored files.
+    try:
+        from fichero.db_manager import db_manager
+
+        db_manager.close_database(lib_path)
+    except Exception as exc:
+        logger.warning("Could not close database before restore: %s", exc)
+
+    db_src_dir = settings.snapshots_dir / snapshot.duckdb_path
+    db_src = db_src_dir / "fichero.duckdb" if db_src_dir.is_dir() else db_src_dir
     lance_src = settings.snapshots_dir / snapshot.lance_path
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Restore DuckDB
-    restored_db_path = None
+    current_db_path = lib_path / "fichero.duckdb"
+    restored_db_path = current_db_path if db_src.exists() else None
+    db_backup_path = None
+    db_backup_candidate = None
+    tmp_db_path = None
     if db_src.exists():
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        lib_path = Path(snapshot.library_path)
-        restored_db_path = lib_path.parent / f"{lib_path.stem}.restored-{ts}.duckdb"
-        restore_conn = duckdb.connect(str(restored_db_path))
-        for parquet_file in sorted(db_src.glob("*.parquet")):
-            table_name = parquet_file.stem
-            restore_conn.execute(
-                f"CREATE TABLE IF NOT EXISTS {table_name} AS SELECT * FROM '{parquet_file}'"
-            )
-        restore_conn.close()
-        logger.info(f"Restored DuckDB to {restored_db_path}")
+        tmp_db_path = lib_path / f".fichero.duckdb.restore-{ts}.tmp"
+        db_backup_candidate = lib_path / f"fichero.duckdb.pre-restore-{ts}"
+        shutil.copy2(db_src, tmp_db_path)
 
-    # Restore LanceDB
     restored_lance_path = None
+    lance_backup_path = None
+    lance_backup_candidate = None
+    tmp_lance_path = None
+    current_lance_path = lib_path / "vectors"
     if lance_src.exists():
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        lib_path = Path(snapshot.library_path)
-        restored_lance_path = lib_path.parent / f"{lib_path.stem}.lance.restored-{ts}"
-        shutil.copytree(lance_src, restored_lance_path, dirs_exist_ok=True)
-        logger.info(f"Restored LanceDB to {restored_lance_path}")
+        tmp_lance_path = lib_path / f".vectors.restore-{ts}.tmp"
+        lance_backup_candidate = lib_path / f"vectors.pre-restore-{ts}"
+        if tmp_lance_path.exists():
+            shutil.rmtree(tmp_lance_path)
+        shutil.copytree(lance_src, tmp_lance_path)
+
+    try:
+        if tmp_db_path is not None:
+            assert db_backup_candidate is not None
+            assert restored_db_path is not None
+            if current_db_path.exists():
+                os.replace(current_db_path, db_backup_candidate)
+                db_backup_path = db_backup_candidate
+            os.replace(tmp_db_path, current_db_path)
+            logger.info(
+                "Restored DuckDB snapshot %s to %s", snapshot_id, current_db_path
+            )
+
+        if tmp_lance_path is not None:
+            assert lance_backup_candidate is not None
+            if current_lance_path.exists():
+                os.replace(current_lance_path, lance_backup_candidate)
+                lance_backup_path = lance_backup_candidate
+            os.replace(tmp_lance_path, current_lance_path)
+            restored_lance_path = current_lance_path
+            logger.info(
+                "Restored LanceDB snapshot %s to %s", snapshot_id, current_lance_path
+            )
+    except Exception:
+        if tmp_db_path is not None and tmp_db_path.exists():
+            tmp_db_path.unlink()
+        if tmp_lance_path is not None and tmp_lance_path.exists():
+            shutil.rmtree(tmp_lance_path)
+        if db_backup_path is not None and db_backup_path.exists() and current_db_path.exists():
+            current_db_path.unlink()
+        if db_backup_path is not None and db_backup_path.exists():
+            os.replace(db_backup_path, current_db_path)
+        if (
+            lance_backup_path is not None
+            and lance_backup_path.exists()
+            and current_lance_path.exists()
+        ):
+            shutil.rmtree(current_lance_path)
+        if lance_backup_path is not None and lance_backup_path.exists():
+            os.replace(lance_backup_path, current_lance_path)
+        raise
 
     return {
         "snapshot_id": snapshot_id,
@@ -234,7 +366,9 @@ def restore_snapshot(snapshot_id: str) -> dict:
         "lance_restored_path": str(restored_lance_path)
         if restored_lance_path
         else None,
-        "note": "Restored files are created alongside originals. Update X-Fichero-Library-Path to use restored library.",
+        "duckdb_backup_path": str(db_backup_path) if db_backup_path else None,
+        "lance_backup_path": str(lance_backup_path) if lance_backup_path else None,
+        "note": "Restored snapshot into the library package. Pre-restore files were kept with .pre-restore suffixes.",
     }
 
 
@@ -323,7 +457,11 @@ def _delete_snapshot_record(snapshot_id: str) -> None:
         records_path.unlink()
 
 
-def _enforce_retention(library_name: str) -> int:
+def _enforce_retention(
+    library_name: str,
+    *,
+    max_snapshots: int = DEFAULT_RETAINED_SNAPSHOTS,
+) -> int:
     """Delete expired snapshots for a library, respecting pinned status.
 
     Args:
@@ -347,4 +485,41 @@ def _enforce_retention(library_name: str) -> int:
             except Exception as e:
                 logger.warning(f"Failed to delete expired snapshot {s.id}: {e}")
 
+    snapshots = [
+        s
+        for s in _load_all_snapshot_records()
+        if s.library_name == library_name and not s.is_pinned
+    ]
+    snapshots.sort(key=lambda s: s.created_at, reverse=True)
+    if max_snapshots > 0:
+        for s in snapshots[max_snapshots:]:
+            try:
+                delete_snapshot(s.id)
+                deleted += 1
+            except Exception as e:
+                logger.warning(f"Failed to delete retained snapshot {s.id}: {e}")
+
     return deleted
+
+
+def auto_snapshot_before_risky_operation(
+    library_path: str | Path,
+    *,
+    reason: str,
+    initiator: str = "system",
+) -> "LibrarySnapshot | None":
+    """Best-effort helper for callers to run before destructive operations."""
+    try:
+        return snapshot_library(
+            str(library_path),
+            reason=reason,
+            initiator=initiator,
+            auto_expire_days=14,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Auto-snapshot skipped before risky operation for %s: %s",
+            library_path,
+            exc,
+        )
+        return None

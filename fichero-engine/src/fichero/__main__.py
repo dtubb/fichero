@@ -1932,6 +1932,74 @@ def library_create(
     _invoke(ctx, op)
 
 
+@library_app.command("snapshot")
+def library_snapshot(
+    ctx: typer.Context,
+    path: Optional[str] = typer.Argument(
+        None,
+        help="Path to the .fichero package. Defaults to --library/FICHERO_LIBRARY_PATH.",
+    ),
+    reason: str = typer.Option("", "--reason", "-r", help="Reason stored in manifest."),
+) -> None:
+    """Create a database and embedding snapshot for a library."""
+    library_path = path or ctx.obj.get("library")
+    if not library_path:
+        typer.secho(
+            "Error: provide a library path or pass --library.",
+            err=True,
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=2)
+    expanded = str(Path(library_path).expanduser())
+
+    def op(c: FicheroClient) -> dict:
+        snapshot = c.create_library_snapshot(expanded, reason=reason)
+        return {
+            "status": f"Snapshot: {snapshot.id}",
+            "library": snapshot.library_path,
+            "reason": snapshot.reason,
+            "duckdb_size_bytes": snapshot.duckdb_size_bytes,
+            "lance_size_bytes": snapshot.lance_size_bytes,
+        }
+
+    _invoke(ctx, op)
+
+
+@library_app.command("snapshots")
+def library_snapshots(
+    ctx: typer.Context,
+    library_name: Optional[str] = typer.Option(
+        None, "--library-name", help="Filter by library package name."
+    ),
+    include_expired: bool = typer.Option(
+        False, "--include-expired", help="Include expired snapshots."
+    ),
+) -> None:
+    """List library snapshots."""
+    _invoke(
+        ctx,
+        lambda c: c.list_library_snapshots(
+            library_name=library_name,
+            include_expired=include_expired,
+        ),
+    )
+
+
+@library_app.command("restore")
+def library_restore(
+    ctx: typer.Context,
+    snapshot_id: str = typer.Argument(..., help="Snapshot ID to restore."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+) -> None:
+    """Restore a snapshot into its original library package."""
+    if not yes:
+        typer.confirm(
+            f"Restore snapshot {snapshot_id} into its original library package?",
+            abort=True,
+        )
+    _invoke(ctx, lambda c: c.restore_library_snapshot(snapshot_id))
+
+
 @library_app.command("delete")
 def library_delete(
     ctx: typer.Context,

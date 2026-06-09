@@ -67,6 +67,7 @@ from fichero.models import (
     KnownLibrary,
     LibraryCreateResponse,
     LibraryRegistryResponse,
+    LibrarySnapshot,
     Workflow,
 )
 
@@ -367,6 +368,45 @@ class FicheroClient:
         """
         raw = self.request("POST", "/api/library", json={"path": path})
         return LibraryCreateResponse.model_validate(raw)
+
+    def create_library_snapshot(
+        self,
+        path: str,
+        *,
+        reason: str = "",
+        initiator: str = "user",
+    ) -> LibrarySnapshot:
+        """Create a database/vector snapshot for a library package."""
+        raw = self.request(
+            "POST",
+            "/api/storage/snapshots",
+            params={
+                "library_path": path,
+                "reason": reason,
+                "initiator": initiator,
+            },
+        )
+        return LibrarySnapshot.model_validate(raw)
+
+    def list_library_snapshots(
+        self,
+        *,
+        library_name: str | None = None,
+        include_expired: bool = False,
+    ) -> dict[str, Any]:
+        """List library snapshots from the backend."""
+        return self.request(
+            "GET",
+            "/api/storage/snapshots",
+            params={
+                "library_name": library_name,
+                "include_expired": include_expired,
+            },
+        )
+
+    def restore_library_snapshot(self, snapshot_id: str) -> dict[str, Any]:
+        """Restore a database/vector snapshot into its library package."""
+        return self.request("POST", f"/api/storage/snapshots/{snapshot_id}/restore")
 
     # -- documents ---------------------------------------------------------
     def list_documents(
