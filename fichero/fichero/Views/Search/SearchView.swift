@@ -44,7 +44,8 @@ struct SearchView: View {
     }
 
     // ─── Observable data layer (#1903) ───
-    @Environment(SearchStore.self) private var searchStore
+    // Not `private`: read from the SearchView+Helpers.swift extension (separate file).
+    @Environment(SearchStore.self) var searchStore
 
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var windowState: WindowState
