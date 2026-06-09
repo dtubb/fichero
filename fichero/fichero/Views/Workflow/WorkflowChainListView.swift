@@ -26,6 +26,7 @@ struct WorkflowChainListView: View {
             searchText: searchText,
             executingChainId: executingChainId,
             onNewChain: { showNewChainSheet = true },
+            selectedChainId: $selectedChainId,
             onSelectChain: { selectedChainId = $0 },
             onExecuteChain: { executeChain($0) },
             onConfirmDelete: { confirmDelete($0) },
