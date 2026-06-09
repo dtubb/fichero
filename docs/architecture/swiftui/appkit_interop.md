@@ -94,3 +94,31 @@ free selection/emphasis/context-menu-target). Convert custom `ScrollView`+`VStac
 item lists to `List` **only with an interaction spot-check**, since some of ours
 (e.g. the inspector Entities tab) have *deliberately-built* standard-macOS multi-select
 that a blind swap could regress — iterate, don't replace working selection behavior.
+
+---
+
+## Addendum 2026-06-08 (eve) — control choice + no swipe (Daniel)
+
+**Best Mac control per surface:**
+- **`List`** — single-column **item** lists: the document inspector (entities, claims, notes,
+  annotations) and sidebar nav. NSTableView-backed → free selection emphasis + context-menu
+  ring. Supports everything we need: **multi-select** (`selection:` Set), **hierarchy**
+  (`Section` / `OutlineGroup` / `children:`), **drag-to-reorder** (`.onMove` /
+  `.draggable`+`.dropDestination`). **This is the inspector's element — not `Table`.**
+- **`Table`** — multi-**column** tabular data with sortable columns: the **library browser**
+  (name/type/date/size). Use here, not in the inspector.
+- **AppKit `NSOutlineView` / `NSTableView`** (bridged) — only if `List`+`OutlineGroup` can't
+  express a needed hierarchy+reorder+column combo on macOS 26.
+
+**Swipe actions are NOT Mac-normal.** `.swipeActions` is an iOS idiom. On macOS, row actions
+(approve / reject / delete) go in the **context menu + toolbar + keyboard** — never a swipe.
+**Remove `.swipeActions` from all Mac lists.**
+
+**Every inspector/list surface must support:** single-click select · double-click open
+(`.simultaneousGesture(TapGesture(count: 2))`) · multi-select · hierarchy · drag-to-reorder.
+
+**Editing is navigation, not modal (Daniel).** Do NOT use modal sheets/dialogs to edit
+entities / claims / items. Edit in place: an inline `TextField` for rename, or **push a
+detail/edit view *inside* the inspector with a Back button** (`NavigationStack` — the existing
+"Back to document" pattern). The inspector is itself the hierarchy you drill into and back out
+of; keep it that way. Confirmations (delete) may stay as alerts; *editing* never does.
