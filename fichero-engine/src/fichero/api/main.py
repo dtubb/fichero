@@ -852,6 +852,7 @@ from fichero.api.routes import (  # noqa: E402
     kg_curation_rules,
     kg_entity_curation,
     kg_graph,
+    changes,
     kg_inclusion,
     kg_mutations,
     kg_render,
@@ -898,6 +899,10 @@ RouteSpec = tuple[object, str, list[str]]
 
 _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (activity.router, "/api", ["activity"]),
+    # /api/changes/stream — per-library change-event SSE; foundation of the
+    # observable data layer (#1863). Core tier: the SwiftUI stores subscribe
+    # unconditionally.
+    (changes.router, "/api", ["changes"]),
     (annotations.router, "/api", ["annotations"]),
     (notes.router, "/api", ["notes"]),
     (projects.router, "/api", ["projects"]),

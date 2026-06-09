@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from fichero.api.change_stream import emit_change
 from fichero.api.main import _is_allowed_library_path, db_manager, get_library_database
 from fichero.knowledge_models import KnowledgeClaim
 from fichero.db import Database
@@ -323,9 +324,14 @@ def _build_alias_to_entity_id_map(db: Database) -> dict[str, str]:
 async def upsert_entity(
     request: EntityUpsertRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> KnowledgeEntity:
     """Create or update a knowledge entity."""
     entity = db.get(KnowledgeEntity, request.id) if request.id else None
+    is_create = entity is None
     now = datetime.now()
     if entity is None:
         entity = KnowledgeEntity(
@@ -356,6 +362,16 @@ async def upsert_entity(
         )
         entity.updated_at = now
     db.save(entity)
+
+    # Observable data layer (#1863): broadcast the create/update so every
+    # window's EntityStore refreshes. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="entity.created" if is_create else "entity.updated",
+        entity_ids=[entity.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return entity
 
 
@@ -717,6 +733,10 @@ async def patch_entity(
     entity_id: str,
     request: EntityPatchRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> KnowledgeEntity:
     """Partial-update a knowledge entity.
 
@@ -788,6 +808,15 @@ async def patch_entity(
             "patch_entity: vector refresh failed for %s: %s", entity.id, exc
         )
 
+    # Observable data layer (#1863): broadcast the edit so every window's
+    # EntityStore refreshes. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="entity.updated",
+        entity_ids=[entity.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return entity
 
 

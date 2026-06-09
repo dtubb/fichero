@@ -12,9 +12,10 @@ import asyncio
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.db_embeddings import KG_ENTITY_EMBEDDINGS_TABLE
@@ -176,6 +177,10 @@ def _log_entity_curation_mutation(
 async def merge_entities(
     request: EntityMergeRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> EntityAuditResponse:
     """Merge multiple entities into a single absorbing entity, with audit."""
     absorber = db.get(KnowledgeEntity, request.absorbing_entity_id)
@@ -221,6 +226,7 @@ async def merge_entities(
     # Re-point claims: replace absorbed entity IDs with the absorber ID so
     # claim queries on the absorber surface all previously-absorbed evidence.
     absorbed_ids = {e.id for e in absorbed}
+    repointed_claim_ids: list[str] = []
     for claim in db.query(KnowledgeClaim):
         old_ids = claim.entity_ids or []
         if any(eid in absorbed_ids for eid in old_ids):
@@ -229,6 +235,7 @@ async def merge_entities(
             claim.entity_ids = [eid for eid in new_ids if not (eid in seen or seen.add(eid))]  # type: ignore[func-returns-value]
             claim.updated_at = now
             db.save(claim)
+            repointed_claim_ids.append(claim.id)
 
     audit = EntityMergeAudit(
         operation_type=EntityMergeOperationType.merge,
@@ -244,6 +251,18 @@ async def merge_entities(
     for ent in absorbed:
         db.save(ent)
     db.save(absorber)
+
+    # Observable data layer (#1863): tell every window in this library that the
+    # entity set changed so their KG stores refresh. Best-effort — never breaks
+    # the merge.
+    emit_change(
+        x_fichero_library_path,
+        type="entity.merged",
+        entity_ids=[absorber.id, *absorbed_ids],
+        claim_ids=repointed_claim_ids,
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return _audit_response(audit)
 
 
@@ -282,6 +301,10 @@ async def batch_set_entity_curation_state(
 async def split_entity(
     request: EntitySplitRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> EntityAuditResponse:
     """Split one entity into a primary + new split-off entities."""
     primary = db.get(KnowledgeEntity, request.primary_entity_id)
@@ -320,6 +343,16 @@ async def split_entity(
     audit.reversal_id = audit.id
     db.save(audit)
     db.save(primary)
+
+    # Observable data layer (#1863): split changes the entity set — refresh
+    # every window's KG stores. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="entity.split",
+        entity_ids=[primary.id, *split_ids],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return _audit_response(audit)
 
 
