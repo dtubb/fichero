@@ -9,9 +9,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.knowledge_models import (
@@ -78,6 +79,10 @@ async def create_claim_link(
     claim_id: str,
     request: ClaimLinkCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> KnowledgeClaimLink:
     """Create a link between two claims."""
     # Validate source claim exists
@@ -104,6 +109,16 @@ async def create_claim_link(
         created_at=datetime.now(),
     )
     db.save(link)
+
+    # Observable data layer (#1863): broadcast the new link so every window's
+    # ClaimStore refreshes both endpoints. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.linked",
+        claim_ids=[claim_id, request.related_claim_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return link
 
 
@@ -146,6 +161,10 @@ async def update_claim_link(
     link_id: str,
     request: ClaimLinkUpdateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> KnowledgeClaimLink:
     """Update an existing claim link."""
     link = db.get(KnowledgeClaimLink, link_id)
@@ -157,6 +176,16 @@ async def update_claim_link(
     for key, value in data.items():
         setattr(link, key, value)
     db.save(link)
+
+    # Observable data layer (#1863): broadcast the link change so every window's
+    # ClaimStore refreshes both endpoints. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.linked",
+        claim_ids=[link.claim_id, link.related_claim_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return link
 
 
@@ -164,14 +193,29 @@ async def update_claim_link(
 async def delete_claim_link(
     link_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ClaimLinkDeletedResponse:
     """Delete a claim link (hard delete)."""
     link = db.get(KnowledgeClaimLink, link_id)
     if link is None:
         raise HTTPException(status_code=404, detail=f"Claim link not found: {link_id}")
 
+    affected_claim_ids = [link.claim_id, link.related_claim_id]
     # Delete from database
     db.delete(link)
+
+    # Observable data layer (#1863): broadcast the link removal so every window's
+    # ClaimStore refreshes both endpoints. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.linked",
+        claim_ids=affected_claim_ids,
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return ClaimLinkDeletedResponse(success=True, link_id=link_id, operation="deleted")
 
 

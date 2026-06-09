@@ -11,9 +11,10 @@ from copy import deepcopy
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
+from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.kg._common import is_trivial_claim
@@ -523,6 +524,10 @@ async def transition_claim(
     claim_id: str,
     request: ClaimTransitionRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ClaimTransitionResponse:
     """Transition a claim's curation state."""
     claim = db.get(KnowledgeClaim, claim_id)
@@ -556,6 +561,16 @@ async def transition_claim(
     db.save(claim)
     logger.info(f"Transitioned claim {claim_id}: {from_state.value} → {target_state.value}")
 
+    # Observable data layer (#1863): broadcast the curation-state change so
+    # every window's ClaimStore refreshes. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.updated",
+        claim_ids=[claim_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
+
     return ClaimTransitionResponse(
         claim_id=claim_id,
         success=True,
@@ -574,6 +589,10 @@ async def transition_claim(
 async def batch_transition_claims(
     request: BatchClaimTransitionRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> BatchClaimTransitionResponse:
     """Batch transition multiple claims."""
     target_state = _validate_curation_state(request.to_state)
@@ -581,6 +600,7 @@ async def batch_transition_claims(
     succeeded = 0
     failed = 0
     transitioned_at = datetime.now()
+    transitioned_ids: list[str] = []
 
     for claim_id in request.claim_ids:
         claim = db.get(KnowledgeClaim, claim_id)
@@ -614,6 +634,7 @@ async def batch_transition_claims(
 
         db.save(claim)
         succeeded += 1
+        transitioned_ids.append(claim_id)
         results.append(ClaimTransitionResponse(
             claim_id=claim_id,
             success=True,
@@ -623,6 +644,17 @@ async def batch_transition_claims(
         ))
 
     logger.info(f"Batch transition: {succeeded} succeeded, {failed} failed")
+
+    # Observable data layer (#1863): broadcast the curation-state changes so
+    # every window's ClaimStore refreshes. Best-effort.
+    if transitioned_ids:
+        emit_change(
+            x_fichero_library_path,
+            type="claim.updated",
+            claim_ids=transitioned_ids,
+            actor="ui",
+            origin_window=x_fichero_origin_window,
+        )
     return BatchClaimTransitionResponse(
         results=results,
         total=len(request.claim_ids),
@@ -639,6 +671,10 @@ async def batch_transition_claims(
 async def batch_set_claim_curation_state(
     request: BatchClaimCurationRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> BatchClaimCurationResponse:
     claims: list[KnowledgeClaim] = []
     for claim_id in request.claim_ids:
@@ -660,6 +696,17 @@ async def batch_set_claim_curation_state(
         updated_ids.append(claim.id)
 
     logger.info("Batch curation update: %s claims set to %s", len(updated_ids), request.curation_state.value)
+
+    # Observable data layer (#1863): broadcast the curation-state changes so
+    # every window's ClaimStore refreshes. Best-effort.
+    if updated_ids:
+        emit_change(
+            x_fichero_library_path,
+            type="claim.updated",
+            claim_ids=updated_ids,
+            actor="ui",
+            origin_window=x_fichero_origin_window,
+        )
     return BatchClaimCurationResponse(updated=len(updated_ids), claim_ids=updated_ids)
 
 
@@ -671,6 +718,10 @@ async def batch_set_claim_curation_state(
 async def merge_claims(
     request: ClaimMergeRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ClaimAuditResponse:
     survivor = db.get(KnowledgeClaim, request.surviving_claim_id)
     if survivor is None:
@@ -733,6 +784,16 @@ async def merge_claims(
     db.save(audit)
     audit.reversal_id = audit.id
     db.save(audit)
+
+    # Observable data layer (#1863): tell every window the claim set changed so
+    # their ClaimStores refresh (survivor + absorbed). Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.merged",
+        claim_ids=[survivor.id, *[c.id for c in absorbed_claims]],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return _claim_audit_response(audit)
 
 
@@ -744,6 +805,10 @@ async def merge_claims(
 async def unmerge_claims(
     request: ClaimUnmergeRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ClaimAuditResponse:
     audit = db.get(ClaimMergeAudit, request.audit_id)
     if audit is None:
@@ -779,6 +844,16 @@ async def unmerge_claims(
     db.save(undo)
     audit.reversal_id = undo.id
     db.save(audit)
+
+    # Observable data layer (#1863): the reversed merge restored claims, so tell
+    # every window to refresh (survivor + previously-absorbed). Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.merged",
+        claim_ids=[audit.target_claim_id, *audit.source_claim_ids],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return _claim_audit_response(undo)
 
 

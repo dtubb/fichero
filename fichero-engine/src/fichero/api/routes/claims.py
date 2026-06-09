@@ -10,9 +10,10 @@ from datetime import datetime
 import re
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.knowledge_models import (
@@ -321,6 +322,10 @@ def _delete_claim_links_for_claim(db: Database, claim_id: str) -> list[dict[str,
 async def create_claim(
     request: ClaimCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> KnowledgeClaim:
     """Create a new knowledge claim."""
     # Validate source document exists (manual claims have no source doc)
@@ -418,6 +423,17 @@ async def create_claim(
         confidence_source=request.confidence_source,
     )
     db.save(claim)
+
+    # Observable data layer (#1863): broadcast the new claim so every window's
+    # ClaimStore refreshes. Best-effort — never breaks the mutation.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.updated",
+        claim_ids=[claim.id],
+        entity_ids=list(claim.entity_ids or []),
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return claim
 
 
@@ -426,6 +442,10 @@ async def patch_claim(
     claim_id: str,
     request: ClaimPatchRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> KnowledgeClaim:
     """Update an existing knowledge claim."""
     claim = db.get(KnowledgeClaim, claim_id)
@@ -436,6 +456,17 @@ async def patch_claim(
     _validate_claim_references(db, data)
     _apply_claim_patch(claim, data)
     db.save(claim)
+
+    # Observable data layer (#1863): broadcast the update (incl. any entity
+    # re-link) so every window's ClaimStore refreshes. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.updated",
+        claim_ids=[claim.id],
+        entity_ids=list(claim.entity_ids or []),
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return claim
 
 
@@ -508,6 +539,10 @@ async def get_claim(
 async def delete_claim(
     claim_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> None:
     """Hard-delete a single knowledge claim.
 
@@ -520,6 +555,7 @@ async def delete_claim(
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
     before_state = claim.model_dump(mode="json")
+    affected_entity_ids = list(claim.entity_ids or [])
     deleted_links = _delete_claim_links_for_claim(db, claim_id)
     db.delete(claim)
 
@@ -537,6 +573,17 @@ async def delete_claim(
         logging.getLogger(__name__).warning(
             "delete_claim: mutation log write failed: %s", exc
         )
+
+    # Observable data layer (#1863): broadcast the deletion so every window's
+    # ClaimStore drops the row. Best-effort — never breaks the delete.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.deleted",
+        claim_ids=[claim_id],
+        entity_ids=affected_entity_ids,
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
 
 
 # =============================================================================

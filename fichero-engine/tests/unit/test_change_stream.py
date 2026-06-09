@@ -23,7 +23,12 @@ from fichero.api.change_stream import (
     emit_change,
     format_change_sse,
 )
-from fichero.knowledge_models import EntityType, KnowledgeEntity
+from fichero.knowledge_models import (
+    EntityType,
+    KnowledgeClaim,
+    KnowledgeEntity,
+)
+from fichero.models import DocType, Document, FileType, Status
 
 
 # ---------------------------------------------------------------------------
@@ -186,3 +191,122 @@ class TestMergeEmitsChange:
         assert call["type"] == "entity.merged"
         assert absorber.id in call["entity_ids"]
         assert absorbed.id in call["entity_ids"]
+
+
+# ---------------------------------------------------------------------------
+# Claim + document mutation routes emit change events (#1863 extension)
+# ---------------------------------------------------------------------------
+
+
+def _make_claim(db, text: str = "Marshall kept a diary.") -> KnowledgeClaim:
+    claim = KnowledgeClaim(
+        text=text,
+        source_document_id="doc-claim-src",
+        subject_canonical="Marshall",
+        predicate_verb="kept",
+        object_phrase="a diary",
+        source_excerpt=text,
+    )
+    db.save(claim)
+    return claim
+
+
+def _make_document(db, doc_id: str, name: str) -> Document:
+    doc = Document(
+        id=doc_id,
+        name=name,
+        doc_type=DocType.file,
+        file_type=FileType.text,
+        status=Status.completed,
+        page_content="Some body text.",
+    )
+    db.save(doc)
+    return doc
+
+
+class TestClaimMutationsEmitChange:
+    def test_patch_claim_calls_emit_change(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.claims.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        claim = _make_claim(db)
+        r = client.patch(f"/api/claims/{claim.id}", json={"text": "Updated text."})
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "claim.updated"
+        assert claim.id in call["claim_ids"]
+
+    def test_create_claim_link_emits_linked(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.claim_links.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        claim_a = _make_claim(db, "Claim A text.")
+        claim_b = _make_claim(db, "Claim B text.")
+        r = client.post(
+            f"/api/claims/{claim_a.id}/links",
+            json={
+                "related_claim_id": claim_b.id,
+                "relation_type": "supports",
+            },
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "claim.linked"
+        assert claim_a.id in call["claim_ids"]
+        assert claim_b.id in call["claim_ids"]
+
+
+class TestDocumentMutationsEmitChange:
+    def test_update_document_emits_updated(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.documents.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        doc = _make_document(db, "doc-emit-update", "before.txt")
+        r = client.put(f"/api/documents/{doc.id}", json={"name": "after.txt"})
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "document.updated"
+        assert doc.id in call["document_ids"]
+
+    def test_delete_document_emits_deleted(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.documents.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        doc = _make_document(db, "doc-emit-delete", "doomed.txt")
+        r = client.delete(f"/api/documents/{doc.id}")
+        assert r.status_code == 204, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "document.deleted"
+        assert doc.id in call["document_ids"]

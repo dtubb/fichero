@@ -9,9 +9,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.knowledge_models import (
@@ -608,7 +609,13 @@ async def create_document(
 
 @router.put("/{doc_id}")
 async def update_document(
-    doc_id: str, update: DocumentUpdate, db: Database = Depends(get_library_database)
+    doc_id: str,
+    update: DocumentUpdate,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> Document:
     """Update an existing document."""
     doc = db.get(Document, doc_id)
@@ -666,6 +673,16 @@ async def update_document(
             logger.warning(f"Re-embed after edit failed for {doc_id}: {exc}")
 
     logger.info(f"Updated document: {doc_id}")
+
+    # Observable data layer (#1863): broadcast the rename/edit so every window's
+    # DocumentStore refreshes. Best-effort — never breaks the mutation.
+    emit_change(
+        x_fichero_library_path,
+        type="document.updated",
+        document_ids=[doc_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return doc
 
 
@@ -897,7 +914,14 @@ def _cascade_delete_kg_rows(db: Database, doc_ids: set[str]) -> tuple[int, int]:
 
 
 @router.delete("/{doc_id}", status_code=204)
-async def delete_document(doc_id: str, db: Database = Depends(get_library_database)):
+async def delete_document(
+    doc_id: str,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+):
     """Delete a document and all descendants.
 
     Cleanup includes:
@@ -944,6 +968,16 @@ async def delete_document(doc_id: str, db: Database = Depends(get_library_databa
     logger.info(
         f"Deleted document subtree: root={doc_id}, total={len(to_delete_ids)}, "
         f"kg_claims_deleted={claims_deleted}, kg_entities_pruned={entities_pruned}"
+    )
+
+    # Observable data layer (#1863): broadcast the deleted subtree so every
+    # window's DocumentStore drops the rows. Best-effort — never breaks delete.
+    emit_change(
+        x_fichero_library_path,
+        type="document.deleted",
+        document_ids=to_delete_ids,
+        actor="ui",
+        origin_window=x_fichero_origin_window,
     )
 
 
@@ -1138,6 +1172,10 @@ async def import_file(
     file: UploadFile,
     parent_id: Optional[str] = None,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> Document:
     """Import a file and create a document."""
     from fichero.ingest import ingest_file, IngestMode
@@ -1176,6 +1214,16 @@ async def import_file(
             db.save(doc)
 
         logger.info(f"Imported document: {doc.id} ({doc.name})")
+
+        # Observable data layer (#1863): broadcast the new document so every
+        # window's DocumentStore refreshes. Best-effort.
+        emit_change(
+            x_fichero_library_path,
+            type="document.updated",
+            document_ids=[doc.id],
+            actor="import",
+            origin_window=x_fichero_origin_window,
+        )
         return doc
 
     finally:
