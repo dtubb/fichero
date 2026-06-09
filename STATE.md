@@ -1,5 +1,18 @@
 # STATE.md — Fichero
 
+## RESET HANDOFF — 2026-06-09 ~1pm (CODEX-ONLY; Claude weekly budget low)
+**0.0.2 @ `a2699bf1`.** Manager runs lean; ALL implementation is codex.
+**INTEGRATE FIRST (worktrees on disk, survive reset):**
+- `~/code/fichero-worktrees/profiling` (#1917/#1958 library-slowness + thumb cache) — has changes
+- `~/code/fichero-worktrees/line-insensitive` (#1948 guardrail keys) — has changes
+- `~/code/fichero-worktrees/doc-notfound2` (#1957) — in progress
+For each: commit from manager shell (codex can't write .git lock) → cherry-pick to 0.0.2 (`-X theirs` for regen contract files) → build-verify Swift via Xcode MCP BuildProject (FULL) / pytest backend / run script tooling → `scripts/verify_all.sh --fast` (re-baseline KNOWN_VIOLATIONS/KNOWN_GAPS on line/usage shifts) → push → remove worktree + delete branch → close issues. Watch for codex line-wraps breaking OSLog `+`.
+**WORKER PATTERN (memory `parallel-worker-orchestration`):** codex via **tmux + send-keys + Enter** (NOT `codex exec` — flaky); persistent per-milestone, resume via send-keys; **NEVER broad-`pkill codex`** (kills Daniel's own windows); external worktrees only.
+**📋 READY FOR DANIEL TO TEST:** #1943 (artifacts list/save + batch) · #1953 (thumbnails — may need cache clear).
+**NEXT:** roadmap tier order — Tier 0 ratchets (guardrails→0), Tier 4 Mac polish (#1950 multi-select, #1951 status/selection color, #1952 glass sidebars), Tier 6 profiling. Wake-loop ~30-40min to conserve Claude.
+
+
+
 ## 2026-06-08 (overnight) — autonomous Mac-assed run (Claude in charge)
 
 **Mode:** Daniel out for the night; I run the loop — dispatch worker batches (claude=frontend, codex-style=backend), build/test-verify each, integrate, dispatch next. Workers in their own worktrees; I build via Xcode MCP + run heavy pytest (one heavy backend lane at a time).
