@@ -31,7 +31,9 @@ struct ClaimSummaryCard: View {
     @State private var showEditSheet = false
     @State private var showDeleteConfirmation = false
     @State private var isInlineEditing = false
-    @State private var mutationError: String?
+    // Not `private`: written from the mutation handlers in the +Details.swift
+    // extension (a separate file), so it must be at least internal.
+    @State var mutationError: String?
     @Environment(KGFocusState.self) var kgFocusState
     /// Claim mutations route through the store (#1862); the change-stream fans
     /// the refresh back to every claim surface, retiring the `.ficheroClaim*`
