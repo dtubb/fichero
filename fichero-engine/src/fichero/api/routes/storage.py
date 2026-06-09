@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from fichero.db import Database
 from fichero.api.main import get_library_database
 from fichero.models import Document, LibrarySnapshot, SnapshotInitiatorType
+from fichero.perf import perf_span
 from fichero.storage import (
     snapshot_library,
     list_snapshots,
@@ -75,26 +76,32 @@ async def get_thumbnail(
 
     Returns 404 if document not found or no thumbnail available.
     """
-    package_path = Path(x_fichero_library_path)
-    doc = _document_or_404(db, doc_id)
+    with perf_span(
+        "library.thumbnail.endpoint",
+        logger=logger,
+        doc_id=doc_id,
+    ) as perf:
+        package_path = Path(x_fichero_library_path)
+        doc = _document_or_404(db, doc_id)
 
-    from fichero.storage import get_thumbnail, ensure_thumbnail
+        from fichero.storage import get_thumbnail, ensure_thumbnail
 
-    # Try to get existing thumbnail (with package path for library isolation)
-    thumb_path = get_thumbnail(doc, package_path)
+        thumb_path = get_thumbnail(doc, package_path=package_path, db=db)
+        perf["cache_state"] = "hit" if thumb_path else "miss"
 
-    # If no thumbnail, try to generate one
-    if not thumb_path:
-        thumb_path = ensure_thumbnail(doc, package_path=package_path, db=db)
+        if not thumb_path:
+            thumb_path = ensure_thumbnail(doc, package_path=package_path, db=db)
+            perf["cache_state"] = "generated" if thumb_path else "unavailable"
 
-    if not thumb_path or not thumb_path.exists():
-        raise HTTPException(status_code=404, detail="Thumbnail not available")
+        if not thumb_path or not thumb_path.exists():
+            raise HTTPException(status_code=404, detail="Thumbnail not available")
 
-    return FileResponse(
-        thumb_path,
-        media_type="image/jpeg",
-        headers={"Cache-Control": "max-age=86400"},
-    )
+        perf["thumbnail_path"] = thumb_path.name
+        return FileResponse(
+            thumb_path,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "max-age=86400"},
+        )
 
 
 @router.get("/display/{doc_id}")

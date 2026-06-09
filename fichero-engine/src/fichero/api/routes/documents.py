@@ -28,6 +28,7 @@ from fichero.knowledge_models import (
 )
 from fichero.models import Artifact, DocType, Document, FileType, Status
 from fichero.models import DocumentListResponse, DocumentNote, RelatedDocumentListResponse
+from fichero.perf import perf_span
 from fichero.storage import auto_snapshot_before_risky_operation
 
 logger = logging.getLogger(__name__)
@@ -323,40 +324,51 @@ async def list_documents(
     db: Database = Depends(get_library_database),
 ) -> DocumentListResponse:
     """List documents with optional filters from the current library."""
-    # Build filter kwargs
-    filters = {}
-    normalized_parent_id: str | None = None
-    if parent_id is not None:
-        normalized_parent_id = _normalize_document_id(parent_id)
-        filters["parent_id"] = normalized_parent_id
-    if doc_type is not None:
-        filters["doc_type"] = doc_type
-    if file_type is not None:
-        filters["file_type"] = file_type
-    if status is not None:
-        filters["status"] = status
+    with perf_span(
+        "library.list_documents",
+        logger=logger,
+        parent_id=parent_id,
+        doc_type=doc_type.value if doc_type else None,
+        file_type=file_type.value if file_type else None,
+        status=status.value if status else None,
+        limit=limit,
+        offset=offset,
+    ) as perf:
+        filters = {}
+        normalized_parent_id: str | None = None
+        if parent_id is not None:
+            normalized_parent_id = _normalize_document_id(parent_id)
+            filters["parent_id"] = normalized_parent_id
+        if doc_type is not None:
+            filters["doc_type"] = doc_type
+        if file_type is not None:
+            filters["file_type"] = file_type
+        if status is not None:
+            filters["status"] = status
 
-    # Query with filters
-    if filters:
-        docs = list(db.query(Document, **filters))
-    else:
-        docs = list(db.all(Document))
+        if filters:
+            docs = list(db.query(Document, **filters))
+        else:
+            docs = list(db.all(Document))
 
-    if normalized_parent_id is not None:
-        docs = _filter_resolvable_documents(
-            db, docs, parent_id=normalized_parent_id
-        )
+        if normalized_parent_id is not None:
+            docs = _filter_resolvable_documents(
+                db, docs, parent_id=normalized_parent_id
+            )
 
-    # Order by user-defined sort_order before paginating so drag-drop
-    # positions survive a refresh and clients don't re-sort (#572).
-    docs = _ordered_by_sort_order(docs)
+        # Order by user-defined sort_order before paginating so drag-drop
+        # positions survive a refresh and clients don't re-sort (#572).
+        docs = _ordered_by_sort_order(docs)
 
-    # Apply pagination (if limit is specified)
-    if limit is not None:
-        items = docs[offset : offset + limit]
-    else:
-        items = docs[offset:]
-    return DocumentListResponse(items=items, count=len(items))
+        if limit is not None:
+            items = docs[offset : offset + limit]
+        else:
+            items = docs[offset:]
+
+        perf["matched_rows"] = len(docs)
+        perf["returned_rows"] = len(items)
+        perf["filters"] = ",".join(sorted(filters.keys())) or "none"
+        return DocumentListResponse(items=items, count=len(items))
 
 
 @router.get("/collections")
@@ -561,26 +573,37 @@ async def get_children(
     db: Database = Depends(get_library_database),
 ) -> DocumentListResponse:
     """Get child documents."""
-    # Callers (e.g. the catalogue workflow) sometimes pass a doc:-prefixed id
-    # (e.g. "doc:abc123").  Documents are stored with bare hex ids, so strip
-    # the prefix before every DB lookup so both forms resolve correctly (#1345).
-    normalized_id = _normalize_document_id(doc_id)
-    children = _filter_resolvable_documents(
-        db,
-        list(db.query(Document, parent_id=normalized_id)),
-        parent_id=normalized_id,
-    )
-    children = _ordered_by_sort_order(children)
-    if not children:
-        # Verify parent exists only when there are no children to return.
-        # During long-running workflows, a transient parent lookup miss can
-        # race with reads; if children exist, prefer returning them over 404.
-        parent = db.get(Document, normalized_id)
-        if not parent:
-            raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
-    if limit is not None:
-        children = children[:limit]
-    return DocumentListResponse(items=children, count=len(children))
+    with perf_span(
+        "library.get_children",
+        logger=logger,
+        doc_id=doc_id,
+        limit=limit,
+    ) as perf:
+        # Callers (e.g. the catalogue workflow) sometimes pass a doc:-prefixed id
+        # (e.g. "doc:abc123"). Documents are stored with bare hex ids, so strip
+        # the prefix before every DB lookup so both forms resolve correctly (#1345).
+        normalized_id = _normalize_document_id(doc_id)
+        children = _filter_resolvable_documents(
+            db,
+            list(db.query(Document, parent_id=normalized_id)),
+            parent_id=normalized_id,
+        )
+        children = _ordered_by_sort_order(children)
+        perf["normalized_id"] = normalized_id
+        perf["matched_rows"] = len(children)
+
+        if not children:
+            # Verify parent exists only when there are no children to return.
+            # During long-running workflows, a transient parent lookup miss can
+            # race with reads; if children exist, prefer returning them over 404.
+            parent = db.get(Document, normalized_id)
+            perf["parent_found"] = parent is not None
+            if not parent:
+                raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+        if limit is not None:
+            children = children[:limit]
+        perf["returned_rows"] = len(children)
+        return DocumentListResponse(items=children, count=len(children))
 
 
 @router.get("/{doc_id}/ancestors")

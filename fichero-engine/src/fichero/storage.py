@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
 import shutil
 import tempfile
 import threading
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
 
 from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from fichero.perf import perf_span
 from fichero.paths import engine_state_dir
 
 try:
@@ -165,6 +167,22 @@ def _thumb_path(doc_id: str, package_path: Path | None = None) -> Path:
     return thumb_dir / prefix / f"{doc_id}.jpg"
 
 
+def _thumbnail_cache_path(
+    doc_id: str,
+    size: tuple[int, int],
+    source_mtime_ns: int,
+    package_path: Path | None = None,
+) -> Path:
+    """Get the versioned thumbnail cache path for a source revision."""
+    prefix = doc_id[:2].lower()
+    if package_path:
+        thumb_dir = package_path / "storage" / "thumbnails"
+    else:
+        thumb_dir = settings.thumb_dir
+    width, height = size
+    return thumb_dir / prefix / f"{doc_id}__{width}x{height}__{source_mtime_ns}.jpg"
+
+
 def _display_path(doc_id: str, package_path: Path | None = None) -> Path:
     """Get path for display-size image.
 
@@ -178,6 +196,79 @@ def _display_path(doc_id: str, package_path: Path | None = None) -> Path:
     else:
         thumb_dir = settings.thumb_dir
     return thumb_dir / prefix / f"{doc_id}_display.jpg"
+
+
+def _derive_doc_id_from_thumb_name(stem: str) -> str:
+    """Extract the document id from legacy and versioned thumbnail names."""
+    stem = stem.replace("_display", "")
+    if "__" in stem:
+        return stem.split("__", 1)[0]
+    return stem
+
+
+def _source_mtime_ns(source: Path) -> int:
+    return source.stat().st_mtime_ns
+
+
+def _sync_alias_to_cache(cache_path: Path, alias_path: Path) -> None:
+    """Keep the legacy doc-id.jpg path pointing at the latest cache entry."""
+    alias_path.parent.mkdir(parents=True, exist_ok=True)
+    if alias_path.exists() or alias_path.is_symlink():
+        alias_path.unlink()
+    try:
+        os.link(cache_path, alias_path)
+    except OSError:
+        shutil.copy2(cache_path, alias_path)
+
+
+def _remove_stale_thumbnail_variants(
+    doc_id: str, active_path: Path, package_path: Path | None = None
+) -> None:
+    shard_dir = active_path.parent
+    if not shard_dir.exists():
+        return
+    for candidate in shard_dir.glob(f"{doc_id}__*.jpg"):
+        if candidate == active_path:
+            continue
+        try:
+            candidate.unlink()
+        except OSError as exc:
+            logger.debug("Failed to remove stale thumbnail cache %s: %s", candidate, exc)
+
+
+def _resolve_thumbnail_cache_candidate(
+    doc: "Document",
+    package_path: Path | None = None,
+    db: "Database | None" = None,
+    size: tuple[int, int] | None = None,
+) -> tuple[Path | None, Path, Path | None, int | None]:
+    """Resolve the active thumbnail cache file and supporting source paths."""
+    size = size or settings.thumb_size
+    alias_path = _thumb_path(doc.id, package_path)
+    source = resolve_source(doc, library_root=package_path)
+    pdf_render = _resolve_pdf_render_source(doc, db=db, library_root=package_path)
+
+    if not source and not pdf_render:
+        return alias_path if alias_path.exists() else None, alias_path, source, None
+
+    source_path = pdf_render[0] if pdf_render else source
+    assert source_path is not None
+    source_mtime_ns = _source_mtime_ns(source_path)
+    cache_path = _thumbnail_cache_path(doc.id, size, source_mtime_ns, package_path)
+
+    if cache_path.exists():
+        return cache_path, alias_path, source, source_mtime_ns
+
+    if alias_path.exists() and alias_path.stat().st_mtime_ns >= source_mtime_ns:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.replace(alias_path, cache_path)
+        except OSError:
+            shutil.copy2(alias_path, cache_path)
+        _sync_alias_to_cache(cache_path, alias_path)
+        return cache_path, alias_path, source, source_mtime_ns
+
+    return None, alias_path, source, source_mtime_ns
 
 
 # =============================================================================
@@ -338,34 +429,53 @@ def ensure_thumbnail(
     Returns:
         Path to thumbnail, or None on failure
     """
-    if Image is None:
-        logger.error("Pillow not installed - cannot generate thumbnails")
-        return None
+    with perf_span(
+        "library.thumbnail.ensure",
+        logger=logger,
+        doc_id=doc.id,
+        force=force,
+    ) as perf:
+        if Image is None:
+            logger.error("Pillow not installed - cannot generate thumbnails")
+            perf["cache_state"] = "pillow_missing"
+            return None
 
-    path = _thumb_path(doc.id, package_path)
-    source = resolve_source(doc, library_root=package_path)
-    pdf_render = _resolve_pdf_render_source(
-        doc, db=db, library_root=package_path
-    )
+        cached_path, alias_path, source, source_mtime_ns = _resolve_thumbnail_cache_candidate(
+            doc,
+            package_path=package_path,
+            db=db,
+            size=settings.thumb_size,
+        )
 
-    if not source and not pdf_render:
-        logger.warning(f"No source found for {doc.id}")
-        return None
+        if not force and cached_path and cached_path.exists():
+            perf["cache_state"] = "hit"
+            perf["thumbnail_path"] = cached_path.name
+            perf["source_mtime_ns"] = source_mtime_ns
+            return cached_path
 
-    # Check if regeneration needed
-    if path.exists() and not force:
-        source_mtime = pdf_render[0].stat().st_mtime if pdf_render else source.stat().st_mtime
-        # Auto-regenerate if source is newer
-        if source_mtime <= path.stat().st_mtime:
-            return path
-        logger.debug(f"Source newer than thumbnail, regenerating: {doc.id}")
+        pdf_render = _resolve_pdf_render_source(doc, db=db, library_root=package_path)
+        source_path = pdf_render[0] if pdf_render else source
+        if not source_path:
+            logger.warning(f"No source found for {doc.id}")
+            perf["cache_state"] = "missing_source"
+            return None
 
-    if pdf_render:
-        pdf_path, page_index = pdf_render
-        return _generate_pdf_image(pdf_path, page_index, path, settings.thumb_size)
+        source_mtime_ns = _source_mtime_ns(source_path)
+        cache_path = _thumbnail_cache_path(doc.id, settings.thumb_size, source_mtime_ns, package_path)
+        perf["cache_state"] = "regenerated" if force else "miss"
+        perf["source_mtime_ns"] = source_mtime_ns
 
-    # Generate
-    return _generate_image(source, path, settings.thumb_size)
+        if pdf_render:
+            pdf_path, page_index = pdf_render
+            result = _generate_pdf_image(pdf_path, page_index, cache_path, settings.thumb_size)
+        else:
+            result = _generate_image(source_path, cache_path, settings.thumb_size)
+
+        if result:
+            _sync_alias_to_cache(result, alias_path or _thumb_path(doc.id, package_path))
+            _remove_stale_thumbnail_variants(doc.id, result, package_path)
+            perf["thumbnail_path"] = result.name
+        return result
 
 
 def ensure_display(
@@ -728,7 +838,7 @@ def cleanup_orphans(valid_doc_ids: set[str]) -> int:
                 continue
 
             # Extract doc ID from filename
-            doc_id = thumb_file.stem.replace("_display", "")
+            doc_id = _derive_doc_id_from_thumb_name(thumb_file.stem)
 
             if doc_id not in valid_doc_ids:
                 try:
@@ -918,7 +1028,11 @@ def has_display(doc_id: str, package_path: Path | None = None) -> bool:
     return _display_path(doc_id, package_path).exists()
 
 
-def get_thumbnail(doc: "Document", package_path: Path | None = None) -> Path | None:
+def get_thumbnail(
+    doc: "Document",
+    package_path: Path | None = None,
+    db: "Database | None" = None,
+) -> Path | None:
     """Get thumbnail path if it exists, else None.
 
     Does NOT generate - use ensure_thumbnail() for that.
@@ -927,8 +1041,13 @@ def get_thumbnail(doc: "Document", package_path: Path | None = None) -> Path | N
         doc: Document to get thumbnail for
         package_path: Path to .fichero package (if None, uses global base_path)
     """
-    path = _thumb_path(doc.id, package_path)
-    return path if path.exists() else None
+    path, _, _, _ = _resolve_thumbnail_cache_candidate(
+        doc,
+        package_path=package_path,
+        db=db,
+        size=settings.thumb_size,
+    )
+    return path
 
 
 def get_display(doc: "Document", package_path: Path | None = None) -> Path | None:

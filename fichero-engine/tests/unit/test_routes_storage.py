@@ -168,6 +168,46 @@ class TestPdfStorageRoutes:
         assert page_response.content != parent_response.content
         assert path_getter(page.id, test_package).exists()
 
+    def test_thumbnail_route_reuses_cached_variant_without_regeneration(
+        self,
+        client,
+        db,
+        test_package,
+    ):
+        pdf_path = _write_test_pdf(test_package / "files" / "pd" / "cached-book.pdf")
+        parent = Document(
+            id="pdf-cache-parent",
+            name="cached-book.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            path=str(pdf_path.relative_to(test_package)),
+            status=Status.completed,
+            metadata={},
+        )
+        db.save(parent)
+
+        first = client.get(f"/api/storage/thumbnail/{parent.id}")
+        assert first.status_code == 200
+
+        cache_files = sorted(
+            (test_package / "storage" / "thumbnails" / parent.id[:2].lower()).glob(
+                f"{parent.id}__*.jpg"
+            )
+        )
+        assert len(cache_files) == 1
+        first_mtime_ns = cache_files[0].stat().st_mtime_ns
+
+        second = client.get(f"/api/storage/thumbnail/{parent.id}")
+        assert second.status_code == 200
+
+        cache_files_after = sorted(
+            (test_package / "storage" / "thumbnails" / parent.id[:2].lower()).glob(
+                f"{parent.id}__*.jpg"
+            )
+        )
+        assert len(cache_files_after) == 1
+        assert cache_files_after[0].stat().st_mtime_ns == first_mtime_ns
+
 
 # ---------------------------------------------------------------------------
 # GET /api/storage/snapshots

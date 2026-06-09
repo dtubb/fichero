@@ -355,6 +355,43 @@ class TestThumbnailGeneration:
         finally:
             storage.settings = original_settings
 
+    @pytest.mark.skipif(
+        not Path("/System").exists(),
+        reason="Requires Pillow"
+    )
+    def test_ensure_thumbnail_writes_versioned_cache_and_alias(self, tmp_path):
+        """Thumbnail cache files should be keyed by doc id, size, and source mtime."""
+        from fichero import storage
+        from fichero.storage import ensure_thumbnail, get_thumbnail, StorageSettings
+
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("Pillow not installed")
+
+        source = tmp_path / "source-cache.jpg"
+        Image.new("RGB", (800, 600), color="green").save(source)
+
+        test_settings = StorageSettings(base_path=tmp_path)
+        original_settings = storage.settings
+        storage.settings = test_settings
+
+        try:
+            doc = Mock()
+            doc.id = "cache123"
+            doc.path = str(source)
+            doc.metadata = {}
+
+            result = ensure_thumbnail(doc)
+
+            assert result is not None
+            assert "__1024x1024__" in result.name
+            alias_path = tmp_path / "thumbnails" / "ca" / "cache123.jpg"
+            assert alias_path.exists()
+            assert get_thumbnail(doc) == result
+        finally:
+            storage.settings = original_settings
+
 
 class TestStorageRouteHeaders:
     """Tests for storage route response headers."""
@@ -419,8 +456,11 @@ class TestStorageRouteHeaders:
 
             result = ensure_thumbnail(doc)
 
-            # Should return existing file without regenerating
-            assert result == existing_thumb
+            # Should promote the legacy file into the versioned cache without
+            # re-rendering, while preserving the legacy alias path.
+            assert result is not None
+            assert result.name.startswith("abc123__1024x1024__")
+            assert existing_thumb.exists()
             assert existing_thumb.stat().st_mtime == mtime_before
         finally:
             storage.settings = original_settings
@@ -456,6 +496,29 @@ class TestCleanup:
             assert (shard / "abc123.jpg").exists()
             assert not (shard / "orphan1.jpg").exists()
             assert not (shard / "orphan1_display.jpg").exists()
+        finally:
+            storage.settings = original_settings
+
+    def test_cleanup_orphans_keeps_versioned_cache_for_live_doc(self, tmp_path):
+        """Versioned cache files should map back to the owning document id."""
+        from fichero import storage
+        from fichero.storage import cleanup_orphans, StorageSettings
+
+        test_settings = StorageSettings(base_path=tmp_path)
+        original_settings = storage.settings
+        storage.settings = test_settings
+
+        try:
+            shard = tmp_path / "thumbnails" / "ab"
+            shard.mkdir(parents=True)
+            (shard / "abc123__1024x1024__123456.jpg").touch()
+            (shard / "dead999__1024x1024__123456.jpg").touch()
+
+            removed = cleanup_orphans({"abc123"})
+
+            assert removed == 1
+            assert (shard / "abc123__1024x1024__123456.jpg").exists()
+            assert not (shard / "dead999__1024x1024__123456.jpg").exists()
         finally:
             storage.settings = original_settings
 

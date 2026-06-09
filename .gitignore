@@ -88,3 +88,4 @@ agent-work/.cascade.lock
 # Session-local block signal (never commit — see BLOCK.md semantics)
 BLOCK.md
 .kreuzberg/
+.swiftlint-cache/
