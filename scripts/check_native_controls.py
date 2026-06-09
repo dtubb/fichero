@@ -39,7 +39,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     'Library/WorkspaceItemPicker.swift:224': '#1912 baseline',
     'MCPServers/MCPServerDetailView.swift:17': '#1912 baseline',
     'ModelComparison/ComparisonResultView.swift:7': '#1912 baseline',
-    'Notes/NotesBrowserView.swift:139': '#1912 baseline',
+    'Notes/NotesBrowserView.swift:138': '#1912 baseline',
     'Research/ResearchTasksPane.swift:202': '#1912 baseline',
     'Research/ResearchTasksPane.swift:269': '#1912 baseline',
     'Search/SearchFiltersPanel.swift:16': '#1912 baseline',

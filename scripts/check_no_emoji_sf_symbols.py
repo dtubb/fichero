@@ -45,7 +45,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     'fichero/fichero/Views/Library/ArtifactEntityViews.swift:67:emoji': '#1913 baseline',
     'fichero/fichero/Views/Library/ArtifactEntityViews.swift:68:emoji': '#1913 baseline',
     'fichero/fichero/Views/Library/ArtifactEntityViews.swift:69:emoji': '#1913 baseline',
-    'fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorAnnotationsTab.swift:364:emoji': '#1913 baseline',
+    'fichero/fichero/Views/Library/DocumentInspector/DocumentInspectorAnnotationsTab.swift:353:emoji': '#1913 baseline',
     'fichero/fichero/Views/Sidebar/SidebarItemRow+Drop.swift:8:emoji': '#1913 baseline',
     'fichero/fichero/Views/Sidebar/SidebarItemRow+Drop.swift:91:emoji': '#1913 baseline',
     'fichero/fichero/Views/Sidebar/SidebarItemRow+DropHandlers.swift:25:emoji': '#1913 baseline',

@@ -1,47 +1,129 @@
 #!/usr/bin/env bash
-# One command to verify the whole product: Swift lint + the full Xcode test run
-# (which compiles the app = frontend build, runs Swift tests + the live
-# AppEngineContractTests, and runs CrossLanguageGateTests → verify_python.sh,
-# i.e. the entire Python side). Same coverage as ⌘U.
+# Tiered verification entrypoint.
+#
+#   --fast      Swift lint + cheap guardrails + version-date + OpenAPI model sync
+#   --standard  fast + backend unit tests
+#   --full      standard + xcodebuild test (the historical heavy gate)
+#
+# Default is --fast so tooling workers can run the cheap gate without kicking off
+# the app build/test suite. Managers/integrators own --full.
 set -uo pipefail
+
 cd "$(dirname "$0")/.." || exit 2
+
+tier="fast"
+case "${1:-}" in
+  ""|--fast)
+    tier="fast"
+    ;;
+  --standard)
+    tier="standard"
+    ;;
+  --full)
+    tier="full"
+    ;;
+  -h|--help)
+    cat <<'EOF'
+Usage:
+  scripts/verify_all.sh [--fast|--standard|--full]
+
+Tiers:
+  --fast      swiftlint + scripts/check_*.py + check_version_date.sh + OpenAPI model sync
+  --standard  fast + backend pytest unit tests
+  --full      standard + xcodebuild test
+
+Default: --fast
+EOF
+    exit 0
+    ;;
+  *)
+    echo "Unknown verify tier: $1" >&2
+    echo "Usage: scripts/verify_all.sh [--fast|--standard|--full]" >&2
+    exit 2
+    ;;
+esac
+
+if [[ -n "${PYTHON_BIN:-}" ]]; then
+  PYTHON_BIN="$PYTHON_BIN"
+elif [[ -x ".venv/bin/python" ]]; then
+  PYTHON_BIN=".venv/bin/python"
+else
+  PYTHON_BIN="python3"
+fi
+
+PYTEST_CMD=("${PYTHON_BIN}" -m pytest)
+if [[ -x ".venv/bin/pytest" ]]; then
+  PYTEST_CMD=(".venv/bin/pytest")
+fi
 
 fail=0
 
-echo "── swiftlint ──"
-if swiftlint lint --quiet fichero/fichero/; then echo "✅ swiftlint"; else echo "❌ swiftlint"; fail=1; fi
+run_check() {
+  local label="$1"
+  shift
+  echo "-- ${label} --"
+  if "$@"; then
+    echo "PASS ${label}"
+  else
+    echo "FAIL ${label}"
+    fail=1
+  fi
+}
 
-# Architecture guardrails — cheap, no GUI, fail-fast BEFORE the heavy xcodebuild
-# test. These catch exactly the regressions verify_all exists to catch: a view
-# talking to the backend instead of an @Observable store (hand-rolled URLs /
-# non-observers), and raw DuckDB/SQL leaking out of the db.py persistence layer.
-# Manager-run only; workers never run verify_all (the xcodebuild test below
-# spawns the app + engine — running it from several worktrees blows up RAM).
-echo "── architecture guardrails (view→store, db.py access) ──"
-if python3 scripts/check_view_endpoint_access.py; then echo "✅ view→store guardrail"; else echo "❌ view→store guardrail"; fail=1; fi
-if PYTHONPATH=fichero-engine/src .venv/bin/pytest -q fichero-engine/tests/unit/test_db_access_guardrail.py >/dev/null 2>&1; then echo "✅ db-access guardrail"; else echo "❌ db-access guardrail"; fail=1; fi
-for g in check_native_controls check_no_emoji_sf_symbols check_comment_hygiene check_feature_flags; do
-  if python3 "scripts/$g.py" >/dev/null 2>&1; then echo "✅ $g"; else echo "❌ $g"; fail=1; fi
-done
+run_fast() {
+  echo "verify_all tier: fast"
 
-# OpenAPI contract: openapi.json must match the Pydantic models (CLI + Swift
-# client both generate from it — drift breaks both). validate_model_sync.py is
-# read-only; run sync_openapi_schema.sh to regenerate when it fails.
-echo "── OpenAPI contract sync ──"
-if PYTHONPATH=fichero-engine/src .venv/bin/python fichero-engine/scripts/validate_model_sync.py >/dev/null 2>&1; then echo "✅ openapi in sync"; else echo "❌ openapi drift — run fichero-engine/scripts/sync_openapi_schema.sh"; fail=1; fi
+  run_check "swiftlint" swiftlint lint --quiet --cache-path .swiftlint-cache fichero/fichero/
 
-echo "── xcodebuild test (Swift suite + CrossLanguageGate → Python gate) ──"
-if xcodebuild test \
-    -project fichero/fichero.xcodeproj \
-    -scheme Fichero \
-    -destination 'platform=macOS' \
-    -skipPackagePluginValidation \
-    -resultBundlePath "$(mktemp -d)/verify.xcresult"; then
-  echo "✅ xcodebuild test"
-else
-  echo "❌ xcodebuild test"; fail=1
-fi
+  echo "-- architecture and tooling guardrails --"
+  local guardrail
+  for guardrail in scripts/check_*.py; do
+    run_check "$(basename "$guardrail")" "${PYTHON_BIN}" "$guardrail"
+  done
+
+  run_check "version-date" scripts/check_version_date.sh
+
+  run_check "OpenAPI model sync" env PYTHONPATH=fichero-engine/src \
+    "${PYTHON_BIN}" fichero-engine/scripts/validate_model_sync.py
+}
+
+run_standard() {
+  echo "verify_all tier: standard"
+  run_fast
+
+  run_check "backend pytest unit tests" env PYTHONPATH=fichero-engine/src \
+    "${PYTEST_CMD[@]}" fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
+}
+
+run_full() {
+  echo "verify_all tier: full"
+  run_standard
+
+  run_check "xcodebuild test (Swift suite + CrossLanguageGate -> Python gate)" \
+    xcodebuild test \
+      -project fichero/fichero.xcodeproj \
+      -scheme Fichero \
+      -destination 'platform=macOS' \
+      -skipPackagePluginValidation \
+      -resultBundlePath "$(mktemp -d)/verify.xcresult"
+}
+
+case "$tier" in
+  fast)
+    run_fast
+    ;;
+  standard)
+    run_standard
+    ;;
+  full)
+    run_full
+    ;;
+esac
 
 echo
-if [ "$fail" = 0 ]; then echo "✅✅ verify_all: ALL PASS"; else echo "❌❌ verify_all: FAILURES ABOVE"; fi
+if [[ "$fail" = 0 ]]; then
+  echo "verify_all (${tier}): ALL PASS"
+else
+  echo "verify_all (${tier}): FAILURES ABOVE"
+fi
 exit "$fail"
