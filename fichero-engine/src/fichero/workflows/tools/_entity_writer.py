@@ -311,6 +311,53 @@ def _strip_admin_qualifiers(tokens: list[str]) -> list[str]:
     return tokens
 
 
+# Embedding auto-merge precision gate (#1907)
+# -------------------------------------------
+# A high e5-large cosine alone over-merges surface-distinct but
+# semantically-similar names ("San Pablo" vs "San Juan" — both
+# saint-name places land at ~0.93 cosine). Before honouring an
+# embedding auto-merge we ALSO require a lexical agreement signal so
+# the two surface forms actually look like the same name.
+_AUTO_MERGE_LEXICAL_SEQ_FLOOR = 0.80
+_AUTO_MERGE_MIN_SHARED_TOKENS = 2
+
+
+def _significant_tokens(s: str) -> set[str]:
+    """Accent-folded, lowercased tokens of length > 2 (drops generic
+    short connectors like 'of'/'on'/'la' and single letters).
+    """
+    return {tok for tok in _tokenise_lower(_fold_accents(s)) if len(tok) > 2}
+
+
+def _lexical_agreement(name_a: str, name_b: str) -> bool:
+    """Precision gate for embedding auto-merge (#1907).
+
+    Returns True only when the two surface forms agree lexically — via
+    EITHER signal:
+
+    - **High SequenceMatcher ratio** on accent-folded forms — catches
+      accent / spacing variants of the *same* name ("Bogotá"/"Bogota"
+      → 1.0, "San Pablo"/"San Pabloo" → ~0.94).
+    - **>= 2 shared significant tokens** — catches verbose paraphrases
+      that share content words ("Narrator's Account of Racial Economic
+      Exclusion" / "Narrator's Monologue on Race and Economic
+      Marginalization" share {narrator, economic}).
+
+    Surface-distinct names that merely share a single generic token
+    ("San Pablo" vs "San Juan" — only "san" in common, seq ratio
+    ~0.59) fail BOTH signals and are therefore NOT auto-merged on
+    embedding cosine alone; they route to the human review queue.
+    """
+    from difflib import SequenceMatcher
+
+    folded_a = _fold_accents(name_a.lower())
+    folded_b = _fold_accents(name_b.lower())
+    if SequenceMatcher(None, folded_a, folded_b).ratio() >= _AUTO_MERGE_LEXICAL_SEQ_FLOOR:
+        return True
+    shared = _significant_tokens(name_a) & _significant_tokens(name_b)
+    return len(shared) >= _AUTO_MERGE_MIN_SHARED_TOKENS
+
+
 def _admin_qualifier_match(a: str, b: str) -> bool:
     """Return True when ``a`` and ``b`` reduce to the same non-empty
     core tokens after dropping leading articles and trailing
@@ -1020,8 +1067,10 @@ def upsert_entity(
        same-type entities. Catches semantic divergence in noun
        phrases ("Racial Economic Exclusion" vs "Race and Economic
        Marginalization") that pure SequenceMatcher misses. Cosine
-       >= 0.92 → auto-merge; 0.75–0.92 → logged for future review
-       gate (#377); <0.75 → fall through.
+       >= 0.92 → auto-merge ONLY IF a lexical-agreement precision
+       gate also passes (#1907 — otherwise routed to review so
+       "San Pablo"/"San Juan" don't collapse); 0.75–0.92 → logged
+       for the review gate (#377); <0.75 → fall through.
     3. SequenceMatcher fallback for the case where vectors aren't
        available yet (table empty, model failed to load, etc.). Keeps
        the 0.0.2 behaviour as a floor.
@@ -1164,13 +1213,31 @@ def upsert_entity(
         )
         if hits:
             best_id, best_score, best_name = hits[0]
-            if best_score >= entity_vectors.AUTO_MERGE_THRESHOLD:
+            if best_score >= entity_vectors.AUTO_MERGE_THRESHOLD and _lexical_agreement(
+                canonical_name, best_name
+            ):
+                # Precision gate passed (#1907): cosine is in the
+                # auto-merge band AND the surface forms agree lexically
+                # (accent/spacing variant or shared content tokens).
                 matched = db.get(KnowledgeEntity, best_id)
                 if matched is not None:
                     logger.info(
                         "upsert_entity: embedding auto-merge %r → %s (%r, cosine=%.3f)",
                         canonical_name, best_id, best_name, best_score,
                     )
+            elif best_score >= entity_vectors.AUTO_MERGE_THRESHOLD:
+                # Precision gate FAILED (#1907): cosine alone would
+                # merge, but the surface forms materially differ
+                # ("San Pablo" vs "San Juan"). Embedding similarity is
+                # not enough to collapse distinct entities, so route to
+                # the human review queue instead of auto-merging.
+                logger.info(
+                    "upsert_entity: embedding cosine %.3f for %r ~ %r but "
+                    "lexical agreement low — routing to review instead of "
+                    "auto-merge (#1907)",
+                    best_score, canonical_name, best_name,
+                )
+                _pending_review = (best_id, best_score, best_name)
             elif best_score >= entity_vectors.REVIEW_THRESHOLD:
                 # Mid-band: surface for the human review queue (#377 /
                 # #899 Phase D). We DON'T auto-merge here — false

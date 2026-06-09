@@ -1341,3 +1341,90 @@ class TestAccentDedupIntegration:
         assert san_pablo != san_juan
         rows = db.query(KnowledgeEntity, entity_type=EntityType.location)
         assert len(rows) == 2
+
+
+class TestLexicalAgreementGate:
+    """#1907 — unit coverage for the embedding auto-merge precision gate.
+
+    `_lexical_agreement` is the cheap deterministic check (no model) that
+    decides whether a high-cosine pair is *also* lexically consistent.
+    """
+
+    def test_accent_variant_agrees(self):
+        from fichero.workflows.tools._entity_writer import _lexical_agreement
+
+        assert _lexical_agreement("Bogotá", "Bogota")
+
+    def test_spacing_typo_variant_agrees(self):
+        from fichero.workflows.tools._entity_writer import _lexical_agreement
+
+        assert _lexical_agreement("San Pablo", "San Pabloo")
+
+    def test_shared_content_tokens_agree(self):
+        from fichero.workflows.tools._entity_writer import _lexical_agreement
+
+        # Verbose paraphrases sharing >= 2 significant tokens.
+        assert _lexical_agreement(
+            "Narrator's Account of Racial Economic Exclusion",
+            "Narrator's Monologue on Race and Economic Marginalization",
+        )
+
+    def test_distinct_saint_places_disagree(self):
+        from fichero.workflows.tools._entity_writer import _lexical_agreement
+
+        # Only the generic "san" token in common; seq ratio ~0.59.
+        assert not _lexical_agreement("San Pablo", "San Juan")
+
+
+class TestEmbeddingPrecisionGate:
+    """#1907 — end-to-end through `upsert_entity` with embeddings ON.
+
+    Unlike `TestAccentDedupIntegration` (which has to monkeypatch the
+    embedder off to keep 'San Pablo'/'San Juan' apart), these tests
+    exercise the *real* embedding stage. The lexical precision gate is
+    what keeps the semantically-similar-but-distinct pair separate while
+    still collapsing a genuine accent/spacing dupe.
+    """
+
+    def test_san_pablo_vs_san_juan_do_not_merge_with_embeddings_on(self, db):
+        from fichero.knowledge_models import EntityMatchCandidate
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        san_pablo = upsert_entity(
+            db, canonical_name="San Pablo", entity_type=EntityType.location
+        )
+        san_juan = upsert_entity(
+            db, canonical_name="San Juan", entity_type=EntityType.location
+        )
+        assert san_pablo != san_juan, (
+            "embedding cosine alone must not merge distinct saint-name places"
+        )
+        rows = db.query(KnowledgeEntity, entity_type=EntityType.location)
+        assert len(rows) == 2
+
+        # If the embedder pushed the pair into the auto-merge band, the
+        # gate should have routed it to the review queue rather than
+        # silently dropping the signal. (When cosine stayed below the
+        # band there's simply nothing to review — both outcomes keep the
+        # two rows distinct, which is the contract under test.)
+        candidates = db.all(EntityMatchCandidate)
+        for cand in candidates:
+            assert {cand.survivor_entity_id, cand.candidate_entity_id} == {
+                san_pablo,
+                san_juan,
+            }
+
+    def test_true_accent_dupe_merges_with_embeddings_on(self, db):
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db, canonical_name="Bogotá", entity_type=EntityType.location
+        )
+        second = upsert_entity(
+            db, canonical_name="Bogota", entity_type=EntityType.location
+        )
+        assert first == second, (
+            "accent-only variant of the same place must still collapse"
+        )
+        rows = db.query(KnowledgeEntity, entity_type=EntityType.location)
+        assert len(rows) == 1
