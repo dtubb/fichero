@@ -223,17 +223,16 @@ struct AIModelSelectionView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(filteredModels) { model in
-                            ModelInfoRow(model: model, isSelected: selectedModel?.modelId == model.modelId) {
-                                handleModelTap(model)
-                            }
+                List {
+                    ForEach(filteredModels) { model in
+                        ModelInfoRow(model: model, isSelected: selectedModel?.modelId == model.modelId) {
+                            handleModelTap(model)
                         }
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        .listRowSeparator(.hidden)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
                 }
+                .listStyle(.plain)
             }
         }
         .task {

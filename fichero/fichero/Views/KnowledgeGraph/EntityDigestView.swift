@@ -94,17 +94,10 @@ struct EntityDigestView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "book.closed")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("Select an entity to view its digest")
-                .font(.headline)
+        ContentUnavailableView {
+            Label("No Entity Selected", systemImage: "book.closed")
+        } description: {
             Text("Browse the index to see reconstructed biographies and source annotations.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

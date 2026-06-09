@@ -67,13 +67,11 @@ struct MCPServersView: View {
                     onUpdate: loadServers
                 )
             } else {
-                VStack {
-                    Image(systemName: "server.rack")
-                        .font(.system(size: 48))
-                        .foregroundColor(.secondary)
-                    Text("Select an MCP server")
-                        .foregroundColor(.secondary)
-                }
+                ContentUnavailableView(
+                    "No Server Selected",
+                    systemImage: "server.rack",
+                    description: Text("Select an MCP server to view its configuration and tools.")
+                )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }

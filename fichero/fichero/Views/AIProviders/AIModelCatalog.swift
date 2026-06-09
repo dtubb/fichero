@@ -131,36 +131,38 @@ struct AIModelCatalog: View {
     // MARK: - Model List
 
     private var modelListView: some View {
-        ScrollView {
-            LazyVStack(spacing: 1) {
-                ForEach(models) { model in
-                    ModelRowView(
-                        model: model,
-                        isSelected: selectedModel?.id == model.id,
-                        onSelect: {
-                            selectedModel = model
-                            onModelSelected?(model)
-                        }
-                    )
-                }
-
-                // Load more button
-                if hasMore {
-                    Button {
-                        Task { await loadMore() }
-                    } label: {
-                        if isLoading {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        } else {
-                            Text("Load More")
-                        }
+        List {
+            ForEach(models) { model in
+                ModelRowView(
+                    model: model,
+                    isSelected: selectedModel?.id == model.id,
+                    onSelect: {
+                        selectedModel = model
+                        onModelSelected?(model)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding()
+                )
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+            }
+
+            // Load more button
+            if hasMore {
+                Button {
+                    Task { await loadMore() }
+                } label: {
+                    if isLoading {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else {
+                        Text("Load More")
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .listRowSeparator(.hidden)
             }
         }
+        .listStyle(.plain)
     }
 
     // MARK: - States
