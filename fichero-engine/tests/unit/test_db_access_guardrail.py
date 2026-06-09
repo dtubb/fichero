@@ -158,6 +158,11 @@ def _scan_source_tree() -> dict[str, list[tuple[str, int]]]:
     flagged: dict[str, list[tuple[str, int]]] = {}
     for path in sorted(SRC_ROOT.rglob("*.py")):
         rel = _rel(path)
+        # Generated code (e.g. the OpenAPI CLI client under cli/generated/) is
+        # not hand-written business logic — SQL-looking strings there are field
+        # descriptions, not raw DB access. Skip any `generated/` directory.
+        if "generated" in path.parts:
+            continue
         if _is_allowlisted(rel):
             continue
         try:
