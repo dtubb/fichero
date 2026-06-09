@@ -135,14 +135,13 @@ struct NotesBrowserView: View {
         } else if noteStore.notes.isEmpty {
             emptyState
         } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(noteStore.notes) { note in
-                        noteCard(note)
-                    }
-                }
-                .padding(12)
+            List(noteStore.notes) { note in
+                noteCard(note)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                    .listRowSeparator(.hidden)
             }
+            .listStyle(.plain)
         }
     }
 

@@ -23,10 +23,6 @@ VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
 RULE_DOC = "docs/ROADMAP.md"
 
 KNOWN_VIOLATIONS: dict[str, str] = {
-    'AIProviders/AddProviderSheet+Step1.swift:33': '#1912 baseline',
-    'AIProviders/ProvidersView+ProviderDetailView.swift:37': '#1912 baseline',
-    'Actions/ActionDetailView.swift:10': '#1912 baseline',
-    'Activity/ActivityLogView.swift:105': '#1912 baseline',
     'Activity/ActivityOverviewView+Cards.swift:25': '#1912 baseline',
     'Components/WorkflowPreviewSheet.swift:36': '#1912 baseline',
     'KnowledgeGraph/OntologyBrowser/EntitySourceGroupsView.swift:67': '#1912 baseline',
@@ -37,13 +33,9 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     'Library/LibraryView+DisplayModes.swift:210': '#1912 baseline',
     'Library/PDFReadingView.swift:53': '#1912 baseline',
     'Library/WorkspaceItemPicker.swift:224': '#1912 baseline',
-    'MCPServers/MCPServerDetailView.swift:17': '#1912 baseline',
-    'ModelComparison/ComparisonResultView.swift:7': '#1912 baseline',
-    'Notes/NotesBrowserView.swift:138': '#1912 baseline',
     'Research/ResearchTasksPane.swift:197': '#1912 baseline (shifted by store migration)',
     'Research/ResearchTasksPane.swift:264': '#1912 baseline (shifted by store migration)',
     'Search/SearchFiltersPanel.swift:16': '#1912 baseline',
-    'Search/SearchResultsDisplay.swift:139': '#1912 baseline',
     'Workflow/WorkflowChainListView/ChainDetailContent.swift:10': '#1912 baseline',
 }
 APPKIT_BRIDGE_MARKERS = (
@@ -62,6 +54,15 @@ ALLOWLIST_FILES = {
     "Library/PageContentPane.swift",
     "Library/ArtifactPanel.swift",
     "Chat/ChatMessagesList.swift",
+    # Form-based settings detail views — Form+Section+ForEach is proper form
+    # usage, not a hand-rolled row collection.
+    "AIProviders/ProvidersView+ProviderDetailView.swift",
+    "MCPServers/MCPServerDetailView.swift",
+    # Free-form detail / log / grid surfaces — not selectable row collections.
+    "Actions/ActionDetailView.swift",          # mixed detail content; ForEach is for a tag-chip FlowLayout
+    "Activity/ActivityLogView.swift",           # streaming log viewer with auto-scroll
+    "ModelComparison/ComparisonResultView.swift",  # LazyVGrid card grid for model results
+    "Search/SearchResultsDisplay.swift",       # icon mode uses LazyVGrid; list mode already uses native List
 }
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
