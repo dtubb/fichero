@@ -29,10 +29,11 @@ extension OntologyBrowser {
                 .task(id: entityId) {
                     await loadEntityClaims(entity: entity)
                 }
-                .onReceive(NotificationCenter.default.publisher(for: .ficheroClaimDeleted)) { _ in
-                    Task { await loadEntityClaims(entity: entity) }
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .ficheroClaimUpdated)) { _ in
+                // Resync this entity's claims whenever any claim mutates —
+                // ClaimStore bumps `changeToken` on every `claim.*` change event
+                // fanned from the per-library change-stream (#1862/#1863),
+                // replacing the retired `.ficheroClaim*` NotificationCenter bus.
+                .onChange(of: claimStore.changeToken) {
                     Task { await loadEntityClaims(entity: entity) }
                 }
             } else {

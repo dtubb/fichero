@@ -34,6 +34,11 @@ struct KnowledgeGraphInspectorSection: View {
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
 
     @Environment(KGFocusState.self) private var kgFocusState
+    /// Observable claim store (#1862) — its `changeToken` bumps on every
+    /// `claim.*` change event from the per-library change-stream, driving this
+    /// section's resync. Replaces the retired `.ficheroClaim*` NotificationCenter
+    /// bus; the inspector still owns its grouped KG read (iterate, never replace).
+    @Environment(ClaimStore.self) private var claimStore
     @State private var loadState = KnowledgeGraphInspectorLoadState()
     @State private var claimSelection: Set<String> = []
     @State private var claimSelectionAnchor: String?
@@ -285,6 +290,13 @@ struct KnowledgeGraphInspectorSection: View {
             )
         }
         .task(id: documentId) { await loadStatements() }
+        // Resync when any claim mutates anywhere — ClaimStore bumps its
+        // `changeToken` on each `claim.*` change event fanned from the
+        // per-library change-stream (#1862/#1863), retiring the inspector's
+        // `.ficheroClaim*` NotificationCenter dependency.
+        .onChange(of: claimStore.changeToken) {
+            Task { await loadStatements() }
+        }
         .alert(
             pendingMergePlan.map {
                 "Merge \($0.claimCount) claims into \"\($0.survivorName)\"?"

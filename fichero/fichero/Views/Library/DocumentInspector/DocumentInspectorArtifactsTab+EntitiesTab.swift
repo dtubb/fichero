@@ -119,14 +119,6 @@ struct DocumentInspectorEntitiesTab: View {
         .onChange(of: entityStore.entities.map(\.stableInspectorId)) { _, _ in
             syncSelectionToLoadedEntities()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .ficheroEntityUpdated)) { _ in
-            // Interim cross-view bridge: an entity was renamed in a NOT-yet-
-            // migrated surface (EntityDetailView header, #1865) which still
-            // posts this. Nudge the store to refresh so the new name shows
-            // here too. Retire this once the backend emits `entity.updated`
-            // on the change-stream (#1863) — then the store refreshes itself.
-            Task { await entityStore.reload() }
-        }
         .alert(
             pendingMergePlan.map {
                 "Merge \($0.entityCount) entities into \"\($0.survivorName)\"?"
@@ -355,9 +347,9 @@ struct DocumentInspectorEntitiesTab: View {
     }
 
     /// Commit the inline rename through the entity store; the store PATCHes and
-    /// republishes the list. We still post `.ficheroEntityUpdated` so the
-    /// not-yet-migrated surfaces (EntityDetailView header) refresh — that
-    /// cross-view nudge is retired once the change-stream emits. (#1865)
+    /// republishes the list. The backend emits `entity.updated`, so the
+    /// change-stream fans the refresh to other surfaces (EntityDetailView header)
+    /// — the `.ficheroEntityUpdated` NotificationCenter nudge is now retired (#1862/#1865).
     private func commitRename(for entity: Components.Schemas.KnowledgeEntity) {
         let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         renamingEntityId = nil
@@ -369,11 +361,6 @@ struct DocumentInspectorEntitiesTab: View {
         Task {
             do {
                 try await entityStore.rename(entityId: entityId, to: trimmed)
-                NotificationCenter.default.post(
-                    name: .ficheroEntityUpdated,
-                    object: entityId,
-                    userInfo: ["canonicalName": trimmed]
-                )
             } catch {
                 inspectorEntitiesLogger.error(
                     "Entity rename failed for \(entityId, privacy: .public): \(error.localizedDescription, privacy: .public)"

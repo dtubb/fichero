@@ -88,6 +88,16 @@ class LibraryManager: ObservableObject {
             libraryPath: url.path
         )
 
+        /// Per-library claim store (#1862) — wraps the same transport wrappers,
+        /// owns the claim list for the current document/entity scope, and reacts
+        /// to `claim.*` change events. Retires the `.ficheroClaim*`
+        /// NotificationCenter bus.
+        lazy var claimStore: ClaimStore = ClaimStore(
+            entityService: entityService,
+            kgCurationService: kgCurationService,
+            libraryPath: url.path
+        )
+
         /// One SSE change-stream per library (#1863), fanning events to the
         /// stores above. `start()` is idempotent — each window kicks it from
         /// its `.task`; only the first connects.
@@ -97,6 +107,7 @@ class LibraryManager: ObservableObject {
                 libraryPath: self.url.path
             )
             stream.register(self.entityStore)
+            stream.register(self.claimStore)
             return stream
         }()
 

@@ -191,7 +191,7 @@ struct ClaimReviewQueueSheet: View {
         do {
             _ = try await library.entityService.patchClaim(claimId, curationState: state)
             statusMessage = "Updated \(claimId) → \(state.rawValue)"
-            NotificationCenter.default.post(name: .ficheroClaimUpdated, object: claimId)
+            // Backend emits `claim.updated`; change-stream fans the refresh (#1862).
         } catch {
             statusMessage = "Failed to update \(claimId)"
         }
@@ -208,7 +208,7 @@ struct ClaimReviewQueueSheet: View {
             do {
                 _ = try await library.entityService.patchClaim(claimId, curationState: state)
                 successCount += 1
-                NotificationCenter.default.post(name: .ficheroClaimUpdated, object: claimId)
+                // Backend emits `claim.updated`; change-stream fans refresh (#1862).
             } catch {
                 continue
             }

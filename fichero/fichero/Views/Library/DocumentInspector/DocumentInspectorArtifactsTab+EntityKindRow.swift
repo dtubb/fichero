@@ -97,13 +97,11 @@ struct EntityKindRow: View {
             set: { if !$0 { claimForEditing = nil } }
         )) {
             if let claimForEditing {
-                EditClaimSheet(claim: claimForEditing) { updated in
+                // EditClaimSheet persists via PATCH; the backend emits
+                // `claim.updated`, the change-stream bumps ClaimStore.changeToken,
+                // and the KG section resyncs — no NotificationCenter nudge (#1862).
+                EditClaimSheet(claim: claimForEditing) { _ in
                     self.claimForEditing = nil
-                    NotificationCenter.default.post(
-                        name: .ficheroClaimUpdated,
-                        object: updated.id,
-                        userInfo: ["claim": updated]
-                    )
                 }
             }
         }

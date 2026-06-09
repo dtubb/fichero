@@ -5,6 +5,9 @@ import SwiftUI
 
 struct EntityDetailView: View {
     @EnvironmentObject var entityService: EntityServiceGenerated
+    /// Entity rename routes through the store (#1862/#1865); the change-stream's
+    /// `entity.updated` event fans the refresh, retiring `.ficheroEntityUpdated`.
+    @Environment(EntityStore.self) var entityStore
     let entity: Components.Schemas.KnowledgeEntity
     let claims: [Components.Schemas.KnowledgeClaim]
     let isLoadingClaims: Bool
@@ -222,12 +225,9 @@ struct EntityDetailView: View {
         nameOverride = trimmed
         Task {
             do {
-                _ = try await entityService.patchEntity(entityId, canonicalName: trimmed)
-                NotificationCenter.default.post(
-                    name: .ficheroEntityUpdated,
-                    object: entityId,
-                    userInfo: ["canonicalName": trimmed]
-                )
+                // Route through the store; its scope reload + the change-stream's
+                // `entity.updated` event refresh every bound surface (#1862/#1865).
+                _ = try await entityStore.rename(entityId: entityId, to: trimmed)
             } catch {
                 nameOverride = previous
             }

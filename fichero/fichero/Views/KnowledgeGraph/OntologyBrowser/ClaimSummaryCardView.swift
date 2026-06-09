@@ -31,7 +31,12 @@ struct ClaimSummaryCard: View {
     @State private var showEditSheet = false
     @State private var showDeleteConfirmation = false
     @State private var isInlineEditing = false
+    @State private var mutationError: String?
     @Environment(KGFocusState.self) var kgFocusState
+    /// Claim mutations route through the store (#1862); the change-stream fans
+    /// the refresh back to every claim surface, retiring the `.ficheroClaim*`
+    /// NotificationCenter posts this card used to make.
+    @Environment(ClaimStore.self) var claimStore
     /// Finder-style Open in New Tab / New Window for claim cards (#1685).
     @Environment(\.openWindow) private var openWindow
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
@@ -112,14 +117,10 @@ struct ClaimSummaryCard: View {
             InlineClaimEditor(
                 claim: claim,
                 onCancel: { isInlineEditing = false },
-                onSave: { updated in
-                    isInlineEditing = false
-                    NotificationCenter.default.post(
-                        name: .ficheroClaimUpdated,
-                        object: updated.id,
-                        userInfo: ["claim": updated]
-                    )
-                }
+                // The editor persists via PATCH; the change-stream's
+                // `claim.updated` event refreshes the bound surfaces (#1862),
+                // so no NotificationCenter nudge is needed.
+                onSave: { _ in isInlineEditing = false }
             )
         } else {
             VStack(alignment: .leading, spacing: 6) {
@@ -210,13 +211,21 @@ struct ClaimSummaryCard: View {
                 Text("This removes the claim from the knowledge graph. Related entities stay in place.")
             }
             .sheet(isPresented: $showEditSheet) {
-                EditClaimSheet(claim: claim) { updated in
-                    NotificationCenter.default.post(
-                        name: .ficheroClaimUpdated,
-                        object: updated.id,
-                        userInfo: ["claim": updated]
-                    )
-                }
+                // EditClaimSheet persists via PATCH; the change-stream refreshes
+                // bound surfaces, so no NotificationCenter nudge is needed (#1862).
+                EditClaimSheet(claim: claim) { _ in }
+            }
+            .alert(
+                "Couldn't update claim",
+                isPresented: Binding(
+                    get: { mutationError != nil },
+                    set: { if !$0 { mutationError = nil } }
+                ),
+                presenting: mutationError
+            ) { _ in
+                Button("OK", role: .cancel) { mutationError = nil }
+            } message: { message in
+                Text(message)
             }
         }
     }  // end else (isEmptyContent path)

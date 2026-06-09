@@ -16,6 +16,9 @@ import SwiftUI
 struct OntologyBrowser: View {
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
+    /// Observable claim store (#1862) — its `changeToken` drives detail-panel
+    /// resync, replacing the retired `.ficheroClaim*` NotificationCenter bus.
+    @Environment(ClaimStore.self) var claimStore
     /// Finder-style Open in New Tab / New Window for ontology rows (#1685).
     @Environment(\.openWindow) var openWindow
     @State var loadState = OntologyBrowserLoadState()
@@ -298,6 +301,8 @@ struct OntologyBrowser: View {
         .frame(width: 600, height: 500)
         .environment(WorkflowExecutionObserver())
         .environment(KGFocusState.shared)
+        .environment(LibraryManager.shared.globalLibrary!.claimStore)
+        .environment(LibraryManager.shared.globalLibrary!.entityStore)
 }
 
 #Preview("Entity Row") {

@@ -67,6 +67,7 @@ struct LibraryWindow: View {
                 // idempotent across windows; the stream fans mutations back to
                 // every window's stores.
                 .environment(library.entityStore)
+                .environment(library.claimStore)
                 .environment(library.changeStream)
                 .task(id: library.id) { library.changeStream.start() }
             } else {

@@ -278,65 +278,37 @@ extension ClaimSummaryCard {
     }
 
     func deleteClaim() {
-        guard let claimId = claim.id,
-              let library = LibraryManager.shared.globalLibrary else { return }
+        guard let claimId = claim.id else { return }
         Task {
             do {
-                try await library.entityService.deleteClaim(claimId)
-                NotificationCenter.default.post(name: .ficheroClaimDeleted, object: claimId)
+                // Route through the store; the change-stream's `claim.deleted`
+                // event fans the refresh to every claim surface (#1862).
+                try await claimStore.delete(claimIds: [claimId])
             } catch {
-                NotificationCenter.default.post(
-                    name: .ficheroClaimDeleted,
-                    object: nil,
-                    userInfo: ["error": error.localizedDescription]
-                )
+                mutationError = error.localizedDescription
             }
         }
     }
 
     /// PATCH the epistemic_status field on this claim. (#901)
     func updateStatus(_ status: Components.Schemas.EpistemicStatus) async {
-        guard let claimId = claim.id,
-              let library = LibraryManager.shared.globalLibrary else { return }
+        guard let claimId = claim.id else { return }
         do {
-            let updated = try await library.entityService.patchClaim(
-                claimId,
-                epistemicStatus: status
-            )
-            NotificationCenter.default.post(
-                name: .ficheroClaimUpdated,
-                object: updated.id,
-                userInfo: ["claim": updated]
-            )
+            // Store-routed PATCH; `claim.updated` from the change-stream
+            // refreshes the bound surfaces (#1862).
+            _ = try await claimStore.patch(claimId: claimId, epistemicStatus: status)
         } catch {
-            NotificationCenter.default.post(
-                name: .ficheroClaimDeleted,
-                object: nil,
-                userInfo: ["error": error.localizedDescription]
-            )
+            mutationError = error.localizedDescription
         }
     }
 
     /// PATCH the curation_state field on this claim. (#901)
     func updateCuration(_ state: Components.Schemas.ClaimCurationState) async {
-        guard let claimId = claim.id,
-              let library = LibraryManager.shared.globalLibrary else { return }
+        guard let claimId = claim.id else { return }
         do {
-            let updated = try await library.entityService.patchClaim(
-                claimId,
-                curationState: state
-            )
-            NotificationCenter.default.post(
-                name: .ficheroClaimUpdated,
-                object: updated.id,
-                userInfo: ["claim": updated]
-            )
+            _ = try await claimStore.patch(claimId: claimId, curationState: state)
         } catch {
-            NotificationCenter.default.post(
-                name: .ficheroClaimDeleted,
-                object: nil,
-                userInfo: ["error": error.localizedDescription]
-            )
+            mutationError = error.localizedDescription
         }
     }
 }

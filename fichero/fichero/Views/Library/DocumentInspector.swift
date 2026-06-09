@@ -353,6 +353,7 @@ private struct DocumentInspectorImageEditsTab: View {
         .environmentObject(library.artifactService)
         .environmentObject(library.entityService)
         .environment(library.entityStore)
+        .environment(library.claimStore)
         .environment(KGFocusState.shared)
         .frame(width: 280, height: 400)
 }
@@ -381,6 +382,7 @@ private struct DocumentInspectorImageEditsTab: View {
         .environmentObject(library.artifactService)
         .environmentObject(library.entityService)
         .environment(library.entityStore)
+        .environment(library.claimStore)
         .environment(KGFocusState.shared)
         .frame(width: 280, height: 400)
 }
