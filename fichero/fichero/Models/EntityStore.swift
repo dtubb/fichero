@@ -84,8 +84,9 @@ final class EntityStore: ChangeEventConsumer {
     // MARK: - Named actions (map 1:1 to the audited action layer, #1848)
 
     /// Set the curation state of `entityIds` and optionally write library-wide
-    /// suppress rules, then refresh. Throws so the calling view can surface a
-    /// precise message and keep its own UI feedback state.
+    /// suppress rules, then patch the loaded rows in place. Throws so the
+    /// calling view can surface a precise message and keep its own UI feedback
+    /// state.
     func setCuration(
         entityIds: [String],
         to state: Components.Schemas.EntityCurationState,
@@ -100,36 +101,60 @@ final class EntityStore: ChangeEventConsumer {
         if !suppressRules.isEmpty {
             _ = try await kgCurationService.batchCreateEntityRules(suppressRules)
         }
-        await reload()
+        guard !entityIds.isEmpty else { return }
+        let targetIds = Set(entityIds)
+        for index in entities.indices {
+            guard let id = entities[index].id, targetIds.contains(id) else { continue }
+            entities[index].curationState = state
+        }
     }
 
-    /// Merge `absorbedIds` into `survivorId`, then refresh.
+    /// Merge `absorbedIds` into `survivorId`, then update the loaded rows in
+    /// place. If the survivor refresh fails, keep the structural update and
+    /// leave the row data as-is rather than reloading the whole list.
     func merge(absorbedIds: [String], into survivorId: String) async throws {
         _ = try await entityService.mergeEntities(
             absorbingEntityId: survivorId,
             absorbedEntityIds: absorbedIds
         )
-        await reload()
+        let absorbed = Set(absorbedIds)
+        entities.removeAll { entity in
+            entity.id.map(absorbed.contains) ?? false
+        }
+
+        guard let survivorIndex = entities.firstIndex(where: { $0.id == survivorId }) else {
+            return
+        }
+
+        if let refreshed = try? await entityService.getEntity(survivorId) {
+            entities[survivorIndex] = refreshed
+        }
     }
 
-    /// Rename an entity's canonical name, then refresh. Returns the updated
-    /// entity so the caller can notify not-yet-migrated surfaces (#1865).
+    /// Rename an entity's canonical name, then patch the matching row in place.
+    /// Returns the updated entity so the caller can notify not-yet-migrated
+    /// surfaces (#1865).
     @discardableResult
     func rename(
         entityId: String,
         to newName: String
     ) async throws -> Components.Schemas.KnowledgeEntity {
         let updated = try await entityService.patchEntity(entityId, canonicalName: newName)
-        await reload()
+        if let index = entities.firstIndex(where: { $0.id == entityId }) {
+            entities[index] = updated
+        }
         return updated
     }
 
-    /// Delete the given entities, then refresh.
+    /// Delete the given entities, then remove the matching rows in place.
     func delete(entityIds: [String]) async throws {
         for entityId in entityIds {
             try await entityService.deleteEntity(entityId)
         }
-        await reload()
+        let deleted = Set(entityIds)
+        entities.removeAll { entity in
+            entity.id.map(deleted.contains) ?? false
+        }
     }
 
     // MARK: - ChangeEventConsumer (called by LibraryChangeStream, NOT by views)
