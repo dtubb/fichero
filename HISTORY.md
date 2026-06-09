@@ -2517,3 +2517,10 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - Diagnosed search/embedding quality gaps (e5 prefixes missing, whole-page embedding, no KG-fusion) + entity dedup.
 - Filed the full product roadmap as issues #1774–#1834: providers/consolidation, search/index/chat, dedup/NLP, provenance+undo EPIC, cost, fallback chain, LOOVE, profiling, corpus, pyarrow, bounding-boxes, paleography, omlx.
 - Policy established: workers write tests, manager runs them; one lean lane at a time (RAM).
+
+## 2026-06-09 — Session Summary (autonomous manager, codex-only late)
+- **Observable data-layer COMPLETE**: 7 @Observable stores (Entity/Claim/Note/Annotation/Action/Research/Search) + per-library change-stream (entities/claims/documents) + NotificationCenter mutation bus retired (#1851/#1862/#1882-1905).
+- **Tier-0 gates built out**: verify_all --fast/standard/full; ~12 guardrails (view→store, db-access, native-controls, emoji/SF-Symbols, comments, feature-flags, endpoint-usage, ui-wiring, folder-org, dead-files, sidebar-items, service-consistency, xcode-registration, tooltips) + ruff + OpenAPI-sync + version-date + token-safe auto-filer (rollup, deduped) + dispatch-advisor.
+- **Backend**: DB+embedding snapshot/rollback (#1934); entity+claim accent-fold dedup + embedding over-merge precision gate; db.conn→typed db.py sweep (#1909, KNOWN_VIOLATIONS=0); claim/document change-emit; #1943 service-consistency (artifact-list+batch via generated client — Daniel to runtime-test).
+- **Mac polish**: native-List conversions + sanctions (#1912), emoji→SF Symbols (partial), Reveal-in-Finder remote-safe, bigger thumbnails (#1953 — Daniel to test, may need cache clear).
+- **Process**: docs/ROADMAP.md (tier order) + docs/VERIFY.md; /choose-next + /dispatch-worker skills; worker model = external-worktree codex/claude via tmux+send-keys, NEVER broad-pkill, < /dev/null, verify-then-integrate. ~50 issues filed (#1838-1959), ~30 closed.
