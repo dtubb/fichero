@@ -1,6 +1,5 @@
 import OSLog
 import SwiftUI
-// swiftlint:disable file_length
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "FilesNodeConfig")
 
@@ -116,28 +115,21 @@ private extension FilesNodeConfig {
                     description: Text("Import files in Library first.")
                 )
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 2) {
-                        ForEach(rootFolders, id: \.id) { folder in
-                            folderSection(folder, depth: 0, ancestry: [])
-                        }
+                List {
+                    ForEach(rootFolders, id: \.id) { folder in
+                        folderSection(folder, depth: 0, ancestry: [])
+                    }
 
-                        if let rootFiles = filesByParentMap[nil], !rootFiles.isEmpty {
-                            Text("Root")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .padding(.top, 6)
-                                .padding(.horizontal, 6)
-
+                    if let rootFiles = filesByParentMap[nil], !rootFiles.isEmpty {
+                        Section("Root") {
                             ForEach(rootFiles, id: \.id) { doc in
                                 filePickerRow(doc: doc, depth: 1)
                             }
                         }
                     }
-                    .padding(2)
                 }
+                .listStyle(.sidebar)
                 .frame(minHeight: 160, maxHeight: 240)
-                .background(Color(.textBackgroundColor))
                 .cornerRadius(6)
             }
 
@@ -213,7 +205,7 @@ private extension FilesNodeConfig {
                 Spacer()
             }
             .padding(.vertical, 4)
-            .padding(.leading, CGFloat(depth) * 14 + 6)
+            .padding(.leading, 6)
             .padding(.trailing, 6)
             .contentShape(Rectangle())
         }
@@ -266,7 +258,7 @@ private extension FilesNodeConfig {
                     Spacer()
                 }
                 .padding(.vertical, 4)
-                .padding(.leading, CGFloat(depth) * 14 + 4)
+                .padding(.leading, 4)
                 .padding(.trailing, 6)
             }
             .disclosureGroupStyle(.automatic)

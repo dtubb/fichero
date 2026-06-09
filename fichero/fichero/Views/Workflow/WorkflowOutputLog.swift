@@ -83,7 +83,7 @@ struct WorkflowOutputLog: View {
             }
 
             ScrollView {
-                VStack(spacing: 0) {
+                Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
                     tableHeaderRow
                     Divider()
                     ForEach(state.documentProgress) { progress in
@@ -91,6 +91,7 @@ struct WorkflowOutputLog: View {
                         Divider()
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .background(Color(.textBackgroundColor))
@@ -112,42 +113,41 @@ struct WorkflowOutputLog: View {
     }
 
     private var tableHeaderRow: some View {
-        HStack(spacing: 0) {
+        GridRow {
             Text("Document")
                 .font(.caption)
                 .fontWeight(.semibold)
                 .frame(width: 150, alignment: .leading)
                 .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color(.controlBackgroundColor))
 
             ForEach(processingNodes) { node in
                 Text(node.label ?? node.tool)
                     .font(.caption)
                     .fontWeight(.semibold)
                     .frame(width: 80, alignment: .center)
+                    .padding(.vertical, 6)
+                    .background(Color(.controlBackgroundColor))
             }
-
-            Spacer()
         }
-        .padding(.vertical, 6)
-        .background(Color(.controlBackgroundColor))
     }
 
     private func tableRow(for progress: DocumentProgress) -> some View {
-        HStack(spacing: 0) {
+        GridRow {
             Text(progress.documentName)
                 .font(.caption)
                 .lineLimit(1)
                 .frame(width: 150, alignment: .leading)
                 .padding(.horizontal, 8)
+                .padding(.vertical, 4)
 
             ForEach(processingNodes) { node in
                 stepStatusCell(for: progress.stepStatuses[node.id])
                     .frame(width: 80)
+                    .padding(.vertical, 4)
             }
-
-            Spacer()
         }
-        .padding(.vertical, 4)
     }
 
     // MARK: - Empty States
