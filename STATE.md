@@ -21,9 +21,11 @@
 - Existing view-local `ObservableObject` → `@Observable` IS in scope; god-objects staged.
 - Golden Gate only; no `if #available`.
 
-**Workers running now:** frontend `ae40061f` (remove non-Mac `.swipeActions` from inspector lists #1885 + finish raw-URLSession #1893/#1891/#1902, verify-first); backend `a3e67f30` (embedding over-merge precision gate #1907). On completion: manager build/test-verifies → integrates → dispatches next. **Note:** jcodemunch index is stale — workers must verify-by-reading-disk (caught a false-positive on #1877/#1879).
+**~14 batches landed by ~11pm (all build/test-verified):** swipe-removal, embedding over-merge gate, native-List/No-Selection (Activity/AIProviders/MCP/KG-viz), native-List/Grid (FilesNode/OutputLog/ModelComparison/Agents), **the observable data-layer keystone** — spec `observable_data_layer.md`, backend change-stream shell (`/api/changes/stream` + emit on entities/claims/documents), and `EntityStore`+`LibraryChangeStream` with the inspector migrated to observe it (multi-window merge/rename refresh), db-access guardrail (#1876 backend). Caught + fixed one broken integration (guardrail false-positive on generated code) — nothing broken left on 0.0.2.
 
-**Next queued:** finish per-view Mac-assed fixes (#1882-1900); the foundational **observable data-layer** (migrate ~12 `@StateObject service` views to injected `@Observable` stores + backend change-stream #1863 — needs a design pass, it's the keystone); e5 prefixes #1795 (note: needs re-embed consistency); undo #1832; citations tab #1850; feature set #1867-1874.
+**Process notes:** jcodemunch index is STALE — workers verify-by-reading-disk; workers must run pytest from their WORKTREE (not the main venv — that scans a stale tree). Manager build/test-verifies every batch before integrating.
+
+**Next queued (data-layer order from the spec):** ClaimStore + retire the NotificationCenter bus (#1862); migrate KGSection/Ontology/Notes/Annotations + remaining `@StateObject` views to stores; EntityStore document-keyed buckets (#1908); db.conn→typed sweep (#1909); frontend guardrail (#1876); then claim dedup #1805, e5 prefixes #1795, undo #1832, citations tab #1850, feature set #1867-1874.
 
 **Source-of-truth EPICs:** #1859 (Mac-assed/2026 audit S1–S9), #1838 (Mac-assed), #1851 (observers-everywhere), #1863 (backend change-stream, multi-window), #1832 (undo). Audit doc: `docs/architecture/swiftui/mac_assed_audit_2026.md`.
 
