@@ -94,11 +94,8 @@ extension OnboardingWizardView {
                 localTestState = .connected(nil)
             }
         } catch {
-            welcomeLogger.error(
-                "Local provider probe failed for \(entry.providerType, privacy: .public) " +
-                "at \(probeURL.absoluteString, privacy: .public): " +
-                "\(error.localizedDescription, privacy: .public)"
-            )
+            // swiftlint:disable:next line_length
+            welcomeLogger.error("Local provider probe failed for \(entry.providerType, privacy: .public) at \(probeURL.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)")
             localTestState = .failed("Couldn't reach \(probeURL.host ?? "server") — is \(entry.name) running?")
         }
     }
