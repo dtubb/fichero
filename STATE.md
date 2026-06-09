@@ -1,5 +1,22 @@
 # STATE.md — Fichero
 
+## SESSION-END HANDOFF — 2026-06-09 ~6:35pm (for incoming CLAUDE manager)
+**0.0.2 @ `67b85f5a` + this commit (pushed). Tree clean. No worktrees, no lanes.**
+
+**NEW HARD RULE (constitution rule 11 + memory `worktrees-isolated-never-rm-siblings`):** worktrees live ONLY under `~/code/fichero-worktrees/<name>`; remove via `git worktree remove`; NEVER `rm -rf` a `~/code/` path or glob `~/code/fichero-*` (a glob rm destroyed the SEPARATE `fichero-search` project today — recovered committed history by recloning `git@github.com:dtubb/fichero-search.git`; uncommitted work lost). Damaged remnants parked at `~/code/fichero-search.damaged-DELETE-ME` + `~/code/fichero-search-issue-1` (Daniel to delete; do NOT touch).
+
+**THIS SESSION (all verified+pushed):** #1948 #1957 #1917/#1958 #1911 #1925(×4 matrices+action-surface) #1851(observer-pattern ratchet guardrail, 115 files) #289/#1398 (transcription fidelity) #1960 (Source Annotations→List) #1961 (granular EntityStore). Merged docs #1796/#1797 + wfcleanup #1794. Pruned all stale orphan branches + 9 old sibling worktrees. #1475 confirmed already-landed (closed).
+
+**NEXT KEYSTONE (brief at `/tmp/documentstore-observable.txt`):** DocumentStore ObservableObject→@Observable + @Environment (god-node, 16 consumers). Template=WorkflowStore. Gotchas: @ObservationIgnored on lazy/service props; SidebarObservers `.$collections.sink`→re-arming observeDocumentStore; `$documentStore`→@Bindable; LibraryWindow .environmentObject→.environment. LIKELY FIXES #1964 (Info tab not loading) + #1963 (library select). Then grind observer sweep store-by-store (serial — shared registry); guardrail scripts/check_observer_pattern.py tracks 115 down.
+
+**OPEN URGENT BUG:** #1967 CRASH — WorkflowExecutionObserver @Environment not propagated into sheets/popovers (audit all presented views).
+**OPEN UI:** #1962 selection-everywhere EPIC · #1963 library click+marquee · #1964 Info tab · #1966 ForEach dup-id · #1968 tabs-between-sidebars · #1969 semantic-fonts EPIC · #1970 Source Annotations single-click+full-size · #1971 standard-controls audit · #1965 artifacts→List+editor.
+**HARD RULES (memory):** no-wholesale-list-rerender · semantic-system-fonts · worktrees-isolated-never-rm-siblings · worker file-set partition.
+
+**📋 READY FOR DANIEL TO TEST:** #1943 artifacts · #1953 thumbnails · #1960 Source Annotations List · #1961 entities granular (re-test single-click).
+
+---
+### (archived)
 ## SESSION-END HANDOFF — 2026-06-09 ~4:10pm (for incoming CODEX manager)
 **0.0.2 @ `9955e0a0` (pushed, clean — no worktrees, no lanes running).** All implementation = codex; manager gates (Xcode FULL build / pytest / run-script) before cherry-pick.
 

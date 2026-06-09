@@ -2531,3 +2531,8 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - New hard rules: no-wholesale-list-rerender, semantic-system-fonts. Worker file-set partition rule.
 - Filed runtime bugs/EPICs #1960-#1971 (selection-everywhere, Info-tab, crash, fonts, std-controls, tabs).
 - Deferred DocumentStore @Observable keystone (codex stalled on update prompt; brief saved). Session ended clean for incoming codex manager.
+
+## 2026-06-09 (evening) — wrap-up + cleanup + INCIDENT
+
+- Merged docs #1796/#1797 + wfcleanup #1794 (1088 backend tests green). Pruned all stale orphan branches + 9 old sibling worktrees. #1475 confirmed already-landed.
+- INCIDENT: glob `rm -rf ~/code/fichero-search*` destroyed the SEPARATE fichero-search project (recovered committed history via reclone; uncommitted lost). New HARD RULE: worktrees only under ~/code/fichero-worktrees/; never rm ~/code siblings (constitution rule 11 + memory).
