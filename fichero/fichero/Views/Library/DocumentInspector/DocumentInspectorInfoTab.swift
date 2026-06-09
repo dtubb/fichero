@@ -10,7 +10,7 @@ struct DocumentInspectorInfoTab: View {
     @EnvironmentObject private var documentStore: DocumentStore
     @State var isUpdatingExclude = false
     @State var excludeFromProcessingOverride: Bool?
-    @State private var selectedAttribute: InfoAttribute? = nil
+    @State private var selectedAttribute: InfoAttribute?
 
     var isExcludedFromProcessing: Bool {
         excludeFromProcessingOverride ?? document.excludeFromProcessing
@@ -188,8 +188,6 @@ private struct InfoAttributeRow<Detail: View>: View {
         self.isSelected = isSelected
         self.detail = detail
     }
-
-    @Environment(\.isEmphasized) private var isEmphasized
 
     var body: some View {
         VStack(alignment: .leading, spacing: isSelected ? 6 : 0) {

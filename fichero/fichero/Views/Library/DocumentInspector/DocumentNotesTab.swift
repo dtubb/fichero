@@ -15,6 +15,7 @@ struct DocumentNotesTab: View {
     @State private var editingId: String?
     @State private var editingText = ""
     @State private var isSaving = false
+    @State private var selectedNoteId: NoteItem.ID?
     @FocusState private var newFieldFocused: Bool
 
     var body: some View {
@@ -68,14 +69,24 @@ struct DocumentNotesTab: View {
         } else if service.notes.isEmpty {
             emptyState
         } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(service.notes) { note in
-                        noteCard(note)
-                    }
+            List(selection: $selectedNoteId) {
+                ForEach(service.notes) { note in
+                    noteRow(note)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                guard let noteId = note.id else { return }
+                                Task { await deleteNote(noteId: noteId) }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                        .contextMenu {
+                            noteContextMenu(note)
+                        }
                 }
-                .padding(10)
             }
+            .listStyle(.inset)
         }
     }
 
@@ -93,22 +104,30 @@ struct DocumentNotesTab: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Note card
+    // MARK: - Note row
 
     @ViewBuilder
-    private func noteCard(_ note: NoteItem) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if editingId == note.id ?? "" {
-                editingCard(note)
-            } else {
-                readCard(note)
-            }
+    private func noteRow(_ note: NoteItem) -> some View {
+        if editingId == note.id ?? "" {
+            editingCard(note)
+        } else {
+            readCard(note)
         }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(.quaternaryLabelColor).opacity(0.1))
-        )
+    }
+
+    // MARK: - Context menu
+
+    @ViewBuilder
+    private func noteContextMenu(_ note: NoteItem) -> some View {
+        Button("Edit") {
+            editingId = note.id ?? ""
+            editingText = note.body ?? ""
+        }
+        Divider()
+        Button("Delete", role: .destructive) {
+            guard let noteId = note.id else { return }
+            Task { await deleteNote(noteId: noteId) }
+        }
     }
 
     private func readCard(_ note: NoteItem) -> some View {

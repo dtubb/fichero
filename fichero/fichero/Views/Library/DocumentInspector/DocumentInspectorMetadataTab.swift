@@ -4,7 +4,7 @@ import SwiftUI
 struct DocumentInspectorMetadataTab: View {
     let document: Document
 
-    @State private var selectedKey: String? = nil
+    @State private var selectedKey: String?
 
     var body: some View {
         List(selection: $selectedKey) {
@@ -58,8 +58,8 @@ struct DocumentInspectorMetadataTab: View {
         "transcription", "Transcription"
     ]
 
-    private func abbreviate(_ s: String, max: Int = 50) -> String {
-        s.count <= max ? s : String(s.prefix(max)) + "…"
+    private func abbreviate(_ str: String, max: Int = 50) -> String {
+        str.count <= max ? str : String(str.prefix(max)) + "…"
     }
 
     private func formatMetadataKey(_ key: String) -> String {
@@ -90,8 +90,6 @@ private struct MetadataAttributeRow: View {
     let summary: String
     let fullValue: String
     let isSelected: Bool
-
-    @Environment(\.isEmphasized) private var isEmphasized
 
     var body: some View {
         VStack(alignment: .leading, spacing: isSelected ? 6 : 0) {

@@ -21,7 +21,6 @@ struct DocumentInspectorEntitiesTab: View {
 
     @State private var entities: [Components.Schemas.KnowledgeEntity] = []
     @State private var entitySelection: Set<String> = []
-    @State private var selectionAnchor: String?
     @State private var isLoading = false
     @State private var isApplyingBulkAction = false
     @State private var pendingMergePlan: InspectorEntityBulkSelection.MergePlan?
@@ -69,38 +68,49 @@ struct DocumentInspectorEntitiesTab: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                header
-                if entitySelection.count > 1 {
-                    bulkActionBar
-                }
-                if let actionMessage {
-                    Text(actionMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+        VStack(alignment: .leading, spacing: 12) {
+            header
+                .padding(.horizontal)
+            if entitySelection.count > 1 {
+                bulkActionBar
+                    .padding(.horizontal)
+            }
+            if let actionMessage {
+                Text(actionMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+            }
 
-                if isLoading {
-                    ProgressView().padding(.vertical, 8)
-                } else if let loadError {
-                    Label(loadError, systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                } else if entities.isEmpty {
-                    Text("No entities for this document yet.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if grouped.isEmpty {
-                    emptyVisibleGroupsState
-                } else {
+            if isLoading {
+                ProgressView()
+                    .padding(.vertical, 8)
+                    .padding(.horizontal)
+            } else if let loadError {
+                Label(loadError, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal)
+            } else if entities.isEmpty {
+                Text("No entities for this document yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+            } else if grouped.isEmpty {
+                emptyVisibleGroupsState
+            } else {
+                List(selection: $entitySelection) {
                     ForEach(grouped, id: \.0) { kind, items in
                         entityKindSection(kind: kind, entities: items)
                     }
                 }
+                .listStyle(.plain)
+                .onChange(of: entitySelection) { _, newValue in
+                    handleSelectionChange(to: newValue)
+                }
             }
-            .padding()
         }
+        .padding(.top)
         .task(id: documentId) { await loadEntities() }
         .alert(
             pendingMergePlan.map {
@@ -198,8 +208,15 @@ struct DocumentInspectorEntitiesTab: View {
                 )
                 .font(.caption)
                 .foregroundStyle(.orange)
+                .padding(.horizontal)
 
-                entityKindSection(kind: .other, entities: entities)
+                List(selection: $entitySelection) {
+                    entityKindSection(kind: .other, entities: entities)
+                }
+                .listStyle(.plain)
+                .onChange(of: entitySelection) { _, newValue in
+                    handleSelectionChange(to: newValue)
+                }
             }
         }
     }
@@ -237,68 +254,70 @@ struct DocumentInspectorEntitiesTab: View {
         kind: EntityKind,
         entities: [Components.Schemas.KnowledgeEntity]
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        Section {
+            ForEach(entities, id: \.stableInspectorId) { entity in
+                entityRow(entity)
+            }
+        } header: {
             Label("\(kind.label.uppercased()) \(entities.count)", systemImage: kind.systemImage)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-
-            ForEach(entities, id: \.stableInspectorId) { entity in
-                entityRow(entity, kind: kind)
-            }
         }
     }
 
     private func entityRow(
-        _ entity: Components.Schemas.KnowledgeEntity,
-        kind: EntityKind
+        _ entity: Components.Schemas.KnowledgeEntity
     ) -> some View {
-        let stableId = entity.stableInspectorId
-        let isSelected = entitySelection.contains(stableId)
-        return Button {
-            handleEntityTap(entity, kind: kind)
-        } label: {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(entity.canonicalName)
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.primary)
-                    if let curationState = entity.curationState, curationState != .unreviewed {
-                        EntityCurationBadge(state: curationState)
-                    }
-                    if let count = entity.sourceDocumentIds?.count, count > 1 {
-                        Text("\(count) sources")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(entity.canonicalName)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
+                if let curationState = entity.curationState, curationState != .unreviewed {
+                    EntityCurationBadge(state: curationState)
                 }
-                if let aliases = entity.aliases, !aliases.isEmpty {
-                    Text(aliases.prefix(3).joined(separator: ", "))
+                if let count = entity.sourceDocumentIds?.count, count > 1 {
+                    Text("\(count) sources")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
                 }
-                if let description = entity.description, !description.isEmpty {
-                    Text(description)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
+                Spacer(minLength: 0)
             }
-            .padding(.vertical, 4)
-            .padding(.horizontal, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.accentColor.opacity(0.06))
-            )
+            if let aliases = entity.aliases, !aliases.isEmpty {
+                Text(aliases.prefix(3).joined(separator: ", "))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            if let description = entity.description, !description.isEmpty {
+                Text(description)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
         }
-        .buttonStyle(.plain)
-        .contextMenu {
-            entityContextMenu(for: entity)
-        }
+        .padding(.vertical, 4)
+        .contextMenu { entityContextMenu(for: entity) }
         .help("Inspect \(entity.canonicalName)")
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            Button {
+                Task {
+                    await applyBulkAction(.approve, scope: .pageOrFolderOnly, targetEntities: [entity])
+                }
+            } label: {
+                Label("Approve", systemImage: "checkmark.circle")
+            }
+            .tint(.green)
+            Button {
+                Task {
+                    await applyBulkAction(.reject, scope: .pageOrFolderOnly, targetEntities: [entity])
+                }
+            } label: {
+                Label("Reject", systemImage: "xmark.circle")
+            }
+            .tint(.red)
+        }
     }
 
     private func setHidden(_ kind: EntityKind, hidden: Bool) {
@@ -330,7 +349,6 @@ struct DocumentInspectorEntitiesTab: View {
             loadError = "Couldn't load entities: \(error.localizedDescription)"
             entities = []
             entitySelection = []
-            selectionAnchor = nil
         }
     }
 
@@ -451,27 +469,13 @@ struct DocumentInspectorEntitiesTab: View {
         .disabled(isApplyingBulkAction || targetEntities.isEmpty)
     }
 
-    private func handleEntityTap(
-        _ entity: Components.Schemas.KnowledgeEntity,
-        kind: EntityKind
-    ) {
-        let stableIds = orderedEntities.map(\.stableInspectorId)
-        let modifiers = InspectorEntitySelectionModifiers(nsEventFlags: NSEvent.modifierFlags)
-        let reduced = InspectorEntityBulkSelection.reduceTap(
-            tappedId: entity.stableInspectorId,
-            orderedIds: stableIds,
-            selection: entitySelection,
-            anchor: selectionAnchor,
-            modifiers: modifiers
-        )
-        entitySelection = reduced.selection
-        selectionAnchor = reduced.anchor
-
-        guard modifiers.isEmpty else { return }
+    private func handleSelectionChange(to newValue: Set<String>) {
+        guard newValue.count == 1, let selectedId = newValue.first else { return }
+        guard let entity = orderedEntities.first(where: { $0.stableInspectorId == selectedId }) else { return }
         if let id = entity.id {
             onEntitySelect?(id)
         } else {
-            postSearch(for: entity, kind: kind)
+            postSearch(for: entity, kind: EntityKind(apiType: entity.entityType) ?? .other)
         }
     }
 
@@ -491,9 +495,6 @@ struct DocumentInspectorEntitiesTab: View {
     private func syncSelectionToLoadedEntities() {
         let validIds = Set(orderedEntities.map(\.stableInspectorId))
         entitySelection = entitySelection.intersection(validIds)
-        if let selectionAnchor, !validIds.contains(selectionAnchor) {
-            self.selectionAnchor = nil
-        }
     }
 
     private func applyBulkAction(
@@ -561,7 +562,6 @@ struct DocumentInspectorEntitiesTab: View {
             )
             actionMessage = "Merged \(plan.entityCount) entities into \(plan.survivorName)."
             entitySelection = []
-            selectionAnchor = nil
             await loadEntities()
         } catch {
             inspectorEntitiesLogger.error(
@@ -590,7 +590,6 @@ struct DocumentInspectorEntitiesTab: View {
                 try await entityService.deleteEntity(entityId)
             }
             entitySelection = []
-            selectionAnchor = nil
             await loadEntities()
 
             var message = "Deleted \(entityIds.count) entit"

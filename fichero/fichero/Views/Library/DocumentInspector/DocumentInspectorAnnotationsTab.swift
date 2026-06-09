@@ -27,6 +27,7 @@ struct DocumentInspectorAnnotationsTab: View {
     @State private var editingAnnotation: DocumentAnnotation?
     @State private var editText = ""
     @State private var isSavingEdit = false
+    @State private var selectedAnnotationId: String?
     @FocusState private var noteFieldFocused: Bool
 
     var body: some View {
@@ -104,46 +105,60 @@ struct DocumentInspectorAnnotationsTab: View {
         } else if filteredAnnotations.isEmpty {
             emptyState
         } else {
-            List {
+            List(selection: $selectedAnnotationId) {
                 ForEach(filteredAnnotations) { annotation in
-                    AnnotationRow(annotation: annotation) {
-                        reveal(annotation)
-                    }
-                    .contextMenu {
-                        Button {
-                            Task { await service.getAnnotation(id: annotation.id) }
-                        } label: {
-                            Label("Refresh Details", systemImage: "arrow.clockwise")
-                        }
-                        Button {
-                            beginEditing(annotation)
-                        } label: {
-                            Label("Edit Text", systemImage: "pencil")
-                        }
-                        if annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan) {
+                    AnnotationRow(annotation: annotation)
+                        .tag(annotation.id)
+                        .contextMenu {
                             Button {
-                                Task { await copyCrop(annotation) }
+                                Task { await service.getAnnotation(id: annotation.id) }
                             } label: {
-                                Label("Copy Cropped Content", systemImage: "crop")
+                                Label("Refresh Details", systemImage: "arrow.clockwise")
+                            }
+                            Button {
+                                beginEditing(annotation)
+                            } label: {
+                                Label("Edit Text", systemImage: "pencil")
+                            }
+                            if annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan) {
+                                Button {
+                                    Task { await copyCrop(annotation) }
+                                } label: {
+                                    Label("Copy Cropped Content", systemImage: "crop")
+                                }
+                            }
+                            if annotation.canRevealSource {
+                                Button {
+                                    Task { await promoteToClaim(annotation) }
+                                } label: {
+                                    Label("Promote to Claim", systemImage: "arrow.up.doc")
+                                }
+                            }
+                            Divider()
+                            Button(role: .destructive) {
+                                delete(annotation)
+                            } label: {
+                                Label("Delete Annotation", systemImage: "trash")
                             }
                         }
-                        if annotation.canRevealSource {
-                            Button {
-                                Task { await promoteToClaim(annotation) }
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) {
+                                delete(annotation)
                             } label: {
-                                Label("Promote to Claim", systemImage: "arrow.up.doc")
+                                Label("Delete", systemImage: "trash")
                             }
                         }
-                        Divider()
-                        Button(role: .destructive) {
-                            delete(annotation)
-                        } label: {
-                            Label("Delete Annotation", systemImage: "trash")
-                        }
-                    }
                 }
             }
             .listStyle(.inset)
+            .onChange(of: selectedAnnotationId) { _, newId in
+                guard let newId,
+                      let annotation = filteredAnnotations.first(where: { $0.id == newId }) else { return }
+                reveal(annotation)
+            }
+            .onChange(of: searchText) { _, _ in
+                selectedAnnotationId = nil
+            }
         }
     }
 
@@ -183,6 +198,9 @@ struct DocumentInspectorAnnotationsTab: View {
     }
 
     private func delete(_ annotation: DocumentAnnotation) {
+        if selectedAnnotationId == annotation.id {
+            selectedAnnotationId = nil
+        }
         Task {
             guard await service.delete(id: annotation.id) else { return }
             await loadAnnotations()
@@ -311,37 +329,33 @@ struct DocumentInspectorAnnotationsTab: View {
 /// (page / region / rating / tags).
 private struct AnnotationRow: View {
     let annotation: DocumentAnnotation
-    let onTap: () -> Void
+    @Environment(\.appearsActive) private var appearsActive
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: annotation.kind.icon)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(displayText)
-                        .font(.body)
-                        .foregroundStyle(annotation.text?.isEmpty == false ? .primary : .secondary)
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                    if !metadataParts.isEmpty {
-                        Text(metadataParts.joined(separator: " · "))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer(minLength: 0)
-                if annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan) {
-                    Image(systemName: "arrow.right.circle")
-                        .foregroundStyle(.tertiary)
-                        .help("Reveal source")
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: annotation.kind.icon)
+                .foregroundStyle(appearsActive ? .secondary : .tertiary)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(displayText)
+                    .font(.body)
+                    .foregroundStyle(annotation.text?.isEmpty == false ? .primary : .secondary)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                if !metadataParts.isEmpty {
+                    Text(metadataParts.joined(separator: " · "))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .contentShape(Rectangle())
-            .padding(.vertical, 2)
+            Spacer(minLength: 0)
+            if annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan) {
+                Image(systemName: "arrow.right.circle")
+                    .foregroundStyle(appearsActive ? .tertiary : .quaternary)
+                    .help("Reveal source")
+            }
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 2)
     }
 
     private var displayText: String {
