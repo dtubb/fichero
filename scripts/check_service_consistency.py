@@ -49,12 +49,24 @@ INFRASTRUCTURE_FILES = {
 # FicheroClient / generated OpenAPI operations.
 KNOWN_VIOLATIONS: dict[str, str] = {
     "AppleScriptSupport.swift": "#1943 — AppleScript bridge still uses raw URLSession/URLRequest",
-    "ArtifactServiceGenerated.swift": "#1943 — generated artifact service still has raw transport helpers",
-    "BatchServiceGenerated.swift": "#1943 — generated batch service still has raw transport helper",
     "ImageEditingServiceGenerated.swift": "#1943 — image editing service still hand-builds image endpoints",
-    "StorageServiceGenerated.swift": "#1943 — storage service still uses raw URLSession/URLRequest",
     "WorkflowServiceGenerated.swift": "#1943 — workflow service still has raw preview transport helper",
     "WorkflowStreamService.swift": "#1943 — SSE stream still uses raw URLSession",
+}
+
+# Raw transport that is intentionally allowed because the generated client
+# cannot preserve the current binary/flexible-decoding behavior. These are not
+# backlog entries; each needs a one-line reason to stay sanctioned.
+SANCTIONED_RAW_TRANSPORT: dict[str, str] = {
+    "ArtifactServiceGenerated.swift": (
+        "#1943 — same file also hosts EntityServiceGenerated; remaining raw helpers "
+        "decode flexible citation/classification/hermeneutics payloads that generated "
+        "types expose as untyped containers"
+    ),
+    "StorageServiceGenerated.swift": (
+        "#1943 — thumbnail/display/source-file endpoints return binary image/source "
+        "bytes and a download URL; generated schema exposes JSON containers"
+    ),
 }
 
 BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
@@ -100,25 +112,43 @@ def main() -> int:
 
     found = scan()
     known = set(KNOWN_VIOLATIONS)
+    sanctioned = set(SANCTIONED_RAW_TRANSPORT)
 
     if "--list" in sys.argv[1:]:
         print(f"Service consistency offenders ({len(found)} file(s)):\n")
         for name, reasons in sorted(found.items()):
-            tag = "known" if name in known else "NEW"
+            if name in sanctioned:
+                tag = "sanctioned"
+            elif name in known:
+                tag = "known"
+            else:
+                tag = "NEW"
             print(f"  [{tag}] {name}")
             for reason in reasons:
                 print(f"          - {reason}")
+            if name in sanctioned:
+                print(f"          reason: {SANCTIONED_RAW_TRANSPORT[name]}")
         return 0
 
-    new = sorted(set(found) - known)
+    allowed = known | sanctioned
+    new = sorted(set(found) - allowed)
     stale = sorted(known - set(found))
+    stale_sanctioned = sorted(sanctioned - set(found))
 
     print(f"Service-consistency guardrail: scanned {SERVICES_DIR.relative_to(ROOT)}/*.swift")
-    print(f"  {len(found)} service file(s) bypass generated-client transport; {len(known)} known backlog entries.")
+    print(
+        f"  {len(found)} service file(s) bypass generated-client transport; "
+        f"{len(known)} known backlog entries; {len(sanctioned)} sanctioned."
+    )
 
     if stale:
         print(f"\n  ✓ {len(stale)} KNOWN_VIOLATIONS entry now CLEAN — drop from the set:")
         for name in stale:
+            print(f"      {name}")
+
+    if stale_sanctioned:
+        print(f"\n  ✓ {len(stale_sanctioned)} SANCTIONED_RAW_TRANSPORT entry now CLEAN — drop from the set:")
+        for name in stale_sanctioned:
             print(f"      {name}")
 
     if new:
@@ -132,8 +162,8 @@ def main() -> int:
         )
         return 1
 
-    if stale:
-        print("\n(KNOWN_VIOLATIONS has stale entries — clean them up when convenient.)")
+    if stale or stale_sanctioned:
+        print("\n(Allowlist has stale entries — clean them up when convenient.)")
 
     print("\n✓ No service-consistency offenders beyond the known backlog.")
     return 0

@@ -113,66 +113,24 @@ class ArtifactServiceGenerated: ObservableObject {
         }
     }
 
-    /// Get all artifacts in the library (uses direct HTTP call since generated client may not have this endpoint)
+    /// Get all artifacts in the library.
     func getAllArtifacts(type: String? = nil, limit: Int = 100, offset: Int = 0) async throws -> [Artifact] {
-        var urlString = "http://localhost:8765/api/artifacts/?limit=\(limit)&offset=\(offset)"
-        if let type = type {
-            urlString += "&artifact_type=\(type.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? type)"
-        }
-
-        guard let url = URL(string: urlString) else {
-            throw ArtifactServiceError.serverError("Invalid URL")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.addEngineAuth(libraryPath: client.currentLibraryPath)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw ArtifactServiceError.unexpectedResponse(-1)
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw ArtifactServiceError.unexpectedResponse(httpResponse.statusCode)
-        }
-
-        let decoder = JSONDecoder()
-        let artifactList = try decoder.decode(AllArtifactsResponse.self, from: data)
-
-        logger.info("Fetched \(artifactList.items.count) total artifacts")
-        return artifactList.items.map { convertToArtifactFromJSON($0) }
-    }
-
-    // MARK: - JSON Conversion for direct HTTP calls
-
-    private func convertToArtifactFromJSON(_ json: ArtifactJSON) -> Artifact {
-        // Use the multi-format parser (audit class F).
-        let createdAt = parseEngineDate(json.createdAt) ?? Date()
-
-        // Convert data dict
-        var data: [String: AnyCodable]?
-        if let jsonData = json.data, !jsonData.isEmpty {
-            var dict: [String: AnyCodable] = [:]
-            for (key, value) in jsonData {
-                dict[key] = AnyCodable(value)
-            }
-            data = dict
-        }
-
-        return Artifact(
-            id: json.id,
-            documentId: json.documentId,
-            version: json.version,
-            artifactType: json.artifactType,
-            content: json.content,
-            data: data,
-            provider: json.provider,
-            model: json.model,
-            reviewed: json.reviewed,
-            createdAt: createdAt
+        let response = try await client.api.listAllArtifactsApiArtifactsGet(
+            query: .init(artifactType: type, limit: limit, offset: offset),
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
+
+        switch response {
+        case .ok(let okResponse):
+            let artifactList = try okResponse.body.json
+            logger.info("Fetched \(artifactList.items.count) total artifacts")
+            return artifactList.items.map { convertToArtifact($0) }
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ArtifactServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw ArtifactServiceError.unexpectedResponse(statusCode)
+        }
     }
 
     /// Update an artifact's editable fields (content, reviewed flag).
@@ -313,42 +271,6 @@ enum ArtifactServiceError: Error, LocalizedError {
     }
 }
 
-// MARK: - JSON Types for Direct HTTP Calls
-
-/// Response for list all artifacts endpoint
-private struct AllArtifactsResponse: Codable {
-    let items: [ArtifactJSON]
-    let count: Int
-}
-
-/// JSON artifact representation for direct HTTP decoding
-private struct ArtifactJSON: Codable {
-    let id: String
-    let documentId: String
-    let artifactType: String
-    let content: String?
-    let data: [String: AnyCodable]?
-    let version: Int
-    let provider: String?
-    let model: String?
-    let confidence: Double?
-    let reviewed: Bool
-    let createdAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case documentId = "document_id"
-        case artifactType = "artifact_type"
-        case content
-        case data
-        case version
-        case provider
-        case model
-        case confidence
-        case reviewed
-        case createdAt = "created_at"
-    }
-}
 // MARK: - Library entity-type registry models (#874 / #1372)
 
 struct LibraryEntityTypeItem: Decodable {
