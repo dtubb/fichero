@@ -63,11 +63,13 @@ struct LibraryWindow: View {
                 .environmentObject(library.researchService)
                 .environment(executionObserver)
                 // Observable data layer (#1851 / #1863): inject the per-library
-                // entity store and start its change-stream. `start()` is
-                // idempotent across windows; the stream fans mutations back to
-                // every window's stores.
+                // stores and start the change-stream. `start()` is idempotent
+                // across windows; the stream fans mutations back to every window's
+                // stores.
                 .environment(library.entityStore)
                 .environment(library.claimStore)
+                .environment(library.noteStore)
+                .environment(library.annotationStore)
                 .environment(library.changeStream)
                 .task(id: library.id) { library.changeStream.start() }
             } else {
@@ -124,12 +126,16 @@ struct LibraryWindow: View {
                 .environmentObject(appState)
                 .environmentObject(appState.mcpService)
         }
-        // Standalone notes browser (#1500)
+        // Standalone notes browser (#1500) — inject noteStore so the sheet
+        // reads from the per-library store, not a short-lived view-local service.
         .sheet(isPresented: Binding(
             get: { appState.showNotesBrowser },
             set: { appState.showNotesBrowser = $0 }
         )) {
-            NotesBrowserView()
+            if let library = windowState.library {
+                NotesBrowserView()
+                    .environment(library.noteStore)
+            }
         }
         // Integrations sheets
         .sheet(isPresented: Binding(

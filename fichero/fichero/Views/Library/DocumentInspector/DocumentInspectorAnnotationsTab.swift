@@ -18,8 +18,7 @@ extension Notification.Name {
 struct DocumentInspectorAnnotationsTab: View {
     let document: Document
 
-    @EnvironmentObject private var apiClient: APIClient
-    @StateObject private var service = AnnotationService()
+    @Environment(AnnotationStore.self) private var annotationStore
     @ObservedObject private var claimFocusState = ClaimFocusState.shared
     @State private var newNoteText: String = ""
     @State private var searchText: String = ""
@@ -38,7 +37,6 @@ struct DocumentInspectorAnnotationsTab: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: document.id) {
-            service.libraryPath = apiClient.currentLibraryPath
             await loadAnnotations()
         }
         .sheet(item: $editingAnnotation) { annotation in
@@ -99,7 +97,7 @@ struct DocumentInspectorAnnotationsTab: View {
 
     @ViewBuilder
     private var content: some View {
-        if service.isLoading && service.annotations.isEmpty {
+        if annotationStore.isLoading && annotationStore.annotations.isEmpty {
             ProgressView("Loading annotations…")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if filteredAnnotations.isEmpty {
@@ -111,7 +109,7 @@ struct DocumentInspectorAnnotationsTab: View {
                         .tag(annotation.id)
                         .contextMenu {
                             Button {
-                                Task { await service.getAnnotation(id: annotation.id) }
+                                Task { await annotationStore.getAnnotation(id: annotation.id) }
                             } label: {
                                 Label("Refresh Details", systemImage: "arrow.clockwise")
                             }
@@ -162,7 +160,7 @@ struct DocumentInspectorAnnotationsTab: View {
                 .foregroundStyle(.secondary)
             Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No annotations" : "No matches")
                 .font(.headline)
-            Text(service.error ?? "Add a note above, or highlight a region on the page.")
+            Text(annotationStore.loadError ?? "Add a note above, or highlight a region on the page.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -179,7 +177,7 @@ struct DocumentInspectorAnnotationsTab: View {
         isAdding = true
         let linkedClaimIds = activeClaimId.map { [$0] } ?? []
         Task {
-            let created = await service.addNote(
+            let created = await annotationStore.addNote(
                 scope: annotationScope,
                 text: trimmed,
                 linkedClaimIds: linkedClaimIds
@@ -195,8 +193,7 @@ struct DocumentInspectorAnnotationsTab: View {
             selectedAnnotationId = nil
         }
         Task {
-            guard await service.delete(id: annotation.id) else { return }
-            await loadAnnotations()
+            _ = await annotationStore.delete(id: annotation.id)
         }
     }
 
@@ -209,7 +206,7 @@ struct DocumentInspectorAnnotationsTab: View {
         guard !isSavingEdit else { return }
         isSavingEdit = true
         Task {
-            let updated = await service.updateText(id: annotation.id, text: editText)
+            let updated = await annotationStore.updateText(id: annotation.id, text: editText)
             isSavingEdit = false
             if updated != nil {
                 editingAnnotation = nil
@@ -218,7 +215,7 @@ struct DocumentInspectorAnnotationsTab: View {
     }
 
     private func copyCrop(_ annotation: DocumentAnnotation) async {
-        guard let data = await service.cropAnnotation(id: annotation.id),
+        guard let data = await annotationStore.cropAnnotation(id: annotation.id),
               let text = String(data: data, encoding: .utf8),
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
@@ -228,8 +225,7 @@ struct DocumentInspectorAnnotationsTab: View {
     }
 
     private func promoteToClaim(_ annotation: DocumentAnnotation) async {
-        guard await service.promoteToClaim(id: annotation.id) else { return }
-        await service.getAnnotation(id: annotation.id)
+        _ = await annotationStore.promoteToClaim(id: annotation.id)
     }
 
     /// Reveal the annotation's source page/region by posting a notification the
@@ -250,7 +246,7 @@ struct DocumentInspectorAnnotationsTab: View {
     }
 
     private var filteredAnnotations: [DocumentAnnotation] {
-        service.annotations.filter { AnnotationService.matchesSearch($0, query: searchText) }
+        annotationStore.annotations.filter { AnnotationStore.matchesSearch($0, query: searchText) }
     }
 
     private var activeClaimId: String? {
@@ -273,14 +269,7 @@ struct DocumentInspectorAnnotationsTab: View {
     }
 
     private func loadAnnotations() async {
-        switch document.docType {
-        case .folder:
-            await service.load(folderId: document.id)
-        case .page:
-            await service.load(pageId: document.id)
-        default:
-            await service.load(documentId: document.id)
-        }
+        await annotationStore.loadAnnotations(for: annotationScope)
     }
 
     private func annotationEditSheet(_ annotation: DocumentAnnotation) -> some View {

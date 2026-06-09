@@ -9,8 +9,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Documen
 struct DocumentNotesTab: View {
     let document: Document
 
-    @EnvironmentObject private var apiClient: APIClient
-    @StateObject private var service = NoteService()
+    @Environment(NoteStore.self) private var noteStore
     @State private var newText = ""
     @State private var editingId: String?
     @State private var editingText = ""
@@ -25,7 +24,6 @@ struct DocumentNotesTab: View {
             notesList
         }
         .task(id: document.id) {
-            service.libraryPath = apiClient.currentLibraryPath
             await loadNotes()
         }
     }
@@ -63,14 +61,14 @@ struct DocumentNotesTab: View {
 
     @ViewBuilder
     private var notesList: some View {
-        if service.isLoading {
+        if noteStore.isLoading {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if service.notes.isEmpty {
+        } else if noteStore.notes.isEmpty {
             emptyState
         } else {
             List(selection: $selectedNoteId) {
-                ForEach(service.notes) { note in
+                ForEach(noteStore.notes) { note in
                     noteRow(note)
                         .listRowInsets(EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10))
                         .contextMenu {
@@ -202,7 +200,7 @@ struct DocumentNotesTab: View {
         let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let noteId = note.id else { return }
         do {
-            _ = try await service.update(noteId: noteId, body: trimmed)
+            _ = try await noteStore.update(noteId: noteId, body: trimmed)
             editingId = nil
         } catch {
             logger.error("update note failed: \(error.localizedDescription)")
@@ -219,29 +217,28 @@ struct DocumentNotesTab: View {
     private func loadNotes() async {
         switch document.docType {
         case .folder:
-            await service.load(folderId: document.id)
+            await noteStore.loadNotes(forFolder: document.id)
         case .page:
-            await service.load(pageId: document.id)
+            await noteStore.loadNotes(forPage: document.id)
         default:
-            await service.load(linkedDocumentId: document.id)
+            await noteStore.loadNotes(forDocument: document.id)
         }
     }
 
     private func createNote(body: String) async throws -> NoteItem {
         switch document.docType {
         case .folder:
-            return try await service.create(body: body, folderId: document.id)
+            return try await noteStore.createForFolder(document.id, body: body)
         case .page:
-            return try await service.create(body: body, pageId: document.id)
+            return try await noteStore.createForPage(document.id, body: body)
         default:
-            return try await service.create(body: body, linkedDocumentId: document.id)
+            return try await noteStore.createForDocument(document.id, body: body)
         }
     }
 
     private func deleteNote(noteId: String) async {
         do {
-            try await service.delete(noteId: noteId)
-            await loadNotes()
+            try await noteStore.delete(noteId: noteId)
         } catch {
             logger.error("delete note failed: \(error.localizedDescription)")
         }

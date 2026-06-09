@@ -76,6 +76,8 @@ class LibraryManager: ObservableObject {
         let automationService: AutomationServiceGenerated
         let chainService: ChainService
         let researchService: ResearchService
+        let noteService: NoteService
+        let annotationService: AnnotationService
 
         // Observable domain stores (#1851 / #1885) — wrap the transport wrappers
         // above. One per library, shared across that library's windows, so a
@@ -98,6 +100,15 @@ class LibraryManager: ObservableObject {
             libraryPath: url.path
         )
 
+        /// Per-library note store (#1882). Wraps `noteService`, owns the note
+        /// list for the current scope, and reacts to `note.*` change events.
+        lazy var noteStore: NoteStore = NoteStore(noteService: noteService)
+
+        /// Per-library annotation store (#1883). Wraps `annotationService`,
+        /// owns the annotation list for the current scope, and reacts to
+        /// `annotation.*` change events.
+        lazy var annotationStore: AnnotationStore = AnnotationStore(annotationService: annotationService)
+
         /// One SSE change-stream per library (#1863), fanning events to the
         /// stores above. `start()` is idempotent — each window kicks it from
         /// its `.task`; only the first connects.
@@ -108,6 +119,8 @@ class LibraryManager: ObservableObject {
             )
             stream.register(self.entityStore)
             stream.register(self.claimStore)
+            stream.register(self.noteStore)
+            stream.register(self.annotationStore)
             return stream
         }()
 
@@ -171,6 +184,8 @@ class LibraryManager: ObservableObject {
             self.automationService = AutomationServiceGenerated(ficheroClient: self.ficheroClient)
             self.chainService = ChainService(apiClient: self.apiClient)
             self.researchService = ResearchService(ficheroClient: self.ficheroClient)
+            self.noteService = NoteService(ficheroClient: self.ficheroClient)
+            self.annotationService = AnnotationService(ficheroClient: self.ficheroClient)
 
             // Start accessing security-scoped resource if requested
             if startAccessing {

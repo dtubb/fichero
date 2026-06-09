@@ -13,8 +13,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "NotesBr
 /// needs no SidebarMode wiring.
 struct NotesBrowserView: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var apiClient: APIClient
-    @StateObject private var service = NoteService()
+    @Environment(NoteStore.self) private var noteStore
 
     @State private var kindFilter: String = ""        // "" = all kinds
     @State private var tagFilter: String = ""
@@ -50,8 +49,8 @@ struct NotesBrowserView: View {
         HStack {
             Text("Notes")
                 .font(.headline)
-            if !service.isLoading {
-                Text("\(service.notes.count)")
+            if !noteStore.isLoading {
+                Text("\(noteStore.notes.count)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
@@ -128,17 +127,17 @@ struct NotesBrowserView: View {
 
     @ViewBuilder
     private var notesList: some View {
-        if service.isLoading {
+        if noteStore.isLoading {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if let error = service.error {
+        } else if let error = noteStore.loadError {
             errorState(error)
-        } else if service.notes.isEmpty {
+        } else if noteStore.notes.isEmpty {
             emptyState
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(service.notes) { note in
+                    ForEach(noteStore.notes) { note in
                         noteCard(note)
                     }
                 }
@@ -267,8 +266,7 @@ struct NotesBrowserView: View {
     // MARK: - Actions
 
     private func reload() async {
-        service.libraryPath = apiClient.currentLibraryPath
-        await service.loadAll(kind: kindFilter, tag: tagFilter, query: searchText)
+        await noteStore.loadAll(kind: kindFilter, tag: tagFilter, query: searchText, force: true)
     }
 
     private func submitNew() {
@@ -277,7 +275,7 @@ struct NotesBrowserView: View {
         isSaving = true
         Task {
             do {
-                _ = try await service.createFree(body: trimmed, kind: newKind)
+                _ = try await noteStore.createFree(body: trimmed, kind: newKind)
                 newText = ""
             } catch {
                 logger.error("create free note failed: \(error.localizedDescription)")
@@ -290,7 +288,7 @@ struct NotesBrowserView: View {
         let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let noteId = note.id else { return }
         do {
-            _ = try await service.update(noteId: noteId, body: trimmed)
+            _ = try await noteStore.update(noteId: noteId, body: trimmed)
             editingId = nil
         } catch {
             logger.error("update note failed: \(error.localizedDescription)")
@@ -305,8 +303,7 @@ struct NotesBrowserView: View {
 
     private func deleteNote(noteId: String) async {
         do {
-            try await service.delete(noteId: noteId)
-            await reload()
+            try await noteStore.delete(noteId: noteId)
         } catch {
             logger.error("delete note failed: \(error.localizedDescription)")
         }

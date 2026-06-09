@@ -47,8 +47,7 @@ struct ImageEditorView: View {
     @State private var compareMode: CompareMode = .single
     @State private var compareSplit: CGFloat = 0.5
 
-    /// Creates region (bbox) annotations from the marquee selection (#1276).
-    @StateObject private var annotationService = AnnotationService()
+    @Environment(AnnotationStore.self) private var annotationStore
 
     /// Editable docs in the current multi-selection (for batch-apply).
     private var selectedEditableDocs: [Document] {
@@ -328,7 +327,7 @@ private extension ImageEditorView {
             Double(selection.width),
             Double(selection.height)
         ]
-        let created = await annotationService.addNote(
+        let created = await annotationStore.addNote(
             scope: .document(activeDocument.id),
             text: "",
             bbox: bbox,

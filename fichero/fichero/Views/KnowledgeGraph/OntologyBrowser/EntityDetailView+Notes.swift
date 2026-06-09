@@ -13,8 +13,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "EntityN
 struct EntityNotesSection: View {
     let entityId: String
 
-    @EnvironmentObject private var apiClient: APIClient
-    @StateObject private var service = NoteService()
+    @Environment(NoteStore.self) private var noteStore
     @State private var newText = ""
     @State private var editingId: String?
     @State private var editingText = ""
@@ -35,8 +34,7 @@ struct EntityNotesSection: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .task(id: entityId) {
             guard !entityId.isEmpty else { return }
-            service.libraryPath = apiClient.currentLibraryPath
-            await service.load(linkedEntityId: entityId)
+            await noteStore.loadNotes(forEntity: entityId)
         }
     }
 
@@ -69,18 +67,18 @@ struct EntityNotesSection: View {
 
     @ViewBuilder
     private var notesList: some View {
-        if service.isLoading {
+        if noteStore.isLoading {
             ProgressView()
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-        } else if service.notes.isEmpty {
+        } else if noteStore.notes.isEmpty {
             Text("No notes linked to this entity yet.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(service.notes) { note in
+                ForEach(noteStore.notes) { note in
                     noteCard(note)
                 }
             }
@@ -122,7 +120,7 @@ struct EntityNotesSection: View {
                 .font(.caption)
                 Button(role: .destructive) {
                     guard let noteId = note.id else { return }
-                    Task { try? await service.delete(noteId: noteId) }
+                    Task { try? await noteStore.delete(noteId: noteId) }
                 } label: {
                     Image(systemName: "trash").font(.caption)
                 }
@@ -164,7 +162,7 @@ struct EntityNotesSection: View {
         isSaving = true
         Task {
             do {
-                _ = try await service.create(body: trimmed, linkedEntityId: entityId)
+                _ = try await noteStore.createForEntity(entityId, body: trimmed)
                 newText = ""
             } catch {
                 logger.error("create entity note failed: \(error.localizedDescription)")
@@ -177,7 +175,7 @@ struct EntityNotesSection: View {
         let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let noteId = note.id else { return }
         do {
-            _ = try await service.update(noteId: noteId, body: trimmed)
+            _ = try await noteStore.update(noteId: noteId, body: trimmed)
             editingId = nil
         } catch {
             logger.error("update entity note failed: \(error.localizedDescription)")
