@@ -81,24 +81,31 @@ extension EntityDetailView {
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 12)
             } else {
-                // LazyVStack so the inspector stays at 60fps even when
-                // an entity has hundreds of claims (real corpora hit
-                // this on hub entities). Cap at 10 visible by default;
-                // "show all" toggle reveals the rest in the same lazy
-                // container. (#994 + #989 follow-up)
+                // Native SwiftUI List for the source-annotation SVO triples
+                // — free macOS selection emphasis + scrolling. Bounded height
+                // so it nests cleanly inside the detail ScrollView. Cap at 10
+                // visible by default; "show all" reveals the rest. (#1864 /
+                // #994 / #989 follow-up)
                 let cap = 10
                 let visibleClaims = showAllClaims
                     ? Array(filteredClaims)
                     : Array(filteredClaims.prefix(cap))
-                LazyVStack(alignment: .leading, spacing: 8) {
+                List(selection: $selectedClaimIds) {
                     ForEach(visibleClaims, id: \.id) { claim in
                         ClaimSummaryCard(
                             claim: claim,
                             focusedEntityId: entity.id,
                             onNavigateToSource: onNavigateToSource
                         )
+                        .tag(claim.id ?? "")
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                     }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 80, maxHeight: 520)
                 if filteredClaims.count > cap {
                     Button {
                         showAllClaims.toggle()
@@ -116,7 +123,7 @@ extension EntityDetailView {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.controlBackgroundColor))
+        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .sheet(isPresented: $showContradictionTriageSheet) {
             ContradictionTriageSheet(entity: entity, claims: filteredClaims)

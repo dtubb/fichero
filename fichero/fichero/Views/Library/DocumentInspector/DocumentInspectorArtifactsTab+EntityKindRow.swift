@@ -312,6 +312,14 @@ struct EntityKindRow: View {
                 handleClaimTap(claim)
             }
         }
+        // Single-click selects (above); double-click opens — focus the
+        // claim and jump to its source page, Finder-style. Matches the
+        // Entities-tab interaction. (#1864/#1865)
+        .simultaneousGesture(
+            TapGesture(count: 2).onEnded {
+                openClaim(claimId: claimId, sourceDocumentId: sourceDocumentId)
+            }
+        )
         .contextMenu {
             if let claim {
                 claimBulkContextMenu(for: claim)
@@ -339,6 +347,19 @@ struct EntityKindRow: View {
             sourceDocumentId: claim.sourceDocumentId ?? item.sourceDocumentId,
             sourcePageLabel: claim.sourcePageLabel ?? item.sourcePageLabel
         )
+    }
+
+    /// Double-click "open": focus the claim and navigate the reading view
+    /// to its source document/page when a source is known. (#1864)
+    private func openClaim(claimId: String, sourceDocumentId: String?) {
+        if let claim = claimById[claimId] {
+            handleClaimTap(claim)
+        } else {
+            focusPrimaryClaim()
+        }
+        if let sourceDocumentId, let onNavigateToSource {
+            onNavigateToSource(sourceDocumentId)
+        }
     }
 
     // swiftlint:disable function_body_length

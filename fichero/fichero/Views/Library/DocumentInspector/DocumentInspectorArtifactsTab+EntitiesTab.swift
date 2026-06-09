@@ -27,6 +27,11 @@ struct DocumentInspectorEntitiesTab: View {
     @State private var pendingDeleteConfirmation: PendingEntityDeleteConfirmation?
     @State private var loadError: String?
     @State private var actionMessage: String?
+    /// In-place rename state — the id of the entity whose name is being
+    /// edited inline, plus the draft text. (#1865)
+    @State private var renamingEntityId: String?
+    @State private var renameDraft = ""
+    @FocusState private var renameFieldFocused: Bool
     @AppStorage("inspector.entities.hiddenKinds") private var hiddenKindsCSV: String = ""
 
     private var hiddenKinds: Set<EntityKind> {
@@ -109,6 +114,11 @@ struct DocumentInspectorEntitiesTab: View {
         }
         .padding(.top)
         .task(id: documentId) { await loadEntities() }
+        .onReceive(NotificationCenter.default.publisher(for: .ficheroEntityUpdated)) { _ in
+            // An entity was renamed elsewhere (e.g. the EntityDetailView
+            // header) — refresh so the new name shows here too. (#1865)
+            Task { await loadEntities() }
+        }
         .alert(
             pendingMergePlan.map {
                 "Merge \($0.entityCount) entities into \"\($0.survivorName)\"?"
@@ -265,10 +275,7 @@ struct DocumentInspectorEntitiesTab: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(entity.canonicalName)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.primary)
+                entityNameView(for: entity)
                 if let curationState = entity.curationState, curationState != .unreviewed {
                     EntityCurationBadge(state: curationState)
                 }
@@ -301,6 +308,82 @@ struct DocumentInspectorEntitiesTab: View {
         .help("Inspect \(entity.canonicalName)")
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
             entityRowSwipeActions(for: entity)
+        }
+    }
+
+    /// Canonical name — double-click the name (or use the Rename context
+    /// action) to swap in an inline TextField. Enter commits, Esc cancels.
+    /// `highPriorityGesture` so the name's double-click beats the row's
+    /// double-click-to-open. (#1865)
+    @ViewBuilder
+    private func entityNameView(
+        for entity: Components.Schemas.KnowledgeEntity
+    ) -> some View {
+        if renamingEntityId == entity.stableInspectorId {
+            TextField("Name", text: $renameDraft)
+                .textFieldStyle(.plain)
+                .font(.caption.weight(.semibold))
+                .focused($renameFieldFocused)
+                .onSubmit { commitRename(for: entity) }
+                .onExitCommand { cancelRename() }
+                .onAppear { renameFieldFocused = true }
+        } else {
+            Text(entity.canonicalName)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+                .highPriorityGesture(
+                    TapGesture(count: 2).onEnded { beginRename(entity) }
+                )
+        }
+    }
+
+    private func beginRename(_ entity: Components.Schemas.KnowledgeEntity) {
+        guard entity.id != nil else { return }
+        renameDraft = entity.canonicalName
+        renamingEntityId = entity.stableInspectorId
+    }
+
+    private func cancelRename() {
+        renamingEntityId = nil
+        renameFieldFocused = false
+    }
+
+    /// Commit the inline rename through the typed entity service.
+    /// Optimistic: the row updates immediately; a failed PATCH reverts
+    /// via the reload. (#1865)
+    private func commitRename(for entity: Components.Schemas.KnowledgeEntity) {
+        let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        renamingEntityId = nil
+        renameFieldFocused = false
+        guard let entityId = entity.id,
+              !trimmed.isEmpty,
+              trimmed != entity.canonicalName else { return }
+
+        // Optimistic local update.
+        entities = entities.map { current in
+            guard current.id == entityId else { return current }
+            var updated = current
+            updated.canonicalName = trimmed
+            return updated
+        }
+
+        Task {
+            do {
+                _ = try await entityService.patchEntity(entityId, canonicalName: trimmed)
+                NotificationCenter.default.post(
+                    name: .ficheroEntityUpdated,
+                    object: entityId,
+                    userInfo: ["canonicalName": trimmed]
+                )
+                await loadEntities()
+            } catch {
+                inspectorEntitiesLogger.error(
+                    "Entity rename failed for \(entityId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
+                actionMessage = "Couldn't rename entity: \(error.localizedDescription)"
+                await loadEntities()
+            }
         }
     }
 
@@ -364,6 +447,10 @@ struct DocumentInspectorEntitiesTab: View {
     ) -> some View {
         let targetEntities = contextMenuTargetEntities(for: entity)
         let targetCount = targetEntities.count
+
+        Button("Rename") { beginRename(entity) }
+            .disabled(entity.id == nil)
+        Divider()
 
         Menu("Approve") {
             bulkScopeButtons(

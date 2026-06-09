@@ -89,6 +89,12 @@ extension Notification.Name {
     /// userInfo["claim"] = updated KnowledgeClaim.
     static let ficheroClaimUpdated = Notification.Name("ficheroClaimUpdated")
 
+    /// Posted after an entity is renamed/edited in place (inspector rows or
+    /// the EntityDetailView header). Listeners reload their entity lists so
+    /// the new canonical name shows everywhere. (#1865)
+    /// object = entity id String; userInfo["canonicalName"] = new name.
+    static let ficheroEntityUpdated = Notification.Name("ficheroEntityUpdated")
+
     /// Posted when the user taps a source-doc citation on a claim card
     /// (the small arrow in EntityKindRow). ContentView listens and either
     /// opens the source document in the reading pane or navigates to it in

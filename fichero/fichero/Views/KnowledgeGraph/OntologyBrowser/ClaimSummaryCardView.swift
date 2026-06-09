@@ -4,6 +4,17 @@ import SwiftUI
 
 // MARK: - Claim Summary Card
 
+/// True when a value is a bare UUID / hash with no human-readable content
+/// — e.g. `31a6d4d2…519710`. The extractor occasionally leaves a raw
+/// source-annotation id in subject/object; we never want to render that as
+/// an SVO chip. (#1864)
+private func isOpaqueIdentifier(_ value: String) -> Bool {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.count >= 16 else { return false }
+    let hexAndDashes = CharacterSet(charactersIn: "0123456789abcdefABCDEF-")
+    return trimmed.rangeOfCharacter(from: hexAndDashes.inverted) == nil
+}
+
 struct ClaimSummaryCard: View {
     let claim: Components.Schemas.KnowledgeClaim
     var focusedEntityId: String?
@@ -48,7 +59,8 @@ struct ClaimSummaryCard: View {
         let subject = (claim.subjectCanonical ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let verb = (claim.predicateVerb ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let object = (claim.objectPhrase ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if !subject.isEmpty, !verb.isEmpty, !object.isEmpty {
+        if !subject.isEmpty, !verb.isEmpty, !object.isEmpty,
+           !isOpaqueIdentifier(subject), !isOpaqueIdentifier(object) {
             return SVOTriple(subject: subject, verb: verb, object: object)
         }
         // Legacy metadata fallback.
@@ -56,7 +68,8 @@ struct ClaimSummaryCard: View {
         let metaSubject = (dict["subject"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let metaVerb = (dict["verb"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let metaObject = (dict["object"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !metaSubject.isEmpty, !metaVerb.isEmpty, !metaObject.isEmpty else { return nil }
+        guard !metaSubject.isEmpty, !metaVerb.isEmpty, !metaObject.isEmpty,
+              !isOpaqueIdentifier(metaSubject), !isOpaqueIdentifier(metaObject) else { return nil }
         return SVOTriple(subject: metaSubject, verb: metaVerb, object: metaObject)
     }
 
