@@ -1,12 +1,12 @@
 # STATE.md — Fichero
 
-## RESET HANDOFF — 2026-06-09 ~1pm (CODEX-ONLY; Claude weekly budget low)
-**0.0.2 @ `a2699bf1`.** Manager runs lean; ALL implementation is codex.
-**INTEGRATE FIRST (worktrees on disk, survive reset):**
-- `~/code/fichero-worktrees/profiling` (#1917/#1958 library-slowness + thumb cache) — has changes
-- `~/code/fichero-worktrees/line-insensitive` (#1948 guardrail keys) — has changes
-- `~/code/fichero-worktrees/doc-notfound2` (#1957) — in progress
-For each: commit from manager shell (codex can't write .git lock) → cherry-pick to 0.0.2 (`-X theirs` for regen contract files) → build-verify Swift via Xcode MCP BuildProject (FULL) / pytest backend / run script tooling → `scripts/verify_all.sh --fast` (re-baseline KNOWN_VIOLATIONS/KNOWN_GAPS on line/usage shifts) → push → remove worktree + delete branch → close issues. Watch for codex line-wraps breaking OSLog `+`.
+## RESET HANDOFF — 2026-06-09 ~1:20pm (CODEX-ONLY; Claude weekly budget low)
+**0.0.2 @ `68a38752` (pushed).** Manager runs lean; ALL implementation is codex.
+**INTEGRATED this turn (worktrees removed, branches deleted, issues closed):**
+- #1948 line-insensitive guardrail keys (content-signature hashes) — `425a96f5`
+- #1957 doc:-prefix tolerance + skip-unresolvable-children (404 thrash fix) — `fae19cea`
+- #1917/#1958 versioned thumbnail cache + perf_span instrumentation — `68a38752` (hand-merged 3 conflicting fns: list_documents/get_children/get_thumbnail wrapped doc-notfound's logic in perf_span)
+**LESSON (Daniel's Q):** profiling + doc-notfound BOTH touched documents.py/storage.py → cherry-pick conflicts I had to hand-resolve with Opus tokens. **Rule: parallelize across DISJOINT file-sets/milestones; serialize lanes that share files.** line-insensitive (tooling-only) merged clean; the two backend lanes did not.
 **WORKER PATTERN (memory `parallel-worker-orchestration`):** codex via **tmux + send-keys + Enter** (NOT `codex exec` — flaky); persistent per-milestone, resume via send-keys; **NEVER broad-`pkill codex`** (kills Daniel's own windows); external worktrees only.
 **📋 READY FOR DANIEL TO TEST:** #1943 (artifacts list/save + batch) · #1953 (thumbnails — may need cache clear).
 **NEXT:** roadmap tier order — Tier 0 ratchets (guardrails→0), Tier 4 Mac polish (#1950 multi-select, #1951 status/selection color, #1952 glass sidebars), Tier 6 profiling. Wake-loop ~30-40min to conserve Claude.
