@@ -13,6 +13,7 @@ but not wired/enforced · ❌ not built yet (issue filed).
   - `scripts/check_endpoint_coverage_matrix.py` — endpoint × {Swift store/wrapper, CLI} wiring matrix
   - `scripts/check_undo_coverage.py` — mutating endpoints with seeded undo coverage
   - `scripts/check_crud_completeness.py` — entity CRUD completeness matrix
+  - `scripts/check_action_surface_matrix.py` — action × {menu, context-menu, toolbar, keyboard} wiring matrix
 
 ## Lint
 - ✅ **Swift lint** (`swiftlint`)
