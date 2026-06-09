@@ -1,7 +1,12 @@
 # STATE.md — Fichero
 
-## RESET HANDOFF — 2026-06-09 ~1:20pm (CODEX-ONLY; Claude weekly budget low)
-**0.0.2 @ `68a38752` (pushed).** Manager runs lean; ALL implementation is codex.
+## RESET HANDOFF — 2026-06-09 ~2:15pm (CODEX-ONLY; Claude weekly budget low)
+**0.0.2 @ `a361fa9a` (pushed).** Manager runs lean; ALL implementation is codex.
+**LANDED since 1:20pm:** #1911 WorkflowStore ObservableObject→@Observable + change-stream + 14 consumers + 2 views (FULL Xcode build green; fixed 2 codex misses: @ObservationIgnored lazy service, SidebarObservers `$workflows`→withObservationTracking) · #1925 3 completeness-matrix guardrails (endpoint×{store,cli}, undo, CRUD) · pruned 49 stale orphan worktree-agent/* branches.
+**ORPHAN BRANCH NEEDS DANIEL:** `codex/1386-transcription-prompt-quality` (May 31) — 11 commits already shipped (image tools), 12 unmerged = transcription-FIDELITY (#289/#1386/#1387/#1388/#1398: preserve diacritics/uncertainty/illegible markers + quality-gate marker count). RELEVANT to archival transcription. NOT cherry-picked (predates #1802 multi-provider prompts → would conflict) — being RE-APPLIED fresh in lane be/transcription-fidelity.
+**IN FLIGHT (2 disjoint lanes):** tmux fichero-workers:transcription (be/transcription-fidelity, engine prompts) + :action-matrix (tooling/action-completeness, scripts/ — action×{menu,context,toolbar,keyboard} matrix #1925).
+---
+### (prior handoff 1:20pm)
 **INTEGRATED this turn (worktrees removed, branches deleted, issues closed):**
 - #1948 line-insensitive guardrail keys (content-signature hashes) — `425a96f5`
 - #1957 doc:-prefix tolerance + skip-unresolvable-children (404 thrash fix) — `fae19cea`
