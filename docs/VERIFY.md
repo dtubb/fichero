@@ -10,6 +10,9 @@ but not wired/enforced · ❌ not built yet (issue filed).
 - ✅ **Logic in backend, no raw SQL outside db.py** (`test_db_access_guardrail.py`, #1876)
 - ✅ **CLI ↔ SwiftUI ↔ OpenAPI** consume the same contract (`validate_model_sync.py` + endpoint matrix)
 - ⏳ **Completeness matrices** — endpoint×{store,cli,swift}, undo coverage, CRUD per entity, action×{menu,context-menu,toolbar,keyboard} (#1925)
+  - `scripts/check_endpoint_coverage_matrix.py` — endpoint × {Swift store/wrapper, CLI} wiring matrix
+  - `scripts/check_undo_coverage.py` — mutating endpoints with seeded undo coverage
+  - `scripts/check_crud_completeness.py` — entity CRUD completeness matrix
 
 ## Lint
 - ✅ **Swift lint** (`swiftlint`)
