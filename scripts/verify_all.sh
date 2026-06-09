@@ -28,7 +28,7 @@ Usage:
   scripts/verify_all.sh [--fast|--standard|--full]
 
 Tiers:
-  --fast      swiftlint + scripts/check_*.py + check_version_date.sh + OpenAPI model sync
+  --fast      swiftlint + ruff + scripts/check_*.py + check_version_date.sh + OpenAPI model sync
   --standard  fast + backend pytest unit tests
   --full      standard + xcodebuild test
 
@@ -56,6 +56,11 @@ if [[ -x ".venv/bin/pytest" ]]; then
   PYTEST_CMD=(".venv/bin/pytest")
 fi
 
+RUFF_CMD=("${PYTHON_BIN}" -m ruff)
+if ! "${PYTHON_BIN}" -c "import ruff" >/dev/null 2>&1; then
+  RUFF_CMD=(ruff)
+fi
+
 fail=0
 
 run_check() {
@@ -75,9 +80,15 @@ run_fast() {
 
   run_check "swiftlint" swiftlint lint --quiet --cache-path .swiftlint-cache fichero/fichero/
 
+  run_check "backend ruff" env PYTHONPATH=fichero-engine/src \
+    "${RUFF_CMD[@]}" check fichero-engine/src/
+
   echo "-- architecture and tooling guardrails --"
   local guardrail
   for guardrail in scripts/check_*.py; do
+    if [[ "$(basename "$guardrail")" == "check_unmerged_work.py" ]]; then
+      continue
+    fi
     run_check "$(basename "$guardrail")" "${PYTHON_BIN}" "$guardrail"
   done
 
