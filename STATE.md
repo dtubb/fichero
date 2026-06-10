@@ -1,5 +1,18 @@
 # STATE.md — Fichero
 
+## SESSION HANDOFF — 2026-06-10 ~9:55am (OBSERVABLES COMPLETE + RAM-rule fix)
+**0.0.2 @ `49fe12fe` (pushed, clean). Observable data layer fully wired end-to-end.**
+
+**OBSERVABLES DONE:**
+- Routes: 75/75 emit (guardrail 0 gaps; 2 compute-only POSTs permanently exempt).
+- **Extraction path now emits** (#1994, `b777c795`): per-document coalesced `entity.updated`/`claim.updated` (actor=workflow) via new `workflows/tools/_workflow_change_emit.py` (best-effort try/except, `library_path=db.path.parent`, deduped ids). `_entity_writer` write/commit ordering UNTOUCHED. 2 new tests, 9 passed serially. Pure backend-internal — no routes/openapi/Swift.
+- Frontend: change-stream debounce **300ms** (was 150) so extraction bursts coalesce to ~one refresh/300ms; createNode library-path regression fixed; full Xcode build green.
+
+**RAM INCIDENT + FIX (important):** a gpt-5.4 worker ran **3 parallel background pytest** (~15GB) — the skills were telling workers to run pytest, contradicting the RAM rule. Killed the pytest PIDs, fixed **dispatch-worker + test-writer + session-start-worker skills** (fichero-skills `0bf7909`): workers NEVER run pytest, only cheap stdlib guards; MANAGER runs the suite SERIALLY (one pytest at a time). Memory `workers-write-tests-manager-runs-them` reinforced with the incident + kill-recovery.
+
+**NEXT:** #1973 beachball — Daniel runtime-retest (click-storm during a workflow run; now extraction actually emits, so this is a real test of both the debounce AND live KG refresh). Then drain the 12 Test Coverage (#82) issues via /test-writer waves (manager runs pytest serially).
+
+---
 ## SESSION HANDOFF — 2026-06-10 ~9:05am (observables CLOSED on routes + completeness audit)
 **0.0.2 @ `ec8fd97c` (pushed, clean). emit-change guardrail: 0 gaps, 75/75 routes covered.**
 
