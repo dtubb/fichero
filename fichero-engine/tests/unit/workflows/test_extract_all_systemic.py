@@ -212,6 +212,9 @@ class TestExtractAllCooperativeScheduling:
             nonlocal write_calls
             write_calls += 1
             time.sleep(0.002)
+            # _write_kg_rows now returns (entity_ids, claim_ids); the caller
+            # unpacks it to feed per-document change-stream emits.
+            return [], []
 
         # _extract_one (oneshot) calls chat_structured_with_fallback after #1284 fix.
         monkeypatch.setattr(module, "chat_structured_with_fallback", fake_chat_structured)

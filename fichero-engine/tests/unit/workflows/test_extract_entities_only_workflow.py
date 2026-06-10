@@ -181,14 +181,17 @@ def test_extract_entities_only_emits_per_document_workflow_changes(tmp_path: Pat
     )
 
     assert result["count"] == 2
-    assert len(events) == 4
+    # 2 docs × {entity.updated, claim.updated, document.updated} = 6 emits.
+    assert len(events) == 6
     assert all(event[0] == str(library_path) for event in events)
     assert all(event[1]["actor"] == "workflow" for event in events)
 
     entity_events = [event[1] for event in events if event[1]["type"] == "entity.updated"]
     claim_events = [event[1] for event in events if event[1]["type"] == "claim.updated"]
+    document_events = [event[1] for event in events if event[1]["type"] == "document.updated"]
     assert len(entity_events) == 2
     assert len(claim_events) == 2
+    assert len(document_events) == 2
     assert all(event["entity_ids"] for event in entity_events)
     assert all(event["claim_ids"] == [] for event in claim_events)
 
