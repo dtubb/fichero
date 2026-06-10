@@ -243,26 +243,20 @@ async def get_reference(
     return ReferenceWithProvenanceResponse(reference=reference, provenance=provenance)
 
 
-@router.patch("/references/{reference_id}")
-async def patch_reference(
-    reference_id: str,
-    request: ReferencePatchRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str | None = Header(
-        default=None,
-        alias="X-Fichero-Library-Path",
-    ),
-    x_fichero_origin_window: str | None = Header(
-        default=None,
-        alias="X-Fichero-Origin-Window",
-    ),
-) -> Reference:
-    """Update a reference row."""
-
+def _patch_reference_impl(
+    db: Database, reference_id: str, request: ReferencePatchRequest
+) -> tuple[Reference, dict[str, Any]]:
+    """Apply a patch to a reference row — the proven body of
+    ``PATCH /references/{id}``, extracted so BOTH the route and the
+    ``reference.patch`` action drive the same bibtex-reconciliation code
+    (iterate-not-replace). Returns ``(updated_reference, before_payload)``;
+    ``before_payload`` is the full prior row snapshot (the undo payload).
+    Raises ``HTTPException(404)`` on unknown id."""
     existing = db.get(Reference, reference_id)
     if existing is None:
         raise HTTPException(status_code=404, detail="Reference not found")
 
+    before = existing.model_dump(mode="json")
     updates = request.model_dump(exclude_unset=True)
     payload = existing.model_dump()
     payload["updated_at"] = datetime.now()
@@ -291,6 +285,71 @@ async def patch_reference(
 
     reference = Reference(**payload)
     db.save(reference)
+    return reference, before
+
+
+def _delete_reference_impl(db: Database, reference_id: str) -> dict[str, Any]:
+    """Delete a reference once no provenance rows remain — the proven body of
+    ``DELETE /references/{id}``, extracted so BOTH the route and the
+    ``reference.delete`` action share the same guard + delete (iterate-not-
+    replace). Returns the deleted row's snapshot (the undo payload). Raises
+    ``HTTPException`` (404 unknown, 409 still-cited)."""
+    reference = db.get(Reference, reference_id)
+    if reference is None:
+        raise HTTPException(status_code=404, detail="Reference not found")
+
+    before = reference.model_dump(mode="json")
+    provenance = _reference_provenance(db, reference_id)
+    if provenance:
+        citing_documents: list[dict[str, Any]] = []
+        for link in provenance:
+            document = db.get(Document, link.document_id)
+            citing_documents.append(
+                {
+                    "document_id": link.document_id,
+                    "document_name": document.name if document else None,
+                    "page": link.page,
+                    "citation_location": link.citation_location.value,
+                }
+            )
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Reference still has provenance rows.",
+                "documents": citing_documents,
+            },
+        )
+
+    db.delete(reference)
+    return before
+
+
+def _restore_reference_impl(db: Database, payload: dict[str, Any]) -> Reference:
+    """Re-create a reference row from a prior snapshot — the generic inverse for
+    both ``reference.patch`` and ``reference.delete`` undo. ``Reference``'s
+    bibtex validator re-syncs on construction, so a snapshot round-trips."""
+    reference = Reference(**payload)
+    db.save(reference)
+    return reference
+
+
+@router.patch("/references/{reference_id}")
+async def patch_reference(
+    reference_id: str,
+    request: ReferencePatchRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None,
+        alias="X-Fichero-Library-Path",
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None,
+        alias="X-Fichero-Origin-Window",
+    ),
+) -> Reference:
+    """Update a reference row."""
+
+    reference, _ = _patch_reference_impl(db, reference_id, request)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="reference.updated",
@@ -316,32 +375,7 @@ async def delete_reference(
 ) -> DeletedResponse:
     """Delete a reference when no provenance rows remain."""
 
-    reference = db.get(Reference, reference_id)
-    if reference is None:
-        raise HTTPException(status_code=404, detail="Reference not found")
-
-    provenance = _reference_provenance(db, reference_id)
-    if provenance:
-        citing_documents: list[dict[str, Any]] = []
-        for link in provenance:
-            document = db.get(Document, link.document_id)
-            citing_documents.append(
-                {
-                    "document_id": link.document_id,
-                    "document_name": document.name if document else None,
-                    "page": link.page,
-                    "citation_location": link.citation_location.value,
-                }
-            )
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "message": "Reference still has provenance rows.",
-                "documents": citing_documents,
-            },
-        )
-
-    db.delete(reference)
+    _delete_reference_impl(db, reference_id)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="reference.deleted",
@@ -361,3 +395,113 @@ async def get_document_citations(
 
     self_reference, references, links = _document_citations(db, document_id)
     return DocumentCitationsResponse(self=self_reference, references=references, links=links)
+
+
+# ---------------------------------------------------------------------------
+# Action layer registration (EPIC #1848 sweep #2014) — reference mutations
+# ---------------------------------------------------------------------------
+#
+# reference.patch / reference.delete WRAP the proven `_impl`s above (iterate-not-
+# replace) and route through `registry.invoke` for the generic ActionAudit + a
+# typed `reference.updated` / `reference.deleted` change event. Both are
+# undoable; their inverse re-creates the prior row via the generic
+# `reference.restore` action — the before-snapshot in the ChangeSpec IS the undo
+# payload. `reference.restore` is the leaf inverse (undoable=False): redo of a
+# delete-undo is a fresh `reference.delete`, driven by the caller.
+#
+# Pure reads (list/get/document citations) persist nothing — no action needed.
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+class ReferencePatchActionParams(BaseModel):
+    """Params for reference.patch — target id + the patch fields."""
+
+    reference_id: str = Field(description="Target reference id")
+    patch: ReferencePatchRequest = Field(description="Fields to update")
+
+
+class ReferenceDeleteActionParams(BaseModel):
+    """Params for reference.delete."""
+
+    reference_id: str = Field(description="Reference id to delete")
+
+
+class ReferenceRestoreActionParams(BaseModel):
+    """Params for reference.restore — re-create a row from a snapshot."""
+
+    payload: dict[str, Any] = Field(description="Full Reference row snapshot to restore")
+
+
+def _invert_reference_to_restore(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Inverse of patch/delete: restore the prior reference snapshot."""
+    if not before:
+        return None
+    return ("reference.restore", {"payload": before})
+
+
+@action(
+    "reference.patch",
+    ReferencePatchActionParams,
+    domains=["reference"],
+    undoable=True,
+    invert=_invert_reference_to_restore,
+)
+def _action_patch_reference(
+    db: Database, params: ReferencePatchActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    reference, before = _patch_reference_impl(db, params.reference_id, params.patch)
+    spec = ChangeSpec(
+        domains=["reference"],
+        target_ids=[reference.id],
+        before=before,
+        after=reference.model_dump(mode="json"),
+        emit_type="reference.updated",
+        reference_ids=[reference.id],
+    )
+    return reference.model_dump(mode="json"), spec
+
+
+@action(
+    "reference.delete",
+    ReferenceDeleteActionParams,
+    domains=["reference"],
+    undoable=True,
+    invert=_invert_reference_to_restore,
+)
+def _action_delete_reference(
+    db: Database, params: ReferenceDeleteActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before = _delete_reference_impl(db, params.reference_id)
+    spec = ChangeSpec(
+        domains=["reference"],
+        target_ids=[params.reference_id],
+        before=before,
+        after=None,
+        emit_type="reference.deleted",
+        reference_ids=[params.reference_id],
+    )
+    return {"status": "deleted", "reference_id": params.reference_id}, spec
+
+
+@action(
+    "reference.restore",
+    ReferenceRestoreActionParams,
+    domains=["reference"],
+    undoable=False,
+)
+def _action_restore_reference(
+    db: Database, params: ReferenceRestoreActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    reference = _restore_reference_impl(db, params.payload)
+    spec = ChangeSpec(
+        domains=["reference"],
+        target_ids=[reference.id],
+        before=None,
+        after=reference.model_dump(mode="json"),
+        emit_type="reference.updated",
+        reference_ids=[reference.id],
+    )
+    return reference.model_dump(mode="json"), spec
