@@ -86,11 +86,12 @@ run_fast() {
   echo "-- architecture and tooling guardrails --"
   local guardrail
   for guardrail in scripts/check_*.py; do
-    if [[ "$(basename "$guardrail")" == "check_unmerged_work.py" ]]; then
+    if [[ "$(basename "$guardrail")" == "check_unmerged_work.py" || "$(basename "$guardrail")" == "check_emit_change_coverage.py" ]]; then
       continue
     fi
     run_check "$(basename "$guardrail")" "${PYTHON_BIN}" "$guardrail"
   done
+  run_check "check_emit_change_coverage.py" "${PYTHON_BIN}" scripts/check_emit_change_coverage.py
 
   run_check "version-date" scripts/check_version_date.sh
 
