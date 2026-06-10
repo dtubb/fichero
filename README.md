@@ -2,6 +2,8 @@
 
 Document management and AI processing for macOS. One engine, many surfaces.
 
+For the what and why — in plain language — see [docs/about.md](docs/about.md).
+
 ## Architecture
 
 Fichero is a single backend engine ("engine is logic; clients are display surfaces") with multiple thin clients on top of it.
