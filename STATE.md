@@ -1,5 +1,22 @@
 # STATE.md — Fichero
 
+## SESSION HANDOFF — 2026-06-10 ~8:10am (test-infra + observable backend)
+**0.0.2 @ `ea4b62b1` (pushed, clean — no worktrees/lanes). fichero-skills main @ `e4acd08` (pushed).**
+
+**LANDED (all codex-worker, manager-gated, pushed):**
+- **Observable backend emit coverage** — `emit_change` now broadcasts on **43/75** mutating routes (was 34). #1975 action+research (`7b33c1d0`), #1974 annotation+note (`cd237874`); both regen'd OpenAPI. #1976 ratcheting emit-coverage guardrail `scripts/check_emit_change_coverage.py` (`7ba1e281`, in verify_all).
+- **Test infrastructure** (`ea4b62b1` + skills): `scripts/check_test_assertions.py` — vacuous-test guard (49 known-vacuous seeded, 3537 asserting; auto-runs in verify_all via the `check_*.py` glob). `scripts/scan_test_coverage_gaps.py` — backlog generator (dry-run: **2174 py + 2146 swift untested symbols**; `--file-issues` files into **"Test Coverage" milestone #82** under `type:test`, ratcheting baseline; manager-run, NOT in verify). New **`/test-writer` skill** (two-pass author+adversarial, pytest runs / Swift compile-only) + pipeline wired into dispatch-worker/session-start-worker/session-start-manager skills. Docs: `VERIFY.md`, `agent-workflow/parallel-execution.md`.
+
+**THE TEST LOOP (now documented in skills):** IMPLEMENT (spark, author writes happy-path tests) → CODE REVIEW (`/code-review`, codex 5.4 — DIFFERENT model than author) → FIX → TEST-EXPAND (`/test-writer` adversarial pass) → TEST-SANITY (`check_test_assertions.py`) → MANAGER GATE (pytest always; Swift compile-only + batched runs). Test debt is tracked as the #82 backlog, NOT a merge blocker (drain with a 2nd worker wave).
+
+**NEXT — START HERE:**
+1. Run `python3 scripts/scan_test_coverage_gaps.py --file-issues` to seed the Test Coverage backlog (#82), then dispatch a worker wave to drain it via `/test-writer`.
+2. **#1973 beachball** (spinning cursor on click) still OPEN — frontend: a change-stream consumer's `apply()` blocking the main actor. Needs a `claude` frontend lane (audit every `ChangeEventConsumer.apply` for sync I/O / full reloads; make O(1) in-place, defer refetch to a Task).
+3. #1935 Observable Data Layer (shared renderer per domain type) still open — broad SwiftUI, plan before dispatch.
+
+**DISPATCH GOTCHA (codex):** a multi-line brief paste leaves codex in composer mode — the SAME-call trailing `Enter` is absorbed as a newline. Send a SEPARATE bare `Enter` to submit; capture-pane to confirm `• Working`. Also: a long lane can exhaust codex's context before committing — the work is on disk; commit from the manager shell and cherry-pick.
+
+---
 ## SESSION-END HANDOFF — 2026-06-10 ~6:45am (for incoming manager)
 **0.0.2 @ `5e2f2064` + this handoff commit (pushed after session-end). Tree clean except `.session-end-complete` during wrap-up. No active worker worktrees/lanes.**
 
