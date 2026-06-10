@@ -157,15 +157,16 @@ async def test_extract_all_mock_emits_workflow_change_events(
     )
 
     assert not result.get("error")
-    assert [event[1]["type"] for event in events] == [
-        "entity.updated",
-        "claim.updated",
-    ]
+    # Extraction now fans out per-document change events: entity/claim/document
+    # (the KG writer) plus artifact.created (the per-page artifact writer). Assert
+    # by type rather than by fixed order/length so adding a domain doesn't break it.
+    emitted_types = {event[1]["type"] for event in events}
+    assert {"entity.updated", "claim.updated"}.issubset(emitted_types)
     assert all(event[0] == str(test_package) for event in events)
     assert all(event[1]["actor"] == "workflow" for event in events)
 
-    entity_event = events[0][1]
-    claim_event = events[1][1]
+    entity_event = next(e[1] for e in events if e[1]["type"] == "entity.updated")
+    claim_event = next(e[1] for e in events if e[1]["type"] == "claim.updated")
     assert entity_event["entity_ids"]
     assert claim_event["claim_ids"]
 
