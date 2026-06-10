@@ -247,6 +247,7 @@ struct ContentView: View {
             FirstRunWindow()
                 .environmentObject(appState)
                 .environmentObject(apiClient)
+                .environment(executionObserver)
         }
         .alert(item: $errorService.currentAlert) { errorModel in
             let message = errorModel.recoverySuggestion != nil ?

@@ -273,6 +273,7 @@ extension WorkflowCanvasView {
                     duplicateNode(at: index)
                 }
             )
+            .environment(executionObserver)
         }
         .position(x: node.positionX, y: node.positionY)
         // Double tap to open popover for editing (must come before single tap)

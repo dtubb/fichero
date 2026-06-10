@@ -233,9 +233,11 @@ struct LibraryView: View {
                     }
                 )
                 .environmentObject(libraryManager)
+                .environment(executionObserver)
             }
             .sheet(item: $workspacePickerDocument) { document in
                 WorkspaceItemPicker(document: document)
+                    .environment(executionObserver)
             }
             .focusedSceneValue(
                 \.runWorkflowOnSelection,

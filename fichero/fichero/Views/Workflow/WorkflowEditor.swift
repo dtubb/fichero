@@ -181,6 +181,7 @@ struct WorkflowEditor: View {
                 workflowName: editingWorkflow.name,
                 isPresented: $showDiagramPreview
             )
+            .environment(executionObserver)
         }
         .sheet(isPresented: $showDocumentPicker) {
             DocumentPickerSheet(
@@ -189,9 +190,11 @@ struct WorkflowEditor: View {
             )
             .environmentObject(libraryManager)
             .environment(documentStore)
+            .environment(executionObserver)
         }
         .sheet(isPresented: $showModelComparison) {
             ModelComparisonView()
+                .environment(executionObserver)
         }
         // Debounced autosave on any editingWorkflow change (#780). Without
         // this, model/provider selections in the node inspector live

@@ -29,6 +29,7 @@ struct WorkflowExecutionRow: View {
         }
         .sheet(isPresented: $showWorkflowPreview) {
             WorkflowPreviewSheet(execution: execution)
+                .environment(executionObserver)
         }
     }
 

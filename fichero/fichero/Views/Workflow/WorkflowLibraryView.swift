@@ -90,6 +90,7 @@ struct WorkflowListView: View {
                 NewWorkflowSheet { name, description in
                     await createWorkflow(name: name, description: description)
                 }
+                .environment(executionObserver)
             }
             .alert("Delete Workflow?", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {
