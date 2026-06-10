@@ -120,3 +120,58 @@ def emit_workflow_artifact_changes_for_db(
         actor=actor,
         change_type=change_type,
     )
+
+
+def emit_workflow_citation_changes(
+    library_path: str,
+    *,
+    citation_ids: Iterable[str] = (),
+    document_ids: Iterable[str] = (),
+    actor: str = "workflow",
+    change_type: str = "created",
+) -> None:
+    try:
+        citation_ids_list = _dedupe_ids(citation_ids)
+        if not citation_ids_list:
+            # Document-scoped refresh still works; IDs are optional by contract.
+            emit_change(
+                library_path,
+                type=f"citation.{change_type}",
+                citation_ids=[],
+                document_ids=_dedupe_ids(document_ids),
+                actor=actor,
+            )
+            return
+        emit_change(
+            library_path,
+            type=f"citation.{change_type}",
+            citation_ids=citation_ids_list,
+            document_ids=_dedupe_ids(document_ids),
+            actor=actor,
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug("workflow citation emit failed (best-effort, ignored): %s", exc)
+
+
+def emit_workflow_citation_changes_for_db(
+    db,
+    *,
+    citation_ids: Iterable[str] = (),
+    document_ids: Iterable[str] = (),
+    actor: str = "workflow",
+    change_type: str = "created",
+) -> None:
+    library_path = ""
+    try:
+        library_path = str(Path(db.path).parent)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug(
+            "workflow citation emit could not resolve library path: %s", exc,
+        )
+    emit_workflow_citation_changes(
+        library_path,
+        citation_ids=citation_ids,
+        document_ids=document_ids,
+        actor=actor,
+        change_type=change_type,
+    )

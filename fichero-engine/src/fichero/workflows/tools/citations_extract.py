@@ -19,7 +19,10 @@ from fichero.llm import LLMConfig, chat_structured_with_fallback
 from fichero.models import DocType, Document
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools._entity_writer import save_claim, upsert_entity
-from fichero.workflows.tools._workflow_change_emit import emit_workflow_kg_changes
+from fichero.workflows.tools._workflow_change_emit import (
+    emit_workflow_citation_changes,
+    emit_workflow_kg_changes,
+)
 from fichero.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
@@ -555,6 +558,12 @@ async def citations_extract(
             str(db.path.parent),
             entity_ids=result.get("entity_ids") or [],
             claim_ids=result.get("claim_ids") or [],
+            document_ids=result.get("document_ids") or [],
+        )
+    if result.get("document_ids"):
+        emit_workflow_citation_changes(
+            str(db.path.parent),
+            citation_ids=[],
             document_ids=result.get("document_ids") or [],
         )
     lines = [
