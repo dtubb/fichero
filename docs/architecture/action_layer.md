@@ -38,9 +38,18 @@ exception — `AnnotationServiceTests.swift`.)
 
 ## Design
 
-### 1. Backend action registry (iterate, don't replace)
-Do **NOT** collapse 95 routes into one mega-endpoint. Introduce an `ActionRegistry` that existing
-routes delegate to:
+### 1. Backend action registry — the ONE write path (do it right, systematically)
+The app is unreleased, so we standardize the **entire** mutation surface now rather than leaving
+two styles. **Every** mutation becomes a registered action; the **28 hand-rolled ops get
+rewritten** onto typed + audited actions (raw `URLRequest`/`additionalProperties` silently loses
+writes under Pydantic `extra="allow"` — constitution rule #4, and how merge broke — so none
+survive). The ONE thing we wrap-not-rewrite is each route's proven **business logic** (merge's
+reconciliation algorithm, the extraction pipeline): re-deriving correct algorithms risks
+regressions for no gain. So: rewrite all the **plumbing** to one uniform audited path; keep the
+**algorithms** intact behind it. **Test-first per domain** — capture current behavior in a test,
+refactor onto the action layer, keep it green, then add audit/undo assertions.
+
+Introduce an `ActionRegistry` that routes delegate to:
 
 ```
 @action("entity.merge", params=MergeEntitiesParams, undoable=True)
@@ -83,9 +92,12 @@ Generate both from the registry — same verbs, same params schemas. No second d
 1. **Registry + audit core** (backend keystone): `ActionRegistry`, `@action`, `ActionContext`,
    `action_audit` table (via `db.py` `_ensure_table`, 0.0.x no-migration), `invoke` choke point
    (snapshot→execute→snapshot→audit→emit), generic `POST /api/actions/invoke`. + tests.
-2. **Route mutations through the registry, exhibit-A first**: start with **entity.merge** (the
-   merge bug), then fold the 19 hand-rolled `ArtifactServiceGenerated` ops onto typed + audited
-   actions. Per-action UI-action test asserting effect + audit. (Several waves; one domain per worker.)
+2. **Route ALL mutations through the registry, test-first, domain-by-domain**: start with
+   **entity.merge** (exhibit A), then sweep every domain — **rewriting all 28 hand-rolled ops**
+   (the 19 `ArtifactServiceGenerated` + 8 image-editing) onto typed + audited actions, and threading
+   the ~67 already-typed ones through `invoke`. Each action gets a test that captures current
+   behavior first, stays green through the refactor, then asserts the persisted effect + audit row.
+   Several waves; one domain per worker; full coverage, not just the priority subset.
 3. **Undo**: generalize audit-undo + `POST /api/actions/audit/{id}/undo` (backend) → **⌘Z
    UndoManager** wiring (frontend).
 4. **Chat tools**: expose registry as agent tools (#1847).
@@ -95,6 +107,10 @@ Generate both from the registry — same verbs, same params schemas. No second d
 
 ## Constraints
 - Engine may be remote → actions go over OpenAPI/HTTP, never local paths.
-- Iterate-not-replace: routes delegate to the registry; we do not rewrite the route surface.
-- Milestone-at-a-time: pull these steps in as each milestone needs them; the registry+audit core
-  (step 1) unblocks the rest.
+- **Rewrite the plumbing, wrap the algorithms.** All 28 hand-rolled ops get rewritten onto typed +
+  audited actions; routes' proven business logic is wrapped, not re-derived (no gratuitous algorithm
+  rewrites). This is consistent with the iterate-not-replace rule: we retire *genuine wrong-pattern
+  duplication* by collapsing onto the canonical audited path — we don't build a parallel system.
+- **Test-first, no false greens:** capture behavior before refactor; the full unit suite is the gate
+  after any change to a shared file (change_stream/db/registry).
+- Milestone-at-a-time: the registry+audit core (step 1) unblocks the rest.
