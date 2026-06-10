@@ -269,10 +269,17 @@ def _upsert_issue(module: str, symbols: list[SymbolEntry], issue_number: int | N
             ISSUE_LABEL,
         ]
         output = _run_gh(*cmd)
-        match = re.search(r"#(\\d+)", output)
+        # `gh issue create` prints the issue URL (…/issues/<n>), not "#<n>".
+        match = re.search(r"/issues/(\d+)", output) or re.search(r"#(\d+)", output)
         if match:
             return int(match.group(1))
         return None
+
+    if not issue_number:
+        # Defensive: never run `gh issue edit 0` from a stale/None tracked number.
+        issue_number = _find_issue(title)
+        if not issue_number:
+            return None
 
     _run_gh(
         "issue",

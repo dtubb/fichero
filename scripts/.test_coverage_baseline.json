@@ -15,7 +15,6 @@
       "db.py::knowledge_claim_source_document_ids_for_entity",
       "db.py::knowledge_entity_canonical_name",
       "db.py::knowledge_entity_ids_scoped_to_documents",
-      "db.py::knowledge_table_signature",
       "db.py::query_in",
       "db.py::recent_content_document_rows",
       "db_embeddings.py::DatabaseEmbeddingMixin",
@@ -731,15 +730,6 @@
       "api/routes/workflows.py::WorkflowToolListResponse"
     ]
   },
-  "python/bibliography": {
-    "issue_number": 1980,
-    "symbols": [
-      "bibliography/extractor.py::extract_from_pdf_metadata",
-      "bibliography/importers.py::read_file",
-      "bibliography/importers.py::read_folder_sidecars",
-      "bibliography/importers.py::read_sidecar"
-    ]
-  },
   "python/books": {
     "issue_number": 1981,
     "symbols": [
@@ -786,60 +776,6 @@
     "issue_number": 1983,
     "symbols": [
       "integrations/base.py::initialize"
-    ]
-  },
-  "python/kg": {
-    "issue_number": 1984,
-    "symbols": [
-      "kg/graph.py::CentralityScore",
-      "kg/graph.py::MergeCandidate",
-      "kg/graph.py::build_full_cooccurrence",
-      "kg/graph.py::build_full_graph",
-      "kg/graph.py::contradiction_subgraph",
-      "kg/graph.py::invalidate_graph_cache",
-      "kg/ner.py::BaseNERProvider",
-      "kg/ner.py::NERProvider",
-      "kg/paragraph.py::ParagraphCitation",
-      "kg/paragraph.py::ParagraphMarker",
-      "kg/paragraph.py::ParagraphRenderRequest",
-      "kg/paragraph.py::ParagraphRenderResponse",
-      "kg/probabilistic_scorer.py::ThresholdDecision",
-      "kg/pykeen_predictor.py::LinkPrediction",
-      "kg/pykeen_predictor.py::load_model",
-      "kg/pykeen_predictor.py::predict_for_subject",
-      "kg/triangulation.py::TripleKey",
-      "kg/triangulation.py::TripleSupport"
-    ]
-  },
-  "python/loaders": {
-    "issue_number": 1985,
-    "symbols": [
-      "loaders/base.py::MediaLoader",
-      "loaders/base.py::can_handle",
-      "loaders/base.py::has_images",
-      "loaders/base.py::has_text",
-      "loaders/base.py::load_sync",
-      "loaders/docling_loader.py::DoclingLoader",
-      "loaders/docling_loader.py::can_handle",
-      "loaders/docling_loader.py::load_with_docling_sync",
-      "loaders/docling_loader.py::supported_formats",
-      "loaders/document_loader.py::DocumentLoader",
-      "loaders/document_loader.py::can_handle",
-      "loaders/iiif_loader.py::IIIFLoader",
-      "loaders/iiif_loader.py::can_handle",
-      "loaders/image_loader.py::ImageLoader",
-      "loaders/image_loader.py::can_handle",
-      "loaders/pdf_loader.py::PDFLoader",
-      "loaders/pdf_loader.py::PDFTextLoader",
-      "loaders/pdf_loader.py::can_handle",
-      "loaders/pdf_loader.py::can_handle",
-      "loaders/unified.py::UnifiedLoader",
-      "loaders/unified.py::can_handle",
-      "loaders/unified.py::load_sync",
-      "loaders/xmp_loader.py::apply_xmp_to_document",
-      "loaders/xmp_loader.py::has_xmp_sidecar",
-      "loaders/xmp_loader.py::parse_xmp_sidecar",
-      "loaders/xmp_loader.py::xmp_sidecar_path"
     ]
   },
   "python/retrieval": {
@@ -2232,7 +2168,7 @@
     ]
   },
   "swift/Views": {
-    "issue_number": 0,
+    "issue_number": 1993,
     "symbols": [
       "Views/AIProviders/AIModelCatalog.swift::AIModelCatalog",
       "Views/AIProviders/AIModelCatalog.swift::ModelRowView",
