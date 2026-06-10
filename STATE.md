@@ -1,5 +1,18 @@
 # STATE.md — Fichero
 
+## SESSION HANDOFF — 2026-06-10 ~9:05am (observables CLOSED on routes + completeness audit)
+**0.0.2 @ `ec8fd97c` (pushed, clean). emit-change guardrail: 0 gaps, 75/75 routes covered.**
+
+**LANDED:** final store-backed emit coverage (`eaf2d76c`+`1f42877a`) — workflows.py CRUD + note-link/checklist emit. Guardrail closed to **0 gaps**; `estimate_workflow_cost` + `get_tool_prompt` marked **permanently EXEMPT** (compute-only POSTs, `check_emit_change_coverage.py` now has an EXEMPT set distinct from KNOWN_GAPS).
+
+**OBSERVABLES COMPLETENESS AUDIT (done):**
+- ✅ Every Swift store domain (action/annotation/claim/entity/note/research/document/workflow) has a backend emitter; every emitted type maps to a consuming store — no orphans either direction. Verb parity OK.
+- ❌ **ONE gap found → #1994 (filed):** `emit_change` is ONLY in `api/routes/`. The **workflow execution path** (`_entity_writer.upsert_entity`/`save_claim`, extract_all, extract_entities_only, citations_extract, merge_dedup_only, import_artifacts, db_writer) writes entities/claims/documents during a run and **never emits** → open windows don't refresh after extraction until manual reload. This is the last piece of #1935 (the consistency rule holds for UI/CLI edits but not the extractor — the biggest producer). Confirmed unmitigated (no run-complete resync). **Higher risk: hot path, god-node-adjacent (#1121 race history) — needs a scoped lane + verify, NOT a blind dispatch.** Recommended emit boundary: one coalesced `entity.updated`/`claim.updated` per document-extraction completion (frontend debounce coalesces); `library_path = db.path.parent`.
+- Follow-up idea (in #1994): the emit-coverage guardrail only sees @router handlers — a future guard could flag non-route `db.save` of KnowledgeEntity/KnowledgeClaim outside an emit.
+
+**NEXT:** decide #1994 (extractor emit) — recommend dispatching a careful codex lane at the document-completion boundary. Beachball #1973 still awaits Daniel runtime-retest.
+
+---
 ## SESSION HANDOFF — 2026-06-10 ~8:55am (test-writer wave + beachball + observables)
 **0.0.2 @ `8247e948` (pushed, clean — no worktrees/lanes). Xcode BuildProject GREEN.**
 
