@@ -20,7 +20,6 @@ from pydantic import BaseModel
 # Importing the route module registers the entity.merge / entity.unmerge actions
 # via the @action decorator at import time.
 import fichero.api.routes.kg_entity_curation  # noqa: F401
-from fichero.actions import registry as actions
 from fichero.actions.registry import ActionContext, ChangeSpec, registry
 from fichero.models import ActionAudit
 from fichero.knowledge_models import KnowledgeEntity
@@ -75,7 +74,8 @@ class TestRegistryInvoke:
         # Spy on emit_change as referenced inside the registry module.
         calls = []
         monkeypatch.setattr(
-            actions, "emit_change", lambda *a, **k: calls.append((a, k))
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
         )
 
         ctx = ActionContext(actor="ui", library_path="/lib/test.fichero")
@@ -122,7 +122,8 @@ class TestRegistryInvoke:
     def test_emit_skipped_without_library_path(self, db, dummy_action, monkeypatch):
         calls = []
         monkeypatch.setattr(
-            actions, "emit_change", lambda *a, **k: calls.append((a, k))
+            "fichero.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
         )
         ctx = ActionContext(actor="ui", library_path=None)
         registry.invoke(db, dummy_action, {"value": "x"}, ctx)
