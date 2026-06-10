@@ -39,7 +39,16 @@ ROUTE_DOMAIN_MAP: dict[str, str] = {
     "claim_links": "claim",
     "documents": "document",
     "workflows": "workflow",
+    "hermeneutics": "interpretation",
 }
+
+# Domains that the ratchet checks even when no Swift *Store.swift observes them
+# yet. Backend-first slices land their mutating routes before their frontend
+# store (e.g. hermeneutics routes shipped ahead of the interpretation store,
+# #2009). Without this, such a module would slip through the
+# `domain not in observed_domains` gate — the exact blind spot that let
+# hermeneutics.py emit nothing while the scanner reported "0 gaps".
+BACKEND_FIRST_DOMAINS: set[str] = {"interpretation"}
 
 CHANGE_DOMAIN_RE = re.compile(r"changeDomains:\s*Set<String>\s*\{\s*\[(.*?)\]\s*\}", re.S)
 STRING_RE = re.compile(r'\"([^\"]+)\"')
@@ -56,6 +65,8 @@ EXEMPT: set[str] = {
     "fichero-engine/src/fichero/api/routes/workflows.py::estimate_workflow_cost",
     # Read-only: returns a tool's prompt text for preview; writes nothing.
     "fichero-engine/src/fichero/api/routes/workflows.py::get_tool_prompt",
+    # Compute-only: generates AI interpretation suggestions; persists nothing.
+    "fichero-engine/src/fichero/api/routes/hermeneutics.py::suggest_interpretations",
 }
 
 
@@ -124,7 +135,9 @@ def scan() -> list[Row]:
         if path.name == "__init__.py":
             continue
         domain = ROUTE_DOMAIN_MAP.get(path.stem)
-        if not domain or domain not in observed_domains:
+        if not domain:
+            continue
+        if domain not in observed_domains and domain not in BACKEND_FIRST_DOMAINS:
             continue
         source = _read_text(path)
         try:

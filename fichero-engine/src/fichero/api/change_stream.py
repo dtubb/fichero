@@ -55,6 +55,7 @@ class ChangeEvent(BaseModel):
     artifact_ids: list[str] = Field(default_factory=list)
     citation_ids: list[str] = Field(default_factory=list)
     reference_ids: list[str] = Field(default_factory=list)
+    interpretation_ids: list[str] = Field(default_factory=list)
     run_id: str | None = None
     actor: str = "system"  # ui | chat | workflow | import | system
     origin_window: str | None = None  # self-echo de-dup seam (spec §3.5)
@@ -146,6 +147,7 @@ def emit_change(
     artifact_ids: Iterable[str] = (),
     citation_ids: Iterable[str] = (),
     reference_ids: Iterable[str] = (),
+    interpretation_ids: Iterable[str] = (),
     run_id: str | None = None,
     actor: str = "system",
     origin_window: str | None = None,
@@ -166,6 +168,7 @@ def emit_change(
             artifact_ids=list(artifact_ids),
             citation_ids=list(citation_ids),
             reference_ids=list(reference_ids),
+            interpretation_ids=list(interpretation_ids),
             run_id=run_id,
             actor=actor,
             origin_window=origin_window,

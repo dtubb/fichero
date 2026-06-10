@@ -32,6 +32,16 @@ from fichero.knowledge_models import (
     KnowledgeEntity,
     Note,
 )
+from fichero.hermeneutics_models import (
+    CircleNavigationDirection,
+    FrameworkType,
+    HermeneuticCircleState,
+    Interpretation,
+    InterpretiveActType,
+    InterpretiveFramework,
+    PatternInstance,
+    PatternStatus,
+)
 from fichero.models import Artifact, DocType, Document, FileType, Status
 
 
@@ -1066,3 +1076,288 @@ class TestObservableMutationEmitChange:
         assert call["library_path"] == str(test_package)
         assert call["type"] == "reference.updated"
         assert reference.id in call["reference_ids"]
+
+
+# ---------------------------------------------------------------------------
+# Hermeneutics mutation routes emit change events (#2008, part of #2000)
+#
+# All hermeneutics objects (frameworks, interpretations, patterns, circle
+# states) broadcast under the single domain "interpretation" so the
+# doc-scoped interpretation store (#2009) can observe one domain and reload
+# on any interpretation.* event.
+# ---------------------------------------------------------------------------
+
+
+def _make_framework(db, name: str = "Marxist Materialism") -> InterpretiveFramework:
+    framework = InterpretiveFramework(
+        name=name,
+        framework_type=FrameworkType.historical,
+        description="A framework for analyzing labor relations.",
+    )
+    db.save(framework)
+    return framework
+
+
+def _make_interpretation(db, framework_id: str, claim_id: str) -> Interpretation:
+    interpretation = Interpretation(
+        framework_id=framework_id,
+        claim_id=claim_id,
+        interpretation_text="Under this framework, the diary records material conditions.",
+        act=InterpretiveActType.contextualizing,
+    )
+    db.save(interpretation)
+    return interpretation
+
+
+def _make_pattern(db, name: str = "Cyclical history") -> PatternInstance:
+    pattern = PatternInstance(
+        name=name,
+        description="A recurring cyclical motif.",
+        pattern_type="temporal",
+        status=PatternStatus.tentative,
+    )
+    db.save(pattern)
+    return pattern
+
+
+def _make_circle_state(db, claim_id: str) -> HermeneuticCircleState:
+    state = HermeneuticCircleState(
+        claim_id=claim_id,
+        current_focus="whole",
+        focus_id="focus-whole",
+        focus_label="The whole diary",
+        direction=CircleNavigationDirection.whole_to_part,
+    )
+    db.save(state)
+    return state
+
+
+class TestHermeneuticsMutationsEmitChange:
+    def _spy(self, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.hermeneutics.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+        return captured
+
+    # ---- Frameworks ----
+
+    def test_create_framework_emits_created(self, client, db, test_package, monkeypatch):
+        captured = self._spy(monkeypatch)
+
+        r = client.post(
+            "/api/hermeneutics/frameworks",
+            json={
+                "name": "Phenomenology",
+                "framework_type": "methodological",
+                "description": "Lived experience as evidence.",
+            },
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "interpretation.created"
+        assert r.json()["id"] in call["interpretation_ids"]
+
+    def test_update_framework_emits_updated(self, client, db, test_package, monkeypatch):
+        captured = self._spy(monkeypatch)
+
+        framework = _make_framework(db)
+        r = client.patch(
+            f"/api/hermeneutics/frameworks/{framework.id}",
+            json={"description": "Revised description."},
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "interpretation.updated"
+        assert framework.id in call["interpretation_ids"]
+
+    def test_delete_framework_emits_deleted(self, client, db, test_package, monkeypatch):
+        captured = self._spy(monkeypatch)
+
+        framework = _make_framework(db)
+        r = client.delete(f"/api/hermeneutics/frameworks/{framework.id}")
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "interpretation.deleted"
+        assert framework.id in call["interpretation_ids"]
+
+    # ---- Interpretations ----
+
+    def test_create_interpretation_emits_created(
+        self, client, db, test_package, monkeypatch
+    ):
+        captured = self._spy(monkeypatch)
+
+        framework = _make_framework(db)
+        claim = _make_claim(db)
+        r = client.post(
+            "/api/hermeneutics/interpretations",
+            json={
+                "framework_id": framework.id,
+                "claim_id": claim.id,
+                "interpretation_text": "It means X under the framework.",
+                "act": "reading",
+            },
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "interpretation.created"
+        assert r.json()["id"] in call["interpretation_ids"]
+        assert claim.id in call["claim_ids"]
+
+    def test_update_interpretation_emits_updated(
+        self, client, db, test_package, monkeypatch
+    ):
+        captured = self._spy(monkeypatch)
+
+        framework = _make_framework(db)
+        claim = _make_claim(db)
+        interpretation = _make_interpretation(db, framework.id, claim.id)
+        r = client.patch(
+            f"/api/hermeneutics/interpretations/{interpretation.id}",
+            json={"interpretation_text": "Revised interpretation."},
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "interpretation.updated"
+        assert interpretation.id in call["interpretation_ids"]
+
+    # ---- Patterns ----
+
+    def test_create_pattern_emits_created(self, client, db, test_package, monkeypatch):
+        captured = self._spy(monkeypatch)
+
+        r = client.post(
+            "/api/hermeneutics/patterns",
+            json={
+                "name": "Recurrence",
+                "description": "A repeating motif.",
+                "pattern_type": "thematic",
+            },
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "interpretation.created"
+        assert r.json()["id"] in call["interpretation_ids"]
+
+    def test_update_pattern_emits_updated(self, client, db, test_package, monkeypatch):
+        captured = self._spy(monkeypatch)
+
+        pattern = _make_pattern(db)
+        r = client.patch(
+            f"/api/hermeneutics/patterns/{pattern.id}",
+            json={"description": "Updated motif."},
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "interpretation.updated"
+        assert pattern.id in call["interpretation_ids"]
+
+    def test_add_claim_to_pattern_emits_updated(
+        self, client, db, test_package, monkeypatch
+    ):
+        captured = self._spy(monkeypatch)
+
+        pattern = _make_pattern(db)
+        claim = _make_claim(db)
+        r = client.post(
+            f"/api/hermeneutics/patterns/{pattern.id}/claims/{claim.id}",
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "interpretation.updated"
+        assert pattern.id in call["interpretation_ids"]
+        assert claim.id in call["claim_ids"]
+
+    # ---- Hermeneutic circle state ----
+
+    def test_create_circle_state_emits_created(
+        self, client, db, test_package, monkeypatch
+    ):
+        captured = self._spy(monkeypatch)
+
+        claim = _make_claim(db)
+        r = client.post(
+            "/api/hermeneutics/circle-state",
+            json={
+                "claim_id": claim.id,
+                "current_focus": "whole",
+                "focus_id": "f-whole",
+                "focus_label": "The whole",
+                "direction": "whole_to_part",
+            },
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "interpretation.created"
+        assert r.json()["id"] in call["interpretation_ids"]
+        assert claim.id in call["claim_ids"]
+
+    def test_navigate_circle_emits_updated(self, client, db, test_package, monkeypatch):
+        captured = self._spy(monkeypatch)
+
+        claim = _make_claim(db)
+        state = _make_circle_state(db, claim.id)
+        r = client.post(
+            f"/api/hermeneutics/circle-state/{state.id}/navigate",
+            json={
+                "direction": "whole_to_part",
+                "focus_id": "f-part",
+                "focus_label": "A part",
+            },
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "interpretation.updated"
+        assert state.id in call["interpretation_ids"]
+
+    def test_backtrack_circle_emits_updated(self, client, db, test_package, monkeypatch):
+        captured = self._spy(monkeypatch)
+
+        claim = _make_claim(db)
+        state = _make_circle_state(db, claim.id)
+        # backtrack requires a prior_state_id to actually mutate + emit
+        state.prior_state_id = state.id
+        db.save(state)
+
+        r = client.post(f"/api/hermeneutics/circle-state/{state.id}/backtrack")
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "interpretation.updated"
+        assert state.id in call["interpretation_ids"]

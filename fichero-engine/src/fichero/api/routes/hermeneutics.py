@@ -3,10 +3,11 @@
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database
+from fichero.api.change_stream import emit_change
 from fichero.db import Database
 from fichero.hermeneutics_models import (
     CircleNavigationDirection,
@@ -155,6 +156,12 @@ class CircleStateNavigateRequest(BaseModel):
 async def create_framework(
     request: FrameworkCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> InterpretiveFramework:
     now = datetime.now()
     framework = InterpretiveFramework(
@@ -173,6 +180,13 @@ async def create_framework(
         updated_at=now,
     )
     db.save(framework)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="interpretation.created",
+        interpretation_ids=[framework.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return framework
 
 
@@ -208,6 +222,12 @@ async def update_framework(
     framework_id: str,
     request: FrameworkUpdateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> InterpretiveFramework:
     framework = db.get(InterpretiveFramework, framework_id)
     if not framework:
@@ -220,6 +240,13 @@ async def update_framework(
         setattr(framework, key, value)
     framework.updated_at = datetime.now()
     db.save(framework)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="interpretation.updated",
+        interpretation_ids=[framework.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return framework
 
 
@@ -227,6 +254,12 @@ async def update_framework(
 async def delete_framework(
     framework_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> FrameworkDeactivatedResponse:
     framework = db.get(InterpretiveFramework, framework_id)
     if not framework:
@@ -237,6 +270,13 @@ async def delete_framework(
     framework.is_active = False
     framework.updated_at = datetime.now()
     db.save(framework)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="interpretation.deleted",
+        interpretation_ids=[framework.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return FrameworkDeactivatedResponse(status="deactivated")
 
 
@@ -249,6 +289,12 @@ async def delete_framework(
 async def create_interpretation(
     request: InterpretationCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> Interpretation:
     framework = db.get(InterpretiveFramework, request.framework_id)
     if not framework:
@@ -290,6 +336,15 @@ async def create_interpretation(
         updated_at=now,
     )
     db.save(interpretation)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="interpretation.created",
+        interpretation_ids=[interpretation.id],
+        document_ids=[interpretation.document_id] if interpretation.document_id else [],
+        claim_ids=[interpretation.claim_id] if interpretation.claim_id else [],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return interpretation
 
 
@@ -331,6 +386,12 @@ async def update_interpretation(
     interpretation_id: str,
     request: InterpretationUpdateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> Interpretation:
     interpretation = db.get(Interpretation, interpretation_id)
     if not interpretation:
@@ -348,6 +409,15 @@ async def update_interpretation(
         setattr(interpretation, key, value)
     interpretation.updated_at = datetime.now()
     db.save(interpretation)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="interpretation.updated",
+        interpretation_ids=[interpretation.id],
+        document_ids=[interpretation.document_id] if interpretation.document_id else [],
+        claim_ids=[interpretation.claim_id] if interpretation.claim_id else [],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return interpretation
 
 
@@ -360,6 +430,12 @@ async def update_interpretation(
 async def create_pattern(
     request: PatternCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> PatternInstance:
     now = datetime.now()
     pattern = PatternInstance(
@@ -378,6 +454,13 @@ async def create_pattern(
         updated_at=now,
     )
     db.save(pattern)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="interpretation.created",
+        interpretation_ids=[pattern.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return pattern
 
 
@@ -414,6 +497,12 @@ async def update_pattern(
     pattern_id: str,
     request: PatternUpdateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> PatternInstance:
     pattern = db.get(PatternInstance, pattern_id)
     if not pattern:
@@ -424,6 +513,13 @@ async def update_pattern(
         setattr(pattern, key, value)
     pattern.updated_at = datetime.now()
     db.save(pattern)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="interpretation.updated",
+        interpretation_ids=[pattern.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return pattern
 
 
@@ -432,6 +528,12 @@ async def add_claim_to_pattern(
     pattern_id: str,
     claim_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> PatternInstance:
     pattern = db.get(PatternInstance, pattern_id)
     if not pattern:
@@ -441,6 +543,14 @@ async def add_claim_to_pattern(
         pattern.frequency = len(pattern.claim_ids)
         pattern.updated_at = datetime.now()
         db.save(pattern)
+        emit_change(
+            x_fichero_library_path or str(db.path.parent),
+            type="interpretation.updated",
+            interpretation_ids=[pattern.id],
+            claim_ids=[claim_id],
+            actor="ui",
+            origin_window=x_fichero_origin_window,
+        )
     return pattern
 
 
@@ -453,6 +563,12 @@ async def add_claim_to_pattern(
 async def create_circle_state(
     request: CircleStateCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> HermeneuticCircleState:
     now = datetime.now()
     state = HermeneuticCircleState(
@@ -468,6 +584,14 @@ async def create_circle_state(
         updated_at=now,
     )
     db.save(state)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="interpretation.created",
+        interpretation_ids=[state.id],
+        claim_ids=[state.claim_id] if state.claim_id else [],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return state
 
 
@@ -500,6 +624,12 @@ async def navigate_circle(
     state_id: str,
     request: CircleStateNavigateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> HermeneuticCircleState:
     state = db.get(HermeneuticCircleState, state_id)
     if not state:
@@ -525,6 +655,14 @@ async def navigate_circle(
     ]
     state.updated_at = datetime.now()
     db.save(state)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="interpretation.updated",
+        interpretation_ids=[state.id],
+        claim_ids=[state.claim_id] if state.claim_id else [],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return state
 
 
@@ -534,6 +672,12 @@ async def navigate_circle(
 async def backtrack_circle(
     state_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> HermeneuticCircleState:
     state = db.get(HermeneuticCircleState, state_id)
     if not state:
@@ -551,6 +695,14 @@ async def backtrack_circle(
         ]
         state.updated_at = datetime.now()
         db.save(state)
+        emit_change(
+            x_fichero_library_path or str(db.path.parent),
+            type="interpretation.updated",
+            interpretation_ids=[state.id],
+            claim_ids=[state.claim_id] if state.claim_id else [],
+            actor="ui",
+            origin_window=x_fichero_origin_window,
+        )
     return state
 
 
