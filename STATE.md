@@ -1,5 +1,20 @@
 # STATE.md — Fichero
 
+## SESSION HANDOFF — 2026-06-10 ~8:55am (test-writer wave + beachball + observables)
+**0.0.2 @ `8247e948` (pushed, clean — no worktrees/lanes). Xcode BuildProject GREEN.**
+
+**LANDED (codex+claude lanes, manager-gated, pushed):**
+- **#1973 beachball FIXED** (`7d221a38`) — root cause: every change-stream event ran a wholesale store reload (full List re-render) on the main actor; a workflow-run event burst stacked ~100 reloads → main thread saturated → spinning cursor on click. Fix: `apply()` bumps the observation token instantly + a 150ms-debounced `scheduleReload()` coalesces bursts to ~1 reload (6 stores). Full Xcode BuildProject passed. **Labeled `ready-for-test` — Daniel must runtime-retest (click-storm during a workflow run) before close; NOT auto-closed.**
+- **Observable emit coverage finished for document/entity/claim** (`362c533f`) — 16 more mutating routes emit; guardrail now **59/75 routes covered** (16 known gaps left = workflows.py [own stream] + note sub-resources). OpenAPI regen'd.
+- **Test-writer wave 1** (`eb168bb0`) — drained #1984 kg + #1985 loaders + #1980 bibliography (43 new real-assertion tests, all pass, vacuous-guard green); those 3 modules now have **0 untested symbols**; issues closed.
+- **Coverage backlog #82 seeded + scanner hardened** — 12 open `[Test Coverage]` issues remain (~3076 untested symbols, swift/Views biggest at 963). Fixed scanner bugs along the way: excl generated code, milestone-by-title, body cap, issue-URL number parse + edit guard, ratchets drained modules.
+
+**NEXT — START HERE:**
+1. Daniel: runtime-retest **#1973** (beachball) — click rapidly while a workflow runs; confirm no spinning cursor. Close if clean.
+2. Next test-writer waves drain the 12 open #82 issues (biggest value: swift/Views 963, swift/Services, python/api 482, python/workflows 175). Dispatch `/test-writer` lanes; Swift tests are compile-only + batched runs.
+3. Remaining emit gaps (optional): workflows.py CRUD (has its own stream) + note link/checklist sub-resources — low value, left in ratchet.
+
+---
 ## SESSION HANDOFF — 2026-06-10 ~8:10am (test-infra + observable backend)
 **0.0.2 @ `ea4b62b1` (pushed, clean — no worktrees/lanes). fichero-skills main @ `e4acd08` (pushed).**
 
