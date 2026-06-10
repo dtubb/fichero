@@ -1,5 +1,15 @@
 # STATE.md — Fichero
 
+## SESSION HANDOFF — 2026-06-10 ~2:15pm (Track B artifacts landed; SSE tested; cite/ref in flight)
+**0.0.2 @ `3e03e852` (+ cite/ref lane in flight). Full Xcode build green.**
+
+- **#2003 artifacts List + detachable detail — LANDED** (`3e03e852`, build green). FocusedArtifact.shared (mirrors KGFocusState.shared) → ArtifactListView (click selects) + ArtifactDetailView (wraps existing ArtifactPanel render) + ArtifactsInspectorPane + a WindowGroup tear-off scene (context-menu Open in Window, default follow-selection). Replaces stacked text boxes. **Left OPEN — awaits Daniel's visual check.**
+- **SSE endpoint tested — LANDED** (`7925502c`): test_changes_stream_endpoint.py covers open-frame/delivery/scoping/unsubscribe-on-disconnect (4 pass, keepalive skipped — needs a route timeout seam, low priority). The one untested piece of the observable backend; rest was already covered.
+- **IN FLIGHT:** #2004 citations + #2005 references — claude lane `trackb-cite-ref`, copying the #2003 FocusedItem+List+Detail+Pane+window pattern onto CitationStore/ReferenceStore.
+
+**AWAITING DANIEL (visual):** #2003 artifacts UI; also #1973 beachball, #2006 frame-warning, #2007 guardrail-tests.
+
+---
 ## SESSION HANDOFF — 2026-06-10 ~1:55pm (observable infra DONE; Track B UI started)
 **0.0.2 @ `bff9f19d` (+ Track B in flight). Full Xcode build green.**
 
