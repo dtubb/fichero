@@ -310,3 +310,217 @@ class TestDocumentMutationsEmitChange:
         assert call["library_path"] == str(test_package)
         assert call["type"] == "document.deleted"
         assert doc.id in call["document_ids"]
+
+
+class TestActionMutationsEmitChange:
+    def test_create_action_emits_created(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.actions.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        payload = {
+            "name": "Observable Action",
+            "description": "emits",
+            "category": "custom",
+            "tags": [],
+            "icon": "square",
+            "node_template": {},
+            "nodes": [],
+            "edges": [],
+            "author": "qa",
+        }
+        r = client.post("/api/actions", json=payload)
+        assert r.status_code == 200, r.text
+        created = r.json()
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "action.created"
+        assert created["id"] in call["entity_ids"]
+
+    def test_update_action_emits_updated(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.actions.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        created = client.post(
+            "/api/actions",
+            json={
+                "name": "Original",
+                "description": "",
+                "category": "custom",
+                "tags": [],
+                "icon": "square",
+                "node_template": {},
+                "nodes": [],
+                "edges": [],
+                "author": "",
+            },
+        ).json()
+        r = client.put(f"/api/actions/{created['id']}", json={"name": "Updated"})
+        assert r.status_code == 200, r.text
+
+        assert len(captured) >= 1
+        call = captured[-1]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "action.updated"
+        assert created["id"] in call["entity_ids"]
+
+    def test_delete_action_emits_deleted(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.actions.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        created = client.post(
+            "/api/actions",
+            json={
+                "name": "To Delete",
+                "description": "",
+                "category": "custom",
+                "tags": [],
+                "icon": "square",
+                "node_template": {},
+                "nodes": [],
+                "edges": [],
+                "author": "",
+            },
+        ).json()
+        r = client.delete(f"/api/actions/{created['id']}")
+        assert r.status_code == 200, r.text
+
+        assert len(captured) >= 1
+        call = captured[-1]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "action.deleted"
+        assert created["id"] in call["entity_ids"]
+
+
+class TestResearchMutationsEmitChange:
+    def test_create_project_emits_created(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.research_crud.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        r = client.post("/api/research/projects", json={"name": "Research One"})
+        assert r.status_code == 200, r.text
+        project = r.json()
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "research.created"
+        assert project["id"] in call["entity_ids"]
+
+    def test_patch_project_emits_updated(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.research_crud.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+        project = client.post("/api/research/projects", json={"name": "Research Project"}).json()
+
+        r = client.patch(f"/api/research/projects/{project['id']}", json={"name": "Renamed"})
+        assert r.status_code == 200, r.text
+
+        assert len(captured) >= 1
+        call = captured[-1]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "research.updated"
+        assert project["id"] in call["entity_ids"]
+
+    def test_delete_project_emits_deleted(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.research_crud.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+        project = client.post("/api/research/projects", json={"name": "To Delete"}).json()
+
+        r = client.delete(f"/api/research/projects/{project['id']}")
+        assert r.status_code == 200, r.text
+
+        assert len(captured) >= 1
+        call = captured[-1]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "research.deleted"
+        assert project["id"] in call["entity_ids"]
+
+
+class TestProjectsMutationsEmitChange:
+    def test_create_projects_route_emits_created(self, client, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.projects.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        r = client.post("/api/projects", json={"name": "Workspace One"})
+        assert r.status_code == 200, r.text
+        project = r.json()
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "research.created"
+        assert project["id"] in call["entity_ids"]
+
+    def test_patch_projects_route_emits_updated(self, client, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.projects.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+        project = client.post("/api/projects", json={"name": "Workspace Two"}).json()
+
+        r = client.patch(f"/api/projects/{project['id']}", json={"name": "Renamed Workspace"})
+        assert r.status_code == 200, r.text
+
+        assert len(captured) >= 1
+        call = captured[-1]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "research.updated"
+        assert project["id"] in call["entity_ids"]
+
+    def test_delete_projects_route_emits_deleted(self, client, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.projects.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+        project = client.post("/api/projects", json={"name": "Workspace Three"}).json()
+
+        r = client.delete(f"/api/projects/{project['id']}")
+        assert r.status_code == 204, r.text
+
+        assert len(captured) >= 1
+        call = captured[-1]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "research.deleted"
+        assert project["id"] in call["entity_ids"]

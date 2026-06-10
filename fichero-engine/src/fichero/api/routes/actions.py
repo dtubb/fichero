@@ -10,9 +10,10 @@ Provides endpoints for:
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
+from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.models import (
@@ -243,7 +244,11 @@ async def get_action(action_id: str, store: ActionStore = Depends(get_action_sto
 
 @router.post("", response_model=ActionResponse)
 async def create_action(
-    request: CreateActionRequest, store: ActionStore = Depends(get_action_store)
+    request: CreateActionRequest, store: ActionStore = Depends(get_action_store),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ):
     """Create a new action."""
     action = Action(
@@ -259,6 +264,13 @@ async def create_action(
     )
 
     store.save(action)
+    emit_change(
+        x_fichero_library_path,
+        type="action.created",
+        entity_ids=[action.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return action_to_response(action)
 
 
@@ -267,6 +279,10 @@ async def update_action(
     action_id: str,
     request: UpdateActionRequest,
     store: ActionStore = Depends(get_action_store),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ):
     """Update an action."""
     action = store.get(action_id)
@@ -295,11 +311,25 @@ async def update_action(
         action.edges = request.edges
 
     store.save(action)
+    emit_change(
+        x_fichero_library_path,
+        type="action.updated",
+        entity_ids=[action.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return action_to_response(action)
 
 
 @router.delete("/{action_id}", response_model=ActionSuccessResponse)
-async def delete_action(action_id: str, store: ActionStore = Depends(get_action_store)) -> ActionSuccessResponse:
+async def delete_action(
+    action_id: str,
+    store: ActionStore = Depends(get_action_store),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> ActionSuccessResponse:
     """Delete an action."""
     action = store.get(action_id)
     if not action:
@@ -309,6 +339,13 @@ async def delete_action(action_id: str, store: ActionStore = Depends(get_action_
         raise HTTPException(status_code=403, detail="Cannot delete built-in action")
 
     success = store.delete(action_id)
+    emit_change(
+        x_fichero_library_path,
+        type="action.deleted",
+        entity_ids=[action_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return ActionSuccessResponse(success=success)
 
 
@@ -319,7 +356,12 @@ async def delete_action(action_id: str, store: ActionStore = Depends(get_action_
 
 @router.post("/{action_id}/use", response_model=ActionSuccessResponse)
 async def record_action_use(
-    action_id: str, store: ActionStore = Depends(get_action_store)
+    action_id: str,
+    store: ActionStore = Depends(get_action_store),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ActionSuccessResponse:
     """Record that an action was used."""
     action = store.get(action_id)
@@ -327,6 +369,13 @@ async def record_action_use(
         raise HTTPException(status_code=404, detail="Action not found")
 
     store.record_use(action_id)
+    emit_change(
+        x_fichero_library_path,
+        type="action.updated",
+        entity_ids=[action_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return ActionSuccessResponse(success=True)
 
 
@@ -347,11 +396,23 @@ async def export_action(action_id: str, store: ActionStore = Depends(get_action_
 
 @router.post("/import", response_model=ActionResponse)
 async def import_action(
-    request: ImportActionRequest, store: ActionStore = Depends(get_action_store)
+    request: ImportActionRequest,
+    store: ActionStore = Depends(get_action_store),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ):
     """Import an action from JSON."""
     try:
         action = store.import_action(request.json_data, new_id=request.new_id)
+        emit_change(
+            x_fichero_library_path,
+            type="action.created",
+            entity_ids=[action.id],
+            actor="ui",
+            origin_window=x_fichero_origin_window,
+        )
         return action_to_response(action)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -364,7 +425,12 @@ async def import_action(
 
 @router.post("/from-node", response_model=ActionResponse)
 async def create_action_from_node(
-    request: CreateFromNodeRequest, store: ActionStore = Depends(get_action_store)
+    request: CreateFromNodeRequest,
+    store: ActionStore = Depends(get_action_store),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ):
     """Create an action from a workflow node."""
     action = store.create_from_node(
@@ -374,12 +440,24 @@ async def create_action_from_node(
         category=request.category,
         tags=request.tags,
     )
+    emit_change(
+        x_fichero_library_path,
+        type="action.created",
+        entity_ids=[action.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return action_to_response(action)
 
 
 @router.post("/composite", response_model=ActionResponse)
 async def create_composite_action(
-    request: CreateCompositeRequest, store: ActionStore = Depends(get_action_store)
+    request: CreateCompositeRequest,
+    store: ActionStore = Depends(get_action_store),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ):
     """Create a composite action from multiple nodes."""
     action = store.create_composite(
@@ -389,5 +467,12 @@ async def create_composite_action(
         description=request.description,
         category=request.category,
         tags=request.tags,
+    )
+    emit_change(
+        x_fichero_library_path,
+        type="action.created",
+        entity_ids=[action.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
     )
     return action_to_response(action)

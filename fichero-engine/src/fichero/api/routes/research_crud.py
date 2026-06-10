@@ -5,9 +5,10 @@ import json
 import re
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.llm import LLMConfig
@@ -59,6 +60,10 @@ class ProjectUpdateRequest(BaseModel):
 async def create_project(
     request: ProjectCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ResearchProject:
     project = ResearchProject(
         name=request.name,
@@ -68,6 +73,13 @@ async def create_project(
         metadata=request.metadata,
     )
     db.save(project)
+    emit_change(
+        x_fichero_library_path,
+        type="research.created",
+        entity_ids=[project.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return project
 
 
@@ -99,6 +111,10 @@ async def update_project(
     project_id: str,
     request: ProjectUpdateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ResearchProject:
     project = db.get(ResearchProject, project_id)
     if not project:
@@ -115,6 +131,13 @@ async def update_project(
         project.metadata = request.metadata
     project.updated_at = datetime.now()
     db.save(project)
+    emit_change(
+        x_fichero_library_path,
+        type="research.updated",
+        entity_ids=[project.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return project
 
 
@@ -122,11 +145,22 @@ async def update_project(
 async def delete_project(
     project_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> DeletedWithIdResponse:
     project = db.get(ResearchProject, project_id)
     if not project:
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
     db.delete(project)
+    emit_change(
+        x_fichero_library_path,
+        type="research.deleted",
+        entity_ids=[project_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return DeletedWithIdResponse(status="deleted", id=project_id)
 
 
@@ -264,6 +298,10 @@ async def _build_term_plan(
 async def create_plan(
     request: PlanCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ResearchPlan:
     project = db.get(ResearchProject, request.project_id)
     planning_payload: dict[str, Any] | None = None
@@ -292,6 +330,13 @@ async def create_plan(
         },
     )
     db.save(plan)
+    emit_change(
+        x_fichero_library_path,
+        type="research.created",
+        entity_ids=[plan.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return plan
 
 
@@ -321,6 +366,10 @@ async def update_plan(
     plan_id: str,
     request: PlanUpdateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ResearchPlan:
     plan = db.get(ResearchPlan, plan_id)
     if not plan:
@@ -335,6 +384,13 @@ async def update_plan(
         plan.metadata = request.metadata
     plan.updated_at = datetime.now()
     db.save(plan)
+    emit_change(
+        x_fichero_library_path,
+        type="research.updated",
+        entity_ids=[plan.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return plan
 
 
@@ -365,6 +421,10 @@ class TaskUpdateRequest(BaseModel):
 async def create_task(
     request: TaskCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ResearchTask:
     task = ResearchTask(
         plan_id=request.plan_id,
@@ -375,6 +435,13 @@ async def create_task(
         metadata=request.metadata,
     )
     db.save(task)
+    emit_change(
+        x_fichero_library_path,
+        type="research.created",
+        entity_ids=[task.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return task
 
 
@@ -421,6 +488,10 @@ async def update_task(
     task_id: str,
     request: TaskUpdateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ResearchTask:
     task = db.get(ResearchTask, task_id)
     if not task:
@@ -441,6 +512,13 @@ async def update_task(
         task.metadata = request.metadata
     task.updated_at = datetime.now()
     db.save(task)
+    emit_change(
+        x_fichero_library_path,
+        type="research.updated",
+        entity_ids=[task.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return task
 
 
@@ -471,6 +549,10 @@ class StepUpdateRequest(BaseModel):
 async def create_step(
     request: StepCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ResearchStep:
     step = ResearchStep(
         task_id=request.task_id,
@@ -481,6 +563,13 @@ async def create_step(
         order_index=request.order_index,
     )
     db.save(step)
+    emit_change(
+        x_fichero_library_path,
+        type="research.created",
+        entity_ids=[step.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return step
 
 
@@ -499,6 +588,10 @@ async def update_step(
     step_id: str,
     request: StepUpdateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ResearchStep:
     step = db.get(ResearchStep, step_id)
     if not step:
@@ -519,4 +612,11 @@ async def update_step(
         step.order_index = request.order_index
     step.updated_at = datetime.now()
     db.save(step)
+    emit_change(
+        x_fichero_library_path,
+        type="research.updated",
+        entity_ids=[step.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return step
