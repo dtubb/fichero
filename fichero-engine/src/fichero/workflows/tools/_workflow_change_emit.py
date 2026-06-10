@@ -26,10 +26,12 @@ def emit_workflow_kg_changes(
     *,
     entity_ids: Iterable[str] = (),
     claim_ids: Iterable[str] = (),
+    document_ids: Iterable[str] = (),
 ) -> None:
     try:
         entity_ids_list = _dedupe_ids(entity_ids)
         claim_ids_list = _dedupe_ids(claim_ids)
+        document_ids_list = _dedupe_ids(document_ids)
         emit_change(
             library_path,
             type="entity.updated",
@@ -42,6 +44,13 @@ def emit_workflow_kg_changes(
             claim_ids=claim_ids_list,
             actor="workflow",
         )
+        if document_ids_list:
+            emit_change(
+                library_path,
+                type="document.updated",
+                document_ids=document_ids_list,
+                actor="workflow",
+            )
     except Exception as exc:  # pragma: no cover - defensive
         logger.debug("workflow KG emit failed (best-effort, ignored): %s", exc)
 
@@ -51,6 +60,7 @@ def emit_workflow_kg_changes_for_db(
     *,
     entity_ids: Iterable[str] = (),
     claim_ids: Iterable[str] = (),
+    document_ids: Iterable[str] = (),
 ) -> None:
     library_path = ""
     try:
@@ -61,4 +71,52 @@ def emit_workflow_kg_changes_for_db(
         library_path,
         entity_ids=entity_ids,
         claim_ids=claim_ids,
+        document_ids=document_ids,
+    )
+
+
+def emit_workflow_artifact_changes(
+    library_path: str,
+    *,
+    artifact_ids: Iterable[str] = (),
+    document_ids: Iterable[str] = (),
+    actor: str = "workflow",
+    change_type: str = "created",
+) -> None:
+    try:
+        artifact_ids_list = _dedupe_ids(artifact_ids)
+        if not artifact_ids_list:
+            return
+        emit_change(
+            library_path,
+            type=f"artifact.{change_type}",
+            artifact_ids=artifact_ids_list,
+            document_ids=_dedupe_ids(document_ids),
+            actor=actor,
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug("workflow artifact emit failed (best-effort, ignored): %s", exc)
+
+
+def emit_workflow_artifact_changes_for_db(
+    db,
+    *,
+    artifact_ids: Iterable[str] = (),
+    document_ids: Iterable[str] = (),
+    actor: str = "workflow",
+    change_type: str = "created",
+) -> None:
+    library_path = ""
+    try:
+        library_path = str(Path(db.path).parent)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug(
+            "workflow artifact emit could not resolve library path: %s", exc,
+        )
+    emit_workflow_artifact_changes(
+        library_path,
+        artifact_ids=artifact_ids,
+        document_ids=document_ids,
+        actor=actor,
+        change_type=change_type,
     )

@@ -371,6 +371,7 @@ async def extract_citations_for_document(
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
     pages = _page_records_for_document(db, source_doc)
+    document_ids: set[str] = {source_doc.id}
     full_text = "\n\n".join(page.text for page in pages)
     body_text, bibliography_text = find_bibliography_section(full_text)
     if not bibliography_text:
@@ -446,6 +447,7 @@ async def extract_citations_for_document(
         )
         if claim_id is not None:
             written_claim_ids.append(claim_id)
+            document_ids.add(inline.page_doc_id)
             claims.append({"id": claim_id, "entity_id": entity_id, "entry": entry.as_metadata()})
     return {
         "entries": [entry.as_metadata() for entry in entries],
@@ -463,6 +465,7 @@ async def extract_citations_for_document(
         "claims": claims,
         "entity_ids": written_entity_ids,
         "claim_ids": written_claim_ids,
+        "document_ids": sorted(document_ids),
     }
 
 
@@ -552,6 +555,7 @@ async def citations_extract(
             str(db.path.parent),
             entity_ids=result.get("entity_ids") or [],
             claim_ids=result.get("claim_ids") or [],
+            document_ids=result.get("document_ids") or [],
         )
     lines = [
         f"{len(result['entries'])} bibliography entries",

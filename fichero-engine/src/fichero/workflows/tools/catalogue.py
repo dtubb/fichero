@@ -38,6 +38,7 @@ from fichero.workflows.tools.llm_base import (
 from fichero.llm import LLMConfig, chat_with_fallback
 from fichero.db import db_manager
 from fichero.models import Document, DocType, Artifact
+from fichero.workflows.tools._workflow_change_emit import emit_workflow_artifact_changes
 from langgraph.types import interrupt
 
 logger = logging.getLogger(__name__)
@@ -732,6 +733,12 @@ async def catalogue(
                 f"Catalogue: saved {len(saved_artifact_ids)} artifacts on container "
                 f"{container.id} ({container.name}); updated page_content"
             )
+            if saved_artifact_ids:
+                emit_workflow_artifact_changes(
+                    str(db.path.parent),
+                    artifact_ids=saved_artifact_ids,
+                    document_ids=[container.id],
+                )
         except Exception as exc:
             logger.error(f"Catalogue: failed to save artifacts: {exc}")
 

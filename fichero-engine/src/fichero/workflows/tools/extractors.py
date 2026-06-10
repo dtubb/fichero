@@ -45,6 +45,7 @@ from fichero.llm import (
     chat_structured_with_fallback,
 )
 from fichero.models import Artifact
+from fichero.workflows.tools._workflow_change_emit import emit_workflow_artifact_changes
 from fichero.workflows.registry import register_tool
 from fichero.workflows.tools.catalogue import _resolve_write_target
 from fichero.workflows.tools.llm_base import (
@@ -1382,6 +1383,8 @@ async def _run_extractor(
     items: list[Any] = [item for chunk_items in chunk_results for item in chunk_items]
 
     markdown = _render_section_markdown(section, items)
+    created_artifact_ids: list[str] = []
+    artifact_document_ids: set[str] = set()
 
     # Dual write: KG rows (with per-page provenance) + markdown artifact.
     #
@@ -1456,6 +1459,8 @@ async def _run_extractor(
                         run_id=state.get("task_id"),
                     )
                     db.save(page_artifact)
+                    created_artifact_ids.append(page_artifact.id)
+                    artifact_document_ids.add(page_doc_id)
                 # Bump container updated_at so the folder inspector refreshes.
                 container.updated_at = datetime.now()
                 db.save(container)
@@ -1475,6 +1480,8 @@ async def _run_extractor(
                     run_id=state.get("task_id"),
                 )
                 db.save(artifact)
+                created_artifact_ids.append(artifact.id)
+                artifact_document_ids.add(container.id)
                 container.updated_at = datetime.now()
                 db.save(container)
                 logger.info(
@@ -1502,6 +1509,13 @@ async def _run_extractor(
         result["error"] = (
             f"{section['display']}: {len(chunk_errors)}/{len(chunks)} "
             f"LLM calls failed — {actionable}"
+        )
+
+    if created_artifact_ids and container and library_path:
+        emit_workflow_artifact_changes(
+            str(db.path.parent),
+            artifact_ids=created_artifact_ids,
+            document_ids=artifact_document_ids,
         )
     return result
 

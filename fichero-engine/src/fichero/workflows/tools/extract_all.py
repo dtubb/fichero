@@ -52,6 +52,7 @@ from fichero.workflows.tools.llm_base import (
 from fichero.workflows.tools.progress import emit_progress_event
 from fichero.workflows.tools._workflow_change_emit import (
     emit_workflow_kg_changes,
+    emit_workflow_artifact_changes,
 )
 from fichero.workflows.types import DataType, PortDef, State
 
@@ -1337,8 +1338,7 @@ async def _run_two_stage(
     kg_payload: list[dict[str, Any]] = []
     written_entity_ids: list[str] = []
     written_claim_ids: list[str] = []
-    written_entity_ids: list[str] = []
-    written_claim_ids: list[str] = []
+    written_document_ids: set[str] = set()
     _skip_sections = {"rivers_extract", "mines_extract", "properties_extract", "legal_references_extract"}
     _section_by_key = {s["schema_key"]: s for s in _SECTIONS}
 
@@ -1442,6 +1442,7 @@ async def _run_two_stage(
                                 )
                                 written_entity_ids.extend(entity_ids)
                                 written_claim_ids.extend(claim_ids)
+                                written_document_ids.add(target_doc_id)
                             except Exception as exc:
                                 logger.error(
                                     "extract_all (two-stage): KG write failed for %s '%s' on %s: %s",
@@ -1476,6 +1477,7 @@ async def _run_two_stage(
             str(db.path.parent),
             entity_ids=written_entity_ids,
             claim_ids=written_claim_ids,
+            document_ids=sorted(written_document_ids),
         )
     return {
         "text": _render_extraction_markdown(extraction),
@@ -1796,6 +1798,9 @@ async def extract_all(
     kg_payload: list[dict[str, Any]] = []
     written_entity_ids: list[str] = []
     written_claim_ids: list[str] = []
+    written_document_ids: set[str] = set()
+    created_artifact_ids: list[str] = []
+    artifact_document_ids: set[str] = set()
 
     # Write errors and KG saves whenever we have a container/library —
     # even if every chunk failed, the per-page extraction_error
@@ -1878,6 +1883,7 @@ async def extract_all(
                         )
                         written_entity_ids.extend(entity_ids)
                         written_claim_ids.extend(claim_ids)
+                        written_document_ids.add(target_doc_id)
                     await emit_progress_event(
                         progress_callback,
                         "file_complete",
@@ -1902,7 +1908,7 @@ async def extract_all(
                         if not page_doc_id or not items:
                             continue
                         page_md = _render_section_markdown(section, items)
-                        db_writer.save(Artifact(
+                        artifact = Artifact(
                             document_id=page_doc_id,
                             artifact_type=section["artifact"],
                             content=page_md,
@@ -1910,13 +1916,16 @@ async def extract_all(
                             provider=getattr(llm_config, "provider", None),
                             model=getattr(llm_config, "model", None),
                             run_id=state.get("task_id"),
-                        ))
+                        )
+                        db_writer.save(artifact)
+                        created_artifact_ids.append(artifact.id)
+                        artifact_document_ids.add(page_doc_id)
                 else:
                     # Container-level fallback.
                     await _yield_page_work(f"{key} artifact save", 0, 1)
                     flat = [item for ic in section_chunks for item in ic]
                     if flat:
-                        db_writer.save(Artifact(
+                        artifact = Artifact(
                             document_id=container.id,
                             artifact_type=section["artifact"],
                             content=_render_section_markdown(section, flat),
@@ -1924,7 +1933,10 @@ async def extract_all(
                             provider=getattr(llm_config, "provider", None),
                             model=getattr(llm_config, "model", None),
                             run_id=state.get("task_id"),
-                        ))
+                        )
+                        db_writer.save(artifact)
+                        created_artifact_ids.append(artifact.id)
+                        artifact_document_ids.add(container.id)
             # Per-page extraction_error artifacts: write one for each
             # page whose chunk failed, so the inspector can show WHY a
             # page came back empty (instead of indistinguishable from
@@ -1940,7 +1952,7 @@ async def extract_all(
                     )
                     if not err or not page_doc_id:
                         continue
-                    db.save(Artifact(
+                    artifact = Artifact(
                         document_id=page_doc_id,
                         artifact_type="extraction_error",
                         content=(
@@ -1957,7 +1969,10 @@ async def extract_all(
                         provider=getattr(llm_config, "provider", None),
                         model=getattr(llm_config, "model", None),
                         run_id=state.get("task_id"),
-                    ))
+                    )
+                    db.save(artifact)
+                    created_artifact_ids.append(artifact.id)
+                    artifact_document_ids.add(page_doc_id)
             # Persist custom entity types from the registry (#1240).
             #
             # #1562 write-path: scope each custom-entity name to the CHILD doc
@@ -2005,6 +2020,7 @@ async def extract_all(
                         )
                         written_entity_ids.extend(entity_ids)
                         written_claim_ids.extend(claim_ids)
+                        written_document_ids.add(target_doc_id)
 
             # Drain the queued artifact writes before this node returns
             # — downstream folder-cleanup nodes read these artifacts.
@@ -2016,6 +2032,13 @@ async def extract_all(
                     str(db.path.parent),
                     entity_ids=written_entity_ids,
                     claim_ids=written_claim_ids,
+                    document_ids=sorted(written_document_ids),
+                )
+            if created_artifact_ids:
+                emit_workflow_artifact_changes(
+                    str(db.path.parent),
+                    artifact_ids=created_artifact_ids,
+                    document_ids=artifact_document_ids,
                 )
         except Exception as exc:
             logger.error(f"extract_all: KG/artifact save failed: {exc}")

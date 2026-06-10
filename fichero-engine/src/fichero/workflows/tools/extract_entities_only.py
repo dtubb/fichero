@@ -262,6 +262,7 @@ async def extract_entities_only(
                 str(db.path.parent),
                 entity_ids=written_entity_ids,
                 claim_ids=[],
+                document_ids=[record["doc_id"]],
             )
 
         await emit_progress_event(

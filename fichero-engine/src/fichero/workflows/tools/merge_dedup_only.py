@@ -337,6 +337,7 @@ async def merge_dedup_only(
             str(db.path.parent),
             entity_ids=touched_entity_ids,
             claim_ids=touched_claim_ids,
+            document_ids=sorted(scoped_doc_ids),
         )
 
     return {"summary": summary, "count": len(scoped_doc_ids)}

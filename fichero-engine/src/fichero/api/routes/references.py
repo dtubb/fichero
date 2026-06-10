@@ -6,10 +6,11 @@ from datetime import datetime
 from typing import Any
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database
+from fichero.api.change_stream import emit_change
 from fichero.db import Database
 from fichero.knowledge_models import (
     Reference,
@@ -247,6 +248,14 @@ async def patch_reference(
     reference_id: str,
     request: ReferencePatchRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None,
+        alias="X-Fichero-Library-Path",
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None,
+        alias="X-Fichero-Origin-Window",
+    ),
 ) -> Reference:
     """Update a reference row."""
 
@@ -282,6 +291,13 @@ async def patch_reference(
 
     reference = Reference(**payload)
     db.save(reference)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="reference.updated",
+        reference_ids=[reference.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return reference
 
 
@@ -289,6 +305,14 @@ async def patch_reference(
 async def delete_reference(
     reference_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None,
+        alias="X-Fichero-Library-Path",
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None,
+        alias="X-Fichero-Origin-Window",
+    ),
 ) -> DeletedResponse:
     """Delete a reference when no provenance rows remain."""
 
@@ -318,6 +342,13 @@ async def delete_reference(
         )
 
     db.delete(reference)
+    emit_change(
+        x_fichero_library_path or str(db.path.parent),
+        type="reference.deleted",
+        reference_ids=[reference_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return DeletedResponse()
 
 

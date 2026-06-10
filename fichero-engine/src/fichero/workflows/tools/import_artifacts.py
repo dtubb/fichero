@@ -26,6 +26,9 @@ from fichero.workflows.tools.progress import emit_progress_event
 from fichero.workflows.tools.sources import files_tool
 from fichero.workflows.types import DataType, PortDef, State
 from fichero.llm import LLMConfig
+from fichero.workflows.tools._workflow_change_emit import (
+    emit_workflow_artifact_changes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +173,8 @@ async def import_artifacts(
     progress_callback = inputs.get("__progress_callback")
     created = 0
     skipped = 0
+    created_artifact_ids: list[str] = []
+    created_document_ids: set[str] = set()
 
     for index, document in enumerate(documents, start=1):
         await emit_progress_event(
@@ -187,19 +192,20 @@ async def import_artifacts(
         if receipt_key in existing_keys:
             skipped += 1
         else:
-            writer.save(
-                Artifact(
-                    document_id=document.id,
-                    artifact_type="import_receipt",
-                    content=_import_receipt_content(receipt_node),
-                    data=_import_receipt_data(receipt_node),
-                    provider="manifest-importer",
-                    model=CANONICAL_VERSION,
-                    step_name="import_artifacts",
-                    run_id=state.get("task_id"),
-                    confidence=1.0,
-                )
+            artifact = Artifact(
+                document_id=document.id,
+                artifact_type="import_receipt",
+                content=_import_receipt_content(receipt_node),
+                data=_import_receipt_data(receipt_node),
+                provider="manifest-importer",
+                model=CANONICAL_VERSION,
+                step_name="import_artifacts",
+                run_id=state.get("task_id"),
+                confidence=1.0,
             )
+            writer.save(artifact)
+            created_artifact_ids.append(artifact.id)
+            created_document_ids.add(document.id)
             existing_keys.add(receipt_key)
             created += 1
 
@@ -210,7 +216,7 @@ async def import_artifacts(
                 skipped += 1
             else:
                 writer.save(
-                    Artifact(
+                    artifact := Artifact(
                         document_id=document.id,
                         artifact_type="transcription",
                         content=transcription,
@@ -226,6 +232,8 @@ async def import_artifacts(
                         confidence=1.0,
                     )
                 )
+                created_artifact_ids.append(artifact.id)
+                created_document_ids.add(document.id)
                 existing_keys.add(transcription_key)
                 created += 1
 
@@ -249,6 +257,12 @@ async def import_artifacts(
         message="Flushing import-artifact writes",
     )
     await asyncio.to_thread(writer.flush)
+    if created_artifact_ids:
+        emit_workflow_artifact_changes(
+            str(db.path.parent),
+            artifact_ids=created_artifact_ids,
+            document_ids=created_document_ids,
+        )
     summary = {
         "documents_processed": len(documents),
         "artifacts_created": created,

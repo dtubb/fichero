@@ -23,7 +23,10 @@ from fichero.workflows.tools.llm_base import (
     merge_config_schema,
     merge_ports,
 )
-from fichero.workflows.tools._workflow_change_emit import emit_workflow_kg_changes
+from fichero.workflows.tools._workflow_change_emit import (
+    emit_workflow_artifact_changes,
+    emit_workflow_kg_changes,
+)
 from fichero.workflows.types import DataType, PortDef, State
 
 
@@ -454,6 +457,11 @@ async def book_index_extract(
         run_id=state.get("task_id"),
     )
     db.save(artifact)
+    emit_workflow_artifact_changes(
+        str(db.path.parent),
+        artifact_ids=[artifact.id],
+        document_ids=[parent.id],
+    )
     if written_entity_ids or written_claim_ids:
         emit_workflow_kg_changes(
             str(db.path.parent),

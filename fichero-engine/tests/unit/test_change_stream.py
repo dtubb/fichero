@@ -26,12 +26,13 @@ from fichero.api.change_stream import (
 from fichero.knowledge_models import (
     Annotation,
     AnnotationKind,
+    Reference,
     EntityType,
     KnowledgeClaim,
     KnowledgeEntity,
     Note,
 )
-from fichero.models import DocType, Document, FileType, Status
+from fichero.models import Artifact, DocType, Document, FileType, Status
 
 
 # ---------------------------------------------------------------------------
@@ -955,3 +956,113 @@ class TestProjectsMutationsEmitChange:
         assert call["library_path"] == str(test_package)
         assert call["type"] == "research.deleted"
         assert project["id"] in call["entity_ids"]
+
+
+def _make_artifact(
+    db,
+    doc_id: str,
+    artifact_type: str = "transcription",
+    content: str = "sample text",
+) -> Artifact:
+    artifact = Artifact(
+        document_id=doc_id,
+        artifact_type=artifact_type,
+        content=content,
+        version=1,
+        created_at=datetime.now(),
+    )
+    db.save(artifact)
+    return artifact
+
+
+def _make_reference(title: str = "A Sample Reference") -> Reference:
+    return Reference(
+        title=title,
+        kind="article",
+    )
+
+
+class TestObservableMutationEmitChange:
+    def test_create_artifact_route_emits_artifact_created(
+        self, client, db, test_package, monkeypatch
+    ):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.artifacts.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        doc = _make_document(db, "doc-emit-artifact.txt")
+        r = client.post(
+            "/api/artifacts/",
+            json={
+                "document_id": doc.id,
+                "artifact_type": "transcription",
+                "content": "sample text",
+            },
+        )
+        assert r.status_code == 200, r.text
+        artifact = r.json()
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "artifact.created"
+        assert artifact["id"] in call["artifact_ids"]
+
+    def test_create_citation_route_emits_citation_created(
+        self, client, db, test_package, monkeypatch
+    ):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.citations.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        source = _make_document(db, "citation-source.txt")
+        r = client.post(
+            "/api/citations/graph",
+            json={
+                "source_document_id": source.id,
+                "target_citation_text": "Smith, 2020",
+                "detector": "manual",
+            },
+        )
+        assert r.status_code == 200, r.text
+        citation = r.json()
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "citation.created"
+        assert citation["id"] in call["citation_ids"]
+        assert source.id in call["document_ids"]
+
+    def test_patch_reference_route_emits_reference_updated(
+        self, client, db, test_package, monkeypatch
+    ):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.references.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        reference = _make_reference("A Sample Reference")
+        db.save(reference)
+        r = client.patch(
+            f"/api/references/{reference.id}",
+            json={"notes": "Updated in test"},
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) >= 1
+        call = captured[-1]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "reference.updated"
+        assert reference.id in call["reference_ids"]
