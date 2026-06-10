@@ -814,6 +814,10 @@ async def delete_entity(
         ),
     ),
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> None:
     """Hard-delete a knowledge entity.
 
@@ -872,6 +876,14 @@ async def delete_entity(
         logging.getLogger(__name__).warning(
             "delete_entity: mutation log write failed: %s", exc
         )
+
+    emit_change(
+        x_fichero_library_path,
+        type="entity.deleted",
+        entity_ids=[entity_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
 
 
 class EntityDocumentLink(BaseModel):
@@ -1067,6 +1079,10 @@ async def add_entity_aliases(
     entity_id: str,
     request: EntityAliasRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> KnowledgeEntity:
     """Add aliases to an existing entity."""
     entity = db.get(KnowledgeEntity, entity_id)
@@ -1077,6 +1093,14 @@ async def add_entity_aliases(
     entity.aliases = sorted(merged)
     entity.updated_at = datetime.now()
     db.save(entity)
+
+    emit_change(
+        x_fichero_library_path,
+        type="entity.updated",
+        entity_ids=[entity_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return entity
 
 

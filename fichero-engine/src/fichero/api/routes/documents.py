@@ -459,6 +459,10 @@ async def put_document_note(
     doc_id: str,
     request: DocumentNoteUpsert,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> DocumentNote:
     """Create or replace a document's user note."""
     normalized_id = _normalize_document_id(doc_id)
@@ -473,12 +477,25 @@ async def put_document_note(
         note = DocumentNote(document_id=normalized_id, content=request.content)
 
     db.save(note)
+
+    emit_change(
+        x_fichero_library_path,
+        type="document.updated",
+        document_ids=[normalized_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return note
 
 
 @router.delete("/{doc_id}/notes", status_code=204)
 async def delete_document_note(
-    doc_id: str, db: Database = Depends(get_library_database)
+    doc_id: str,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> None:
     """Delete the user note for a document."""
     normalized_id = _normalize_document_id(doc_id)
@@ -489,12 +506,24 @@ async def delete_document_note(
         raise HTTPException(status_code=404, detail=f"Document note not found: {doc_id}")
     db.delete(notes[0])
 
+    emit_change(
+        x_fichero_library_path,
+        type="document.updated",
+        document_ids=[normalized_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
+
 
 @router.patch("/{doc_id}/workspace", response_model=WorkspaceItemsResponse)
 async def patch_workspace_items(
     doc_id: str,
     request: WorkspacePatchRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> WorkspaceItemsResponse:
     """Atomically add/remove/reorder workspace curated items."""
     doc = _workspace_doc_or_404(db, doc_id)
@@ -537,6 +566,14 @@ async def patch_workspace_items(
     doc.curated_items = [by_id[item_id] for item_id in ordered_ids]
     doc.updated_at = datetime.now()
     db.save(doc)
+
+    emit_change(
+        x_fichero_library_path,
+        type="document.updated",
+        document_ids=[doc.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
 
     return WorkspaceItemsResponse(
         document_id=doc.id,
@@ -649,7 +686,12 @@ async def get_document_parent(
 
 @router.post("", status_code=201)
 async def create_document(
-    doc: DocumentCreate, db: Database = Depends(get_library_database)
+    doc: DocumentCreate,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> Document:
     """Create a new document."""
     # Create document from request
@@ -674,6 +716,14 @@ async def create_document(
 
     db.save(new_doc)
     logger.info(f"Created document: {new_doc.id} ({new_doc.name})")
+
+    emit_change(
+        x_fichero_library_path,
+        type="document.created",
+        document_ids=[new_doc.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return new_doc
 
 
@@ -760,6 +810,10 @@ async def update_document(
 async def batch_exclude_documents(
     request: DocumentBatchExcludeRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> DocumentBatchExcludeResponse:
     """Toggle exclude-from-processing on multiple documents with audit logging."""
     seen: set[str] = set()
@@ -794,6 +848,15 @@ async def batch_exclude_documents(
         )
         updated_ids.append(doc.id)
 
+    if updated_ids:
+        emit_change(
+            x_fichero_library_path,
+            type="document.updated",
+            document_ids=updated_ids,
+            actor="ui",
+            origin_window=x_fichero_origin_window,
+        )
+
     return DocumentBatchExcludeResponse(
         updated=len(updated_ids),
         document_ids=updated_ids,
@@ -805,6 +868,10 @@ async def assign_document_prototype(
     doc_id: str,
     request: PrototypeAssignRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> PrototypeAssignResponse:
     doc = db.get(Document, doc_id)
     if doc is None:
@@ -851,6 +918,15 @@ async def assign_document_prototype(
         db.save(candidate)
         updated += 1
 
+    if updated > 0:
+        emit_change(
+            x_fichero_library_path,
+            type="document.updated",
+            document_ids=sorted(scoped_ids),
+            actor="ui",
+            origin_window=x_fichero_origin_window,
+        )
+
     return PrototypeAssignResponse(
         source_document_id=doc_id,
         prototype_key=request.prototype_key,
@@ -874,6 +950,10 @@ async def upsert_page_ranges(
     doc_id: str,
     request: PageRangeUpsertRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> PageRangeListResponse:
     doc = db.get(Document, doc_id)
     if doc is None:
@@ -888,6 +968,14 @@ async def upsert_page_ranges(
     doc.structure = normalized
     doc.updated_at = datetime.now()
     db.save(doc)
+
+    emit_change(
+        x_fichero_library_path,
+        type="document.updated",
+        document_ids=[doc_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return PageRangeListResponse(
         items=[PageRangeItem(**row) for row in normalized],
         count=len(normalized),
@@ -1164,6 +1252,10 @@ async def related_documents(
 @router.post("/pdfs/backfill-pages")
 async def backfill_pdf_pages(
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> PdfBackfillResponse:
     """Find PDFs without page children and create the page Documents.
 
@@ -1183,6 +1275,7 @@ async def backfill_pdf_pages(
     pdfs_backfilled = 0
     pages_created = 0
     skipped = 0
+    created_page_ids: list[str] = []
 
     for pdf in pdfs:
         if not pdf.path:
@@ -1203,9 +1296,19 @@ async def backfill_pdf_pages(
             if new_pages:
                 pdfs_backfilled += 1
                 pages_created += len(new_pages)
+                created_page_ids.extend([page.id for page in new_pages if page.id])
         except Exception as exc:  # noqa: BLE001
             logger.warning("PDF backfill failed for %s: %s", pdf.id, exc)
             skipped += 1
+
+    if created_page_ids:
+        emit_change(
+            x_fichero_library_path,
+            type="document.created",
+            document_ids=created_page_ids,
+            actor="ui",
+            origin_window=x_fichero_origin_window,
+        )
 
     return PdfBackfillResponse(
         pdfs_scanned=pdfs_scanned,
@@ -1220,6 +1323,10 @@ async def reorder_documents(
     doc_ids: list[str],
     folder_path: str = "/",
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ReorderResponse:
     """Reorder documents within a folder."""
     # Update sort_order for each document
@@ -1232,6 +1339,15 @@ async def reorder_documents(
         # In a more complex system, we'd verify the document is in the right folder
         doc.sort_order = i
         db.save(doc)
+
+    if doc_ids:
+        emit_change(
+            x_fichero_library_path,
+            type="document.updated",
+            document_ids=doc_ids,
+            actor="ui",
+            origin_window=x_fichero_origin_window,
+        )
 
     return ReorderResponse(status="reordered", count=len(doc_ids))
 
@@ -1316,6 +1432,10 @@ async def move_document(
     doc_id: str,
     parent_id: Optional[str] = Query(None),
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> Document:
     """Move a document to a new parent location.
 
@@ -1342,6 +1462,14 @@ async def move_document(
     db.save(doc)
     logger.info(f"Moved document: {doc_id} to parent: {parent_id}")
 
+    emit_change(
+        x_fichero_library_path,
+        type="document.updated",
+        document_ids=[doc_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
+
     return doc
 
 
@@ -1349,6 +1477,9 @@ async def move_document(
 async def cleanup_orphan_documents(
     db: Database = Depends(get_library_database),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> OrphanCleanupResponse:
     """Remove unreachable/orphan document rows.
 
@@ -1397,6 +1528,15 @@ async def cleanup_orphan_documents(
             "Cleanup removed %s orphan documents and %s artifacts",
             len(orphaned),
             artifacts_deleted,
+        )
+
+    if orphaned:
+        emit_change(
+            x_fichero_library_path,
+            type="document.deleted",
+            document_ids=[item.id for item in orphaned],
+            actor="ui",
+            origin_window=x_fichero_origin_window,
         )
 
     return OrphanCleanupResponse(

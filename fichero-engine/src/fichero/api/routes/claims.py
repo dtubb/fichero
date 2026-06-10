@@ -474,6 +474,10 @@ async def patch_claim(
 async def resolve_claim_source(
     request: ClaimSourceResolveRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ClaimSourceResolveResponse:
     """Resolve claim/SVO selectors to exact source provenance anchor."""
     selected: KnowledgeClaim | None = None
@@ -509,6 +513,14 @@ async def resolve_claim_source(
             )
         )
         selected = candidates[0]
+
+    emit_change(
+        x_fichero_library_path,
+        type="claim.updated",
+        claim_ids=[selected.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
 
     return ClaimSourceResolveResponse(
         claim_id=selected.id,
@@ -628,6 +640,10 @@ def _descendant_doc_ids(db: Database, root_id: str) -> set[str]:
 async def assign_time_period(
     request: ClaimAssignTimePeriodRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ClaimAssignTimePeriodResponse:
     """Assign a user-curated period to many claims at once.
 
@@ -658,6 +674,7 @@ async def assign_time_period(
     matched = 0
     updated = 0
     skipped_existing = 0
+    updated_ids: list[str] = []
 
     for claim in db.all(KnowledgeClaim):
         if claim.source_document_id not in scope_ids:
@@ -682,6 +699,16 @@ async def assign_time_period(
         claim.updated_at = datetime.now()
         db.save(claim)
         updated += 1
+        updated_ids.append(claim.id)
+
+    if updated_ids:
+        emit_change(
+            x_fichero_library_path,
+            type="claim.updated",
+            claim_ids=updated_ids,
+            actor="ui",
+            origin_window=x_fichero_origin_window,
+        )
 
     return ClaimAssignTimePeriodResponse(
         matched_count=matched,
@@ -697,6 +724,10 @@ async def assign_time_period(
 async def assign_time_period_from_metadata(
     request: ClaimAssignTimePeriodFromMetadataRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ClaimAssignTimePeriodFromMetadataResponse:
     """Assign claim dates from the source document's metadata date field."""
     source_doc = db.get(Document, request.source_document_id)
@@ -721,6 +752,7 @@ async def assign_time_period_from_metadata(
     matched = 0
     updated = 0
     skipped_existing = 0
+    updated_ids: list[str] = []
     for claim in db.all(KnowledgeClaim):
         if claim.source_document_id not in scoped_ids:
             continue
@@ -734,6 +766,16 @@ async def assign_time_period_from_metadata(
         claim.updated_at = datetime.now()
         db.save(claim)
         updated += 1
+        updated_ids.append(claim.id)
+
+    if updated_ids:
+        emit_change(
+            x_fichero_library_path,
+            type="claim.updated",
+            claim_ids=updated_ids,
+            actor="ui",
+            origin_window=x_fichero_origin_window,
+        )
 
     return ClaimAssignTimePeriodFromMetadataResponse(
         matched_count=matched,

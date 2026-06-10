@@ -46,22 +46,6 @@ STRING_RE = re.compile(r'\"([^\"]+)\"')
 
 # Seeds this script at the current tree.
 KNOWN_GAPS: set[str] = {
-    "fichero-engine/src/fichero/api/routes/claims.py::assign_time_period",
-    "fichero-engine/src/fichero/api/routes/claims.py::assign_time_period_from_metadata",
-    "fichero-engine/src/fichero/api/routes/claims.py::resolve_claim_source",
-    "fichero-engine/src/fichero/api/routes/documents.py::assign_document_prototype",
-    "fichero-engine/src/fichero/api/routes/documents.py::backfill_pdf_pages",
-    "fichero-engine/src/fichero/api/routes/documents.py::batch_exclude_documents",
-    "fichero-engine/src/fichero/api/routes/documents.py::cleanup_orphan_documents",
-    "fichero-engine/src/fichero/api/routes/documents.py::create_document",
-    "fichero-engine/src/fichero/api/routes/documents.py::delete_document_note",
-    "fichero-engine/src/fichero/api/routes/documents.py::move_document",
-    "fichero-engine/src/fichero/api/routes/documents.py::patch_workspace_items",
-    "fichero-engine/src/fichero/api/routes/documents.py::put_document_note",
-    "fichero-engine/src/fichero/api/routes/documents.py::reorder_documents",
-    "fichero-engine/src/fichero/api/routes/documents.py::upsert_page_ranges",
-    "fichero-engine/src/fichero/api/routes/entities.py::add_entity_aliases",
-    "fichero-engine/src/fichero/api/routes/entities.py::delete_entity",
     "fichero-engine/src/fichero/api/routes/notes.py::create_note_link",
     "fichero-engine/src/fichero/api/routes/notes.py::delete_note_link",
     "fichero-engine/src/fichero/api/routes/research_notes.py::create_checklist",
