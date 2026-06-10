@@ -1,5 +1,17 @@
 # STATE.md — Fichero
 
+## SESSION HANDOFF — 2026-06-10 ~2:40pm (TRACK B PHASE 1 COMPLETE — list+detachable-detail UI)
+**0.0.2 @ `1bb64ce0`, pushed, clean (no worktrees/lanes). Full Xcode build green.**
+
+**Track B Phase 1 — DONE.** Artifacts (#2003), citations (#2004), references (#2005) all now use ONE pattern: a `Focused<Domain>.shared` selection holder (mirrors KGFocusState.shared) → `<Domain>ListView` (click selects) → `<Domain>DetailView` (reuses existing rendering) → `<Domain>InspectorPane`, plus a `WindowGroup`/`openWindow` **tear-off window** that follows selection (context-menu → Open in Window). Replaces the stacked-text-boxes presentation. Each fed by its live observable store (Artifact/Citation/Reference). All build-verified, swiftlint clean.
+**Left OPEN — await Daniel's VISUAL check** (UI changes): #2003 #2004 #2005.
+
+**Also this session:** observable infra fully done (substrate + 8 stores migrated + extraction emits); SSE endpoint tested (#test_changes_stream_endpoint — the one backend gap).
+
+**NEXT OPTIONS for Daniel:** (1) **#2000** — fold SVO / hermeneutic-statement / metadata onto the same list+detachable-detail pattern (decide first-class-vs-shared). (2) **EPIC #1848 — one audited action layer** (the bigger infra lever; single typed mutation surface → who-changed-what/undo/agentic-chat; twin of the observable layer). (3) Observable seams: optimistic updates + X-Fichero-Origin-Window self-echo dedup; non-route db.save emit guard.
+**AWAITING DANIEL (visual/runtime):** #2003/#2004/#2005 UI; #1973 beachball; #2006 frame-warning; #2007 guardrail-tests.
+
+---
 ## SESSION HANDOFF — 2026-06-10 ~2:15pm (Track B artifacts landed; SSE tested; cite/ref in flight)
 **0.0.2 @ `3e03e852` (+ cite/ref lane in flight). Full Xcode build green.**
 
