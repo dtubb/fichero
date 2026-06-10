@@ -139,6 +139,11 @@ class LibraryManager: ObservableObject {
         /// `reference.*` change events.
         lazy var referenceStore: ReferenceStore = ReferenceStore(entityService: entityService)
 
+        /// Per-document interpretation store (#2009). Wraps `entityService`, owns
+        /// the selected document's hermeneutic interpretations, and reacts to
+        /// `interpretation.*` change events (#2008).
+        lazy var interpretationStore: InterpretationStore = InterpretationStore(entityService: entityService)
+
         /// One SSE change-stream per library (#1863), fanning events to the
         /// stores above. `start()` is idempotent — each window kicks it from
         /// its `.task`; only the first connects.
@@ -159,6 +164,7 @@ class LibraryManager: ObservableObject {
             stream.register(self.artifactStore)
             stream.register(self.citationStore)
             stream.register(self.referenceStore)
+            stream.register(self.interpretationStore)
             return stream
         }()
 

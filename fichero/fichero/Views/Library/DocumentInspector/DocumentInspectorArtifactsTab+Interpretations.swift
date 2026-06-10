@@ -9,9 +9,18 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
     let documentId: String
     let entityService: EntityServiceGenerated
 
-    @State private var interpretations: [Components.Schemas.Interpretation] = []
+    // Live-refresh via the per-document InterpretationStore (#2009): the store
+    // owns the fetch + the `interpretation.*` change-stream reactions (#2008), so
+    // a create/edit in any window (chat, another window, this one) updates this
+    // panel in place. Reading `store.items` in `body` registers the @Observable
+    // dependency. The create/edit forms below still drive `entityService`
+    // directly and fall back to `store.reload()` so the list refreshes even
+    // before the backend emit lane lands.
+    private var store: InterpretationStore? { LibraryManager.shared.globalLibrary?.interpretationStore }
+    private var interpretations: [Components.Schemas.Interpretation] { store?.items ?? [] }
+    private var isLoading: Bool { store?.isLoading ?? false }
+
     @State private var isExpanded = false
-    @State private var isLoading = false
 
     // Create form
     @State private var showingCreateForm = false
@@ -94,7 +103,10 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
                     .padding(.bottom, 8)
             }
         }
-        .task(id: documentId) { await load() }
+        .task(id: documentId) {
+            await store?.setScope(documentId: documentId)
+            if !interpretations.isEmpty { isExpanded = true }
+        }
     }
 
     // MARK: - Create form
@@ -310,13 +322,6 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
 
     // MARK: - Load / Submit
 
-    private func load() async {
-        isLoading = true
-        defer { isLoading = false }
-        interpretations = (try? await entityService.listDocumentInterpretations(documentId: documentId)) ?? []
-        if !interpretations.isEmpty { isExpanded = true }
-    }
-
     private func loadFrameworks() async {
         let loaded = (try? await entityService.listFrameworks()) ?? []
         frameworks = loaded
@@ -332,14 +337,17 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
         submitError = nil
         defer { isSubmitting = false }
         do {
-            let created = try await entityService.createInterpretation(
+            _ = try await entityService.createInterpretation(
                 frameworkId: selectedFrameworkId,
                 documentId: documentId,
                 act: selectedAct,
                 interpretationText: text,
                 confidence: newConfidence
             )
-            interpretations.insert(created, at: 0)
+            // The `interpretation.*` change-stream event (#2008) refreshes the
+            // store in every window; reload() is the synchronous fallback so the
+            // list updates immediately even before that backend lane lands.
+            await store?.reload()
             isExpanded = true
             withAnimation { showingCreateForm = false }
             resetForm()
@@ -355,14 +363,14 @@ struct DocumentInterpretationsSection: View { // swiftlint:disable:this type_bod
         editError = nil
         defer { isSavingEdit = false }
         do {
-            let updated = try await entityService.updateInterpretation(
+            _ = try await entityService.updateInterpretation(
                 interpretationId: interpId,
                 interpretationText: text,
                 confidence: editConfidence
             )
-            if let idx = interpretations.firstIndex(where: { $0.id == interp.id }) {
-                interpretations[idx] = updated
-            }
+            // Same as create: the change-stream refreshes every window; reload()
+            // is the synchronous fallback until the #2008 emit lane lands.
+            await store?.reload()
             editingInterpId = nil
         } catch {
             editError = error.localizedDescription
