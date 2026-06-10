@@ -63,7 +63,7 @@ def create_gh_issue(issue):
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         if result.returncode == 0:
-            print(f"  Created issue successfully")
+            print("  Created issue successfully")
             # Extract URL if present
             if 'github.com' in result.stdout:
                 import re
@@ -95,7 +95,7 @@ def main():
         sys.exit(1)
     
     # Show.preview
-    print(f"First issue preview:")
+    print("First issue preview:")
     print("-" * 70)
     print(f"Title: {issues[0]['title']}")
     print(f"Body preview: {issues[0]['body'][:200]}...")
