@@ -1,5 +1,19 @@
 # STATE.md — Fichero
 
+## SESSION HANDOFF — 2026-06-10 ~7:33pm (#1848 KEYSTONE landed; domain sweep #2014 next)
+**0.0.2 @ `68fe6e13`, pushed. Full suite green (the 2 fails were a test patching emit_change at the wrong target — fixed).**
+
+**#1848 action layer — Daniel APPROVED, and said do it RIGHT: rewrite all 28 hand-rolled ops onto typed+audited actions, test-first.** Doc: docs/architecture/action_layer.md.
+
+**#2013 keystone — DONE + closed.** `fichero/actions/` ActionRegistry + `@action` + `registry.invoke()` chokepoint (validate→execute→ActionAudit(db.save)→emit_change) + ActionAudit table (via _ensure_table, no migration) + POST /api/actions/invoke + GET /api/actions/registry + POST /api/actions/audit/{id}/undo. Pilot: **entity.merge + entity.unmerge WRAP the proven merge_entities_impl/undo_entity_operation_impl** (extracted from the route — not re-derived). **Registry API contract is pinned in the #2013 close comment — #2014 workers copy it verbatim.**
+Manager fixes on integration: lazy emit_change import (module-load cycle); test patches emit_change at the source module.
+
+**NEXT — #2014 domain sweep (test-first, one domain per worker):** merge already done → the **28 hand-rolled ops** (19 ArtifactServiceGenerated + 8 image-editing) onto typed+audited actions → then thread the ~67 typed ones through invoke. Each: capture behavior in a test first → refactor → stays green → assert effect + audit row. Then #2015 undo+⌘Z, #2016 chat tools, #2017 App Intents, #2018 the 5 missing actions.
+**Daniel may want to review the registry API (in #2013 comment) before #2014 fans out — ASK before dispatching.**
+
+**AWAITING DANIEL (visual/runtime):** #2009 Interpretations live-update; #2003/#2004/#2005 Track B UI; #1973 beachball; #2006 frame-warning. Flake #2012.
+
+---
 ## SESSION HANDOFF — 2026-06-10 ~4:25pm (#2000 DONE; observable layer complete; #1848 next, plan-first)
 **0.0.2 @ `60ebe739`, pushed, clean. Full suite 4074 passed / 1 flake (#2012).**
 
