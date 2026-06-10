@@ -1,5 +1,20 @@
 # STATE.md — Fichero
 
+## SESSION HANDOFF — 2026-06-10 ~1:05pm (TRACK A PHASE 1 COMPLETE — observable substrate)
+**0.0.2 @ `0c4f1231` (pushed, clean — no worktrees/lanes). Full Xcode build green.**
+
+**Track A (Observable Data Layer infra) Phase 1 — DONE:**
+- **Substrate** `ObservableDomainStore` (protocol) + `ReloadDebouncer` (300ms) — shared change-stream boilerplate written once; concrete stores supply changeDomain/reload()/granular apply(). #1995. (Sendable-constrained for the Swift-6 debounce closure.)
+- **DocumentStore** is the first consumer (granular splice-by-id; `DocumentStore+ChangeStream.swift`); registered in LibraryManager → **library table refreshes live**. #1996.
+- **Extraction emits** per-document: document/entity/claim (#1994) + **artifact/citation/reference** on routes AND extraction (#1997/1998/1999, backend). `emit_change`/`ChangeEvent` extended with artifact_ids/citation_ids/reference_ids.
+- **Frontend stores** ArtifactStore/CitationStore/ReferenceStore on the substrate; Citation + Reference inspector views live-wired. Artifact-view migration deferred to Track B (the stacked-boxes→list/detail redesign).
+- **Guardrail-script tests** landed (9 pass, 6 skipped → #2007 to make the scripts path-injectable).
+
+**REGRESSION LESSON (important):** the backend emit lane passed its 41 targeted change_stream tests but the FULL suite caught 15 failures it missed (emit_change rejected the new *_ids kwargs → TypeError broke artifact/citation/reference routes; + extraction tests needed expectation updates for the new document.updated/artifact.created emits). **After any route-signature/emit_change change, the full unit suite is the real gate — targeted tests miss cross-file breaks.** All fixed; last full run was 4050 passed / 1 failed, that 1 (test_mock_provider) fixed + verified green.
+
+**NEXT (Track B — when Daniel's back):** the "mac-assed" list + **detachable popover↔window detail** UI (follows selection, draggable) — EPIC #2002; replace stacked-text-box ArtifactPanel (#2003), citations (#2004), references (#2005). Then migrate the 8 existing stores onto the substrate (de-risked follow-up). **Awaiting Daniel:** #1973 beachball runtime-retest; #2006 ContentView frame-warning; #2007 guardrail-test follow-up.
+
+---
 ## SESSION HANDOFF — 2026-06-10 ~9:55am (OBSERVABLES COMPLETE + RAM-rule fix)
 **0.0.2 @ `49fe12fe` (pushed, clean). Observable data layer fully wired end-to-end.**
 
