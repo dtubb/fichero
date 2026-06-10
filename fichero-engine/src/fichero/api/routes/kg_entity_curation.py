@@ -623,7 +623,7 @@ async def candidate_pairs(
 # uniform path that chat tools / App Intents / tests drive via
 # POST /api/actions/invoke.
 
-from fichero.actions import action, ActionContext, ChangeSpec  # noqa: E402
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
 
 
 class UnmergeEntitiesParams(BaseModel):
