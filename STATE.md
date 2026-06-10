@@ -1,5 +1,19 @@
 # STATE.md — Fichero
 
+## SESSION HANDOFF — 2026-06-10 ~1:55pm (observable infra DONE; Track B UI started)
+**0.0.2 @ `bff9f19d` (+ Track B in flight). Full Xcode build green.**
+
+**Observable Data Layer infra — FULLY DONE:** substrate (ObservableDomainStore+ReloadDebouncer) + DocumentStore consumer + extraction emits (all 6 domains) + Artifact/Citation/Reference stores + **8 legacy stores migrated** onto the substrate (`bff9f19d`: 6 migrated −84 lines; SearchStore/WorkflowStore correctly left — they have no reload()/debounce). Backend: 0 emit gaps, 75/75 routes. Daniel: "backend is all done."
+
+**TRACK B STARTED (front-end of the new infra) — the "mac-assed" detail UI (EPIC #2002):**
+- IN FLIGHT: #2003 artifacts as List + detachable detail window (replaces stacked-text-boxes ArtifactPanel), on ArtifactStore. claude lane `trackb-artifacts`. Design: list → click selects → detail in popover that tears off into a draggable Window following selection (default follow, optional pin).
+- NEXT: #2004 citations, #2005 references reuse the same pattern once #2003 proves it.
+
+**NEXT INFRA (after Track B, my recommendation order):** (1) **One audited action layer (EPIC #1848)** — the missing twin of the observable layer (single typed mutation surface → who-changed-what/undo/agentic-chat). (2) Observable seams: optimistic updates + X-Fichero-Origin-Window self-echo dedup; non-route db.save emit guard (#1994 follow-up). (3) Test-coverage waves to drain #82. (4) route-sig→Swift-wrapper guard (we hit createNode + emit_change kwargs this session).
+
+**AWAITING DANIEL:** #1973 beachball retest; #2006 frame-warning; #2007 guardrail-test follow-up.
+
+---
 ## SESSION HANDOFF — 2026-06-10 ~1:05pm (TRACK A PHASE 1 COMPLETE — observable substrate)
 **0.0.2 @ `0c4f1231` (pushed, clean — no worktrees/lanes). Full Xcode build green.**
 
