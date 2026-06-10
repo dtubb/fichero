@@ -113,9 +113,24 @@ final class ActionStore: ChangeEventConsumer {
         changeToken &+= 1
         switch event.verb {
         case "created", "updated", "deleted":
-            Task { await reload() }
+            scheduleReload()
         default:
             break
+        }
+    }
+
+    /// Coalesces a burst of change events into a single trailing reload so a
+    /// workflow-run event storm can't fire one wholesale reload per event and
+    /// stall the main thread (#1973). The `changeToken` bump stays synchronous;
+    /// only the expensive wholesale refetch is debounced.
+    @ObservationIgnored private var pendingReload: Task<Void, Never>?
+
+    private func scheduleReload() {
+        pendingReload?.cancel()
+        pendingReload = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            await self?.reload()
         }
     }
 

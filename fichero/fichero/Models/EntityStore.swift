@@ -166,7 +166,7 @@ final class EntityStore: ChangeEventConsumer {
         case "updated", "merged", "created":
             // Targeted patch isn't cheap to reconstruct from ids alone; reload
             // the current document scope (cheap, document-scoped query).
-            Task { await reload() }
+            scheduleReload()
         case "deleted":
             let deleted = Set(event.entityIds)
             entities.removeAll { entity in
@@ -175,6 +175,21 @@ final class EntityStore: ChangeEventConsumer {
             }
         default:
             break
+        }
+    }
+
+    /// Coalesces a burst of change events into a single trailing reload so a
+    /// workflow-run event storm can't fire one wholesale reload per event and
+    /// stall the main thread (#1973). Granular deletes and the `changeToken`
+    /// bump stay synchronous; only the expensive wholesale refetch is debounced.
+    @ObservationIgnored private var pendingReload: Task<Void, Never>?
+
+    private func scheduleReload() {
+        pendingReload?.cancel()
+        pendingReload = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            await self?.reload()
         }
     }
 

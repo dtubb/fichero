@@ -258,7 +258,7 @@ final class ClaimStore: ChangeEventConsumer {
             // Reconstructing the grouped/scoped list from ids alone isn't cheap;
             // reload the current scope (a single document/entity-scoped query).
             changeToken &+= 1
-            Task { await reload() }
+            scheduleReload()
         case "deleted":
             changeToken &+= 1
             let deleted = Set(event.claimIds)
@@ -268,6 +268,21 @@ final class ClaimStore: ChangeEventConsumer {
             }
         default:
             break
+        }
+    }
+
+    /// Coalesces a burst of change events into a single trailing reload so a
+    /// workflow-run event storm can't fire one wholesale reload per event and
+    /// stall the main thread (#1973). Granular deletes and the `changeToken`
+    /// bump stay synchronous; only the expensive wholesale refetch is debounced.
+    @ObservationIgnored private var pendingReload: Task<Void, Never>?
+
+    private func scheduleReload() {
+        pendingReload?.cancel()
+        pendingReload = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            await self?.reload()
         }
     }
 
