@@ -280,7 +280,7 @@ final class ClaimStore: ChangeEventConsumer {
     private func scheduleReload() {
         pendingReload?.cancel()
         pendingReload = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(150))
+            try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
             await self?.reload()
         }
