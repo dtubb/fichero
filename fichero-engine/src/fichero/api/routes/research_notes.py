@@ -43,6 +43,10 @@ class SearchSourceCreateRequest(BaseModel):
 async def create_search_source(
     request: SearchSourceCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> SearchSource:
     source = SearchSource(
         project_id=request.project_id,
@@ -56,6 +60,13 @@ async def create_search_source(
         metadata=request.metadata,
     )
     db.save(source)
+    emit_change(
+        x_fichero_library_path,
+        type="note.updated",
+        actor="ui",
+        run_id=None,
+        origin_window=x_fichero_origin_window,
+    )
     return source
 
 
@@ -210,6 +221,10 @@ class ChecklistItemToggleRequest(BaseModel):
 async def create_checklist(
     request: ChecklistCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ResearchChecklist:
     checklist = ResearchChecklist(
         project_id=request.project_id,
@@ -221,6 +236,13 @@ async def create_checklist(
         metadata=request.metadata,
     )
     db.save(checklist)
+    emit_change(
+        x_fichero_library_path,
+        type="note.updated",
+        actor="ui",
+        run_id=None,
+        origin_window=x_fichero_origin_window,
+    )
     return checklist
 
 
@@ -241,6 +263,10 @@ async def toggle_checklist_item(
     item_id: str,
     request: ChecklistItemToggleRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ResearchChecklist:
     checklist = db.get(ResearchChecklist, checklist_id)
     if not checklist:
@@ -257,4 +283,11 @@ async def toggle_checklist_item(
             break
     checklist.updated_at = datetime.now()
     db.save(checklist)
+    emit_change(
+        x_fichero_library_path,
+        type="note.updated",
+        actor="ui",
+        run_id=None,
+        origin_window=x_fichero_origin_window,
+    )
     return checklist

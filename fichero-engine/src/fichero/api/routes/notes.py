@@ -88,6 +88,16 @@ def _scoped_document_links(
     return merged
 
 
+def _note_scope_document_ids(note: Note | None) -> list[str]:
+    if note is None:
+        return []
+    return [
+        i
+        for i in {note.page_id, note.folder_id, *(note.linked_document_ids or [])}
+        if i
+    ]
+
+
 @router.post("", response_model=Note)
 async def create_note(
     request: NoteCreateRequest,
@@ -268,10 +278,16 @@ async def create_note_link(
     note_id: str,
     request: NoteLinkCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> NoteLink:
-    if db.get(Note, note_id) is None:
+    source_note = db.get(Note, note_id)
+    if source_note is None:
         raise HTTPException(404, f"Source note not found: {note_id}")
-    if db.get(Note, request.target_note_id) is None:
+    target_note = db.get(Note, request.target_note_id)
+    if target_note is None:
         raise HTTPException(404, f"Target note not found: {request.target_note_id}")
     if note_id == request.target_note_id:
         raise HTTPException(400, "Cannot link a note to itself")
@@ -282,6 +298,21 @@ async def create_note_link(
         annotation=request.annotation,
     )
     db.save(link)
+    emit_change(
+        x_fichero_library_path,
+        type="note.updated",
+        document_ids=[
+            i
+            for i in {
+                *_note_scope_document_ids(source_note),
+                *_note_scope_document_ids(target_note),
+            }
+            if i
+        ],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+        run_id=None,
+    )
     return link
 
 
@@ -290,13 +321,37 @@ async def delete_note_link(
     note_id: str,
     link_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> None:
     link = db.get(NoteLink, link_id)
     if link is None:
         raise HTTPException(404, f"Link not found: {link_id}")
     if link.source_note_id != note_id and link.target_note_id != note_id:
         raise HTTPException(400, f"Link {link_id} does not involve note {note_id}")
+    source_note = db.get(Note, note_id)
+    target_note_id = (
+        link.target_note_id if link.source_note_id == note_id else link.source_note_id
+    )
+    target_note = db.get(Note, target_note_id)
     db.delete(link)
+    emit_change(
+        x_fichero_library_path,
+        type="note.updated",
+        document_ids=[
+            i
+            for i in {
+                *_note_scope_document_ids(source_note),
+                *_note_scope_document_ids(target_note),
+            }
+            if i
+        ],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+        run_id=None,
+    )
 
 
 @router.get(

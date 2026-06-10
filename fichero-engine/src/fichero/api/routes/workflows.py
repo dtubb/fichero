@@ -9,11 +9,12 @@ import logging
 from typing import Any, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict
 
 from fichero.app_db import get_app_db
 from fichero.db import Database
+from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.llm import get_model_cost
 from fichero.workflows.types import (
@@ -441,6 +442,10 @@ async def create_node(
     tool_name: str,
     position_x: float = 0,
     position_y: float = 0,
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> NodeResponse:
     """Create a new node instance from a tool.
 
@@ -449,6 +454,14 @@ async def create_node(
     node = create_node_from_tool(tool_name, position_x, position_y)
     if not node:
         raise HTTPException(status_code=404, detail=f"Tool not found: {tool_name}")
+
+    emit_change(
+        x_fichero_library_path,
+        type="workflow.updated",
+        actor="ui",
+        run_id=None,
+        origin_window=x_fichero_origin_window,
+    )
 
     return NodeResponse(
         id=node.id,
@@ -471,6 +484,10 @@ async def create_node(
 async def create_workflow(
     workflow: WorkflowDef,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> WorkflowResponse:
     """Create and save a workflow definition."""
     try:
@@ -490,6 +507,14 @@ async def create_workflow(
 
         # Save to database
         db.save(db_workflow)
+
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.created",
+            actor="ui",
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+        )
 
         return WorkflowResponse(
             id=db_workflow.id,
@@ -514,6 +539,10 @@ async def import_workflow(
     description: str = "",
     workflow_data: dict = {},
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> WorkflowResponse:
     """Import a workflow from JSON data."""
     try:
@@ -543,6 +572,14 @@ async def import_workflow(
 
         # Save to database
         db.save(db_workflow)
+
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.created",
+            actor="ui",
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+        )
 
         return WorkflowResponse(
             id=db_workflow.id,
@@ -603,6 +640,10 @@ async def export_workflow(
 )
 async def reinstall_default_workflows(
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ReinstallDefaultWorkflowsResponse:
     """Delete and re-seed the bundled default workflows (Transcribe, Catalogue).
 
@@ -615,6 +656,14 @@ async def reinstall_default_workflows(
 
     try:
         seeded = seed_default_workflows(db, force=True)
+
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.created",
+            actor="ui",
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+        )
         return ReinstallDefaultWorkflowsResponse(seeded=seeded, status="ok")
     except Exception as exc:
         logger.exception("Failed to reinstall default workflows")
@@ -744,6 +793,10 @@ async def update_workflow(
     workflow_id: str,
     workflow: WorkflowDef,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> WorkflowResponse:
     """Update an existing workflow."""
     try:
@@ -784,6 +837,14 @@ async def update_workflow(
 
         # Save changes
         db.save(existing)
+
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.updated",
+            actor="ui",
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+        )
 
         # Debug: verify what was saved
         print(
@@ -829,6 +890,10 @@ async def patch_workflow(
     workflow_id: str,
     patch: WorkflowPatchRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> WorkflowResponse:
     """Partially update a workflow (rename, move to folder, etc.)."""
     try:
@@ -855,6 +920,14 @@ async def patch_workflow(
         workflow.updated_at = datetime.now()
         db.save(workflow)
 
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.updated",
+            actor="ui",
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+        )
+
         return WorkflowResponse(
             id=workflow.id,
             name=workflow.name,
@@ -878,6 +951,10 @@ async def patch_workflow(
 async def delete_workflow(
     workflow_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> WorkflowDeletedResponse:
     """Delete a saved workflow."""
     try:
@@ -892,6 +969,14 @@ async def delete_workflow(
         # Delete from database
         db.delete(workflow)
 
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.deleted",
+            actor="ui",
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+        )
+
         return WorkflowDeletedResponse(message=f"Workflow {workflow_id} deleted successfully")
     except HTTPException:
         raise
@@ -904,6 +989,10 @@ async def delete_workflow(
 async def duplicate_workflow(
     workflow_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> WorkflowResponse:
     """Duplicate a workflow with a new ID and modified name."""
     try:
@@ -932,6 +1021,14 @@ async def duplicate_workflow(
         # Save to database (this will generate a new ID)
         db.save(new_workflow)
 
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.created",
+            actor="ui",
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+        )
+
         return WorkflowResponse(
             id=new_workflow.id,
             name=new_workflow.name,
@@ -956,6 +1053,10 @@ async def reorder_workflows(
     workflow_ids: list[str],
     folder_path: str = "/",
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> WorkflowReorderResponse:
     """Reorder workflows within a folder."""
     try:
@@ -972,6 +1073,14 @@ async def reorder_workflows(
             # Update sort order
             workflow.sort_order = i
             db.save(workflow)
+
+        emit_change(
+            x_fichero_library_path,
+            type="workflow.updated",
+            actor="ui",
+            run_id=None,
+            origin_window=x_fichero_origin_window,
+        )
 
         return WorkflowReorderResponse(status="reordered", count=len(workflow_ids))
     except HTTPException:

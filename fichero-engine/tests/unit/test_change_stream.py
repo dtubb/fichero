@@ -29,6 +29,7 @@ from fichero.knowledge_models import (
     EntityType,
     KnowledgeClaim,
     KnowledgeEntity,
+    Note,
 )
 from fichero.models import DocType, Document, FileType, Status
 
@@ -256,6 +257,16 @@ def _make_folder(db, folder_id: str, name: str) -> Document:
     return folder
 
 
+def _make_note(
+    db,
+    title: str,
+    folder_id: str | None = None,
+) -> Note:
+    note = Note(title=title, body="", folder_id=folder_id)
+    db.save(note)
+    return note
+
+
 class TestClaimMutationsEmitChange:
     def test_assign_time_period_calls_emit_change(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
@@ -448,6 +459,62 @@ class TestAnnotationMutationsEmitChange:
         assert created["claim_id"] in claim_events[0]["claim_ids"]
 
 
+class TestWorkflowMutationsEmitChange:
+    def test_create_workflow_emits_created(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.workflows.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        r = client.post(
+            "/api/workflows",
+            json={
+                "name": "Coverage Workflow",
+                "nodes": [],
+                "edges": [],
+            },
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "workflow.created"
+        assert call["actor"] == "ui"
+
+    def test_delete_workflow_emits_deleted(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.workflows.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        created = client.post(
+            "/api/workflows",
+            json={
+                "name": "To Delete",
+                "nodes": [],
+                "edges": [],
+            },
+        )
+        assert created.status_code == 200, created.text
+        workflow_id = created.json()["id"]
+
+        del_resp = client.delete(f"/api/workflows/{workflow_id}")
+        assert del_resp.status_code == 200, del_resp.text
+
+        assert len(captured) == 2
+        call = captured[-1]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "workflow.deleted"
+        assert call["actor"] == "ui"
+
+
 class TestNoteMutationsEmitChange:
     def test_create_note_emits_created(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
@@ -522,6 +589,32 @@ class TestNoteMutationsEmitChange:
         call = captured[-1]
         assert call["library_path"] == str(test_package)
         assert call["type"] == "note.deleted"
+        assert folder.id in call["document_ids"]
+
+    def test_create_note_link_emits_updated(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.notes.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        folder = _make_folder(db, "folder-emit-note-link", "Scope Folder link")
+        source_note = _make_note(db, "Source Note", folder_id=folder.id)
+        target_note = _make_note(db, "Target Note")
+
+        r = client.post(
+            f"/api/notes/{source_note.id}/links",
+            json={"target_note_id": target_note.id},
+        )
+        assert r.status_code == 200, r.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "note.updated"
+        assert call["actor"] == "ui"
         assert folder.id in call["document_ids"]
 
 
