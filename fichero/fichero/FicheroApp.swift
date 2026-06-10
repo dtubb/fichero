@@ -264,6 +264,16 @@ struct FicheroApp: App {
             }
         }
 
+        // Track B (#2003): a detachable artifact-detail scene. Torn off from
+        // the inspector's Artifacts tab, it follows the shared FocusedArtifact
+        // selection by default (with a pin toggle to park on one artifact).
+        // Read-only — it observes FocusedArtifact.shared's resolved snapshot,
+        // so it needs no library-service environment plumbing.
+        WindowGroup("Artifact", id: "artifact-detail") {
+            ArtifactDetailWindow()
+        }
+        .defaultSize(width: 480, height: 620)
+
         Settings {
             SettingsView()
                 .environmentObject(appState)

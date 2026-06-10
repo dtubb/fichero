@@ -73,6 +73,7 @@ struct LibraryWindow: View {
                 .environment(library.actionStore)
                 .environment(library.researchStore)
                 .environment(library.searchStore)
+                .environment(library.artifactStore)
                 .environment(library.changeStream)
                 .task(id: library.id) { library.changeStream.start() }
             } else {

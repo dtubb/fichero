@@ -243,7 +243,9 @@ struct DocumentInspector: View {
 
     @ViewBuilder
     private func artifactsTab(for doc: Document) -> some View {
-        DocumentInspectorContentV2(document: doc, mode: .artifactsOnly)
+        // Track B (#2003): List + detachable detail, replacing the stacked
+        // ArtifactPanels of DocumentInspectorContentV2(mode: .artifactsOnly).
+        ArtifactsInspectorPane(document: doc)
     }
 
     @ViewBuilder
