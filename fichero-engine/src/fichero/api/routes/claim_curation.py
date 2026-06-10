@@ -510,42 +510,29 @@ def _ensure_library_wide_trivial_claim_rule(
 
 
 # =============================================================================
-# Review Queue Endpoints
+# Claim curation/merge mutation impls — the proven business logic, extracted so
+# BOTH the route handler and the audited action (EPIC #1848 / #2014) drive the
+# SAME code (iterate-not-replace). Emission stays with the caller; each raises
+# HTTPException on bad input exactly as the route did.
 # =============================================================================
 
 
-@router.patch(
-    "/{claim_id}/transition",
-    response_model=ClaimTransitionResponse,
-    summary="Transition claim curation state",
-    description="Transition a single claim to a new curation state (unreviewed → shortlisted → curated/rejected).",
-)
-async def transition_claim(
-    claim_id: str,
-    request: ClaimTransitionRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
+def transition_claim_impl(
+    db: Database, claim_id: str, request: "ClaimTransitionRequest"
 ) -> ClaimTransitionResponse:
-    """Transition a claim's curation state."""
+    """Transition one claim's curation state, recording review history."""
     claim = db.get(KnowledgeClaim, claim_id)
     if not claim:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
 
-    # Validate target state
     target_state = _validate_curation_state(request.to_state)
 
-    # Record transition
     from_state = claim.curation_state
     transitioned_at = datetime.now()
 
-    # Update claim
     claim.curation_state = target_state
     claim.updated_at = transitioned_at
 
-    # Record in review history
     review_entry = {
         "from_state": from_state.value,
         "to_state": target_state.value,
@@ -553,24 +540,12 @@ async def transition_claim(
         "reviewed_by": request.reviewed_by,
         "reason": request.reason,
     }
-
     if "review_history" not in claim.metadata:
         claim.metadata["review_history"] = []
     claim.metadata["review_history"].append(review_entry)
 
     db.save(claim)
     logger.info(f"Transitioned claim {claim_id}: {from_state.value} → {target_state.value}")
-
-    # Observable data layer (#1863): broadcast the curation-state change so
-    # every window's ClaimStore refreshes. Best-effort.
-    emit_change(
-        x_fichero_library_path,
-        type="claim.updated",
-        claim_ids=[claim_id],
-        actor="ui",
-        origin_window=x_fichero_origin_window,
-    )
-
     return ClaimTransitionResponse(
         claim_id=claim_id,
         success=True,
@@ -580,21 +555,10 @@ async def transition_claim(
     )
 
 
-@router.post(
-    "/batch/transition",
-    response_model=BatchClaimTransitionResponse,
-    summary="Batch transition claims",
-    description="Transition multiple claims to a new curation state in one operation.",
-)
-async def batch_transition_claims(
-    request: BatchClaimTransitionRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-) -> BatchClaimTransitionResponse:
-    """Batch transition multiple claims."""
+def batch_transition_claims_impl(
+    db: Database, request: "BatchClaimTransitionRequest"
+) -> tuple[BatchClaimTransitionResponse, list[str]]:
+    """Batch-transition many claims. Returns (response, transitioned_ids)."""
     target_state = _validate_curation_state(request.to_state)
     results = []
     succeeded = 0
@@ -620,7 +584,6 @@ async def batch_transition_claims(
         claim.curation_state = target_state
         claim.updated_at = transitioned_at
 
-        # Record in review history
         review_entry = {
             "from_state": from_state.value,
             "to_state": target_state.value,
@@ -644,38 +607,25 @@ async def batch_transition_claims(
         ))
 
     logger.info(f"Batch transition: {succeeded} succeeded, {failed} failed")
-
-    # Observable data layer (#1863): broadcast the curation-state changes so
-    # every window's ClaimStore refreshes. Best-effort.
-    if transitioned_ids:
-        emit_change(
-            x_fichero_library_path,
-            type="claim.updated",
-            claim_ids=transitioned_ids,
-            actor="ui",
-            origin_window=x_fichero_origin_window,
-        )
-    return BatchClaimTransitionResponse(
-        results=results,
-        total=len(request.claim_ids),
-        succeeded=succeeded,
-        failed=failed,
+    return (
+        BatchClaimTransitionResponse(
+            results=results,
+            total=len(request.claim_ids),
+            succeeded=succeeded,
+            failed=failed,
+        ),
+        transitioned_ids,
     )
 
 
-@kg_claims_router.patch(
-    "/batch-curation",
-    response_model=BatchClaimCurationResponse,
-    summary="Batch set claim curation state",
-)
-async def batch_set_claim_curation_state(
-    request: BatchClaimCurationRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-) -> BatchClaimCurationResponse:
+def batch_set_claim_curation_state_impl(
+    db: Database, request: "BatchClaimCurationRequest"
+) -> tuple[BatchClaimCurationResponse, list[str]]:
+    """Batch-set claim curation_state (404 if any id is unknown).
+
+    Returns (response, updated_ids). Mirrors the entity batch-curation helper:
+    claims already in the target state are skipped (idempotent no-op).
+    """
     claims: list[KnowledgeClaim] = []
     for claim_id in request.claim_ids:
         claim = db.get(KnowledgeClaim, claim_id)
@@ -696,33 +646,18 @@ async def batch_set_claim_curation_state(
         updated_ids.append(claim.id)
 
     logger.info("Batch curation update: %s claims set to %s", len(updated_ids), request.curation_state.value)
-
-    # Observable data layer (#1863): broadcast the curation-state changes so
-    # every window's ClaimStore refreshes. Best-effort.
-    if updated_ids:
-        emit_change(
-            x_fichero_library_path,
-            type="claim.updated",
-            claim_ids=updated_ids,
-            actor="ui",
-            origin_window=x_fichero_origin_window,
-        )
-    return BatchClaimCurationResponse(updated=len(updated_ids), claim_ids=updated_ids)
+    return BatchClaimCurationResponse(updated=len(updated_ids), claim_ids=updated_ids), updated_ids
 
 
-@kg_claims_router.post(
-    "/merge",
-    response_model=ClaimAuditResponse,
-    summary="Merge duplicate claims into a surviving claim",
-)
-async def merge_claims(
-    request: ClaimMergeRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-) -> ClaimAuditResponse:
+def merge_claims_impl(db: Database, request: "ClaimMergeRequest") -> ClaimMergeAudit:
+    """The proven claim-merge algorithm — provenance fold + link repoint + audit.
+
+    Extracted verbatim from the ``/merge`` route so BOTH the route and the
+    ``claim.merge`` action drive the same code (iterate-not-replace). Returns the
+    persisted ``ClaimMergeAudit`` whose ``merge_details`` carry the reversible
+    snapshots ``unmerge`` restores. Raises ``HTTPException`` on bad ids exactly
+    as before.
+    """
     survivor = db.get(KnowledgeClaim, request.surviving_claim_id)
     if survivor is None:
         raise HTTPException(status_code=404, detail=f"Surviving claim not found: {request.surviving_claim_id}")
@@ -784,32 +719,16 @@ async def merge_claims(
     db.save(audit)
     audit.reversal_id = audit.id
     db.save(audit)
-
-    # Observable data layer (#1863): tell every window the claim set changed so
-    # their ClaimStores refresh (survivor + absorbed). Best-effort.
-    emit_change(
-        x_fichero_library_path,
-        type="claim.merged",
-        claim_ids=[survivor.id, *[c.id for c in absorbed_claims]],
-        actor="ui",
-        origin_window=x_fichero_origin_window,
-    )
-    return _claim_audit_response(audit)
+    return audit
 
 
-@kg_claims_router.post(
-    "/unmerge",
-    response_model=ClaimAuditResponse,
-    summary="Reverse a recorded claim merge",
-)
-async def unmerge_claims(
-    request: ClaimUnmergeRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-) -> ClaimAuditResponse:
+def unmerge_claims_impl(db: Database, request: "ClaimUnmergeRequest") -> ClaimMergeAudit:
+    """Reverse a recorded claim merge from its audit snapshots.
+
+    Extracted from the ``/unmerge`` route so the ``claim.merge`` action's
+    ``invert`` reuses the exact same proven reversal. Returns the undo audit.
+    Raises ``HTTPException`` on missing/non-merge/already-unmerged records.
+    """
     audit = db.get(ClaimMergeAudit, request.audit_id)
     if audit is None:
         raise HTTPException(status_code=404, detail=f"Claim merge audit not found: {request.audit_id}")
@@ -844,28 +763,13 @@ async def unmerge_claims(
     db.save(undo)
     audit.reversal_id = undo.id
     db.save(audit)
-
-    # Observable data layer (#1863): the reversed merge restored claims, so tell
-    # every window to refresh (survivor + previously-absorbed). Best-effort.
-    emit_change(
-        x_fichero_library_path,
-        type="claim.merged",
-        claim_ids=[audit.target_claim_id, *audit.source_claim_ids],
-        actor="ui",
-        origin_window=x_fichero_origin_window,
-    )
-    return _claim_audit_response(undo)
+    return undo
 
 
-@kg_claims_router.post(
-    "/prune-trivial",
-    response_model=PruneTrivialClaimsResponse,
-    summary="Prune trivially-true claims",
-)
-async def prune_trivial_claims(
-    request: PruneTrivialClaimsRequest,
-    db: Database = Depends(get_library_database),
+def prune_trivial_claims_impl(
+    db: Database, request: "PruneTrivialClaimsRequest"
 ) -> PruneTrivialClaimsResponse:
+    """Suppress trivially-true (is-a copula) claims in scope. Returns the report."""
     scope_type, scoped_doc_ids = _scope_doc_ids(db, request)
 
     identified: list[KnowledgeClaim] = []
@@ -915,6 +819,166 @@ async def prune_trivial_claims(
         suppressed_claim_ids=suppressed_ids,
         rules_written=rules_written,
     )
+
+
+# =============================================================================
+# Review Queue Endpoints
+# =============================================================================
+
+
+@router.patch(
+    "/{claim_id}/transition",
+    response_model=ClaimTransitionResponse,
+    summary="Transition claim curation state",
+    description="Transition a single claim to a new curation state (unreviewed → shortlisted → curated/rejected).",
+)
+async def transition_claim(
+    claim_id: str,
+    request: ClaimTransitionRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> ClaimTransitionResponse:
+    """Transition a claim's curation state."""
+    response = transition_claim_impl(db, claim_id, request)
+
+    # Observable data layer (#1863): broadcast the curation-state change so
+    # every window's ClaimStore refreshes. Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.updated",
+        claim_ids=[claim_id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
+
+    return response
+
+
+@router.post(
+    "/batch/transition",
+    response_model=BatchClaimTransitionResponse,
+    summary="Batch transition claims",
+    description="Transition multiple claims to a new curation state in one operation.",
+)
+async def batch_transition_claims(
+    request: BatchClaimTransitionRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> BatchClaimTransitionResponse:
+    """Batch transition multiple claims."""
+    response, transitioned_ids = batch_transition_claims_impl(db, request)
+
+    # Observable data layer (#1863): broadcast the curation-state changes so
+    # every window's ClaimStore refreshes. Best-effort.
+    if transitioned_ids:
+        emit_change(
+            x_fichero_library_path,
+            type="claim.updated",
+            claim_ids=transitioned_ids,
+            actor="ui",
+            origin_window=x_fichero_origin_window,
+        )
+    return response
+
+
+@kg_claims_router.patch(
+    "/batch-curation",
+    response_model=BatchClaimCurationResponse,
+    summary="Batch set claim curation state",
+)
+async def batch_set_claim_curation_state(
+    request: BatchClaimCurationRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> BatchClaimCurationResponse:
+    response, updated_ids = batch_set_claim_curation_state_impl(db, request)
+
+    # Observable data layer (#1863): broadcast the curation-state changes so
+    # every window's ClaimStore refreshes. Best-effort.
+    if updated_ids:
+        emit_change(
+            x_fichero_library_path,
+            type="claim.updated",
+            claim_ids=updated_ids,
+            actor="ui",
+            origin_window=x_fichero_origin_window,
+        )
+    return response
+
+
+@kg_claims_router.post(
+    "/merge",
+    response_model=ClaimAuditResponse,
+    summary="Merge duplicate claims into a surviving claim",
+)
+async def merge_claims(
+    request: ClaimMergeRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> ClaimAuditResponse:
+    audit = merge_claims_impl(db, request)
+
+    # Observable data layer (#1863): tell every window the claim set changed so
+    # their ClaimStores refresh (survivor + absorbed). Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.merged",
+        claim_ids=[audit.target_claim_id, *audit.source_claim_ids],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
+    return _claim_audit_response(audit)
+
+
+@kg_claims_router.post(
+    "/unmerge",
+    response_model=ClaimAuditResponse,
+    summary="Reverse a recorded claim merge",
+)
+async def unmerge_claims(
+    request: ClaimUnmergeRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> ClaimAuditResponse:
+    undo = unmerge_claims_impl(db, request)
+
+    # Observable data layer (#1863): the reversed merge restored claims, so tell
+    # every window to refresh (survivor + previously-absorbed). Best-effort.
+    emit_change(
+        x_fichero_library_path,
+        type="claim.merged",
+        claim_ids=[undo.target_claim_id, *undo.source_claim_ids],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
+    return _claim_audit_response(undo)
+
+
+@kg_claims_router.post(
+    "/prune-trivial",
+    response_model=PruneTrivialClaimsResponse,
+    summary="Prune trivially-true claims",
+)
+async def prune_trivial_claims(
+    request: PruneTrivialClaimsRequest,
+    db: Database = Depends(get_library_database),
+) -> PruneTrivialClaimsResponse:
+    return prune_trivial_claims_impl(db, request)
 
 
 @router.get(
@@ -1095,3 +1159,190 @@ async def get_rejected_queue(
         limit=limit,
         offset=offset,
     )
+
+
+# =============================================================================
+# Action layer registration (EPIC #1848 / #2014) — claim curation + merge.
+# =============================================================================
+#
+# Each action WRAPS the proven ``*_impl`` above (iterate-not-replace) and routes
+# through ``registry.invoke`` so chat tools / App Intents / tests / the audit
+# log share ONE path with the typed routes (which stay untouched), matching the
+# entity.merge pilot. Reversible pairs:
+#   * claim.transition -> claim.transition (back to from_state)
+#   * claim.merge      -> claim.unmerge    (via the recorded audit id)
+#
+# claim.batch_transition / claim.batch_curation / claim.unmerge /
+# claim.prune_trivial are registered non-undoable: a partial-batch or
+# already-an-undo op has no single clean inverse, but each still captures a
+# before-snapshot in the audit for who-changed-what.
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+class ClaimTransitionActionParams(BaseModel):
+    """Params for claim.transition — the path claim_id + the transition body."""
+
+    claim_id: str = Field(description="Claim id to transition")
+    to_state: str = Field(description="Target curation state")
+    reason: str | None = Field(default=None, description="Optional reason for transition")
+    reviewed_by: str = Field(default="human", description="Who performed the review")
+
+
+def _invert_transition(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a transition by transitioning back to the recorded from_state."""
+    if not before:
+        return None
+    claim_id = before.get("claim_id")
+    from_state = before.get("from_state")
+    if not claim_id or not from_state:
+        return None
+    return (
+        "claim.transition",
+        {"claim_id": claim_id, "to_state": from_state, "reason": "undo transition"},
+    )
+
+
+def _invert_merge_claims(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    audit_id = after.get("claim_merge_audit_id")
+    if not audit_id:
+        return None
+    return ("claim.unmerge", {"audit_id": audit_id})
+
+
+@action(
+    "claim.transition",
+    ClaimTransitionActionParams,
+    domains=["claim"],
+    undoable=True,
+    invert=_invert_transition,
+)
+def _action_transition_claim(
+    db: Database, params: ClaimTransitionActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    request = ClaimTransitionRequest(
+        to_state=params.to_state, reason=params.reason, reviewed_by=params.reviewed_by
+    )
+    response = transition_claim_impl(db, params.claim_id, request)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=[params.claim_id],
+        before={"claim_id": params.claim_id, "from_state": response.from_state},
+        after={"to_state": response.to_state},
+        emit_type="claim.updated",
+        claim_ids=[params.claim_id],
+    )
+    return response.model_dump(mode="json"), spec
+
+
+@action(
+    "claim.batch_transition",
+    BatchClaimTransitionRequest,
+    domains=["claim"],
+    undoable=False,
+)
+def _action_batch_transition(
+    db: Database, params: BatchClaimTransitionRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    response, transitioned_ids = batch_transition_claims_impl(db, params)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=transitioned_ids,
+        after={"to_state": params.to_state, "transitioned_ids": transitioned_ids},
+        emit_type="claim.updated" if transitioned_ids else None,
+        claim_ids=transitioned_ids,
+    )
+    return response.model_dump(mode="json"), spec
+
+
+@action(
+    "claim.batch_curation",
+    BatchClaimCurationRequest,
+    domains=["claim"],
+    undoable=False,
+)
+def _action_batch_curation(
+    db: Database, params: BatchClaimCurationRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    response, updated_ids = batch_set_claim_curation_state_impl(db, params)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=updated_ids,
+        after={"curation_state": params.curation_state.value, "updated_ids": updated_ids},
+        emit_type="claim.updated" if updated_ids else None,
+        claim_ids=updated_ids,
+    )
+    return response.model_dump(mode="json"), spec
+
+
+@action(
+    "claim.merge",
+    ClaimMergeRequest,
+    domains=["claim"],
+    undoable=True,
+    invert=_invert_merge_claims,
+)
+def _action_merge_claims(
+    db: Database, params: ClaimMergeRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    audit = merge_claims_impl(db, params)
+    claim_ids = [audit.target_claim_id, *audit.source_claim_ids]
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=claim_ids,
+        before={
+            "survivor_before": audit.merge_details.get("survivor_before"),
+            "absorbed_before": audit.merge_details.get("absorbed_before"),
+        },
+        after={"claim_merge_audit_id": audit.id},
+        emit_type="claim.merged",
+        claim_ids=claim_ids,
+    )
+    return _claim_audit_response(audit).model_dump(mode="json"), spec
+
+
+@action(
+    "claim.unmerge",
+    ClaimUnmergeRequest,
+    domains=["claim"],
+    undoable=False,
+)
+def _action_unmerge_claims(
+    db: Database, params: ClaimUnmergeRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    undo = unmerge_claims_impl(db, params)
+    claim_ids = [undo.target_claim_id, *undo.source_claim_ids]
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=claim_ids,
+        after={"claim_merge_audit_id": undo.id},
+        emit_type="claim.merged",
+        claim_ids=claim_ids,
+    )
+    return _claim_audit_response(undo).model_dump(mode="json"), spec
+
+
+@action(
+    "claim.prune_trivial",
+    PruneTrivialClaimsRequest,
+    domains=["claim"],
+    undoable=False,
+)
+def _action_prune_trivial(
+    db: Database, params: PruneTrivialClaimsRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    response = prune_trivial_claims_impl(db, params)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=response.suppressed_claim_ids,
+        after=response.model_dump(mode="json"),
+        emit_type="claim.updated" if response.suppressed_claim_ids else None,
+        claim_ids=response.suppressed_claim_ids,
+    )
+    return response.model_dump(mode="json"), spec
