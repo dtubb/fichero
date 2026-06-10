@@ -44,24 +44,18 @@ ROUTE_DOMAIN_MAP: dict[str, str] = {
 CHANGE_DOMAIN_RE = re.compile(r"changeDomains:\s*Set<String>\s*\{\s*\[(.*?)\]\s*\}", re.S)
 STRING_RE = re.compile(r'\"([^\"]+)\"')
 
-# Seeds this script at the current tree.
-KNOWN_GAPS: set[str] = {
-    "fichero-engine/src/fichero/api/routes/notes.py::create_note_link",
-    "fichero-engine/src/fichero/api/routes/notes.py::delete_note_link",
-    "fichero-engine/src/fichero/api/routes/research_notes.py::create_checklist",
-    "fichero-engine/src/fichero/api/routes/research_notes.py::create_search_source",
-    "fichero-engine/src/fichero/api/routes/research_notes.py::toggle_checklist_item",
-    "fichero-engine/src/fichero/api/routes/workflows.py::create_node",
-    "fichero-engine/src/fichero/api/routes/workflows.py::create_workflow",
-    "fichero-engine/src/fichero/api/routes/workflows.py::delete_workflow",
-    "fichero-engine/src/fichero/api/routes/workflows.py::duplicate_workflow",
+# Deferred gaps to fix later. Empty — all store-backed mutating routes now emit.
+KNOWN_GAPS: set[str] = set()
+
+# PERMANENTLY EXEMPT: POST handlers in a store-observed domain that mutate NO
+# persistent state, so they have nothing to broadcast. These are NOT gaps — they
+# are excluded from the gap set entirely (not "deferred"). Keep this list tight;
+# only add a route here after confirming it performs no DB write.
+EXEMPT: set[str] = {
+    # Compute-only: estimates a cost, returns it; writes nothing.
     "fichero-engine/src/fichero/api/routes/workflows.py::estimate_workflow_cost",
+    # Read-only: returns a tool's prompt text for preview; writes nothing.
     "fichero-engine/src/fichero/api/routes/workflows.py::get_tool_prompt",
-    "fichero-engine/src/fichero/api/routes/workflows.py::import_workflow",
-    "fichero-engine/src/fichero/api/routes/workflows.py::patch_workflow",
-    "fichero-engine/src/fichero/api/routes/workflows.py::reinstall_default_workflows",
-    "fichero-engine/src/fichero/api/routes/workflows.py::reorder_workflows",
-    "fichero-engine/src/fichero/api/routes/workflows.py::update_workflow",
 }
 
 
@@ -174,7 +168,7 @@ def main() -> int:
         return 0
 
     rows = scan()
-    gaps = {row.key: row for row in rows if row.gap}
+    gaps = {row.key: row for row in rows if row.gap and row.key not in EXEMPT}
     known = set(KNOWN_GAPS)
 
     if "--list" in sys.argv[1:]:
