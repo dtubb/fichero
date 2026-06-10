@@ -50,7 +50,14 @@ ROUTE_DOMAIN_MAP: dict[str, str] = {
 # hermeneutics.py emit nothing while the scanner reported "0 gaps".
 BACKEND_FIRST_DOMAINS: set[str] = {"interpretation"}
 
-CHANGE_DOMAIN_RE = re.compile(r"changeDomains:\s*Set<String>\s*\{\s*\[(.*?)\]\s*\}", re.S)
+# Two store shapes observe a change domain:
+#   legacy multi-domain:  changeDomains: Set<String> { ["a", "b"] }
+#   substrate single:     var changeDomain: String { "a" }   (#1995 migration)
+# Match BOTH — otherwise the 8 stores migrated onto ObservableDomainStore drop
+# out of observed_domains and the scanner silently stops checking their route
+# modules (false "0 gaps" over a narrower set).
+CHANGE_DOMAINS_RE = re.compile(r"changeDomains:\s*Set<String>\s*\{\s*\[(.*?)\]\s*\}", re.S)
+CHANGE_DOMAIN_RE = re.compile(r'changeDomain:\s*String\s*\{\s*"([^"]+)"\s*\}')
 STRING_RE = re.compile(r'\"([^\"]+)\"')
 
 # Deferred gaps to fix later. Empty — all store-backed mutating routes now emit.
@@ -95,10 +102,10 @@ def _observed_domains() -> set[str]:
     observed: set[str] = set()
     for path in sorted(MODELS_DIR.glob("*Store.swift")):
         text = _read_text(path)
-        match = CHANGE_DOMAIN_RE.search(text)
-        if not match:
-            continue
-        observed.update(STRING_RE.findall(match.group(1)))
+        legacy = CHANGE_DOMAINS_RE.search(text)
+        if legacy:
+            observed.update(STRING_RE.findall(legacy.group(1)))
+        observed.update(CHANGE_DOMAIN_RE.findall(text))
     return observed
 
 
