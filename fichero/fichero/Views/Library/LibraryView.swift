@@ -87,7 +87,7 @@ struct LibraryView: View {
     /// current library via the Safari new-window path (#1685).
     @Environment(\.openWindow) var openWindow
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
     @EnvironmentObject var entityService: EntityServiceGenerated
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState

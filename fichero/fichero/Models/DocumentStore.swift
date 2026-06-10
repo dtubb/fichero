@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Observation
 import OSLog
 import SwiftUI
 
@@ -19,37 +20,40 @@ enum DocumentChange {
 /// This is the bridge between the backend API and SwiftUI views.
 /// It manages loading state, caching, and provides reactive updates.
 @MainActor
-class DocumentStore: ObservableObject {
+@Observable
+final class DocumentStore {
     // MARK: - Private Properties
 
     let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentStore")
 
     /// Publisher for document changes.
+    @ObservationIgnored
     private let documentChanges = PassthroughSubject<DocumentChange, Error>()
+    @ObservationIgnored
     private var cancellables = Set<AnyCancellable>()
-    // MARK: - Published State
+    // MARK: - Observable State
 
     /// All collections (top-level documents)
-    @Published var collections: [Document] = []
+    var collections: [Document] = []
 
     /// Currently selected collection
-    @Published var selectedCollection: Document?
+    var selectedCollection: Document?
 
     /// Documents in the current view (children of selected item)
-    @Published var currentDocuments: [Document] = []
+    var currentDocuments: [Document] = []
 
     /// Currently selected document for detail view
-    @Published var selectedDocument: Document?
+    var selectedDocument: Document?
 
     /// Loading states
-    @Published var isLoading = false
-    @Published var isLoadingChildren = false
+    var isLoading = false
+    var isLoadingChildren = false
 
     /// Connection status
-    @Published var isConnected = false
+    var isConnected = false
 
     /// Last error
-    @Published var error: Error?
+    var error: Error?
 
     /// Per-document workflow status overlay, keyed by document.id. Survives
     /// reloads of `currentDocuments` / `collections` / `childrenCache` so a
@@ -58,11 +62,11 @@ class DocumentStore: ObservableObject {
     /// success icons appeared persistent only because artifact existence
     /// derived completion separately, while errors silently disappeared (#791).
     /// In-memory only; clears on app restart.
-    @Published var workflowStatusOverrides: [String: Status] = [:]
+    var workflowStatusOverrides: [String: Status] = [:]
 
     /// Workspace documents (is_workspace == true) — the curated-items
     /// workspaces surfaced in the Research sidebar's Workspaces section (#1617).
-    @Published var workspaces: [Document] = []
+    var workspaces: [Document] = []
 
     /// File paths whose per-file fanout slot has finished (the `fileComplete`
     /// SSE event arrived) but whose enclosing workflow is still running
@@ -70,6 +74,7 @@ class DocumentStore: ObservableObject {
     /// Held here so the sidebar/grid keep showing a spinner — flipping to
     /// the green checkmark happens only when the workflow's `complete`
     /// event fires and `flushPendingFanoutCompletions` runs (#948).
+    @ObservationIgnored
     var pendingFanoutCompletionPaths: Set<String> = []
 
     /// Publisher for document changes.
@@ -87,6 +92,7 @@ class DocumentStore: ObservableObject {
     }
 
     /// Cache of children by parent ID
+    @ObservationIgnored
     var childrenCache: [String: [Document]] = [:]
 
     // MARK: - Initialization

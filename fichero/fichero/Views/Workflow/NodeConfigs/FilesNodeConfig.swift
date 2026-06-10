@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "FilesNo
 struct FilesNodeConfig: View {
     @Binding var node: WorkflowNode
 
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
 
     @State private var selectedFileIds: [String] = []
     @State private var showFilePicker = false

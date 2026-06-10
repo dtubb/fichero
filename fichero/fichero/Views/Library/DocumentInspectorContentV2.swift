@@ -25,7 +25,7 @@ struct DocumentInspectorContentV2: View {
 
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
     @EnvironmentObject private var documentService: DocumentServiceGenerated
-    @EnvironmentObject private var documentStore: DocumentStore
+    @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
 
     @State private var artifacts: [Artifact] = []

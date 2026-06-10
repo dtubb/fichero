@@ -88,7 +88,7 @@ struct PageContentPane: View {
     let document: Document?
 
     @EnvironmentObject private var documentService: DocumentServiceGenerated
-    @EnvironmentObject private var documentStore: DocumentStore
+    @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @State private var editState = PageContentPaneEditState()
     @State private var sourceHighlight: PageContentClaimSourceHighlight?
     @State private var sourceHighlightToken = UUID()

@@ -7,7 +7,7 @@ struct DocumentInspectorInfoTab: View {
 
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var windowState: WindowState
-    @EnvironmentObject private var documentStore: DocumentStore
+    @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @State var isUpdatingExclude = false
     @State var excludeFromProcessingOverride: Bool?
     @State private var selectedAttribute: InfoAttribute?

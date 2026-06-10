@@ -214,7 +214,7 @@ struct FolderRealityKitSurface: View {
     let documentId: String
     @Binding var selectedNodeId: String?
 
-    @EnvironmentObject private var documentStore: DocumentStore
+    @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @State private var scopedDocuments: [Document] = []
     @State private var isLoading = false
 

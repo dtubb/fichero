@@ -126,9 +126,6 @@ extension DocumentStore {
         // Update local state
         updateLocal(updated)
 
-        // Force @Published trigger by creating new array reference
-        collections = collections.map { $0 }
-
         // Publish change
         publish(.documentsUpdated(collections))
 
@@ -303,9 +300,6 @@ extension DocumentStore {
         // Update in-place (updates the document in collections, cache, etc.)
         updateLocal(updated)
 
-        // Force @Published trigger by creating new array reference
-        // This ensures SwiftUI detects the change even for folder-to-folder moves
-        collections = collections.map { $0 }
         logger.info("Moved document: \(updated.name) to parent: \(parentId ?? "root")")
 
         // Publish change - this triggers PassthroughSubject for any subscribers
@@ -362,7 +356,6 @@ extension DocumentStore {
                 }
             }
         }
-        collections = collections.map { $0 }
         Task {
             do {
                 try await reorderDocuments(orderedIds)

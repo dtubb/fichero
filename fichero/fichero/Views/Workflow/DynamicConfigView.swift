@@ -3,7 +3,7 @@ import SwiftUI
 struct DynamicConfigView: View {
     let toolInfo: ToolInfo
     @Binding var config: [String: AnyCodableValue]?
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
 
     @State var stringValues: [String: String] = [:]
     @State var intValues: [String: Int] = [:]

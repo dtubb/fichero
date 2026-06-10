@@ -47,7 +47,7 @@ struct ContentView: View {
     @EnvironmentObject var viewSettings: ViewSettings
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var apiClient: APIClient
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
     @EnvironmentObject var conversationService: ConversationServiceGenerated
     @EnvironmentObject var importService: ImportServiceGenerated
     @EnvironmentObject var windowState: WindowState

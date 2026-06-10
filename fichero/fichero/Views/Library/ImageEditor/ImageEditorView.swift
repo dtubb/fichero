@@ -28,7 +28,7 @@ struct ImageEditorView: View {
     var selectedDocumentIDs: Set<String> = []
 
     @EnvironmentObject private var apiClient: APIClient
-    @EnvironmentObject private var documentStore: DocumentStore
+    @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @State private var model = ImageEditorModel()
 
     /// Document currently loaded in the editor. Seeded from `document` and

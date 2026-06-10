@@ -39,7 +39,7 @@ struct WorkflowEditor: View {
     @Environment(WorkflowStore.self) var workflowStore
     @EnvironmentObject var workflowServiceGenerated: WorkflowServiceGenerated
     @EnvironmentObject var workflowStreamService: WorkflowStreamService
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
     @EnvironmentObject var libraryManager: LibraryManager
     @ObservedObject var featureManager = FeatureManager.shared
 
@@ -188,7 +188,7 @@ struct WorkflowEditor: View {
                 workflowName: editingWorkflow.name
             )
             .environmentObject(libraryManager)
-            .environmentObject(documentStore)
+            .environment(documentStore)
         }
         .sheet(isPresented: $showModelComparison) {
             ModelComparisonView()

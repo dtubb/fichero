@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Documen
 struct DocumentPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var libraryManager: LibraryManager
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
 
     let workflowId: String
     let workflowName: String
@@ -268,7 +268,7 @@ private struct DocumentPickerRow: View {
         workflowName: "Extract Text"
     )
     .environmentObject(LibraryManager.shared)
-    .environmentObject(DocumentStore(
+    .environment(DocumentStore(
         apiClient: LibraryManager.shared.globalLibrary!.apiClient
     ))
 }

@@ -10,7 +10,7 @@ struct ActivityProgressView: View {
     let selectedRun: SelectedActivityRun
     let liveExecution: WorkflowExecution?
     @EnvironmentObject var apiClient: APIClient
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
 
     @State var progressTimeline: ProgressTimeline?
     @State var isLoadingTimeline = false

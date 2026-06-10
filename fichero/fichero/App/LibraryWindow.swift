@@ -44,7 +44,7 @@ struct LibraryWindow: View {
                 // Environment objects update automatically when windowState.libraryId changes
                 .environmentObject(windowState)
                 // Inject all library services (one instance per library, shared across tabs)
-                .environmentObject(library.documentStore)
+                .environment(library.documentStore)
                 .environmentObject(library.savedSearchServiceGenerated)
                 .environmentObject(library.searchService)
                 .environmentObject(library.conversationServiceGenerated)

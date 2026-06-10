@@ -13,7 +13,7 @@ struct DocumentTabView: View {
     @EnvironmentObject var viewSettings: ViewSettings
 
     // All services come from the environment (shared per-library, not per-tab)
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
     @EnvironmentObject var savedSearchService: SavedSearchServiceGenerated
     @EnvironmentObject var searchService: SearchServiceGenerated
     @EnvironmentObject var conversationService: ConversationServiceGenerated
@@ -86,7 +86,7 @@ struct DocumentTabView: View {
                     .environmentObject(appState)
                     .environmentObject(viewSettings)
                     .environmentObject(apiClient)
-                    .environmentObject(documentStore)
+                    .environment(documentStore)
                     .environmentObject(savedSearchService)
                     .environmentObject(searchService)
                     .environmentObject(conversationService)

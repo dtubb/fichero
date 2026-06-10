@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ResearchProjectListView: View {
     @EnvironmentObject var researchService: ResearchService
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
 
     @State private var showingNewProject = false
     @State private var newProjectName = ""

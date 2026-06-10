@@ -15,7 +15,7 @@ private struct FolderPickerOption: Identifiable {
 struct CollectionNodeConfig: View {
     @Binding var node: WorkflowNode
 
-    @EnvironmentObject var documentStore: DocumentStore
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
 
     @State private var collectionId: String = ""
 
