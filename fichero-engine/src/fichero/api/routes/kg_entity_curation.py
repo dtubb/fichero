@@ -173,16 +173,19 @@ def _log_entity_curation_mutation(
     )
 
 
-@router.post("/merge", response_model=EntityAuditResponse)
-async def merge_entities(
-    request: EntityMergeRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-) -> EntityAuditResponse:
-    """Merge multiple entities into a single absorbing entity, with audit."""
+def merge_entities_impl(
+    db: Database, request: EntityMergeRequest
+) -> tuple[EntityMergeAudit, list[str], list[str]]:
+    """The proven entity-merge algorithm — reconciliation + audit + persistence.
+
+    Extracted verbatim from the ``/merge`` route so BOTH the route and the
+    ``entity.merge`` action (EPIC #1848) drive the *same* code (iterate-not-
+    replace: the algorithm is wrapped, never re-derived). Mutates + persists the
+    absorber, absorbed entities, and re-pointed claims, writes the
+    ``EntityMergeAudit``, and returns ``(audit, absorbed_ids, repointed_claim_ids)``.
+    Emission to the observable layer stays with the caller. Raises
+    ``HTTPException`` on bad ids exactly as before.
+    """
     absorber = db.get(KnowledgeEntity, request.absorbing_entity_id)
     if absorber is None:
         raise HTTPException(status_code=404, detail=f"Absorbing entity not found: {request.absorbing_entity_id}")
@@ -252,13 +255,28 @@ async def merge_entities(
         db.save(ent)
     db.save(absorber)
 
+    return audit, [absorber.id, *sorted(absorbed_ids)], repointed_claim_ids
+
+
+@router.post("/merge", response_model=EntityAuditResponse)
+async def merge_entities(
+    request: EntityMergeRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> EntityAuditResponse:
+    """Merge multiple entities into a single absorbing entity, with audit."""
+    audit, entity_ids, repointed_claim_ids = merge_entities_impl(db, request)
+
     # Observable data layer (#1863): tell every window in this library that the
     # entity set changed so their KG stores refresh. Best-effort — never breaks
     # the merge.
     emit_change(
         x_fichero_library_path,
         type="entity.merged",
-        entity_ids=[absorber.id, *absorbed_ids],
+        entity_ids=entity_ids,
         claim_ids=repointed_claim_ids,
         actor="ui",
         origin_window=x_fichero_origin_window,
@@ -356,12 +374,11 @@ async def split_entity(
     return _audit_response(audit)
 
 
-@router.post("/audit/{audit_id}/undo", response_model=EntityAuditResponse)
-async def undo_entity_operation(
-    audit_id: str,
-    db: Database = Depends(get_library_database),
-) -> EntityAuditResponse:
-    """Undo a previous merge or split using its audit record."""
+def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
+    """Reverse a previous merge/split from its audit record (returns the undo
+    audit). Extracted from the ``/audit/{id}/undo`` route so the ``entity.merge``
+    action's ``invert`` reuses the exact same proven reversal (iterate-not-
+    replace). Raises ``HTTPException`` on missing/already-undone records."""
     audit = db.get(EntityMergeAudit, audit_id)
     if audit is None:
         raise HTTPException(status_code=404, detail=f"Audit record not found: {audit_id}")
@@ -423,7 +440,16 @@ async def undo_entity_operation(
     db.save(undo)
     audit.reversal_id = undo.id
     db.save(audit)
-    return _audit_response(undo)
+    return undo
+
+
+@router.post("/audit/{audit_id}/undo", response_model=EntityAuditResponse)
+async def undo_entity_operation(
+    audit_id: str,
+    db: Database = Depends(get_library_database),
+) -> EntityAuditResponse:
+    """Undo a previous merge or split using its audit record."""
+    return _audit_response(undo_entity_operation_impl(db, audit_id))
 
 
 @router.get("/audit", response_model=EntityAuditListResponse)
@@ -582,6 +608,101 @@ async def candidate_pairs(
     rows.sort(key=lambda r: r.jaccard, reverse=True)
     rows = rows[:top_k]
     return KGGraphListResponse(items=rows, count=len(rows))
+
+
+# ---------------------------------------------------------------------------
+# Action layer registration (EPIC #1848 keystone #2013) — entity.merge pilot
+# ---------------------------------------------------------------------------
+#
+# entity.merge is exhibit A: the action WRAPS the proven `merge_entities_impl`
+# algorithm above (iterate-not-replace) and routes through `registry.invoke`,
+# which writes the generic ActionAudit + emits the same `entity.merged` change
+# event. Its inverse, entity.unmerge, reuses `undo_entity_operation_impl` — the
+# exact reversal the existing /audit/{id}/undo route uses. The original typed
+# routes above are untouched and stay green; the action is the *additional*
+# uniform path that chat tools / App Intents / tests drive via
+# POST /api/actions/invoke.
+
+from fichero.actions import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+class UnmergeEntitiesParams(BaseModel):
+    """Params for entity.unmerge — the inverse of entity.merge."""
+
+    audit_id: str = Field(description="EntityMergeAudit id of the merge to reverse")
+
+
+def _snapshot_entities(db: Database, entity_ids: list[str]) -> dict[str, Any]:
+    """JSON-able snapshot of the named entities (existing ones only)."""
+    snap: dict[str, Any] = {}
+    for eid in entity_ids:
+        ent = db.get(KnowledgeEntity, eid)
+        if ent is not None:
+            snap[eid] = ent.model_dump(mode="json")
+    return snap
+
+
+def _invert_merge(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Derive the inverse action from a merge audit's after-payload."""
+    if not after:
+        return None
+    merge_audit_id = after.get("entity_merge_audit_id")
+    if not merge_audit_id:
+        return None
+    return ("entity.unmerge", {"audit_id": merge_audit_id})
+
+
+@action(
+    "entity.merge",
+    EntityMergeRequest,
+    domains=["entity", "claim"],
+    undoable=True,
+    invert=_invert_merge,
+)
+def _action_merge_entities(
+    db: Database, params: EntityMergeRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    # Capture before-state of every touched entity BEFORE the impl mutates.
+    touched = [params.absorbing_entity_id, *params.absorbed_entity_ids]
+    before = _snapshot_entities(db, touched)
+    audit, entity_ids, repointed_claim_ids = merge_entities_impl(db, params)
+    after = {
+        "entity_merge_audit_id": audit.id,
+        "entities": _snapshot_entities(db, entity_ids),
+    }
+    spec = ChangeSpec(
+        domains=["entity", "claim"],
+        target_ids=entity_ids,
+        before=before,
+        after=after,
+        emit_type="entity.merged",
+        entity_ids=entity_ids,
+        claim_ids=repointed_claim_ids,
+    )
+    return audit.model_dump(mode="json"), spec
+
+
+@action(
+    "entity.unmerge",
+    UnmergeEntitiesParams,
+    domains=["entity", "claim"],
+    undoable=False,
+)
+def _action_unmerge_entities(
+    db: Database, params: UnmergeEntitiesParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    undo_audit = undo_entity_operation_impl(db, params.audit_id)
+    entity_ids = [undo_audit.target_entity_id, *undo_audit.source_entity_ids]
+    spec = ChangeSpec(
+        domains=["entity", "claim"],
+        target_ids=entity_ids,
+        after={"entity_merge_audit_id": undo_audit.id},
+        emit_type="entity.split",
+        entity_ids=entity_ids,
+    )
+    return undo_audit.model_dump(mode="json"), spec
 
 
 # Resolve forward refs in EntityAuditListResponse (declared in models.py with

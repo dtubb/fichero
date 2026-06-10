@@ -822,6 +822,7 @@ async def get_stats(db: Database = Depends(get_library_database)):
 # Include route modules
 from fichero.api.routes import (  # noqa: E402
     actions,
+    actions_registry,
     activity,
     annotations,
     artifacts,
@@ -1011,6 +1012,10 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (mindpalace_render.router, "/api", ["mind-palace"]),
     (research_agents.router, "/api/research", ["research"]),
     (iiif.router, "/api/iiif", ["iiif"]),
+    # Action layer registry (EPIC #1848 keystone #2013). Registered BEFORE
+    # actions.router so its static /actions/{invoke,registry,audit/...} paths win
+    # over the Action Library's /actions/{action_id} dynamic segment.
+    (actions_registry.router, "/api", ["actions"]),
     (actions.router, "/api", ["actions"]),
     (integrations.router, "/api", ["integrations"]),
     (local_models.router, "/api", ["local-models"]),

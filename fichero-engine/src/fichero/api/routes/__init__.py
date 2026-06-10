@@ -1,6 +1,7 @@
 """API route modules."""
 
 __all__ = [
+    "actions_registry",
     "activity",
     "artifacts",
     "batch",

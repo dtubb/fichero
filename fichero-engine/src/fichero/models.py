@@ -1593,6 +1593,61 @@ class HermesSuggestionListResponse(BaseModel):
 
 
 # =============================================================================
+# Action layer audit (EPIC #1848 / #2013)
+# =============================================================================
+
+
+class ActionAudit(BaseModel):
+    """Immutable audit row for one registered-action invocation.
+
+    Written by ``ActionRegistry.invoke`` (the single mutation choke point) for
+    EVERY action that runs through it. Generalizes the entity-specific
+    ``EntityMergeAudit``: ``before``/``after`` are JSON-able domain-object
+    snapshots and ARE the undo payload — ``invert(before, after)`` derives the
+    inverse action from them (see ``fichero.actions.registry``).
+
+    0.0.x no-migration: the table (``actionaudits``) is picked up automatically
+    by ``Database._ensure_table`` the first time an ``ActionAudit`` is saved on a
+    fresh DB; ``_ensure_table``'s ADD COLUMN reconciliation covers existing DBs.
+
+    Reuses the provenance/run-id conventions (#1832): ``run_id`` ties an action
+    to the AI run that triggered it; ``created_at`` mirrors the other audit
+    models' ``default_factory=datetime.now``.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    action_name: str = Field(description="Registered action name, '<domain>.<verb>'")
+    actor: str = Field(default="system", description="ui | chat | workflow | import | system | device id")
+    target_ids: list[str] = Field(
+        default_factory=list,
+        description="Primary domain-object ids this action touched.",
+    )
+    params: dict = Field(
+        default_factory=dict,
+        description="Validated action params (model_dump) as invoked.",
+    )
+    before: dict | None = Field(
+        default=None,
+        description="JSON-able snapshot of touched objects before execute (undo payload).",
+    )
+    after: dict | None = Field(
+        default=None,
+        description="JSON-able snapshot/result handles after execute (undo payload).",
+    )
+    run_id: str | None = Field(
+        default=None,
+        description="AI run id if this action ran as part of an agent batch (#1832).",
+    )
+    created_at: datetime = Field(default_factory=datetime.now)
+    undone: bool = Field(
+        default=False,
+        description="True once this action has been reversed via its inverse.",
+    )
+
+
+# =============================================================================
 # Convenience exports
 # =============================================================================
 
