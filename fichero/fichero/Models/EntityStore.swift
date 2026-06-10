@@ -18,7 +18,7 @@ import OSLog
 /// (registered on `LibraryReference`), shared across that library's windows.
 @MainActor
 @Observable
-final class EntityStore: ChangeEventConsumer {
+final class EntityStore: ObservableDomainStore {
     // ─── Published domain state (views read these directly) ───
     private(set) var entities: [Components.Schemas.KnowledgeEntity] = []
     private(set) var isLoading = false
@@ -159,7 +159,7 @@ final class EntityStore: ChangeEventConsumer {
 
     // MARK: - ChangeEventConsumer (called by LibraryChangeStream, NOT by views)
 
-    nonisolated var changeDomains: Set<String> { ["entity"] }
+    nonisolated var changeDomain: String { "entity" }
 
     func apply(_ event: ChangeEvent) {
         switch event.verb {
@@ -178,22 +178,8 @@ final class EntityStore: ChangeEventConsumer {
         }
     }
 
-    /// Coalesces a burst of change events into a single trailing reload so a
-    /// workflow-run event storm can't fire one wholesale reload per event and
-    /// stall the main thread (#1973). Granular deletes and the `changeToken`
-    /// bump stay synchronous; only the expensive wholesale refetch is debounced.
-    @ObservationIgnored private var pendingReload: Task<Void, Never>?
-
-    private func scheduleReload() {
-        pendingReload?.cancel()
-        pendingReload = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
-            await self?.reload()
-        }
-    }
-
-    func resync() async {
-        await reload()
-    }
+    /// Holds the shared 300ms trailing-reload debouncer (#1973). `scheduleReload()`
+    /// (called above for non-delete verbs) and `resync()` are provided by the
+    /// `ObservableDomainStore` extension — no per-store copies.
+    let reloadDebouncer = ReloadDebouncer()
 }

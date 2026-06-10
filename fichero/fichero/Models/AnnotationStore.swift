@@ -16,7 +16,7 @@ import OSLog
 /// that library's windows.
 @MainActor
 @Observable
-final class AnnotationStore: ChangeEventConsumer {
+final class AnnotationStore: ObservableDomainStore {
     // ─── Published domain state (views read these directly) ───
     private(set) var annotations: [DocumentAnnotation] = []
     private(set) var isLoading = false
@@ -139,7 +139,7 @@ final class AnnotationStore: ChangeEventConsumer {
 
     // MARK: - ChangeEventConsumer (called by LibraryChangeStream, NOT by views)
 
-    nonisolated var changeDomains: Set<String> { ["annotation"] }
+    nonisolated var changeDomain: String { "annotation" }
 
     func apply(_ event: ChangeEvent) {
         changeToken &+= 1
@@ -151,22 +151,8 @@ final class AnnotationStore: ChangeEventConsumer {
         }
     }
 
-    /// Coalesces a burst of change events into a single trailing reload so a
-    /// workflow-run event storm can't fire one wholesale reload per event and
-    /// stall the main thread (#1973). The `changeToken` bump stays synchronous;
-    /// only the expensive wholesale refetch is debounced.
-    @ObservationIgnored private var pendingReload: Task<Void, Never>?
-
-    private func scheduleReload() {
-        pendingReload?.cancel()
-        pendingReload = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
-            await self?.reload()
-        }
-    }
-
-    func resync() async {
-        await reload()
-    }
+    /// Holds the shared 300ms trailing-reload debouncer (#1973). `scheduleReload()`
+    /// (called above for create/update/delete) and `resync()` are provided by the
+    /// `ObservableDomainStore` extension — no per-store copies.
+    let reloadDebouncer = ReloadDebouncer()
 }
