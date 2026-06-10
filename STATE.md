@@ -1,5 +1,19 @@
 # STATE.md — Fichero
 
+## SESSION HANDOFF — 2026-06-10 ~4:25pm (#2000 DONE; observable layer complete; #1848 next, plan-first)
+**0.0.2 @ `60ebe739`, pushed, clean. Full suite 4074 passed / 1 flake (#2012).**
+
+**#2000 hermeneutics-observable — DONE + closed.** SVO + metadata were already-observable facets (ClaimStore / DocumentStore). Hermeneutics is now a live observable domain: routes emit `interpretation.*` (#2008) + InterpretationStore on the substrate makes the Interpretations panel live-update (#2009 — **OPEN, awaits Daniel visual**). Bonus: closed the emit-coverage guardrail blind spot AND fixed a migration-induced scanner regression (the #1995 store migration switched Swift stores to singular `changeDomain`, dropping 6 domains from coverage; scanner regex now matches both shapes → 75→**87 routes**, 0 gaps).
+
+**FLAKE caught:** the full suite showed 1 failure — `test_extract_all_mock_emits_workflow_change_events` — which **passes 3/3 in isolation** (intermittent KnowledgeEntity validation under full-suite ordering; NOT from this work). Filed **#2012**. Lesson: read the FULL summary line (`N passed, M failed`) before declaring green — I misread once and pushed early; verified after that it was a pre-existing flake, code is correct.
+
+**Track B Phase 2 queued:** annotations #2010 + notes #2011 (same list+detachable-detail recipe).
+
+**NEXT: #1848 (one audited action layer) — PLAN-FIRST (EPIC).** Daniel: do #2000 then #1848. Scope it (don't blind-dispatch): inventory mutating UI actions → action registry + audit record (actor/action/target/before/after/run_id, reuse provenance #1832) + undo-from-inverse + ⌘Z UndoManager → split into ordered sub-issues → post plan on #1848 → STOP for Daniel approval before coding. Undo pillar already added to #1848.
+
+**AWAITING DANIEL (visual/runtime):** #2009 Interpretations live-update; #2003/#2004/#2005 Track B UI; #1973 beachball; #2006 frame-warning.
+
+---
 ## SESSION HANDOFF — 2026-06-10 ~2:40pm (TRACK B PHASE 1 COMPLETE — list+detachable-detail UI)
 **0.0.2 @ `1bb64ce0`, pushed, clean (no worktrees/lanes). Full Xcode build green.**
 
