@@ -21,6 +21,15 @@ struct ChangeEvent: Decodable, Sendable {
     let entityIds: [String]
     let claimIds: [String]
     let documentIds: [String]
+    /// Citation rows touched (`citation.*`). The citation routes emit both
+    /// `citation_ids` and the owning `document_ids`, so a document-scoped
+    /// store filters on `documentIds` while a granular delete uses these.
+    let citationIds: [String]
+    /// Bibliography reference rows touched (`reference.*`). References are
+    /// library-wide — `reference.*` carries only `reference_ids`, no
+    /// `document_ids` — so a document-scoped bibliography store reloads its
+    /// current scope on any reference event (the empty-`documentIds` path).
+    let referenceIds: [String]
     let runId: String?
     let actor: String
     let originWindow: String?
@@ -41,6 +50,8 @@ struct ChangeEvent: Decodable, Sendable {
         case entityIds = "entity_ids"
         case claimIds = "claim_ids"
         case documentIds = "document_ids"
+        case citationIds = "citation_ids"
+        case referenceIds = "reference_ids"
         case runId = "run_id"
         case actor
         case originWindow = "origin_window"
@@ -53,6 +64,8 @@ struct ChangeEvent: Decodable, Sendable {
         entityIds = try container.decodeIfPresent([String].self, forKey: .entityIds) ?? []
         claimIds = try container.decodeIfPresent([String].self, forKey: .claimIds) ?? []
         documentIds = try container.decodeIfPresent([String].self, forKey: .documentIds) ?? []
+        citationIds = try container.decodeIfPresent([String].self, forKey: .citationIds) ?? []
+        referenceIds = try container.decodeIfPresent([String].self, forKey: .referenceIds) ?? []
         runId = try container.decodeIfPresent(String.self, forKey: .runId)
         actor = try container.decodeIfPresent(String.self, forKey: .actor) ?? "system"
         originWindow = try container.decodeIfPresent(String.self, forKey: .originWindow)

@@ -1,11 +1,5 @@
 import FicheroAPIClient
-import OSLog
 import SwiftUI
-
-private let citationGraphLogger = Logger(
-    subsystem: "app.fichero.fichero",
-    category: "CitationGraphPanel"
-)
 
 // MARK: - CitationGraphPanel (#974 prep)
 
@@ -17,11 +11,16 @@ private let citationGraphLogger = Logger(
 struct CitationGraphPanel: View {
     let documentId: String
 
-    @State private var inbound: [Components.Schemas.DocumentCitation] = []
-    @State private var outbound: [Components.Schemas.DocumentCitation] = []
-    @State private var citationUsages: [EntityCitationUsage] = []
-    @State private var isLoading = false
-    @State private var errorMessage: String?
+    // Live-refresh via the per-document CitationStore (#1998): the store owns
+    // the fetch + the `citation.*` change-stream reactions, so an edit in any
+    // window updates this panel in place. Reading the store's properties in
+    // `body` registers the @Observable dependency.
+    private var store: CitationStore? { LibraryManager.shared.globalLibrary?.citationStore }
+    private var inbound: [Components.Schemas.DocumentCitation] { store?.inbound ?? [] }
+    private var outbound: [Components.Schemas.DocumentCitation] { store?.outbound ?? [] }
+    private var citationUsages: [EntityCitationUsage] { store?.usages ?? [] }
+    private var isLoading: Bool { store?.isLoading ?? false }
+    private var errorMessage: String? { store?.loadError }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -55,7 +54,7 @@ struct CitationGraphPanel: View {
                 }
             }
         }
-        .task(id: documentId) { await load() }
+        .task(id: documentId) { await store?.setScope(documentId: documentId) }
     }
 
     @ViewBuilder
@@ -123,30 +122,5 @@ struct CitationGraphPanel: View {
     ) -> [EntityCitationUsage] {
         guard let citationId = citation.id else { return [] }
         return citationUsages.filter { $0.citation.id == citationId }
-    }
-
-    @MainActor
-    private func load() async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-        do {
-            async let inboundTask = library.entityService.inboundCitations(forDocumentId: documentId)
-            async let outboundTask = library.entityService.outboundCitations(forDocumentId: documentId)
-            async let usageTask = library.entityService.citationUsages(
-                sourceDocumentId: documentId
-            )
-            let (inb, out, usages) = try await (inboundTask, outboundTask, usageTask)
-            inbound = inb
-            outbound = out
-            citationUsages = usages
-        } catch {
-            citationGraphLogger.error("Citations fetch failed: \(error.localizedDescription)")
-            errorMessage = "Couldn't load citations."
-            inbound = []
-            outbound = []
-            citationUsages = []
-        }
     }
 }

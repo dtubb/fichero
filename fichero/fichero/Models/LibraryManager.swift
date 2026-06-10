@@ -124,6 +124,21 @@ class LibraryManager: ObservableObject {
         /// `document.*` change events.
         lazy var searchStore: SearchStore = SearchStore(searchService: searchService)
 
+        /// Per-document artifact store (#1997). Wraps `artifactService`, owns the
+        /// selected document's artifacts, and reacts to `artifact.*` change
+        /// events. Built on the generic `ObservableDomainStore` substrate.
+        lazy var artifactStore: ArtifactStore = ArtifactStore(artifactService: artifactService)
+
+        /// Per-document citation store (#1998). Wraps `entityService`, owns the
+        /// selected document's inbound/outbound citations + usage rows, and
+        /// reacts to `citation.*` change events.
+        lazy var citationStore: CitationStore = CitationStore(entityService: entityService)
+
+        /// Per-document reference store (#1999). Wraps `entityService`, owns the
+        /// selected document's extracted bibliography, and reacts to
+        /// `reference.*` change events.
+        lazy var referenceStore: ReferenceStore = ReferenceStore(entityService: entityService)
+
         /// One SSE change-stream per library (#1863), fanning events to the
         /// stores above. `start()` is idempotent — each window kicks it from
         /// its `.task`; only the first connects.
@@ -141,6 +156,9 @@ class LibraryManager: ObservableObject {
             stream.register(self.researchStore)
             stream.register(self.searchStore)
             stream.register(self.workflowStore)
+            stream.register(self.artifactStore)
+            stream.register(self.citationStore)
+            stream.register(self.referenceStore)
             return stream
         }()
 

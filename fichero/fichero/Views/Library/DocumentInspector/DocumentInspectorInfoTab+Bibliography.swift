@@ -10,10 +10,14 @@ import SwiftUI
 struct DocumentBibliographyPanel: View {
     let documentId: String
 
-    @State private var references: [Components.Schemas.Reference] = []
-    @State private var selfRef: Components.Schemas.Reference?
-    @State private var isLoading = false
-    @State private var loadError: String?
+    // Live-refresh via the per-document ReferenceStore (#1999): the store owns
+    // the fetch + the `reference.*` change-stream reactions. Reading the store's
+    // properties in `body` registers the @Observable dependency.
+    private var store: ReferenceStore? { LibraryManager.shared.globalLibrary?.referenceStore }
+    private var references: [Components.Schemas.Reference] { store?.references ?? [] }
+    private var selfRef: Components.Schemas.Reference? { store?.selfRef }
+    private var isLoading: Bool { store?.isLoading ?? false }
+    private var loadError: String? { store?.loadError }
     @State private var copiedAll = false
 
     private var allBibtex: String {
@@ -37,7 +41,9 @@ struct DocumentBibliographyPanel: View {
                     Text(err)
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer(minLength: 0)
-                    Button("Retry") { Task { await load() } }
+                    Button("Retry") {
+                        Task { await store?.setScope(documentId: documentId, force: true) }
+                    }
                         .font(.caption2).buttonStyle(.borderless)
                 }
             } else if references.isEmpty && selfRef == nil {
@@ -82,26 +88,12 @@ struct DocumentBibliographyPanel: View {
                 }
             }
         }
-        .task(id: documentId) { await load() }
+        .task(id: documentId) { await store?.setScope(documentId: documentId) }
     }
 
     @ViewBuilder
     private func referenceRow(_ ref: Components.Schemas.Reference, isSelf: Bool) -> some View {
         ReferenceRowView(ref: ref, isSelf: isSelf)
-    }
-
-    private func load() async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
-        isLoading = true
-        loadError = nil
-        defer { isLoading = false }
-        do {
-            let resp = try await library.entityService.listDocumentCitations(documentId: documentId)
-            selfRef = resp._self
-            references = resp.references
-        } catch {
-            loadError = error.localizedDescription
-        }
     }
 }
 
