@@ -132,6 +132,7 @@ class LibraryManager: ObservableObject {
                 baseURL: self.apiClient.baseURL,
                 libraryPath: self.url.path
             )
+            stream.register(self.documentStore)
             stream.register(self.entityStore)
             stream.register(self.claimStore)
             stream.register(self.noteStore)

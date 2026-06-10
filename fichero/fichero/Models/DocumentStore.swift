@@ -95,6 +95,21 @@ final class DocumentStore {
     @ObservationIgnored
     var childrenCache: [String: [Document]] = [:]
 
+    // MARK: - Change-stream substrate (#1995 / #1996)
+
+    /// Shared 300ms trailing-reload coalescer (the #1973 beachball fix). Used by
+    /// the `ObservableDomainStore` conformance below to fold a burst of
+    /// `document.*` events into a single granular fetch+splice.
+    @ObservationIgnored
+    let reloadDebouncer = ReloadDebouncer()
+
+    /// Document ids touched by `document.updated`/`document.created` events,
+    /// accumulated across a burst and flushed once by the debouncer. The flush
+    /// fetches and splices ONLY these rows — the library table is never
+    /// wholesale-reloaded on a single event.
+    @ObservationIgnored
+    var pendingPatchIds: Set<String> = []
+
     // MARK: - Initialization
 
     /// Initialize with a per-window APIClient instance.

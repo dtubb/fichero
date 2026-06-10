@@ -1,0 +1,115 @@
+import Foundation
+
+// MARK: - ObservableDomainStore (#1995 / #1996)
+
+/// DocumentStore is the first/proving consumer of the generic change-stream
+/// substrate (`ObservableDomainStore`). It makes the library table update live:
+/// a `document.*` event from any window patches the affected row(s) in place —
+/// the sidebar tree (`collections`), the grid (`currentDocuments`), and the
+/// children cache — instead of the user having to refresh. Registered on
+/// `LibraryReference` alongside the other stores (see
+/// `LibraryManager.changeStream`).
+///
+/// Kept in its own extension file (matching `+CRUD` / `+Helpers`) so the core
+/// `DocumentStore.swift` stays under the file-length gate.
+extension DocumentStore: ObservableDomainStore {
+    nonisolated var changeDomain: String { "document" }
+
+    /// Full re-fetch used for reconnect resync (`resync()` → `reload()`). Maps
+    /// onto the existing `refresh()`, which reloads `collections` AND the
+    /// selected collection's children — the same recovery a manual refresh does.
+    func reload() async {
+        await refresh()
+    }
+
+    /// Apply one `document.*` change event. Stays synchronous and non-blocking
+    /// (the beachball rule): deletes are an O(n) in-place removal; updates and
+    /// creates only *record* the affected ids and arm the debouncer, so a
+    /// workflow event storm coalesces into a single trailing fetch+splice that
+    /// touches just those rows — never a wholesale table reload.
+    func apply(_ event: ChangeEvent) {
+        let ids = Set(event.documentIds)
+        guard !ids.isEmpty else { return }
+        switch event.verb {
+        case "deleted":
+            removeDocuments(ids: ids)
+        case "updated", "created":
+            pendingPatchIds.formUnion(ids)
+            reloadDebouncer.schedule { [weak self] in
+                await self?.flushPendingPatches()
+            }
+        default:
+            break
+        }
+    }
+
+    /// Remove the given document ids in place from every list/cache that holds
+    /// them. Purely local — no network — so it runs synchronously inside `apply`.
+    private func removeDocuments(ids: Set<String>) {
+        collections.removeAll { ids.contains($0.id) }
+        currentDocuments.removeAll { ids.contains($0.id) }
+        workspaces.removeAll { ids.contains($0.id) }
+        for (parentId, kids) in childrenCache {
+            let filtered = kids.filter { !ids.contains($0.id) }
+            if filtered.count != kids.count {
+                childrenCache[parentId] = filtered
+            }
+        }
+    }
+
+    /// Fetch each pending document once and splice the fresh value in place.
+    /// Coalesced by the debouncer so a burst flushes once; granular so only the
+    /// affected rows change. A fetch failure (doc deleted between event and
+    /// fetch, or transient error) is skipped — a missed update is recovered by
+    /// `resync()` on the next reconnect.
+    private func flushPendingPatches() async {
+        let ids = pendingPatchIds
+        pendingPatchIds.removeAll()
+        for id in ids {
+            let fresh: Document
+            do {
+                fresh = try await api.get("/documents/\(id)")
+            } catch {
+                logger.debug(
+                    "granular patch fetch failed for \(id, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
+                continue
+            }
+            let patched = applyStatusOverrides([fresh]).first ?? fresh
+            spliceDocument(patched)
+        }
+    }
+
+    /// Replace `doc` in place wherever it already appears; if it's new and
+    /// belongs to a surface we're showing, insert it. Untouched rows keep
+    /// referential identity so SwiftUI's Table/List re-renders only the one row
+    /// that changed (no whole-list flash — see `refreshPendingStatusesOnly`).
+    private func spliceDocument(_ doc: Document) {
+        // Sidebar tree (every document lives here).
+        if let index = collections.firstIndex(where: { $0.id == doc.id }) {
+            if collections[index] != doc { collections[index] = doc }
+        } else {
+            collections.append(doc)
+        }
+
+        // Grid for the selected collection.
+        if let index = currentDocuments.firstIndex(where: { $0.id == doc.id }) {
+            if currentDocuments[index] != doc { currentDocuments[index] = doc }
+        } else if let selected = selectedCollection, doc.parentId == selected.id {
+            currentDocuments.append(doc)
+        }
+
+        // Children cache (only the parent that already holds it).
+        if let parentId = doc.parentId, var kids = childrenCache[parentId] {
+            if let index = kids.firstIndex(where: { $0.id == doc.id }) {
+                if kids[index] != doc {
+                    kids[index] = doc
+                    childrenCache[parentId] = kids
+                }
+            } else {
+                kids.append(doc)
+                childrenCache[parentId] = kids
+            }
+        }
+    }
+}
