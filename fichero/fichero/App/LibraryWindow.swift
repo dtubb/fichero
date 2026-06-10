@@ -74,6 +74,11 @@ struct LibraryWindow: View {
                 .environment(library.researchStore)
                 .environment(library.searchStore)
                 .environment(library.artifactStore)
+                // Track B (#2004 / #2005): citations + references inspector tabs
+                // read these document-scoped stores via @Environment, the same
+                // way the Artifacts tab reads artifactStore.
+                .environment(library.citationStore)
+                .environment(library.referenceStore)
                 .environment(library.changeStream)
                 .task(id: library.id) { library.changeStream.start() }
             } else {

@@ -121,15 +121,10 @@ struct DocumentInspectorInfoTab: View {
                         .selectionDisabled(true)
                 }
 
-                Section("Citations") {
-                    CitationGraphPanel(documentId: document.id)
-                        .selectionDisabled(true)
-                }
-
-                Section("Bibliography") {
-                    DocumentBibliographyPanel(documentId: document.id)
-                        .selectionDisabled(true)
-                }
+                // Citations + Bibliography moved to dedicated inspector tabs
+                // (#2004 / #2005) — List + detachable detail, replacing the
+                // stacked CitationGraphPanel / DocumentBibliographyPanel that
+                // were cramped inside this Info list.
 
                 Section("Workflow History") {
                     WorkflowProvenancePanel(documentId: document.id)

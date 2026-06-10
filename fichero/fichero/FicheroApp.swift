@@ -274,6 +274,20 @@ struct FicheroApp: App {
         }
         .defaultSize(width: 480, height: 620)
 
+        // Track B (#2004 / #2005): detachable citation + reference detail scenes,
+        // each torn off from its inspector tab and following the matching shared
+        // focus holder (FocusedCitation / FocusedReference) by default. Read-only,
+        // so they need no library-service environment plumbing.
+        WindowGroup("Citation", id: "citation-detail") {
+            CitationDetailWindow()
+        }
+        .defaultSize(width: 480, height: 560)
+
+        WindowGroup("Reference", id: "reference-detail") {
+            ReferenceDetailWindow()
+        }
+        .defaultSize(width: 480, height: 560)
+
         Settings {
             SettingsView()
                 .environmentObject(appState)
