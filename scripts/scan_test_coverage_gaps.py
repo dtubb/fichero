@@ -82,13 +82,32 @@ def _test_terms() -> set[str]:
     return terms
 
 
+# Paths that are auto-generated or non-product — never flagged for test coverage.
+EXCLUDE_SUBSTR = ("/generated/", "/.build/", "/migrations/")
+
+
+def _is_excluded(rel: str, filename: str) -> bool:
+    if any(part in f"/{rel}" for part in EXCLUDE_SUBSTR):
+        return True
+    if filename.endswith("_generated.py") or filename.endswith("_generated.swift"):
+        return True
+    return False
+
+
+def _top_module(rel: str) -> str:
+    """Coarse group key: top-level package under the source root."""
+    return rel.split("/", 1)[0] if "/" in rel else "<root>"
+
+
 def _scan_python_symbols() -> list[SymbolEntry]:
     entries: list[SymbolEntry] = []
     for path in sorted(PY_ROOT.rglob("*.py")):
         if path.name.startswith("_"):
             continue
         rel = path.relative_to(PY_ROOT).as_posix()
-        module = rel.rsplit("/", 1)[0] if "/" in rel else "<root>"
+        if _is_excluded(rel, path.name):
+            continue
+        module = _top_module(rel)
         try:
             source = _read_text(path)
         except OSError:
@@ -113,9 +132,9 @@ def _scan_swift_symbols() -> list[SymbolEntry]:
 
     for path in sorted(SWIFT_ROOT.rglob("*.swift")):
         rel = path.relative_to(SWIFT_ROOT).as_posix()
-        if rel.startswith(".") or "/.build/" in rel:
+        if rel.startswith(".") or _is_excluded(rel, path.name):
             continue
-        module = rel.rsplit("/", 1)[0] if "/" in rel else "<root>"
+        module = _top_module(rel)
         try:
             lines = _read_text(path).splitlines()
         except OSError:
