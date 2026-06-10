@@ -28,8 +28,6 @@ from typing import Any, Callable, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
-from fichero.api.change_stream import emit_change
-
 logger = logging.getLogger(__name__)
 
 
@@ -195,6 +193,8 @@ class ActionRegistry:
     def _emit(self, ctx: ActionContext, spec: ChangeSpec) -> None:
         if not ctx.library_path or not spec.emit_type:
             return
+        from fichero.api.change_stream import emit_change  # local: avoid cycle at module load
+
         try:
             emit_change(
                 ctx.library_path,
