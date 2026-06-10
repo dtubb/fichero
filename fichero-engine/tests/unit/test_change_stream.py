@@ -994,7 +994,7 @@ class TestObservableMutationEmitChange:
             ),
         )
 
-        doc = _make_document(db, "doc-emit-artifact.txt")
+        doc = _make_document(db, "doc-emit-artifact", "artifact.txt")
         r = client.post(
             "/api/artifacts/",
             json={
@@ -1023,7 +1023,7 @@ class TestObservableMutationEmitChange:
             ),
         )
 
-        source = _make_document(db, "citation-source.txt")
+        source = _make_document(db, "citation-source", "source.txt")
         r = client.post(
             "/api/citations/graph",
             json={
