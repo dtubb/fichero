@@ -115,7 +115,7 @@ class WorkflowServiceGenerated: ObservableObject {
         let response = try await client.api.createNodeApiWorkflowsToolsToolNameCreateNodePost(.init(
             path: .init(toolName: toolName),
             query: .init(positionX: positionX, positionY: positionY),
-            headers: .init()
+            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
         switch response {
         case .ok(let okResponse):
