@@ -1,19 +1,22 @@
 # STATE.md — Fichero
 
-## SESSION-END HANDOFF — 2026-06-09 ~6:35pm (for incoming CLAUDE manager)
-**0.0.2 @ `67b85f5a` + this commit (pushed). Tree clean. No worktrees, no lanes.**
+## SESSION-END HANDOFF — 2026-06-10 ~6:45am (for incoming manager)
+**0.0.2 @ `5e2f2064` + this handoff commit (pushed after session-end). Tree clean except `.session-end-complete` during wrap-up. No active worker worktrees/lanes.**
 
-**NEW HARD RULE (constitution rule 11 + memory `worktrees-isolated-never-rm-siblings`):** worktrees live ONLY under `~/code/fichero-worktrees/<name>`; remove via `git worktree remove`; NEVER `rm -rf` a `~/code/` path or glob `~/code/fichero-*` (a glob rm destroyed the SEPARATE `fichero-search` project today — recovered committed history by recloning `git@github.com:dtubb/fichero-search.git`; uncommitted work lost). Damaged remnants parked at `~/code/fichero-search.damaged-DELETE-ME` + `~/code/fichero-search-issue-1` (Daniel to delete; do NOT touch).
+**LANDED THIS SESSION (all pushed to `0.0.2`):** #1924 choose-next selector skill (`701b990e`) · #1921 OpenAPI client parity guardrail (`742da854`) · #1851 DocumentStore `ObservableObject`→`@Observable` + typed environment across 16 consumers (`f121533b`, Daniel BuildProject pass) · #1967 WorkflowExecutionObserver propagation into presented sheets/popovers (`015ce6d6`) · #1919 gardener helper (`5e2f2064`) · future feature #1972 filed (image keywords, ratings, thumbs up/down).
 
-**THIS SESSION (all verified+pushed):** #1948 #1957 #1917/#1958 #1911 #1925(×4 matrices+action-surface) #1851(observer-pattern ratchet guardrail, 115 files) #289/#1398 (transcription fidelity) #1960 (Source Annotations→List) #1961 (granular EntityStore). Merged docs #1796/#1797 + wfcleanup #1794. Pruned all stale orphan branches + 9 old sibling worktrees. #1475 confirmed already-landed (closed).
+**VERIFY BASELINE:** Daniel reported Xcode BuildProject passed after #1851. Manager focused checks passed for each integrated lane. Final `python3 scripts/gardener.py --tier standard --json` ran the standard gate through `verify_all (standard): ALL PASS`; backend unit suite result was `3979 passed, 21 skipped, 21 xfailed` in 10:31. Swift/tooling guardrails also passed. Gardener surfaced stale baseline cleanup opportunities: 59 no-emoji known entries clean, 3 observer known entries clean, 111 UI-wiring allowlist entries clean, and 3 endpoint-usage known gaps clean.
 
-**NEXT KEYSTONE (brief at `/tmp/documentstore-observable.txt`):** DocumentStore ObservableObject→@Observable + @Environment (god-node, 16 consumers). Template=WorkflowStore. Gotchas: @ObservationIgnored on lazy/service props; SidebarObservers `.$collections.sink`→re-arming observeDocumentStore; `$documentStore`→@Bindable; LibraryWindow .environmentObject→.environment. LIKELY FIXES #1964 (Info tab not loading) + #1963 (library select). Then grind observer sweep store-by-store (serial — shared registry); guardrail scripts/check_observer_pattern.py tracks 115 down.
+**CURRENT FOCUS:** Roadmap Tier 2 / Observable Data Layer remains the priority. #1935 is the main open Observable Data Layer issue: single code path per endpoint/store + one shared renderer per domain type. Treat it as broad/high-blast SwiftUI work; dispatch only after a scoped plan/file partition.
 
-**OPEN URGENT BUG:** #1967 CRASH — WorkflowExecutionObserver @Environment not propagated into sheets/popovers (audit all presented views).
-**OPEN UI:** #1962 selection-everywhere EPIC · #1963 library click+marquee · #1964 Info tab · #1966 ForEach dup-id · #1968 tabs-between-sidebars · #1969 semantic-fonts EPIC · #1970 Source Annotations single-click+full-size · #1971 standard-controls audit · #1965 artifacts→List+editor.
-**HARD RULES (memory):** no-wholesale-list-rerender · semantic-system-fonts · worktrees-isolated-never-rm-siblings · worker file-set partition.
+**OPEN UI / RUNTIME TO RE-TEST:** #1963 library click/marquee select and #1964 Info tab may be fixed by the DocumentStore migration; Daniel should runtime-test before closing. Still open: #1962 selection-everywhere EPIC · #1965 artifacts→List/editor · #1966 duplicate EntityLozenge IDs · #1968 tabs-between-sidebars · #1969 semantic fonts · #1970 Source Annotations click/full-size · #1971 standard controls · #1972 future image keyword/rating curation.
 
-**📋 READY FOR DANIEL TO TEST:** #1943 artifacts · #1953 thumbnails · #1960 Source Annotations List · #1961 entities granular (re-test single-click).
+**NEXT SESSION — START HERE:**
+1. Confirm repo is clean and no worktrees are active: `git status --short --branch && git worktree list`.
+2. Run `python3 scripts/gardener.py --tier standard` or `python3 scripts/choose_next.py --json` to pick the next roadmap slice.
+3. Runtime-test #1963/#1964 against the integrated DocumentStore migration; close if fixed, otherwise file/dispatch a narrow follow-up.
+4. Plan #1935 before coding; split by domain renderer/store surface to avoid overlapping SwiftUI files.
+5. Keep worker policy: tmux + external `~/code/fichero-worktrees/<name>`, Spark first, jcodemunch first, manager verifies before integrate.
 
 ---
 ### (archived)

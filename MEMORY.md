@@ -1,5 +1,9 @@
 # Durable Lessons Learned / Decisions
 
+## Codex worker model ladder for manager lanes — 2026-06-10
+
+For Fichero manager dispatch, use tmux-based Codex workers in external worktrees under `~/code/fichero-worktrees/<name>` and prefer `gpt-5.3-codex-spark` for most issue-scoped workers. Escalate only when needed: `gpt-5.4-mini` if Spark struggles, `gpt-5.4` for complex keystones, and `gpt-5.5` only for truly hard/high-blast work. Prompts should tell workers to use jcodemunch first, claim issues before coding, continue within the same milestone until context fills only when file sets remain disjoint, and report verification/commit SHA before manager integration.
+
 ## SwiftUI storage image display must be keyed by document identity — 2026-06-06
 
 Imported image pages should render through storage endpoints (`/api/storage/thumbnail/{id}` and `/api/storage/display/{id}`), not image-edit preview endpoints. SwiftUI lazy grids/lists must key async image loads by `(document_id, image_type)`; a plain `.task` can leave stale placeholders or images when cells are reused even though the backend returned real JPEG bytes. Keep Library/List, Document Canvas, Reading/WebKit, and Inspector as independently toggled panes. Folder/group selection should render a canvas container placeholder, while selected image/PDF page children still win.

@@ -2536,3 +2536,13 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 
 - Merged docs #1796/#1797 + wfcleanup #1794 (1088 backend tests green). Pruned all stale orphan branches + 9 old sibling worktrees. #1475 confirmed already-landed.
 - INCIDENT: glob `rm -rf ~/code/fichero-search*` destroyed the SEPARATE fichero-search project (recovered committed history via reclone; uncommitted lost). New HARD RULE: worktrees only under ~/code/fichero-worktrees/; never rm ~/code siblings (constitution rule 11 + memory).
+
+## 2026-06-10 — Session Summary (manager loop, observable/DX closeout)
+
+- Integrated and pushed #1924 choose-next selector skill (`701b990e`) and #1921 OpenAPI client parity guardrail (`742da854`). Both focused checks passed and issues closed.
+- Integrated and pushed #1851 DocumentStore `ObservableObject`→`@Observable` + typed `@Environment` migration across 16 consumers (`f121533b`). Daniel reported BuildProject passed; changed-file SwiftLint, static grep, observer guardrail, and diff checks passed. Issue closed.
+- Integrated and pushed #1967 crash fix (`015ce6d6`): propagated `WorkflowExecutionObserver` into presented sheets/popovers in ContentView, WorkflowExecutionRow, LibraryView, WorkflowEditor, WorkflowCanvasView, and WorkflowLibraryView. Focused SwiftLint passed. Issue closed.
+- Integrated and pushed #1919 gardener helper (`5e2f2064`): added `scripts/gardener.py` and `.agents/skills/gardener-agent/SKILL.md`. Verified with ruff, py_compile, self-test, and final standard gardener run. Issue closed.
+- Filed future feature #1972 for image keywords, ratings, and thumbs up/down curation.
+- Final standard gardener gate passed: `verify_all (standard): ALL PASS`; backend unit suite `3979 passed, 21 skipped, 21 xfailed` in 10:31. Guardrails surfaced stale baseline cleanup opportunities (no-emoji, observer, UI-wiring, endpoint-usage).
+- Cleaned temporary external worktrees using `git worktree remove --force`. No active worker lanes left.
