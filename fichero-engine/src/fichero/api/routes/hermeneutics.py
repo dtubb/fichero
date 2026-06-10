@@ -152,17 +152,16 @@ class CircleStateNavigateRequest(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@router.post("/frameworks", response_model=InterpretiveFramework)
-async def create_framework(
-    request: FrameworkCreateRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
+def create_framework_impl(
+    db: Database, request: FrameworkCreateRequest
 ) -> InterpretiveFramework:
+    """Build + persist an interpretive framework (no emit — caller emits).
+
+    Extracted so the typed route and the audited ``framework.create`` action
+    run the SAME mutation (EPIC #1848 / #2014). The change event stays in the
+    route (UI path); ``registry.invoke`` emits the equivalent event on the
+    /api/actions/invoke path.
+    """
     now = datetime.now()
     framework = InterpretiveFramework(
         name=request.name.strip(),
@@ -180,6 +179,21 @@ async def create_framework(
         updated_at=now,
     )
     db.save(framework)
+    return framework
+
+
+@router.post("/frameworks", response_model=InterpretiveFramework)
+async def create_framework(
+    request: FrameworkCreateRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> InterpretiveFramework:
+    framework = create_framework_impl(db, request)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="interpretation.created",
@@ -217,6 +231,24 @@ async def get_framework(
     return framework
 
 
+def update_framework_impl(
+    db: Database, framework_id: str, request: FrameworkUpdateRequest
+) -> InterpretiveFramework:
+    """Apply a partial framework edit (404 if missing). Shared route/action path."""
+    framework = db.get(InterpretiveFramework, framework_id)
+    if not framework:
+        raise HTTPException(
+            status_code=404, detail=f"Framework not found: {framework_id}"
+        )
+
+    updates = request.model_dump(exclude_unset=True, exclude_none=True)
+    for key, value in updates.items():
+        setattr(framework, key, value)
+    framework.updated_at = datetime.now()
+    db.save(framework)
+    return framework
+
+
 @router.patch("/frameworks/{framework_id}", response_model=InterpretiveFramework)
 async def update_framework(
     framework_id: str,
@@ -229,17 +261,7 @@ async def update_framework(
         default=None, alias="X-Fichero-Origin-Window"
     ),
 ) -> InterpretiveFramework:
-    framework = db.get(InterpretiveFramework, framework_id)
-    if not framework:
-        raise HTTPException(
-            status_code=404, detail=f"Framework not found: {framework_id}"
-        )
-
-    updates = request.model_dump(exclude_unset=True, exclude_none=True)
-    for key, value in updates.items():
-        setattr(framework, key, value)
-    framework.updated_at = datetime.now()
-    db.save(framework)
+    framework = update_framework_impl(db, framework_id, request)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="interpretation.updated",
@@ -247,6 +269,26 @@ async def update_framework(
         actor="ui",
         origin_window=x_fichero_origin_window,
     )
+    return framework
+
+
+def delete_framework_impl(
+    db: Database, framework_id: str
+) -> InterpretiveFramework:
+    """Soft-delete (deactivate) a framework; returns it. Shared route/action path.
+
+    The delete is a deactivation (``is_active=False``), so its inverse is simply
+    re-activation — ``framework.delete`` is undoable via ``framework.update``.
+    """
+    framework = db.get(InterpretiveFramework, framework_id)
+    if not framework:
+        raise HTTPException(
+            status_code=404, detail=f"Framework not found: {framework_id}"
+        )
+    # Soft-delete: deactivate
+    framework.is_active = False
+    framework.updated_at = datetime.now()
+    db.save(framework)
     return framework
 
 
@@ -261,15 +303,7 @@ async def delete_framework(
         default=None, alias="X-Fichero-Origin-Window"
     ),
 ) -> FrameworkDeactivatedResponse:
-    framework = db.get(InterpretiveFramework, framework_id)
-    if not framework:
-        raise HTTPException(
-            status_code=404, detail=f"Framework not found: {framework_id}"
-        )
-    # Soft-delete: deactivate
-    framework.is_active = False
-    framework.updated_at = datetime.now()
-    db.save(framework)
+    framework = delete_framework_impl(db, framework_id)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="interpretation.deleted",
@@ -285,17 +319,14 @@ async def delete_framework(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@router.post("/interpretations", response_model=Interpretation)
-async def create_interpretation(
-    request: InterpretationCreateRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
+def create_interpretation_impl(
+    db: Database, request: InterpretationCreateRequest
 ) -> Interpretation:
+    """Validate + persist an interpretation (no emit — caller emits).
+
+    Preserves the route's guards exactly: framework must exist and be active,
+    ``claim_id`` is required and must resolve. Shared route/action path.
+    """
     framework = db.get(InterpretiveFramework, request.framework_id)
     if not framework:
         raise HTTPException(
@@ -336,6 +367,21 @@ async def create_interpretation(
         updated_at=now,
     )
     db.save(interpretation)
+    return interpretation
+
+
+@router.post("/interpretations", response_model=Interpretation)
+async def create_interpretation(
+    request: InterpretationCreateRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> Interpretation:
+    interpretation = create_interpretation_impl(db, request)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="interpretation.created",
@@ -381,18 +427,14 @@ async def get_interpretation(
     return interpretation
 
 
-@router.patch("/interpretations/{interpretation_id}", response_model=Interpretation)
-async def update_interpretation(
-    interpretation_id: str,
-    request: InterpretationUpdateRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
+def update_interpretation_impl(
+    db: Database, interpretation_id: str, request: InterpretationUpdateRequest
 ) -> Interpretation:
+    """Apply a partial interpretation edit (404 if missing). Shared route/action path.
+
+    Keeps the predicate-canonicalization side effect: editing ``predicate`` also
+    recomputes ``predicate_canonical``.
+    """
     interpretation = db.get(Interpretation, interpretation_id)
     if not interpretation:
         raise HTTPException(
@@ -409,6 +451,22 @@ async def update_interpretation(
         setattr(interpretation, key, value)
     interpretation.updated_at = datetime.now()
     db.save(interpretation)
+    return interpretation
+
+
+@router.patch("/interpretations/{interpretation_id}", response_model=Interpretation)
+async def update_interpretation(
+    interpretation_id: str,
+    request: InterpretationUpdateRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> Interpretation:
+    interpretation = update_interpretation_impl(db, interpretation_id, request)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="interpretation.updated",
@@ -426,17 +484,10 @@ async def update_interpretation(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@router.post("/patterns", response_model=PatternInstance)
-async def create_pattern(
-    request: PatternCreateRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
+def create_pattern_impl(
+    db: Database, request: PatternCreateRequest
 ) -> PatternInstance:
+    """Build + persist a pattern instance (no emit — caller emits). Shared path."""
     now = datetime.now()
     pattern = PatternInstance(
         name=request.name.strip(),
@@ -454,6 +505,21 @@ async def create_pattern(
         updated_at=now,
     )
     db.save(pattern)
+    return pattern
+
+
+@router.post("/patterns", response_model=PatternInstance)
+async def create_pattern(
+    request: PatternCreateRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> PatternInstance:
+    pattern = create_pattern_impl(db, request)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="interpretation.created",
@@ -492,6 +558,22 @@ async def get_pattern(
     return pattern
 
 
+def update_pattern_impl(
+    db: Database, pattern_id: str, request: PatternUpdateRequest
+) -> PatternInstance:
+    """Apply a partial pattern edit (404 if missing). Shared route/action path."""
+    pattern = db.get(PatternInstance, pattern_id)
+    if not pattern:
+        raise HTTPException(status_code=404, detail=f"Pattern not found: {pattern_id}")
+
+    updates = request.model_dump(exclude_unset=True, exclude_none=True)
+    for key, value in updates.items():
+        setattr(pattern, key, value)
+    pattern.updated_at = datetime.now()
+    db.save(pattern)
+    return pattern
+
+
 @router.patch("/patterns/{pattern_id}", response_model=PatternInstance)
 async def update_pattern(
     pattern_id: str,
@@ -504,15 +586,7 @@ async def update_pattern(
         default=None, alias="X-Fichero-Origin-Window"
     ),
 ) -> PatternInstance:
-    pattern = db.get(PatternInstance, pattern_id)
-    if not pattern:
-        raise HTTPException(status_code=404, detail=f"Pattern not found: {pattern_id}")
-
-    updates = request.model_dump(exclude_unset=True, exclude_none=True)
-    for key, value in updates.items():
-        setattr(pattern, key, value)
-    pattern.updated_at = datetime.now()
-    db.save(pattern)
+    pattern = update_pattern_impl(db, pattern_id, request)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="interpretation.updated",
@@ -521,6 +595,26 @@ async def update_pattern(
         origin_window=x_fichero_origin_window,
     )
     return pattern
+
+
+def add_claim_to_pattern_impl(
+    db: Database, pattern_id: str, claim_id: str
+) -> tuple[PatternInstance, bool]:
+    """Append a claim to a pattern (idempotent); returns (pattern, changed).
+
+    ``changed`` is False when the claim is already a member, so the caller can
+    skip the emit — preserving the route's conditional-broadcast behavior.
+    """
+    pattern = db.get(PatternInstance, pattern_id)
+    if not pattern:
+        raise HTTPException(status_code=404, detail=f"Pattern not found: {pattern_id}")
+    if claim_id in pattern.claim_ids:
+        return pattern, False
+    pattern.claim_ids = pattern.claim_ids + [claim_id]
+    pattern.frequency = len(pattern.claim_ids)
+    pattern.updated_at = datetime.now()
+    db.save(pattern)
+    return pattern, True
 
 
 @router.post("/patterns/{pattern_id}/claims/{claim_id}", response_model=PatternInstance)
@@ -535,14 +629,8 @@ async def add_claim_to_pattern(
         default=None, alias="X-Fichero-Origin-Window"
     ),
 ) -> PatternInstance:
-    pattern = db.get(PatternInstance, pattern_id)
-    if not pattern:
-        raise HTTPException(status_code=404, detail=f"Pattern not found: {pattern_id}")
-    if claim_id not in pattern.claim_ids:
-        pattern.claim_ids = pattern.claim_ids + [claim_id]
-        pattern.frequency = len(pattern.claim_ids)
-        pattern.updated_at = datetime.now()
-        db.save(pattern)
+    pattern, changed = add_claim_to_pattern_impl(db, pattern_id, claim_id)
+    if changed:
         emit_change(
             x_fichero_library_path or str(db.path.parent),
             type="interpretation.updated",
@@ -781,3 +869,337 @@ async def get_taxonomy() -> MethodTaxonomyResponse:
         for ft in FrameworkType
     ]
     return MethodTaxonomyResponse(acts=acts, frameworks=frameworks)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Action layer registration (EPIC #1848 / sweep #2014) — interpretation/ontology
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Each framework / interpretation / pattern mutation becomes a registered,
+# audited action that WRAPS the proven ``*_impl`` above. The typed routes stay
+# untouched and keep emitting their existing ``interpretation.*`` change events
+# (the UI path, from #2008); the action emits the SAME event type on the
+# /api/actions/invoke path via ``registry.invoke`` — so each caller emits exactly
+# once, no double-broadcast. Edits and the (soft) framework delete are undoable:
+# ``before``/``after`` snapshots ARE the undo payload. Creates are not undoable
+# (interpretations/patterns have no delete route; a framework "delete" is a
+# deactivation, so create's only honest inverse would be a partial soft-delete).
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+# Patchable field sets used by the invert helpers to restore prior state.
+_FRAMEWORK_FIELDS = (
+    "name", "framework_type", "description", "core_questions", "key_concepts",
+    "typical_applications", "origin", "creator", "language", "metadata", "is_active",
+)
+_INTERPRETATION_FIELDS = (
+    "interpretation_text", "act", "predicate", "confidence",
+    "key_insights", "tensions", "connections", "metadata",
+)
+_PATTERN_FIELDS = (
+    "name", "description", "pattern_type", "claim_ids", "entity_ids",
+    "frequency", "significance", "status", "framework_id",
+    "supporting_passages", "metadata",
+)
+
+
+def _restore_params(before: dict, fields: tuple[str, ...], id_field: str) -> dict:
+    """Build update-action params that restore the pre-edit field values.
+
+    ``update_*_impl`` applies ``exclude_none=True``, so None-valued fields can't
+    be reset through this path — an accepted limitation that mirrors the route's
+    own PATCH semantics. Non-None prior values are faithfully restored.
+    """
+    params = {id_field: before["id"]}
+    for key in fields:
+        val = before.get(key)
+        if val is not None:
+            params[key] = val
+    return params
+
+
+class FrameworkUpdateParams(FrameworkUpdateRequest):
+    framework_id: str
+
+
+class FrameworkDeleteParams(BaseModel):
+    framework_id: str
+
+
+class InterpretationUpdateParams(InterpretationUpdateRequest):
+    interpretation_id: str
+
+
+class PatternUpdateParams(PatternUpdateRequest):
+    pattern_id: str
+
+
+class PatternAddClaimParams(BaseModel):
+    pattern_id: str
+    claim_id: str
+
+
+# -- frameworks --------------------------------------------------------------
+
+
+@action(
+    "framework.create",
+    FrameworkCreateRequest,
+    domains=["interpretation"],
+    undoable=False,
+)
+def _action_create_framework(
+    db: Database, params: FrameworkCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    framework = create_framework_impl(db, params)
+    after = framework.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["interpretation"],
+        target_ids=[framework.id],
+        before=None,
+        after=after,
+        emit_type="interpretation.created",
+        interpretation_ids=[framework.id],
+    )
+    return after, spec
+
+
+def _invert_framework_update(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("framework.update", _restore_params(before, _FRAMEWORK_FIELDS, "framework_id"))
+
+
+@action(
+    "framework.update",
+    FrameworkUpdateParams,
+    domains=["interpretation"],
+    undoable=True,
+    invert=_invert_framework_update,
+)
+def _action_update_framework(
+    db: Database, params: FrameworkUpdateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    existing = db.get(InterpretiveFramework, params.framework_id)
+    if not existing:
+        raise HTTPException(
+            status_code=404, detail=f"Framework not found: {params.framework_id}"
+        )
+    before = existing.model_dump(mode="json")
+    request = FrameworkUpdateRequest(
+        **params.model_dump(exclude={"framework_id"}, exclude_unset=True)
+    )
+    framework = update_framework_impl(db, params.framework_id, request)
+    after = framework.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["interpretation"],
+        target_ids=[framework.id],
+        before=before,
+        after=after,
+        emit_type="interpretation.updated",
+        interpretation_ids=[framework.id],
+    )
+    return after, spec
+
+
+def _invert_framework_delete(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a (soft) framework delete by reactivating it."""
+    if not before:
+        return None
+    return ("framework.update", {"framework_id": before["id"], "is_active": True})
+
+
+@action(
+    "framework.delete",
+    FrameworkDeleteParams,
+    domains=["interpretation"],
+    undoable=True,
+    invert=_invert_framework_delete,
+)
+def _action_delete_framework(
+    db: Database, params: FrameworkDeleteParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    existing = db.get(InterpretiveFramework, params.framework_id)
+    if not existing:
+        raise HTTPException(
+            status_code=404, detail=f"Framework not found: {params.framework_id}"
+        )
+    before = existing.model_dump(mode="json")
+    framework = delete_framework_impl(db, params.framework_id)
+    after = framework.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["interpretation"],
+        target_ids=[framework.id],
+        before=before,
+        after=after,
+        emit_type="interpretation.deleted",
+        interpretation_ids=[framework.id],
+    )
+    return after, spec
+
+
+# -- interpretations ---------------------------------------------------------
+
+
+@action(
+    "interpretation.create",
+    InterpretationCreateRequest,
+    domains=["interpretation"],
+    undoable=False,
+)
+def _action_create_interpretation(
+    db: Database, params: InterpretationCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    interpretation = create_interpretation_impl(db, params)
+    after = interpretation.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["interpretation"],
+        target_ids=[interpretation.id],
+        before=None,
+        after=after,
+        emit_type="interpretation.created",
+        interpretation_ids=[interpretation.id],
+        document_ids=[interpretation.document_id] if interpretation.document_id else [],
+        claim_ids=[interpretation.claim_id] if interpretation.claim_id else [],
+    )
+    return after, spec
+
+
+def _invert_interpretation_update(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return (
+        "interpretation.update",
+        _restore_params(before, _INTERPRETATION_FIELDS, "interpretation_id"),
+    )
+
+
+@action(
+    "interpretation.update",
+    InterpretationUpdateParams,
+    domains=["interpretation"],
+    undoable=True,
+    invert=_invert_interpretation_update,
+)
+def _action_update_interpretation(
+    db: Database, params: InterpretationUpdateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    existing = db.get(Interpretation, params.interpretation_id)
+    if not existing:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Interpretation not found: {params.interpretation_id}",
+        )
+    before = existing.model_dump(mode="json")
+    request = InterpretationUpdateRequest(
+        **params.model_dump(exclude={"interpretation_id"}, exclude_unset=True)
+    )
+    interpretation = update_interpretation_impl(db, params.interpretation_id, request)
+    after = interpretation.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["interpretation"],
+        target_ids=[interpretation.id],
+        before=before,
+        after=after,
+        emit_type="interpretation.updated",
+        interpretation_ids=[interpretation.id],
+        document_ids=[interpretation.document_id] if interpretation.document_id else [],
+        claim_ids=[interpretation.claim_id] if interpretation.claim_id else [],
+    )
+    return after, spec
+
+
+# -- patterns ----------------------------------------------------------------
+
+
+@action(
+    "pattern.create",
+    PatternCreateRequest,
+    domains=["interpretation"],
+    undoable=False,
+)
+def _action_create_pattern(
+    db: Database, params: PatternCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    pattern = create_pattern_impl(db, params)
+    after = pattern.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["interpretation"],
+        target_ids=[pattern.id],
+        before=None,
+        after=after,
+        emit_type="interpretation.created",
+        interpretation_ids=[pattern.id],
+    )
+    return after, spec
+
+
+def _invert_pattern_update(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("pattern.update", _restore_params(before, _PATTERN_FIELDS, "pattern_id"))
+
+
+@action(
+    "pattern.update",
+    PatternUpdateParams,
+    domains=["interpretation"],
+    undoable=True,
+    invert=_invert_pattern_update,
+)
+def _action_update_pattern(
+    db: Database, params: PatternUpdateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    existing = db.get(PatternInstance, params.pattern_id)
+    if not existing:
+        raise HTTPException(
+            status_code=404, detail=f"Pattern not found: {params.pattern_id}"
+        )
+    before = existing.model_dump(mode="json")
+    request = PatternUpdateRequest(
+        **params.model_dump(exclude={"pattern_id"}, exclude_unset=True)
+    )
+    pattern = update_pattern_impl(db, params.pattern_id, request)
+    after = pattern.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["interpretation"],
+        target_ids=[pattern.id],
+        before=before,
+        after=after,
+        emit_type="interpretation.updated",
+        interpretation_ids=[pattern.id],
+    )
+    return after, spec
+
+
+@action(
+    "pattern.add_claim",
+    PatternAddClaimParams,
+    domains=["interpretation"],
+    undoable=False,
+)
+def _action_add_claim_to_pattern(
+    db: Database, params: PatternAddClaimParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    pattern, changed = add_claim_to_pattern_impl(db, params.pattern_id, params.claim_id)
+    after = pattern.model_dump(mode="json")
+    # No-op (claim already a member) emits no change — matches the route.
+    spec = ChangeSpec(
+        domains=["interpretation"],
+        target_ids=[pattern.id],
+        before=None,
+        after=after,
+        emit_type="interpretation.updated" if changed else None,
+        interpretation_ids=[pattern.id] if changed else [],
+        claim_ids=[params.claim_id] if changed else [],
+    )
+    return after, spec
