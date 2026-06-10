@@ -3,9 +3,10 @@
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.research_models import (
@@ -98,6 +99,10 @@ class NoteUpdateRequest(BaseModel):
 async def create_note(
     request: NoteCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ResearchNote:
     note = ResearchNote(
         project_id=request.project_id,
@@ -112,6 +117,12 @@ async def create_note(
         metadata=request.metadata,
     )
     db.save(note)
+    emit_change(
+        x_fichero_library_path,
+        type="note.created",
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return note
 
 
@@ -144,6 +155,10 @@ async def update_note(
     note_id: str,
     request: NoteUpdateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> ResearchNote:
     note = db.get(ResearchNote, note_id)
     if not note:
@@ -162,6 +177,12 @@ async def update_note(
         note.metadata = request.metadata
     note.updated_at = datetime.now()
     db.save(note)
+    emit_change(
+        x_fichero_library_path,
+        type="note.updated",
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return note
 
 

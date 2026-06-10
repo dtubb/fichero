@@ -24,6 +24,8 @@ from fichero.api.change_stream import (
     format_change_sse,
 )
 from fichero.knowledge_models import (
+    Annotation,
+    AnnotationKind,
     EntityType,
     KnowledgeClaim,
     KnowledgeEntity,
@@ -224,6 +226,36 @@ def _make_document(db, doc_id: str, name: str) -> Document:
     return doc
 
 
+def _make_annotation(
+    db,
+    document_id: str = "doc-emit-annotation",
+    kind: AnnotationKind = AnnotationKind.note,
+    text: str = "Highlight me",
+    page_id: str | None = None,
+    folder_id: str | None = None,
+) -> Annotation:
+    ann = Annotation(
+        document_id=document_id,
+        kind=kind,
+        text=text,
+        page_id=page_id,
+        folder_id=folder_id,
+    )
+    db.save(ann)
+    return ann
+
+
+def _make_folder(db, folder_id: str, name: str) -> Document:
+    folder = Document(
+        id=folder_id,
+        name=name,
+        doc_type=DocType.folder,
+        status=Status.completed,
+    )
+    db.save(folder)
+    return folder
+
+
 class TestClaimMutationsEmitChange:
     def test_patch_claim_calls_emit_change(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
@@ -270,6 +302,238 @@ class TestClaimMutationsEmitChange:
         assert call["type"] == "claim.linked"
         assert claim_a.id in call["claim_ids"]
         assert claim_b.id in call["claim_ids"]
+
+
+class TestAnnotationMutationsEmitChange:
+    def test_create_annotation_emits_created(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.annotations.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        doc = _make_document(db, "doc-emit-ann", "emit.txt")
+        resp = client.post(
+            "/api/annotations",
+            json={"document_id": doc.id, "kind": "note", "text": "Annotation"},
+        )
+        assert resp.status_code == 200, resp.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "annotation.created"
+        assert doc.id in call["document_ids"]
+
+    def test_patch_annotation_emits_updated(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.annotations.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        ann = _make_annotation(db, document_id="doc-emit-ann-2", text="old")
+        resp = client.patch(f"/api/annotations/{ann.id}", json={"text": "updated"})
+        assert resp.status_code == 200, resp.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "annotation.updated"
+        assert ann.document_id in call["document_ids"]
+
+    def test_delete_annotation_emits_deleted(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.annotations.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        ann = _make_annotation(db, document_id="doc-emit-ann-3", text="bye")
+        resp = client.delete(f"/api/annotations/{ann.id}")
+        assert resp.status_code == 204, resp.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "annotation.deleted"
+        assert ann.document_id in call["document_ids"]
+
+    def test_promote_to_claim_emits_updated_and_claim_created(
+        self, client, db, test_package, monkeypatch
+    ):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.annotations.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        ann = _make_annotation(db, document_id="doc-emit-ann-promote", text="Promote me")
+        resp = client.post(f"/api/annotations/{ann.id}/promote-to-claim")
+        assert resp.status_code == 200, resp.text
+
+        assert len(captured) == 2
+        events = {call["type"] for call in captured}
+        assert events == {"annotation.updated", "claim.created"}
+        annotation_events = [call for call in captured if call["type"] == "annotation.updated"]
+        claim_events = [call for call in captured if call["type"] == "claim.created"]
+        assert len(annotation_events) == 1
+        assert len(claim_events) == 1
+        assert annotation_events[0]["library_path"] == str(test_package)
+        assert ann.document_id in annotation_events[0]["document_ids"]
+        created = resp.json()
+        assert claim_events[0]["library_path"] == str(test_package)
+        assert created["claim_id"] in claim_events[0]["claim_ids"]
+
+
+class TestNoteMutationsEmitChange:
+    def test_create_note_emits_created(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.notes.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        folder = _make_folder(db, "folder-emit-note", "Scope Folder")
+        resp = client.post(
+            "/api/notes",
+            json={"title": "Test", "body": "Hello", "folder_id": folder.id},
+        )
+        assert resp.status_code == 200, resp.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "note.created"
+        assert folder.id in call["document_ids"]
+
+    def test_patch_note_emits_updated(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.notes.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        folder = _make_folder(db, "folder-emit-note-2", "Scope Folder 2")
+        note = client.post(
+            "/api/notes",
+            json={
+                "title": "Note",
+                "body": "Body",
+                "folder_id": folder.id,
+            },
+        ).json()
+        assert note["id"]
+        resp = client.patch(f"/api/notes/{note['id']}", json={"title": "Updated"})
+        assert resp.status_code == 200, resp.text
+
+        assert len(captured) == 2
+        call = captured[-1]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "note.updated"
+        assert folder.id in call["document_ids"]
+
+    def test_delete_note_emits_deleted(self, client, db, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.notes.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        folder = _make_folder(db, "folder-emit-note-3", "Scope Folder 3")
+        created = client.post(
+            "/api/notes",
+            json={"title": "Note", "body": "Body", "folder_id": folder.id},
+        )
+        assert created.status_code == 200, created.text
+        note = created.json()
+        del_resp = client.delete(f"/api/notes/{note['id']}")
+        assert del_resp.status_code == 204, del_resp.text
+
+        assert len(captured) == 2
+        call = captured[-1]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "note.deleted"
+        assert folder.id in call["document_ids"]
+
+
+class TestResearchNoteMutationsEmitChange:
+    def test_create_research_note_emits_created(self, client, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.research_notes.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        project = client.post("/api/research/projects", json={"name": "For Research Notes"})
+        assert project.status_code == 200, project.text
+        project_id = project.json()["id"]
+
+        resp = client.post(
+            "/api/research/notes",
+            json={
+                "project_id": project_id,
+                "note_type": "observation",
+                "content": "Observation",
+            },
+        )
+        assert resp.status_code == 200, resp.text
+
+        assert len(captured) == 1
+        call = captured[0]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "note.created"
+
+    def test_update_research_note_emits_updated(self, client, test_package, monkeypatch):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            "fichero.api.routes.research_notes.emit_change",
+            lambda library_path, **kwargs: captured.append(
+                {"library_path": library_path, **kwargs}
+            ),
+        )
+
+        project = client.post("/api/research/projects", json={"name": "For Research Notes 2"})
+        assert project.status_code == 200, project.text
+        project_id = project.json()["id"]
+
+        note = client.post(
+            "/api/research/notes",
+            json={
+                "project_id": project_id,
+                "note_type": "observation",
+                "content": "Observation",
+            },
+        )
+        assert note.status_code == 200, note.text
+        note_id = note.json()["id"]
+
+        resp = client.patch(
+            f"/api/research/notes/{note_id}",
+            json={"content": "updated", "note_type": "finding"},
+        )
+        assert resp.status_code == 200, resp.text
+
+        assert len(captured) == 2
+        call = captured[-1]
+        assert call["library_path"] == str(test_package)
+        assert call["type"] == "note.updated"
 
 
 class TestDocumentMutationsEmitChange:

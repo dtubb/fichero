@@ -46,10 +46,6 @@ STRING_RE = re.compile(r'\"([^\"]+)\"')
 
 # Seeds this script at the current tree.
 KNOWN_GAPS: set[str] = {
-    "fichero-engine/src/fichero/api/routes/annotations.py::create_annotation",
-    "fichero-engine/src/fichero/api/routes/annotations.py::delete_annotation",
-    "fichero-engine/src/fichero/api/routes/annotations.py::patch_annotation",
-    "fichero-engine/src/fichero/api/routes/annotations.py::promote_to_claim",
     "fichero-engine/src/fichero/api/routes/claims.py::assign_time_period",
     "fichero-engine/src/fichero/api/routes/claims.py::assign_time_period_from_metadata",
     "fichero-engine/src/fichero/api/routes/claims.py::resolve_claim_source",
@@ -66,16 +62,11 @@ KNOWN_GAPS: set[str] = {
     "fichero-engine/src/fichero/api/routes/documents.py::upsert_page_ranges",
     "fichero-engine/src/fichero/api/routes/entities.py::add_entity_aliases",
     "fichero-engine/src/fichero/api/routes/entities.py::delete_entity",
-    "fichero-engine/src/fichero/api/routes/notes.py::create_note",
     "fichero-engine/src/fichero/api/routes/notes.py::create_note_link",
-    "fichero-engine/src/fichero/api/routes/notes.py::delete_note",
     "fichero-engine/src/fichero/api/routes/notes.py::delete_note_link",
-    "fichero-engine/src/fichero/api/routes/notes.py::patch_note",
     "fichero-engine/src/fichero/api/routes/research_notes.py::create_checklist",
-    "fichero-engine/src/fichero/api/routes/research_notes.py::create_note",
     "fichero-engine/src/fichero/api/routes/research_notes.py::create_search_source",
     "fichero-engine/src/fichero/api/routes/research_notes.py::toggle_checklist_item",
-    "fichero-engine/src/fichero/api/routes/research_notes.py::update_note",
     "fichero-engine/src/fichero/api/routes/workflows.py::create_node",
     "fichero-engine/src/fichero/api/routes/workflows.py::create_workflow",
     "fichero-engine/src/fichero/api/routes/workflows.py::delete_workflow",

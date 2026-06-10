@@ -12,9 +12,10 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
+from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.knowledge_models import (
@@ -116,6 +117,10 @@ def _normalize_annotation_scope(
 async def create_annotation(
     request: AnnotationCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> Annotation:
     scope = _normalize_annotation_scope(
         db,
@@ -127,6 +132,13 @@ async def create_annotation(
     payload.update(scope.model_dump())
     ann = Annotation(**payload)
     db.save(ann)
+    emit_change(
+        x_fichero_library_path,
+        type="annotation.created",
+        document_ids=[i for i in [ann.document_id, ann.page_id, ann.folder_id] if i],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return ann
 
 
@@ -199,6 +211,10 @@ async def patch_annotation(
     annotation_id: str,
     request: AnnotationPatchRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> Annotation:
     ann = db.get(Annotation, annotation_id)
     if ann is None:
@@ -220,6 +236,13 @@ async def patch_annotation(
         setattr(ann, field, value)
     ann.updated_at = datetime.now()
     db.save(ann)
+    emit_change(
+        x_fichero_library_path,
+        type="annotation.updated",
+        document_ids=[i for i in [ann.document_id, ann.page_id, ann.folder_id] if i],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return ann
 
 
@@ -227,11 +250,23 @@ async def patch_annotation(
 async def delete_annotation(
     annotation_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> None:
     ann = db.get(Annotation, annotation_id)
     if ann is None:
         raise HTTPException(404, f"Annotation not found: {annotation_id}")
+    document_ids = [i for i in [ann.document_id, ann.page_id, ann.folder_id] if i]
     db.delete(ann)
+    emit_change(
+        x_fichero_library_path,
+        type="annotation.deleted",
+        document_ids=document_ids,
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
 
 
 @router.get(
@@ -305,6 +340,10 @@ class PromoteResponse(BaseModel):
 async def promote_to_claim(
     annotation_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> PromoteResponse:
     ann = db.get(Annotation, annotation_id)
     if ann is None:
@@ -340,6 +379,20 @@ async def promote_to_claim(
     ann.linked_claim_ids = sorted(linked)
     ann.updated_at = datetime.now()
     db.save(ann)
+    emit_change(
+        x_fichero_library_path,
+        type="annotation.updated",
+        document_ids=[i for i in [ann.document_id, ann.page_id, ann.folder_id] if i],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
+    emit_change(
+        x_fichero_library_path,
+        type="claim.created",
+        claim_ids=[claim.id],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
 
     return PromoteResponse(
         annotation_id=ann.id,

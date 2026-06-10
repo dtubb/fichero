@@ -11,9 +11,10 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
+from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.knowledge_models import Note, NoteKind, NoteLink
@@ -91,6 +92,10 @@ def _scoped_document_links(
 async def create_note(
     request: NoteCreateRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> Note:
     _validate_note_scope(db, page_id=request.page_id, folder_id=request.folder_id)
     payload = request.model_dump()
@@ -101,6 +106,13 @@ async def create_note(
     )
     note = Note(**payload)
     db.save(note)
+    emit_change(
+        x_fichero_library_path,
+        type="note.created",
+        document_ids=[i for i in {note.page_id, note.folder_id, *note.linked_document_ids} if i],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return note
 
 
@@ -177,6 +189,10 @@ async def patch_note(
     note_id: str,
     request: NotePatchRequest,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> Note:
     note = db.get(Note, note_id)
     if note is None:
@@ -199,6 +215,13 @@ async def patch_note(
         setattr(note, field, value)
     note.updated_at = datetime.now()
     db.save(note)
+    emit_change(
+        x_fichero_library_path,
+        type="note.updated",
+        document_ids=[i for i in {note.page_id, note.folder_id, *note.linked_document_ids} if i],
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
     return note
 
 
@@ -206,11 +229,23 @@ async def patch_note(
 async def delete_note(
     note_id: str,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
 ) -> None:
     note = db.get(Note, note_id)
     if note is None:
         raise HTTPException(404, f"Note not found: {note_id}")
+    document_ids = [i for i in {note.page_id, note.folder_id, *note.linked_document_ids} if i]
     db.delete(note)
+    emit_change(
+        x_fichero_library_path,
+        type="note.deleted",
+        document_ids=document_ids,
+        actor="ui",
+        origin_window=x_fichero_origin_window,
+    )
 
 
 # =============================================================================
