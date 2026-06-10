@@ -32,6 +32,7 @@ from fichero.workflows.tools.extractors import _SECTIONS
 from fichero.workflows.tools.import_artifacts import _coerce_documents
 from fichero.workflows.tools.progress import emit_progress_event
 from fichero.workflows.tools.sources import files_tool
+from fichero.workflows.tools._workflow_change_emit import emit_workflow_kg_changes
 from fichero.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
@@ -232,6 +233,7 @@ async def extract_entities_only(
                 len(record["text"].strip()),
             )
 
+        written_entity_ids: list[str] = []
         for section_key, entity_type in _ENTITY_TYPES.items():
             for entity in getattr(extraction, section_key, []):
                 canonical_name = str(entity.name or "").strip()
@@ -248,11 +250,19 @@ async def extract_entities_only(
                 if entity_id is None:
                     suppressed += 1
                     continue
+                written_entity_ids.append(entity_id)
                 if entity_id in known_entity_ids:
                     reused += 1
                 else:
                     known_entity_ids.add(entity_id)
                     created += 1
+
+        if written_entity_ids:
+            emit_workflow_kg_changes(
+                str(db.path.parent),
+                entity_ids=written_entity_ids,
+                claim_ids=[],
+            )
 
         await emit_progress_event(
             progress_callback,

@@ -50,6 +50,9 @@ from fichero.workflows.tools.llm_base import (
     merge_ports,
 )
 from fichero.workflows.tools.progress import emit_progress_event
+from fichero.workflows.tools._workflow_change_emit import (
+    emit_workflow_kg_changes,
+)
 from fichero.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
@@ -599,7 +602,7 @@ def _persist_additional_entities(
     db,
     additional_entities: dict[str, list[str]],
     target_doc_id: str,
-) -> None:
+) -> tuple[list[str], list[str]]:
     """Persist names extracted for custom registry types as KnowledgeEntity rows.
 
     Writes one KnowledgeEntity (entity_type=other) per extracted name with the
@@ -618,6 +621,8 @@ def _persist_additional_entities(
     container_id = target_doc_id
     from fichero.knowledge_models import KnowledgeEntity, EntityType
     from fichero.workflows.tools._entity_writer import save_claim, upsert_entity
+    written_entity_ids: list[str] = []
+    written_claim_ids: list[str] = []
 
     for type_key, names in additional_entities.items():
         for name in names:
@@ -632,6 +637,7 @@ def _persist_additional_entities(
             )
             if entity_id is None:
                 continue
+            written_entity_ids.append(entity_id)
             e = db.get(KnowledgeEntity, entity_id)
             if e is not None:
                 # Append to list — don't clobber when the same name appears under
@@ -652,7 +658,7 @@ def _persist_additional_entities(
             # queries ("which docs mention X?") work for custom types just like
             # built-in types. No SVO at this stage; a follow-up pass can enrich.
             try:
-                save_claim(
+                claim_id = save_claim(
                     db=db,
                     text=name,
                     source_document_id=container_id,
@@ -660,11 +666,14 @@ def _persist_additional_entities(
                     subject_canonical=name,
                     metadata={"custom_entity_type_key": type_key},
                 )
+                if claim_id is not None:
+                    written_claim_ids.append(claim_id)
             except Exception as exc:
                 logger.warning(
                     "extract_all: failed to save provenance claim for custom entity %s/%s: %s",
                     type_key, name, exc,
                 )
+    return written_entity_ids, written_claim_ids
 
 
 def _build_instructions(output_language: str, custom_entity_types: list[str] | None = None) -> str:
@@ -1326,6 +1335,10 @@ async def _run_two_stage(
 
     persist_kg = inputs.get("persist_kg", True)
     kg_payload: list[dict[str, Any]] = []
+    written_entity_ids: list[str] = []
+    written_claim_ids: list[str] = []
+    written_entity_ids: list[str] = []
+    written_claim_ids: list[str] = []
     _skip_sections = {"rivers_extract", "mines_extract", "properties_extract", "legal_references_extract"}
     _section_by_key = {s["schema_key"]: s for s in _SECTIONS}
 
@@ -1419,7 +1432,7 @@ async def _run_two_stage(
                         })
                         if persist_kg and db:
                             try:
-                                _write_kg_rows(
+                                entity_ids, claim_ids = _write_kg_rows(
                                     db, section, items, target_doc_id,
                                     page_label=page_label,
                                     source_excerpt=page_text[:500] if page_text else None,
@@ -1427,6 +1440,8 @@ async def _run_two_stage(
                                     model=getattr(llm_config, "model", None),
                                     grounding_text=page_text,
                                 )
+                                written_entity_ids.extend(entity_ids)
+                                written_claim_ids.extend(claim_ids)
                             except Exception as exc:
                                 logger.error(
                                     "extract_all (two-stage): KG write failed for %s '%s' on %s: %s",
@@ -1456,6 +1471,12 @@ async def _run_two_stage(
         "%d entities with claims, %d KG rows queued",
         len(chunks), total_entities, entity_done, len(kg_payload),
     )
+    if persist_kg and db and (written_entity_ids or written_claim_ids):
+        emit_workflow_kg_changes(
+            str(db.path.parent),
+            entity_ids=written_entity_ids,
+            claim_ids=written_claim_ids,
+        )
     return {
         "text": _render_extraction_markdown(extraction),
         "value": {
@@ -1773,6 +1794,8 @@ async def extract_all(
 
     persist_kg = inputs.get("persist_kg", True)
     kg_payload: list[dict[str, Any]] = []
+    written_entity_ids: list[str] = []
+    written_claim_ids: list[str] = []
 
     # Write errors and KG saves whenever we have a container/library —
     # even if every chunk failed, the per-page extraction_error
@@ -1846,13 +1869,15 @@ async def extract_all(
                         }
                     )
                     if persist_kg:
-                        _write_kg_rows(
+                        entity_ids, claim_ids = _write_kg_rows(
                             db, section, items, target_doc_id,
                             page_label=page_label, source_excerpt=excerpt,
                             provider=getattr(llm_config, "provider", None),
                             model=getattr(llm_config, "model", None),
                             grounding_text=chunk_text,
                         )
+                        written_entity_ids.extend(entity_ids)
+                        written_claim_ids.extend(claim_ids)
                     await emit_progress_event(
                         progress_callback,
                         "file_complete",
@@ -1975,15 +2000,23 @@ async def extract_all(
                         k: list(v) for k, v in type_map.items() if v
                     }
                     if merged_additional:
-                        _persist_additional_entities(
+                        entity_ids, claim_ids = _persist_additional_entities(
                             db, merged_additional, target_doc_id
                         )
+                        written_entity_ids.extend(entity_ids)
+                        written_claim_ids.extend(claim_ids)
 
             # Drain the queued artifact writes before this node returns
             # — downstream folder-cleanup nodes read these artifacts.
             await asyncio.to_thread(db_writer.flush)
             container.updated_at = datetime.now()
             db.save(container)
+            if persist_kg and (written_entity_ids or written_claim_ids):
+                emit_workflow_kg_changes(
+                    str(db.path.parent),
+                    entity_ids=written_entity_ids,
+                    claim_ids=written_claim_ids,
+                )
         except Exception as exc:
             logger.error(f"extract_all: KG/artifact save failed: {exc}")
 

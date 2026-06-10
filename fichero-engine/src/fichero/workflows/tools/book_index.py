@@ -23,6 +23,7 @@ from fichero.workflows.tools.llm_base import (
     merge_config_schema,
     merge_ports,
 )
+from fichero.workflows.tools._workflow_change_emit import emit_workflow_kg_changes
 from fichero.workflows.types import DataType, PortDef, State
 
 
@@ -339,6 +340,8 @@ async def book_index_extract(
 
     values: list[dict[str, Any]] = []
     markdown: list[str] = ["# Book Index Topics"]
+    written_entity_ids: list[str] = []
+    written_claim_ids: list[str] = []
 
     for entry in entries:
         entity_id = _write_topic_entity(db, entry)
@@ -359,6 +362,7 @@ async def book_index_extract(
                 "(suppressed by curation rule)"
             )
             continue
+        written_entity_ids.append(entity_id)
 
         for printed_page in entry.page_refs[:max_pages_per_topic]:
             page = resolve_printed_page(
@@ -424,6 +428,7 @@ async def book_index_extract(
                 )
                 if claim_id is not None:
                     statements_written += 1
+                    written_claim_ids.append(claim_id)
 
         value = {
             "term": entry.term,
@@ -449,5 +454,11 @@ async def book_index_extract(
         run_id=state.get("task_id"),
     )
     db.save(artifact)
+    if written_entity_ids or written_claim_ids:
+        emit_workflow_kg_changes(
+            str(db.path.parent),
+            entity_ids=written_entity_ids,
+            claim_ids=written_claim_ids,
+        )
 
     return {"text": artifact.content, "value": values, "cached": False}

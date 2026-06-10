@@ -116,3 +116,60 @@ async def test_extract_all_mock_writes_claims_and_artifacts(db, test_package, ca
     text = caplog.text.lower()
     assert "paid" not in text
     assert "incurs cost" not in text
+
+
+@pytest.mark.asyncio
+async def test_extract_all_mock_emits_workflow_change_events(
+    db,
+    test_package,
+    monkeypatch,
+):
+    from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+
+    folder = Document(name="Folder", path="/tmp/folder", doc_type=DocType.folder)
+    page1 = Document(name="p1", path="/tmp/folder/p1.png", doc_type=DocType.page)
+    page2 = Document(name="p2", path="/tmp/folder/p2.png", doc_type=DocType.page)
+    db.save(folder)
+    db.save(page1)
+    db.save(page2)
+
+    events: list[tuple[str, dict]] = []
+
+    def _spy_emit(library_path: str, **kwargs) -> None:
+        events.append((library_path, kwargs))
+
+    monkeypatch.setattr(
+        "fichero.workflows.tools._workflow_change_emit.emit_change",
+        _spy_emit,
+    )
+
+    result = await extract_all_module.extract_all(
+        {
+            "text": "Ada signed the ledger in Mockton.",
+            "records": [
+                {"doc_id": page1.id, "text": "Ada signed the ledger in Mockton."},
+                {"doc_id": page2.id, "text": "Ada signed the ledger in Mockton again."},
+            ],
+            "persist_kg": True,
+        },
+        {"library_path": str(test_package), "selected_doc_ids": [folder.id]},
+        LLMConfig(provider="mock", model="mock"),
+    )
+
+    assert not result.get("error")
+    assert [event[1]["type"] for event in events] == [
+        "entity.updated",
+        "claim.updated",
+    ]
+    assert all(event[0] == str(test_package) for event in events)
+    assert all(event[1]["actor"] == "workflow" for event in events)
+
+    entity_event = events[0][1]
+    claim_event = events[1][1]
+    assert entity_event["entity_ids"]
+    assert claim_event["claim_ids"]
+
+    entity_ids = {entity.id for entity in db.query(KnowledgeEntity)}
+    claim_ids = {claim.id for claim in db.query(KnowledgeClaim)}
+    assert set(entity_event["entity_ids"]).issubset(entity_ids)
+    assert set(claim_event["claim_ids"]).issubset(claim_ids)

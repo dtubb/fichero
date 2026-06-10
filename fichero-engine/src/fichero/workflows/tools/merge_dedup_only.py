@@ -38,6 +38,7 @@ from fichero.workflows.tools._entity_writer import (
 from fichero.workflows.tools.import_artifacts import _coerce_documents
 from fichero.workflows.tools.progress import emit_progress_event
 from fichero.workflows.tools.sources import files_tool
+from fichero.workflows.tools._workflow_change_emit import emit_workflow_kg_changes
 from fichero.workflows.types import DataType, PortDef, State
 from fichero.api.routes.claim_curation import ClaimMergeRequest, merge_claims
 from fichero.api.routes.kg_entity_curation import EntityMergeRequest, merge_entities
@@ -178,6 +179,8 @@ async def merge_dedup_only(
         "claims_pruned_trivial": 0,
         "claim_merges": 0,
     }
+    touched_entity_ids: list[str] = []
+    touched_claim_ids: list[str] = []
 
     entities = _scoped_entities(db, scoped_doc_ids)
     summary["entities_examined"] = len(entities)
@@ -198,6 +201,7 @@ async def merge_dedup_only(
                 entity.curation_state = _REJECTED_ENTITY_STATE
                 entity.updated_at = datetime.now()
                 db.save(entity)
+                touched_entity_ids.append(entity.id)
                 summary["entities_suppressed"] += 1
             continue
 
@@ -230,6 +234,7 @@ async def merge_dedup_only(
             ),
             db=db,
         )
+        touched_entity_ids.extend([target_id, entity.id])
         summary["entities_merged"] += 1
         if target_type != entity.entity_type:
             summary["entities_reclassified"] += 1
@@ -274,6 +279,7 @@ async def merge_dedup_only(
                 claim.confidence = next_confidence
                 claim.updated_at = datetime.now()
                 db.save(claim)
+                touched_claim_ids.append(claim.id)
                 summary["claims_suppressed"] += 1
 
         if is_trivial_claim(claim):
@@ -286,6 +292,7 @@ async def merge_dedup_only(
                 claim.confidence = next_confidence
                 claim.updated_at = datetime.now()
                 db.save(claim)
+                touched_claim_ids.append(claim.id)
                 summary["claims_pruned_trivial"] += 1
 
         key = (
@@ -313,6 +320,7 @@ async def merge_dedup_only(
             ),
             db=db,
         )
+        touched_claim_ids.extend([survivor.id, *[claim.id for claim in absorbed]])
         summary["claim_merges"] += len(absorbed)
 
     await emit_progress_event(
@@ -324,6 +332,12 @@ async def merge_dedup_only(
         2,
         message="Applied claim suppression and trivial-claim pruning",
     )
+    if touched_entity_ids or touched_claim_ids:
+        emit_workflow_kg_changes(
+            str(db.path.parent),
+            entity_ids=touched_entity_ids,
+            claim_ids=touched_claim_ids,
+        )
 
     return {"summary": summary, "count": len(scoped_doc_ids)}
 

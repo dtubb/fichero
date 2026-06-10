@@ -142,6 +142,57 @@ def test_extract_entities_tool_accepts_singleton_document_payload_without_unpack
     }
 
 
+def test_extract_entities_only_emits_per_document_workflow_changes(tmp_path: Path, monkeypatch):
+    library_path, parent_doc_id, page_doc_ids = _seed_importable_pdf_library(tmp_path)
+    events: list[tuple[str, dict]] = []
+
+    async def fake_entities(**kwargs):
+        del kwargs
+        return _EntitiesOnly(
+            people=[_EntityOnly(name="Ada Mock", aliases=[])],
+            places=[_EntityOnly(name="Mockton", aliases=[])],
+            organizations=[],
+            dates=[],
+            events=[],
+        )
+
+    def _spy_emit(library_path: str, **kwargs) -> None:
+        events.append((library_path, kwargs))
+
+    monkeypatch.setattr(
+        "fichero.workflows.tools.extract_entities_only.chat_structured_with_fallback",
+        fake_entities,
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.tools._workflow_change_emit.emit_change",
+        _spy_emit,
+    )
+
+    result = asyncio.run(
+        extract_entities_only(
+            inputs={},
+            state={
+                "library_path": str(library_path),
+                "selected_doc_ids": [parent_doc_id],
+                "task_id": "extract-entities-emit-per-document",
+            },
+            llm_config=LLMConfig(provider="mock", model="mock"),
+        )
+    )
+
+    assert result["count"] == 2
+    assert len(events) == 4
+    assert all(event[0] == str(library_path) for event in events)
+    assert all(event[1]["actor"] == "workflow" for event in events)
+
+    entity_events = [event[1] for event in events if event[1]["type"] == "entity.updated"]
+    claim_events = [event[1] for event in events if event[1]["type"] == "claim.updated"]
+    assert len(entity_events) == 2
+    assert len(claim_events) == 2
+    assert all(event["entity_ids"] for event in entity_events)
+    assert all(event["claim_ids"] == [] for event in claim_events)
+
+
 def _seed_importable_pdf_library(tmp_path: Path) -> tuple[Path, str, list[str]]:
     library_path = tmp_path / "extract-entities-stage.fichero"
     seed(library_path)

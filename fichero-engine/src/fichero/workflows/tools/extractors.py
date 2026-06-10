@@ -1962,7 +1962,7 @@ def _write_kg_rows(
     provider: str | None = None,
     model: str | None = None,
     grounding_text: str | None = None,
-) -> None:
+) -> tuple[list[str], list[str]]:
     """Persist extractor items as KnowledgeEntity + KnowledgeClaim rows.
 
     Sections with ``entity_type`` set produce one entity per item (upsert
@@ -1991,7 +1991,7 @@ def _write_kg_rows(
             provider=provider,
             model=model,
         )
-        return
+        return [], []
 
     from fichero.knowledge_models import (
         ClaimType,
@@ -2239,6 +2239,8 @@ def _write_kg_rows(
     items_in = len(items)
     entities_written = 0
     claims_written = 0
+    written_entity_ids: list[str] = []
+    written_claim_ids: list[str] = []
     claims_to_embed: list[KnowledgeClaim] = []
     # #1017 layer 2: collect boundary-invariant violations so silent
     # drops (anchorless items, degenerate descriptions) surface in the
@@ -2489,6 +2491,7 @@ def _write_kg_rows(
             )
             if claim_id is not None:
                 claims_written += 1
+                written_claim_ids.append(claim_id)
                 claim = db.get(KnowledgeClaim, claim_id)
                 if claim is not None:
                     claims_to_embed.append(claim)
@@ -2539,6 +2542,7 @@ def _write_kg_rows(
                 )
                 if claim_id is not None:
                     claims_written += 1
+                    written_claim_ids.append(claim_id)
                     claim = db.get(KnowledgeClaim, claim_id)
                     if claim is not None:
                         claims_to_embed.append(claim)
@@ -2587,6 +2591,7 @@ def _write_kg_rows(
         )
         if entity_id is None:
             continue
+        written_entity_ids.append(entity_id)
         # #1119 — reverse alias scan over claim text + predicate + excerpt.
         # Subject entity is already in entity_ids; the scan extends with
         # any OTHER known entities mentioned. Example: "Chocó is part of
@@ -2641,6 +2646,7 @@ def _write_kg_rows(
         entities_written += 1
         if claim_id is not None:
             claims_written += 1
+            written_claim_ids.append(claim_id)
             claim = db.get(KnowledgeClaim, claim_id)
             if claim is not None:
                 claims_to_embed.append(claim)
@@ -2667,6 +2673,7 @@ def _write_kg_rows(
             f"{page_label or 'whole-doc'} on {container_id} — "
             f"invariant violations: {summarize_violations(invariant_violations)}"
         )
+    return written_entity_ids, written_claim_ids
 
 
 # =============================================================================
