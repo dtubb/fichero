@@ -32,7 +32,7 @@ import fichero.api.routes.claims  # noqa: F401
 import fichero.api.routes.claim_links  # noqa: F401
 import fichero.api.routes.claim_curation  # noqa: F401
 from fichero.actions.registry import ActionContext, registry
-from fichero.models import ActionAudit, Document
+from fichero.models import ActionAudit, Document, DocType
 from fichero.knowledge_models import (
     ClaimCurationState,
     ClaimRelationType,
@@ -61,6 +61,10 @@ def spy_emit(monkeypatch):
 
 
 def _save_claim(db, text="A claim", **kwargs) -> KnowledgeClaim:
+    # KnowledgeClaim requires text + source_document_id; default the source here
+    # (a placeholder id is fine — _save_claim writes the row directly, bypassing
+    # the create_claim_impl source-doc-exists check).
+    kwargs.setdefault("source_document_id", "doc-claim-src")
     claim = KnowledgeClaim(text=text, **kwargs)
     db.save(claim)
     return claim
@@ -88,11 +92,17 @@ class TestClaimCrudActions:
     def test_create_effect_audit_and_emit(self, db, spy_emit):
         ent = KnowledgeEntity(canonical_name="Davidson")
         db.save(ent)
+        src = Document(name="src", path="/tmp/src.pdf", doc_type=DocType.file)
+        db.save(src)
 
         result = registry.invoke(
             db,
             "claim.create",
-            {"text": "Davidson wrote about meaning", "entity_ids": [ent.id]},
+            {
+                "text": "Davidson wrote about meaning",
+                "entity_ids": [ent.id],
+                "source_document_id": src.id,
+            },
             _ctx(),
         )
 
@@ -121,7 +131,11 @@ class TestClaimCrudActions:
         """(b) create -> undo (delete) removes it; the delete is itself undoable,
         so undo-of-undo (restore) brings it back — redo/undo chain is sane."""
         ctx = _ctx()
-        result = registry.invoke(db, "claim.create", {"text": "ephemeral"}, ctx)
+        src = Document(name="src", path="/tmp/src.pdf", doc_type=DocType.file)
+        db.save(src)
+        result = registry.invoke(
+            db, "claim.create", {"text": "ephemeral", "source_document_id": src.id}, ctx
+        )
         new_id = result.result["id"]
         assert db.get(KnowledgeClaim, new_id) is not None
 
