@@ -8,6 +8,7 @@ but not wired/enforced · ❌ not built yet (issue filed).
 - ✅ **Endpoints are used** — no dead routes (`check_endpoint_usage.py`, #1920)
 - ✅ **No direct endpoint calls in SwiftUI** — views go through @Observable stores (`check_view_endpoint_access.py`, #1911)
 - ✅ **Observer-pattern ratchet** — flag legacy @EnvironmentObject/@StateObject/direct-library access in Views (`check_observer_pattern.py`, #1851/#1875)
+- ✅ **Test assertions ratchet** — every test should have assertions (`check_test_assertions.py`), with seeded baselines and a `--list`/`--help` mode; included in `verify_all --fast`.
 - ✅ **Logic in backend, no raw SQL outside db.py** (`test_db_access_guardrail.py`, #1876)
 - ✅ **CLI ↔ SwiftUI ↔ OpenAPI** consume the same contract (`validate_model_sync.py` + endpoint matrix)
 - ⏳ **Completeness matrices** — endpoint×{store,cli,swift}, undo coverage, CRUD per entity, action×{menu,context-menu,toolbar,keyboard} (#1925)
@@ -29,7 +30,7 @@ but not wired/enforced · ❌ not built yet (issue filed).
 - ✅ **Swift unit tests** (xcodebuild test)
 - ✅ **CLI live-contract tests** (#252)
 - ⚠️ **GUI / XCUITest** (#1230) exists but is QUEUED — not run in verify → **#1939**
-- ❌ **Test coverage is solid** — not everything is tested; enumerate gaps → issues (#1916, Test Coverage milestone)
+- ⚠️ **Test coverage backlog** — `scripts/scan_test_coverage_gaps.py` generates grouped untested-symbol reports and (manager-run) files one issue per module in milestone #82 with label `type:test`.
 
 ## Mac-assed
 - ✅ native controls (`check_native_controls.py`) · ✅ no-emoji/SF-Symbols/fonts (`check_no_emoji_sf_symbols.py`)

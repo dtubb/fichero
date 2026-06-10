@@ -111,3 +111,23 @@ For unattended runs (`/session-start-auto`, `/loop`), the same rules apply, plus
 - **The lead synthesizes.** Don't let teammates' raw findings land unfiltered;
   the lead reads, judges, and applies.
 - **Clean up.** The lead runs team cleanup after shutting down teammates.
+
+## Test-infrastructure pipeline
+
+The lane contract is fixed:
+
+- IMPLEMENT
+- CODE REVIEW (different model, programmatic via `/code-review`)
+- FIX
+- TEST-EXPAND
+- TEST-SANITY
+- MANAGER GATE
+
+Execution rules:
+
+- Backend pytest runs on every integration:
+  `PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived`
+- Swift/UI/CLI tests are written by the test-writer lane in two passes (author
+  pass and independent adversarial pass).
+- Manager verifies Swift/UI by compile/build in deliberate batches.
+- Never run `xcodebuild test` or `verify_all --full` on Daniel’s machine (GUI/window side effects).
