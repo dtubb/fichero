@@ -34,6 +34,8 @@ PY_TEST_ROOT = ROOT / "fichero-engine" / "tests"
 CLI_ROOT = ROOT / "fichero" / "fichero-cli"
 BASELINE_FILE = ROOT / "scripts" / ".test_coverage_baseline.json"
 MILESTONE_NUMBER = 82
+# `gh issue create --milestone` resolves by TITLE, not number.
+MILESTONE_TITLE = "Test Coverage"
 ISSUE_LABEL = "type:test"
 
 PY_TEST_FILES = sorted(PY_TEST_ROOT.rglob("*.py"))
@@ -231,7 +233,17 @@ def _build_issue_body(module: str, symbols: list[SymbolEntry], new_only: list[st
     if new_only is not None and new_only:
         lines.append("(new since last baseline)")
         lines.append("")
-    lines.extend(f"- {symbol.file}::{symbol.kind} {symbol.name}" for symbol in symbols)
+    # Cap the listing so very large groups stay well under GitHub's 64KB body
+    # limit; the full set is always reproducible from the scanner.
+    cap = 200
+    shown = symbols[:cap]
+    lines.extend(f"- {symbol.file}::{symbol.kind} {symbol.name}" for symbol in shown)
+    if len(symbols) > cap:
+        lines.append("")
+        lines.append(
+            f"… and {len(symbols) - cap} more "
+            f"(run `python3 scripts/scan_test_coverage_gaps.py` for the full list)."
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -252,7 +264,7 @@ def _upsert_issue(module: str, symbols: list[SymbolEntry], issue_number: int | N
             "--body",
             body,
             "--milestone",
-            str(MILESTONE_NUMBER),
+            MILESTONE_TITLE,
             "--label",
             ISSUE_LABEL,
         ]
