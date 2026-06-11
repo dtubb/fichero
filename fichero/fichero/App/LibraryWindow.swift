@@ -97,11 +97,16 @@ struct LibraryWindow: View {
         ) { result in
             handleFileImport(result)
         }
-        .focusedValue(\.openLibraryAction, { showingFileImporter = true })
-        .focusedValue(\.newWindowAction, { handleNewWindow() })
-        .focusedValue(\.newLibraryAction, { handleNewLibrary() })
-        .focusedValue(\.saveLibraryAction, { handleSaveLibrary() })
-        .focusedValue(\.closeLibraryAction, closeLibraryAction)
+        // Scene-scoped so the File-menu commands resolve whenever this window
+        // is key — not only while a descendant view holds keyboard focus.
+        // Plain `.focusedValue` left ⌘N / "New Library…" disabled until some
+        // inner control happened to be focused (#2042). Matches the rest of the
+        // app's menu plumbing (sidebarMode, showInspector, librarySelectAll…).
+        .focusedSceneValue(\.openLibraryAction, { showingFileImporter = true })
+        .focusedSceneValue(\.newWindowAction, { handleNewWindow() })
+        .focusedSceneValue(\.newLibraryAction, { handleNewLibrary() })
+        .focusedSceneValue(\.saveLibraryAction, { handleSaveLibrary() })
+        .focusedSceneValue(\.closeLibraryAction, closeLibraryAction)
         // Keep titlebar chrome minimal; ContentView manages in-window context.
         .navigationTitle("")
         .navigationSubtitle("")
@@ -290,12 +295,15 @@ struct LibraryWindow: View {
                 ? url
                 : url.appendingPathExtension("fichero")
 
-            // Create unsaved library, immediately save to chosen location, keep in current window.
+            // Create unsaved library, immediately save to chosen location, then
+            // open it in a NEW window (New Library… is distinct from New Window,
+            // which reuses the current library). Reuses the same pending-library
+            // → openWindow("main") affordance as every other open-in-new-window
+            // path (WindowOpener), so the fresh scene picks the library up on init.
             let newLibrary = libraryManager.createNewLibrary()
             do {
                 try libraryManager.saveLibrary(newLibrary.id, to: finalURL)
-                assignLibrary(id: newLibrary.id)
-                libraryManager.currentLibraryId = newLibrary.id
+                WindowOpener.open(libraryId: newLibrary.id, asTab: false, using: openWindow)
                 libraryWindowLogger.info("Created and saved new library: \(finalURL.lastPathComponent)")
             } catch {
                 libraryWindowLogger.error("Failed to create new library: \(error.localizedDescription)")
