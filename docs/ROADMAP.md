@@ -18,6 +18,51 @@ breaks an architectural rule fails loudly instead of rotting. A continuous
 > Operating model unchanged: dated releases, one milestone in focus at a time,
 > features not release-gated. This just sets *which* milestone is in focus next.
 
+## ▶ CURRENT WORK ORDER (2026-06-11) — authoritative
+
+**Everything is filed into a milestone; we work milestones properly, in this
+four-phase order** (Daniel, 2026-06-11). The tiers below are finer-grained
+backing; this is the sequence. Work Phase 1 to a good stopping point before Phase 2, etc.
+
+### Cross-cutting GUARANTEE — Privacy: nothing goes online without consent
+**No information is sent to any online/cloud service unless the user explicitly
+allows it.** Default-private posture; a global **local-only / no-cloud** setting
+(#2063) that *refuses* cloud providers; a clear **indicator** whenever a path
+would send data online; local engines (MLX / Apple on-device, #2066) are
+first-class so the app is fully usable with zero cloud. Enforced at the
+LLM/vision/API dispatch layer, surfaced in the UI. This is a product principle.
+
+### Foundations already shipped (what the phases stand on)
+- **Audited action layer** #1848 ✅ — every mutation = typed, attributed, undoable action.
+- **Observable substrate** ✅ — per-library stores + emit_change + SSE.
+- **Undo** #2015 ✅ (single-action; run-scoped grouped undo = #2074, queued).
+- **Multi-user accounts BACKEND** #2022 ✅ — scrypt + sessions, behind `FICHERO_MULTIUSER` OFF, security-reviewed.
+- **AI-infra hygiene:** model-cache #2050 ✅, engine `workers=1` #2044 ✅, Settings-crash #2051 ✅.
+
+### Phase 1 — INFRASTRUCTURE  ◀ doing now
+Multi-user/remote + observable + AI-infra hygiene.
+- **EPIC #2021 multi-user/permissions/remote** → #2023 (actor from session, NEXT) → #2043 (tamper-evident audit log) → #2025 (kill ambient authority) → #2024 (per-library ACL + private-by-default sharing) → #2048 (bind host) → #2026 (Tailscale).
+- Audit-derived (#2027/#2028): #2045 (SSE network hardening), #2046 (scheduled/offsite backups).
+- **Observable Data Layer:** #1935 (one code path per endpoint/store + shared renderer), #2001/#2008/#2009.
+- **AI-infra hygiene:** #2055 (API-client/Apple-bridge reuse), #2049 (embedding pooling — **DANIEL: pin vs re-embed decision**).
+- Data safety: **Trash** #2075 (soft-delete + restore), backups #2046.
+
+### Phase 2 — MAC-ASSED APP
+The native structure + polish.
+- **EPIC #2030 window structure** → #2031 (persistent shell, keystone) → #2032 (zoned toolbar) → styling #2033–#2040 + Liquid Glass #2041.
+- Bugs/features: #2020 (entity-provenance table), #2052 (PDF thumbnail), #2053 (page labels), #2042 (File ▸ New library).
+- Milestones: Window Chrome & Toolbars, Mac App Shell, Mac Polish, Library & Reading Surface (structural), Finder-style selection EPIC #1962, semantic-fonts EPIC #1969.
+
+### Phase 3 — WORKFLOW & AI INFERENCE (efficiency)
+Make inference fast, batched, scalable, private.
+- **EPIC #2056 AI Infrastructure:** #2057 (LangChain `.abatch` — 1000s-of-images lever), #2055 (client reuse), #2062 (bounded concurrency/memory), #2058 (dynamic profiles), #2063 (local-only), #2066 (local MLX via mlx-lm-server), #2060 (Apple Vision OCR), #2061 (image-edit backend OpenCV vs Quartz), #2059 (Apple skills vs AI skills), #2065 (code review).
+- Milestone: Workflows.
+
+### Phase 4 — RESEARCHER / AI / AGENT (north-star, on phases 1–3)
+- **EPIC #2067 in-app Agent** — Workspace ≡ RAG/Graph chat ≡ Agent; an **agent is a principal**: #2068 (Researcher→Agent), #2069 (manager-with-workers runtime), #2070 (tasks/milestones UI), #2071 (Pi harness on mlx-lm-server), #2072 (agent workspace + scratchpad), #2073 (visibility), #2074 (run-scoped undo). Agent acts across all surfaces (search / 2D library / edit-workflows / review-runs) via audited tools (#1848); **reuses accounts #2022 + attribution #2023 + ACL #2024 + undo #2015 — don't build a parallel agent system.**
+
+---
+
 ## Tier 0 — Gates & Verify (continuous; bootstrap first)
 The safety net. Everything below is verified against it.
 - Multi-level `verify_all` (fast / standard / full / profile) — #1910
