@@ -183,6 +183,7 @@
 		4521CFC5D73D8706FAE283CA /* InterpretationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42C41E0F485064FDA5EAEB9 /* InterpretationStore.swift */; };
 		46A484C19A075EC0120FAF69 /* AddToRoomPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92B0E47A1378F8B2AE6EFB3 /* AddToRoomPicker.swift */; };
 		48566E1CB89ED6382581A546 /* ObservableDomainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B628D9325A5B301E5827F0C1 /* ObservableDomainStore.swift */; };
+		48644281A751D62184D6C831 /* FicheroActionIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60A05B7F3C09F6A27BE55971 /* FicheroActionIntents.swift */; };
 		495FCF3ED790C015FBF4BE70 /* NotesBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAA77E9001736B77957513A4 /* NotesBrowserView.swift */; };
 		4AFAA394C8AB364CB2425517 /* ResearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11DB5E2213FF12794A689A7F /* ResearchService.swift */; };
 		4C823323E8BC468934CFD1C4 /* AppNavigationHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C6A533EA3E96E1F5AE19ED /* AppNavigationHistory.swift */; };
@@ -401,6 +402,7 @@
 		B3A002060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001060000000000BATCH3 /* ChatInspector+ScopedDocuments.swift */; };
 		B3A002070000000000BATCH3 /* ChatInspector+Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001070000000000BATCH3 /* ChatInspector+Search.swift */; };
 		B3A002080000000000BATCH3 /* ActivityDataProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A001080000000000BATCH3 /* ActivityDataProcessing.swift */; };
+		B47244FDC35E7D8B8EAA65AB /* FicheroShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68C8C5672F78A996924D42D1 /* FicheroShortcuts.swift */; };
 		B4A002010000000000BATCH4 /* ModelComparisonView+Sidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001010000000000BATCH4 /* ModelComparisonView+Sidebar.swift */; };
 		B4A002020000000000BATCH4 /* ComparisonResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001020000000000BATCH4 /* ComparisonResultView.swift */; };
 		B4A002030000000000BATCH4 /* ModelResultCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A001030000000000BATCH4 /* ModelResultCard.swift */; };
@@ -736,6 +738,7 @@
 		5DFDA42FD3B68F90E0E4D426 /* MindPalaceService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindPalaceService.swift; sourceTree = "<group>"; };
 		5E980A75F8C3912DD4B196DA /* SpatialScene3D.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialScene3D.swift; sourceTree = "<group>"; };
 		5F4CC27137A8C532B4B2D3E9 /* WelcomeView+OnboardingWizardCore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "WelcomeView+OnboardingWizardCore.swift"; sourceTree = "<group>"; };
+		60A05B7F3C09F6A27BE55971 /* FicheroActionIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroActionIntents.swift; sourceTree = "<group>"; };
 		6175F28D959ABB4DB0C2F4CD /* ActionInvokeService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActionInvokeService.swift; sourceTree = "<group>"; };
 		61D7DC57117008EBCFE607A9 /* AnnotationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationService.swift; sourceTree = "<group>"; };
 		62708E3F674B9F832BF8DB9F /* DocumentInspectorContentV2.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentInspectorContentV2.swift; sourceTree = "<group>"; };
@@ -744,6 +747,7 @@
 		675E69DE1A8C941ABBEBB0E0 /* NewEntitySheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NewEntitySheet.swift; sourceTree = "<group>"; };
 		680EF0343426DD309F347B5E /* WelcomeView+OnboardingWizardViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "WelcomeView+OnboardingWizardViews.swift"; sourceTree = "<group>"; };
 		688ECE0FC82045A06149A5FA /* SidebarView+UnifiedRows.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarView+UnifiedRows.swift"; sourceTree = "<group>"; };
+		68C8C5672F78A996924D42D1 /* FicheroShortcuts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroShortcuts.swift; sourceTree = "<group>"; };
 		6931274044832BD7EFE8A4D3 /* SidebarView+LibraryHeaderHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarView+LibraryHeaderHelpers.swift"; sourceTree = "<group>"; };
 		6C0044833E201FFB8B8A5B37 /* EntityDetailView+Sections.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Sections.swift"; sourceTree = "<group>"; };
 		6FC331F7BFE50CEECD3B4414 /* ArtifactStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactStore.swift; sourceTree = "<group>"; };
@@ -1055,6 +1059,16 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		017DF74AC5DDEA4A8C3EC87E /* Intents */ = {
+			isa = PBXGroup;
+			children = (
+				68C8C5672F78A996924D42D1 /* FicheroShortcuts.swift */,
+				60A05B7F3C09F6A27BE55971 /* FicheroActionIntents.swift */,
+			);
+			name = Intents;
+			path = Intents;
+			sourceTree = "<group>";
+		};
 		0F170C35E012F960BCA4CDEA /* KnowledgeGraph */ = {
 			isa = PBXGroup;
 			children = (
@@ -1191,6 +1205,7 @@
 				414 /* Resources */,
 				413 /* Services */,
 				411 /* Views */,
+				017DF74AC5DDEA4A8C3EC87E /* Intents */,
 			);
 			path = fichero;
 			sourceTree = "<group>";
@@ -2593,6 +2608,8 @@
 				E096F5149317970F438FE9B9 /* ReferencesInspectorPane.swift in Sources */,
 				4521CFC5D73D8706FAE283CA /* InterpretationStore.swift in Sources */,
 				56B06FF519C1F4B9CD4E6214 /* ActionInvokeService.swift in Sources */,
+				B47244FDC35E7D8B8EAA65AB /* FicheroShortcuts.swift in Sources */,
+				48644281A751D62184D6C831 /* FicheroActionIntents.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
