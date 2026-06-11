@@ -1166,6 +1166,55 @@ async def reorder_documents(
     return ReorderResponse(status="reordered", count=len(doc_ids))
 
 
+def import_uploaded_file_impl(
+    db: Database,
+    file_path: Path,
+    *,
+    original_filename: str | None = None,
+    parent_id: str | None = None,
+) -> Document:
+    """Ingest a file already on disk (COPY mode) and create a Document.
+
+    Extracted from the ``POST /import`` route so the route and the
+    ``import.upload_file`` action share the SAME ingest + filename-preservation
+    logic (iterate-not-replace, EPIC #1848 / #2014). The caller owns the file's
+    lifecycle — the route writes+cleans a multipart temp file; the action is
+    handed a server-side path it does not delete.
+    """
+    from fichero.ingest import ingest_file, IngestMode
+
+    # Get library package path from database path.
+    # db.path is like /path/to/Library.fichero/fichero.duckdb
+    # package_path should be /path/to/Library.fichero
+    package_path = Path(db.path).parent
+
+    # Ingest the file (copies to library storage and saves to database)
+    doc = ingest_file(
+        path=file_path,
+        mode=IngestMode.COPY,  # Copy file into library
+        parent_id=parent_id,
+        extract_metadata=True,  # Extract file metadata
+        extract_text=True,  # Extract text for search
+        save=True,  # Save to database
+        db=db,  # Database instance
+        package_path=package_path,  # Library package path
+    )
+
+    # Preserve the user's original filename (#1104). save_uploaded_file
+    # writes to a temp file named ``fichero_upload_<random><ext>`` and
+    # ingest_file derives Document.name from ``path.name`` — without
+    # this fixup every imported document shows up as
+    # ``fichero_upload_*`` in docs list / sidebar. The hashed storage
+    # filename stays on Document.path; only the display name is
+    # corrected to the original filename.
+    if original_filename and doc.name != original_filename:
+        doc.name = original_filename
+        db.save(doc)
+
+    logger.info(f"Imported document: {doc.id} ({doc.name})")
+    return doc
+
+
 @router.post("/import")
 async def import_file(
     file: UploadFile,
@@ -1177,42 +1226,18 @@ async def import_file(
     ),
 ) -> Document:
     """Import a file and create a document."""
-    from fichero.ingest import ingest_file, IngestMode
     from fichero.storage import save_uploaded_file
 
     # Save the uploaded file to temp location
     temp_path = await save_uploaded_file(file)
 
     try:
-        # Get library package path from database path
-        # db.path is like /path/to/Library.fichero/fichero.duckdb
-        # package_path should be /path/to/Library.fichero
-        package_path = Path(db.path).parent
-
-        # Ingest the file (copies to library storage and saves to database)
-        doc = ingest_file(
-            path=temp_path,
-            mode=IngestMode.COPY,  # Copy file into library
+        doc = import_uploaded_file_impl(
+            db,
+            temp_path,
+            original_filename=file.filename,
             parent_id=parent_id,
-            extract_metadata=True,  # Extract file metadata
-            extract_text=True,  # Extract text for search
-            save=True,  # Save to database
-            db=db,  # Database instance
-            package_path=package_path,  # Library package path
         )
-
-        # Preserve the user's original filename (#1104). save_uploaded_file
-        # writes to a temp file named ``fichero_upload_<random><ext>`` and
-        # ingest_file derives Document.name from ``path.name`` — without
-        # this fixup every imported document shows up as
-        # ``fichero_upload_*`` in docs list / sidebar. The hashed storage
-        # filename stays on Document.path; only the display name is
-        # corrected to the upload's multipart filename.
-        if file.filename and doc.name != file.filename:
-            doc.name = file.filename
-            db.save(doc)
-
-        logger.info(f"Imported document: {doc.id} ({doc.name})")
 
         # Observable data layer (#1863): broadcast the new document so every
         # window's DocumentStore refreshes. Best-effort.
@@ -1994,3 +2019,71 @@ def _action_restore_documents(
         document_ids=restored_ids,
     )
     return {"restored_document_ids": restored_ids}, spec
+
+
+# ---------------------------------------------------------------------------
+# import.upload_file (EPIC #1848 / #2014) — the IMPORT-domain action for the
+# multipart ``POST /import`` route. The file/folder/xlsx import actions live in
+# ``api/routes/ingest.py``; this one lives here because it wraps the upload
+# route's ``import_uploaded_file_impl``. Creates ONE document, so — like
+# ``document.create`` and ``import.file`` — it inverts to ``document.delete``.
+
+
+class UploadFileImportParams(BaseModel):
+    """Params for import.upload_file — a server-accessible path to ingest.
+
+    Unlike the route (which is handed a multipart upload it saves to a temp
+    file), the action receives a path the engine can already read and does NOT
+    delete it — the caller owns the file's lifecycle.
+    """
+
+    path: str = Field(description="Server-accessible path of the file to import")
+    parent_id: str | None = Field(
+        default=None, description="Parent collection id (None imports to root)"
+    )
+    original_filename: str | None = Field(
+        default=None,
+        description="Display name to preserve (overrides the on-disk filename).",
+    )
+
+
+def _invert_import_upload_to_delete(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    document_id = after.get("document_id")
+    if not document_id:
+        return None
+    return ("document.delete", {"doc_id": document_id})
+
+
+@action(
+    "import.upload_file",
+    UploadFileImportParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_import_upload_to_delete,
+)
+def _action_import_upload_file(
+    db: Database, params: UploadFileImportParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    file_path = Path(params.path)
+    if not file_path.exists():
+        raise HTTPException(status_code=400, detail=f"File not found: {params.path}")
+    if not file_path.is_file():
+        raise HTTPException(status_code=400, detail=f"Not a file: {params.path}")
+    doc = import_uploaded_file_impl(
+        db,
+        file_path,
+        original_filename=params.original_filename,
+        parent_id=params.parent_id,
+    )
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[doc.id],
+        after={"document_id": doc.id},
+        emit_type="document.created",
+        document_ids=[doc.id],
+    )
+    return doc.model_dump(mode="json"), spec
