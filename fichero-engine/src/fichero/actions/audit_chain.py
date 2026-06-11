@@ -82,10 +82,9 @@ def _backfill_chain_seq(db) -> None:
     ):
         if audit.chain_seq == chain_seq:
             continue
-        db._execute(
-            'UPDATE "actionaudits" SET chain_seq = $chain_seq WHERE id = $id',
-            {"chain_seq": chain_seq, "id": audit.id},
-        )
+        # Persist via the typed upsert, not raw SQL (#1876 persistence-layer rule).
+        audit.chain_seq = chain_seq
+        db.save(audit)
 
 
 def _audit_rows_in_chain_order(db) -> list[ActionAudit]:
@@ -103,13 +102,13 @@ def current_audit_chain_head(db) -> str | None:
 def save_chained_audit(db, audit: ActionAudit) -> None:
     """Append ``audit`` under the database lock as one linear chain step."""
     with db._lock:
-        _backfill_chain_seq(db)
+        # One ordered load (also backfills legacy rows) gives both the max
+        # chain_seq and the current head — no raw SQL needed (#1876).
+        rows = _audit_rows_in_chain_order(db)
         audit.created_at = datetime.now()
-        next_seq = db._execute(
-            'SELECT COALESCE(MAX(chain_seq), 0) FROM "actionaudits"'
-        ).fetchone()[0]
-        audit.chain_seq = int(next_seq) + 1
-        audit.prev_hash = current_audit_chain_head(db)
+        head = rows[-1] if rows else None
+        audit.chain_seq = (head.chain_seq or 0) + 1 if head else 1
+        audit.prev_hash = head.row_hash or None if head else None
         audit.row_hash = compute_action_audit_hash(audit)
         db.save(audit)
 
