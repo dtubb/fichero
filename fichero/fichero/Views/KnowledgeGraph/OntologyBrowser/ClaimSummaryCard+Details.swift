@@ -252,7 +252,7 @@ extension ClaimSummaryCard {
         for claim: Components.Schemas.KnowledgeClaim
     ) -> [String: Any]? {
         openClaimSourceUserInfo(
-            documentId: claim.sourceDocumentId,
+            documentId: claim.sourceDocumentId ?? "",
             pageLabel: claim.sourcePageLabel,
             charStart: claim.sourceCharStart,
             charEnd: claim.sourceCharEnd,
@@ -262,7 +262,7 @@ extension ClaimSummaryCard {
     }
 
     static func postOpenClaimSource(for claim: Components.Schemas.KnowledgeClaim) {
-        let docId = claim.sourceDocumentId
+        let docId = claim.sourceDocumentId ?? ""
         guard !docId.isEmpty,
               LibraryManager.shared.globalLibrary?
                 .documentStore

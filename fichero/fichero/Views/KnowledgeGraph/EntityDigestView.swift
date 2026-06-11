@@ -221,7 +221,7 @@ struct EntityDigestContent: View {
                 Text("No source citations available.")
                     .foregroundStyle(.secondary)
             } else {
-                let grouped = Dictionary(grouping: claims, by: \.sourceDocumentId)
+                let grouped = Dictionary(grouping: claims, by: { $0.sourceDocumentId ?? "" })
                 let sortedDocIds = grouped.keys.sorted()
 
                 List(selection: $selectedClaimIds) {

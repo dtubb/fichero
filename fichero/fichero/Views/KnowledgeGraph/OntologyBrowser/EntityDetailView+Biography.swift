@@ -84,7 +84,7 @@ extension EntityDetailView {
         var seenIds: Set<String> = []
 
         for claim in claims {
-            let documentId = claim.sourceDocumentId.trimmingCharacters(in: .whitespacesAndNewlines)
+            let documentId = (claim.sourceDocumentId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             guard !documentId.isEmpty else { continue }
             let pageLabel = normalizedPageLabel(for: claim, document: documents[documentId])
             let key = [documentId, pageLabel ?? ""].joined(separator: "::")
