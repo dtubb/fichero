@@ -1696,6 +1696,17 @@ class ActionAudit(BaseModel):
             "and POST /api/actions/audit/{id}/undo). None for ordinary forward actions."
         ),
     )
+    prev_hash: str | None = Field(
+        default=None,
+        description="Previous ActionAudit row_hash in this database's append-only chain.",
+    )
+    row_hash: str = Field(
+        default="",
+        description=(
+            "SHA-256 over immutable creation fields plus prev_hash; empty only on "
+            "legacy rows created before the tamper-evident chain existed."
+        ),
+    )
 
 
 # =============================================================================

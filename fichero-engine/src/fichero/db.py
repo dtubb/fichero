@@ -42,6 +42,7 @@ import math
 import json
 import logging
 import re
+import threading
 import time
 import unicodedata
 import duckdb
@@ -370,6 +371,7 @@ class Database(DatabaseEmbeddingMixin):
         self._lance_db = None  # Lazy init
         self._embedder = None  # Lazy init
         self._tables_created: set[str] = set()
+        self._lock = threading.RLock()
 
         # Migrate tables if needed
         from fichero.db_migrations import (
@@ -424,21 +426,22 @@ class Database(DatabaseEmbeddingMixin):
 
     def _execute(self, sql: str, params: Any | None = None):
         """Execute SQL, reopening once if DuckDB invalidated this connection."""
-        try:
-            if params is None:
-                return self.conn.execute(sql)
-            return self.conn.execute(sql, params)
-        except duckdb.Error as exc:
-            if not self._is_invalidated_error(exc):
-                raise
-            logger.warning(
-                "DuckDB connection for %s was invalidated; reopening and retrying",
-                self.path,
-            )
-            self._reconnect_after_invalidated()
-            if params is None:
-                return self.conn.execute(sql)
-            return self.conn.execute(sql, params)
+        with self._lock:
+            try:
+                if params is None:
+                    return self.conn.execute(sql)
+                return self.conn.execute(sql, params)
+            except duckdb.Error as exc:
+                if not self._is_invalidated_error(exc):
+                    raise
+                logger.warning(
+                    "DuckDB connection for %s was invalidated; reopening and retrying",
+                    self.path,
+                )
+                self._reconnect_after_invalidated()
+                if params is None:
+                    return self.conn.execute(sql)
+                return self.conn.execute(sql, params)
 
     # =========================================================================
     # Core CRUD Operations

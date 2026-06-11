@@ -169,9 +169,8 @@ class ActionRegistry:
         new row so that undoing THIS row (undo-of-undo / redo) can replay the
         original forward action. Ordinary callers leave it ``None``.
         """
-        from fichero.models import (
-            ActionAudit,
-        )  # local import: avoid cycle at module load
+        from fichero.actions.audit_chain import save_chained_audit
+        from fichero.models import ActionAudit  # local import: avoid cycle at module load
 
         reg = self.get(name)  # ActionNotFoundError if unknown
         params = reg.params_model.model_validate(raw_params)
@@ -190,7 +189,7 @@ class ActionRegistry:
             run_id=ctx.run_id,
             inverse_of=inverse_of,
         )
-        db.save(audit)
+        save_chained_audit(db, audit)
 
         # Broadcast to the observable layer — best-effort, never breaks the action.
         self._emit(ctx, spec)
