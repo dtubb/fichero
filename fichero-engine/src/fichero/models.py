@@ -859,6 +859,33 @@ class AccountSession(BaseModel):
     revoked: bool = False
 
 
+class LibraryRole(BaseModel):
+    """Per-user role for one library, stored in the global app database."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    user_id: str
+    library_path: str
+    role: str
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class LibraryAclOverride(BaseModel):
+    """Per-user grant/deny override for a library subtree."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    user_id: str
+    library_path: str
+    target_id: str
+    effect: str
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
 # =============================================================================
 # Provider - AI Service Provider
 # =============================================================================
@@ -1785,4 +1812,8 @@ __all__ = [
     "ScheduleListResponse",
     "SourceListResponse",
     "TriggerListResponse",
+    "AccountUser",
+    "AccountSession",
+    "LibraryRole",
+    "LibraryAclOverride",
 ]

@@ -28,7 +28,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field, ValidationError
 
-from fichero.actions import ActionContext, ActionNotFoundError, registry
+from fichero import authz
+from fichero.actions import ActionContext, ActionNotFoundError, ChangeSpec, action, registry
 from fichero.api.auth import action_context
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -112,6 +113,8 @@ async def invoke_action(
         raise HTTPException(status_code=404, detail=f"Unknown action: {request.name}")
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors())
+    except authz.AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     return ActionResultResponse(
         ok=result.ok,
         result=result.result,
@@ -267,6 +270,8 @@ async def undo_action(
         )
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors())
+    except authz.AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     audit.undone = True
     db.save(audit)
@@ -276,4 +281,58 @@ async def undo_action(
         result=result.result,
         audit_id=result.audit_id,
         changed_domains=result.changed_domains,
+    )
+
+
+# =============================================================================
+# ACL management action (#2024)
+# =============================================================================
+
+
+class AclSetParams(BaseModel):
+    user: str = Field(description="Target user id or username")
+    role: str | None = Field(default=None, description="owner/editor/viewer")
+    target_id: str | None = Field(default=None, description="Folder/file id override")
+    effect: str | None = Field(default=None, description="grant/deny override")
+
+
+@action("acl.set", AclSetParams, domains=["authz"], undoable=False)
+def _acl_set(_db: Database, params: AclSetParams, ctx: ActionContext):
+    """Owner-only ACL mutation through the shared registry write path."""
+    changes: dict[str, Any] = {"user": params.user}
+    target_ids: list[str] = []
+
+    if params.role is not None:
+        role = authz.set_role(
+            actor=ctx.actor,
+            library=ctx.library_path,
+            user=params.user,
+            role=params.role,
+        )
+        changes["role"] = role.model_dump(mode="json")
+
+    if params.target_id is not None or params.effect is not None:
+        if not params.target_id or not params.effect:
+            raise ValueError("target_id and effect must be provided together")
+        override = authz.set_override(
+            actor=ctx.actor,
+            library=ctx.library_path,
+            user=params.user,
+            target_id=params.target_id,
+            effect=params.effect,
+        )
+        changes["override"] = override.model_dump(mode="json")
+        target_ids.append(params.target_id)
+
+    if params.role is None and params.effect is None:
+        raise ValueError("role or override effect is required")
+
+    return (
+        changes,
+        ChangeSpec(
+            domains=["authz"],
+            target_ids=target_ids,
+            after=changes,
+            emit_type="authz.changed",
+        ),
     )

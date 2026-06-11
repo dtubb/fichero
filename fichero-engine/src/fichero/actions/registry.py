@@ -175,6 +175,14 @@ class ActionRegistry:
         reg = self.get(name)  # ActionNotFoundError if unknown
         params = reg.params_model.model_validate(raw_params)
 
+        from fichero import authz
+
+        target_ids = authz.target_ids_from_params(params)
+        if not target_ids:
+            authz.assert_can_write(ctx.actor, ctx.library_path)
+        for target_id in target_ids:
+            authz.assert_can_write(ctx.actor, ctx.library_path, target_id)
+
         result, spec = reg.execute(db, params, ctx)
 
         # Audit write is NOT best-effort: if it fails the action fails. The

@@ -735,6 +735,7 @@ def _is_allowed_library_path(library_path: str) -> bool:
 
 
 async def get_library_database(
+    request: Request,
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
 ) -> Database:
     """FastAPI dependency to get the database for the current library package.
@@ -762,6 +763,17 @@ async def get_library_database(
             status_code=403,
             detail="Library path is not in an allowed location or not a .fichero package.",
         )
+
+    from fichero import authz
+
+    try:
+        authz.assert_can_read(
+            getattr(request.state, "user", None),
+            x_fichero_library_path,
+            authz.target_id_from_request(request),
+        )
+    except authz.AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     try:
         db = db_manager.get_database(x_fichero_library_path)

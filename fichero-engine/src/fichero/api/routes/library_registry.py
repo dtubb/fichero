@@ -23,7 +23,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from fichero.db import Database
 from fichero.db_manager import db_manager
@@ -70,6 +70,7 @@ def list_known_libraries(
 
 @router.post("/registry/add", response_model=KnownLibrary)
 def add_known_library(
+    request: Request,
     path: str,
     name: str | None = None,
     db: Database = Depends(get_global_database),
@@ -126,6 +127,14 @@ def add_known_library(
             db_manager.get_database(str(pkg_path))
         except Exception as exc:
             logger.warning("Inbox seeding skipped for %s: %s", pkg_path, exc)
+
+        try:
+            from fichero import authz
+
+            if authz.ensure_owner_role(getattr(request.state, "user", None), pkg_path):
+                logger.info("Bootstrapped library owner for %s", pkg_path)
+        except Exception as exc:
+            logger.warning("Failed to bootstrap library owner for %s: %s", pkg_path, exc)
 
         return library
     except Exception as e:

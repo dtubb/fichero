@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from fichero.db import db_manager
 from fichero.models import (
@@ -31,7 +31,10 @@ router = APIRouter()
 
 
 @router.post("/library", response_model=LibraryCreateResponse)
-def create_library(request: LibraryCreateRequest) -> LibraryCreateResponse:
+def create_library(
+    request: Request,
+    body: LibraryCreateRequest,
+) -> LibraryCreateResponse:
     """Create a new ``.fichero`` package (or report it already exists).
 
     Behaviour:
@@ -48,7 +51,7 @@ def create_library(request: LibraryCreateRequest) -> LibraryCreateResponse:
     # would close that loop.
     from fichero.api.main import _is_allowed_library_path
 
-    raw = request.path
+    raw = body.path
     if not _is_allowed_library_path(raw):
         raise HTTPException(
             status_code=403,
@@ -118,6 +121,14 @@ def create_library(request: LibraryCreateRequest) -> LibraryCreateResponse:
     except Exception as exc:
         # Registry registration is best-effort; don't fail library creation
         logger.warning("Failed to register library in registry: %s", exc)
+
+    try:
+        from fichero import authz
+
+        if authz.ensure_owner_role(getattr(request.state, "user", None), package):
+            logger.info("Bootstrapped library owner for %s", package)
+    except Exception as exc:
+        logger.warning("Failed to bootstrap library owner for %s: %s", package, exc)
 
     return LibraryCreateResponse(
         path=str(package),

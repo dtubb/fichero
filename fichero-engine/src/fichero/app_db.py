@@ -25,6 +25,8 @@ from fichero.storage import settings
 from fichero.models import (
     AccountSession,
     AccountUser,
+    LibraryAclOverride,
+    LibraryRole,
     Model,
     Provider,
 )
@@ -50,6 +52,8 @@ class AppDatabase:
     _TABLE_BY_MODEL_NAME: dict[str, str] = {
         "AccountUser": "users",
         "AccountSession": "sessions",
+        "LibraryRole": "library_roles",
+        "LibraryAclOverride": "library_acl_overrides",
         "Provider": "providers",
         "Model": "models",
         "MCPServer": "mcp_servers",
@@ -182,6 +186,34 @@ class AppDatabase:
             )
         """)
 
+        # Per-library ACL tables (global identity scope, not per-library DB).
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS library_roles (
+                id VARCHAR PRIMARY KEY,
+                user_id VARCHAR NOT NULL,
+                library_path VARCHAR NOT NULL,
+                role VARCHAR NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, library_path),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS library_acl_overrides (
+                id VARCHAR PRIMARY KEY,
+                user_id VARCHAR NOT NULL,
+                library_path VARCHAR NOT NULL,
+                target_id VARCHAR NOT NULL,
+                effect VARCHAR NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, library_path, target_id),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
         # Create indexes
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(provider_type)"
@@ -206,6 +238,18 @@ class AppDatabase:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_library_roles_user_library "
+            "ON library_roles(user_id, library_path)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_library_roles_library "
+            "ON library_roles(library_path)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_library_acl_overrides_user_library "
+            "ON library_acl_overrides(user_id, library_path)"
         )
 
         logger.info("App database schema initialized")
@@ -748,6 +792,178 @@ class AppDatabase:
             )
             self.conn.commit()
         return self.get_user(user_id)
+
+    # =========================================================================
+    # Library ACLs
+    # =========================================================================
+
+    def _row_to_library_role(self, row) -> LibraryRole:
+        return LibraryRole(
+            id=row[0],
+            user_id=row[1],
+            library_path=row[2],
+            role=row[3],
+            created_at=row[4],
+            updated_at=row[5],
+        )
+
+    def _row_to_library_acl_override(self, row) -> LibraryAclOverride:
+        return LibraryAclOverride(
+            id=row[0],
+            user_id=row[1],
+            library_path=row[2],
+            target_id=row[3],
+            effect=row[4],
+            created_at=row[5],
+            updated_at=row[6],
+        )
+
+    def set_library_role(
+        self,
+        *,
+        user_id: str,
+        library_path: str,
+        role: str,
+    ) -> LibraryRole:
+        """Create or update a user's role for one library."""
+        now = datetime.now()
+        existing = self.get_library_role(user_id, library_path)
+        row = LibraryRole(
+            user_id=user_id,
+            library_path=library_path,
+            role=role,
+            updated_at=now,
+        )
+        if existing:
+            row.id = existing.id
+            row.created_at = existing.created_at
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO library_roles (
+                    id, user_id, library_path, role, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (user_id, library_path) DO UPDATE SET
+                    role = excluded.role,
+                    updated_at = excluded.updated_at
+                """,
+                [
+                    row.id,
+                    row.user_id,
+                    row.library_path,
+                    row.role,
+                    row.created_at,
+                    row.updated_at,
+                ],
+            )
+            self.conn.commit()
+        return self.get_library_role(user_id, library_path) or row
+
+    def get_library_role(
+        self, user_id: str, library_path: str
+    ) -> LibraryRole | None:
+        """Return a user's role for one library."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, user_id, library_path, role, created_at, updated_at
+                FROM library_roles
+                WHERE user_id = ? AND library_path = ?
+                """,
+                [user_id, library_path],
+            ).fetchone()
+        return self._row_to_library_role(result) if result else None
+
+    def list_library_roles(self, library_path: str) -> list[LibraryRole]:
+        """Return all roles for a library."""
+        with self._lock:
+            rows = self.conn.execute(
+                """
+                SELECT id, user_id, library_path, role, created_at, updated_at
+                FROM library_roles
+                WHERE library_path = ?
+                ORDER BY created_at, user_id
+                """,
+                [library_path],
+            ).fetchall()
+        return [self._row_to_library_role(row) for row in rows]
+
+    def set_library_acl_override(
+        self,
+        *,
+        user_id: str,
+        library_path: str,
+        target_id: str,
+        effect: str,
+    ) -> LibraryAclOverride:
+        """Create or update a grant/deny override for one target subtree."""
+        now = datetime.now()
+        existing = self.get_library_acl_override(user_id, library_path, target_id)
+        row = LibraryAclOverride(
+            user_id=user_id,
+            library_path=library_path,
+            target_id=target_id,
+            effect=effect,
+            updated_at=now,
+        )
+        if existing:
+            row.id = existing.id
+            row.created_at = existing.created_at
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO library_acl_overrides (
+                    id, user_id, library_path, target_id, effect, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (user_id, library_path, target_id) DO UPDATE SET
+                    effect = excluded.effect,
+                    updated_at = excluded.updated_at
+                """,
+                [
+                    row.id,
+                    row.user_id,
+                    row.library_path,
+                    row.target_id,
+                    row.effect,
+                    row.created_at,
+                    row.updated_at,
+                ],
+            )
+            self.conn.commit()
+        return self.get_library_acl_override(user_id, library_path, target_id) or row
+
+    def get_library_acl_override(
+        self, user_id: str, library_path: str, target_id: str
+    ) -> LibraryAclOverride | None:
+        """Return one exact-target ACL override, if any."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, user_id, library_path, target_id, effect, created_at, updated_at
+                FROM library_acl_overrides
+                WHERE user_id = ? AND library_path = ? AND target_id = ?
+                """,
+                [user_id, library_path, target_id],
+            ).fetchone()
+        return self._row_to_library_acl_override(result) if result else None
+
+    def list_library_acl_overrides(
+        self, user_id: str, library_path: str
+    ) -> list[LibraryAclOverride]:
+        """Return a user's target overrides for one library."""
+        with self._lock:
+            rows = self.conn.execute(
+                """
+                SELECT id, user_id, library_path, target_id, effect, created_at, updated_at
+                FROM library_acl_overrides
+                WHERE user_id = ? AND library_path = ?
+                ORDER BY created_at, target_id
+                """,
+                [user_id, library_path],
+            ).fetchall()
+        return [self._row_to_library_acl_override(row) for row in rows]
 
     def create_session(
         self,
