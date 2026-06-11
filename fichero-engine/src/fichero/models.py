@@ -1645,6 +1645,16 @@ class ActionAudit(BaseModel):
         default=False,
         description="True once this action has been reversed via its inverse.",
     )
+    inverse_of: str | None = Field(
+        default=None,
+        description=(
+            "If this action was invoked AS the inverse of another action (i.e. by "
+            "the undo endpoint), the id of that ORIGINAL audit row. This is what "
+            "makes generalized redo possible: undoing an inverse audit replays the "
+            "original forward action's name + params (see fichero.actions.registry "
+            "and POST /api/actions/audit/{id}/undo). None for ordinary forward actions."
+        ),
+    )
 
 
 # =============================================================================

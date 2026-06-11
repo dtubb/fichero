@@ -158,8 +158,16 @@ class ActionRegistry:
         name: str,
         raw_params: dict,
         ctx: ActionContext,
+        *,
+        inverse_of: str | None = None,
     ) -> ActionResult:
-        """Validate -> execute -> audit -> emit. The single mutation path."""
+        """Validate -> execute -> audit -> emit. The single mutation path.
+
+        ``inverse_of`` is set by the undo endpoint when this invocation IS the
+        inverse of an earlier action: it records the original audit's id on the
+        new row so that undoing THIS row (undo-of-undo / redo) can replay the
+        original forward action. Ordinary callers leave it ``None``.
+        """
         from fichero.models import ActionAudit  # local import: avoid cycle at module load
 
         reg = self.get(name)  # ActionNotFoundError if unknown
@@ -177,6 +185,7 @@ class ActionRegistry:
             before=spec.before,
             after=spec.after,
             run_id=ctx.run_id,
+            inverse_of=inverse_of,
         )
         db.save(audit)
 
