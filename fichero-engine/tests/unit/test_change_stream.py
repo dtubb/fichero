@@ -12,6 +12,7 @@ loop, so no async runner is required.
 from __future__ import annotations
 
 import asyncio
+import threading
 from datetime import datetime
 
 import pytest
@@ -60,6 +61,7 @@ class TestChangeHub:
 
         assert delivered == 1
         assert queue.get_nowait() is event
+        assert event.event_id == 1
 
     def test_per_library_isolation(self):
         hub = _ChangeHub()
@@ -100,6 +102,45 @@ class TestChangeHub:
     def test_emit_to_library_with_no_subscribers_is_noop(self):
         hub = _ChangeHub()
         assert hub.emit("/lib/nobody.fichero", ChangeEvent(type="entity.updated")) == 0
+
+    def test_slow_subscriber_queue_stays_bounded_and_signals_gap(self):
+        hub = _ChangeHub(subscriber_queue_maxsize=4)
+        queue = hub.subscribe("/lib/A.fichero")
+
+        for idx in range(6):
+            delivered = hub.emit(
+                "/lib/A.fichero",
+                ChangeEvent(type="entity.updated", entity_ids=[f"e{idx}"]),
+            )
+            assert delivered == 1
+
+        assert queue.qsize() == 4
+        items = [queue.get_nowait() for _ in range(queue.qsize())]
+        assert any(item.type == "stream.gap" for item in items)
+        assert items[-1].entity_ids == ["e5"]
+
+    @pytest.mark.asyncio
+    async def test_emit_from_non_loop_thread_delivers_to_loop_subscriber(self):
+        hub = _ChangeHub()
+        queue = hub.subscribe("/lib/A.fichero")
+        thread_done = threading.Event()
+
+        def _emit() -> None:
+            hub.emit(
+                "/lib/A.fichero",
+                ChangeEvent(type="entity.updated", entity_ids=["threaded"]),
+            )
+            thread_done.set()
+
+        thread = threading.Thread(target=_emit)
+        thread.start()
+        try:
+            event = await asyncio.wait_for(queue.get(), timeout=1.0)
+        finally:
+            thread.join(timeout=1.0)
+
+        assert thread_done.is_set()
+        assert event.entity_ids == ["threaded"]
 
 
 # ---------------------------------------------------------------------------
@@ -158,6 +199,11 @@ class TestEmitChange:
         assert frame.startswith("data: ")
         assert frame.endswith("\n\n")
         assert '"type":"entity.updated"' in frame
+
+    def test_format_change_sse_includes_id_when_present(self):
+        event = ChangeEvent(type="entity.updated", entity_ids=["e1"], event_id=7)
+        frame = format_change_sse(event)
+        assert frame.startswith("id: 7\n")
 
 
 # ---------------------------------------------------------------------------

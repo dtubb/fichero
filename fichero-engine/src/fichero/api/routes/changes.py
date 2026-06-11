@@ -32,6 +32,7 @@ _KEEPALIVE_TIMEOUT = 30.0
 async def stream_library_changes(
     request: Request,
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
 ) -> StreamingResponse:
     """Subscribe to the per-library change-event stream.
 
@@ -39,13 +40,23 @@ async def stream_library_changes(
     every other library route). A window opens one connection and receives a
     ``ChangeEvent`` for every mutation in its library, from any source.
     """
+    if not isinstance(last_event_id, str):
+        last_event_id = None
     assert_library_read_authorized(request, x_fichero_library_path)
-    queue = _change_hub.subscribe(x_fichero_library_path)
+    subscription = _change_hub.connect(
+        x_fichero_library_path,
+        last_event_id=last_event_id,
+    )
+    queue = subscription.queue
 
     async def event_generator() -> AsyncGenerator[str, None]:
         # Open the stream immediately so the client knows it connected.
         yield ": connected\n\n"
         try:
+            if subscription.resync_event is not None:
+                yield format_change_sse(subscription.resync_event)
+            for replay_event in subscription.replay_events:
+                yield format_change_sse(replay_event)
             while True:
                 if await request.is_disconnected():
                     break
