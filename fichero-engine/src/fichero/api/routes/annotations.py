@@ -113,15 +113,22 @@ def _normalize_annotation_scope(
     )
 
 
-@router.post("", response_model=Annotation, summary="Create an annotation")
-async def create_annotation(
-    request: AnnotationCreateRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
+def _annotation_scope_document_ids(ann: Annotation) -> list[str]:
+    """The document/page/folder ids an annotation hangs off — drives
+    ``emit_change`` so the observable layer refreshes the right windows."""
+    return [i for i in [ann.document_id, ann.page_id, ann.folder_id] if i]
+
+
+def create_annotation_impl(
+    db: Database, request: AnnotationCreateRequest
 ) -> Annotation:
+    """Normalize the annotation's scope, build, and persist it.
+
+    Extracted from the ``POST /annotations`` route so BOTH the route and the
+    ``annotation.create`` action (EPIC #1848) drive the SAME scope-resolution +
+    save logic (iterate-not-replace). Emission stays with the caller. Raises
+    ``HTTPException`` on bad scope exactly as before.
+    """
     scope = _normalize_annotation_scope(
         db,
         document_id=request.document_id,
@@ -132,10 +139,23 @@ async def create_annotation(
     payload.update(scope.model_dump())
     ann = Annotation(**payload)
     db.save(ann)
+    return ann
+
+
+@router.post("", response_model=Annotation, summary="Create an annotation")
+async def create_annotation(
+    request: AnnotationCreateRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> Annotation:
+    ann = create_annotation_impl(db, request)
     emit_change(
         x_fichero_library_path,
         type="annotation.created",
-        document_ids=[i for i in [ann.document_id, ann.page_id, ann.folder_id] if i],
+        document_ids=_annotation_scope_document_ids(ann),
         actor="ui",
         origin_window=x_fichero_origin_window,
     )
@@ -206,19 +226,21 @@ class AnnotationPatchRequest(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
-@router.patch("/{annotation_id}", response_model=Annotation)
-async def patch_annotation(
-    annotation_id: str,
-    request: AnnotationPatchRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-) -> Annotation:
+def patch_annotation_impl(
+    db: Database, annotation_id: str, request: AnnotationPatchRequest
+) -> tuple[Annotation, dict]:
+    """Apply a partial update to an annotation. Returns ``(ann, before_snapshot)``.
+
+    ``before_snapshot`` is the full pre-mutation row — the undo payload the
+    ``annotation.update`` action inverts to ``annotation.restore``. Shared by the
+    route and the action so both drive the same exclude-unset / scope-
+    reconciliation logic (iterate-not-replace). Raises ``HTTPException`` on a
+    missing id or bad scope exactly as before.
+    """
     ann = db.get(Annotation, annotation_id)
     if ann is None:
         raise HTTPException(404, f"Annotation not found: {annotation_id}")
+    before = ann.model_dump(mode="json")
     updates = request.model_dump(exclude_unset=True)
     if (
         "document_id" in updates
@@ -236,13 +258,56 @@ async def patch_annotation(
         setattr(ann, field, value)
     ann.updated_at = datetime.now()
     db.save(ann)
+    return ann, before
+
+
+@router.patch("/{annotation_id}", response_model=Annotation)
+async def patch_annotation(
+    annotation_id: str,
+    request: AnnotationPatchRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> Annotation:
+    ann, _before = patch_annotation_impl(db, annotation_id, request)
     emit_change(
         x_fichero_library_path,
         type="annotation.updated",
-        document_ids=[i for i in [ann.document_id, ann.page_id, ann.folder_id] if i],
+        document_ids=_annotation_scope_document_ids(ann),
         actor="ui",
         origin_window=x_fichero_origin_window,
     )
+    return ann
+
+
+def delete_annotation_impl(db: Database, annotation_id: str) -> tuple[list[str], dict]:
+    """Delete an annotation. Returns ``(scope_document_ids, before_snapshot)``.
+
+    The before-snapshot is captured BEFORE deletion so the ``annotation.delete``
+    action can invert to ``annotation.restore`` (a full-snapshot upsert preserving
+    the id). The scope ids drive ``emit_change``. Raises ``HTTPException`` on a
+    missing id exactly as before.
+    """
+    ann = db.get(Annotation, annotation_id)
+    if ann is None:
+        raise HTTPException(404, f"Annotation not found: {annotation_id}")
+    before = ann.model_dump(mode="json")
+    document_ids = _annotation_scope_document_ids(ann)
+    db.delete(ann)
+    return document_ids, before
+
+
+def restore_annotation_impl(db: Database, snapshot: dict) -> Annotation:
+    """Re-create / overwrite an annotation from a JSON snapshot (preserving id).
+
+    The single inverse used by every undoable annotation action: ``db.save`` is an
+    upsert by id, so this reuses the proven ``Annotation(**snapshot)`` round-trip to
+    restore the exact pre-mutation row rather than re-deriving a field diff.
+    """
+    ann = Annotation(**snapshot)
+    db.save(ann)
     return ann
 
 
@@ -255,11 +320,7 @@ async def delete_annotation(
         default=None, alias="X-Fichero-Origin-Window"
     ),
 ) -> None:
-    ann = db.get(Annotation, annotation_id)
-    if ann is None:
-        raise HTTPException(404, f"Annotation not found: {annotation_id}")
-    document_ids = [i for i in [ann.document_id, ann.page_id, ann.folder_id] if i]
-    db.delete(ann)
+    document_ids, _before = delete_annotation_impl(db, annotation_id)
     emit_change(
         x_fichero_library_path,
         type="annotation.deleted",
@@ -324,32 +385,23 @@ class PromoteResponse(BaseModel):
     claim_text: str
 
 
-@router.post(
-    "/{annotation_id}/promote-to-claim",
-    response_model=PromoteResponse,
-    summary="Turn a highlight or note into a KnowledgeClaim",
-    description=(
-        "Creates a KnowledgeClaim using the annotation's anchor as "
-        "source provenance. The claim.text defaults to the "
-        "annotation.text; the source_excerpt uses the annotation's "
-        "highlighted text via char_start/end + the document's "
-        "page_content. The annotation is updated to point at the "
-        "new claim_id."
-    ),
-)
-async def promote_to_claim(
-    annotation_id: str,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-) -> PromoteResponse:
+def promote_to_claim_impl(
+    db: Database, annotation_id: str
+) -> tuple[Annotation, KnowledgeClaim, dict]:
+    """Promote an annotation to a KnowledgeClaim. Returns ``(ann, claim, before)``.
+
+    Extracted from the ``/promote-to-claim`` route so BOTH the route and the
+    ``annotation.promote_to_claim`` action drive the SAME excerpt-resolution +
+    claim-creation + back-link logic (iterate-not-replace). ``before`` is the
+    annotation's pre-mutation snapshot (the link it gains is the only change).
+    Emission stays with the caller. Raises ``HTTPException`` exactly as before.
+    """
     ann = db.get(Annotation, annotation_id)
     if ann is None:
         raise HTTPException(404, f"Annotation not found: {annotation_id}")
     if ann.document_id is None:
         raise HTTPException(400, "Folder-scoped annotations cannot be promoted to claims")
+    before = ann.model_dump(mode="json")
 
     # Resolve the source excerpt — prefer the highlighted span, fall
     # back to the annotation's note text.
@@ -379,6 +431,32 @@ async def promote_to_claim(
     ann.linked_claim_ids = sorted(linked)
     ann.updated_at = datetime.now()
     db.save(ann)
+    return ann, claim, before
+
+
+@router.post(
+    "/{annotation_id}/promote-to-claim",
+    response_model=PromoteResponse,
+    summary="Turn a highlight or note into a KnowledgeClaim",
+    description=(
+        "Creates a KnowledgeClaim using the annotation's anchor as "
+        "source provenance. The claim.text defaults to the "
+        "annotation.text; the source_excerpt uses the annotation's "
+        "highlighted text via char_start/end + the document's "
+        "page_content. The annotation is updated to point at the "
+        "new claim_id."
+    ),
+)
+async def promote_to_claim(
+    annotation_id: str,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> PromoteResponse:
+    ann, claim, _before = promote_to_claim_impl(db, annotation_id)
+    claim_text = claim.text
     emit_change(
         x_fichero_library_path,
         type="annotation.updated",
@@ -399,3 +477,230 @@ async def promote_to_claim(
         claim_id=claim.id,
         claim_text=claim_text,
     )
+
+
+# =============================================================================
+# Action layer registration (EPIC #1848 / #2014) — ANNOTATION domain sweep
+# =============================================================================
+#
+# Each action WRAPS the proven ``*_impl`` above (iterate-not-replace) and routes
+# through ``registry.invoke`` so chat tools / App Intents / tests / the audit log
+# all drive the SAME code the UI routes do (the routes call the same ``*_impl``
+# directly and emit), matching the entity.merge / note.* pattern.
+#
+# Undo is data, not code: ``db.save`` is an upsert by id, so a single
+# ``annotation.restore`` (full-snapshot upsert preserving the id) inverts BOTH a
+# delete (re-inserts the row) and an edit (overwrites with the prior snapshot).
+# ``annotation.restore`` records whether the row pre-existed, so its OWN inverse
+# is ``annotation.delete`` (after a recreate) or ``annotation.restore`` (after an
+# overwrite) — keeping every delete<->restore and edit<->restore redo chain sane.
+# The inverse chain:
+#   * annotation.create  -> annotation.delete  (the new id)
+#   * annotation.update  -> annotation.restore (before snapshot)
+#   * annotation.delete  -> annotation.restore (before snapshot)
+#   * annotation.restore -> annotation.delete / annotation.restore (self-correcting)
+#
+# ``annotation.promote_to_claim`` is NOT undoable: a true reverse must delete the
+# created KnowledgeClaim AND drop the back-link, which crosses into the claim
+# domain. A single annotation.restore would silently leave an orphan claim — the
+# exact half-undo we refuse to ship — so promote is audited (full before/after)
+# but not auto-reversible. A dedicated demote action is future work (the #1848
+# "5 missing annotation actions").
+#
+# ``ChangeSpec.document_ids`` carries the annotation's *scope* (document / page /
+# folder) so the observable layer refreshes the windows the annotation hangs off;
+# the annotation id itself rides in ``target_ids``.
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+from pydantic import Field  # noqa: E402
+
+
+class AnnotationUpdateActionParams(BaseModel):
+    """``annotation.update`` params — the path annotation_id plus the patch body.
+
+    ``update`` is a nested :class:`AnnotationPatchRequest` so the registry's
+    ``model_validate`` preserves exclude-unset semantics: only fields actually
+    present in the patch are applied (absent means 'leave unchanged')."""
+
+    annotation_id: str = Field(description="Annotation id to update")
+    update: AnnotationPatchRequest = Field(description="Partial annotation update")
+
+
+class AnnotationIdParams(BaseModel):
+    """``annotation.delete`` / ``annotation.promote_to_claim`` params — also reached
+    as the inverse of ``annotation.create``."""
+
+    annotation_id: str = Field(description="Annotation id")
+
+
+class AnnotationRestoreParams(BaseModel):
+    """``annotation.restore`` — re-materialize / overwrite an annotation by snapshot
+    (preserving its id). The single generic inverse for every undoable verb."""
+
+    snapshot: dict = Field(description="Annotation.model_dump snapshot")
+
+
+def _invert_create_annotation(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a create by deleting the row it produced."""
+    if not after:
+        return None
+    annotation_id = after.get("id")
+    if not annotation_id:
+        return None
+    return ("annotation.delete", {"annotation_id": annotation_id})
+
+
+def _invert_to_restore_before(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo an edit/delete by restoring the captured pre-change snapshot."""
+    if not before:
+        return None
+    return ("annotation.restore", {"snapshot": before})
+
+
+def _invert_restore_annotation(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Inverse of restore — depends on whether the row pre-existed.
+
+    If ``before`` is None the restore RE-CREATED a missing row (it was undoing a
+    delete) -> redo by deleting again. If ``before`` is a snapshot the restore
+    OVERWROTE an existing row (undoing an edit) -> redo by restoring that prior
+    snapshot, re-applying the edit. Keeps delete<->restore and edit<->restore
+    redo chains correct."""
+    if not after:
+        return None
+    annotation_id = after.get("id")
+    if before is None:
+        if not annotation_id:
+            return None
+        return ("annotation.delete", {"annotation_id": annotation_id})
+    return ("annotation.restore", {"snapshot": before})
+
+
+@action(
+    "annotation.create",
+    AnnotationCreateRequest,
+    domains=["annotation"],
+    undoable=True,
+    invert=_invert_create_annotation,
+)
+def _action_create_annotation(
+    db: Database, params: AnnotationCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    ann = create_annotation_impl(db, params)
+    after = ann.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["annotation"],
+        target_ids=[ann.id],
+        before=None,
+        after=after,
+        emit_type="annotation.created",
+        document_ids=_annotation_scope_document_ids(ann),
+    )
+    return after, spec
+
+
+@action(
+    "annotation.update",
+    AnnotationUpdateActionParams,
+    domains=["annotation"],
+    undoable=True,
+    invert=_invert_to_restore_before,
+)
+def _action_update_annotation(
+    db: Database, params: AnnotationUpdateActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    ann, before = patch_annotation_impl(db, params.annotation_id, params.update)
+    after = ann.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["annotation"],
+        target_ids=[ann.id],
+        before=before,
+        after=after,
+        emit_type="annotation.updated",
+        document_ids=_annotation_scope_document_ids(ann),
+    )
+    return after, spec
+
+
+@action(
+    "annotation.delete",
+    AnnotationIdParams,
+    domains=["annotation"],
+    undoable=True,
+    invert=_invert_to_restore_before,
+)
+def _action_delete_annotation(
+    db: Database, params: AnnotationIdParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    document_ids, before = delete_annotation_impl(db, params.annotation_id)
+    spec = ChangeSpec(
+        domains=["annotation"],
+        target_ids=[params.annotation_id],
+        before=before,
+        after=None,
+        emit_type="annotation.deleted",
+        document_ids=document_ids,
+    )
+    return before, spec
+
+
+@action(
+    "annotation.restore",
+    AnnotationRestoreParams,
+    domains=["annotation"],
+    undoable=True,
+    invert=_invert_restore_annotation,
+)
+def _action_restore_annotation(
+    db: Database, params: AnnotationRestoreParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Upsert an annotation from its snapshot (preserving id). Records whether the
+    row pre-existed so its inverse picks delete (recreate) vs restore (edit)."""
+    annotation_id = params.snapshot.get("id")
+    existing = db.get(Annotation, annotation_id) if annotation_id else None
+    before = existing.model_dump(mode="json") if existing else None
+    ann = restore_annotation_impl(db, params.snapshot)
+    after = ann.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["annotation"],
+        target_ids=[ann.id],
+        before=before,
+        after=after,
+        emit_type="annotation.updated" if before else "annotation.created",
+        document_ids=_annotation_scope_document_ids(ann),
+    )
+    return after, spec
+
+
+@action(
+    "annotation.promote_to_claim",
+    AnnotationIdParams,
+    domains=["annotation", "claim"],
+    undoable=False,
+)
+def _action_promote_to_claim(
+    db: Database, params: AnnotationIdParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Promote an annotation to a KnowledgeClaim. NOT undoable (see module note):
+    auto-reversing would orphan the created claim, so we audit but don't invert."""
+    ann, claim, before = promote_to_claim_impl(db, params.annotation_id)
+    after = {
+        "annotation": ann.model_dump(mode="json"),
+        "claim_id": claim.id,
+        "claim_text": claim.text,
+    }
+    spec = ChangeSpec(
+        domains=["annotation", "claim"],
+        target_ids=[ann.id, claim.id],
+        before=before,
+        after=after,
+        emit_type="claim.created",
+        claim_ids=[claim.id],
+        document_ids=_annotation_scope_document_ids(ann),
+    )
+    return after, spec

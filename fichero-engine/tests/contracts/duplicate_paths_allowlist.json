@@ -2,7 +2,7 @@
   "_doc": "Intentional duplicate code paths. Keys are concern ids; values are explicit allowed handlers/writers.",
   "concerns": {
     "kg_write:KnowledgeClaim": [
-      "api/routes/annotations.py::promote_to_claim",
+      "api/routes/annotations.py::promote_to_claim_impl",
       "api/routes/claims.py::create_claim_impl",
       "api/routes/mcp_tools.py::mcp_knowledge_claim_create",
       "workflows/tools/kg_persist_finalize.py::kg_persist_finalize",
