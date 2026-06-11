@@ -125,12 +125,31 @@ def status() -> None:
         typer.echo("Engine stopped")
 
 
-def start(port: int = 8765, workers: int = 4) -> None:
+def start(port: int = 8765, workers: int = 1) -> None:
     """Start engine in background.
 
     Launches a detached uvicorn process and polls the port until responsive.
     If engine is already running, prints its PID and returns.
+
+    The engine MUST run as a single process (``workers=1``). DuckDB serializes
+    writes only *within* one process, and the change-stream hub + DB connection
+    manager are in-process singletons (see ``api/change_stream.py`` /
+    ``db_manager.py``). Multiple worker processes therefore corrupt the
+    single-writer DuckDB file AND split the SSE fan-out (a mutation handled by
+    worker B never reaches an SSE client on worker A). The multi-user topology is
+    **one engine process, many remote clients** — never multi-process on one
+    library. ``workers`` is clamped to 1 here as a hard guard (#2044).
     """
+    if workers != 1:
+        typer.secho(
+            f"--workers={workers} is not supported: the engine must run as a "
+            "single process (DuckDB single-writer + in-process change-stream "
+            "hub). Forcing workers=1.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        workers = 1
+
     pid = _read_pid()
     if pid and _is_process_alive(pid):
         typer.echo(f"Engine already running (PID {pid})")
@@ -223,7 +242,7 @@ def stop() -> None:
     typer.echo("Engine stopped")
 
 
-def restart(port: int = 8765, workers: int = 4) -> None:
+def restart(port: int = 8765, workers: int = 1) -> None:
     """Stop and start engine.
 
     Useful for reloading configuration or recovering from a hung state.

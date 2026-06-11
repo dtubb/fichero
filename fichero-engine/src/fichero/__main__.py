@@ -3225,7 +3225,11 @@ def engine_status() -> None:
 def engine_start(
     port: int = typer.Option(8765, "--port", help="Port to run the engine on."),
     workers: int = typer.Option(
-        4, "--workers", help="Number of uvicorn worker processes."
+        1,
+        "--workers",
+        help="uvicorn worker processes. Must be 1 — the engine is "
+        "single-process (DuckDB single-writer + in-process change-stream hub); "
+        "values >1 are clamped to 1 (#2044).",
     ),
 ) -> None:
     """Start the engine in the background.
@@ -3254,7 +3258,11 @@ def engine_stop() -> None:
 def engine_restart(
     port: int = typer.Option(8765, "--port", help="Port to run the engine on."),
     workers: int = typer.Option(
-        4, "--workers", help="Number of uvicorn worker processes."
+        1,
+        "--workers",
+        help="uvicorn worker processes. Must be 1 — the engine is "
+        "single-process (DuckDB single-writer + in-process change-stream hub); "
+        "values >1 are clamped to 1 (#2044).",
     ),
 ) -> None:
     """Stop and start the engine.
