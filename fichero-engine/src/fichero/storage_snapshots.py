@@ -9,6 +9,7 @@ Snapshot metadata is stored as JSON alongside snapshot data:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -53,6 +54,75 @@ def _quote_identifier(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
 
 
+def _load_known_library_config(library_path: Path):
+    """Return the registered KnownLibrary row for a package, if any."""
+    from fichero.db import Database
+    from fichero.models import KnownLibrary
+
+    registry_db_path = settings.global_library_path / "fichero.duckdb"
+    if not registry_db_path.exists():
+        return None
+
+    registry_db = Database(registry_db_path)
+    try:
+        matches = registry_db.query(KnownLibrary, path=str(library_path.resolve()))
+        return matches[0] if matches else None
+    finally:
+        registry_db.conn.close()
+
+
+def _list_scheduled_libraries():
+    """Return known libraries that opted into periodic snapshots."""
+    from fichero.db import Database
+    from fichero.models import KnownLibrary
+
+    registry_db_path = settings.global_library_path / "fichero.duckdb"
+    if not registry_db_path.exists():
+        return []
+
+    registry_db = Database(registry_db_path)
+    try:
+        libraries = registry_db.all(KnownLibrary)
+    finally:
+        registry_db.conn.close()
+
+    return [lib for lib in libraries if lib.snapshot_interval_seconds > 0]
+
+
+def _resolve_offsite_dir(
+    library_path: Path,
+    offsite_dir: str | Path | None,
+) -> Path | None:
+    if offsite_dir is not None:
+        raw_value = str(offsite_dir).strip()
+        return Path(raw_value).expanduser() if raw_value else None
+
+    try:
+        known_library = _load_known_library_config(library_path)
+    except Exception:
+        logger.exception("Could not load backup config for %s", library_path)
+        return None
+
+    if known_library is None or not known_library.snapshot_offsite_path:
+        return None
+    return Path(known_library.snapshot_offsite_path).expanduser()
+
+
+def _copy_snapshot_offsite(
+    snapshot_root: Path,
+    library_name: str,
+    snapshot_id: str,
+    offsite_dir: Path,
+) -> str:
+    """Mirror a completed snapshot into a user-configured filesystem path."""
+    target_root = offsite_dir / library_name / snapshot_id
+    target_root.parent.mkdir(parents=True, exist_ok=True)
+    if target_root.exists():
+        shutil.rmtree(target_root)
+    shutil.copytree(snapshot_root, target_root)
+    return str(target_root)
+
+
 def snapshot_library(
     library_path: str,
     reason: str = "",
@@ -61,6 +131,7 @@ def snapshot_library(
     run_id: str | None = None,
     auto_expire_days: int | None = None,
     max_snapshots: int = DEFAULT_RETAINED_SNAPSHOTS,
+    offsite_dir: str | Path | None = None,
 ) -> "LibrarySnapshot":
     """Create a point-in-time snapshot of a library.
 
@@ -185,6 +256,7 @@ def snapshot_library(
         snapshot_path=str(snapshot_root),
         duckdb_path=str(duckdb_file_dir.relative_to(settings.snapshots_dir)),
         lance_path=primary_lance_path,
+        offsite_path=None,
         file_count=file_count,
         duckdb_size_bytes=duckdb_size,
         lance_size_bytes=lance_size,
@@ -205,6 +277,7 @@ def snapshot_library(
             "duckdb": snapshot.duckdb_path,
             "duckdb_export": str(duckdb_export_dir.relative_to(settings.snapshots_dir)),
             "embeddings": copied_embeddings,
+            "offsite": None,
         },
         "sizes": {
             "duckdb_size_bytes": duckdb_size,
@@ -215,6 +288,25 @@ def snapshot_library(
     }
     _write_manifest(snapshot_root, manifest)
     snapshot.file_count = sum(1 for _ in snapshot_root.rglob("*") if _.is_file())
+
+    resolved_offsite_dir = _resolve_offsite_dir(library_path_p, offsite_dir)
+    if resolved_offsite_dir is not None:
+        try:
+            snapshot.offsite_path = _copy_snapshot_offsite(
+                snapshot_root,
+                library_name,
+                snapshot_id,
+                resolved_offsite_dir,
+            )
+            manifest["paths"]["offsite"] = snapshot.offsite_path
+            _write_manifest(snapshot_root, manifest)
+        except Exception as exc:
+            logger.warning(
+                "Offsite snapshot mirror failed for %s to %s: %s",
+                library_path_p,
+                resolved_offsite_dir,
+                exc,
+            )
 
     # Save snapshot metadata
     _save_snapshot_record(snapshot)
@@ -523,3 +615,98 @@ def auto_snapshot_before_risky_operation(
             exc,
         )
         return None
+
+
+def has_scheduled_snapshots_enabled() -> bool:
+    """True when at least one known library opted into periodic snapshots."""
+    try:
+        return any(_list_scheduled_libraries())
+    except Exception:
+        logger.exception("Could not inspect scheduled snapshot configuration")
+        return False
+
+
+def run_due_scheduled_snapshots(
+    *,
+    now: datetime | None = None,
+) -> list["LibrarySnapshot"]:
+    """Create any periodic snapshots that are currently due."""
+    current_time = now or datetime.now()
+    created: list["LibrarySnapshot"] = []
+
+    for library in _list_scheduled_libraries():
+        library_path = Path(library.path).expanduser()
+        if library_path.suffix != ".fichero":
+            logger.warning("Skipping scheduled snapshot for non-library path: %s", library_path)
+            continue
+        if not library_path.exists():
+            logger.warning("Skipping scheduled snapshot for missing library: %s", library_path)
+            continue
+
+        latest_snapshot = next(
+            iter(
+                list_snapshots(
+                    library_name=library_path.stem,
+                    include_expired=True,
+                )
+            ),
+            None,
+        )
+        if latest_snapshot is not None:
+            next_due_at = latest_snapshot.created_at + timedelta(
+                seconds=library.snapshot_interval_seconds
+            )
+            if next_due_at > current_time:
+                continue
+
+        try:
+            created.append(
+                snapshot_library(
+                    str(library_path),
+                    reason="scheduled periodic snapshot",
+                    initiator="system",
+                    max_snapshots=max(library.snapshot_retention_count, 0),
+                    offsite_dir=library.snapshot_offsite_path,
+                )
+            )
+        except Exception:
+            logger.exception("Scheduled snapshot failed for %s", library_path)
+
+    return created
+
+
+async def periodic_snapshot_loop(
+    *,
+    poll_interval_seconds: float | None = None,
+) -> None:
+    """Background loop that runs due scheduled snapshots until cancelled."""
+    interval = poll_interval_seconds
+    if interval is None:
+        interval = getattr(settings, "scheduled_snapshot_poll_interval_seconds", 60.0)
+    interval = max(float(interval), 0.01)
+
+    while True:
+        run_due_scheduled_snapshots()
+        try:
+            await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            logger.info("Periodic snapshot loop cancelled")
+            raise
+
+
+def start_periodic_snapshot_task() -> asyncio.Task[None] | None:
+    """Create the background periodic snapshot task when any library opted in."""
+    if not has_scheduled_snapshots_enabled():
+        return None
+    return asyncio.create_task(periodic_snapshot_loop())
+
+
+async def stop_periodic_snapshot_task(task: asyncio.Task[None] | None) -> None:
+    """Cancel and await the periodic snapshot task."""
+    if task is None:
+        return
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass

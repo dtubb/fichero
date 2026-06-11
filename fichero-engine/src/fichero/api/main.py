@@ -66,6 +66,10 @@ from fichero.models import (
 )
 from fichero.paths import migrate_legacy_engine_state
 from fichero.remote_backend import build_remote_backend_status
+from fichero.storage import (
+    start_periodic_snapshot_task,
+    stop_periodic_snapshot_task,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -581,9 +585,11 @@ async def lifespan(app: FastAPI):
     # crash, force-quit), this self-terminates the engine so it doesn't
     # become an orphan holding port 8765.
     parent_watcher = asyncio.create_task(_watch_parent_process())
+    periodic_snapshot_task = start_periodic_snapshot_task()
 
     yield
     parent_watcher.cancel()
+    await stop_periodic_snapshot_task(periodic_snapshot_task)
     # Shutdown: close all database connections
     logger.info("Fichero API shutting down...")
     db_manager.close_all()

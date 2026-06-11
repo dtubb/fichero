@@ -1110,6 +1110,7 @@ class LibrarySnapshot(BaseModel):
     snapshot_path: str  # Absolute path to snapshot directory
     duckdb_path: str  # Relative path to .duckdb.export Parquet files
     lance_path: str  # Relative path to LanceDB copy
+    offsite_path: str | None = None  # Absolute path to offsite snapshot copy
     file_count: int = 0  # Number of files in snapshot
     duckdb_size_bytes: int = 0  # Size of DuckDB Parquet export
     lance_size_bytes: int = 0  # Size of LanceDB vector copy
@@ -1240,6 +1241,12 @@ class KnownLibrary(BaseModel):
     # Timestamps for CLI UX (sort by last_accessed for "recent" list)
     added_at: datetime = Field(default_factory=datetime.now)
     last_accessed: datetime = Field(default_factory=datetime.now)
+
+    # Backup configuration. Interval <= 0 keeps scheduled snapshots disabled,
+    # preserving current behavior until a library explicitly opts in.
+    snapshot_interval_seconds: float = 0.0
+    snapshot_retention_count: int = 10
+    snapshot_offsite_path: str | None = None
 
 
 class LibraryRegistryResponse(BaseModel):

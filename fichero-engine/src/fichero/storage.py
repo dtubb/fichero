@@ -91,6 +91,9 @@ class StorageSettings(BaseSettings):
     # Thread pool size for background generation
     max_workers: int = 2
 
+    # Periodic snapshot scheduler polls for due libraries at this cadence.
+    scheduled_snapshot_poll_interval_seconds: float = 60.0
+
     @computed_field
     @property
     def thumb_dir(self) -> Path:
@@ -1073,7 +1076,12 @@ from fichero.storage_snapshots import (  # noqa: F401, E402 (re-exported)
     _snapshot_records_path,
     auto_snapshot_before_risky_operation,
     delete_snapshot,
+    has_scheduled_snapshots_enabled,
     list_snapshots,
+    periodic_snapshot_loop,
     restore_snapshot,
+    run_due_scheduled_snapshots,
     snapshot_library,
+    start_periodic_snapshot_task,
+    stop_periodic_snapshot_task,
 )
