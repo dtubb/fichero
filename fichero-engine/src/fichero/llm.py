@@ -43,6 +43,7 @@ import logging
 import os
 import re
 import threading
+import weakref
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import AsyncIterator, Any, Literal as _Literal
@@ -2536,15 +2537,77 @@ async def _openrouter_strip_parallel_tool_use(request: Any) -> None:
     request.headers["content-length"] = str(len(new_content))
 
 
-def _make_openrouter_http_client() -> Any:
-    """Build an httpx.AsyncClient that strips Bedrock-hostile tool-calling
-    params from every OpenRouter request (see
-    `_openrouter_strip_parallel_tool_use`)."""
+_HTTPX_ASYNC_CLIENT_CACHE: weakref.WeakKeyDictionary[
+    Any, dict[tuple[str, str, str, str], Any]
+] = weakref.WeakKeyDictionary()
+_HTTPX_ASYNC_CLIENT_CACHE_NO_LOOP: dict[tuple[str, str, str, str], Any] = {}
+_HTTPX_ASYNC_CLIENT_CACHE_LOCK = threading.Lock()
+
+
+def _get_shared_httpx_async_client(
+    *,
+    provider: str,
+    base_url: str,
+    model_name: str,
+    api_key: str | None,
+) -> Any:
+    """Return a process-global ``httpx.AsyncClient`` for one client identity.
+
+    The transport client is cached per event loop because httpx async clients
+    are loop-affine. Within a loop, calls that share the same provider /
+    endpoint / model / API key identity reuse one connection pool.
+    """
     import httpx
 
-    return httpx.AsyncClient(
-        event_hooks={"request": [_openrouter_strip_parallel_tool_use]},
-    )
+    cache_key = (provider, base_url, model_name, api_key or "")
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is None:
+        cached_client = _HTTPX_ASYNC_CLIENT_CACHE_NO_LOOP.get(cache_key)
+        if cached_client is not None:
+            return cached_client
+
+        with _HTTPX_ASYNC_CLIENT_CACHE_LOCK:
+            cached_client = _HTTPX_ASYNC_CLIENT_CACHE_NO_LOOP.get(cache_key)
+            if cached_client is not None:
+                return cached_client
+
+            client_kwargs: dict[str, Any] = {}
+            if provider == "openrouter":
+                client_kwargs["event_hooks"] = {
+                    "request": [_openrouter_strip_parallel_tool_use],
+                }
+            cached_client = httpx.AsyncClient(**client_kwargs)
+            _HTTPX_ASYNC_CLIENT_CACHE_NO_LOOP[cache_key] = cached_client
+            return cached_client
+
+    cached_by_loop = _HTTPX_ASYNC_CLIENT_CACHE.get(loop)
+    if cached_by_loop is not None:
+        cached_client = cached_by_loop.get(cache_key)
+        if cached_client is not None:
+            return cached_client
+
+    with _HTTPX_ASYNC_CLIENT_CACHE_LOCK:
+        cached_by_loop = _HTTPX_ASYNC_CLIENT_CACHE.get(loop)
+        if cached_by_loop is None:
+            cached_by_loop = {}
+            _HTTPX_ASYNC_CLIENT_CACHE[loop] = cached_by_loop
+
+        cached_client = cached_by_loop.get(cache_key)
+        if cached_client is not None:
+            return cached_client
+
+        client_kwargs: dict[str, Any] = {}
+        if provider == "openrouter":
+            client_kwargs["event_hooks"] = {
+                "request": [_openrouter_strip_parallel_tool_use],
+            }
+        cached_client = httpx.AsyncClient(**client_kwargs)
+        cached_by_loop[cache_key] = cached_client
+        return cached_client
 
 
 def get_langchain_model(config: LLMConfig) -> Any:
@@ -2656,6 +2719,7 @@ def get_langchain_model(config: LLMConfig) -> Any:
     if provider == "openrouter":
         from langchain_openai import ChatOpenAI
 
+        base_url = config.api_base or "https://openrouter.ai/api/v1"
         kwargs = dict(common_params)
         if reasoning_on:
             # OpenRouter normalizes reasoning across underlying providers
@@ -2669,8 +2733,13 @@ def get_langchain_model(config: LLMConfig) -> Any:
         return ChatOpenAI(
             model=model_name,
             api_key=api_key,
-            base_url=config.api_base or "https://openrouter.ai/api/v1",
-            http_async_client=_make_openrouter_http_client(),
+            base_url=base_url,
+            http_async_client=_get_shared_httpx_async_client(
+                provider=provider,
+                base_url=base_url,
+                model_name=model_name,
+                api_key=api_key,
+            ),
             **kwargs,
         )
 
@@ -2679,13 +2748,20 @@ def get_langchain_model(config: LLMConfig) -> Any:
     if provider in _OPENAI_COMPATIBLE_BASE_URLS:
         from langchain_openai import ChatOpenAI
 
+        base_url = config.api_base or _OPENAI_COMPATIBLE_BASE_URLS[provider]
         effective_key = api_key
         if provider in _KEYLESS_OPENAI_COMPATIBLE and not effective_key:
             effective_key = provider  # placeholder — local servers ignore it
         return ChatOpenAI(
             model=model_name,
             api_key=effective_key,
-            base_url=config.api_base or _OPENAI_COMPATIBLE_BASE_URLS[provider],
+            base_url=base_url,
+            http_async_client=_get_shared_httpx_async_client(
+                provider=provider,
+                base_url=base_url,
+                model_name=model_name,
+                api_key=effective_key,
+            ),
             **common_params,
         )
 
@@ -2693,11 +2769,18 @@ def get_langchain_model(config: LLMConfig) -> Any:
     if provider == "azure":
         from langchain_openai import AzureChatOpenAI
 
+        base_url = config.api_base or ""
         return AzureChatOpenAI(
             model=model_name,
             api_key=api_key,
             azure_endpoint=config.api_base,
             api_version=config.extra.get("api_version", "2024-02-01"),
+            http_async_client=_get_shared_httpx_async_client(
+                provider=provider,
+                base_url=base_url,
+                model_name=model_name,
+                api_key=api_key,
+            ),
             **common_params,
         )
 
