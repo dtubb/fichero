@@ -412,6 +412,151 @@ def _create_segment_documents(
     return child_ids
 
 
+# ---------------------------------------------------------------------------
+# Extracted mutation logic (`*_impl`) — the proven business logic each route
+# already ran, lifted into plain functions so BOTH the route handler AND the
+# audited action (EPIC #1848 / #2014) drive the *same* code (iterate-not-
+# replace). The action layer wraps these; it never re-derives them.
+# ---------------------------------------------------------------------------
+
+
+def set_operations_impl(
+    db: Database, document_id: str, operations: list[dict[str, Any]]
+) -> ImageEditChain:
+    """Replace a document's entire edit chain (the PUT /edits body)."""
+    _get_or_404_document(db, document_id)
+    chain = _get_chain(db, document_id)
+    if chain:
+        chain.operations = operations
+        chain.updated_at = datetime.now()
+    else:
+        chain = ImageEditChain(document_id=document_id, operations=operations)
+    db.save(chain)
+    return chain
+
+
+def clear_operations_impl(db: Database, document_id: str) -> list[dict[str, Any]]:
+    """Delete a document's edit chain. Returns the operations that were cleared
+    (so the audited action can record + invert them)."""
+    _get_or_404_document(db, document_id)
+    chain = _get_chain(db, document_id)
+    cleared = list(chain.operations) if chain else []
+    if chain:
+        db.delete(chain)
+    return cleared
+
+
+def _render_and_append(
+    db: Database,
+    document_id: str,
+    source_path: Path,
+    op: dict[str, Any],
+    page: int,
+) -> ImageEditChain:
+    """Render ``op`` against the source image, stamp the derived preview path +
+    timestamp, and append it to the chain. Shared by crop/rotate/enhance/
+    remove_background so the render→append sequence lives in one place."""
+    base = _load_source_image(source_path, page=page)
+    derived = _apply_operation(base, op)
+    op["derived_path"] = _write_derived_image(document_id, page, derived)
+    op["created_at"] = datetime.now().isoformat()
+    return _append_operation(db, document_id, op)
+
+
+def crop_image_impl(
+    db: Database, document_id: str, request: CropOperationRequest
+) -> ImageEditChain:
+    doc = _get_or_404_document(db, document_id)
+    source_path = _resolve_source_or_404(db, doc)
+    op = {
+        "op": "crop",
+        "page": request.page,
+        "params": {
+            "left": request.left,
+            "top": request.top,
+            "width": request.width,
+            "height": request.height,
+            "auto_orient": request.auto_orient,
+        },
+    }
+    return _render_and_append(db, document_id, source_path, op, request.page)
+
+
+def rotate_image_impl(
+    db: Database, document_id: str, request: RotateOperationRequest
+) -> ImageEditChain:
+    doc = _get_or_404_document(db, document_id)
+    source_path = _resolve_source_or_404(db, doc)
+    op = {
+        "op": "rotate",
+        "page": request.page,
+        "params": {"angle": request.angle, "expand": request.expand},
+    }
+    return _render_and_append(db, document_id, source_path, op, request.page)
+
+
+def enhance_image_impl(
+    db: Database, document_id: str, request: EnhanceOperationRequest
+) -> ImageEditChain:
+    doc = _get_or_404_document(db, document_id)
+    source_path = _resolve_source_or_404(db, doc)
+    op = {
+        "op": "enhance",
+        "page": request.page,
+        "params": {
+            "brightness": request.brightness,
+            "contrast": request.contrast,
+            "sharpen": request.sharpen,
+            "auto_levels": request.auto_levels,
+        },
+    }
+    return _render_and_append(db, document_id, source_path, op, request.page)
+
+
+def remove_background_image_impl(
+    db: Database, document_id: str, request: RemoveBackgroundOperationRequest
+) -> ImageEditChain:
+    doc = _get_or_404_document(db, document_id)
+    source_path = _resolve_source_or_404(db, doc)
+    op = {
+        "op": "remove_background",
+        "page": request.page,
+        "params": {"method": request.method, "threshold": request.threshold},
+    }
+    return _render_and_append(db, document_id, source_path, op, request.page)
+
+
+def segment_image_impl(
+    db: Database, document_id: str, request: SegmentOperationRequest
+) -> tuple[ImageEditChain, list[str]]:
+    """Segment the (saved-edits-applied) image, create child chunk documents,
+    and append the ``segment`` op. Returns ``(chain, child_document_ids)``."""
+    doc = _get_or_404_document(db, document_id)
+    source_path = _resolve_source_or_404(db, doc)
+    base = _apply_saved_operations(
+        db, document_id, request.page, _load_source_image(source_path, page=request.page)
+    )
+    params = {
+        "method": request.method,
+        "threshold": request.threshold,
+        "min_area": request.min_area,
+        "max_segments": request.max_segments,
+    }
+    segments = _segment_image(base, params)
+    child_ids = _create_segment_documents(db, doc, request.page, segments)
+    op = {
+        "op": "segment",
+        "page": request.page,
+        "params": params,
+        "segments": segments,
+        "child_document_ids": child_ids,
+    }
+    op["derived_path"] = _write_derived_image(document_id, request.page, base)
+    op["created_at"] = datetime.now().isoformat()
+    chain = _append_operation(db, document_id, op)
+    return chain, child_ids
+
+
 @router.get("/{document_id}/edits", response_model=ImageEditChainResponse)
 async def get_edit_chain(
     document_id: str, db: Database = Depends(get_library_database)
@@ -435,14 +580,7 @@ async def put_edit_chain(
     request: ImageEditChainUpsert,
     db: Database = Depends(get_library_database),
 ) -> ImageEditChainResponse:
-    _get_or_404_document(db, document_id)
-    chain = _get_chain(db, document_id)
-    if chain:
-        chain.operations = request.operations
-        chain.updated_at = datetime.now()
-    else:
-        chain = ImageEditChain(document_id=document_id, operations=request.operations)
-    db.save(chain)
+    chain = set_operations_impl(db, document_id, request.operations)
     return ImageEditChainResponse(
         document_id=document_id,
         operations=chain.operations,
@@ -456,30 +594,9 @@ async def crop_image(
     request: CropOperationRequest,
     db: Database = Depends(get_library_database),
 ) -> ImageEditChainResponse:
-    doc = _get_or_404_document(db, document_id)
-    source_path = _resolve_source_or_404(db, doc)
-
-    op = {
-        "op": "crop",
-        "page": request.page,
-        "params": {
-            "left": request.left,
-            "top": request.top,
-            "width": request.width,
-            "height": request.height,
-            "auto_orient": request.auto_orient,
-        },
-    }
-
-    def _run_crop_sync() -> str:
-        base = _load_source_image(source_path, page=request.page)
-        derived = _apply_operation(base, op)
-        return _write_derived_image(document_id, request.page, derived)
-
-    op["derived_path"] = await asyncio.to_thread(_run_crop_sync)
-    op["created_at"] = datetime.now().isoformat()
-
-    chain = _append_operation(db, document_id, op)
+    # Render off the event loop (crop can be heavy) — same as before, but the
+    # whole render+append now lives in the shared impl the action also drives.
+    chain = await asyncio.to_thread(crop_image_impl, db, document_id, request)
     return ImageEditChainResponse(
         document_id=document_id,
         operations=chain.operations,
@@ -493,23 +610,7 @@ async def rotate_image(
     request: RotateOperationRequest,
     db: Database = Depends(get_library_database),
 ) -> ImageEditChainResponse:
-    doc = _get_or_404_document(db, document_id)
-    source_path = _resolve_source_or_404(db, doc)
-
-    base = _load_source_image(source_path, page=request.page)
-    op = {
-        "op": "rotate",
-        "page": request.page,
-        "params": {
-            "angle": request.angle,
-            "expand": request.expand,
-        },
-    }
-    derived = _apply_operation(base, op)
-    op["derived_path"] = _write_derived_image(document_id, request.page, derived)
-    op["created_at"] = datetime.now().isoformat()
-
-    chain = _append_operation(db, document_id, op)
+    chain = rotate_image_impl(db, document_id, request)
     return ImageEditChainResponse(
         document_id=document_id,
         operations=chain.operations,
@@ -523,25 +624,7 @@ async def enhance_image(
     request: EnhanceOperationRequest,
     db: Database = Depends(get_library_database),
 ) -> ImageEditChainResponse:
-    doc = _get_or_404_document(db, document_id)
-    source_path = _resolve_source_or_404(db, doc)
-
-    base = _load_source_image(source_path, page=request.page)
-    op = {
-        "op": "enhance",
-        "page": request.page,
-        "params": {
-            "brightness": request.brightness,
-            "contrast": request.contrast,
-            "sharpen": request.sharpen,
-            "auto_levels": request.auto_levels,
-        },
-    }
-    derived = _apply_operation(base, op)
-    op["derived_path"] = _write_derived_image(document_id, request.page, derived)
-    op["created_at"] = datetime.now().isoformat()
-
-    chain = _append_operation(db, document_id, op)
+    chain = enhance_image_impl(db, document_id, request)
     return ImageEditChainResponse(
         document_id=document_id,
         operations=chain.operations,
@@ -555,23 +638,7 @@ async def remove_background_image(
     request: RemoveBackgroundOperationRequest,
     db: Database = Depends(get_library_database),
 ) -> ImageEditChainResponse:
-    doc = _get_or_404_document(db, document_id)
-    source_path = _resolve_source_or_404(db, doc)
-
-    base = _load_source_image(source_path, page=request.page)
-    op = {
-        "op": "remove_background",
-        "page": request.page,
-        "params": {
-            "method": request.method,
-            "threshold": request.threshold,
-        },
-    }
-    derived = _apply_operation(base, op)
-    op["derived_path"] = _write_derived_image(document_id, request.page, derived)
-    op["created_at"] = datetime.now().isoformat()
-
-    chain = _append_operation(db, document_id, op)
+    chain = remove_background_image_impl(db, document_id, request)
     return ImageEditChainResponse(
         document_id=document_id,
         operations=chain.operations,
@@ -585,31 +652,7 @@ async def segment_image(
     request: SegmentOperationRequest,
     db: Database = Depends(get_library_database),
 ) -> ImageEditChainResponse:
-    doc = _get_or_404_document(db, document_id)
-    source_path = _resolve_source_or_404(db, doc)
-
-    base = _apply_saved_operations(
-        db, document_id, request.page, _load_source_image(source_path, page=request.page)
-    )
-    params = {
-        "method": request.method,
-        "threshold": request.threshold,
-        "min_area": request.min_area,
-        "max_segments": request.max_segments,
-    }
-    segments = _segment_image(base, params)
-    child_ids = _create_segment_documents(db, doc, request.page, segments)
-    op = {
-        "op": "segment",
-        "page": request.page,
-        "params": params,
-        "segments": segments,
-        "child_document_ids": child_ids,
-    }
-    op["derived_path"] = _write_derived_image(document_id, request.page, base)
-    op["created_at"] = datetime.now().isoformat()
-
-    chain = _append_operation(db, document_id, op)
+    chain, _child_ids = segment_image_impl(db, document_id, request)
     return ImageEditChainResponse(
         document_id=document_id,
         operations=chain.operations,
@@ -621,10 +664,7 @@ async def segment_image(
 async def delete_edit_chain(
     document_id: str, db: Database = Depends(get_library_database)
 ) -> None:
-    _get_or_404_document(db, document_id)
-    chain = _get_chain(db, document_id)
-    if chain:
-        db.delete(chain)
+    clear_operations_impl(db, document_id)
 
 
 @router.get("/{document_id}/preview")
@@ -655,3 +695,247 @@ async def preview_image(
     image.save(buffer, format=image_format, **save_kwargs)
     buffer.seek(0)
     return Response(content=buffer.getvalue(), media_type=media_type)
+
+
+# ---------------------------------------------------------------------------
+# Action layer registration (EPIC #1848 / #2014) — image-editing mutations
+# ---------------------------------------------------------------------------
+#
+# Every mutating image-editing route gets a registered, audited action that
+# WRAPS the proven `*_impl` above (iterate-not-replace — the algorithm is the
+# route's, never re-derived). The original typed routes stay untouched and
+# green; the action is the *additional* uniform path that chat tools / App
+# Intents / tests drive via POST /api/actions/invoke.
+#
+# The edit chain IS the document's image-edit state, so before/after = the op
+# list. That makes the chain mutations cheaply reversible: every undoable image
+# action inverts to `image.set_operations` with the *before* op list — a single
+# inverse that restores whatever the chain looked like before the mutation
+# (append → drop the appended op; replace → restore the old list; clear →
+# restore the cleared list). `image.segment` is the exception: it also creates
+# child chunk Documents, which restoring the chain would NOT delete, so it is
+# undoable=False rather than offering a lying undo.
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+IMAGE_EDIT_EMIT_TYPE = "image.edits_changed"
+
+
+class SetImageOperationsParams(BaseModel):
+    """Params for image.set_operations — replace the whole edit chain."""
+
+    document_id: str
+    operations: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ClearImageOperationsParams(BaseModel):
+    """Params for image.clear_operations — delete the whole edit chain."""
+
+    document_id: str
+
+
+class CropImageActionParams(CropOperationRequest):
+    document_id: str
+
+
+class RotateImageActionParams(RotateOperationRequest):
+    document_id: str
+
+
+class EnhanceImageActionParams(EnhanceOperationRequest):
+    document_id: str
+
+
+class RemoveBackgroundImageActionParams(RemoveBackgroundOperationRequest):
+    document_id: str
+
+
+class SegmentImageActionParams(SegmentOperationRequest):
+    document_id: str
+
+
+def _chain_ops_snapshot(db: Database, document_id: str) -> list[dict[str, Any]]:
+    """A JSON-able copy of the current chain's operations (empty if no chain)."""
+    chain = _get_chain(db, document_id)
+    return [dict(op) for op in chain.operations] if chain else []
+
+
+def _chain_payload(document_id: str, operations: list[dict[str, Any]]) -> dict[str, Any]:
+    """before/after audit payload: which document + the op list at that moment."""
+    return {"document_id": document_id, "operations": operations}
+
+
+def _chain_result(chain: ImageEditChain) -> dict[str, Any]:
+    """ActionResult.result mirrors the route's ImageEditChainResponse shape."""
+    return ImageEditChainResponse(
+        document_id=chain.document_id,
+        operations=chain.operations,
+        updated_at=chain.updated_at,
+    ).model_dump(mode="json")
+
+
+def _invert_image_chain(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Inverse of any chain mutation: set_operations back to the before-list."""
+    if not before:
+        return None
+    document_id = before.get("document_id")
+    if not document_id:
+        return None
+    return (
+        "image.set_operations",
+        {"document_id": document_id, "operations": before.get("operations", [])},
+    )
+
+
+def _image_chain_spec(
+    document_id: str,
+    before_ops: list[dict[str, Any]],
+    after_ops: list[dict[str, Any]],
+    *,
+    domains: list[str] | None = None,
+    emit_type: str = IMAGE_EDIT_EMIT_TYPE,
+    extra_document_ids: list[str] | None = None,
+) -> ChangeSpec:
+    return ChangeSpec(
+        domains=domains or ["image"],
+        target_ids=[document_id],
+        before=_chain_payload(document_id, before_ops),
+        after=_chain_payload(document_id, after_ops),
+        emit_type=emit_type,
+        document_ids=[document_id, *(extra_document_ids or [])],
+    )
+
+
+@action(
+    "image.set_operations",
+    SetImageOperationsParams,
+    domains=["image"],
+    undoable=True,
+    invert=_invert_image_chain,
+)
+def _action_set_operations(
+    db: Database, params: SetImageOperationsParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_ops = _chain_ops_snapshot(db, params.document_id)
+    chain = set_operations_impl(db, params.document_id, list(params.operations))
+    after_ops = [dict(op) for op in chain.operations]
+    return _chain_result(chain), _image_chain_spec(
+        params.document_id, before_ops, after_ops
+    )
+
+
+@action(
+    "image.clear_operations",
+    ClearImageOperationsParams,
+    domains=["image"],
+    undoable=True,
+    invert=_invert_image_chain,
+)
+def _action_clear_operations(
+    db: Database, params: ClearImageOperationsParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_ops = _chain_ops_snapshot(db, params.document_id)
+    cleared = clear_operations_impl(db, params.document_id)
+    return (
+        {"document_id": params.document_id, "cleared": len(cleared)},
+        _image_chain_spec(params.document_id, before_ops, []),
+    )
+
+
+@action(
+    "image.crop",
+    CropImageActionParams,
+    domains=["image"],
+    undoable=True,
+    invert=_invert_image_chain,
+)
+def _action_crop(
+    db: Database, params: CropImageActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_ops = _chain_ops_snapshot(db, params.document_id)
+    chain = crop_image_impl(db, params.document_id, params)
+    after_ops = [dict(op) for op in chain.operations]
+    return _chain_result(chain), _image_chain_spec(
+        params.document_id, before_ops, after_ops
+    )
+
+
+@action(
+    "image.rotate",
+    RotateImageActionParams,
+    domains=["image"],
+    undoable=True,
+    invert=_invert_image_chain,
+)
+def _action_rotate(
+    db: Database, params: RotateImageActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_ops = _chain_ops_snapshot(db, params.document_id)
+    chain = rotate_image_impl(db, params.document_id, params)
+    after_ops = [dict(op) for op in chain.operations]
+    return _chain_result(chain), _image_chain_spec(
+        params.document_id, before_ops, after_ops
+    )
+
+
+@action(
+    "image.enhance",
+    EnhanceImageActionParams,
+    domains=["image"],
+    undoable=True,
+    invert=_invert_image_chain,
+)
+def _action_enhance(
+    db: Database, params: EnhanceImageActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_ops = _chain_ops_snapshot(db, params.document_id)
+    chain = enhance_image_impl(db, params.document_id, params)
+    after_ops = [dict(op) for op in chain.operations]
+    return _chain_result(chain), _image_chain_spec(
+        params.document_id, before_ops, after_ops
+    )
+
+
+@action(
+    "image.remove_background",
+    RemoveBackgroundImageActionParams,
+    domains=["image"],
+    undoable=True,
+    invert=_invert_image_chain,
+)
+def _action_remove_background(
+    db: Database, params: RemoveBackgroundImageActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_ops = _chain_ops_snapshot(db, params.document_id)
+    chain = remove_background_image_impl(db, params.document_id, params)
+    after_ops = [dict(op) for op in chain.operations]
+    return _chain_result(chain), _image_chain_spec(
+        params.document_id, before_ops, after_ops
+    )
+
+
+@action(
+    "image.segment",
+    SegmentImageActionParams,
+    domains=["image", "document"],
+    undoable=False,
+)
+def _action_segment(
+    db: Database, params: SegmentImageActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    # Not undoable: segment appends an op AND creates child chunk Documents.
+    # Restoring the chain alone would orphan those children, so we don't pretend
+    # to invert it. before/after still record the chain delta for the audit.
+    before_ops = _chain_ops_snapshot(db, params.document_id)
+    chain, child_ids = segment_image_impl(db, params.document_id, params)
+    after_ops = [dict(op) for op in chain.operations]
+    return _chain_result(chain), _image_chain_spec(
+        params.document_id,
+        before_ops,
+        after_ops,
+        domains=["image", "document"],
+        emit_type="image.segmented",
+        extra_document_ids=child_ids,
+    )
