@@ -490,14 +490,15 @@ class TestInterpretationOntologyActions:
         result = registry.invoke(
             db,
             "interpretation.update",
-            {"interpretation_id": "interp-u", "interpretation_text": "Revised reading.", "predicate": "shows"},
+            {"interpretation_id": "interp-u", "interpretation_text": "Revised reading.", "predicate": "reveals"},
             ctx,
         )
         updated = db.get(Interpretation, "interp-u")
         assert updated.interpretation_text == "Revised reading."
-        # predicate edit recomputes predicate_canonical (side effect preserved)
-        assert updated.predicate == "shows"
-        assert updated.predicate_canonical is not None
+        # predicate edit recomputes predicate_canonical (side effect preserved);
+        # "reveals" is a recognized hermeneutic predicate -> canonicalizes to itself.
+        assert updated.predicate == "reveals"
+        assert updated.predicate_canonical == "reveals"
 
         audit = db.get(ActionAudit, result.audit_id)
         assert audit.before["interpretation_text"] == "Reflects class struggle."
