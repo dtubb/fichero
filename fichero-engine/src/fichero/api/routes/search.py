@@ -1747,3 +1747,68 @@ def _action_restore_saved_search(
         emit_type="savedsearch.updated" if before else "savedsearch.created",
     )
     return after, spec
+
+
+# =============================================================================
+# The MISSING search action (#2018) — search.reindex
+# =============================================================================
+#
+# The #2000-era inventory flagged "UI search-index refresh" as a capability with
+# no single endpoint: re-embedding claims + entities for semantic search was only
+# reachable as TWO separate admin routes (POST /kg/claim-search/embed and POST
+# /kg/{...}/semantic/embed). search.reindex WRAPS the proven
+# ``Database.embed_claims`` / ``Database.embed_entities`` (iterate-not-replace:
+# the embedding algorithm is wrapped, never re-derived) into ONE audited action a
+# UI button can drive. Pass ``entity_ids`` / ``claim_ids`` to scope the refresh;
+# omit both to re-embed the whole knowledge graph. NOT undoable — re-embedding is
+# an idempotent index rebuild with no meaningful inverse.
+
+
+class SearchReindexParams(BaseModel):
+    """``search.reindex`` — optional id subsets; empty/omitted means 'all'."""
+
+    entity_ids: list[str] | None = Field(
+        default=None, description="Entities to re-embed; None/empty = all entities"
+    )
+    claim_ids: list[str] | None = Field(
+        default=None, description="Claims to re-embed; None/empty = all claims"
+    )
+
+
+@action(
+    "search.reindex",
+    SearchReindexParams,
+    domains=["search"],
+    undoable=False,
+)
+def _action_search_reindex(
+    db: Database, params: SearchReindexParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Re-embed claims + entities for semantic search in one audited pass."""
+    if params.entity_ids:
+        entities = [e for e in (db.get(KnowledgeEntity, eid) for eid in params.entity_ids) if e]
+    else:
+        entities = db.all(KnowledgeEntity)
+    if params.claim_ids:
+        claims = [c for c in (db.get(KnowledgeClaim, cid) for cid in params.claim_ids) if c]
+    else:
+        claims = db.all(KnowledgeClaim)
+
+    entities_indexed = db.embed_entities(entities) if entities else 0
+    claims_indexed = db.embed_claims(claims) if claims else 0
+    result = {
+        "entities_indexed": entities_indexed,
+        "claims_indexed": claims_indexed,
+    }
+    # Emit the supplied subset (lean): for a full reindex the bare type signals a
+    # global semantic-index refresh without flooding the event with every id.
+    spec = ChangeSpec(
+        domains=["search"],
+        target_ids=[],
+        before=None,
+        after=result,
+        emit_type="search.reindexed",
+        entity_ids=list(params.entity_ids or []),
+        claim_ids=list(params.claim_ids or []),
+    )
+    return result, spec

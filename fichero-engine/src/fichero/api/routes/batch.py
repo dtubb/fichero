@@ -821,3 +821,71 @@ def _action_retry_batch(
         emit_type="batch.retried",
     )
     return after or {"batch_id": params.batch_id}, spec
+
+
+# ---------------------------------------------------------------------------
+# The MISSING workflow action (#2018) — workflow.run (single-shot)
+# ---------------------------------------------------------------------------
+#
+# The #2000-era inventory flagged "run workflow on docs" as a capability with no
+# single endpoint: the UI does it in TWO steps (POST /batches to create, then
+# POST /batches/{id}/execute to run). workflow.run COLLAPSES that into one audited
+# action — it WRAPS the proven BatchManager.create_batch + execute_batch
+# (iterate-not-replace: both algorithms are wrapped, never re-derived), draining
+# the SSE generator to completion, and returns the run/task id (the batch_id) the
+# caller polls. NOT undoable: a workflow run produces artifacts/side effects with
+# no clean inverse (delete the batch via batch.delete if you must discard it).
+
+
+class WorkflowRunParams(_BaseModel):
+    workflow_id: str
+    items: list[dict[str, Any]] = _Field(
+        min_length=1, description="Input dicts, one per document (>=1)."
+    )
+    max_concurrent: int = _Field(default=5, ge=1, le=50)
+
+
+@action(
+    "workflow.run",
+    WorkflowRunParams,
+    domains=["workflow", "batch"],
+    undoable=False,
+)
+def _action_workflow_run(
+    db: Any, params: WorkflowRunParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Create a batch over the docs AND run it to completion in one shot.
+
+    Returns ``run_id`` / ``batch_id`` (same value) so a caller can poll
+    ``/api/batches/{id}`` for results — the one-call equivalent of the UI's
+    create-then-execute two-step.
+    """
+    manager = get_batch_manager()
+    store = get_workflow_store()
+
+    async def _run() -> Optional[BatchExecution]:
+        batch = await manager.create_batch(
+            workflow_id=params.workflow_id,
+            items_inputs=params.items,
+            max_concurrent=params.max_concurrent,
+        )
+        async for _event in manager.execute_batch(batch.batch_id, store):
+            pass
+        return await manager.get_batch(batch.batch_id)
+
+    final = _run_async(_run())
+    after = _batch_snapshot(final) if final else None
+    run_id = final.batch_id if final else None
+    result = {
+        "run_id": run_id,
+        "batch_id": run_id,
+        "status": final.status.value if final else None,
+    }
+    spec = ChangeSpec(
+        domains=["workflow", "batch"],
+        target_ids=[run_id] if run_id else [],
+        before=None,
+        after=after,
+        emit_type="workflow.run",
+    )
+    return result, spec

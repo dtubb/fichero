@@ -704,3 +704,274 @@ def _action_promote_to_claim(
         document_ids=_annotation_scope_document_ids(ann),
     )
     return after, spec
+
+
+# =============================================================================
+# The 3 MISSING annotation actions (#2018) — duplicate / merge / relink
+# =============================================================================
+#
+# The #2000-era inventory flagged these as capabilities the UI wants but no
+# single endpoint covers. Each is defined here as a registered action (reachable
+# via the generic POST /api/actions/invoke), wrapping new minimal *_impl logic in
+# the same iterate-not-replace shape as the CRUD verbs above:
+#
+#   * annotation.duplicate -> undo via annotation.delete (the copy's new id), the
+#     SAME create-family inverse the create action uses.
+#   * annotation.relink    -> a focused patch (links + anchor target only) that
+#     REUSES patch_annotation_impl, so it inherits the proven scope-normalization
+#     + exclude-unset semantics; undo via annotation.restore (before snapshot).
+#   * annotation.merge     -> combine two annotations into the target (union the
+#     links/tags, concatenate text) and remove the absorbed one. The annotation
+#     domain has no tombstone column, so "soft-delete" here means the absorbed row
+#     is db.delete'd but its FULL snapshot rides in the audit `before` — exactly
+#     restorable. A merge touches TWO rows (target edited + absorbed removed), so
+#     no single existing verb can invert it; it gets a dedicated
+#     ``annotation.unmerge`` inverse (mirrors how the batch domain added
+#     ``batch.restore`` purely as an inverse). ``unmerge`` upserts BOTH captured
+#     snapshots back, so merge<->unmerge is a clean undo/redo pair.
+
+
+def duplicate_annotation_impl(db: Database, annotation_id: str) -> Annotation:
+    """Copy an annotation: a fresh id + timestamps, every other field/link cloned.
+
+    Strips identity/time fields from the source snapshot so the model mints new
+    ones; ``db.save`` then inserts the copy. Raises ``HTTPException`` 404 on a
+    missing source exactly as the other annotation verbs do.
+    """
+    ann = db.get(Annotation, annotation_id)
+    if ann is None:
+        raise HTTPException(404, f"Annotation not found: {annotation_id}")
+    snapshot = ann.model_dump()
+    for identity_field in ("id", "created_at", "updated_at"):
+        snapshot.pop(identity_field, None)
+    copy = Annotation(**snapshot)
+    db.save(copy)
+    return copy
+
+
+def _scope_doc_ids_from_snapshot(snapshot: dict) -> list[str]:
+    """The document/page/folder ids hanging off a snapshot dict — for emit scope."""
+    return [
+        i
+        for i in (
+            snapshot.get("document_id"),
+            snapshot.get("page_id"),
+            snapshot.get("folder_id"),
+        )
+        if i
+    ]
+
+
+def merge_annotations_impl(
+    db: Database, target_id: str, source_id: str
+) -> tuple[Annotation, dict, dict]:
+    """Merge ``source`` into ``target``. Returns ``(target, target_before, source_before)``.
+
+    Combines text (newline-joined, in target-then-source order) and unions the
+    three link lists + tags onto the target, then removes the absorbed source.
+    Both pre-mutation snapshots are returned so the merge action's ``before`` can
+    restore BOTH rows on undo. Raises ``HTTPException`` 400 on a self-merge and
+    404 on a missing id.
+    """
+    if target_id == source_id:
+        raise HTTPException(400, "Cannot merge an annotation into itself")
+    target = db.get(Annotation, target_id)
+    if target is None:
+        raise HTTPException(404, f"Annotation not found: {target_id}")
+    source = db.get(Annotation, source_id)
+    if source is None:
+        raise HTTPException(404, f"Annotation not found: {source_id}")
+
+    target_before = target.model_dump(mode="json")
+    source_before = source.model_dump(mode="json")
+
+    texts = [t for t in (target.text, source.text) if t]
+    target.text = "\n\n".join(texts) if texts else None
+    target.linked_claim_ids = sorted(
+        set(target.linked_claim_ids or []) | set(source.linked_claim_ids or [])
+    )
+    target.linked_entity_ids = sorted(
+        set(target.linked_entity_ids or []) | set(source.linked_entity_ids or [])
+    )
+    target.linked_note_ids = sorted(
+        set(target.linked_note_ids or []) | set(source.linked_note_ids or [])
+    )
+    target.tags = sorted(set(target.tags or []) | set(source.tags or []))
+    target.updated_at = datetime.now()
+    db.save(target)
+    db.delete(source)
+    return target, target_before, source_before
+
+
+class AnnotationDuplicateParams(BaseModel):
+    """``annotation.duplicate`` — id of the annotation to copy."""
+
+    annotation_id: str = Field(description="Annotation id to duplicate")
+
+
+class AnnotationMergeParams(BaseModel):
+    """``annotation.merge`` — fold ``source_id`` into ``target_id``."""
+
+    target_id: str = Field(description="Annotation kept (absorbs the source)")
+    source_id: str = Field(description="Annotation absorbed + removed")
+
+
+class AnnotationUnmergeParams(BaseModel):
+    """``annotation.unmerge`` — the merge inverse: a ``{target, absorbed}`` pair of
+    pre-merge snapshots to upsert back."""
+
+    snapshot: dict = Field(
+        description="{'target': <snap>, 'absorbed': <snap>} captured before a merge"
+    )
+
+
+class AnnotationRelinkParams(BaseModel):
+    """``annotation.relink`` — update an annotation's cross-links and/or anchor
+    target only. Every field is optional; exclude-unset means an absent field is
+    left untouched while an explicit ``[]`` clears that link list."""
+
+    annotation_id: str = Field(description="Annotation id to relink")
+    linked_claim_ids: list[str] | None = None
+    linked_entity_ids: list[str] | None = None
+    linked_note_ids: list[str] | None = None
+    document_id: str | None = None
+    page_id: str | None = None
+    folder_id: str | None = None
+
+
+def relink_annotation_impl(
+    db: Database, params: AnnotationRelinkParams
+) -> tuple[Annotation, dict]:
+    """Apply a links/target-only update by REUSING ``patch_annotation_impl``.
+
+    Only the relink fields actually supplied are forwarded (exclude-unset), so the
+    patch's proven scope-reconciliation runs for an anchor move and the link lists
+    are set verbatim. Returns ``(ann, before_snapshot)``. Raises ``HTTPException``
+    400 when no relink field is supplied and 404 for a missing id.
+    """
+    updates = params.model_dump(exclude_unset=True)
+    updates.pop("annotation_id", None)
+    if not updates:
+        raise HTTPException(
+            400, "annotation.relink requires at least one link or target field"
+        )
+    return patch_annotation_impl(db, params.annotation_id, AnnotationPatchRequest(**updates))
+
+
+def _invert_merge_annotation(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a merge by restoring BOTH captured snapshots via annotation.unmerge."""
+    if not before:
+        return None
+    return ("annotation.unmerge", {"snapshot": before})
+
+
+@action(
+    "annotation.duplicate",
+    AnnotationDuplicateParams,
+    domains=["annotation"],
+    undoable=True,
+    invert=_invert_create_annotation,
+)
+def _action_duplicate_annotation(
+    db: Database, params: AnnotationDuplicateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    copy = duplicate_annotation_impl(db, params.annotation_id)
+    after = copy.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["annotation"],
+        target_ids=[copy.id],
+        before=None,
+        after=after,
+        emit_type="annotation.created",
+        document_ids=_annotation_scope_document_ids(copy),
+    )
+    return after, spec
+
+
+@action(
+    "annotation.merge",
+    AnnotationMergeParams,
+    domains=["annotation"],
+    undoable=True,
+    invert=_invert_merge_annotation,
+)
+def _action_merge_annotation(
+    db: Database, params: AnnotationMergeParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    target, target_before, source_before = merge_annotations_impl(
+        db, params.target_id, params.source_id
+    )
+    before = {"target": target_before, "absorbed": source_before}
+    after = target.model_dump(mode="json")
+    document_ids = sorted(
+        set(_scope_doc_ids_from_snapshot(target_before))
+        | set(_scope_doc_ids_from_snapshot(source_before))
+    )
+    spec = ChangeSpec(
+        domains=["annotation"],
+        target_ids=[params.target_id, params.source_id],
+        before=before,
+        after=after,
+        emit_type="annotation.merged",
+        document_ids=document_ids,
+    )
+    return after, spec
+
+
+@action(
+    "annotation.unmerge",
+    AnnotationUnmergeParams,
+    domains=["annotation"],
+    undoable=False,
+)
+def _action_unmerge_annotation(
+    db: Database, params: AnnotationUnmergeParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Inverse of annotation.merge — upsert the target + absorbed snapshots back
+    (db.save is upsert-by-id, so the absorbed row is re-created with its original
+    id and the target reverts to its pre-merge fields)."""
+    target_snap = params.snapshot.get("target")
+    absorbed_snap = params.snapshot.get("absorbed")
+    restored: list[str] = []
+    document_ids: list[str] = []
+    for snap in (target_snap, absorbed_snap):
+        if not snap:
+            continue
+        ann = restore_annotation_impl(db, snap)
+        restored.append(ann.id)
+        document_ids.extend(_annotation_scope_document_ids(ann))
+    after = {"restored_ids": restored}
+    spec = ChangeSpec(
+        domains=["annotation"],
+        target_ids=restored,
+        before=None,
+        after=after,
+        emit_type="annotation.updated",
+        document_ids=sorted(set(document_ids)),
+    )
+    return after, spec
+
+
+@action(
+    "annotation.relink",
+    AnnotationRelinkParams,
+    domains=["annotation"],
+    undoable=True,
+    invert=_invert_to_restore_before,
+)
+def _action_relink_annotation(
+    db: Database, params: AnnotationRelinkParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    ann, before = relink_annotation_impl(db, params)
+    after = ann.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["annotation"],
+        target_ids=[ann.id],
+        before=before,
+        after=after,
+        emit_type="annotation.updated",
+        document_ids=_annotation_scope_document_ids(ann),
+    )
+    return after, spec
