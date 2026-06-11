@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
@@ -526,46 +526,7 @@ async def patch_workspace_items(
     ),
 ) -> WorkspaceItemsResponse:
     """Atomically add/remove/reorder workspace curated items."""
-    doc = _workspace_doc_or_404(db, doc_id)
-    current_items = _normalize_curated_items(doc.curated_items)
-    by_id = {item["id"]: item for item in current_items}
-
-    for remove_id in request.remove_ids:
-        by_id.pop(remove_id, None)
-
-    now_iso = datetime.now().isoformat()
-    for incoming in request.add:
-        payload = incoming.model_dump()
-        payload["added_at"] = payload.get("added_at") or now_iso
-        by_id[payload["id"]] = payload
-
-    ordered_ids: list[str]
-    if request.reorder_ids is not None:
-        seen = set()
-        ordered_ids = []
-        for item_id in request.reorder_ids:
-            if item_id in by_id and item_id not in seen:
-                ordered_ids.append(item_id)
-                seen.add(item_id)
-        for item in current_items:
-            item_id = item["id"]
-            if item_id in by_id and item_id not in seen:
-                ordered_ids.append(item_id)
-                seen.add(item_id)
-        for item_id in by_id:
-            if item_id not in seen:
-                ordered_ids.append(item_id)
-                seen.add(item_id)
-    else:
-        ordered_ids = [item["id"] for item in current_items if item["id"] in by_id]
-        for item_id in by_id:
-            if item_id not in ordered_ids:
-                ordered_ids.append(item_id)
-
-    doc.is_workspace = True
-    doc.curated_items = [by_id[item_id] for item_id in ordered_ids]
-    doc.updated_at = datetime.now()
-    db.save(doc)
+    doc, _before = patch_workspace_items_impl(db, doc_id, request)
 
     emit_change(
         x_fichero_library_path,
@@ -694,27 +655,7 @@ async def create_document(
     ),
 ) -> Document:
     """Create a new document."""
-    # Create document from request
-    new_doc = Document(
-        name=doc.name,
-        parent_id=doc.parent_id,
-        doc_type=doc.doc_type,
-        file_type=doc.file_type,
-        path=doc.path,
-        page_content=doc.page_content,
-        metadata=doc.metadata,
-        prototype_key=doc.prototype_key,
-    )
-
-    # Verify parent exists if specified
-    if doc.parent_id:
-        parent = db.get(Document, doc.parent_id)
-        if not parent:
-            raise HTTPException(
-                status_code=400, detail=f"Parent not found: {doc.parent_id}"
-            )
-
-    db.save(new_doc)
+    new_doc = create_document_impl(db, doc)
     logger.info(f"Created document: {new_doc.id} ({new_doc.name})")
 
     emit_change(
@@ -738,60 +679,7 @@ async def update_document(
     ),
 ) -> Document:
     """Update an existing document."""
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
-
-    # Apply updates
-    # exclude_unset filters fields the client didn't provide. exclude_none
-    # ALSO filters fields the client sent as JSON null. The Swift OpenAPI
-    # client serializes every optional argument as a JSON null when the
-    # caller omits it — so a routine page_content edit arrives here as
-    # `{page_content: "...", name: null, parent_id: null, ...}`. Without
-    # exclude_none, those nulls would clobber existing values. Combined,
-    # the only fields that mutate are ones the client explicitly set to a
-    # non-null value. (#774 + audit on 2026-05-03.)
-    update_data = update.model_dump(exclude_unset=True, exclude_none=True)
-
-    # parent_id is NEVER mutated by this endpoint even if the client sends
-    # a non-null value — reparenting must go through the dedicated
-    # PUT /api/documents/{doc_id}/move endpoint to keep hierarchy mutations
-    # explicit and auditable.
-    update_data.pop("parent_id", None)
-
-    # Mark user edits to page_content BEFORE applying field updates, so
-    # downstream workflows (transcription, etc.) can detect and avoid
-    # silently overwriting what the user typed. Stored in metadata so no
-    # schema migration is needed. See issue #672.
-    if "page_content" in update_data:
-        existing_metadata = doc.metadata if isinstance(doc.metadata, dict) else {}
-        incoming_metadata = update_data.get("metadata")
-        if isinstance(incoming_metadata, dict):
-            merged_metadata = {**existing_metadata, **incoming_metadata}
-        else:
-            merged_metadata = dict(existing_metadata)
-        merged_metadata["page_content_user_edited_at"] = datetime.now().isoformat()
-        update_data["metadata"] = merged_metadata
-
-    for field, value in update_data.items():
-        setattr(doc, field, value)
-
-    # Update timestamp
-    doc.updated_at = datetime.now()
-
-    db.save(doc)
-
-    # Re-embed when page_content changed so search reflects the user's
-    # edit immediately. Without this, the stale embedding from before the
-    # edit stays in LanceDB until a manual reindex — and search returns
-    # the *old* content as if the edit never happened. (#481 follow-up)
-    if "page_content" in update_data and doc.page_content:
-        try:
-            db.embed(doc)
-            logger.info(f"Re-embedded {doc_id} after page_content edit")
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Re-embed after edit failed for {doc_id}: {exc}")
-
+    doc, _before, _changed = update_document_impl(db, doc_id, update)
     logger.info(f"Updated document: {doc_id}")
 
     # Observable data layer (#1863): broadcast the rename/edit so every window's
@@ -816,37 +704,7 @@ async def batch_exclude_documents(
     ),
 ) -> DocumentBatchExcludeResponse:
     """Toggle exclude-from-processing on multiple documents with audit logging."""
-    seen: set[str] = set()
-    updated_ids: list[str] = []
-    for document_id in request.document_ids:
-        normalized_id = str(document_id).strip()
-        if not normalized_id or normalized_id in seen:
-            continue
-        seen.add(normalized_id)
-
-        doc = db.get(Document, normalized_id)
-        if doc is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Document not found: {normalized_id}",
-            )
-
-        before = doc.model_dump(mode="json")
-        doc.exclude_from_processing = request.excluded
-        doc.updated_at = datetime.now()
-        db.save(doc)
-        db.save(
-            MutationLog(
-                entity_type="Document",
-                entity_id=doc.id,
-                operation=MutationOperationType.update,
-                before_state=before,
-                after_state=doc.model_dump(mode="json"),
-                changed_fields=["exclude_from_processing"],
-                created_by=request.reason or "batch_exclude_documents",
-            )
-        )
-        updated_ids.append(doc.id)
+    updated_ids, _before_snapshots = batch_exclude_documents_impl(db, request)
 
     if updated_ids:
         emit_change(
@@ -1089,44 +947,9 @@ async def delete_document(
     - KG claims sourced from any deleted document + now-orphaned entities
       (logged to MutationLog so the cascade is reversible — #1021)
     """
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
-
-    # Gather full subtree to avoid leaving orphaned rows that no longer appear
-    # in hierarchy views but still remain searchable/queryable.
-    stack = [doc_id]
-    to_delete_ids: list[str] = []
-
-    while stack:
-        current_id = stack.pop()
-        to_delete_ids.append(current_id)
-        children = db.query(Document, parent_id=current_id)
-        stack.extend(child.id for child in children)
-
-    auto_snapshot_before_risky_operation(
-        x_fichero_library_path,
-        reason=f"Before deleting document subtree {doc_id} ({len(to_delete_ids)} document(s))",
+    to_delete_ids, claims_deleted, entities_pruned, _docs, _arts = delete_document_impl(
+        db, doc_id, library_path=x_fichero_library_path
     )
-
-    for current_id in to_delete_ids:
-        artifacts = db.query(Artifact, document_id=current_id)
-        for artifact in artifacts:
-            db.delete(artifact)
-        db.delete_embedding(current_id)
-
-    # Cascade KG cleanup before the documents go — claims reference docs
-    # by id string, so order doesn't matter, but doing it here keeps the
-    # teardown in one place.
-    claims_deleted, entities_pruned = _cascade_delete_kg_rows(
-        db, set(to_delete_ids)
-    )
-
-    # Delete children first for clean hierarchical teardown.
-    for current_id in reversed(to_delete_ids):
-        current_doc = db.get(Document, current_id)
-        if current_doc:
-            db.delete(current_doc)
 
     logger.info(
         f"Deleted document subtree: root={doc_id}, total={len(to_delete_ids)}, "
@@ -1329,16 +1152,7 @@ async def reorder_documents(
     ),
 ) -> ReorderResponse:
     """Reorder documents within a folder."""
-    # Update sort_order for each document
-    for i, doc_id in enumerate(doc_ids):
-        doc = db.get(Document, doc_id)
-        if not doc:
-            raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
-
-        # For now, only update documents in the specified folder path
-        # In a more complex system, we'd verify the document is in the right folder
-        doc.sort_order = i
-        db.save(doc)
+    reorder_documents_impl(db, doc_ids, folder_path)
 
     if doc_ids:
         emit_change(
@@ -1441,25 +1255,7 @@ async def move_document(
 
     Accepts parent_id as either a query parameter or in the request body for flexibility.
     """
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
-
-    # Verify new parent exists if specified
-    if parent_id:
-        parent = db.get(Document, parent_id)
-        if not parent:
-            raise HTTPException(
-                status_code=400, detail=f"Parent not found: {parent_id}"
-            )
-
-    # Update parent
-    doc.parent_id = parent_id
-
-    # Update timestamp
-    doc.updated_at = datetime.now()
-
-    db.save(doc)
+    doc, _before = move_document_impl(db, doc_id, parent_id)
     logger.info(f"Moved document: {doc_id} to parent: {parent_id}")
 
     emit_change(
@@ -1543,3 +1339,658 @@ async def cleanup_orphan_documents(
         orphaned_documents_deleted=len(orphaned),
         artifacts_deleted=artifacts_deleted,
     )
+
+
+# =============================================================================
+# Document mutation impls — the proven business logic, extracted so BOTH the
+# route handler and the audited action (EPIC #1848 / #2014) drive the SAME code
+# (iterate-not-replace: wrapped, never re-derived). Emission to the observable
+# layer stays with the caller (route OR registry.invoke). Each raises
+# HTTPException on bad input exactly as the route did.
+# =============================================================================
+
+
+def create_document_impl(db: Database, doc: "DocumentCreate") -> Document:
+    """Create + persist a new document (validating the parent if specified)."""
+    new_doc = Document(
+        name=doc.name,
+        parent_id=doc.parent_id,
+        doc_type=doc.doc_type,
+        file_type=doc.file_type,
+        path=doc.path,
+        page_content=doc.page_content,
+        metadata=doc.metadata,
+        prototype_key=doc.prototype_key,
+    )
+    if doc.parent_id:
+        parent = db.get(Document, doc.parent_id)
+        if not parent:
+            raise HTTPException(
+                status_code=400, detail=f"Parent not found: {doc.parent_id}"
+            )
+    db.save(new_doc)
+    return new_doc
+
+
+def update_document_impl(
+    db: Database, doc_id: str, update: "DocumentUpdate"
+) -> tuple[Document, dict[str, Any], list[str]]:
+    """Apply a partial update to a document.
+
+    Returns ``(doc, before_snapshot, changed_fields)``. ``before_snapshot`` is
+    the full pre-mutation row — the undo payload the action inverts to
+    ``document.restore``.
+    """
+    doc = db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+    before = doc.model_dump(mode="json")
+
+    # Apply updates
+    # exclude_unset filters fields the client didn't provide. exclude_none
+    # ALSO filters fields the client sent as JSON null. The Swift OpenAPI
+    # client serializes every optional argument as a JSON null when the
+    # caller omits it — so a routine page_content edit arrives here as
+    # `{page_content: "...", name: null, parent_id: null, ...}`. Without
+    # exclude_none, those nulls would clobber existing values. Combined,
+    # the only fields that mutate are ones the client explicitly set to a
+    # non-null value. (#774 + audit on 2026-05-03.)
+    update_data = update.model_dump(exclude_unset=True, exclude_none=True)
+
+    # parent_id is NEVER mutated by this endpoint even if the client sends
+    # a non-null value — reparenting must go through the dedicated
+    # PUT /api/documents/{doc_id}/move endpoint to keep hierarchy mutations
+    # explicit and auditable.
+    update_data.pop("parent_id", None)
+
+    # Mark user edits to page_content BEFORE applying field updates, so
+    # downstream workflows (transcription, etc.) can detect and avoid
+    # silently overwriting what the user typed. Stored in metadata so no
+    # schema migration is needed. See issue #672.
+    if "page_content" in update_data:
+        existing_metadata = doc.metadata if isinstance(doc.metadata, dict) else {}
+        incoming_metadata = update_data.get("metadata")
+        if isinstance(incoming_metadata, dict):
+            merged_metadata = {**existing_metadata, **incoming_metadata}
+        else:
+            merged_metadata = dict(existing_metadata)
+        merged_metadata["page_content_user_edited_at"] = datetime.now().isoformat()
+        update_data["metadata"] = merged_metadata
+
+    for field, value in update_data.items():
+        setattr(doc, field, value)
+
+    # Update timestamp
+    doc.updated_at = datetime.now()
+
+    db.save(doc)
+
+    # Re-embed when page_content changed so search reflects the user's
+    # edit immediately. Without this, the stale embedding from before the
+    # edit stays in LanceDB until a manual reindex — and search returns
+    # the *old* content as if the edit never happened. (#481 follow-up)
+    if "page_content" in update_data and doc.page_content:
+        try:
+            db.embed(doc)
+            logger.info(f"Re-embedded {doc_id} after page_content edit")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Re-embed after edit failed for {doc_id}: {exc}")
+
+    return doc, before, list(update_data.keys())
+
+
+def move_document_impl(
+    db: Database, doc_id: str, parent_id: str | None
+) -> tuple[Document, dict[str, Any]]:
+    """Re-parent a document. Returns ``(doc, before_snapshot)``."""
+    doc = db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+    # Verify new parent exists if specified
+    if parent_id:
+        parent = db.get(Document, parent_id)
+        if not parent:
+            raise HTTPException(
+                status_code=400, detail=f"Parent not found: {parent_id}"
+            )
+
+    before = doc.model_dump(mode="json")
+    doc.parent_id = parent_id
+    doc.updated_at = datetime.now()
+    db.save(doc)
+    return doc, before
+
+
+def reorder_documents_impl(
+    db: Database, doc_ids: list[str], folder_path: str = "/"
+) -> list[dict[str, Any]]:
+    """Persist ``sort_order`` per document by list position.
+
+    Returns the pre-mutation snapshots (in input order) so undo can restore the
+    exact prior ``sort_order`` values — re-running reorder with the old list is
+    NOT a faithful inverse because it re-bases every value to ``0..n-1`` and
+    loses any prior non-contiguous ordering.
+    """
+    before_snapshots: list[dict[str, Any]] = []
+    for i, doc_id in enumerate(doc_ids):
+        doc = db.get(Document, doc_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+        # For now, only update documents in the specified folder path
+        # In a more complex system, we'd verify the document is in the right folder
+        before_snapshots.append(doc.model_dump(mode="json"))
+        doc.sort_order = i
+        db.save(doc)
+    return before_snapshots
+
+
+def patch_workspace_items_impl(
+    db: Database, doc_id: str, request: "WorkspacePatchRequest"
+) -> tuple[Document, dict[str, Any]]:
+    """Atomically add/remove/reorder workspace curated items.
+
+    Returns ``(doc, before_snapshot)``. The before-snapshot is the full
+    pre-mutation document so undo restores the prior ``curated_items`` exactly.
+    """
+    doc = _workspace_doc_or_404(db, doc_id)
+    before = doc.model_dump(mode="json")
+    current_items = _normalize_curated_items(doc.curated_items)
+    by_id = {item["id"]: item for item in current_items}
+
+    for remove_id in request.remove_ids:
+        by_id.pop(remove_id, None)
+
+    now_iso = datetime.now().isoformat()
+    for incoming in request.add:
+        payload = incoming.model_dump()
+        payload["added_at"] = payload.get("added_at") or now_iso
+        by_id[payload["id"]] = payload
+
+    ordered_ids: list[str]
+    if request.reorder_ids is not None:
+        seen = set()
+        ordered_ids = []
+        for item_id in request.reorder_ids:
+            if item_id in by_id and item_id not in seen:
+                ordered_ids.append(item_id)
+                seen.add(item_id)
+        for item in current_items:
+            item_id = item["id"]
+            if item_id in by_id and item_id not in seen:
+                ordered_ids.append(item_id)
+                seen.add(item_id)
+        for item_id in by_id:
+            if item_id not in seen:
+                ordered_ids.append(item_id)
+                seen.add(item_id)
+    else:
+        ordered_ids = [item["id"] for item in current_items if item["id"] in by_id]
+        for item_id in by_id:
+            if item_id not in ordered_ids:
+                ordered_ids.append(item_id)
+
+    doc.is_workspace = True
+    doc.curated_items = [by_id[item_id] for item_id in ordered_ids]
+    doc.updated_at = datetime.now()
+    db.save(doc)
+    return doc, before
+
+
+def batch_exclude_documents_impl(
+    db: Database, request: "DocumentBatchExcludeRequest"
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Toggle exclude-from-processing on multiple documents.
+
+    Returns ``(updated_ids, before_snapshots)``. De-duplicates input ids; raises
+    404 on the first unknown id (matching the route). Writes a per-document
+    ``MutationLog`` row as before, and returns before-snapshots for action undo.
+    """
+    seen: set[str] = set()
+    updated_ids: list[str] = []
+    before_snapshots: list[dict[str, Any]] = []
+    for document_id in request.document_ids:
+        normalized_id = str(document_id).strip()
+        if not normalized_id or normalized_id in seen:
+            continue
+        seen.add(normalized_id)
+
+        doc = db.get(Document, normalized_id)
+        if doc is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Document not found: {normalized_id}",
+            )
+
+        before = doc.model_dump(mode="json")
+        before_snapshots.append(before)
+        doc.exclude_from_processing = request.excluded
+        doc.updated_at = datetime.now()
+        db.save(doc)
+        db.save(
+            MutationLog(
+                entity_type="Document",
+                entity_id=doc.id,
+                operation=MutationOperationType.update,
+                before_state=before,
+                after_state=doc.model_dump(mode="json"),
+                changed_fields=["exclude_from_processing"],
+                created_by=request.reason or "batch_exclude_documents",
+            )
+        )
+        updated_ids.append(doc.id)
+    return updated_ids, before_snapshots
+
+
+def delete_document_impl(
+    db: Database, doc_id: str, *, library_path: str | None = None
+) -> tuple[list[str], int, int, list[dict[str, Any]], list[dict[str, Any]]]:
+    """Delete a document + all descendants, returning everything undo needs.
+
+    Returns ``(to_delete_ids, claims_deleted, entities_pruned, document_snapshots,
+    artifact_snapshots)``. The document + artifact snapshots are captured BEFORE
+    deletion so the audited action can invert to ``document.restore``. The KG
+    cascade keeps its own ``MutationLog`` reversal (``POST /api/kg/mutations/
+    {id}/undo``) — ``document.restore`` deliberately restores only the document
+    + artifact rows, leaving the (separately-reversible) KG cascade alone so the
+    two undo mechanisms never double-restore.
+    """
+    doc = db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+    # Gather full subtree to avoid leaving orphaned rows that no longer appear
+    # in hierarchy views but still remain searchable/queryable.
+    stack = [doc_id]
+    to_delete_ids: list[str] = []
+
+    while stack:
+        current_id = stack.pop()
+        to_delete_ids.append(current_id)
+        children = db.query(Document, parent_id=current_id)
+        stack.extend(child.id for child in children)
+
+    if library_path:
+        auto_snapshot_before_risky_operation(
+            library_path,
+            reason=(
+                f"Before deleting document subtree {doc_id} "
+                f"({len(to_delete_ids)} document(s))"
+            ),
+        )
+
+    # Snapshot documents BEFORE deletion so undo can restore them verbatim.
+    document_snapshots: list[dict[str, Any]] = []
+    for current_id in to_delete_ids:
+        snap_doc = db.get(Document, current_id)
+        if snap_doc is not None:
+            document_snapshots.append(snap_doc.model_dump(mode="json"))
+
+    artifact_snapshots: list[dict[str, Any]] = []
+    for current_id in to_delete_ids:
+        artifacts = db.query(Artifact, document_id=current_id)
+        for artifact in artifacts:
+            artifact_snapshots.append(artifact.model_dump(mode="json"))
+            db.delete(artifact)
+        db.delete_embedding(current_id)
+
+    # Cascade KG cleanup before the documents go — claims reference docs
+    # by id string, so order doesn't matter, but doing it here keeps the
+    # teardown in one place.
+    claims_deleted, entities_pruned = _cascade_delete_kg_rows(
+        db, set(to_delete_ids)
+    )
+
+    # Delete children first for clean hierarchical teardown.
+    for current_id in reversed(to_delete_ids):
+        current_doc = db.get(Document, current_id)
+        if current_doc:
+            db.delete(current_doc)
+
+    return (
+        to_delete_ids,
+        claims_deleted,
+        entities_pruned,
+        document_snapshots,
+        artifact_snapshots,
+    )
+
+
+def restore_documents_impl(
+    db: Database,
+    *,
+    documents: list[dict[str, Any]],
+    artifacts: list[dict[str, Any]] | None = None,
+) -> list[str]:
+    """Re-create documents (and any artifacts) from JSON snapshots.
+
+    The single inverse used by every undoable document action: it reuses the
+    proven ``model_validate`` round-trip so undo restores the exact pre-mutation
+    rows rather than re-deriving a field diff.
+    """
+    restored_ids: list[str] = []
+    for snapshot in documents or []:
+        restored = Document.model_validate(snapshot)
+        db.save(restored)
+        restored_ids.append(restored.id)
+    for snapshot in artifacts or []:
+        db.save(Artifact.model_validate(snapshot))
+    return restored_ids
+
+
+# =============================================================================
+# Action layer registration (EPIC #1848 / #2014) — DOCUMENT domain sweep
+# =============================================================================
+#
+# Each action WRAPS the proven ``*_impl`` above (iterate-not-replace) and routes
+# through ``registry.invoke`` so chat tools / App Intents / tests / the audit
+# log all drive the SAME code the UI routes do (the routes call the same
+# ``*_impl`` directly and emit), matching the entity.merge / claim.* pattern.
+#
+# Undo is data, not code: ``ChangeSpec.before/after`` becomes the ActionAudit
+# undo payload, and every undoable verb inverts to ``document.restore`` (or
+# ``document.delete`` for create). The inverse chain:
+#   * document.create          -> document.delete
+#   * document.update          -> document.restore (before snapshot)
+#   * document.move            -> document.restore (before snapshot)
+#   * document.reorder         -> document.restore (prior sort_order snapshots)
+#   * document.patch_workspace -> document.restore (before snapshot)
+#   * document.batch_exclude   -> document.restore (before snapshots)
+#   * document.delete          -> document.restore (doc + artifact snapshots)
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+class DocumentUpdateActionParams(BaseModel):
+    """Params for document.update — the path doc_id + the partial update body.
+
+    ``update`` is a nested :class:`DocumentUpdate` so the registry's
+    ``model_validate`` preserves exclude-unset semantics: only fields actually
+    present are applied.
+    """
+
+    doc_id: str = Field(description="Document id to update")
+    update: DocumentUpdate = Field(description="Partial document update")
+
+
+class DocumentDeleteParams(BaseModel):
+    """Params for document.delete — also the inverse of document.create."""
+
+    doc_id: str = Field(description="Document id to delete (cascades to subtree)")
+
+
+class DocumentMoveParams(BaseModel):
+    """Params for document.move."""
+
+    doc_id: str = Field(description="Document id to re-parent")
+    parent_id: str | None = Field(
+        default=None, description="New parent id (None moves to root)"
+    )
+
+
+class DocumentReorderParams(BaseModel):
+    """Params for document.reorder."""
+
+    doc_ids: list[str] = Field(description="Document ids in their new order")
+    folder_path: str = Field(default="/", description="Folder path scope")
+
+
+class WorkspacePatchActionParams(BaseModel):
+    """Params for document.patch_workspace — the path doc_id + the patch body."""
+
+    doc_id: str = Field(description="Workspace (folder) document id")
+    patch: WorkspacePatchRequest = Field(description="Add/remove/reorder spec")
+
+
+class DocumentRestoreParams(BaseModel):
+    """Params for document.restore — re-create documents (+ artifacts) from snapshots."""
+
+    documents: list[dict[str, Any]] = Field(
+        default_factory=list, description="Document.model_dump snapshots"
+    )
+    artifacts: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Artifact snapshots deleted alongside the documents.",
+    )
+
+
+def _invert_create_document(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not after:
+        return None
+    document_id = after.get("document_id")
+    if not document_id:
+        return None
+    return ("document.delete", {"doc_id": document_id})
+
+
+def _invert_restore_from_snapshot(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Inverse for update / move / patch_workspace: ``before`` is a single full
+    document snapshot, restored verbatim."""
+    if not before:
+        return None
+    return ("document.restore", {"documents": [before]})
+
+
+def _invert_reorder_documents(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("document.restore", {"documents": before.get("documents", [])})
+
+
+def _invert_batch_exclude(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("document.restore", {"documents": before.get("documents", [])})
+
+
+def _invert_delete_document(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return (
+        "document.restore",
+        {
+            "documents": before.get("documents", []),
+            "artifacts": before.get("artifacts", []),
+        },
+    )
+
+
+@action(
+    "document.create",
+    DocumentCreate,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_create_document,
+)
+def _action_create_document(
+    db: Database, params: DocumentCreate, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    new_doc = create_document_impl(db, params)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[new_doc.id],
+        after={"document_id": new_doc.id},
+        emit_type="document.created",
+        document_ids=[new_doc.id],
+    )
+    return new_doc.model_dump(mode="json"), spec
+
+
+@action(
+    "document.update",
+    DocumentUpdateActionParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_restore_from_snapshot,
+)
+def _action_update_document(
+    db: Database, params: DocumentUpdateActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    doc, before, _changed = update_document_impl(db, params.doc_id, params.update)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[doc.id],
+        before=before,
+        after=doc.model_dump(mode="json"),
+        emit_type="document.updated",
+        document_ids=[doc.id],
+    )
+    return doc.model_dump(mode="json"), spec
+
+
+@action(
+    "document.move",
+    DocumentMoveParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_restore_from_snapshot,
+)
+def _action_move_document(
+    db: Database, params: DocumentMoveParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    doc, before = move_document_impl(db, params.doc_id, params.parent_id)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[doc.id],
+        before=before,
+        after=doc.model_dump(mode="json"),
+        emit_type="document.updated",
+        document_ids=[doc.id],
+    )
+    return doc.model_dump(mode="json"), spec
+
+
+@action(
+    "document.reorder",
+    DocumentReorderParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_reorder_documents,
+)
+def _action_reorder_documents(
+    db: Database, params: DocumentReorderParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before_snapshots = reorder_documents_impl(db, params.doc_ids, params.folder_path)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=list(params.doc_ids),
+        before={"documents": before_snapshots},
+        after=None,
+        emit_type="document.updated" if params.doc_ids else None,
+        document_ids=list(params.doc_ids),
+    )
+    return {"status": "reordered", "count": len(params.doc_ids)}, spec
+
+
+@action(
+    "document.patch_workspace",
+    WorkspacePatchActionParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_restore_from_snapshot,
+)
+def _action_patch_workspace(
+    db: Database, params: WorkspacePatchActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    doc, before = patch_workspace_items_impl(db, params.doc_id, params.patch)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[doc.id],
+        before=before,
+        after=doc.model_dump(mode="json"),
+        emit_type="document.updated",
+        document_ids=[doc.id],
+    )
+    return {
+        "document_id": doc.id,
+        "items": doc.curated_items,
+        "count": len(doc.curated_items),
+    }, spec
+
+
+@action(
+    "document.batch_exclude",
+    DocumentBatchExcludeRequest,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_batch_exclude,
+)
+def _action_batch_exclude(
+    db: Database, params: DocumentBatchExcludeRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    updated_ids, before_snapshots = batch_exclude_documents_impl(db, params)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=updated_ids,
+        before={"documents": before_snapshots},
+        after={"document_ids": updated_ids},
+        emit_type="document.updated" if updated_ids else None,
+        document_ids=updated_ids,
+    )
+    return {"updated": len(updated_ids), "document_ids": updated_ids}, spec
+
+
+@action(
+    "document.delete",
+    DocumentDeleteParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_delete_document,
+)
+def _action_delete_document(
+    db: Database, params: DocumentDeleteParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    (
+        to_delete_ids,
+        claims_deleted,
+        entities_pruned,
+        document_snapshots,
+        artifact_snapshots,
+    ) = delete_document_impl(db, params.doc_id, library_path=ctx.library_path)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=to_delete_ids,
+        before={"documents": document_snapshots, "artifacts": artifact_snapshots},
+        after=None,
+        emit_type="document.deleted",
+        document_ids=to_delete_ids,
+    )
+    return {
+        "deleted_document_ids": to_delete_ids,
+        "kg_claims_deleted": claims_deleted,
+        "kg_entities_pruned": entities_pruned,
+    }, spec
+
+
+@action(
+    "document.restore",
+    DocumentRestoreParams,
+    domains=["document"],
+    undoable=False,
+)
+def _action_restore_documents(
+    db: Database, params: DocumentRestoreParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    restored_ids = restore_documents_impl(
+        db, documents=params.documents, artifacts=params.artifacts
+    )
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=restored_ids,
+        after={"document_ids": restored_ids},
+        emit_type="document.updated",
+        document_ids=restored_ids,
+    )
+    return {"restored_document_ids": restored_ids}, spec
