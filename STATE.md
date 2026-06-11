@@ -1,3 +1,11 @@
+## MANAGER STATUS — 2026-06-11 ~14:05 (Phase 1: 7 SHIPPED, 2 lanes live)
+**0.0.2 pushed @ `6505730a`. Shipped this session: #2055, #2023, #2046, #2043, #2075, #2078, #2024.**
+- ✅ #2055 client pooling · ✅ #2023 actor keystone · ✅ #2046 backups · ✅ #2043 audit hash-chain · ✅ #2075 Trash backend · ✅ #2078 guardrails-green (verify_all --fast exits 0) · ✅ **#2024 ACL choke-point** (full suite 4544; fichero/authz.py owner/editor/viewer + folder deny, fail-closed, behind FICHERO_MULTIUSER; security-reviewed PASS).
+- ⏳ **Lane `ambient-2025`** (#2025 kill ambient authority, gpt-5.5) — audit every library-access path; refuse access without authorized session under MULTIUSER; no implicit path-adoption. Builds on #2024 authz. SECURITY → full suite + review.
+- ⏳ **Lane `bind-2048`** (#2048 BACKEND bind-host only, gpt-5.4-mini) — FICHERO_BIND_HOST env (default 127.0.0.1, REFUSE 0.0.0.0). The Swift PID-scoped orphan-kill half of #2048 is DEFERRED to a Phase-2 frontend lane (note in #2048).
+- **Auth chain remaining:** #2025 (in flight) → #2048 (in flight) → #2026 (Tailscale transport). Then Phase 2 Mac (EPIC #2030). Disjoint anytime: #1935 observable-one-path.
+- **Memories written:** actor-attribution-from-session-shipped, acl-chokepoint-shipped. Follow-ups open: #2076 (audit chain ordering), #2077 (Trash UI + claim/entity/note soft-delete).
+
 ## MANAGER STATUS — 2026-06-11 ~13:30 (Phase 1: 5 SHIPPED, 2 lanes live)
 **0.0.2 pushed @ `012e6415`. Shipped this session: #2055, #2023 (keystone), #2046, #2043, #2075.**
 - ✅ #2055 LLM client pooling · ✅ #2023 actor-attribution keystone · ✅ #2046 scheduled+offsite backups · ✅ **#2043** tamper-evident hash-chained ActionAudit (full suite 4531) · ✅ **#2075** Trash BACKEND soft-delete/restore/purge for Document (full suite 4537).
