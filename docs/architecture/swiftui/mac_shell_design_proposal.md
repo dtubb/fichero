@@ -131,3 +131,11 @@ These make it feel native; they cut across every lens (track per existing EPICs)
    only window-level? (Affects the toolbar's leading zone.)
 5. **Liquid Glass aggressiveness:** subtle (rail + toolbar only) or also inspector
    panels + sheets?
+
+---
+## 0. Product spine — the three layers (READ → THINK → WRITE)
+The UI shape exists to serve the research lifecycle, as three source-grounded layers:
+- **Hermeneutic (READ)** — decompose sources → claims/SVO/entities/citations, bbox-anchored.
+- **Interpretative (THINK)** — notes/annotations on a reading (human + AI), tied to sources.
+- **Synthesis (WRITE)** — Zettelkasten + outliner + Scrivener-like composition → citation-aware export (EPIC #2108).
+A **workspace** is the synthesis container; the **Agent** (#2067) works across all three and writes in the same space as the human. See memory `three-layer-product-spine`.
