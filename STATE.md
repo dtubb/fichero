@@ -1,3 +1,37 @@
+## SESSION HANDOFF — 2026-06-11 ~20:00 (Daniel's day-long design session + infra completion)
+**0.0.2 @ `fda57f18`, pushed, working tree clean.** Engine NOT restarted (still on old code; fine).
+
+### IMMEDIATE: 2 codex lanes JUST dispatched — VERIFY THEY TOOK THE BRIEF FIRST
+- `embeddings` (gpt-5.5, worktree ~/code/fichero-worktrees/embeddings): **#2095 bge-m3 default + per-model formatting + #2115 chunk/passage-level embedding + non-Latin test.** Brief /tmp/embeddings.txt.
+- `infra-fixes` (gpt-5.4, worktree ~/code/fichero-worktrees/infra-fixes): **#2076 audit-chain monotonic chain_seq ordering.** Brief /tmp/infra-fixes.txt.
+- I sent both briefs via bracketed-paste but COULD NOT confirm 'Working' before handoff — FIRST TICK: `tmux capture-pane -t fichero-workers:<name> -p | tail -20`; if idle (no 'Working'/'esc to interrupt'), re-paste the brief (load-buffer + paste-buffer -p + Enter). Don't double-submit if already working.
+- BACKEND gate on commit: cherry-pick → targeted pytest + ruff; embeddings touches search → FULL suite before push. Do NOT re-embed real Marshall data (worker only builds capability; you run re-embed deliberately later). NEVER push red.
+
+### INFRA backlog to FINISH (Daniel: finish infra, THEN mac):
+- IN FLIGHT: #2095/#2115 (embeddings), #2076 (audit ordering).
+- TODO after: **#2028/#2027 infra+security code-review** (dispatch a code-reviewer agent over the session's infra: accounts/authz/audit_chain/registry/change_stream/storage_snapshots/bind_host/llm/trash; act on findings + write more tests — Daniel: 'code review and more tests'). **#2026 Tailscale** (deploy/docs — small, can do yourself). Then INFRA IS DONE → start MAC.
+- Embeddings decision MADE: **bge-m3** (local, hybrid, in fastembed; 1024-dim no store change). Qwen3-0.6B/OpenAI/Claude/MLX/Apple = pluggable later (#2095 full).
+- #461 CLOSED (already async). #510/#515 closed (stale gates). #1442→Mac App Shell, #664/#320→Dev Experience. #1092 closed (superseded by #2024).
+
+### HELD for Daniel's build (frontend — do NOT BuildProject while he's at the Mac):
+- `entitytable-2020` worktree (#2020 entity Table, commit 82af4a10) — cherry-pick→swiftlint→BuildProject(windowtab1)→push when Daniel says OK-to-build.
+- #2107 metadata Info-tab bug (frontend; likely optional-decode like #2019) — fix when buildable.
+- #2114 prototype-system brief staged /tmp (node model = mac phase).
+
+### THE BIG PICTURE (today's design session — see memory three-layer-product-spine + node-model-and-mac-reform-design):
+Fichero = **READ→THINK→WRITE**, three source-grounded layers on ONE node model:
+- **Hermeneutic (READ):** node model #2081/#2114 (prototype/class + alias kind + entities-as-nodes), bboxes #2104, source-snippet #2105, faces→entities #2103, chunk embeddings #2115.
+- **Interpretative (THINK):** annotation mode #2102, notes.
+- **Synthesis (WRITE):** Zettelkasten + outliner + Scrivener-like compose → cite-export — EPIC #2108 (+#2109-2113). A zettel = a NODE with typed links (keyword/entity/citation/source) — node model, not new subsystem.
+- **iOS/iPad client** EPIC #2096 (audit done, on #2101: ~1wk mechanical shim + ~8-12wk for image-viewer + rich-text; remote-only engine via the auth stack we shipped).
+- Model selection EDUCATES (#2116: per-language/script fit, cost, privacy, test-on-your-material; LOOVE #1820). Multi-page reading #2090, translation view #2093, bibtex #2088, refs-as-nodes #2091, language policy #2092, model mgmt #2094.
+- ROADMAP ▶▶ section has the order: INFRA(now) → MAC-ASSED (node model #2081 FIRST → shell #2031 → reading/synthesis) → make-visible #2082 + AI-infra → Agent #2067.
+
+### SHIPPED this session (16): #2055 #2023 #2046 #2043 #2075 #2078 #2024 #2048 #2025 #2042 #2079 #2052 #2053 #2080 #2045 + PDF-thumbnail completion. The whole multi-user/security/network foundation + SSE hardening, each full-suite + security-reviewed. App build restored (#2019 openapi fallout).
+
+### MANAGER MODE: workers implement, you integrate+review. Backend=codex gpt-5.4/5.5 (NOT gpt-5.5-codex). Frontend=claude, gate swiftlint+BuildProject (windowtab1) ONLY when Daniel can build. NEVER xcodebuild test/verify_all --full (GUI). Engine: Daniel cleared earlier — MAY restart+full suite.
+
+---
 ## MANAGER STATUS — 2026-06-11 ~17:05 (Phase 2 Mac — 13 shipped; #2080 backend lane)
 **0.0.2 pushed @ `3efdc0d7`.**
 - ✅ **#2053 frontend** (6c773732) — PDF page thumbnails labeled by page number via Document.pageThumbnailLabel (prefers page_label). BuildProject green. **DANIEL: page rows labeled 1,2,3…**
