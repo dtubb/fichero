@@ -17,6 +17,8 @@ from typing import Optional
 
 import typer
 
+from fichero.bind_host import resolve_bind_host
+
 # PID file location: ~/.fichero/engine.pid
 PID_FILE = Path.home() / ".fichero" / "engine.pid"
 
@@ -55,7 +57,7 @@ def _is_process_alive(pid: int) -> bool:
 
 
 def _wait_for_port(
-    port: int, timeout_s: int = 5, retries: int = 10
+    host: str, port: int, timeout_s: int = 5, retries: int = 10
 ) -> bool:
     """Poll port until responsive or timeout.
 
@@ -65,7 +67,7 @@ def _wait_for_port(
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(1)
-            s.connect(("localhost", port))
+            s.connect((host, port))
             s.close()
             return True
         except (socket.timeout, ConnectionRefusedError, OSError):
@@ -125,7 +127,7 @@ def status() -> None:
         typer.echo("Engine stopped")
 
 
-def start(port: int = 8765, workers: int = 1) -> None:
+def start(port: int = 8765, workers: int = 1, host: str | None = None) -> None:
     """Start engine in background.
 
     Launches a detached uvicorn process and polls the port until responsive.
@@ -159,6 +161,8 @@ def start(port: int = 8765, workers: int = 1) -> None:
     if pid:
         _remove_pid()
 
+    bind_host = resolve_bind_host(host=host)
+
     try:
         # Daemonize uvicorn: detach from parent process group on POSIX
         # and suppress stdout/stderr
@@ -180,7 +184,7 @@ def start(port: int = 8765, workers: int = 1) -> None:
                 "uvicorn",
                 "fichero.api.main:app",
                 "--host",
-                "127.0.0.1",
+                bind_host,
                 "--port",
                 str(port),
                 "--workers",
@@ -192,7 +196,7 @@ def start(port: int = 8765, workers: int = 1) -> None:
         _write_pid(proc.pid)
 
         # Poll port until responsive
-        if _wait_for_port(port, timeout_s=5, retries=10):
+        if _wait_for_port(bind_host, port, timeout_s=5, retries=10):
             typer.echo(f"Engine started (PID {proc.pid})")
         else:
             typer.echo(
@@ -242,11 +246,11 @@ def stop() -> None:
     typer.echo("Engine stopped")
 
 
-def restart(port: int = 8765, workers: int = 1) -> None:
+def restart(port: int = 8765, workers: int = 1, host: str | None = None) -> None:
     """Stop and start engine.
 
     Useful for reloading configuration or recovering from a hung state.
     """
     stop()
     time.sleep(1)
-    start(port=port, workers=workers)
+    start(port=port, workers=workers, host=host)

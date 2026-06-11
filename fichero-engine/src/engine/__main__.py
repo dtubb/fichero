@@ -14,6 +14,8 @@ import faulthandler
 import tracemalloc
 import warnings
 
+from fichero.bind_host import resolve_bind_host
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -94,8 +96,10 @@ def main():
         warnings.simplefilter("default", ResourceWarning)
         logger.info("Tracemalloc: ENABLED (ResourceWarning traces active)")
 
+    bind_host = resolve_bind_host()
+
     logger.info("Starting Fichero Backend (Briefcase bundle)")
-    logger.info("Server will listen on http://127.0.0.1:8765")
+    logger.info("Server will listen on http://%s:8765", bind_host)
     logger.info(
         "Hot-reload: %s",
         "ENABLED (dev mode)" if reload_enabled else "DISABLED (production mode)",
@@ -103,7 +107,7 @@ def main():
 
     uvicorn_kwargs = dict(
         app="fichero.api.main:app",
-        host="127.0.0.1",
+        host=bind_host,
         port=8765,
         workers=1,
         log_level="info",
@@ -120,9 +124,10 @@ def main():
     # Preflight port check avoids noisy socket ResourceWarning when bind fails.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if sock.connect_ex(("127.0.0.1", 8765)) == 0:
+        if sock.connect_ex((bind_host, 8765)) == 0:
             logger.error(
-                "Port 8765 is already in use. Stop existing backend process and retry."
+                "Port 8765 is already in use on %s. Stop the existing backend process and retry.",
+                bind_host,
             )
             return
 

@@ -10,8 +10,9 @@ Usage:
 
     # Python
     from fichero.api import app
+    from fichero.bind_host import resolve_bind_host
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8765)
+    uvicorn.run(app, host=resolve_bind_host(), port=8765)
 """
 
 from fichero.api.main import app

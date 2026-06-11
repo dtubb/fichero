@@ -3224,6 +3224,15 @@ def engine_status() -> None:
 @engine_app.command("start")
 def engine_start(
     port: int = typer.Option(8765, "--port", help="Port to run the engine on."),
+    host: str | None = typer.Option(
+        None,
+        "--host",
+        help=(
+            "Bind host for the engine. Defaults to FICHERO_BIND_HOST or "
+            "127.0.0.1. A blanket 0.0.0.0 bind is refused; use a specific "
+            "tailnet address instead."
+        ),
+    ),
     workers: int = typer.Option(
         1,
         "--workers",
@@ -3239,7 +3248,7 @@ def engine_start(
     """
     from fichero.cli.engine_manager import start
 
-    start(port=port, workers=workers)
+    start(port=port, workers=workers, host=host)
 
 
 @engine_app.command("stop")
@@ -3257,6 +3266,15 @@ def engine_stop() -> None:
 @engine_app.command("restart")
 def engine_restart(
     port: int = typer.Option(8765, "--port", help="Port to run the engine on."),
+    host: str | None = typer.Option(
+        None,
+        "--host",
+        help=(
+            "Bind host for the engine. Defaults to FICHERO_BIND_HOST or "
+            "127.0.0.1. A blanket 0.0.0.0 bind is refused; use a specific "
+            "tailnet address instead."
+        ),
+    ),
     workers: int = typer.Option(
         1,
         "--workers",
@@ -3271,7 +3289,7 @@ def engine_restart(
     """
     from fichero.cli.engine_manager import restart
 
-    restart(port=port, workers=workers)
+    restart(port=port, workers=workers, host=host)
 
 
 def main() -> None:
