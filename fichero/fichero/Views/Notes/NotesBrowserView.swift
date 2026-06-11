@@ -1,53 +1,55 @@
-import FicheroAPIClient
 import OSLog
 import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "NotesBrowserView")
 
-private struct NoteUpdateActionParams: Encodable {
-    let noteId: String
-    let update: Components.Schemas.NotePatchRequest
-
-    enum CodingKeys: String, CodingKey {
-        case noteId = "note_id"
-        case update
-    }
-}
-
-private struct NoteDeleteActionParams: Encodable {
-    let noteId: String
-
-    enum CodingKeys: String, CodingKey {
-        case noteId = "note_id"
-    }
-}
-
-// swiftlint:disable type_body_length
-/// Standalone notes browser (#1500). Lists every Note record, filterable by
-/// kind / tag / full-text, and lets the user create free-floating notes
-/// (zettels, hubs, fleeting notes) without a document open. Reuses the
-/// `DocumentNotesTab` card/edit affordances via `NoteService`.
-///
-/// Presented as a sheet from the Data menu (`appState.showNotesBrowser`), so it
-/// needs no SidebarMode wiring.
+/// Standalone notes browser (#1500), rebuilt as List + detail.
 struct NotesBrowserView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(NoteStore.self) private var noteStore
-    @EnvironmentObject private var windowState: WindowState
 
-    @State private var kindFilter: String = ""        // "" = all kinds
+    @State private var focused = FocusedNote.shared
+    @State private var kindFilter: String = ""
     @State private var tagFilter: String = ""
     @State private var searchText: String = ""
-
     @State private var newText = ""
     @State private var newKind = "zettel"
     @State private var isSaving = false
 
-    @State private var editingId: String?
-    @State private var editingText = ""
-
     /// NoteKind raw values, mirrored from the backend enum (#917).
     private let kinds = ["zettel", "reference", "hub", "inbox", "fleeting", "permanent"]
+
+    private var noteItems: [NoteSelectionItem] {
+        noteStore.notes.map(NoteSelectionItem.init)
+    }
+
+    private var filteredItems: [NoteSelectionItem] {
+        noteItems.filter { item in
+            if !kindFilter.isEmpty, item.note.kind?.rawValue != kindFilter { return false }
+            if !tagFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let tag = tagFilter.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard (item.note.tags ?? []).contains(tag) else { return false }
+            }
+            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let needle = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                let haystack = [
+                    item.title,
+                    item.bodyPreview,
+                    item.kindLabel,
+                    item.scopeLabel ?? "",
+                    item.tagsLabel ?? ""
+                ]
+                .joined(separator: " ")
+                .lowercased()
+                if !haystack.contains(needle) { return false }
+            }
+            return true
+        }
+    }
+
+    private var selectionResetToken: String {
+        [kindFilter, tagFilter, searchText].joined(separator: "|")
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -57,10 +59,18 @@ struct NotesBrowserView: View {
             Divider()
             addBar
             Divider()
-            notesList
+            NotesInspectorPane(
+                notes: filteredItems,
+                selectionResetToken: selectionResetToken,
+                documentName: "Notes",
+                focused: focused
+            )
         }
         .frame(minWidth: 520, minHeight: 560)
         .task { await reload() }
+        .onChange(of: kindFilter) { _, _ in Task { await reload() } }
+        .onChange(of: tagFilter) { _, _ in Task { await reload() } }
+        .onChange(of: searchText) { _, _ in Task { await reload() } }
     }
 
     // MARK: - Header
@@ -107,7 +117,6 @@ struct NotesBrowserView: View {
                 .onSubmit { Task { await reload() } }
         }
         .padding(10)
-        .onChange(of: kindFilter) { _, _ in Task { await reload() } }
     }
 
     // MARK: - Add bar
@@ -143,145 +152,6 @@ struct NotesBrowserView: View {
         .padding(10)
     }
 
-    // MARK: - List
-
-    @ViewBuilder
-    private var notesList: some View {
-        if noteStore.isLoading {
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if let error = noteStore.loadError {
-            errorState(error)
-        } else if noteStore.notes.isEmpty {
-            emptyState
-        } else {
-            List(noteStore.notes) { note in
-                noteCard(note)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
-                    .listRowSeparator(.hidden)
-            }
-            .listStyle(.plain)
-        }
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "pencil.and.scribble")
-                .font(.largeTitle)
-                .foregroundStyle(.tertiary)
-            Text("No notes")
-                .foregroundStyle(.secondary)
-            Text("Add a note above, or adjust the filters.")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func errorState(_ message: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.largeTitle)
-                .foregroundStyle(.orange)
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Button("Retry") { Task { await reload() } }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-    }
-
-    // MARK: - Card
-
-    @ViewBuilder
-    private func noteCard(_ note: NoteItem) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if editingId == note.id ?? "" {
-                editingCard(note)
-            } else {
-                readCard(note)
-            }
-        }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(.quaternaryLabelColor).opacity(0.12))
-        )
-    }
-
-    private func readCard(_ note: NoteItem) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let title = note.title, !title.isEmpty {
-                Text(title)
-                    .font(.callout.weight(.semibold))
-            }
-            Text(note.body ?? "")
-                .font(.callout)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack(spacing: 6) {
-                Text((note.kind?.rawValue ?? "zettel").capitalized)
-                    .font(.caption2)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
-                    .background(Capsule().fill(Color.accentColor.opacity(0.15)))
-                if let scopeLabel = noteScopeLabel(note) {
-                    Text(scopeLabel)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(note.tags ?? [], id: \.self) { tag in
-                    Text("#\(tag)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("Edit") {
-                    editingId = note.id ?? ""
-                    editingText = note.body ?? ""
-                }
-                .buttonStyle(.borderless)
-                .font(.caption)
-                Button(role: .destructive) {
-                    guard let noteId = note.id else { return }
-                    Task { await deleteNote(noteId: noteId) }
-                } label: {
-                    Image(systemName: "trash").font(.caption)
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.red)
-            }
-        }
-    }
-
-    private func editingCard(_ note: NoteItem) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            TextEditor(text: $editingText)
-                .font(.callout)
-                .frame(minHeight: 60)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(Color.accentColor.opacity(0.5), lineWidth: 1)
-                )
-            HStack {
-                Button("Cancel") { editingId = nil }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
-                Spacer()
-                Button("Save") {
-                    Task { await saveEdit(note) }
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled(editingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-        }
-    }
-
     // MARK: - Actions
 
     private func reload() async {
@@ -302,42 +172,4 @@ struct NotesBrowserView: View {
             isSaving = false
         }
     }
-
-    private func saveEdit(_ note: NoteItem) async {
-        let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let noteId = note.id else { return }
-        do {
-            guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
-            var update = Components.Schemas.NotePatchRequest()
-            update.body = trimmed
-            let result = try await library.actionsService.invokeAction(
-                name: "note.update",
-                params: NoteUpdateActionParams(noteId: noteId, update: update)
-            )
-            LastAction.shared.record(auditId: result.auditId, actionName: "note.update")
-            editingId = nil
-        } catch {
-            logger.error("update note failed: \(error.localizedDescription)")
-        }
-    }
-
-    private func noteScopeLabel(_ note: NoteItem) -> String? {
-        if note.folderId?.isEmpty == false { return "Folder" }
-        if note.pageId?.isEmpty == false { return "Page" }
-        return nil
-    }
-
-    private func deleteNote(noteId: String) async {
-        do {
-            guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
-            let result = try await library.actionsService.invokeAction(
-                name: "note.delete",
-                params: NoteDeleteActionParams(noteId: noteId)
-            )
-            LastAction.shared.record(auditId: result.auditId, actionName: "note.delete")
-        } catch {
-            logger.error("delete note failed: \(error.localizedDescription)")
-        }
-    }
 }
-// swiftlint:enable type_body_length

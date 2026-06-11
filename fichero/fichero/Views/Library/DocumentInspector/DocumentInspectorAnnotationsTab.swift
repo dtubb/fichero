@@ -1,66 +1,35 @@
-import FicheroAPIClient
 import SwiftUI
 
-private struct AnnotationUpdateActionParams: Encodable {
-    let annotationId: String
-    let update: Components.Schemas.AnnotationPatchRequest
-
-    enum CodingKeys: String, CodingKey {
-        case annotationId = "annotation_id"
-        case update
-    }
-}
-
-private struct AnnotationDeleteActionParams: Encodable {
-    let annotationId: String
-
-    enum CodingKeys: String, CodingKey {
-        case annotationId = "annotation_id"
-    }
-}
-
-extension Notification.Name {
-    /// Posted when the user taps an annotation row in the inspector's Annotations
-    /// tab. The reading surface (PDF / image viewer) can observe this to scroll to
-    /// the source page and, if a `bbox` is present, highlight the region (#1276).
-    /// userInfo keys: documentId, pageLabel?, bbox?([Double]), charStart?, charEnd?.
-    static let annotationSelectedInInspector = Notification.Name("annotationSelectedInInspector")
-}
-
-// swiftlint:disable type_body_length
-/// Annotations tab for the Document Inspector (#1276).
-///
-/// Lists a document's annotations, lets the user add a quick note and delete any
-/// annotation, and reveals an annotation's source page/region on tap. Wired to
-/// `AnnotationService` (backend `/api/annotations`); degrades to an empty state
-/// if the backend route isn't reachable yet (parallel development).
+/// Annotations tab for the Document Inspector (#1276), rebuilt as List + detail.
 struct DocumentInspectorAnnotationsTab: View {
     let document: Document
 
     @Environment(AnnotationStore.self) private var annotationStore
-    @EnvironmentObject private var windowState: WindowState
     @ObservedObject private var claimFocusState = ClaimFocusState.shared
+
+    @State private var focused = FocusedAnnotation.shared
     @State private var newNoteText: String = ""
     @State private var searchText: String = ""
     @State private var isAdding = false
-    @State private var editingAnnotation: DocumentAnnotation?
-    @State private var editText = ""
-    @State private var isSavingEdit = false
-    @State private var selectedAnnotationId: String?
     @FocusState private var noteFieldFocused: Bool
+
+    private var filteredAnnotations: [DocumentAnnotation] {
+        annotationStore.annotations.filter { AnnotationStore.matchesSearch($0, query: searchText) }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             addBar
             Divider()
-            content
+            AnnotationsInspectorPane(
+                document: document,
+                annotations: filteredAnnotations,
+                focused: focused
+            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: document.id) {
             await loadAnnotations()
-        }
-        .sheet(item: $editingAnnotation) { annotation in
-            annotationEditSheet(annotation)
         }
         .accessibilityIdentifier("annotationsTab")
     }
@@ -111,82 +80,9 @@ struct DocumentInspectorAnnotationsTab: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-    }
-
-    // MARK: - Content
-
-    @ViewBuilder
-    private var content: some View {
-        if annotationStore.isLoading && annotationStore.annotations.isEmpty {
-            ProgressView("Loading annotations…")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if filteredAnnotations.isEmpty {
-            emptyState
-        } else {
-            List(selection: $selectedAnnotationId) {
-                ForEach(filteredAnnotations) { annotation in
-                    AnnotationRow(annotation: annotation)
-                        .tag(annotation.id)
-                        .contextMenu {
-                            Button {
-                                Task { await annotationStore.getAnnotation(id: annotation.id) }
-                            } label: {
-                                Label("Refresh Details", systemImage: "arrow.clockwise")
-                            }
-                            Button {
-                                beginEditing(annotation)
-                            } label: {
-                                Label("Edit Text", systemImage: "pencil")
-                            }
-                            if annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan) {
-                                Button {
-                                    Task { await copyCrop(annotation) }
-                                } label: {
-                                    Label("Copy Cropped Content", systemImage: "crop")
-                                }
-                            }
-                            if annotation.canRevealSource {
-                                Button {
-                                    Task { await promoteToClaim(annotation) }
-                                } label: {
-                                    Label("Promote to Claim", systemImage: "arrow.up.doc")
-                                }
-                            }
-                            Divider()
-                            Button(role: .destructive) {
-                                delete(annotation)
-                            } label: {
-                                Label("Delete Annotation", systemImage: "trash")
-                            }
-                        }
-                }
-            }
-            .listStyle(.inset)
-            .onChange(of: selectedAnnotationId) { _, newId in
-                guard let newId,
-                      let annotation = filteredAnnotations.first(where: { $0.id == newId }) else { return }
-                reveal(annotation)
-            }
-            .onChange(of: searchText) { _, _ in
-                selectedAnnotationId = nil
-            }
+        .onChange(of: searchText) { _, _ in
+            focused.clear()
         }
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "highlighter")
-                .font(.system(size: 32))
-                .foregroundStyle(.secondary)
-            Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No annotations" : "No matches")
-                .font(.headline)
-            Text(annotationStore.loadError ?? "Add a note above, or highlight a region on the page.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
     }
 
     // MARK: - Actions
@@ -208,85 +104,10 @@ struct DocumentInspectorAnnotationsTab: View {
         }
     }
 
-    private func delete(_ annotation: DocumentAnnotation) {
-        if selectedAnnotationId == annotation.id {
-            selectedAnnotationId = nil
-        }
-        Task {
-            guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
-            do {
-                let result = try await library.actionsService.invokeAction(
-                    name: "annotation.delete",
-                    params: AnnotationDeleteActionParams(annotationId: annotation.id)
-                )
-                LastAction.shared.record(auditId: result.auditId, actionName: "annotation.delete")
-            } catch {
-                // Keep the UI state local; the store will resync on the next change event.
-            }
-        }
-    }
-
-    private func beginEditing(_ annotation: DocumentAnnotation) {
-        editText = annotation.text ?? ""
-        editingAnnotation = annotation
-    }
-
-    private func saveEdit(_ annotation: DocumentAnnotation) {
-        guard !isSavingEdit else { return }
-        isSavingEdit = true
-        Task {
-            guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else {
-                isSavingEdit = false
-                return
-            }
-            var update = Components.Schemas.AnnotationPatchRequest()
-            update.text = editText
-            do {
-                let result = try await library.actionsService.invokeAction(
-                    name: "annotation.update",
-                    params: AnnotationUpdateActionParams(annotationId: annotation.id, update: update)
-                )
-                LastAction.shared.record(auditId: result.auditId, actionName: "annotation.update")
-                editingAnnotation = nil
-            } catch {
-                isSavingEdit = false
-            }
-        }
-    }
-
-    private func copyCrop(_ annotation: DocumentAnnotation) async {
-        guard let data = await annotationStore.cropAnnotation(id: annotation.id),
-              let text = String(data: data, encoding: .utf8),
-              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return
-        }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-    }
-
-    private func promoteToClaim(_ annotation: DocumentAnnotation) async {
-        _ = await annotationStore.promoteToClaim(id: annotation.id)
-    }
-
-    /// Reveal the annotation's source page/region by posting a notification the
-    /// reading surface can observe. Decoupled so the inspector doesn't need a
-    /// direct reference to the viewer (#1276).
-    private func reveal(_ annotation: DocumentAnnotation) {
-        guard let documentId = annotation.documentId else { return }
-        var info: [String: Any] = ["documentId": documentId]
-        if let pageLabel = annotation.pageLabel { info["pageLabel"] = pageLabel }
-        if let bbox = annotation.bbox { info["bbox"] = bbox }
-        if let charStart = annotation.charStart { info["charStart"] = charStart }
-        if let charEnd = annotation.charEnd { info["charEnd"] = charEnd }
-        NotificationCenter.default.post(
-            name: .annotationSelectedInInspector,
-            object: nil,
-            userInfo: info
-        )
-    }
-
-    private var filteredAnnotations: [DocumentAnnotation] {
-        annotationStore.annotations.filter { AnnotationStore.matchesSearch($0, query: searchText) }
+    private func loadAnnotations() async {
+        focused.clear()
+        focused.documentName = document.name
+        await annotationStore.loadAnnotations(for: annotationScope, force: true)
     }
 
     private var activeClaimId: String? {
@@ -306,92 +127,5 @@ struct DocumentInspectorAnnotationsTab: View {
         default:
             return .document(document.id)
         }
-    }
-
-    private func loadAnnotations() async {
-        await annotationStore.loadAnnotations(for: annotationScope)
-    }
-
-    private func annotationEditSheet(_ annotation: DocumentAnnotation) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Edit Annotation")
-                .font(.headline)
-            TextEditor(text: $editText)
-                .font(.body)
-                .frame(minWidth: 360, minHeight: 160)
-                .border(Color.secondary.opacity(0.25))
-            HStack {
-                Spacer()
-                Button("Cancel") {
-                    editingAnnotation = nil
-                }
-                .keyboardShortcut(.cancelAction)
-                .disabled(isSavingEdit)
-                Button {
-                    saveEdit(annotation)
-                } label: {
-                    if isSavingEdit {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Text("Save")
-                    }
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(isSavingEdit)
-            }
-        }
-        .padding()
-    }
-}
-// swiftlint:enable type_body_length
-
-// MARK: - Row
-
-/// A single annotation row: kind icon, note text, and a metadata caption
-/// (page / region / rating / tags).
-private struct AnnotationRow: View {
-    let annotation: DocumentAnnotation
-    @Environment(\.appearsActive) private var appearsActive
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: annotation.kind.icon)
-                .foregroundStyle(appearsActive ? .secondary : .tertiary)
-                .frame(width: 18)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(displayText)
-                    .font(.body)
-                    .foregroundStyle(annotation.text?.isEmpty == false ? .primary : .secondary)
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
-                if !metadataParts.isEmpty {
-                    Text(metadataParts.joined(separator: " · "))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer(minLength: 0)
-            if annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan) {
-                Image(systemName: "arrow.right.circle")
-                    .foregroundStyle(appearsActive ? .tertiary : .quaternary)
-                    .help("Reveal source")
-            }
-        }
-        .padding(.vertical, 2)
-    }
-
-    private var displayText: String {
-        if let text = annotation.text, !text.isEmpty { return text }
-        return "(\(annotation.kind.label.lowercased()) — no text)"
-    }
-
-    private var metadataParts: [String] {
-        var parts: [String] = [annotation.kind.label]
-        if let page = annotation.pageLabel, !page.isEmpty { parts.append("p. \(page)") }
-        if annotation.hasRegion { parts.append("region") }
-        if !annotation.linkedClaimIds.isEmpty { parts.append("\(annotation.linkedClaimIds.count) claim") }
-        if let rating = annotation.rating { parts.append(String(repeating: "*", count: max(0, min(5, rating)))) }
-        for tag in annotation.tags.prefix(3) { parts.append("#\(tag)") }
-        return parts
     }
 }

@@ -294,6 +294,20 @@ struct FicheroApp: App {
         }
         .defaultSize(width: 480, height: 560)
 
+        // Track B (#2010 / #2011): detachable annotation + note detail scenes,
+        // each torn off from its inspector tab and following the matching shared
+        // focus holder by default. Read-only in the detached scene, so they
+        // need no library-service environment plumbing.
+        WindowGroup("Annotation", id: "annotation-detail") {
+            AnnotationDetailWindow()
+        }
+        .defaultSize(width: 480, height: 620)
+
+        WindowGroup("Note", id: "note-detail") {
+            NoteDetailWindow()
+        }
+        .defaultSize(width: 480, height: 620)
+
         Settings {
             SettingsView()
                 .environmentObject(appState)
