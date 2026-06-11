@@ -12,7 +12,7 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
@@ -98,15 +98,12 @@ def _note_scope_document_ids(note: Note | None) -> list[str]:
     ]
 
 
-@router.post("", response_model=Note)
-async def create_note(
-    request: NoteCreateRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-) -> Note:
+def create_note_impl(db: Database, request: NoteCreateRequest) -> Note:
+    """Validate scope, fold the page/folder into linked_document_ids, persist.
+
+    The single create path: the ``create_note`` route AND the ``note.create``
+    audited action (EPIC #1848) drive this exact code (iterate-not-replace).
+    """
     _validate_note_scope(db, page_id=request.page_id, folder_id=request.folder_id)
     payload = request.model_dump()
     payload["linked_document_ids"] = _scoped_document_links(
@@ -116,10 +113,23 @@ async def create_note(
     )
     note = Note(**payload)
     db.save(note)
+    return note
+
+
+@router.post("", response_model=Note)
+async def create_note(
+    request: NoteCreateRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> Note:
+    note = create_note_impl(db, request)
     emit_change(
         x_fichero_library_path,
         type="note.created",
-        document_ids=[i for i in {note.page_id, note.folder_id, *note.linked_document_ids} if i],
+        document_ids=_note_scope_document_ids(note),
         actor="ui",
         origin_window=x_fichero_origin_window,
     )
@@ -194,19 +204,19 @@ class NotePatchRequest(BaseModel):
     parent_address: str | None = None
 
 
-@router.patch("/{note_id}", response_model=Note)
-async def patch_note(
-    note_id: str,
-    request: NotePatchRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-) -> Note:
+def patch_note_impl(
+    db: Database, note_id: str, request: NotePatchRequest
+) -> tuple[Note, dict]:
+    """Apply a partial update to a note. Returns ``(note, before_snapshot)``.
+
+    ``before_snapshot`` is the full pre-mutation row — the undo payload the
+    ``note.update`` action inverts to ``note.restore``. Shared by the route and
+    the action so both drive the same exclude-unset / scope-reconciliation logic.
+    """
     note = db.get(Note, note_id)
     if note is None:
         raise HTTPException(404, f"Note not found: {note_id}")
+    before = note.model_dump(mode="json")
     updates = request.model_dump(exclude_unset=True)
     next_page_id = updates.get("page_id", note.page_id)
     next_folder_id = updates.get("folder_id", note.folder_id)
@@ -225,13 +235,55 @@ async def patch_note(
         setattr(note, field, value)
     note.updated_at = datetime.now()
     db.save(note)
+    return note, before
+
+
+@router.patch("/{note_id}", response_model=Note)
+async def patch_note(
+    note_id: str,
+    request: NotePatchRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> Note:
+    note, _before = patch_note_impl(db, note_id, request)
     emit_change(
         x_fichero_library_path,
         type="note.updated",
-        document_ids=[i for i in {note.page_id, note.folder_id, *note.linked_document_ids} if i],
+        document_ids=_note_scope_document_ids(note),
         actor="ui",
         origin_window=x_fichero_origin_window,
     )
+    return note
+
+
+def delete_note_impl(db: Database, note_id: str) -> tuple[list[str], dict]:
+    """Delete a note. Returns ``(scope_document_ids, before_snapshot)``.
+
+    The before-snapshot is captured BEFORE deletion so the ``note.delete`` action
+    can invert to ``note.restore`` (a full-snapshot upsert preserving the id). The
+    scope ids drive ``emit_change`` for the windows the note was attached to.
+    """
+    note = db.get(Note, note_id)
+    if note is None:
+        raise HTTPException(404, f"Note not found: {note_id}")
+    before = note.model_dump(mode="json")
+    document_ids = _note_scope_document_ids(note)
+    db.delete(note)
+    return document_ids, before
+
+
+def restore_note_impl(db: Database, snapshot: dict) -> Note:
+    """Re-create / overwrite a note from a JSON snapshot (preserving its id).
+
+    The single inverse used by every undoable note action: ``db.save`` is an
+    upsert by id, so this reuses the proven ``Note(**snapshot)`` round-trip to
+    restore the exact pre-mutation row rather than re-deriving a field diff.
+    """
+    note = Note(**snapshot)
+    db.save(note)
     return note
 
 
@@ -244,11 +296,7 @@ async def delete_note(
         default=None, alias="X-Fichero-Origin-Window"
     ),
 ) -> None:
-    note = db.get(Note, note_id)
-    if note is None:
-        raise HTTPException(404, f"Note not found: {note_id}")
-    document_ids = [i for i in {note.page_id, note.folder_id, *note.linked_document_ids} if i]
-    db.delete(note)
+    document_ids, _before = delete_note_impl(db, note_id)
     emit_change(
         x_fichero_library_path,
         type="note.deleted",
@@ -399,3 +447,192 @@ async def forward_links(
     notes = [db.get(Note, tid) for tid in target_ids]
     items = [n for n in notes if n is not None]
     return NoteListResponse(items=items, count=len(items))
+
+
+# =============================================================================
+# Action layer registration (EPIC #1848 / #2014) — NOTE domain sweep
+# =============================================================================
+#
+# Each action WRAPS the proven ``*_impl`` above (iterate-not-replace) and routes
+# through ``registry.invoke`` so chat tools / App Intents / tests / the audit log
+# all drive the SAME code the UI routes do (the routes call the same ``*_impl``
+# directly and emit), matching the entity.merge / conversation.* pattern.
+#
+# Undo is data, not code: ``db.save`` is an upsert by id, so a single
+# ``note.restore`` (full-snapshot upsert preserving the id) inverts BOTH a delete
+# (re-inserts the row) and an edit (overwrites with the prior snapshot).
+# ``note.restore`` records whether the row pre-existed, so its OWN inverse is
+# ``note.delete`` (after a recreate) or ``note.restore`` (after an overwrite) —
+# keeping every delete<->restore and edit<->restore redo chain sane. The inverse
+# chain:
+#   * note.create  -> note.delete  (the new id)
+#   * note.update  -> note.restore (before snapshot)
+#   * note.delete  -> note.restore (before snapshot)
+#   * note.restore -> note.delete / note.restore (self-correcting, see above)
+#
+# ``ChangeSpec.document_ids`` carries the note's *scope* (page / folder / linked
+# documents) so the observable layer refreshes the windows the note hangs off;
+# the note id itself rides in ``target_ids``.
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+class NoteUpdateActionParams(BaseModel):
+    """``note.update`` params — the path note_id plus the partial patch body.
+
+    ``update`` is a nested :class:`NotePatchRequest` so the registry's
+    ``model_validate`` preserves exclude-unset semantics: only fields actually
+    present in the patch are applied (None means 'leave unchanged')."""
+
+    note_id: str = Field(description="Note id to update")
+    update: NotePatchRequest = Field(description="Partial note update")
+
+
+class NoteIdParams(BaseModel):
+    """``note.delete`` params — also reached as the inverse of ``note.create``."""
+
+    note_id: str = Field(description="Note id to delete")
+
+
+class NoteRestoreParams(BaseModel):
+    """``note.restore`` — re-materialize / overwrite a note by snapshot
+    (preserving its id). The single generic inverse for every undoable verb."""
+
+    snapshot: dict = Field(description="Note.model_dump snapshot")
+
+
+def _invert_create_note(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a create by deleting the row it produced."""
+    if not after:
+        return None
+    note_id = after.get("id")
+    if not note_id:
+        return None
+    return ("note.delete", {"note_id": note_id})
+
+
+def _invert_to_restore_before(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo an edit/delete by restoring the captured pre-change snapshot."""
+    if not before:
+        return None
+    return ("note.restore", {"snapshot": before})
+
+
+def _invert_restore_note(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Inverse of restore — depends on whether the row pre-existed.
+
+    If ``before`` is None the restore RE-CREATED a missing row (it was undoing a
+    delete) -> redo by deleting again. If ``before`` is a snapshot the restore
+    OVERWROTE an existing row (undoing an edit) -> redo by restoring that prior
+    snapshot, re-applying the edit. Keeps delete<->restore and edit<->restore
+    redo chains correct."""
+    if not after:
+        return None
+    note_id = after.get("id")
+    if before is None:
+        if not note_id:
+            return None
+        return ("note.delete", {"note_id": note_id})
+    return ("note.restore", {"snapshot": before})
+
+
+@action(
+    "note.create",
+    NoteCreateRequest,
+    domains=["note"],
+    undoable=True,
+    invert=_invert_create_note,
+)
+def _action_create_note(
+    db: Database, params: NoteCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    note = create_note_impl(db, params)
+    after = note.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["note"],
+        target_ids=[note.id],
+        before=None,
+        after=after,
+        emit_type="note.created",
+        document_ids=_note_scope_document_ids(note),
+    )
+    return after, spec
+
+
+@action(
+    "note.update",
+    NoteUpdateActionParams,
+    domains=["note"],
+    undoable=True,
+    invert=_invert_to_restore_before,
+)
+def _action_update_note(
+    db: Database, params: NoteUpdateActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    note, before = patch_note_impl(db, params.note_id, params.update)
+    after = note.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["note"],
+        target_ids=[note.id],
+        before=before,
+        after=after,
+        emit_type="note.updated",
+        document_ids=_note_scope_document_ids(note),
+    )
+    return after, spec
+
+
+@action(
+    "note.delete",
+    NoteIdParams,
+    domains=["note"],
+    undoable=True,
+    invert=_invert_to_restore_before,
+)
+def _action_delete_note(
+    db: Database, params: NoteIdParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    document_ids, before = delete_note_impl(db, params.note_id)
+    spec = ChangeSpec(
+        domains=["note"],
+        target_ids=[params.note_id],
+        before=before,
+        after=None,
+        emit_type="note.deleted",
+        document_ids=document_ids,
+    )
+    return before, spec
+
+
+@action(
+    "note.restore",
+    NoteRestoreParams,
+    domains=["note"],
+    undoable=True,
+    invert=_invert_restore_note,
+)
+def _action_restore_note(
+    db: Database, params: NoteRestoreParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Upsert a note from its snapshot (preserving id). Records whether the row
+    pre-existed so its inverse picks delete (recreate) vs restore (edit)."""
+    note_id = params.snapshot.get("id")
+    existing = db.get(Note, note_id) if note_id else None
+    before = existing.model_dump(mode="json") if existing else None
+    note = restore_note_impl(db, params.snapshot)
+    after = note.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["note"],
+        target_ids=[note.id],
+        before=before,
+        after=after,
+        emit_type="note.updated" if before else "note.created",
+        document_ids=_note_scope_document_ids(note),
+    )
+    return after, spec
