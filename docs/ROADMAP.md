@@ -26,6 +26,29 @@ agent** runs the gates continuously (see bottom).
 four-phase order** (Daniel, 2026-06-11). The tiers below are finer-grained
 backing; this is the sequence. Work Phase 1 to a good stopping point before Phase 2, etc.
 
+### ▶▶ REFINED ORDER (2026-06-11 PM design session) — authoritative over the 4 phases below
+A long design session reshaped the plan. Order is now:
+
+**1. INFRASTRUCTURE (doing NOW — finish before Mac):**
+- Remaining backend: **#2045** SSE hardening · **#2026** Tailscale · **#2028** infra code-review · **#2076** audit-chain ordering.
+- **Embeddings done right** (Daniel: re-embed, don't pin — #2049 resolved): **#2095** pluggable embedding provider (local bge-m3/Qwen3-0.6B + OpenAI + Apple; correct per-model formatting; 1024-dim so no store change; re-embed all).
+
+**2. MAC-ASSED APP (#2030) — the big UI reform, built on a NEW data foundation:**
+- **#2081 — Library node model (FOUNDATION, do early):** library = ONE tree of nodes; each node has a structural kind + a **prototype (class)**; **folder ≈ workspace ≈ room** are container prototypes; **entities + aliases** are node kinds; tasks/milestones/notes are prototype attributes; **views** (list/table/icons/map/graph/3D) render any container; **chat scopes to any container**. *(Tinderbox-for-archives.)* Gaps: prototype system, alias kind, entities-as-nodes, tasks-on-any-container.
+- **#2031 — persistent shell** (route every mode's detail through ONE shared inspector; modes→views). Design approved; brief staged. *(Search/KG/Mind-Palace collapse into VIEWS, not modes.)*
+- Reading surface: **#2090** multi-page (1/2-up native + 3/4-up custom grid + continuous; PDFs+images) · **#2093** first-class translation view · ✅ #2052 PDF thumbnail · #2053/#2080 page labels.
+- Library/legibility: **#2020** entity provenance Table · **#2091** references-as-nodes + 'who references this' · **#2088** BibTeX export UI · **#2092** language policy (global/per-doc) · **#2089** editor consolidation (no Word-clone).
+- Design doc: `docs/architecture/swiftui/mac_shell_design_proposal.md`.
+
+**3. MAKE-VISIBLE + AI-INFRA BACKEND (after Mac UI):**
+- **#2082** surface the shipped security backend (Accounts/Users #2083, multi-user toggle #2084, audit 'who-changed-what' #2085, sharing/roles #2086, backups #2087) + Trash UI #2077.
+- **#2094** all models in Settings → Models (central storage, select/delete, local+API+Apple providers).
+- **AI-infra #2056**: batching #2057, profiles #2058, bounded concurrency #2062, local-MLX #2066, Apple Vision #2060, local-only #2063.
+
+**4. RESEARCHER / AGENT (#2067):** Workspace ≡ RAG/Graph chat ≡ Agent; agent is a principal that edits nodes (reuses #2081 + #2024 + #2015 + undo). Pi harness on MLX.
+
+> The 4 phases below remain the frame; this refined order supersedes their internals.
+
 ### Cross-cutting GUARANTEE — Privacy: nothing goes online without consent
 **No information is sent to any online/cloud service unless the user explicitly
 allows it.** Default-private posture; a global **local-only / no-cloud** setting
