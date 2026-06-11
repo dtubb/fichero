@@ -1,3 +1,22 @@
+## SESSION HANDOFF — 2026-06-11 ~08:50 (#1848 frontend remainder COMPLETE + Track B Phase 2 DONE)
+**0.0.2 @ `d92c1c96`, pushed, clean (no worktrees/lanes; only tmux `seed`). All frontend lanes Xcode compile-verified green.**
+
+### What's DONE (this morning, integrated + pushed):
+- **fe-buttons (`0e88a506`)** — claim delete/patch, document delete, annotation delete, note delete/update buttons now route through `POST /api/actions/invoke` (audited + ⌘Z-undoable), same `ActionLibraryService.invokeAction` pattern as the merge exhibit. (Manager fixed 1 worker bug: missing `@EnvironmentObject windowState` on `InlineClaimEditor`.)
+- **App Intents / Shortcuts `a8b7c1f1` — #2017 CLOSED** — `fichero/fichero/Intents/{FicheroActionIntents,FicheroShortcuts}.swift`: curated AppIntents (Merge Entities, Create Note, Delete Document, Run Workflow, Create Annotation) over /api/actions/invoke. (Manager fixed worker's Swift6 errors: `static let` metadata; `@Parameter` w/o wrappedValue; `Encodable & Sendable` generic; `[AppShortcut]` builder.)
+- **Track B Phase 2 (`d92c1c96`) — #2010 + #2011 CLOSED** — annotations + notes as List + detachable detail: `FocusedAnnotation/FocusedNote`, `AnnotationListView/DetailView`, `NoteListView/DetailView`, `AnnotationsInspectorPane/NotesInspectorPane`, tear-off WindowGroups in FicheroApp.swift; `DocumentInspectorAnnotationsTab`/`DocumentNotesTab`/`NotesBrowserView` reworked in place. Copied the #2003/#2004/#2005 artifact pattern. Built green first try.
+- MORNING-TEST.md updated with click-tests for all three.
+
+### Workers were CODEX (gpt-5.4-mini, `--dangerously-bypass-approvals-and-sandbox` YOLO) in ~/code/fichero-worktrees/. codex weekly quota was <10% all morning but lanes completed. Manager runs the ONLY Xcode build (compile-only, tabIdentifier windowtab1) — that gate caught every Swift6 error the pytest-less/build-less workers couldn't.
+
+### OPEN / NEXT:
+- **openapi.json is STALE vs backend** (the live uvicorn regen shows `source_document_id` optional from #2019 + ~48 new endpoints). When the verify openapi-regen lands, **EntitySourceGroupsView.swift:181 + EntityDetailView+Biography.swift:87 need optional-unwrap fixes** (they break when the client regenerates the optional field). Surfaced, not yet committed (verify owns the regen).
+- New backlog filed this morning (all `needs-design` where structural): **#2020** entity-panel provenance (List→Table "Found in"); **EPIC #2021** + #2022–#2029 multi-user/permissions/Tailscale/audits; **EPIC #2030** + #2031–#2041 Mac window structure (persistent shell + zoned toolbar) + Liquid Glass.
+
+### AWAITING DANIEL (visual/runtime — docs/MORNING-TEST.md is the click-list):
+converted delete/patch buttons + **⌘Z undo**; **App Intents in Shortcuts.app**; **Track B annotations/notes** list+detail+tear-off; plus prior: #2009 Interpretations live, #2003/4/5 Track B, #1973 beachball, #2006 frame-warning.
+
+---
 ## SESSION HANDOFF — 2026-06-11 ~06:40 (#1848 backend DONE + frontend exhibit-A/⌘Z; frontend remainder queued)
 **0.0.2 @ `ae4e7213`, pushed, clean (no worktrees/lanes). Full unit suite green (4478 passed; #2012 flake xfail-quarantined). Xcode compile-green.**
 

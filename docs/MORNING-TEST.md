@@ -23,6 +23,12 @@ Things the autonomous overnight run built that need Daniel's **visual / runtime*
   - Each should behave as before; the win is they're now audited + ⌘Z-undoable.
 - **App Intents / Shortcuts (#2017)** — open **Shortcuts.app**, "+" a new shortcut, search **"Fichero"**. You should see curated actions: **Merge Entities, Create Note, Delete Document, Run Workflow, Create Annotation**. Run one (e.g. Create Note) and confirm it hits the running engine and writes an audit row. (Also should surface in Spotlight.)
 
+## Track B Phase 2 — Annotations + Notes as List + detachable detail (#2010, #2011) — SHIPPED 2026-06-11
+
+Same recipe as #2003/#2004/#2005 (artifacts/citations/references):
+- **Annotations** (Document Inspector → **Annotations** tab): now a **List** (click a row → selects) with a **detail** view that follows selection. There should be an **"Open in Window"** tear-off that opens the annotation in its own window and tracks the selection. Confirm: clicking selects; detail updates; tear-off window follows; delete/edit still work (and are ⌘Z-undoable via the audited path).
+- **Notes** (Document Inspector → **Notes** tab, and the **Notes browser**): same — List + detail + tear-off WindowGroup. Confirm click-select, detail-follows, tear-off, and delete/edit.
+
 ## ⌘Z undo of the last audited action (#2015)
 
 After merging two entities, press **⌘Z** — the merge should undo (the entities
