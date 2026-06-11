@@ -1,3 +1,10 @@
+## MANAGER STATUS — 2026-06-11 ~12:35 (Phase 1 integrating: #2055 SHIPPED, #2023 in gate)
+**0.0.2 pushed @ `4319667b` (#2055). #2023 cherry-picked locally @ `9f2b8c62`, full-suite gate running.**
+- ✅ **#2055 LLM client pooling SHIPPED** (`b8028f76`→pushed `4319667b`): pooled httpx.AsyncClient per (identity, loop); fm-bridge persistent process deferred (documented). 327 blast-radius tests + ruff green. Closed.
+- ⏳ **#2023 actor-attribution (keystone) IN GATE** (`9f2b8c62` cherry-picked): new `actor_from_request`/`request_actor`/`action_context` in auth.py (actor derived ONLY from `request.state.user` — forgery-proof, reviewed PASS); `origin_user` threaded through change_stream; 98 emit_change sites now `Depends(request_actor)`; 0 leftover `actor="ui"`. Worker ran full suite 4517 passed. Manager re-running full suite (bg task) before push.
+- **Known pre-existing gate noise (NOT a blocker, NOT from these PRs):** `verify_all --fast` shows 3 ratchet-DRIFT fails — `check_dead_files`, `check_observer_pattern`, `check_service_consistency` — because KNOWN_VIOLATIONS baselines are now *cleaner* than recorded ("N entries now CLEAN — drop"). 5-min cleanup tick owed (prune stale KNOWN_VIOLATIONS entries). File/handle in a later tick.
+- **Active lane:** `backups-2046` (#2046 scheduled+offsite backups, gpt-5.4) — disjoint (storage_snapshots.py), just launched.
+
 ## MANAGER STATUS — 2026-06-11 ~11:48 (Phase 1 dispatch: 2 lanes live)
 **0.0.2 @ `aec62640`, pushed, clean. Engine running prod-style (PID 29901, single proc, model-cache verified). Orphan-milestone triage CONFIRMED DONE — `gh issue list` shows 0 of 477 open issues without a milestone.**
 
