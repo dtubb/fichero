@@ -12,7 +12,8 @@ import asyncio
 import logging
 import math
 import os
-from typing import Callable
+import threading
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,40 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "intfloat/multilingual-e5-large"
 KG_ENTITY_EMBEDDINGS_TABLE = "kg_entity_embeddings"
 KG_CLAIM_EMBEDDINGS_TABLE = "kg_claim_embeddings"
+
+# Process-global embedder cache, keyed by model name.
+#
+# The embedding model is a ~500 MB ONNX model that takes seconds to load. It is
+# a *process-global* resource, but the host ``Database`` is instantiated per
+# (package_path, thread_id) by ``db_manager`` — so storing the embedder as
+# per-instance state (``self._embedder``) reloaded the model on EVERY worker
+# thread / page during a run, flooding logs and dominating per-page time. Cache
+# the loaded model here so all Database instances and threads share one copy.
+# (FastEmbed's TextEmbedding wraps an ONNX Runtime session, which is safe for
+# concurrent inference across threads.) Keyed by model name so switching the
+# configured model still loads the new one once.
+_EMBEDDER_CACHE: dict[str, Any] = {}
+_EMBEDDER_CACHE_LOCK = threading.Lock()
+
+
+def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
+    """Return the process-global TextEmbedding for ``model_name``, loading once.
+
+    Double-checked locking so concurrent worker threads don't each load the
+    model. The host stores the returned object on ``self._embedder``.
+    """
+    embedder = _EMBEDDER_CACHE.get(model_name)
+    if embedder is not None:
+        return embedder
+    with _EMBEDDER_CACHE_LOCK:
+        embedder = _EMBEDDER_CACHE.get(model_name)
+        if embedder is None:
+            from fastembed import TextEmbedding
+
+            embedder = TextEmbedding(model_name=model_name, cache_dir=cache_dir)
+            _EMBEDDER_CACHE[model_name] = embedder
+            logger.info("Loaded embedding model (process-global): %s", model_name)
+        return embedder
 
 
 def _l2_normalize(vec: list[float]) -> list[float]:
@@ -158,21 +193,15 @@ class DatabaseEmbeddingMixin:
         """
         if self._embedder is None:
             try:
-                from fastembed import TextEmbedding
                 from fichero.local_models import MODELS_BASE
 
                 model_name = self._get_embedding_model_name()
                 cache_dir = MODELS_BASE / "embeddings"
                 cache_dir.mkdir(parents=True, exist_ok=True)
-                self._embedder = TextEmbedding(
-                    model_name=model_name,
-                    cache_dir=str(cache_dir),
-                )
-                logger.info(
-                    "Loaded embedding model: %s (cache_dir=%s)",
-                    model_name,
-                    cache_dir,
-                )
+                # Process-global: loaded once and shared across every Database
+                # instance / worker thread (see _get_shared_embedder). Previously
+                # this constructed a fresh ~500 MB model per instance/thread.
+                self._embedder = _get_shared_embedder(model_name, str(cache_dir))
             except ImportError:
                 raise ImportError(
                     "fastembed not installed. Install with: pip install fastembed"
