@@ -74,7 +74,13 @@ def _tool_description(action: ActionRegistration) -> str:
     generated fallback so the field is never empty (OpenAI rejects blank ones).
     Only the first paragraph is kept — tool descriptions want a one-liner.
     """
-    doc = inspect.getdoc(action.execute) or inspect.getdoc(action.params_model)
+    # NB: use the params model's OWN __doc__ (not inspect.getdoc, which walks the
+    # MRO and would return Pydantic's BaseModel docstring for a model that defines
+    # none). cls.__doc__ is None when the subclass has no docstring of its own.
+    model_doc = action.params_model.__doc__
+    doc = inspect.getdoc(action.execute) or (
+        inspect.cleandoc(model_doc) if model_doc else None
+    )
     if doc:
         first_para = doc.strip().split("\n\n", 1)[0].strip()
         if first_para:
