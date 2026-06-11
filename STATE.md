@@ -1,3 +1,27 @@
+## SESSION HANDOFF — 2026-06-11 ~06:40 (#1848 backend DONE + frontend exhibit-A/⌘Z; frontend remainder queued)
+**0.0.2 @ `ae4e7213`, pushed, clean (no worktrees/lanes). Full unit suite green (4478 passed; #2012 flake xfail-quarantined). Xcode compile-green.**
+
+### What's DONE (this overnight run) — see [[one-audited-action-layer-shipped]]
+- **#1848 one audited action layer — BACKEND COMPLETE.** #2013 keystone (registry+ActionAudit+`invoke` chokepoint) + #2014 sweep = **115 audited actions / 14 domains** (the ENTIRE engine write surface; each wraps the proven `*_impl`, iterate-not-replace). Every mutation → `registry.invoke` → snapshot before → execute → ActionAudit(actor/before/after) → emit_change. ~280 thorough tests. **#2013/#2014/#2015/#2016/#2018/#2019 CLOSED.**
+  - #2015 undo: `POST /api/actions/audit/{id}/undo` applies any undoable action's inverse + `inverse_of` chain (redo/undo-of-undo) + `GET /api/actions/audit` log.
+  - #2016 chat tools: `fichero/actions/chat_tools.py` → 109 tool defs from `registry.all()` + dispatcher + tests. (Live-agent wiring = #1847 follow-up; POST /api/chat has no tool-list yet.)
+  - #2018: 5 missing actions (annotation duplicate/merge/relink, search reindex, workflow.run).
+- **Frontend exhibit-A:** entity-merge button now calls `POST /api/actions/invoke {name:'entity.merge', params:EntityMergeRequest}` via new `ActionInvokeService.swift` + `LastAction{auditId}` holder. (merge bug structurally fixed.)
+- **Frontend ⌘Z (#2015):** `FocusedCommandButtons.swift` + `ActionInvokeService.undoAction` — ⌘Z undoes the last audited action (single-level MVP; multi-level = follow-up).
+- Also: manual claims (#2019, KnowledgeClaim.source_document_id optional); guardrail-scanner regex fix; #2012 flake quarantined (xfail).
+
+### NEXT — open frontend work Daniel asked to do (no lanes running; dispatch fresh):
+1. **Route the REST of the mutation buttons through `/api/actions/invoke`** (claim delete/patch, document delete, annotation delete, etc.) — same `ActionInvokeService.invokeAction` pattern as the merge button; capture audit_id into LastAction for ⌘Z.
+2. **#2017 App Intents** — generate App Intents/Shortcuts for a CURATED set of high-value actions (merge, create note, run workflow, …) calling /api/actions/invoke (115 is too many to expose all).
+3. **Track B #2010 annotations + #2011 notes** — copy the #2003 pattern (Focused<X>.shared + <X>ListView + <X>DetailView + <X>InspectorPane + tear-off WindowGroup) onto AnnotationStore/NoteStore (both already on the substrate). Pure UI, independent of the action layer.
+Frontend gate = swiftlint + `mcp__xcode__BuildProject` COMPILE only (NEVER xcodebuild test — GUI windows). Register new .swift via `ruby scripts/add-swift-file.rb`. Log GUI checks to docs/MORNING-TEST.md.
+
+### AWAITING DANIEL (visual/runtime — docs/MORNING-TEST.md is the click-list):
+merge-still-works+audit (exhibit A); **⌘Z un-merges**; #2009 Interpretations live; #2003/#2004/#2005 Track B list+detail; #1973 beachball; #2006 frame-warning.
+
+### Conventions (don't relearn): backend lane → worktree-test → cherry-pick → ruff → import-smoke → test_check_duplicate_paths.py (allowlist for renamed *_impl) → FULL `pytest -q -rf` (NEVER tail; grep ALL '^FAILED') → push. Workers can't run pytest → EXPECT their tests to fail first run, fix test-side as integrator. RAM: ≤1 pytest; kill stray worker pytest on fichero-worktrees paths. Worktrees only under ~/code/fichero-worktrees; `git worktree remove --force`; NEVER rm ~/code siblings. codex weekly quota low → claude lanes.
+
+---
 ## SESSION HANDOFF — 2026-06-11 ~01:35 (#2014 DONE — entire engine write surface audited)
 **0.0.2 @ `395532d3`, pushed, full suite green (4423 passed; #2012 flake xfail-quarantined).**
 
