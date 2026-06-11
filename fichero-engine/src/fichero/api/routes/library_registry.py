@@ -128,14 +128,6 @@ def add_known_library(
         except Exception as exc:
             logger.warning("Inbox seeding skipped for %s: %s", pkg_path, exc)
 
-        try:
-            from fichero import authz
-
-            if authz.ensure_owner_role(getattr(request.state, "user", None), pkg_path):
-                logger.info("Bootstrapped library owner for %s", pkg_path)
-        except Exception as exc:
-            logger.warning("Failed to bootstrap library owner for %s: %s", pkg_path, exc)
-
         return library
     except Exception as e:
         logger.error("Failed to add known library: %s", e)

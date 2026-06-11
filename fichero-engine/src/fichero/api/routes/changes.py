@@ -18,6 +18,7 @@ from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
 
 from fichero.api.change_stream import _change_hub, format_change_sse
+from fichero.api.main import assert_library_read_authorized
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ async def stream_library_changes(
     every other library route). A window opens one connection and receives a
     ``ChangeEvent`` for every mutation in its library, from any source.
     """
+    assert_library_read_authorized(request, x_fichero_library_path)
     queue = _change_hub.subscribe(x_fichero_library_path)
 
     async def event_generator() -> AsyncGenerator[str, None]:

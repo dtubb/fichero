@@ -14,8 +14,16 @@ from fichero.actions.registry import (
     ChangeSpec,
     registry,
 )
+from fichero.api.change_stream import _change_hub
 from fichero.api.main import get_library_database
+from fichero.api.routes.changes import stream_library_changes
+from fichero.api.routes.entities import _digest_library_database
+from fichero.api.routes.library_registry import add_known_library
+from fichero.api.routes.schedules import get_library_database as get_schedule_database
+from fichero.api.routes.triggers import get_library_database as get_trigger_database
+from fichero.db import Database
 from fichero.models import AccountUser, Document, DocType
+from fichero.workflows.tools._workflow_change_emit import emit_workflow_artifact_changes
 
 
 class _TargetParams(BaseModel):
@@ -183,6 +191,65 @@ async def test_no_role_fails_closed_for_read_and_write(
         )
 
 
+@pytest.mark.anyio
+async def test_bootstrap_secret_without_user_fails_closed_for_read_and_write(
+    db, acl_action, monkeypatch
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    library_path = _library_path(db)
+
+    with pytest.raises(HTTPException) as read_exc:
+        await get_library_database(
+            _request(None),
+            x_fichero_library_path=library_path,
+        )
+    assert read_exc.value.status_code == 403
+
+    with pytest.raises(authz.AuthorizationError):
+        registry.invoke(
+            db,
+            acl_action,
+            {},
+            ActionContext(actor="system", library_path=library_path),
+        )
+
+
+@pytest.mark.anyio
+async def test_schedule_and_trigger_dependencies_use_read_acl(
+    db, users, monkeypatch
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    library_path = _library_path(db)
+
+    with pytest.raises(HTTPException) as schedule_exc:
+        await get_schedule_database(
+            _request(users.stranger),
+            x_fichero_library_path=library_path,
+        )
+    assert schedule_exc.value.status_code == 403
+
+    with pytest.raises(HTTPException) as trigger_exc:
+        await get_trigger_database(
+            _request(users.stranger),
+            x_fichero_library_path=library_path,
+        )
+    assert trigger_exc.value.status_code == 403
+
+    with pytest.raises(HTTPException) as entity_exc:
+        await _digest_library_database(
+            _request(users.stranger),
+            x_fichero_library_path=library_path,
+        )
+    assert entity_exc.value.status_code == 403
+
+    with pytest.raises(HTTPException) as stream_exc:
+        await stream_library_changes(
+            _request(users.stranger),
+            x_fichero_library_path=library_path,
+        )
+    assert stream_exc.value.status_code == 403
+
+
 def test_owner_can_grant_role_and_it_takes_effect(
     db, app_db, users, acl_action, monkeypatch
 ):
@@ -228,6 +295,18 @@ async def test_multiuser_off_leaves_registry_and_read_dependency_unchanged(
             x_fichero_library_path=library_path,
         )
     ) is db
+    assert (
+        await get_schedule_database(
+            _request(users.stranger),
+            x_fichero_library_path=library_path,
+        )
+    ) is db
+    assert (
+        await get_trigger_database(
+            _request(users.stranger),
+            x_fichero_library_path=library_path,
+        )
+    ) is db
 
     result = registry.invoke(
         db,
@@ -236,6 +315,50 @@ async def test_multiuser_off_leaves_registry_and_read_dependency_unchanged(
         ActionContext(actor="stranger", library_path=library_path),
     )
     assert result.ok is True
+
+
+def test_registry_add_does_not_auto_adopt_library_under_multiuser(
+    app_db, users, monkeypatch, tmp_path
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    library_path = tmp_path / "Reachable.fichero"
+    library_path.mkdir()
+    global_package = tmp_path / "global.fichero"
+    global_package.mkdir()
+    global_db = Database(path=global_package / "fichero.duckdb")
+
+    try:
+        added = add_known_library(
+            _request(users.owner),
+            path=str(library_path),
+            db=global_db,
+        )
+    finally:
+        global_db.conn.close()
+
+    normalized = authz.normalize_library_path(library_path)
+    assert added.path == normalized
+    assert app_db.get_library_role(users.owner.id, normalized) is None
+    assert authz.can_read(users.owner, library_path) is False
+
+
+def test_workflow_emission_still_functions_under_multiuser(monkeypatch, tmp_path):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    library_path = str(tmp_path / "Workflow.fichero")
+    queue = _change_hub.subscribe(library_path)
+    try:
+        emit_workflow_artifact_changes(
+            library_path,
+            artifact_ids=["artifact-1"],
+            document_ids=["doc-1"],
+        )
+        event = queue.get_nowait()
+    finally:
+        _change_hub.unsubscribe(library_path, queue)
+
+    assert event.type == "artifact.created"
+    assert event.actor == "workflow"
+    assert event.artifact_ids == ["artifact-1"]
 
 
 def test_library_creator_is_bootstrapped_as_owner(app_db, users, monkeypatch, tmp_path):

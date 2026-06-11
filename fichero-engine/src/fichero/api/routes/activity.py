@@ -315,6 +315,19 @@ async def websocket_activity_stream(
 
     Clients can send filter updates and receive activity events.
     """
+    # WebSockets do not run the HTTP auth middleware in TestClient in the same
+    # shape as normal routes, so gate before attaching to a library stream.
+    from fichero import authz
+
+    try:
+        authz.assert_can_read(
+            getattr(websocket.state, "user", None),
+            x_fichero_library_path,
+        )
+    except authz.AuthorizationError:
+        await websocket.close(code=1008)
+        return
+
     await websocket.accept()
 
     # Get database for library

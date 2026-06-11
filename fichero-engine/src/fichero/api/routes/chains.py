@@ -10,7 +10,7 @@ import logging
 import uuid
 from typing import Any, Callable
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Header
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Header, Request
 from pydantic import BaseModel, Field
 
 from fichero.workflows.chaining import (
@@ -27,6 +27,7 @@ from fichero.workflows.chaining import (
 from fichero.workflows.types import WorkflowDef
 from fichero.workflows.workflow_store import WorkflowStore
 from fichero.db import db_manager
+from fichero.api.main import assert_library_read_authorized
 
 logger = logging.getLogger(__name__)
 
@@ -462,9 +463,11 @@ async def delete_chain(chain_id: str) -> ChainDeletedResponse:
 
 @router.get("/presets/paleography", response_model=PaleographyPresetResponse)
 async def paleography_preset_preview(
+    request: Request,
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
 ) -> PaleographyPresetResponse:
     """Draft a stageable A/B/C paleography chain from current workflows."""
+    assert_library_read_authorized(request, x_fichero_library_path)
     db = db_manager.get_database(x_fichero_library_path)
     store = WorkflowStore(db)
     chain, matched = _build_paleography_chain(store.list_all())
@@ -476,9 +479,11 @@ async def paleography_preset_preview(
 
 @router.post("/presets/paleography", response_model=PaleographyPresetResponse)
 async def paleography_preset_create(
+    request: Request,
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
 ) -> PaleographyPresetResponse:
     """Create and save the A/B/C paleography chain preset."""
+    assert_library_read_authorized(request, x_fichero_library_path)
     db = db_manager.get_database(x_fichero_library_path)
     store = WorkflowStore(db)
     chain, matched = _build_paleography_chain(store.list_all())
@@ -498,6 +503,7 @@ async def paleography_preset_create(
 async def execute_chain(
     chain_id: str,
     request: ExecuteChainRequest,
+    http_request: Request,
     background_tasks: BackgroundTasks,
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
 ) -> ChainExecutionResponse:
@@ -511,6 +517,7 @@ async def execute_chain(
     chain = chain_store.get(chain_id)
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
+    assert_library_read_authorized(http_request, x_fichero_library_path)
 
     # Create workflow loader for this library
     workflow_loader = _create_workflow_loader(x_fichero_library_path)

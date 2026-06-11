@@ -764,16 +764,7 @@ async def get_library_database(
             detail="Library path is not in an allowed location or not a .fichero package.",
         )
 
-    from fichero import authz
-
-    try:
-        authz.assert_can_read(
-            getattr(request.state, "user", None),
-            x_fichero_library_path,
-            authz.target_id_from_request(request),
-        )
-    except authz.AuthorizationError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    assert_library_read_authorized(request, x_fichero_library_path)
 
     try:
         db = db_manager.get_database(x_fichero_library_path)
@@ -786,9 +777,30 @@ async def get_library_database(
         )
 
 
+def assert_library_read_authorized(
+    request: Request,
+    library_path: str,
+    target_id: str | None = None,
+) -> None:
+    """Authorize a user-initiated request before touching a library path."""
+    from fichero import authz
+
+    try:
+        authz.assert_can_read(
+            getattr(getattr(request, "state", None), "user", None),
+            library_path,
+            target_id
+            if target_id is not None
+            else authz.target_id_from_request(request),
+        )
+    except authz.AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
 # Health check endpoint
 @app.get("/api/health", response_model=HealthResponse)
 async def health_check(
+    request: Request,
     x_fichero_library_path: str | None = Header(None, alias="X-Fichero-Library-Path"),
 ) -> HealthResponse:
     """Health check endpoint.
@@ -799,6 +811,12 @@ async def health_check(
     from fichero.models import Document
 
     if x_fichero_library_path:
+        if not _is_allowed_library_path(x_fichero_library_path):
+            raise HTTPException(
+                status_code=403,
+                detail="Library path is not in an allowed location or not a .fichero package.",
+            )
+        assert_library_read_authorized(request, x_fichero_library_path)
         # Library-specific health check
         try:
             db = db_manager.get_database(x_fichero_library_path)

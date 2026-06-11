@@ -13,13 +13,18 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from fichero.api.change_stream import emit_change
 from fichero.api.auth import request_actor
-from fichero.api.main import _is_allowed_library_path, db_manager, get_library_database
+from fichero.api.main import (
+    _is_allowed_library_path,
+    assert_library_read_authorized,
+    db_manager,
+    get_library_database,
+)
 from fichero.knowledge_models import KnowledgeClaim
 from fichero.db import Database
 from fichero.knowledge_models import (
@@ -139,6 +144,7 @@ class EntityAuditResponse(BaseModel):
 
 # =============================================================================
 async def _digest_library_database(
+    request: Request,
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -154,6 +160,7 @@ async def _digest_library_database(
             status_code=403,
             detail="Library path is not in an allowed location or not a .fichero package.",
         )
+    assert_library_read_authorized(request, x_fichero_library_path)
     return db_manager.get_database(x_fichero_library_path)
 
 
