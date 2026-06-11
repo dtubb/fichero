@@ -62,9 +62,13 @@ class APIKeyRequest(BaseModel):
     api_key: str
 
 
-@router.post("/{provider_type}/api-key")
-async def set_provider_api_key(provider_type: str, request: APIKeyRequest) -> APIKeyStoredResponse:
-    """Store API key for a provider type in keychain."""
+def set_provider_api_key_impl(provider_type: str, api_key: str) -> None:
+    """Validate + store an API key in the keychain.
+
+    Extracted from the ``set_provider_api_key`` route so the route and the
+    ``provider.set_api_key`` action share the exact same guards + keychain write
+    (iterate-not-replace). Raises ``HTTPException`` exactly as the route did.
+    """
     if not keychain_available():
         raise HTTPException(status_code=503, detail="Keychain not available")
 
@@ -83,28 +87,43 @@ async def set_provider_api_key(provider_type: str, request: APIKeyRequest) -> AP
     try:
         validate_provider_config(
             provider_type=provider_type,
-            api_key=request.api_key,
+            api_key=api_key,
         )
     except ProviderValidationError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     logger.info(f"Saving API key for {provider_type}")
-    success = set_api_key(provider_type, request.api_key)
+    success = set_api_key(provider_type, api_key)
     if not success:
         logger.error(f"Failed to store API key for {provider_type}")
         raise HTTPException(status_code=500, detail="Failed to store API key")
 
     logger.info(f"Successfully stored API key for {provider_type}")
+
+
+def delete_provider_api_key_impl(provider_type: str) -> None:
+    """Delete an API key from the keychain.
+
+    Extracted from the ``delete_provider_api_key`` route so route + the
+    ``provider.delete_api_key`` action share the same guard + keychain delete.
+    """
+    if not keychain_available():
+        raise HTTPException(status_code=503, detail="Keychain not available")
+
+    delete_api_key(provider_type)
+
+
+@router.post("/{provider_type}/api-key")
+async def set_provider_api_key(provider_type: str, request: APIKeyRequest) -> APIKeyStoredResponse:
+    """Store API key for a provider type in keychain."""
+    set_provider_api_key_impl(provider_type, request.api_key)
     return APIKeyStoredResponse(status="stored")
 
 
 @router.delete("/{provider_type}/api-key")
 async def delete_provider_api_key(provider_type: str) -> APIKeyDeletedResponse:
     """Delete API key for a provider type from keychain."""
-    if not keychain_available():
-        raise HTTPException(status_code=503, detail="Keychain not available")
-
-    delete_api_key(provider_type)
+    delete_provider_api_key_impl(provider_type)
     return APIKeyDeletedResponse(status="deleted")
 
 
@@ -439,3 +458,68 @@ async def test_provider_connection(provider_type: str) -> ConnectionTestResponse
             message=f"Error: {str(e)}",
             latency_ms=(time.time() - start_time) * 1000,
         )
+
+
+# =============================================================================
+# Action layer registration (EPIC #1848 / sweep #2014) — PROVIDER api-key ops
+# =============================================================================
+#
+# API-key ops are NON-undoable by design (undoable=False): the keychain stores a
+# secret we never snapshot, so there is no before/after to reverse to. Critically,
+# ``registry.invoke`` dumps ``params.model_dump()`` into the ActionAudit row, so
+# the key field is ``Field(exclude=True)`` — present as an attribute inside
+# ``execute`` but NEVER serialized into the audit (no plaintext secret at rest).
+
+from pydantic import Field  # noqa: E402
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+class SetApiKeyParams(BaseModel):
+    """provider.set_api_key params. ``api_key`` is secret → excluded from audit."""
+
+    provider_type: str
+    api_key: str = Field(exclude=True)
+
+
+class DeleteApiKeyParams(BaseModel):
+    provider_type: str
+
+
+@action(
+    "provider.set_api_key",
+    SetApiKeyParams,
+    domains=["provider"],
+    undoable=False,
+)
+def _action_set_api_key(
+    db, params: SetApiKeyParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    set_provider_api_key_impl(params.provider_type, params.api_key)
+    spec = ChangeSpec(
+        domains=["provider"],
+        target_ids=[params.provider_type],
+        # No secret in before/after — only the fact that a key now exists.
+        after={"provider_type": params.provider_type, "has_api_key": True},
+        emit_type="provider.api_key_set",
+    )
+    return {"status": "stored", "provider_type": params.provider_type}, spec
+
+
+@action(
+    "provider.delete_api_key",
+    DeleteApiKeyParams,
+    domains=["provider"],
+    undoable=False,
+)
+def _action_delete_api_key(
+    db, params: DeleteApiKeyParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    delete_provider_api_key_impl(params.provider_type)
+    spec = ChangeSpec(
+        domains=["provider"],
+        target_ids=[params.provider_type],
+        after={"provider_type": params.provider_type, "has_api_key": False},
+        emit_type="provider.api_key_deleted",
+    )
+    return {"status": "deleted", "provider_type": params.provider_type}, spec
