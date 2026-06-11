@@ -1484,7 +1484,9 @@ class KnowledgeClaim(BaseModel):
     id: str = Field(default_factory=_new_id)
     text: str
     # --- single-source (backwards-compatible) ---
-    source_document_id: str
+    # Optional: manually-asserted claims have no source document (create_claim_impl
+    # already handles source_document_id=None). #2019.
+    source_document_id: str | None = None
     source_segment_id: str | None = None
     source_page_label: str | None = None
     source_excerpt: str | None = None

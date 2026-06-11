@@ -167,6 +167,15 @@ class TestClaimCrudActions:
             )
         assert exc.value.status_code == 404
 
+    def test_create_manual_claim_without_source_persists(self, db):
+        # (d) manually-asserted claims have no source document (#2019) — the model
+        # allows a null source and create_claim_impl persists it.
+        result = registry.invoke(db, "claim.create", {"text": "manual assertion"}, _ctx())
+        persisted = db.get(KnowledgeClaim, result.result["id"])
+        assert persisted is not None
+        assert persisted.source_document_id is None
+        assert db.get(ActionAudit, result.audit_id) is not None
+
     def test_patch_effect_audit_and_undo(self, db):
         claim = _save_claim(db, text="old text", confidence=0.4)
         ctx = _ctx()

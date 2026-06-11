@@ -3,7 +3,7 @@
   "concerns": {
     "kg_write:KnowledgeClaim": [
       "api/routes/annotations.py::promote_to_claim",
-      "api/routes/claims.py::create_claim",
+      "api/routes/claims.py::create_claim_impl",
       "api/routes/mcp_tools.py::mcp_knowledge_claim_create",
       "workflows/tools/kg_persist_finalize.py::kg_persist_finalize",
       "workflows/tools/_entity_writer.py::save_claim",
