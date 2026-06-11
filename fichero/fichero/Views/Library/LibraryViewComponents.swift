@@ -144,7 +144,12 @@ struct MailStyleRow: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: size.width, height: size.height)
                     .clipped()
-            } else if let preview = document.pageContent, !preview.isEmpty {
+            } else if document.fileType != .pdf, let preview = document.pageContent, !preview.isEmpty {
+                // Text-preview thumbnail (#625) is only for genuinely text
+                // documents (JSON/plain text) with no page image. A PDF page
+                // ALWAYS shows its rendered page image via the storage
+                // endpoint below — never a rendering of its extracted text,
+                // even though the page also carries `pageContent`. (#2052)
                 TextPreviewThumbnail(text: preview)
                     .frame(width: size.width, height: size.height)
                     .clipped()
@@ -228,7 +233,11 @@ struct DocumentThumbnailView: View {
                         .aspectRatio(contentMode: .fill)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
-                } else if let preview = document.pageContent, !preview.isEmpty {
+                } else if document.fileType != .pdf, let preview = document.pageContent, !preview.isEmpty {
+                    // Text-preview thumbnail (#625) is only for genuinely text
+                    // documents (JSON/plain text) with no page image. A PDF page
+                    // ALWAYS renders its page image via the storage endpoint
+                    // below — never its extracted `pageContent` text. (#2052)
                     TextPreviewThumbnail(text: preview)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
