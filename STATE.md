@@ -1,3 +1,11 @@
+## MANAGER STATUS — 2026-06-11 ~15:25 (Phase 2 Mac underway — 10 shipped + app build RESTORED)
+**0.0.2 pushed @ `ef8ffa2b`. Phase 2 (Mac) in progress.**
+- ✅ **#2042 File ▸ New creates a library** (1d0db6f1) — save panel → createLibrary → opens new window. Xcode BuildProject SUCCEEDED. **DANIEL: eyeball ⌘N → prompts location → creates .fichero → new window.**
+- 🔧 **FIXED A PRE-EXISTING APP-WIDE BUILD BREAK** while gating #2042: openapi regen (#2019) made `claim.sourceDocumentId` OPTIONAL; 5 SwiftUI sites didn't unwrap → the whole Fichero target failed to compile on 0.0.2. Fixed (EntitySourceGroupsView/EntityDetailView+Biography/ClaimSummaryCard+Details ×2/EntityDigestView). **App compiles again.** Filed an issue noting the gate gap (Swift compile not in CI — an OpenAPI shape change can silently break the app build).
+- ⏳ **Lane `orphankill-2079`** (#2079 PID/owner-scoped engine orphan-kill — frontend half of #2048; claude lane). EmbeddedBackendService.terminateOrphanEngines: early-return on usesCustomHost + scope kill to this app's lineage (don't SIGTERM a shared engine).
+- **GATE LESSON:** every frontend integration MUST run Xcode `BuildProject` (tabIdentifier from XcodeListWindows = `windowtab1`) — it catches real breaks (it just caught the baseline app-build failure). Compile only; never xcodebuild test (GUI). Visual confirmation deferred to Daniel.
+- **Phase-2 queue:** #2031 (persistent shell keystone) → #2032 (zoned toolbar) → #2041 (Liquid Glass); bugs #2052 (PDF thumbnail), #2053 (page labels), #2020 (entity-provenance). Open follow-ups: #2076, #2077, + the new build-break/CI-gap issue.
+
 ## MANAGER STATUS — 2026-06-11 ~14:30 (PHASE 1 COMPLETE — 9 shipped; pivoting to Phase 2 Mac)
 **0.0.2 pushed @ `8a09061c`. PHASE 1 (multi-user auth/security/network foundation) DONE.**
 Shipped this session (9): #2055, #2023, #2046, #2043, #2075, #2078, #2024, #2048, #2025.
