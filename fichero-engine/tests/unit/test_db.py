@@ -877,6 +877,7 @@ class TestEmbeddingsModelLoading:
 
         fake_app_db_module = types.SimpleNamespace(get_app_db=lambda: FakeAppDB())
         monkeypatch.setitem(sys.modules, "fichero.app_db", fake_app_db_module)
+        monkeypatch.delenv("FICHERO_EMBED_MODEL", raising=False)
 
         temp_db._embedder = None
         temp_db._ensure_embedder()

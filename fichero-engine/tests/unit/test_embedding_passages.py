@@ -1,0 +1,157 @@
+"""Embedding model formatting and passage-level indexing tests."""
+
+from __future__ import annotations
+
+from unittest.mock import patch
+
+from fichero import db_embeddings
+from fichero.db import Database
+from fichero.db_embeddings import format_for_model, split_text_passages
+from fichero.models import DocType, Document
+
+
+def test_format_for_model_e5_adds_role_prefixes() -> None:
+    assert (
+        format_for_model("intfloat/multilingual-e5-large", "Leidy", "query")
+        == "query: Leidy"
+    )
+    assert (
+        format_for_model("intfloat/multilingual-e5-base", "Leidy", "passage")
+        == "passage: Leidy"
+    )
+
+
+def test_format_for_model_bge_m3_has_no_prefix() -> None:
+    assert format_for_model("BAAI/bge-m3", "Leidy", "query") == "Leidy"
+    assert format_for_model("BAAI/bge-m3", "Leidy", "passage") == "Leidy"
+
+
+def test_default_model_and_env_override(monkeypatch) -> None:
+    class _Dummy(db_embeddings.DatabaseEmbeddingMixin):
+        pass
+
+    dummy = _Dummy()
+    monkeypatch.delenv("FICHERO_EMBED_MODEL", raising=False)
+    # Default is multilingual-e5-large: the loadable model in fastembed 0.8.0.
+    # bge-m3 is the intended default but isn't in the catalog yet (see #2117);
+    # both are 1024-dim so the swap is a deliberate re-embed, no store change.
+    assert db_embeddings.DEFAULT_MODEL == "intfloat/multilingual-e5-large"
+    assert dummy._get_embedding_model_name() == "intfloat/multilingual-e5-large"
+
+    # The env override is honored even for the future bge-m3 default — proves
+    # configurability is in place for when fastembed ships the model.
+    monkeypatch.setenv("FICHERO_EMBED_MODEL", "BAAI/bge-m3")
+    assert dummy._get_embedding_model_name() == "BAAI/bge-m3"
+
+
+def test_split_text_passages_offsets_overlap_and_reconstruct() -> None:
+    text = (
+        "First paragraph has enough prose to exceed a tiny test window. "
+        "It keeps going for another sentence.\n\n"
+        "Second paragraph carries the target sentence. "
+        "The final sentence closes the page."
+    )
+
+    passages = split_text_passages(
+        text,
+        document_id="page-1",
+        page_id="page-1",
+        max_chars=96,
+        overlap_chars=18,
+    )
+
+    assert len(passages) >= 2
+    for passage in passages:
+        start = passage.anchor.char_start
+        end = passage.anchor.char_end
+        assert start is not None
+        assert end is not None
+        assert passage.text == text[start:end]
+
+    for left, right in zip(passages, passages[1:]):
+        assert right.anchor.char_start is not None
+        assert left.anchor.char_end is not None
+        assert right.anchor.char_start < left.anchor.char_end
+
+    rebuilt = passages[0].text
+    prior_end = passages[0].anchor.char_end
+    for passage in passages[1:]:
+        assert passage.anchor.char_start is not None
+        assert passage.anchor.char_end is not None
+        rebuilt += text[prior_end : passage.anchor.char_end]
+        prior_end = passage.anchor.char_end
+    assert rebuilt == text[passages[0].anchor.char_start : passages[-1].anchor.char_end]
+
+
+def test_passage_vectors_store_anchor_and_search_returns_matching_passage(
+    tmp_path,
+) -> None:
+    db = Database(tmp_path / "passages.duckdb")
+    doc = Document(
+        id="page-needle",
+        name="archive.pdf - Page 7",
+        doc_type=DocType.page,
+        sequence=7,
+        page_content=(
+            "Alpha correspondence about unrelated household accounts. " * 10
+            + "\n\n"
+            + "The exact target passage says Camilo found the mining ledger. "
+            + "This sentence supplies retrieval context."
+        ),
+    )
+    db.save(doc)
+
+    def _vectors(texts: list[str], *, role: str = "passage") -> list[list[float]]:
+        assert role == "passage"
+        return [[1.0, 0.0] if "Camilo" in text else [0.0, 1.0] for text in texts]
+
+    with patch.object(db, "_embed_texts", side_effect=_vectors):
+        assert db.embed(doc) is True
+
+    table = db.lance.open_table("embeddings")
+    rows = table.search().limit(100).to_list()
+    camilo_rows = [row for row in rows if "Camilo" in row["text"]]
+    assert camilo_rows
+    assert camilo_rows[0]["document_id"] == doc.id
+    assert camilo_rows[0]["page_id"] == doc.id
+    assert camilo_rows[0]["char_start"] < camilo_rows[0]["char_end"]
+    assert doc.page_content[
+        camilo_rows[0]["char_start"] : camilo_rows[0]["char_end"]
+    ] == camilo_rows[0]["text"]
+
+    with patch.object(db, "_embed_text", return_value=[1.0, 0.0]):
+        results, total_count, _stats = db.search(
+            "Camilo mining ledger",
+            search_type="semantic",
+            min_score=0.55,
+        )
+
+    assert total_count == 1
+    assert results[0].document_id == doc.id
+    assert "Camilo found the mining ledger" in results[0].content_preview
+    assert results[0].metadata["embedding_scope"] == "passage"
+    assert results[0].metadata["passage_id"]
+    assert results[0].metadata["page_id"] == doc.id
+    assert results[0].metadata["char_start"] < results[0].metadata["char_end"]
+    db.close()
+
+
+def test_non_latin_passages_store_and_embed_without_error(tmp_path) -> None:
+    db = Database(tmp_path / "unicode.duckdb")
+    text = (
+        "Дѣло і архивъ сохраняют старую орфографію.\n\n"
+        "中文段落保留在同一个页面中。\n\n"
+        "देवनागरी पाठ भी उसी मार्ग से संग्रहित होता है।"
+    )
+    doc = Document(id="unicode-page", name="unicode.txt", page_content=text)
+    db.save(doc)
+
+    with patch.object(db, "_embed_texts", return_value=[[1.0, 0.0]]):
+        assert db.embed(doc) is True
+
+    rows = db.lance.open_table("embeddings").search().limit(10).to_list()
+    assert len(rows) == 1
+    assert rows[0]["text"] == text
+    assert rows[0]["char_start"] == 0
+    assert rows[0]["char_end"] == len(text)
+    db.close()

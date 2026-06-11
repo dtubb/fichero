@@ -49,11 +49,17 @@ WHISPER_MODELS: dict[str, dict] = {
 }
 
 EMBEDDINGS_MODELS: dict[str, dict] = {
+    "BAAI/bge-m3": {
+        "dimensions": 1024,
+        "disk_mb": 2300,
+        "languages": "100+",
+        "description": "Default multilingual retrieval model",
+    },
     "intfloat/multilingual-e5-large": {
         "dimensions": 1024,
         "disk_mb": 2200,
         "languages": "100+",
-        "description": "Best multilingual quality (default)",
+        "description": "Legacy multilingual E5 model",
     },
     "intfloat/multilingual-e5-base": {
         "dimensions": 768,

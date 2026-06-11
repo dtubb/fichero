@@ -49,6 +49,7 @@ import duckdb
 from pydantic import BaseModel
 from pydantic_core import PydanticUndefinedType
 from fichero.db_embeddings import (
+    EMBEDDINGS_TABLE,
     DatabaseEmbeddingMixin,
     _dequantize_int8,
     _quantize_int8,
@@ -63,11 +64,9 @@ T = TypeVar("T", bound=BaseModel)
 # Minimum content length to create embedding
 MIN_CONTENT_LENGTH = 10
 
-# Default embedding model (FastEmbed). MUST be a model that fastembed's
-# TextEmbedding actually supports — keep in sync with
-# db_embeddings.DEFAULT_MODEL (the single source of truth for the real
-# embedder). "BAAI/bge-m3" is NOT supported by fastembed and made the
-# embeddings pre-warm fail on every startup (#1524).
+# Default embedding model (FastEmbed). Keep in sync with
+# db_embeddings.DEFAULT_MODEL, the source of truth for the real embedder.
+# (multilingual-e5-large until fastembed ships bge-m3 — see db_embeddings note + #2117.)
 DEFAULT_MODEL = "intfloat/multilingual-e5-large"
 
 # Valid identifier pattern for SQL column/table names
@@ -370,6 +369,7 @@ class Database(DatabaseEmbeddingMixin):
         self._lance_path = path.parent / "vectors"
         self._lance_db = None  # Lazy init
         self._embedder = None  # Lazy init
+        self._embedding_model_name = None
         self._tables_created: set[str] = set()
         self._lock = threading.RLock()
 
@@ -993,10 +993,22 @@ class Database(DatabaseEmbeddingMixin):
     # Embedding Convenience Methods
     # =========================================================================
 
+    def _delete_embedding_rows(self, field: str, value: str) -> None:
+        """Delete embedding rows by a trusted field/value pair."""
+        if EMBEDDINGS_TABLE not in self._lance_tables():
+            return
+        safe_value = value.replace("'", "''") if value else ""
+        table = self.lance.open_table(EMBEDDINGS_TABLE)
+        table.delete(f"{field} = '{safe_value}'")
+
     def save_embedding(
         self, doc: BaseModel, vector: list[float], text: str | None = None
     ) -> None:
-        """Save document embedding to LanceDB.
+        """Save one page/document-level embedding to LanceDB.
+
+        Passage-level indexing is the default path through ``embed()``. This
+        method remains the explicit fallback for legacy page/document vectors
+        and tests that need to seed one vector by hand.
 
         Args:
             doc: Document model with id attribute
@@ -1021,6 +1033,11 @@ class Database(DatabaseEmbeddingMixin):
             "document_id": doc.id,
             "text": content,
             "vector": stored_vector,
+            "embedding_scope": "page",
+            "passage_id": "",
+            "page_id": doc.id,
+            "char_start": 0,
+            "char_end": len(content) if content else None,
             # Store document metadata for search results display
             "name": getattr(doc, "name", None),
             "doc_type": getattr(doc, "doc_type", None).value
@@ -1033,7 +1050,17 @@ class Database(DatabaseEmbeddingMixin):
             "vector_scale": quantized_scale,
         }
 
-        self.save_vectors("embeddings", [record], replace=True)
+        self._delete_embedding_rows("document_id", doc.id)
+        self.save_vectors(EMBEDDINGS_TABLE, [record], replace=True)
+
+    def save_passage_embeddings(self, doc: BaseModel, *, text: str | None = None) -> int:
+        """Save passage/chunk-level embeddings for a document."""
+        records = self.passage_embedding_records(doc, text=text)
+        if not records:
+            return 0
+        self._delete_embedding_rows("document_id", doc.id)
+        self.save_vectors(EMBEDDINGS_TABLE, records)
+        return len(records)
 
     def search_similar(
         self, query_vector: list[float], limit: int = 10, model: Type[T] | None = None
@@ -1048,7 +1075,7 @@ class Database(DatabaseEmbeddingMixin):
         Returns:
             List of dicts (or model instances if model provided)
         """
-        results = self.search_vectors("embeddings", query_vector, limit)
+        results = self.search_vectors(EMBEDDINGS_TABLE, query_vector, limit)
 
         if model is None:
             return results
@@ -1067,7 +1094,7 @@ class Database(DatabaseEmbeddingMixin):
             True if deleted
         """
         try:
-            if "embeddings" not in self._lance_tables():
+            if EMBEDDINGS_TABLE not in self._lance_tables():
                 return False
 
             # Validate doc_id to prevent injection
@@ -1077,8 +1104,8 @@ class Database(DatabaseEmbeddingMixin):
             else:
                 safe_id = doc_id
 
-            table = self.lance.open_table("embeddings")
-            table.delete(f"id = '{safe_id}'")
+            table = self.lance.open_table(EMBEDDINGS_TABLE)
+            table.delete(f"id = '{safe_id}' OR document_id = '{safe_id}'")
             return True
         except Exception as e:
             error = handle_error(
@@ -1100,14 +1127,19 @@ class Database(DatabaseEmbeddingMixin):
             True if embedding exists
         """
         try:
-            if "embeddings" not in self._lance_tables():
+            if EMBEDDINGS_TABLE not in self._lance_tables():
                 return False
 
             # Sanitize doc_id to prevent injection
             safe_id = doc_id.replace("'", "''") if doc_id else ""
 
-            table = self.lance.open_table("embeddings")
-            results = table.search().where(f"id = '{safe_id}'").limit(1).to_list()
+            table = self.lance.open_table(EMBEDDINGS_TABLE)
+            results = (
+                table.search()
+                .where(f"id = '{safe_id}' OR document_id = '{safe_id}'")
+                .limit(1)
+                .to_list()
+            )
             return len(results) > 0
         except Exception:
             return False
@@ -1116,11 +1148,12 @@ class Database(DatabaseEmbeddingMixin):
     # Semantic Search
     # =========================================================================
 
-    def embed(self, doc: BaseModel) -> bool:
+    def embed(self, doc: BaseModel, *, mode: str = "passage") -> bool:
         """Create embedding for a document.
 
-        Uses document's page_content if available, otherwise name.
-        Embedding is stored in LanceDB for vector search.
+        Uses document's page_content if available, otherwise name. Passage
+        embeddings are the default; page-level embedding remains available via
+        ``mode="page"`` for legacy fallback/reindexing.
 
         Args:
             doc: Document model with id and optionally page_content
@@ -1154,9 +1187,14 @@ class Database(DatabaseEmbeddingMixin):
             return False
 
         try:
-            vector = self._embed_text(text)
-            self.save_embedding(doc, vector, text[:500])
-            logger.debug("Created embedding for %s", doc.id)
+            if mode == "page":
+                vector = self._embed_text(text, role="passage")
+                self.save_embedding(doc, vector, text[:500])
+            else:
+                count = self.save_passage_embeddings(doc, text=text)
+                if count == 0:
+                    return False
+            logger.debug("Created %s embedding for %s", mode, doc.id)
             return True
         except Exception as e:
             logger.warning("Failed to create embedding for %s: %s", doc.id, e)
@@ -1417,7 +1455,7 @@ class Database(DatabaseEmbeddingMixin):
             fulltext_results = []
 
             # Check if embeddings table exists
-            has_embeddings = "embeddings" in self._lance_tables()
+            has_embeddings = EMBEDDINGS_TABLE in self._lance_tables()
 
             # Perform semantic search if requested and available
             if search_type in ["semantic", "hybrid"] and has_embeddings:
@@ -1426,7 +1464,7 @@ class Database(DatabaseEmbeddingMixin):
                     query_vector = self._embed_text(semantic_query)
 
                     # Search vectors
-                    table = self.lance.open_table("embeddings")
+                    table = self.lance.open_table(EMBEDDINGS_TABLE)
                     raw_results = (
                         table.search(query_vector).limit(limit * 2).to_list()
                     )  # Get more for hybrid
@@ -1464,6 +1502,11 @@ class Database(DatabaseEmbeddingMixin):
                                     "file_type": r.get("file_type"),
                                     "created_at": r.get("created_at"),
                                     "updated_at": r.get("updated_at"),
+                                    "embedding_scope": r.get("embedding_scope"),
+                                    "passage_id": r.get("passage_id"),
+                                    "page_id": r.get("page_id"),
+                                    "char_start": r.get("char_start"),
+                                    "char_end": r.get("char_end"),
                                 },
                             }
                         )
@@ -1476,7 +1519,7 @@ class Database(DatabaseEmbeddingMixin):
                     # Use DuckDB for full-text search
                     if has_embeddings:
                         # Get all documents from embeddings table for full-text search
-                        table = self.lance.open_table("embeddings")
+                        table = self.lance.open_table(EMBEDDINGS_TABLE)
                         all_docs = table.to_pandas()
 
                         # Accent-insensitive match: NFD-decompose both
@@ -1524,6 +1567,11 @@ class Database(DatabaseEmbeddingMixin):
                                         "created_at": row.get("created_at"),
                                         "updated_at": row.get("updated_at"),
                                         "bm25_score": lexical_score,
+                                        "embedding_scope": row.get("embedding_scope"),
+                                        "passage_id": row.get("passage_id"),
+                                        "page_id": row.get("page_id"),
+                                        "char_start": row.get("char_start"),
+                                        "char_end": row.get("char_end"),
                                     },
                                 }
                             )

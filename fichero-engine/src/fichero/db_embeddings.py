@@ -9,18 +9,53 @@ and are only valid when mixed into a Database subclass.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import logging
 import math
 import os
+import re
 import threading
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 logger = logging.getLogger(__name__)
 
-# Default embedding model (FastEmbed - no scikit-learn dependency)
+# Default embedding model (FastEmbed - no scikit-learn dependency).
+#
+# NOTE: BAAI/bge-m3 is the *intended* multilingual default, but it is NOT in the
+# installed fastembed 0.8.0 TextEmbedding catalog (verified 2026-06-11), so it
+# cannot load at runtime yet. Until fastembed ships it (or we wire a
+# custom-model / sentence-transformers path — see #2117), the working default is
+# multilingual-e5-large, which IS in the catalog AND now receives its REQUIRED
+# query:/passage: prefixes via format_for_model() (previously missing — a silent
+# retrieval bug this lane fixes). Both are 1024-dim, so switching to bge-m3 later
+# is a deliberate re-embed with NO vector-store change. Override per deployment
+# with FICHERO_EMBED_MODEL.
 DEFAULT_MODEL = "intfloat/multilingual-e5-large"
+EMBED_MODEL_ENV = "FICHERO_EMBED_MODEL"
+EMBEDDINGS_TABLE = "embeddings"
 KG_ENTITY_EMBEDDINGS_TABLE = "kg_entity_embeddings"
 KG_CLAIM_EMBEDDINGS_TABLE = "kg_claim_embeddings"
+EmbeddingRole = Literal["query", "passage"]
+
+
+@dataclass(frozen=True)
+class SourceAnchor:
+    """Where an embeddable text unit came from."""
+
+    document_id: str
+    page_id: str | None = None
+    char_start: int | None = None
+    char_end: int | None = None
+
+
+@dataclass(frozen=True)
+class EmbeddableUnit:
+    """Generic embedding payload; image regions/annotations can reuse this."""
+
+    id: str
+    text: str
+    anchor: SourceAnchor
+    kind: str = "passage"
 
 # Process-global embedder cache, keyed by model name.
 #
@@ -57,6 +92,101 @@ def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
         return embedder
 
 
+def format_for_model(model_name: str, text: str, role: EmbeddingRole) -> str:
+    """Apply model-specific input formatting.
+
+    E5-family models require query/passage prefixes. bge-m3 and most other
+    local FastEmbed models do not.
+    """
+    if role not in {"query", "passage"}:
+        raise ValueError(f"Unknown embedding role: {role!r}")
+
+    normalized = model_name.lower()
+    if normalized.startswith("intfloat/multilingual-e5-"):
+        return f"{role}: {text}"
+    return text
+
+
+def _sentence_or_paragraph_boundary(text: str, start: int, end: int) -> int | None:
+    """Choose a natural boundary inside ``text[start:end]`` when one exists."""
+    window = text[start:end]
+    min_offset = max(1, int(len(window) * 0.55))
+    boundary = None
+
+    for match in re.finditer(r"\n\s*\n", window):
+        if match.end() >= min_offset:
+            boundary = start + match.start()
+
+    for match in re.finditer(r"[.!?。！？।]+(?:[\"')\]]+)?(?=\s|$)", window):
+        if match.end() >= min_offset:
+            boundary = start + match.end()
+
+    return boundary
+
+
+def split_text_passages(
+    text: str,
+    *,
+    document_id: str,
+    page_id: str | None = None,
+    max_chars: int = 512,
+    overlap_chars: int = 80,
+) -> list[EmbeddableUnit]:
+    """Split text into anchored passage-sized embeddable units.
+
+    The splitter uses character windows with sentence/paragraph boundary
+    preference so offsets stay exact for any UTF-8 script and no tokenizer is
+    required. Overlap is stored as real source offsets for downstream roll-up.
+    """
+    if max_chars < 64:
+        raise ValueError("max_chars must be at least 64")
+    overlap_chars = max(0, min(overlap_chars, max_chars // 2))
+
+    source = text or ""
+    length = len(source)
+    passages: list[EmbeddableUnit] = []
+    start = 0
+
+    while start < length:
+        while start < length and source[start].isspace():
+            start += 1
+        if start >= length:
+            break
+
+        hard_end = min(length, start + max_chars)
+        end = hard_end
+        if hard_end < length:
+            natural_end = _sentence_or_paragraph_boundary(source, start, hard_end)
+            if natural_end and natural_end > start:
+                end = natural_end
+
+        while end > start and source[end - 1].isspace():
+            end -= 1
+        if end <= start:
+            break
+
+        passage_id = f"{document_id}:passage:{len(passages)}:{start}-{end}"
+        passages.append(
+            EmbeddableUnit(
+                id=passage_id,
+                text=source[start:end],
+                anchor=SourceAnchor(
+                    document_id=document_id,
+                    page_id=page_id,
+                    char_start=start,
+                    char_end=end,
+                ),
+            )
+        )
+
+        if end >= length:
+            break
+        next_start = max(start + 1, end - overlap_chars)
+        start = next_start
+
+    return passages
+
+
 def _l2_normalize(vec: list[float]) -> list[float]:
     """L2-normalise a vector to unit length.
 
@@ -76,6 +206,13 @@ def _l2_normalize(vec: list[float]) -> list[float]:
     if norm == 0.0:
         return vec
     return [x / norm for x in vec]
+
+
+def _vector_to_list(vec: Any) -> list[float]:
+    """Convert FastEmbed/NumPy vectors or test doubles to a float list."""
+    if hasattr(vec, "tolist"):
+        vec = vec.tolist()
+    return [float(x) for x in vec]
 
 
 def _quantize_int8(vec: list[float]) -> tuple[list[int], float]:
@@ -114,7 +251,12 @@ class DatabaseEmbeddingMixin:
     self.lance.
     """
 
-    def reindex_all(self, on_progress: Callable[[int, int], None] | None = None) -> int:
+    def reindex_all(
+        self,
+        on_progress: Callable[[int, int], None] | None = None,
+        *,
+        mode: Literal["passage", "page"] = "passage",
+    ) -> int:
         """Reindex all documents with page_content.
 
         Args:
@@ -130,7 +272,7 @@ class DatabaseEmbeddingMixin:
         indexed = 0
 
         for i, doc in enumerate(docs):
-            if self.embed(doc):
+            if self.embed(doc, mode=mode):
                 indexed += 1
 
             if on_progress:
@@ -145,7 +287,7 @@ class DatabaseEmbeddingMixin:
         Returns:
             Dict with indexed_count, table_exists
         """
-        doc_stats = self._vector_table_stats("embeddings")
+        doc_stats = self._vector_table_stats(EMBEDDINGS_TABLE)
         entity_stats = self._vector_table_stats(KG_ENTITY_EMBEDDINGS_TABLE)
         claim_stats = self._vector_table_stats(KG_CLAIM_EMBEDDINGS_TABLE)
         return {
@@ -170,6 +312,9 @@ class DatabaseEmbeddingMixin:
 
     def _get_embedding_model_name(self) -> str:
         """Get configured embedding model, defaulting to multilingual-e5-large."""
+        env_model = os.getenv(EMBED_MODEL_ENV, "").strip()
+        if env_model:
+            return env_model
         try:
             from fichero.app_db import get_app_db
 
@@ -196,6 +341,7 @@ class DatabaseEmbeddingMixin:
                 from fichero.local_models import MODELS_BASE
 
                 model_name = self._get_embedding_model_name()
+                self._embedding_model_name = model_name
                 cache_dir = MODELS_BASE / "embeddings"
                 cache_dir.mkdir(parents=True, exist_ok=True)
                 # Process-global: loaded once and shared across every Database
@@ -207,7 +353,7 @@ class DatabaseEmbeddingMixin:
                     "fastembed not installed. Install with: pip install fastembed"
                 )
 
-    def _embed_text(self, text: str) -> list[float]:
+    def _embed_text(self, text: str, *, role: EmbeddingRole = "query") -> list[float]:
         """Generate embedding vector for text.
 
         Uses FastEmbed for local ONNX-based embedding.
@@ -220,10 +366,14 @@ class DatabaseEmbeddingMixin:
             List of floats (embedding vector)
         """
         self._ensure_embedder()
-        embeddings = list(self._embedder.embed([text]))
-        return _l2_normalize(embeddings[0].tolist())
+        model_name = getattr(self, "_embedding_model_name", None) or self._get_embedding_model_name()
+        formatted = format_for_model(model_name, text, role)
+        embeddings = list(self._embedder.embed([formatted]))
+        return _l2_normalize(_vector_to_list(embeddings[0]))
 
-    def _embed_texts(self, texts: list[str]) -> list[list[float]]:
+    def _embed_texts(
+        self, texts: list[str], *, role: EmbeddingRole = "passage"
+    ) -> list[list[float]]:
         """Batch embed multiple texts.
 
         More efficient than calling _embed_text() in a loop.
@@ -238,8 +388,81 @@ class DatabaseEmbeddingMixin:
             return []
 
         self._ensure_embedder()
-        embeddings = list(self._embedder.embed(texts))
-        return [_l2_normalize(e.tolist()) for e in embeddings]
+        model_name = getattr(self, "_embedding_model_name", None) or self._get_embedding_model_name()
+        formatted = [format_for_model(model_name, text, role) for text in texts]
+        embeddings = list(self._embedder.embed(formatted))
+        return [_l2_normalize(_vector_to_list(e)) for e in embeddings]
+
+    def passage_units_for_document(
+        self,
+        doc,
+        *,
+        text: str | None = None,
+        max_chars: int = 512,
+        overlap_chars: int = 80,
+    ) -> list[EmbeddableUnit]:
+        """Build passage units for a document's page_content."""
+        text = text if text is not None else (getattr(doc, "page_content", None) or "")
+        page_id = getattr(doc, "id", None)
+        return split_text_passages(
+            text,
+            document_id=getattr(doc, "id"),
+            page_id=page_id,
+            max_chars=max_chars,
+            overlap_chars=overlap_chars,
+        )
+
+    def passage_embedding_records(
+        self,
+        doc,
+        *,
+        text: str | None = None,
+        max_chars: int = 512,
+        overlap_chars: int = 80,
+    ) -> list[dict[str, Any]]:
+        """Embed a document's passages and return LanceDB-ready records."""
+        units = self.passage_units_for_document(
+            doc, text=text, max_chars=max_chars, overlap_chars=overlap_chars
+        )
+        if not units:
+            return []
+
+        if len(units) == 1:
+            vectors = [self._embed_text(units[0].text, role="passage")]
+        else:
+            vectors = self._embed_texts([unit.text for unit in units], role="passage")
+        records = []
+        for unit, vector in zip(units, vectors):
+            stored_vector = vector
+            quantized_vector: list[int] | None = None
+            quantized_scale: float | None = None
+            if self._use_int8_embeddings():
+                quantized_vector, quantized_scale = _quantize_int8(vector)
+                stored_vector = _dequantize_int8(quantized_vector, quantized_scale)
+
+            records.append(
+                {
+                    "id": unit.id,
+                    "document_id": unit.anchor.document_id,
+                    "text": unit.text,
+                    "vector": stored_vector,
+                    "embedding_scope": unit.kind,
+                    "passage_id": unit.id,
+                    "page_id": unit.anchor.page_id,
+                    "char_start": unit.anchor.char_start,
+                    "char_end": unit.anchor.char_end,
+                    "name": getattr(doc, "name", None),
+                    "doc_type": getattr(doc, "doc_type", None).value
+                    if hasattr(doc, "doc_type") and doc.doc_type
+                    else None,
+                    "file_type": getattr(doc, "file_type", None).value
+                    if hasattr(doc, "file_type") and doc.file_type
+                    else None,
+                    "vector_int8": quantized_vector,
+                    "vector_scale": quantized_scale,
+                }
+            )
+        return records
 
     def entity_embedding_text(self, entity) -> str:
         """Compose the canonical text stored/searched for one entity."""

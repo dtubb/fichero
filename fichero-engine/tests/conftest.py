@@ -23,6 +23,10 @@ os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 # every prior route test predates the auth feature and asserts on
 # response shape, not auth.
 os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
+# Local CI may run with a fastembed build whose Python TextEmbedding catalog
+# does not include the production default BAAI/bge-m3 yet. Real-model tests use
+# the prior supported model unless a verifier explicitly overrides it.
+os.environ.setdefault("FICHERO_EMBED_MODEL", "intfloat/multilingual-e5-large")
 
 # Tests that create bare TestClient(app) (e.g. test_api_providers.py:16,
 # test_providers.py's per-class fixtures) bypass the conftest `client` /

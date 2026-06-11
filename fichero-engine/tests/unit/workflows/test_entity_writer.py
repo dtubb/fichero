@@ -285,7 +285,7 @@ class TestEmbeddingMatch:
         )
         assert hits, "expected the newly-indexed entity to be findable"
         assert hits[0][0] == entity_id
-        assert hits[0][1] > 0.99, "exact text → near-1.0 cosine"
+        assert hits[0][1] > 0.98, "exact semantic text → high cosine"
 
     def test_semantic_divergence_collapses_at_high_cosine(self, db):
         """The #897 follow-up: titles that share the underlying claim
