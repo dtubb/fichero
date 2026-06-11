@@ -825,12 +825,16 @@ class BatchManager:
         logger.info(f"Cancelled batch {batch_id}")
         return batch
 
-    async def retry_failed_items(
-        self,
-        batch_id: str,
-        workflow_store: WorkflowStore,
-    ) -> AsyncIterator[BatchEvent]:
-        """Retry failed items in a batch."""
+    async def reset_failed_items(self, batch_id: str) -> BatchExecution:
+        """Reset a batch's FAILED items back to PENDING (the discrete pre-stream
+        transition of a retry).
+
+        Extracted from ``retry_failed_items`` so BOTH the streaming retry route
+        AND the audited ``batch.retry`` action (EPIC #1848) drive the *same*
+        reset logic (iterate-not-replace: the transition is wrapped, never
+        re-derived). Raises ``ValueError`` on missing batch or a status that
+        cannot be retried, exactly as before.
+        """
         batch = await self.get_batch(batch_id)
         if not batch:
             raise ValueError(f"Batch {batch_id} not found")
@@ -849,6 +853,15 @@ class BatchManager:
         batch.status = BatchStatus.PENDING
         batch.completed_at = None
         await self._save_batch(batch)
+        return batch
+
+    async def retry_failed_items(
+        self,
+        batch_id: str,
+        workflow_store: WorkflowStore,
+    ) -> AsyncIterator[BatchEvent]:
+        """Retry failed items in a batch."""
+        await self.reset_failed_items(batch_id)
 
         # Execute again
         async for event in self.execute_batch(batch_id, workflow_store):
