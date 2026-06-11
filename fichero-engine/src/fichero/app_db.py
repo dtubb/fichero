@@ -692,7 +692,12 @@ class AppDatabase:
         """Get a user row by username."""
         with self._lock:
             result = self.conn.execute(
-                "SELECT * FROM users WHERE username = ?",
+                """
+                SELECT id, username, display_name, password_hash,
+                       is_owner, active, created_at
+                FROM users
+                WHERE username = ?
+                """,
                 [username.strip()],
             ).fetchone()
         return self._row_to_user(result) if result else None
@@ -701,7 +706,12 @@ class AppDatabase:
         """Get a user by ID."""
         with self._lock:
             result = self.conn.execute(
-                "SELECT * FROM users WHERE id = ?",
+                """
+                SELECT id, username, display_name, password_hash,
+                       is_owner, active, created_at
+                FROM users
+                WHERE id = ?
+                """,
                 [user_id],
             ).fetchone()
         return self._row_to_user(result) if result else None
@@ -711,7 +721,9 @@ class AppDatabase:
         with self._lock:
             rows = self.conn.execute(
                 """
-                SELECT * FROM users
+                SELECT id, username, display_name, password_hash,
+                       is_owner, active, created_at
+                FROM users
                 ORDER BY is_owner DESC, created_at, username
                 """
             ).fetchall()
@@ -793,7 +805,12 @@ class AppDatabase:
         """Get a session by its stored token hash."""
         with self._lock:
             result = self.conn.execute(
-                "SELECT * FROM sessions WHERE token_hash = ?",
+                """
+                SELECT id, user_id, token_hash, device_label,
+                       created_at, last_seen_at, expires_at, revoked
+                FROM sessions
+                WHERE token_hash = ?
+                """,
                 [token_hash],
             ).fetchone()
         return self._row_to_session(result) if result else None
@@ -802,7 +819,7 @@ class AppDatabase:
         self,
         token_hash: str,
         when: datetime | None = None,
-    ) -> AccountSession | None:
+    ) -> None:
         """Update the last-seen timestamp for a session."""
         now = when or datetime.now()
         with self._lock:
@@ -811,7 +828,7 @@ class AppDatabase:
                 [now, token_hash],
             )
             self.conn.commit()
-        return self.get_session_by_token_hash(token_hash)
+        return None
 
     def revoke_session(self, token_hash: str) -> AccountSession | None:
         """Mark one session as revoked."""

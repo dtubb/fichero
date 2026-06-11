@@ -85,6 +85,28 @@ def test_login_success_returns_session_and_me(client, app_db, monkeypatch):
     assert me.json()["username"] == "alice"
 
 
+def test_login_unknown_user_and_bad_password_both_return_401(client, app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    app_db.create_user(
+        username="alice",
+        display_name="Alice",
+        password_hash=accounts.hash_password("correct horse battery staple"),
+        is_owner=True,
+    )
+
+    missing = client.post(
+        "/api/auth/login",
+        json={"username": "missing", "password": "whatever"},
+    )
+    wrong = client.post(
+        "/api/auth/login",
+        json={"username": "alice", "password": "wrong-password"},
+    )
+
+    assert missing.status_code == 401
+    assert wrong.status_code == 401
+
+
 @pytest.mark.parametrize(
     ("username", "password"),
     [

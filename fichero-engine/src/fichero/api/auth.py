@@ -8,6 +8,13 @@ a per-launch shared secret that the Swift app reads from a 0600-permissioned
 file in Application Support, and the engine requires it as a Bearer token on
 every request. (#742)
 
+When ``FICHERO_MULTIUSER`` is ON, that shared secret remains a standing
+bootstrap superuser: any process that can read the 0600 ``.api-key`` file can
+list users, reset passwords, disable accounts, and mint owner accounts. That
+is the embedded-local bootstrap trust model, scoped to the same Unix user.
+The multi-user account/session layer is attribution and convenience, not a
+security boundary against same-user local processes.
+
 Defense in depth: the middleware also rejects requests where the client host
 isn't 127.0.0.1.
 """
@@ -155,6 +162,8 @@ def attach_auth_middleware(app: FastAPI, token: str) -> None:
 
         provided = request.headers.get("authorization", "")
         if secrets.compare_digest(provided, expected_header):
+            # Bootstrap superuser path: the shared secret remains the standing
+            # owner-capable credential even when multi-user mode is enabled.
             request.state.bootstrap_auth = True
             request.state.user = None
             return await call_next(request)
