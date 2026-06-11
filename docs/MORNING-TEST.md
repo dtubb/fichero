@@ -13,6 +13,16 @@ Things the autonomous overnight run built that need Daniel's **visual / runtime*
 <!-- the loop appends: feature → issue → how to test -->
 - Merge two entities (Ontology Browser → select absorber → "Merge N entities") — should still merge correctly AND now write an audit row (#1848 exhibit A: UI button now routes through `POST /api/actions/invoke` `entity.merge`); verify no regression.
 
+## #1848 frontend remainder — SHIPPED 2026-06-11 (needs click-verification)
+
+- **Mutation buttons now go through the audited action path** (#1848): verify each still works AND that ⌘Z can undo it (single-level):
+  - **Claim**: delete a claim; edit a claim (EditClaimSheet/InlineClaimEditor "Save" → `claim.patch`).
+  - **Document**: delete a document (sidebar / ⌘⌫).
+  - **Annotation**: delete an annotation (Document Inspector → Annotations tab).
+  - **Note**: delete / edit a note (Document Inspector → Notes tab, and Notes browser).
+  - Each should behave as before; the win is they're now audited + ⌘Z-undoable.
+- **App Intents / Shortcuts (#2017)** — open **Shortcuts.app**, "+" a new shortcut, search **"Fichero"**. You should see curated actions: **Merge Entities, Create Note, Delete Document, Run Workflow, Create Annotation**. Run one (e.g. Create Note) and confirm it hits the running engine and writes an audit row. (Also should surface in Spotlight.)
+
 ## ⌘Z undo of the last audited action (#2015)
 
 After merging two entities, press **⌘Z** — the merge should undo (the entities
