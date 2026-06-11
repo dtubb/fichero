@@ -10,13 +10,15 @@ layer, anything high-blast-radius). All workers run in **external worktrees**
 (`~/code/fichero-worktrees/`) via the codex/claude CLIs — **never** the Agent
 tool's `.claude/worktrees/` (uvicorn `--reload` watches the repo).
 
-Milestones are tackled in this **tiered order**, not arbitrarily. The rule that
-makes the order work: **build the gates first**, so every later refactor that
-breaks an architectural rule fails loudly instead of rotting. A continuous
-**verify/gardener agent** runs across all tiers (see bottom).
+**The sequence is the 4-phase work order below.** The rule that makes it work:
+the **continuous gates** (Tier 0) run across every phase, so a refactor that
+breaks an architectural rule fails loudly instead of rotting. A **verify/gardener
+agent** runs the gates continuously (see bottom).
 
 > Operating model unchanged: dated releases, one milestone in focus at a time,
-> features not release-gated. This just sets *which* milestone is in focus next.
+> features not release-gated. This sets *which* phase/milestone is in focus next.
+> (The old Tier 1–7 ordering is **superseded** by the 4 phases; its specifics are
+> folded in, with a cross-reference map near the bottom.)
 
 ## ▶ CURRENT WORK ORDER (2026-06-11) — authoritative
 
@@ -63,8 +65,9 @@ Make inference fast, batched, scalable, private.
 
 ---
 
-## Tier 0 — Gates & Verify (continuous; bootstrap first)
-The safety net. Everything below is verified against it.
+## Continuous gates & verify (cross-cutting — runs across ALL phases)
+The safety net, always on. Every phase's work is verified against it (this is
+"Tier 0" — not a phase, a backstop).
 - Multi-level `verify_all` (fast / standard / full / profile) — #1910
 - Guardrails (each enforces a tier below, ratcheting KNOWN_VIOLATIONS → 0):
   view→store (#1911), native-controls (#1912), no-emoji/SF-Symbols/fonts (#1913),
@@ -82,50 +85,26 @@ The safety net. Everything below is verified against it.
   - every user action appears in **menu + context menu + toolbar + keyboard shortcut** (the Mac-assed completeness matrix)
 - Milestone: **Developer Experience** (#64)
 
-## Tier 1 — Infrastructure
-The plumbing the architecture stands on.
-- Per-library change-stream + emit on entities/claims/documents — #1863 ✅
-- `@Observable` store registry on `LibraryReference` — EntityStore ✅, ClaimStore ✅
-- One audited action layer (UI = chat tools = App Intents = tests = audit) — #1848
-- Remote & self-hosting (engine may be remote) — #74
-- Milestones: **Observable Data Layer**, **Remote & Self-Hosting** (#74)
+## How the earlier tiers fold into the 4 phases (cross-reference)
+The previous Tier 1–7 plan is **superseded** by the 4 phases above; its still-live
+specifics map as follows (so nothing is lost):
 
-## Tier 2 — Right approaches / architecture  ◀ CURRENT FOCUS
-Observable, reactive, declarative. **A view never hand-rolls an endpoint nor
-accesses one directly — it observes an `@Observable` store; the store is the sole
-endpoint + change-stream accessor.** Remote-save / no local paths / pure-display
-frontend. Critical for Researcher, multi-user, and MCP-agent edits.
-- Migrate the 17 remaining `@StateObject service` views to stores (#1882/1883/1889/1903/1904/1905)
-- Retire NotificationCenter bus — #1862 ✅
-- Milestone: **Observable Data Layer**
-
-## Tier 3 — Important features
-- Undo / redo (#1832), Users / permissions + audit log, Sharing (#75),
-  Notifications & Watchlist (#76)
-
-## Tier 3b — Domain features
-Once the architecture + features above are solid, the domain milestones:
-- **Importer** (#57, IIIF bulletproof #72), **LangGraph workflow node editor**
-  (Workflows #54), **Apple Intelligence backend** (on-device extraction),
-  **persistence correctness — "make sure things save"** (round-trip every edit
-  through the store→backend→DB and back; a guardrail/test, not vibes),
-  **Mind Palace** (#12), **Researcher** (#53), **Chat** (#22), **Search** (#17).
-
-## Tier 4 — Mactastic
-Native SwiftUI `List`/`Table`/`OutlineGroup` (no hand-rolled UI), system fonts,
-**no emoji**, SF Symbols everywhere (esp. sidebar), window chrome & toolbars.
-- Milestones: **Native SwiftUI Controls**, **Mac Polish — Fonts/SF Symbols/No Emoji**, **Window Chrome & Toolbars** (#71)
-
-## Tier 5 — Testing
-Frontend + backend coverage to target; new public API ships with a test.
-- Milestone: **Test Coverage — Frontend & Backend**, **API Surface & Test Harness** (#70)
-
-## Tier 6 — Profiling & preload
-Time/memory hotspots (Instruments + py-spy/tracemalloc) → optimize; strategic
-data preloading/prefetch policy at the store layer. — #1917, #1918
-
-## Tier 7 — UI consistency
-Final cohesion pass once the controls + polish + data layer are uniform.
+- **old Tier 1–2 (Infrastructure / Observable architecture)** → **Phase 1**.
+  Observable substrate ✅ (#1863, EntityStore/ClaimStore, NotificationCenter
+  retired #1862); remaining `@StateObject service`→store migration
+  (#1882/1883/1889 …) + one-code-path #1935; remote & self-hosting #74 → #2026/#2048.
+- **old Tier 3 (undo / users / permissions / sharing / notifications)** → **Phase 1**
+  (#2015 ✅/#2074, #2022/#2023/#2024, Sharing #75, Notifications #76).
+- **old Tier 3b domain (importer #57/IIIF #72, workflow editor #54, Apple-Intel
+  backend, persistence-correctness, Mind Palace #12, Researcher #53, Chat #22,
+  Search #17)** → split: workflow/inference → **Phase 3** (#2056); Researcher/Chat
+  → **Phase 4** (#2067, which subsumes Researcher+RAG-chat+Agent); importer/
+  Mind-Palace/Search → their milestones, scheduled within the relevant phase.
+- **old Tier 4 (Mactastic — native controls, fonts/SF-Symbols/no-emoji, window
+  chrome #71)** → **Phase 2** (EPIC #2030 + Finder-selection #1962 + semantic-fonts #1969).
+- **old Tier 5 (Testing)** → continuous (Test Coverage milestone) + the gates above.
+- **old Tier 6 (Profiling & preload #1917/#1918)** → **Phase 3** (efficiency) + gates.
+- **old Tier 7 (UI consistency)** → final pass after Phase 2.
 
 ---
 
@@ -142,8 +121,8 @@ tier is done and the next tier is chosen automatically. — gardener agent #1919
 
 ## The manager loop (every manager session)
 1. **Read this ROADMAP** + `STATE.md` + `MEMORY.md`.
-2. Check GitHub issues/milestones; find the **highest-incomplete tier** with
-   ready work.
+2. Check GitHub issues/milestones; pick ready work from the **current phase**
+   (the 4-phase work order above) — Phase 1 until it's at a good stopping point.
 3. **Choose next**: 1 big issue OR 3–10 small issues in the **same milestone**
    (so the worker uses its full context). — a `/choose-next` selector skill #1924
 4. **Delegate** to an external-worktree worker (Sonnet/codex-mini default; Opus/
