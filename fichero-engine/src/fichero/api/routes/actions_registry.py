@@ -17,8 +17,8 @@ clobbering it (constitution: iterate-not-replace), the registry listing lives at
 registered BEFORE ``actions.router`` so its static paths win over the library's
 ``/{action_id}`` dynamic segment.
 
-Actor: derived from the request body (``actor``) for now, defaulting to ``"ui"``;
-a real user/device id arrives with multi-user (#1844).
+Actor: derived from the authenticated request state by ``action_context`` so it
+cannot be forged through request bodies or headers.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field, ValidationError
 
 from fichero.actions import ActionContext, ActionNotFoundError, registry
+from fichero.api.auth import action_context
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.models import ActionAudit
@@ -47,7 +48,9 @@ class InvokeActionRequest(BaseModel):
     origin_window: str | None = Field(
         default=None, description="Self-echo de-dup seam for the change stream"
     )
-    actor: str | None = Field(default=None, description="Override actor; defaults to 'ui'")
+    actor: str | None = Field(
+        default=None, description="Override actor; defaults to 'ui'"
+    )
     run_id: str | None = Field(default=None, description="AI run id, if any (#1832)")
 
 
@@ -90,19 +93,6 @@ class AuditLogResponse(BaseModel):
     count: int
 
 
-def _ctx(
-    request: InvokeActionRequest,
-    library_path: str,
-    header_origin_window: str | None,
-) -> ActionContext:
-    return ActionContext(
-        actor=request.actor or "ui",
-        origin_window=request.origin_window or header_origin_window,
-        run_id=request.run_id,
-        library_path=library_path,
-    )
-
-
 # =============================================================================
 # Endpoints
 # =============================================================================
@@ -112,13 +102,10 @@ def _ctx(
 async def invoke_action(
     request: InvokeActionRequest,
     db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
+    ctx: ActionContext = Depends(action_context),
 ) -> ActionResultResponse:
     """Validate + run a registered action through the audited choke point."""
-    ctx = _ctx(request, x_fichero_library_path, x_fichero_origin_window)
+    ctx.run_id = request.run_id
     try:
         result = registry.invoke(db, request.name, request.params, ctx)
     except ActionNotFoundError:
@@ -204,7 +191,10 @@ async def list_audit_log(
 async def undo_action(
     audit_id: str,
     db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    ctx: ActionContext = Depends(action_context),
+    x_fichero_library_path: str | None = Header(
+        default=None, alias="X-Fichero-Library-Path"
+    ),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -225,15 +215,18 @@ async def undo_action(
     """
     audit = db.get(ActionAudit, audit_id)
     if audit is None:
-        raise HTTPException(status_code=404, detail=f"Audit record not found: {audit_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Audit record not found: {audit_id}"
+        )
     if audit.undone:
         raise HTTPException(status_code=409, detail="This action was already undone")
-
-    ctx = ActionContext(
-        actor="ui",
-        origin_window=x_fichero_origin_window,
-        library_path=x_fichero_library_path,
-    )
+    if not isinstance(ctx, ActionContext):
+        # Direct unit calls bypass FastAPI dependency injection.
+        ctx = ActionContext(
+            actor="system",
+            origin_window=x_fichero_origin_window,
+            library_path=x_fichero_library_path,
+        )
 
     if audit.inverse_of is not None:
         # Redo: this row is an inverse → replay the original forward action.
@@ -265,7 +258,9 @@ async def undo_action(
         replay_name, replay_params = inverse
 
     try:
-        result = registry.invoke(db, replay_name, replay_params, ctx, inverse_of=audit.id)
+        result = registry.invoke(
+            db, replay_name, replay_params, ctx, inverse_of=audit.id
+        )
     except ActionNotFoundError:
         raise HTTPException(
             status_code=409, detail=f"Inverse/replay action unknown: {replay_name}"

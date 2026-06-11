@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -47,6 +48,7 @@ async def create_search_source(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> SearchSource:
     source = SearchSource(
         project_id=request.project_id,
@@ -63,9 +65,10 @@ async def create_search_source(
     emit_change(
         x_fichero_library_path,
         type="note.updated",
-        actor="ui",
+        actor=actor,
         run_id=None,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return source
 
@@ -114,6 +117,7 @@ async def create_note(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ResearchNote:
     note = ResearchNote(
         project_id=request.project_id,
@@ -131,8 +135,9 @@ async def create_note(
     emit_change(
         x_fichero_library_path,
         type="note.created",
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return note
 
@@ -170,6 +175,7 @@ async def update_note(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ResearchNote:
     note = db.get(ResearchNote, note_id)
     if not note:
@@ -191,8 +197,9 @@ async def update_note(
     emit_change(
         x_fichero_library_path,
         type="note.updated",
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return note
 
@@ -225,6 +232,7 @@ async def create_checklist(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ResearchChecklist:
     checklist = ResearchChecklist(
         project_id=request.project_id,
@@ -239,14 +247,17 @@ async def create_checklist(
     emit_change(
         x_fichero_library_path,
         type="note.updated",
-        actor="ui",
+        actor=actor,
         run_id=None,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return checklist
 
 
-@router.get("/projects/{project_id}/checklists", response_model=ResearchNotesListResponse)
+@router.get(
+    "/projects/{project_id}/checklists", response_model=ResearchNotesListResponse
+)
 async def list_checklists(
     project_id: str,
     db: Database = Depends(get_library_database),
@@ -267,6 +278,7 @@ async def toggle_checklist_item(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ResearchChecklist:
     checklist = db.get(ResearchChecklist, checklist_id)
     if not checklist:
@@ -286,8 +298,9 @@ async def toggle_checklist_item(
     emit_change(
         x_fichero_library_path,
         type="note.updated",
-        actor="ui",
+        actor=actor,
         run_id=None,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return checklist

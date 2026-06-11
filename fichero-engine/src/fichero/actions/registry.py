@@ -91,7 +91,9 @@ class ChangeSpec:
 # Type aliases for the action callables.
 ExecuteFn = Callable[[Any, BaseModel, ActionContext], "tuple[Any, ChangeSpec]"]
 # invert(before, after, ctx) -> (inverse_action_name, inverse_raw_params) | None
-InvertFn = Callable[[dict | None, dict | None, ActionContext], "tuple[str, dict] | None"]
+InvertFn = Callable[
+    [dict | None, dict | None, ActionContext], "tuple[str, dict] | None"
+]
 
 
 @runtime_checkable
@@ -100,8 +102,7 @@ class Action(Protocol):
 
     def __call__(
         self, db: Any, params: BaseModel, ctx: ActionContext
-    ) -> tuple[Any, ChangeSpec]:
-        ...
+    ) -> tuple[Any, ChangeSpec]: ...
 
 
 @dataclass
@@ -168,7 +169,9 @@ class ActionRegistry:
         new row so that undoing THIS row (undo-of-undo / redo) can replay the
         original forward action. Ordinary callers leave it ``None``.
         """
-        from fichero.models import ActionAudit  # local import: avoid cycle at module load
+        from fichero.models import (
+            ActionAudit,
+        )  # local import: avoid cycle at module load
 
         reg = self.get(name)  # ActionNotFoundError if unknown
         params = reg.params_model.model_validate(raw_params)
@@ -202,7 +205,9 @@ class ActionRegistry:
     def _emit(self, ctx: ActionContext, spec: ChangeSpec) -> None:
         if not ctx.library_path or not spec.emit_type:
             return
-        from fichero.api.change_stream import emit_change  # local: avoid cycle at module load
+        from fichero.api.change_stream import (
+            emit_change,
+        )  # local: avoid cycle at module load
 
         try:
             emit_change(
@@ -218,6 +223,7 @@ class ActionRegistry:
                 run_id=ctx.run_id,
                 actor=ctx.actor,
                 origin_window=ctx.origin_window,
+                origin_user=ctx.actor,
             )
         except Exception as exc:  # pragma: no cover - emit is already best-effort
             logger.debug("action emit_change failed (ignored): %s", exc)

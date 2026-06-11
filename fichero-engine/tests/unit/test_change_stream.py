@@ -123,6 +123,7 @@ class TestEmitChange:
             claim_ids=["c1"],
             actor="ui",
             origin_window="win-7",
+            origin_user="alice",
         )
 
         assert len(captured) == 1
@@ -133,6 +134,7 @@ class TestEmitChange:
         assert event.claim_ids == ["c1"]
         assert event.actor == "ui"
         assert event.origin_window == "win-7"
+        assert event.origin_user == "alice"
         assert event.ts  # default timestamp populated
 
     def test_emit_change_blank_library_is_noop(self, monkeypatch):
@@ -176,16 +178,16 @@ def _make_entity(db, name: str) -> KnowledgeEntity:
 
 
 class TestMergeEmitsChange:
-    def test_merge_endpoint_calls_emit_change(self, client, db, test_package, monkeypatch):
+    def test_merge_endpoint_calls_emit_change(
+        self, client, db, test_package, monkeypatch
+    ):
         captured: list[dict] = []
 
         def _spy(library_path, **kwargs):
             captured.append({"library_path": library_path, **kwargs})
 
         # Patch the name as imported into the route module.
-        monkeypatch.setattr(
-            "fichero.api.routes.kg_entity_curation.emit_change", _spy
-        )
+        monkeypatch.setattr("fichero.api.routes.kg_entity_curation.emit_change", _spy)
 
         absorber = _make_entity(db, "Alice")
         absorbed = _make_entity(db, "Alicia")
@@ -279,7 +281,9 @@ def _make_note(
 
 
 class TestClaimMutationsEmitChange:
-    def test_assign_time_period_calls_emit_change(self, client, db, test_package, monkeypatch):
+    def test_assign_time_period_calls_emit_change(
+        self, client, db, test_package, monkeypatch
+    ):
         captured: list[dict] = []
         monkeypatch.setattr(
             "fichero.api.routes.claims.emit_change",
@@ -329,7 +333,9 @@ class TestClaimMutationsEmitChange:
 
 
 class TestEntityMutationsEmitChange:
-    def test_add_entity_aliases_calls_emit_change(self, client, db, test_package, monkeypatch):
+    def test_add_entity_aliases_calls_emit_change(
+        self, client, db, test_package, monkeypatch
+    ):
         captured: list[dict] = []
         monkeypatch.setattr(
             "fichero.api.routes.entities.emit_change",
@@ -352,7 +358,9 @@ class TestEntityMutationsEmitChange:
         assert call["type"] == "entity.updated"
         assert entity.id in call["entity_ids"]
 
-    def test_create_claim_link_emits_linked(self, client, db, test_package, monkeypatch):
+    def test_create_claim_link_emits_linked(
+        self, client, db, test_package, monkeypatch
+    ):
         captured: list[dict] = []
         monkeypatch.setattr(
             "fichero.api.routes.claim_links.emit_change",
@@ -381,7 +389,9 @@ class TestEntityMutationsEmitChange:
 
 
 class TestAnnotationMutationsEmitChange:
-    def test_create_annotation_emits_created(self, client, db, test_package, monkeypatch):
+    def test_create_annotation_emits_created(
+        self, client, db, test_package, monkeypatch
+    ):
         captured: list[dict] = []
         monkeypatch.setattr(
             "fichero.api.routes.annotations.emit_change",
@@ -403,7 +413,9 @@ class TestAnnotationMutationsEmitChange:
         assert call["type"] == "annotation.created"
         assert doc.id in call["document_ids"]
 
-    def test_patch_annotation_emits_updated(self, client, db, test_package, monkeypatch):
+    def test_patch_annotation_emits_updated(
+        self, client, db, test_package, monkeypatch
+    ):
         captured: list[dict] = []
         monkeypatch.setattr(
             "fichero.api.routes.annotations.emit_change",
@@ -422,7 +434,9 @@ class TestAnnotationMutationsEmitChange:
         assert call["type"] == "annotation.updated"
         assert ann.document_id in call["document_ids"]
 
-    def test_delete_annotation_emits_deleted(self, client, db, test_package, monkeypatch):
+    def test_delete_annotation_emits_deleted(
+        self, client, db, test_package, monkeypatch
+    ):
         captured: list[dict] = []
         monkeypatch.setattr(
             "fichero.api.routes.annotations.emit_change",
@@ -452,14 +466,18 @@ class TestAnnotationMutationsEmitChange:
             ),
         )
 
-        ann = _make_annotation(db, document_id="doc-emit-ann-promote", text="Promote me")
+        ann = _make_annotation(
+            db, document_id="doc-emit-ann-promote", text="Promote me"
+        )
         resp = client.post(f"/api/annotations/{ann.id}/promote-to-claim")
         assert resp.status_code == 200, resp.text
 
         assert len(captured) == 2
         events = {call["type"] for call in captured}
         assert events == {"annotation.updated", "claim.created"}
-        annotation_events = [call for call in captured if call["type"] == "annotation.updated"]
+        annotation_events = [
+            call for call in captured if call["type"] == "annotation.updated"
+        ]
         claim_events = [call for call in captured if call["type"] == "claim.created"]
         assert len(annotation_events) == 1
         assert len(claim_events) == 1
@@ -494,7 +512,7 @@ class TestWorkflowMutationsEmitChange:
         call = captured[0]
         assert call["library_path"] == str(test_package)
         assert call["type"] == "workflow.created"
-        assert call["actor"] == "ui"
+        assert call["actor"] == "system"
 
     def test_delete_workflow_emits_deleted(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
@@ -523,7 +541,7 @@ class TestWorkflowMutationsEmitChange:
         call = captured[-1]
         assert call["library_path"] == str(test_package)
         assert call["type"] == "workflow.deleted"
-        assert call["actor"] == "ui"
+        assert call["actor"] == "system"
 
 
 class TestNoteMutationsEmitChange:
@@ -602,7 +620,9 @@ class TestNoteMutationsEmitChange:
         assert call["type"] == "note.deleted"
         assert folder.id in call["document_ids"]
 
-    def test_create_note_link_emits_updated(self, client, db, test_package, monkeypatch):
+    def test_create_note_link_emits_updated(
+        self, client, db, test_package, monkeypatch
+    ):
         captured: list[dict] = []
         monkeypatch.setattr(
             "fichero.api.routes.notes.emit_change",
@@ -625,12 +645,14 @@ class TestNoteMutationsEmitChange:
         call = captured[0]
         assert call["library_path"] == str(test_package)
         assert call["type"] == "note.updated"
-        assert call["actor"] == "ui"
+        assert call["actor"] == "system"
         assert folder.id in call["document_ids"]
 
 
 class TestResearchNoteMutationsEmitChange:
-    def test_create_research_note_emits_created(self, client, test_package, monkeypatch):
+    def test_create_research_note_emits_created(
+        self, client, test_package, monkeypatch
+    ):
         captured: list[dict] = []
         monkeypatch.setattr(
             "fichero.api.routes.research_notes.emit_change",
@@ -639,7 +661,9 @@ class TestResearchNoteMutationsEmitChange:
             ),
         )
 
-        project = client.post("/api/research/projects", json={"name": "For Research Notes"})
+        project = client.post(
+            "/api/research/projects", json={"name": "For Research Notes"}
+        )
         assert project.status_code == 200, project.text
         project_id = project.json()["id"]
 
@@ -658,7 +682,9 @@ class TestResearchNoteMutationsEmitChange:
         assert call["library_path"] == str(test_package)
         assert call["type"] == "note.created"
 
-    def test_update_research_note_emits_updated(self, client, test_package, monkeypatch):
+    def test_update_research_note_emits_updated(
+        self, client, test_package, monkeypatch
+    ):
         captured: list[dict] = []
         monkeypatch.setattr(
             "fichero.api.routes.research_notes.emit_change",
@@ -667,7 +693,9 @@ class TestResearchNoteMutationsEmitChange:
             ),
         )
 
-        project = client.post("/api/research/projects", json={"name": "For Research Notes 2"})
+        project = client.post(
+            "/api/research/projects", json={"name": "For Research Notes 2"}
+        )
         assert project.status_code == 200, project.text
         project_id = project.json()["id"]
 
@@ -715,6 +743,7 @@ class TestDocumentMutationsEmitChange:
         assert call["library_path"] == str(test_package)
         assert call["type"] == "document.created"
         assert call["document_ids"] and r.json()["id"] in call["document_ids"]
+
     def test_update_document_emits_updated(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
@@ -878,9 +907,13 @@ class TestResearchMutationsEmitChange:
                 {"library_path": library_path, **kwargs}
             ),
         )
-        project = client.post("/api/research/projects", json={"name": "Research Project"}).json()
+        project = client.post(
+            "/api/research/projects", json={"name": "Research Project"}
+        ).json()
 
-        r = client.patch(f"/api/research/projects/{project['id']}", json={"name": "Renamed"})
+        r = client.patch(
+            f"/api/research/projects/{project['id']}", json={"name": "Renamed"}
+        )
         assert r.status_code == 200, r.text
 
         assert len(captured) >= 1
@@ -897,7 +930,9 @@ class TestResearchMutationsEmitChange:
                 {"library_path": library_path, **kwargs}
             ),
         )
-        project = client.post("/api/research/projects", json={"name": "To Delete"}).json()
+        project = client.post(
+            "/api/research/projects", json={"name": "To Delete"}
+        ).json()
 
         r = client.delete(f"/api/research/projects/{project['id']}")
         assert r.status_code == 200, r.text
@@ -910,7 +945,9 @@ class TestResearchMutationsEmitChange:
 
 
 class TestProjectsMutationsEmitChange:
-    def test_create_projects_route_emits_created(self, client, test_package, monkeypatch):
+    def test_create_projects_route_emits_created(
+        self, client, test_package, monkeypatch
+    ):
         captured: list[dict] = []
         monkeypatch.setattr(
             "fichero.api.routes.projects.emit_change",
@@ -929,7 +966,9 @@ class TestProjectsMutationsEmitChange:
         assert call["type"] == "research.created"
         assert project["id"] in call["entity_ids"]
 
-    def test_patch_projects_route_emits_updated(self, client, test_package, monkeypatch):
+    def test_patch_projects_route_emits_updated(
+        self, client, test_package, monkeypatch
+    ):
         captured: list[dict] = []
         monkeypatch.setattr(
             "fichero.api.routes.projects.emit_change",
@@ -939,7 +978,9 @@ class TestProjectsMutationsEmitChange:
         )
         project = client.post("/api/projects", json={"name": "Workspace Two"}).json()
 
-        r = client.patch(f"/api/projects/{project['id']}", json={"name": "Renamed Workspace"})
+        r = client.patch(
+            f"/api/projects/{project['id']}", json={"name": "Renamed Workspace"}
+        )
         assert r.status_code == 200, r.text
 
         assert len(captured) >= 1
@@ -948,7 +989,9 @@ class TestProjectsMutationsEmitChange:
         assert call["type"] == "research.updated"
         assert project["id"] in call["entity_ids"]
 
-    def test_delete_projects_route_emits_deleted(self, client, test_package, monkeypatch):
+    def test_delete_projects_route_emits_deleted(
+        self, client, test_package, monkeypatch
+    ):
         captured: list[dict] = []
         monkeypatch.setattr(
             "fichero.api.routes.projects.emit_change",
@@ -1145,7 +1188,9 @@ class TestHermeneuticsMutationsEmitChange:
 
     # ---- Frameworks ----
 
-    def test_create_framework_emits_created(self, client, db, test_package, monkeypatch):
+    def test_create_framework_emits_created(
+        self, client, db, test_package, monkeypatch
+    ):
         captured = self._spy(monkeypatch)
 
         r = client.post(
@@ -1164,7 +1209,9 @@ class TestHermeneuticsMutationsEmitChange:
         assert call["type"] == "interpretation.created"
         assert r.json()["id"] in call["interpretation_ids"]
 
-    def test_update_framework_emits_updated(self, client, db, test_package, monkeypatch):
+    def test_update_framework_emits_updated(
+        self, client, db, test_package, monkeypatch
+    ):
         captured = self._spy(monkeypatch)
 
         framework = _make_framework(db)
@@ -1180,7 +1227,9 @@ class TestHermeneuticsMutationsEmitChange:
         assert call["type"] == "interpretation.updated"
         assert framework.id in call["interpretation_ids"]
 
-    def test_delete_framework_emits_deleted(self, client, db, test_package, monkeypatch):
+    def test_delete_framework_emits_deleted(
+        self, client, db, test_package, monkeypatch
+    ):
         captured = self._spy(monkeypatch)
 
         framework = _make_framework(db)
@@ -1344,7 +1393,9 @@ class TestHermeneuticsMutationsEmitChange:
         assert call["type"] == "interpretation.updated"
         assert state.id in call["interpretation_ids"]
 
-    def test_backtrack_circle_emits_updated(self, client, db, test_package, monkeypatch):
+    def test_backtrack_circle_emits_updated(
+        self, client, db, test_package, monkeypatch
+    ):
         captured = self._spy(monkeypatch)
 
         claim = _make_claim(db)

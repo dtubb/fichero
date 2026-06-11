@@ -29,6 +29,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Iterable
 
+from fastapi import Request
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -59,9 +60,8 @@ class ChangeEvent(BaseModel):
     run_id: str | None = None
     actor: str = "system"  # ui | chat | workflow | import | system
     origin_window: str | None = None  # self-echo de-dup seam (spec §3.5)
-    ts: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    origin_user: str | None = None  # user-level self-echo de-dup seam (#2023)
+    ts: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 def format_change_sse(event: ChangeEvent) -> str:
@@ -151,6 +151,7 @@ def emit_change(
     run_id: str | None = None,
     actor: str = "system",
     origin_window: str | None = None,
+    origin_user: str | None = None,
 ) -> None:
     """Broadcast a change to every window subscribed to ``library_path``.
 
@@ -172,7 +173,44 @@ def emit_change(
             run_id=run_id,
             actor=actor,
             origin_window=origin_window,
+            origin_user=origin_user,
         )
         _change_hub.emit(library_path, event)
     except Exception as exc:  # pragma: no cover - defensive
         logger.debug("emit_change failed (best-effort, ignored): %s", exc)
+
+
+def emit_request_change(
+    request: Request,
+    library_path: str,
+    *,
+    type: str,
+    entity_ids: Iterable[str] = (),
+    claim_ids: Iterable[str] = (),
+    document_ids: Iterable[str] = (),
+    artifact_ids: Iterable[str] = (),
+    citation_ids: Iterable[str] = (),
+    reference_ids: Iterable[str] = (),
+    interpretation_ids: Iterable[str] = (),
+    run_id: str | None = None,
+    origin_window: str | None = None,
+) -> None:
+    """Emit a user-initiated change with a request-state-derived actor."""
+    from fichero.api.auth import actor_from_request  # local: avoid import cycle
+
+    actor = actor_from_request(request)
+    emit_change(
+        library_path,
+        type=type,
+        entity_ids=entity_ids,
+        claim_ids=claim_ids,
+        document_ids=document_ids,
+        artifact_ids=artifact_ids,
+        citation_ids=citation_ids,
+        reference_ids=reference_ids,
+        interpretation_ids=interpretation_ids,
+        run_id=run_id,
+        actor=actor,
+        origin_window=origin_window,
+        origin_user=actor,
+    )

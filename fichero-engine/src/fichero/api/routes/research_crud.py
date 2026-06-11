@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -64,6 +65,7 @@ async def create_project(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ResearchProject:
     project = ResearchProject(
         name=request.name,
@@ -77,8 +79,9 @@ async def create_project(
         x_fichero_library_path,
         type="research.created",
         entity_ids=[project.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return project
 
@@ -115,6 +118,7 @@ async def update_project(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ResearchProject:
     project = db.get(ResearchProject, project_id)
     if not project:
@@ -135,8 +139,9 @@ async def update_project(
         x_fichero_library_path,
         type="research.updated",
         entity_ids=[project.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return project
 
@@ -149,6 +154,7 @@ async def delete_project(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> DeletedWithIdResponse:
     project = db.get(ResearchProject, project_id)
     if not project:
@@ -158,8 +164,9 @@ async def delete_project(
         x_fichero_library_path,
         type="research.deleted",
         entity_ids=[project_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return DeletedWithIdResponse(status="deleted", id=project_id)
 
@@ -260,10 +267,7 @@ async def _build_term_plan(
         "- summary: short planning summary\n"
         "Keep the output concise and practical."
     )
-    task = (
-        f"Term: {term}\n"
-        f"Create the smallest usable research plan for this term."
-    )
+    task = f"Term: {term}\nCreate the smallest usable research plan for this term."
 
     result = await react_agent(
         inputs={
@@ -302,6 +306,7 @@ async def create_plan(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ResearchPlan:
     project = db.get(ResearchProject, request.project_id)
     planning_payload: dict[str, Any] | None = None
@@ -334,8 +339,9 @@ async def create_plan(
         x_fichero_library_path,
         type="research.created",
         entity_ids=[plan.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return plan
 
@@ -370,6 +376,7 @@ async def update_plan(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ResearchPlan:
     plan = db.get(ResearchPlan, plan_id)
     if not plan:
@@ -388,8 +395,9 @@ async def update_plan(
         x_fichero_library_path,
         type="research.updated",
         entity_ids=[plan.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return plan
 
@@ -425,6 +433,7 @@ async def create_task(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ResearchTask:
     task = ResearchTask(
         plan_id=request.plan_id,
@@ -439,8 +448,9 @@ async def create_task(
         x_fichero_library_path,
         type="research.created",
         entity_ids=[task.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return task
 
@@ -492,6 +502,7 @@ async def update_task(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ResearchTask:
     task = db.get(ResearchTask, task_id)
     if not task:
@@ -516,8 +527,9 @@ async def update_task(
         x_fichero_library_path,
         type="research.updated",
         entity_ids=[task.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return task
 
@@ -553,6 +565,7 @@ async def create_step(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ResearchStep:
     step = ResearchStep(
         task_id=request.task_id,
@@ -567,8 +580,9 @@ async def create_step(
         x_fichero_library_path,
         type="research.created",
         entity_ids=[step.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return step
 
@@ -592,6 +606,7 @@ async def update_step(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ResearchStep:
     step = db.get(ResearchStep, step_id)
     if not step:
@@ -616,7 +631,8 @@ async def update_step(
         x_fichero_library_path,
         type="research.updated",
         entity_ids=[step.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return step

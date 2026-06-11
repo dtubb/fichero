@@ -18,6 +18,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from fichero.api.change_stream import emit_change
+from fichero.api.auth import request_actor
 from fichero.api.main import _is_allowed_library_path, db_manager, get_library_database
 from fichero.knowledge_models import KnowledgeClaim
 from fichero.db import Database
@@ -39,9 +40,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/entities", tags=["entities"])
 
-_BARE_DATE_NAME_RE = re.compile(
-    r"^\d{4}(?:-\d{2}(?:-\d{2})?)?$"
-)
+_BARE_DATE_NAME_RE = re.compile(r"^\d{4}(?:-\d{2}(?:-\d{2})?)?$")
 
 
 # =============================================================================
@@ -159,16 +158,18 @@ async def _digest_library_database(
 
 
 def _entity_type_label(entity: KnowledgeEntity) -> str:
-    raw = getattr(entity.entity_type, "value", None) or str(entity.entity_type or "other")
+    raw = getattr(entity.entity_type, "value", None) or str(
+        entity.entity_type or "other"
+    )
     return raw.replace("_", " ").title()
 
 
-def _source_reference(claim: KnowledgeClaim, documents_by_id: dict[str, Document]) -> str:
+def _source_reference(
+    claim: KnowledgeClaim, documents_by_id: dict[str, Document]
+) -> str:
     doc = documents_by_id.get(claim.source_document_id)
     doc_name = (
-        getattr(doc, "name", None)
-        or claim.source_document_id
-        or "unknown source"
+        getattr(doc, "name", None) or claim.source_document_id or "unknown source"
     )
     if claim.source_page_label:
         return f"{doc_name} - p. {claim.source_page_label}"
@@ -311,6 +312,7 @@ async def upsert_entity(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> KnowledgeEntity:
     """Create or update a knowledge entity."""
     entity = db.get(KnowledgeEntity, request.id) if request.id else None
@@ -352,8 +354,9 @@ async def upsert_entity(
         x_fichero_library_path,
         type="entity.created" if is_create else "entity.updated",
         entity_ids=[entity.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return entity
 
@@ -566,8 +569,10 @@ async def top_entities(
         if ent is None:
             continue
         kind_val = getattr(ent, "entity_type", None)
-        kind_str = kind_val.value if hasattr(kind_val, "value") else (
-            str(kind_val) if kind_val else None
+        kind_str = (
+            kind_val.value
+            if hasattr(kind_val, "value")
+            else (str(kind_val) if kind_val else None)
         )
         if type_filter and kind_str != type_filter:
             continue
@@ -701,6 +706,7 @@ class EntityPatchRequest(BaseModel):
     Every editable attribute is here as ``Optional`` so PATCH can
     target a single field without losing the rest. (#901)
     """
+
     canonical_name: str | None = None
     entity_type: EntityType | None = None
     aliases: list[str] | None = None
@@ -718,6 +724,7 @@ async def patch_entity(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> KnowledgeEntity:
     """Partial-update a knowledge entity.
 
@@ -757,16 +764,20 @@ async def patch_entity(
     # Mutation log row — captures before + after for undo.
     try:
         from fichero.knowledge_models import MutationLog, MutationOperationType
-        db.save(MutationLog(
-            entity_type="KnowledgeEntity",
-            entity_id=entity.id,
-            operation=MutationOperationType.update,
-            before_state=before_state,
-            after_state=entity.model_dump(mode="json"),
-            changed_fields=changed_fields,
-        ))
+
+        db.save(
+            MutationLog(
+                entity_type="KnowledgeEntity",
+                entity_id=entity.id,
+                operation=MutationOperationType.update,
+                before_state=before_state,
+                after_state=entity.model_dump(mode="json"),
+                changed_fields=changed_fields,
+            )
+        )
     except Exception as exc:
         import logging
+
         logging.getLogger(__name__).warning(
             "patch_entity: mutation log write failed: %s", exc
         )
@@ -774,6 +785,7 @@ async def patch_entity(
     # Refresh the LanceDB vector so cosine search reflects the edit.
     try:
         from fichero.kg import entity_vectors
+
         entity_vectors.index_entity(
             db=db,
             entity_id=entity.id,
@@ -785,6 +797,7 @@ async def patch_entity(
         # Don't fail the API call if vector refresh fails — the
         # DuckDB row is the canonical store.
         import logging
+
         logging.getLogger(__name__).warning(
             "patch_entity: vector refresh failed for %s: %s", entity.id, exc
         )
@@ -795,8 +808,9 @@ async def patch_entity(
         x_fichero_library_path,
         type="entity.updated",
         entity_ids=[entity.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return entity
 
@@ -818,6 +832,7 @@ async def delete_entity(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> None:
     """Hard-delete a knowledge entity.
 
@@ -836,6 +851,7 @@ async def delete_entity(
 
     # Find dependent claims.
     from fichero.knowledge_models import KnowledgeClaim
+
     all_claims = db.query(KnowledgeClaim)
     dependent = [c for c in all_claims if entity_id in (c.entity_ids or [])]
 
@@ -845,16 +861,20 @@ async def delete_entity(
     else:
         # Strip the id but keep the claim row.
         for claim in dependent:
-            claim.entity_ids = [eid for eid in (claim.entity_ids or []) if eid != entity_id]
+            claim.entity_ids = [
+                eid for eid in (claim.entity_ids or []) if eid != entity_id
+            ]
             claim.updated_at = datetime.now()
             db.save(claim)
 
     # Drop the vector.
     try:
         from fichero.kg import entity_vectors
+
         entity_vectors.remove(db=db, entity_id=entity_id)
     except Exception as exc:
         import logging
+
         logging.getLogger(__name__).warning(
             "delete_entity: vector remove failed for %s: %s", entity_id, exc
         )
@@ -864,15 +884,19 @@ async def delete_entity(
     # Mutation log row.
     try:
         from fichero.knowledge_models import MutationLog, MutationOperationType
-        db.save(MutationLog(
-            entity_type="KnowledgeEntity",
-            entity_id=entity_id,
-            operation=MutationOperationType.delete,
-            before_state=before_state,
-            after_state=None,
-        ))
+
+        db.save(
+            MutationLog(
+                entity_type="KnowledgeEntity",
+                entity_id=entity_id,
+                operation=MutationOperationType.delete,
+                before_state=before_state,
+                after_state=None,
+            )
+        )
     except Exception as exc:
         import logging
+
         logging.getLogger(__name__).warning(
             "delete_entity: mutation log write failed: %s", exc
         )
@@ -881,8 +905,9 @@ async def delete_entity(
         x_fichero_library_path,
         type="entity.deleted",
         entity_ids=[entity_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
 
@@ -1008,8 +1033,10 @@ async def get_entity_co_occurrence(
         if other is None:
             continue
         kind_val = getattr(other, "entity_type", None)
-        kind_str = kind_val.value if hasattr(kind_val, "value") else (
-            str(kind_val) if kind_val else None
+        kind_str = (
+            kind_val.value
+            if hasattr(kind_val, "value")
+            else (str(kind_val) if kind_val else None)
         )
         out.append(
             EntityCoOccurrence(
@@ -1083,6 +1110,7 @@ async def add_entity_aliases(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> KnowledgeEntity:
     """Add aliases to an existing entity."""
     entity = db.get(KnowledgeEntity, entity_id)
@@ -1098,8 +1126,9 @@ async def add_entity_aliases(
         x_fichero_library_path,
         type="entity.updated",
         entity_ids=[entity_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return entity
 
@@ -1165,7 +1194,7 @@ def assemble_entity_biography(
     from fichero.models import Document as _Document
 
     doc_links: list[EntityDocumentLink] = []
-    for (doc_id, claim_count) in doc_rows:
+    for doc_id, claim_count in doc_rows:
         doc = db.get(_Document, doc_id)
         if doc is None:
             continue

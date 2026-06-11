@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -35,7 +36,9 @@ from fichero.models import DocType, Document
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/claims", tags=["review-queue"])
-kg_claims_router = APIRouter(prefix="/kg/claims", tags=["knowledge-graph", "claim-curation"])
+kg_claims_router = APIRouter(
+    prefix="/kg/claims", tags=["knowledge-graph", "claim-curation"]
+)
 
 
 # =============================================================================
@@ -46,7 +49,10 @@ kg_claims_router = APIRouter(prefix="/kg/claims", tags=["knowledge-graph", "clai
 class ClaimTransitionRequest(BaseModel):
     """Request to transition a claim's curation state."""
 
-    to_state: str = Field(..., description="Target curation state: unreviewed, shortlisted, curated, rejected")
+    to_state: str = Field(
+        ...,
+        description="Target curation state: unreviewed, shortlisted, curated, rejected",
+    )
     reason: str | None = Field(None, description="Optional reason for transition")
     reviewed_by: str = Field(default="human", description="Who performed the review")
 
@@ -54,7 +60,9 @@ class ClaimTransitionRequest(BaseModel):
 class BatchClaimTransitionRequest(BaseModel):
     """Request to transition multiple claims."""
 
-    claim_ids: list[str] = Field(..., description="List of claim IDs to transition", min_length=1)
+    claim_ids: list[str] = Field(
+        ..., description="List of claim IDs to transition", min_length=1
+    )
     to_state: str = Field(..., description="Target curation state")
     reason: str | None = Field(None, description="Optional reason for transition")
     reviewed_by: str = Field(default="human", description="Who performed the review")
@@ -82,16 +90,22 @@ class BatchClaimTransitionResponse(BaseModel):
 
 class BatchClaimCurationRequest(BaseModel):
     claim_ids: list[str] = Field(min_length=1, description="Claim IDs to update.")
-    curation_state: ClaimCurationState = Field(description="New curation state for every listed claim.")
+    curation_state: ClaimCurationState = Field(
+        description="New curation state for every listed claim."
+    )
 
 
 class BatchClaimCurationResponse(BaseModel):
     updated: int
-    claim_ids: list[str] = Field(default_factory=list, description="Claim IDs whose state actually changed.")
+    claim_ids: list[str] = Field(
+        default_factory=list, description="Claim IDs whose state actually changed."
+    )
 
 
 class ClaimMergeRequest(BaseModel):
-    surviving_claim_id: str = Field(description="Claim that remains canonical after the merge.")
+    surviving_claim_id: str = Field(
+        description="Claim that remains canonical after the merge."
+    )
     absorbed_claim_ids: list[str] = Field(
         min_length=1,
         description="Duplicate claims absorbed into the survivor.",
@@ -99,7 +113,9 @@ class ClaimMergeRequest(BaseModel):
 
 
 class ClaimUnmergeRequest(BaseModel):
-    audit_id: str = Field(description="ClaimMergeAudit.id from the merge being reversed.")
+    audit_id: str = Field(
+        description="ClaimMergeAudit.id from the merge being reversed."
+    )
 
 
 class ClaimAuditResponse(BaseModel):
@@ -137,9 +153,15 @@ class PruneTrivialClaimsRequest(BaseModel):
 
     @model_validator(mode="after")
     def _validate_scope(self) -> "PruneTrivialClaimsRequest":
-        scopes = int(bool(self.document_id)) + int(bool(self.folder_id)) + int(self.library_wide)
+        scopes = (
+            int(bool(self.document_id))
+            + int(bool(self.folder_id))
+            + int(self.library_wide)
+        )
         if scopes != 1:
-            raise ValueError("Exactly one of document_id, folder_id, or library_wide=true is required")
+            raise ValueError(
+                "Exactly one of document_id, folder_id, or library_wide=true is required"
+            )
         return self
 
 
@@ -191,7 +213,7 @@ def _validate_curation_state(state: str) -> ClaimCurationState:
         valid_states = [s.value for s in ClaimCurationState]
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid curation state '{state}'. Must be one of: {valid_states}"
+            detail=f"Invalid curation state '{state}'. Must be one of: {valid_states}",
         )
 
 
@@ -217,12 +239,16 @@ def _build_queue_item(claim: KnowledgeClaim, db: Database) -> QueueClaimItem:
         text=claim.text[:500] + ("..." if len(claim.text) > 500 else ""),
         curation_state=claim.curation_state.value,
         claim_type=claim.claim_type.value if claim.claim_type else None,
-        epistemic_status=claim.epistemic_status.value if claim.epistemic_status else None,
+        epistemic_status=claim.epistemic_status.value
+        if claim.epistemic_status
+        else None,
         confidence=claim.confidence,
         source_document_id=claim.source_document_id,
         entity_ids=claim.entity_ids,
         entity_names=_get_entity_names(claim.entity_ids, db),
-        created_at=claim.created_at.isoformat() if isinstance(claim.created_at, datetime) else str(claim.created_at),
+        created_at=claim.created_at.isoformat()
+        if isinstance(claim.created_at, datetime)
+        else str(claim.created_at),
         review_history=review_history,
     )
 
@@ -269,7 +295,9 @@ def _merge_unique_by_id(existing: list[Any], incoming: list[Any]) -> list[Any]:
     return merged
 
 
-def _claim_support_key(support: Any) -> tuple[str | None, str | None, int | None, int | None]:
+def _claim_support_key(
+    support: Any,
+) -> tuple[str | None, str | None, int | None, int | None]:
     return (
         getattr(support, "source_document_id", None),
         getattr(support, "source_page_label", None),
@@ -316,7 +344,8 @@ def _merge_claim_provenance(
     }
     for claim in absorbed_claims:
         source_ids.update(
-            sid for sid in [
+            sid
+            for sid in [
                 claim.source_document_id,
                 *claim.source_ids,
                 *claim.corroborating_source_ids,
@@ -366,9 +395,13 @@ def _merge_claim_provenance(
 
     survivor.source_ids = sorted(source_ids - {survivor.source_document_id})
     survivor.corroborating_source_ids = sorted(source_ids)
-    survivor.corroboration_count = len(source_ids) if source_ids else survivor.corroboration_count
+    survivor.corroboration_count = (
+        len(source_ids) if source_ids else survivor.corroboration_count
+    )
     if source_ids:
-        survivor.weighted_corroboration_count = _weighted_corroboration_count(db, set(source_ids))
+        survivor.weighted_corroboration_count = _weighted_corroboration_count(
+            db, set(source_ids)
+        )
     survivor.source_page_labels = sorted(page_labels)
     survivor.source_languages = sorted(languages)
     survivor.translation_chain = sorted(translation_chain)
@@ -385,17 +418,24 @@ def _merge_claim_provenance(
         survivor.attribution_chain,
         [value for claim in absorbed_claims for value in claim.attribution_chain],
     )
-    survivor.confidence = max([survivor.confidence, *(claim.confidence for claim in absorbed_claims)])
+    survivor.confidence = max(
+        [survivor.confidence, *(claim.confidence for claim in absorbed_claims)]
+    )
     evidential_values = [
         value
-        for value in [survivor.evidential_confidence, *(claim.evidential_confidence for claim in absorbed_claims)]
+        for value in [
+            survivor.evidential_confidence,
+            *(claim.evidential_confidence for claim in absorbed_claims),
+        ]
         if value is not None
     ]
     if evidential_values:
         survivor.evidential_confidence = max(evidential_values)
 
     return {
-        "added_source_support_ids": [support_id for support_id in added_support_ids if support_id],
+        "added_source_support_ids": [
+            support_id for support_id in added_support_ids if support_id
+        ],
         "source_ids": survivor.corroborating_source_ids,
         "entity_ids": survivor.entity_ids,
     }
@@ -436,7 +476,11 @@ def _repoint_claim_links(
             and link.relation_type == ClaimRelationType.duplicate_of
         )
         signature = _link_signature(link)
-        if not should_delete and signature in signatures and signatures[signature] != link.id:
+        if (
+            not should_delete
+            and signature in signatures
+            and signatures[signature] != link.id
+        ):
             should_delete = True
 
         if should_delete:
@@ -462,20 +506,29 @@ def _restore_link_snapshot(db: Database, snapshot: dict[str, Any]) -> None:
     db.save(KnowledgeClaimLink.model_validate(snapshot))
 
 
-def _scope_doc_ids(db: Database, request: PruneTrivialClaimsRequest) -> tuple[str, set[str]]:
+def _scope_doc_ids(
+    db: Database, request: PruneTrivialClaimsRequest
+) -> tuple[str, set[str]]:
     if request.document_id is not None:
         document = db.get(Document, request.document_id)
         if document is None:
-            raise HTTPException(status_code=404, detail=f"Document not found: {request.document_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Document not found: {request.document_id}"
+            )
         return "document", {request.document_id}
 
     if request.folder_id is not None:
         folder = db.get(Document, request.folder_id)
         if folder is None:
-            raise HTTPException(status_code=404, detail=f"Folder not found: {request.folder_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Folder not found: {request.folder_id}"
+            )
         if folder.doc_type != DocType.folder:
-            raise HTTPException(status_code=400, detail=f"Document {request.folder_id} is not a folder")
+            raise HTTPException(
+                status_code=400, detail=f"Document {request.folder_id} is not a folder"
+            )
         from fichero.api.routes.claims import _descendant_doc_ids
+
         return "folder", _descendant_doc_ids(db, request.folder_id)
 
     return "library", set()
@@ -545,7 +598,9 @@ def transition_claim_impl(
     claim.metadata["review_history"].append(review_entry)
 
     db.save(claim)
-    logger.info(f"Transitioned claim {claim_id}: {from_state.value} → {target_state.value}")
+    logger.info(
+        f"Transitioned claim {claim_id}: {from_state.value} → {target_state.value}"
+    )
     return ClaimTransitionResponse(
         claim_id=claim_id,
         success=True,
@@ -569,14 +624,16 @@ def batch_transition_claims_impl(
     for claim_id in request.claim_ids:
         claim = db.get(KnowledgeClaim, claim_id)
         if not claim:
-            results.append(ClaimTransitionResponse(
-                claim_id=claim_id,
-                success=False,
-                from_state="",
-                to_state=request.to_state,
-                transitioned_at=transitioned_at.isoformat(),
-                error="Claim not found",
-            ))
+            results.append(
+                ClaimTransitionResponse(
+                    claim_id=claim_id,
+                    success=False,
+                    from_state="",
+                    to_state=request.to_state,
+                    transitioned_at=transitioned_at.isoformat(),
+                    error="Claim not found",
+                )
+            )
             failed += 1
             continue
 
@@ -598,13 +655,15 @@ def batch_transition_claims_impl(
         db.save(claim)
         succeeded += 1
         transitioned_ids.append(claim_id)
-        results.append(ClaimTransitionResponse(
-            claim_id=claim_id,
-            success=True,
-            from_state=from_state.value,
-            to_state=target_state.value,
-            transitioned_at=transitioned_at.isoformat(),
-        ))
+        results.append(
+            ClaimTransitionResponse(
+                claim_id=claim_id,
+                success=True,
+                from_state=from_state.value,
+                to_state=target_state.value,
+                transitioned_at=transitioned_at.isoformat(),
+            )
+        )
 
     logger.info(f"Batch transition: {succeeded} succeeded, {failed} failed")
     return (
@@ -645,8 +704,14 @@ def batch_set_claim_curation_state_impl(
         _log_claim_curation_mutation(db=db, claim=claim, before_state=before_state)
         updated_ids.append(claim.id)
 
-    logger.info("Batch curation update: %s claims set to %s", len(updated_ids), request.curation_state.value)
-    return BatchClaimCurationResponse(updated=len(updated_ids), claim_ids=updated_ids), updated_ids
+    logger.info(
+        "Batch curation update: %s claims set to %s",
+        len(updated_ids),
+        request.curation_state.value,
+    )
+    return BatchClaimCurationResponse(
+        updated=len(updated_ids), claim_ids=updated_ids
+    ), updated_ids
 
 
 def merge_claims_impl(db: Database, request: "ClaimMergeRequest") -> ClaimMergeAudit:
@@ -660,7 +725,10 @@ def merge_claims_impl(db: Database, request: "ClaimMergeRequest") -> ClaimMergeA
     """
     survivor = db.get(KnowledgeClaim, request.surviving_claim_id)
     if survivor is None:
-        raise HTTPException(status_code=404, detail=f"Surviving claim not found: {request.surviving_claim_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Surviving claim not found: {request.surviving_claim_id}",
+        )
     if survivor.merged_into_id is not None:
         raise HTTPException(
             status_code=409,
@@ -669,13 +737,17 @@ def merge_claims_impl(db: Database, request: "ClaimMergeRequest") -> ClaimMergeA
 
     absorbed_ids = list(dict.fromkeys(request.absorbed_claim_ids))
     if survivor.id in absorbed_ids:
-        raise HTTPException(status_code=400, detail="Surviving claim cannot also be absorbed")
+        raise HTTPException(
+            status_code=400, detail="Surviving claim cannot also be absorbed"
+        )
 
     absorbed_claims: list[KnowledgeClaim] = []
     for claim_id in absorbed_ids:
         claim = db.get(KnowledgeClaim, claim_id)
         if claim is None:
-            raise HTTPException(status_code=404, detail=f"Absorbed claim not found: {claim_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Absorbed claim not found: {claim_id}"
+            )
         if claim.merged_into_id is not None:
             raise HTTPException(
                 status_code=409,
@@ -685,7 +757,9 @@ def merge_claims_impl(db: Database, request: "ClaimMergeRequest") -> ClaimMergeA
 
     now = datetime.now()
     survivor_before = survivor.model_dump(mode="json")
-    absorbed_before = {claim.id: claim.model_dump(mode="json") for claim in absorbed_claims}
+    absorbed_before = {
+        claim.id: claim.model_dump(mode="json") for claim in absorbed_claims
+    }
 
     provenance_changes = _merge_claim_provenance(db, survivor, absorbed_claims)
     link_changes = _repoint_claim_links(
@@ -722,7 +796,9 @@ def merge_claims_impl(db: Database, request: "ClaimMergeRequest") -> ClaimMergeA
     return audit
 
 
-def unmerge_claims_impl(db: Database, request: "ClaimUnmergeRequest") -> ClaimMergeAudit:
+def unmerge_claims_impl(
+    db: Database, request: "ClaimUnmergeRequest"
+) -> ClaimMergeAudit:
     """Reverse a recorded claim merge from its audit snapshots.
 
     Extracted from the ``/unmerge`` route so the ``claim.merge`` action's
@@ -731,7 +807,9 @@ def unmerge_claims_impl(db: Database, request: "ClaimUnmergeRequest") -> ClaimMe
     """
     audit = db.get(ClaimMergeAudit, request.audit_id)
     if audit is None:
-        raise HTTPException(status_code=404, detail=f"Claim merge audit not found: {request.audit_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Claim merge audit not found: {request.audit_id}"
+        )
     if audit.operation_type != ClaimMergeOperationType.merge:
         raise HTTPException(status_code=409, detail="Only merge audits can be unmerged")
     if audit.reversal_id != audit.id:
@@ -742,7 +820,9 @@ def unmerge_claims_impl(db: Database, request: "ClaimUnmergeRequest") -> ClaimMe
     absorbed_snapshots = merge_details.get("absorbed_before", {})
     link_snapshots = (merge_details.get("link_changes") or {}).get("before_by_id", {})
     if not survivor_snapshot or not absorbed_snapshots:
-        raise HTTPException(status_code=409, detail="Merge audit is missing reversible snapshots")
+        raise HTTPException(
+            status_code=409, detail="Merge audit is missing reversible snapshots"
+        )
 
     _restore_claim_snapshot(db, survivor_snapshot)
     for snapshot in absorbed_snapshots.values():
@@ -840,6 +920,7 @@ async def transition_claim(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ClaimTransitionResponse:
     """Transition a claim's curation state."""
     response = transition_claim_impl(db, claim_id, request)
@@ -850,8 +931,9 @@ async def transition_claim(
         x_fichero_library_path,
         type="claim.updated",
         claim_ids=[claim_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
     return response
@@ -870,6 +952,7 @@ async def batch_transition_claims(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> BatchClaimTransitionResponse:
     """Batch transition multiple claims."""
     response, transitioned_ids = batch_transition_claims_impl(db, request)
@@ -881,8 +964,9 @@ async def batch_transition_claims(
             x_fichero_library_path,
             type="claim.updated",
             claim_ids=transitioned_ids,
-            actor="ui",
+            actor=actor,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
     return response
 
@@ -899,6 +983,7 @@ async def batch_set_claim_curation_state(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> BatchClaimCurationResponse:
     response, updated_ids = batch_set_claim_curation_state_impl(db, request)
 
@@ -909,8 +994,9 @@ async def batch_set_claim_curation_state(
             x_fichero_library_path,
             type="claim.updated",
             claim_ids=updated_ids,
-            actor="ui",
+            actor=actor,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
     return response
 
@@ -927,6 +1013,7 @@ async def merge_claims(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ClaimAuditResponse:
     audit = merge_claims_impl(db, request)
 
@@ -936,8 +1023,9 @@ async def merge_claims(
         x_fichero_library_path,
         type="claim.merged",
         claim_ids=[audit.target_claim_id, *audit.source_claim_ids],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return _claim_audit_response(audit)
 
@@ -954,6 +1042,7 @@ async def unmerge_claims(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ClaimAuditResponse:
     undo = unmerge_claims_impl(db, request)
 
@@ -963,8 +1052,9 @@ async def unmerge_claims(
         x_fichero_library_path,
         type="claim.merged",
         claim_ids=[undo.target_claim_id, *undo.source_claim_ids],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return _claim_audit_response(undo)
 
@@ -997,25 +1087,37 @@ async def get_unreviewed_queue(
 ) -> QueueListResponse:
     """Get unreviewed claims queue."""
     claims = db.all(KnowledgeClaim)
-    unreviewed = [c for c in claims if c.curation_state == ClaimCurationState.unreviewed]
+    unreviewed = [
+        c for c in claims if c.curation_state == ClaimCurationState.unreviewed
+    ]
 
     # Apply filters
     if person:
         unreviewed = [
-            c for c in unreviewed
-            if any(person.lower() in name.lower() for name in _get_entity_names(c.entity_ids, db))
+            c
+            for c in unreviewed
+            if any(
+                person.lower() in name.lower()
+                for name in _get_entity_names(c.entity_ids, db)
+            )
         ]
     if topic:
         unreviewed = [
-            c for c in unreviewed
-            if any(topic.lower() in name.lower() for name in _get_entity_names(c.entity_ids, db))
+            c
+            for c in unreviewed
+            if any(
+                topic.lower() in name.lower()
+                for name in _get_entity_names(c.entity_ids, db)
+            )
             or (c.text and topic.lower() in c.text.lower())
         ]
     if question:
-        unreviewed = [c for c in unreviewed if c.text and question.lower() in c.text.lower()]
+        unreviewed = [
+            c for c in unreviewed if c.text and question.lower() in c.text.lower()
+        ]
 
     total = len(unreviewed)
-    paginated = unreviewed[offset:offset + limit]
+    paginated = unreviewed[offset : offset + limit]
 
     return QueueListResponse(
         queue="unreviewed",
@@ -1042,25 +1144,37 @@ async def get_shortlisted_queue(
 ) -> QueueListResponse:
     """Get shortlisted claims queue."""
     claims = db.all(KnowledgeClaim)
-    shortlisted = [c for c in claims if c.curation_state == ClaimCurationState.shortlisted]
+    shortlisted = [
+        c for c in claims if c.curation_state == ClaimCurationState.shortlisted
+    ]
 
     # Apply filters
     if person:
         shortlisted = [
-            c for c in shortlisted
-            if any(person.lower() in name.lower() for name in _get_entity_names(c.entity_ids, db))
+            c
+            for c in shortlisted
+            if any(
+                person.lower() in name.lower()
+                for name in _get_entity_names(c.entity_ids, db)
+            )
         ]
     if topic:
         shortlisted = [
-            c for c in shortlisted
-            if any(topic.lower() in name.lower() for name in _get_entity_names(c.entity_ids, db))
+            c
+            for c in shortlisted
+            if any(
+                topic.lower() in name.lower()
+                for name in _get_entity_names(c.entity_ids, db)
+            )
             or (c.text and topic.lower() in c.text.lower())
         ]
     if question:
-        shortlisted = [c for c in shortlisted if c.text and question.lower() in c.text.lower()]
+        shortlisted = [
+            c for c in shortlisted if c.text and question.lower() in c.text.lower()
+        ]
 
     total = len(shortlisted)
-    paginated = shortlisted[offset:offset + limit]
+    paginated = shortlisted[offset : offset + limit]
 
     return QueueListResponse(
         queue="shortlisted",
@@ -1092,20 +1206,28 @@ async def get_curated_queue(
     # Apply filters
     if person:
         curated = [
-            c for c in curated
-            if any(person.lower() in name.lower() for name in _get_entity_names(c.entity_ids, db))
+            c
+            for c in curated
+            if any(
+                person.lower() in name.lower()
+                for name in _get_entity_names(c.entity_ids, db)
+            )
         ]
     if topic:
         curated = [
-            c for c in curated
-            if any(topic.lower() in name.lower() for name in _get_entity_names(c.entity_ids, db))
+            c
+            for c in curated
+            if any(
+                topic.lower() in name.lower()
+                for name in _get_entity_names(c.entity_ids, db)
+            )
             or (c.text and topic.lower() in c.text.lower())
         ]
     if question:
         curated = [c for c in curated if c.text and question.lower() in c.text.lower()]
 
     total = len(curated)
-    paginated = curated[offset:offset + limit]
+    paginated = curated[offset : offset + limit]
 
     return QueueListResponse(
         queue="curated",
@@ -1137,20 +1259,30 @@ async def get_rejected_queue(
     # Apply filters
     if person:
         rejected = [
-            c for c in rejected
-            if any(person.lower() in name.lower() for name in _get_entity_names(c.entity_ids, db))
+            c
+            for c in rejected
+            if any(
+                person.lower() in name.lower()
+                for name in _get_entity_names(c.entity_ids, db)
+            )
         ]
     if topic:
         rejected = [
-            c for c in rejected
-            if any(topic.lower() in name.lower() for name in _get_entity_names(c.entity_ids, db))
+            c
+            for c in rejected
+            if any(
+                topic.lower() in name.lower()
+                for name in _get_entity_names(c.entity_ids, db)
+            )
             or (c.text and topic.lower() in c.text.lower())
         ]
     if question:
-        rejected = [c for c in rejected if c.text and question.lower() in c.text.lower()]
+        rejected = [
+            c for c in rejected if c.text and question.lower() in c.text.lower()
+        ]
 
     total = len(rejected)
-    paginated = rejected[offset:offset + limit]
+    paginated = rejected[offset : offset + limit]
 
     return QueueListResponse(
         queue="rejected",
@@ -1185,7 +1317,9 @@ class ClaimTransitionActionParams(BaseModel):
 
     claim_id: str = Field(description="Claim id to transition")
     to_state: str = Field(description="Target curation state")
-    reason: str | None = Field(default=None, description="Optional reason for transition")
+    reason: str | None = Field(
+        default=None, description="Optional reason for transition"
+    )
     reviewed_by: str = Field(default="human", description="Who performed the review")
 
 
@@ -1274,7 +1408,10 @@ def _action_batch_curation(
     spec = ChangeSpec(
         domains=["claim"],
         target_ids=updated_ids,
-        after={"curation_state": params.curation_state.value, "updated_ids": updated_ids},
+        after={
+            "curation_state": params.curation_state.value,
+            "updated_ids": updated_ids,
+        },
         emit_type="claim.updated" if updated_ids else None,
         claim_ids=updated_ids,
     )

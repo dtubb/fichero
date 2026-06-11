@@ -13,6 +13,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -456,15 +457,18 @@ def delete_claim_impl(
 
     # Mutation log row for undo. (#901)
     try:
-        db.save(MutationLog(
-            entity_type="KnowledgeClaim",
-            entity_id=claim_id,
-            operation=MutationOperationType.delete,
-            before_state={**before_state, "deleted_claim_links": deleted_links},
-            after_state=None,
-        ))
+        db.save(
+            MutationLog(
+                entity_type="KnowledgeClaim",
+                entity_id=claim_id,
+                operation=MutationOperationType.delete,
+                before_state={**before_state, "deleted_claim_links": deleted_links},
+                after_state=None,
+            )
+        )
     except Exception as exc:
         import logging
+
         logging.getLogger(__name__).warning(
             "delete_claim: mutation log write failed: %s", exc
         )
@@ -628,6 +632,7 @@ async def create_claim(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> KnowledgeClaim:
     """Create a new knowledge claim."""
     claim = create_claim_impl(db, request)
@@ -639,8 +644,9 @@ async def create_claim(
         type="claim.updated",
         claim_ids=[claim.id],
         entity_ids=list(claim.entity_ids or []),
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return claim
 
@@ -654,6 +660,7 @@ async def patch_claim(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> KnowledgeClaim:
     """Update an existing knowledge claim."""
     claim, _before = patch_claim_impl(db, claim_id, request)
@@ -665,8 +672,9 @@ async def patch_claim(
         type="claim.updated",
         claim_ids=[claim.id],
         entity_ids=list(claim.entity_ids or []),
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return claim
 
@@ -679,6 +687,7 @@ async def resolve_claim_source(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ClaimSourceResolveResponse:
     """Resolve claim/SVO selectors to exact source provenance anchor."""
     selected: KnowledgeClaim | None = None
@@ -686,9 +695,15 @@ async def resolve_claim_source(
     if request.claim_id:
         selected = db.get(KnowledgeClaim, request.claim_id)
         if selected is None:
-            raise HTTPException(status_code=404, detail=f"Claim not found: {request.claim_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Claim not found: {request.claim_id}"
+            )
     else:
-        if not (request.subject_canonical and request.predicate_verb and request.object_phrase):
+        if not (
+            request.subject_canonical
+            and request.predicate_verb
+            and request.object_phrase
+        ):
             raise HTTPException(
                 status_code=400,
                 detail="Provide claim_id, or full SVO fields (subject_canonical, predicate_verb, object_phrase).",
@@ -696,16 +711,21 @@ async def resolve_claim_source(
         candidates = [
             claim
             for claim in db.all(KnowledgeClaim)
-            if (claim.subject_canonical or "").strip().lower() == request.subject_canonical.strip().lower()
-            and (claim.predicate_verb or "").strip().lower() == request.predicate_verb.strip().lower()
-            and (claim.object_phrase or "").strip().lower() == request.object_phrase.strip().lower()
+            if (claim.subject_canonical or "").strip().lower()
+            == request.subject_canonical.strip().lower()
+            and (claim.predicate_verb or "").strip().lower()
+            == request.predicate_verb.strip().lower()
+            and (claim.object_phrase or "").strip().lower()
+            == request.object_phrase.strip().lower()
             and (
                 request.source_document_id is None
                 or claim.source_document_id == request.source_document_id
             )
         ]
         if not candidates:
-            raise HTTPException(status_code=404, detail="No matching claim for supplied SVO.")
+            raise HTTPException(
+                status_code=404, detail="No matching claim for supplied SVO."
+            )
         # Prefer exact-span anchors for click-through, then newest update.
         candidates.sort(
             key=lambda claim: (
@@ -719,8 +739,9 @@ async def resolve_claim_source(
         x_fichero_library_path,
         type="claim.updated",
         claim_ids=[selected.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
     return ClaimSourceResolveResponse(
@@ -756,6 +777,7 @@ async def delete_claim(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> None:
     """Hard-delete a single knowledge claim.
 
@@ -773,8 +795,9 @@ async def delete_claim(
         type="claim.deleted",
         claim_ids=[claim_id],
         entity_ids=affected_entity_ids,
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
 
@@ -802,6 +825,7 @@ def _descendant_doc_ids(db: Database, root_id: str) -> set[str]:
     KG view that only filters by source_document_id=<folder> returns
     empty even when descendants have rich entities (#826)."""
     from fichero.models import Document
+
     seen: set[str] = {root_id}
     frontier: list[str] = [root_id]
     while frontier:
@@ -824,6 +848,7 @@ async def assign_time_period(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ClaimAssignTimePeriodResponse:
     """Assign a user-curated period to many claims at once.
 
@@ -837,8 +862,9 @@ async def assign_time_period(
             x_fichero_library_path,
             type="claim.updated",
             claim_ids=updated_ids,
-            actor="ui",
+            actor=actor,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
     return response
@@ -855,6 +881,7 @@ async def assign_time_period_from_metadata(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ClaimAssignTimePeriodFromMetadataResponse:
     """Assign claim dates from the source document's metadata date field."""
     response, updated_ids = assign_time_period_from_metadata_impl(db, request)
@@ -864,8 +891,9 @@ async def assign_time_period_from_metadata(
             x_fichero_library_path,
             type="claim.updated",
             claim_ids=updated_ids,
-            actor="ui",
+            actor=actor,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
     return response
@@ -1064,7 +1092,9 @@ def _action_patch_claim(
 def _action_delete_claim(
     db: Database, params: ClaimDeleteParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    before_state, deleted_links, affected_entity_ids = delete_claim_impl(db, params.claim_id)
+    before_state, deleted_links, affected_entity_ids = delete_claim_impl(
+        db, params.claim_id
+    )
     spec = ChangeSpec(
         domains=["claim"],
         target_ids=[params.claim_id],

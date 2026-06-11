@@ -18,6 +18,7 @@ security boundary against same-user local processes.
 Defense in depth: the middleware also rejects requests where the client host
 isn't 127.0.0.1.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -27,10 +28,11 @@ import secrets
 import stat
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 
 from fichero import accounts
+from fichero.actions import ActionContext
 from fichero.app_db import get_app_db
 
 logger = logging.getLogger(__name__)
@@ -99,8 +101,9 @@ def initialize_token(*, force_rotate: bool = False) -> str:
         os.close(fd)
     os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
 
-    logger.info("Auth token %s at %s (mode 0600)",
-                "rotated" if rotate else "initialized", path)
+    logger.info(
+        "Auth token %s at %s (mode 0600)", "rotated" if rotate else "initialized", path
+    )
     return token
 
 
@@ -126,6 +129,44 @@ def _authenticate_session_token(token: str):
     return user, session
 
 
+def actor_from_request(request: Request) -> str:
+    """Return the trusted audit actor for this request.
+
+    The actor is derived only from middleware-populated ``request.state`` so a
+    caller cannot forge another user through headers or request bodies.
+    """
+    user = getattr(request.state, "user", None)
+    if user is None:
+        return "system"
+    username = getattr(user, "username", None)
+    if username:
+        return str(username)
+    user_id = getattr(user, "id", None)
+    if user_id:
+        return str(user_id)
+    return "system"
+
+
+def request_actor(request: Request) -> str:
+    """FastAPI dependency wrapper for ``actor_from_request``."""
+    return actor_from_request(request)
+
+
+def action_context(
+    request: Request,
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> ActionContext:
+    """Build the canonical action context for user-initiated API requests."""
+    return ActionContext(
+        actor=actor_from_request(request),
+        origin_window=x_fichero_origin_window,
+        library_path=x_fichero_library_path,
+    )
+
+
 def attach_auth_middleware(app: FastAPI, token: str) -> None:
     """Add a middleware that requires `Authorization: Bearer <token>` on
     every request not in `_UNAUTHENTICATED_PATHS`, and that the request
@@ -139,11 +180,15 @@ def attach_auth_middleware(app: FastAPI, token: str) -> None:
         # but a misconfiguration shouldn't bypass auth).
         # "testserver" is used by FastAPI's TestClient in test environments.
         client_host = request.client.host if request.client else None
-        if client_host not in {"127.0.0.1", "::1", "localhost", "testserver", "testclient"}:
+        if client_host not in {
+            "127.0.0.1",
+            "::1",
+            "localhost",
+            "testserver",
+            "testclient",
+        }:
             logger.warning("Reject non-loopback request from %s", client_host)
-            return JSONResponse(
-                {"detail": "loopback only"}, status_code=403
-            )
+            return JSONResponse({"detail": "loopback only"}, status_code=403)
 
         # Allow unauthenticated paths through.
         if request.url.path in _UNAUTHENTICATED_PATHS or any(

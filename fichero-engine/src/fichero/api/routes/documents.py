@@ -12,6 +12,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -27,7 +28,11 @@ from fichero.knowledge_models import (
     Note,
 )
 from fichero.models import Artifact, DocType, Document, FileType, Status
-from fichero.models import DocumentListResponse, DocumentNote, RelatedDocumentListResponse
+from fichero.models import (
+    DocumentListResponse,
+    DocumentNote,
+    RelatedDocumentListResponse,
+)
 from fichero.perf import perf_span
 from fichero.storage import auto_snapshot_before_risky_operation
 
@@ -381,7 +386,9 @@ async def list_collections(
 
 
 @router.get("/roots")
-async def list_roots(db: Database = Depends(get_library_database)) -> DocumentListResponse:
+async def list_roots(
+    db: Database = Depends(get_library_database),
+) -> DocumentListResponse:
     """List root documents (no parent)."""
     items = _ordered_by_sort_order(list(db.query(Document, parent_id=None)))
     return DocumentListResponse(items=items, count=len(items))
@@ -450,7 +457,9 @@ async def get_document_note(
 
     notes = list(db.query(DocumentNote, document_id=normalized_id))
     if not notes:
-        raise HTTPException(status_code=404, detail=f"Document note not found: {doc_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Document note not found: {doc_id}"
+        )
     return notes[0]
 
 
@@ -463,6 +472,7 @@ async def put_document_note(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> DocumentNote:
     """Create or replace a document's user note."""
     normalized_id = _normalize_document_id(doc_id)
@@ -482,8 +492,9 @@ async def put_document_note(
         x_fichero_library_path,
         type="document.updated",
         document_ids=[normalized_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return note
 
@@ -496,6 +507,7 @@ async def delete_document_note(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> None:
     """Delete the user note for a document."""
     normalized_id = _normalize_document_id(doc_id)
@@ -503,15 +515,18 @@ async def delete_document_note(
 
     notes = list(db.query(DocumentNote, document_id=normalized_id))
     if not notes:
-        raise HTTPException(status_code=404, detail=f"Document note not found: {doc_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Document note not found: {doc_id}"
+        )
     db.delete(notes[0])
 
     emit_change(
         x_fichero_library_path,
         type="document.updated",
         document_ids=[normalized_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
 
@@ -524,6 +539,7 @@ async def patch_workspace_items(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> WorkspaceItemsResponse:
     """Atomically add/remove/reorder workspace curated items."""
     doc, _before = patch_workspace_items_impl(db, doc_id, request)
@@ -532,8 +548,9 @@ async def patch_workspace_items(
         x_fichero_library_path,
         type="document.updated",
         document_ids=[doc.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
     return WorkspaceItemsResponse(
@@ -559,7 +576,9 @@ async def get_workspace_items(
                 "target": _resolve_workspace_item_target(db, item),
             }
         )
-    return WorkspaceItemsResponse(document_id=doc.id, items=resolved, count=len(resolved))
+    return WorkspaceItemsResponse(
+        document_id=doc.id, items=resolved, count=len(resolved)
+    )
 
 
 @router.get("/{doc_id}/children")
@@ -597,7 +616,9 @@ async def get_children(
             parent = db.get(Document, normalized_id)
             perf["parent_found"] = parent is not None
             if not parent:
-                raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+                raise HTTPException(
+                    status_code=404, detail=f"Document not found: {doc_id}"
+                )
         if limit is not None:
             children = children[:limit]
         perf["returned_rows"] = len(children)
@@ -640,7 +661,9 @@ async def get_document_parent(
 
     parent = db.get(Document, doc.parent_id)
     if not parent:
-        raise HTTPException(status_code=404, detail=f"Parent document not found: {doc.parent_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Parent document not found: {doc.parent_id}"
+        )
 
     return parent
 
@@ -653,6 +676,7 @@ async def create_document(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> Document:
     """Create a new document."""
     new_doc = create_document_impl(db, doc)
@@ -662,8 +686,9 @@ async def create_document(
         x_fichero_library_path,
         type="document.created",
         document_ids=[new_doc.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return new_doc
 
@@ -677,6 +702,7 @@ async def update_document(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> Document:
     """Update an existing document."""
     doc, _before, _changed = update_document_impl(db, doc_id, update)
@@ -688,8 +714,9 @@ async def update_document(
         x_fichero_library_path,
         type="document.updated",
         document_ids=[doc_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return doc
 
@@ -702,6 +729,7 @@ async def batch_exclude_documents(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> DocumentBatchExcludeResponse:
     """Toggle exclude-from-processing on multiple documents with audit logging."""
     updated_ids, _before_snapshots = batch_exclude_documents_impl(db, request)
@@ -711,8 +739,9 @@ async def batch_exclude_documents(
             x_fichero_library_path,
             type="document.updated",
             document_ids=updated_ids,
-            actor="ui",
+            actor=actor,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
     return DocumentBatchExcludeResponse(
@@ -730,16 +759,23 @@ async def assign_document_prototype(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> PrototypeAssignResponse:
     doc = db.get(Document, doc_id)
     if doc is None:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
-    if request.page_start is not None and request.page_end is not None and request.page_start > request.page_end:
+    if (
+        request.page_start is not None
+        and request.page_end is not None
+        and request.page_start > request.page_end
+    ):
         raise HTTPException(status_code=422, detail="page_start must be <= page_end")
 
     known_values = {
         v.key
-        for v in db.query(ClassificationValue, dimension=ClassificationDimension.document_prototype)
+        for v in db.query(
+            ClassificationValue, dimension=ClassificationDimension.document_prototype
+        )
     }
     if known_values and request.prototype_key not in known_values:
         raise HTTPException(
@@ -767,7 +803,10 @@ async def assign_document_prototype(
         if request.page_start is not None or request.page_end is not None:
             if candidate.doc_type != DocType.page or candidate.sequence is None:
                 continue
-            if request.page_start is not None and candidate.sequence < request.page_start:
+            if (
+                request.page_start is not None
+                and candidate.sequence < request.page_start
+            ):
                 continue
             if request.page_end is not None and candidate.sequence > request.page_end:
                 continue
@@ -781,8 +820,9 @@ async def assign_document_prototype(
             x_fichero_library_path,
             type="document.updated",
             document_ids=sorted(scoped_ids),
-            actor="ui",
+            actor=actor,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
     return PrototypeAssignResponse(
@@ -812,6 +852,7 @@ async def upsert_page_ranges(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> PageRangeListResponse:
     doc = db.get(Document, doc_id)
     if doc is None:
@@ -819,9 +860,11 @@ async def upsert_page_ranges(
     normalized: list[dict[str, Any]] = []
     for idx, item in enumerate(request.items):
         if item.page_start > item.page_end:
-            raise HTTPException(status_code=422, detail="page_start must be <= page_end")
+            raise HTTPException(
+                status_code=422, detail="page_start must be <= page_end"
+            )
         row = item.model_dump()
-        row["id"] = row.get("id") or f"range-{idx+1}"
+        row["id"] = row.get("id") or f"range-{idx + 1}"
         normalized.append(row)
     doc.structure = normalized
     doc.updated_at = datetime.now()
@@ -831,8 +874,9 @@ async def upsert_page_ranges(
         x_fichero_library_path,
         type="document.updated",
         document_ids=[doc_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return PageRangeListResponse(
         items=[PageRangeItem(**row) for row in normalized],
@@ -880,7 +924,8 @@ def _cascade_delete_kg_rows(db: Database, doc_ids: set[str]) -> tuple[int, int]:
 
     all_claims = db.query(KnowledgeClaim)
     orphaned = [
-        c for c in all_claims
+        c
+        for c in all_claims
         if c.source_document_id in doc_ids
         or any(sid in doc_ids for sid in (c.source_ids or []))
     ]
@@ -891,14 +936,16 @@ def _cascade_delete_kg_rows(db: Database, doc_ids: set[str]) -> tuple[int, int]:
     touched_entity_ids: set[str] = set()
     for claim in orphaned:
         touched_entity_ids.update(claim.entity_ids or [])
-        db.save(MutationLog(
-            entity_type="KnowledgeClaim",
-            entity_id=claim.id,
-            operation=MutationOperationType.delete,
-            before_state=claim.model_dump(mode="json"),
-            after_state=None,
-            created_by="cascade_delete_document",
-        ))
+        db.save(
+            MutationLog(
+                entity_type="KnowledgeClaim",
+                entity_id=claim.id,
+                operation=MutationOperationType.delete,
+                before_state=claim.model_dump(mode="json"),
+                after_state=None,
+                created_by="cascade_delete_document",
+            )
+        )
         db.delete(claim)
 
     # Prune entities whose only claims were the ones we just deleted.
@@ -915,14 +962,16 @@ def _cascade_delete_kg_rows(db: Database, doc_ids: set[str]) -> tuple[int, int]:
         entity = db.get(KnowledgeEntity, entity_id)
         if entity is None:
             continue
-        db.save(MutationLog(
-            entity_type="KnowledgeEntity",
-            entity_id=entity.id,
-            operation=MutationOperationType.delete,
-            before_state=entity.model_dump(mode="json"),
-            after_state=None,
-            created_by="cascade_delete_document",
-        ))
+        db.save(
+            MutationLog(
+                entity_type="KnowledgeEntity",
+                entity_id=entity.id,
+                operation=MutationOperationType.delete,
+                before_state=entity.model_dump(mode="json"),
+                after_state=None,
+                created_by="cascade_delete_document",
+            )
+        )
         db.delete(entity)
         entities_pruned += 1
 
@@ -937,6 +986,7 @@ async def delete_document(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ):
     """Delete a document and all descendants.
 
@@ -962,8 +1012,9 @@ async def delete_document(
         x_fichero_library_path,
         type="document.deleted",
         document_ids=to_delete_ids,
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
 
@@ -1029,7 +1080,11 @@ async def related_documents(
             continue
         seen_ids_for_entity: set[str] = set()
         for other_doc_id in related_doc_ids:
-            if not other_doc_id or other_doc_id == doc_id or other_doc_id in seen_ids_for_entity:
+            if (
+                not other_doc_id
+                or other_doc_id == doc_id
+                or other_doc_id in seen_ids_for_entity
+            ):
                 continue
             seen_ids_for_entity.add(other_doc_id)
             counter[other_doc_id] += 1
@@ -1053,11 +1108,15 @@ async def related_documents(
                 name = None
             if name:
                 sample_names.append(name)
-        doc_type_str = other.doc_type.value if hasattr(other.doc_type, "value") else (
-            str(other.doc_type) if other.doc_type else None
+        doc_type_str = (
+            other.doc_type.value
+            if hasattr(other.doc_type, "value")
+            else (str(other.doc_type) if other.doc_type else None)
         )
-        file_type_str = other.file_type.value if hasattr(other.file_type, "value") and other.file_type else (
-            str(other.file_type) if other.file_type else None
+        file_type_str = (
+            other.file_type.value
+            if hasattr(other.file_type, "value") and other.file_type
+            else (str(other.file_type) if other.file_type else None)
         )
         out.append(
             RelatedDocumentsResponse(
@@ -1079,6 +1138,7 @@ async def backfill_pdf_pages(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> PdfBackfillResponse:
     """Find PDFs without page children and create the page Documents.
 
@@ -1129,8 +1189,9 @@ async def backfill_pdf_pages(
             x_fichero_library_path,
             type="document.created",
             document_ids=created_page_ids,
-            actor="ui",
+            actor=actor,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
     return PdfBackfillResponse(
@@ -1150,6 +1211,7 @@ async def reorder_documents(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ReorderResponse:
     """Reorder documents within a folder."""
     reorder_documents_impl(db, doc_ids, folder_path)
@@ -1159,8 +1221,9 @@ async def reorder_documents(
             x_fichero_library_path,
             type="document.updated",
             document_ids=doc_ids,
-            actor="ui",
+            actor=actor,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
     return ReorderResponse(status="reordered", count=len(doc_ids))
@@ -1224,6 +1287,7 @@ async def import_file(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> Document:
     """Import a file and create a document."""
     from fichero.storage import save_uploaded_file
@@ -1245,8 +1309,9 @@ async def import_file(
             x_fichero_library_path,
             type="document.updated",
             document_ids=[doc.id],
-            actor="import",
+            actor=actor,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
         return doc
 
@@ -1275,6 +1340,7 @@ async def move_document(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> Document:
     """Move a document to a new parent location.
 
@@ -1287,8 +1353,9 @@ async def move_document(
         x_fichero_library_path,
         type="document.updated",
         document_ids=[doc_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
     return doc
@@ -1301,6 +1368,7 @@ async def cleanup_orphan_documents(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> OrphanCleanupResponse:
     """Remove unreachable/orphan document rows.
 
@@ -1356,8 +1424,9 @@ async def cleanup_orphan_documents(
             x_fichero_library_path,
             type="document.deleted",
             document_ids=[item.id for item in orphaned],
-            actor="ui",
+            actor=actor,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
     return OrphanCleanupResponse(
@@ -1664,9 +1733,7 @@ def delete_document_impl(
     # Cascade KG cleanup before the documents go — claims reference docs
     # by id string, so order doesn't matter, but doing it here keeps the
     # teardown in one place.
-    claims_deleted, entities_pruned = _cascade_delete_kg_rows(
-        db, set(to_delete_ids)
-    )
+    claims_deleted, entities_pruned = _cascade_delete_kg_rows(db, set(to_delete_ids))
 
     # Delete children first for clean hierarchical teardown.
     for current_id in reversed(to_delete_ids):

@@ -15,6 +15,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -78,11 +79,17 @@ def _normalize_annotation_scope(
             raise HTTPException(404, f"Document not found: {document_id}")
         if document.doc_type == DocType.page:
             if resolved_page_id and resolved_page_id != document_id:
-                raise HTTPException(400, "document_id and page_id must match for page-scoped annotations")
+                raise HTTPException(
+                    400,
+                    "document_id and page_id must match for page-scoped annotations",
+                )
             resolved_page_id = document_id
         elif document.doc_type == DocType.folder:
             if resolved_folder_id and resolved_folder_id != document_id:
-                raise HTTPException(400, "document_id and folder_id must match for folder-scoped annotations")
+                raise HTTPException(
+                    400,
+                    "document_id and folder_id must match for folder-scoped annotations",
+                )
             resolved_folder_id = document_id
 
     if resolved_page_id is not None:
@@ -150,14 +157,16 @@ async def create_annotation(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> Annotation:
     ann = create_annotation_impl(db, request)
     emit_change(
         x_fichero_library_path,
         type="annotation.created",
         document_ids=_annotation_scope_document_ids(ann),
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return ann
 
@@ -179,7 +188,8 @@ async def list_annotations(
     rows = db.query(Annotation)
     if document_id is not None:
         rows = [
-            r for r in rows
+            r
+            for r in rows
             if r.document_id == document_id
             or r.page_id == document_id
             or r.folder_id == document_id
@@ -242,11 +252,7 @@ def patch_annotation_impl(
         raise HTTPException(404, f"Annotation not found: {annotation_id}")
     before = ann.model_dump(mode="json")
     updates = request.model_dump(exclude_unset=True)
-    if (
-        "document_id" in updates
-        or "page_id" in updates
-        or "folder_id" in updates
-    ):
+    if "document_id" in updates or "page_id" in updates or "folder_id" in updates:
         scope = _normalize_annotation_scope(
             db,
             document_id=updates.get("document_id", ann.document_id),
@@ -270,14 +276,16 @@ async def patch_annotation(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> Annotation:
     ann, _before = patch_annotation_impl(db, annotation_id, request)
     emit_change(
         x_fichero_library_path,
         type="annotation.updated",
         document_ids=_annotation_scope_document_ids(ann),
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return ann
 
@@ -319,14 +327,16 @@ async def delete_annotation(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> None:
     document_ids, _before = delete_annotation_impl(db, annotation_id)
     emit_change(
         x_fichero_library_path,
         type="annotation.deleted",
         document_ids=document_ids,
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
 
@@ -400,14 +410,21 @@ def promote_to_claim_impl(
     if ann is None:
         raise HTTPException(404, f"Annotation not found: {annotation_id}")
     if ann.document_id is None:
-        raise HTTPException(400, "Folder-scoped annotations cannot be promoted to claims")
+        raise HTTPException(
+            400, "Folder-scoped annotations cannot be promoted to claims"
+        )
     before = ann.model_dump(mode="json")
 
     # Resolve the source excerpt — prefer the highlighted span, fall
     # back to the annotation's note text.
     doc = db.get(Document, ann.document_id)
     excerpt: str | None = None
-    if doc is not None and doc.page_content and ann.char_start is not None and ann.char_end is not None:
+    if (
+        doc is not None
+        and doc.page_content
+        and ann.char_start is not None
+        and ann.char_end is not None
+    ):
         excerpt = doc.page_content[ann.char_start : ann.char_end]
     if not excerpt:
         excerpt = ann.text
@@ -454,6 +471,7 @@ async def promote_to_claim(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> PromoteResponse:
     ann, claim, _before = promote_to_claim_impl(db, annotation_id)
     claim_text = claim.text
@@ -461,15 +479,17 @@ async def promote_to_claim(
         x_fichero_library_path,
         type="annotation.updated",
         document_ids=[i for i in [ann.document_id, ann.page_id, ann.folder_id] if i],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     emit_change(
         x_fichero_library_path,
         type="claim.created",
         claim_ids=[claim.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
     return PromoteResponse(
@@ -855,7 +875,9 @@ def relink_annotation_impl(
         raise HTTPException(
             400, "annotation.relink requires at least one link or target field"
         )
-    return patch_annotation_impl(db, params.annotation_id, AnnotationPatchRequest(**updates))
+    return patch_annotation_impl(
+        db, params.annotation_id, AnnotationPatchRequest(**updates)
+    )
 
 
 def _invert_merge_annotation(

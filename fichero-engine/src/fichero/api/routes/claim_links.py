@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -161,6 +162,7 @@ async def create_claim_link(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> KnowledgeClaimLink:
     """Create a link between two claims."""
     link = create_claim_link_impl(db, claim_id, request)
@@ -171,8 +173,9 @@ async def create_claim_link(
         x_fichero_library_path,
         type="claim.linked",
         claim_ids=[claim_id, request.related_claim_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return link
 
@@ -220,6 +223,7 @@ async def update_claim_link(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> KnowledgeClaimLink:
     """Update an existing claim link."""
     link, _before = update_claim_link_impl(db, link_id, request)
@@ -230,8 +234,9 @@ async def update_claim_link(
         x_fichero_library_path,
         type="claim.linked",
         claim_ids=[link.claim_id, link.related_claim_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return link
 
@@ -244,6 +249,7 @@ async def delete_claim_link(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ClaimLinkDeletedResponse:
     """Delete a claim link (hard delete)."""
     _before, affected_claim_ids = delete_claim_link_impl(db, link_id)
@@ -254,8 +260,9 @@ async def delete_claim_link(
         x_fichero_library_path,
         type="claim.linked",
         claim_ids=affected_claim_ids,
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return ClaimLinkDeletedResponse(success=True, link_id=link_id, operation="deleted")
 
@@ -338,7 +345,9 @@ class ClaimDeleteLinkParams(BaseModel):
 class ClaimRestoreLinkParams(BaseModel):
     """Params for claim.restore_link — re-create a link from a JSON snapshot."""
 
-    snapshot: dict[str, Any] = Field(description="KnowledgeClaimLink.model_dump snapshot")
+    snapshot: dict[str, Any] = Field(
+        description="KnowledgeClaimLink.model_dump snapshot"
+    )
 
 
 def _invert_create_link(

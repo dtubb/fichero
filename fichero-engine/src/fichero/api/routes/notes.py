@@ -14,6 +14,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -52,7 +53,9 @@ def _validate_note_scope(
     folder_id: str | None,
 ) -> None:
     if page_id and folder_id:
-        raise HTTPException(400, "Notes can be scoped to either a page or a folder, not both")
+        raise HTTPException(
+            400, "Notes can be scoped to either a page or a folder, not both"
+        )
     if page_id is not None:
         page = db.get(Document, page_id)
         if page is None:
@@ -124,14 +127,16 @@ async def create_note(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> Note:
     note = create_note_impl(db, request)
     emit_change(
         x_fichero_library_path,
         type="note.created",
         document_ids=_note_scope_document_ids(note),
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return note
 
@@ -161,17 +166,25 @@ async def list_notes(
     if linked_document_id is not None:
         rows = [r for r in rows if _note_links_document(r, linked_document_id)]
     if page_id is not None:
-        rows = [r for r in rows if r.page_id == page_id or _note_links_document(r, page_id)]
+        rows = [
+            r for r in rows if r.page_id == page_id or _note_links_document(r, page_id)
+        ]
     if folder_id is not None:
-        rows = [r for r in rows if r.folder_id == folder_id or _note_links_document(r, folder_id)]
+        rows = [
+            r
+            for r in rows
+            if r.folder_id == folder_id or _note_links_document(r, folder_id)
+        ]
     if linked_structure_node_id is not None:
-        rows = [r for r in rows if r.linked_structure_node_id == linked_structure_node_id]
+        rows = [
+            r for r in rows if r.linked_structure_node_id == linked_structure_node_id
+        ]
     if q:
         needle = q.lower()
         rows = [
-            r for r in rows
-            if needle in (r.body or "").lower()
-            or needle in (r.title or "").lower()
+            r
+            for r in rows
+            if needle in (r.body or "").lower() or needle in (r.title or "").lower()
         ]
     rows.sort(key=lambda r: r.updated_at, reverse=True)
     return NoteListResponse(items=rows, count=len(rows))
@@ -247,14 +260,16 @@ async def patch_note(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> Note:
     note, _before = patch_note_impl(db, note_id, request)
     emit_change(
         x_fichero_library_path,
         type="note.updated",
         document_ids=_note_scope_document_ids(note),
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return note
 
@@ -295,14 +310,16 @@ async def delete_note(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> None:
     document_ids, _before = delete_note_impl(db, note_id)
     emit_change(
         x_fichero_library_path,
         type="note.deleted",
         document_ids=document_ids,
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
 
@@ -330,6 +347,7 @@ async def create_note_link(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> NoteLink:
     source_note = db.get(Note, note_id)
     if source_note is None:
@@ -357,8 +375,9 @@ async def create_note_link(
             }
             if i
         ],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
         run_id=None,
     )
     return link
@@ -373,6 +392,7 @@ async def delete_note_link(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> None:
     link = db.get(NoteLink, link_id)
     if link is None:
@@ -396,8 +416,9 @@ async def delete_note_link(
             }
             if i
         ],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
         run_id=None,
     )
 
@@ -418,10 +439,7 @@ async def backlinks(
 ) -> list[Note]:
     if db.get(Note, note_id) is None:
         raise HTTPException(404, f"Note not found: {note_id}")
-    incoming = [
-        link for link in db.query(NoteLink)
-        if link.target_note_id == note_id
-    ]
+    incoming = [link for link in db.query(NoteLink) if link.target_note_id == note_id]
     source_ids = {link.source_note_id for link in incoming}
     notes = [db.get(Note, sid) for sid in source_ids]
     items = [n for n in notes if n is not None]
@@ -439,10 +457,7 @@ async def forward_links(
 ) -> list[Note]:
     if db.get(Note, note_id) is None:
         raise HTTPException(404, f"Note not found: {note_id}")
-    outgoing = [
-        link for link in db.query(NoteLink)
-        if link.source_note_id == note_id
-    ]
+    outgoing = [link for link in db.query(NoteLink) if link.source_note_id == note_id]
     target_ids = {link.target_note_id for link in outgoing}
     notes = [db.get(Note, tid) for tid in target_ids]
     items = [n for n in notes if n is not None]

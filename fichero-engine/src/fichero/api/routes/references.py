@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.db import Database
 from fichero.knowledge_models import (
@@ -83,7 +84,11 @@ def _reference_from_document(document: Document) -> Reference:
         "title": (meta.title if meta and meta.title else document.name),
         "authors": meta.authors if meta else [],
         "year": _year_from_text(meta.date if meta else None),
-        "kind": ReferenceKind.article if is_article else ReferenceKind.book if is_book else ReferenceKind.misc,
+        "kind": ReferenceKind.article
+        if is_article
+        else ReferenceKind.book
+        if is_book
+        else ReferenceKind.misc,
         "journal_or_book": (
             meta.journal
             if meta and meta.journal
@@ -98,7 +103,9 @@ def _reference_from_document(document: Document) -> Reference:
         "language": meta.language if meta else None,
         "bibtex": meta.bibtex if meta and meta.bibtex else "",
         "realized_as_document_id": document.id,
-        "status": ReferenceStatus.verified if meta and (meta.bibtex or meta.title) else ReferenceStatus.to_find,
+        "status": ReferenceStatus.verified
+        if meta and (meta.bibtex or meta.title)
+        else ReferenceStatus.to_find,
         "metadata": {
             "document_id": document.id,
             "document_name": document.name,
@@ -161,7 +168,9 @@ def _reference_query(
             is_unbacked = reference.realized_as_document_id is None
             if unbacked != is_unbacked:
                 continue
-        if year_from is not None and (reference.year is None or reference.year < year_from):
+        if year_from is not None and (
+            reference.year is None or reference.year < year_from
+        ):
             continue
         if year_to is not None and (reference.year is None or reference.year > year_to):
             continue
@@ -176,7 +185,9 @@ def _reference_provenance(db: Database, reference_id: str) -> list[ReferenceProv
     )
 
 
-def _document_citations(db: Database, document_id: str) -> tuple[Reference, list[Reference], list[ReferenceProvenance]]:
+def _document_citations(
+    db: Database, document_id: str
+) -> tuple[Reference, list[Reference], list[ReferenceProvenance]]:
     document = db.get(Document, document_id)
     if document is None:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -202,7 +213,9 @@ def _document_citations(db: Database, document_id: str) -> tuple[Reference, list
 
 @router.get("/references")
 async def list_references(
-    q: str | None = Query(default=None, description="Free-text search over reference fields."),
+    q: str | None = Query(
+        default=None, description="Free-text search over reference fields."
+    ),
     status: ReferenceStatus | None = Query(default=None),
     kind: ReferenceKind | None = Query(default=None),
     verified: bool | None = Query(default=None),
@@ -346,6 +359,7 @@ async def patch_reference(
         default=None,
         alias="X-Fichero-Origin-Window",
     ),
+    actor: str = Depends(request_actor),
 ) -> Reference:
     """Update a reference row."""
 
@@ -354,8 +368,9 @@ async def patch_reference(
         x_fichero_library_path or str(db.path.parent),
         type="reference.updated",
         reference_ids=[reference.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return reference
 
@@ -372,6 +387,7 @@ async def delete_reference(
         default=None,
         alias="X-Fichero-Origin-Window",
     ),
+    actor: str = Depends(request_actor),
 ) -> DeletedResponse:
     """Delete a reference when no provenance rows remain."""
 
@@ -380,8 +396,9 @@ async def delete_reference(
         x_fichero_library_path or str(db.path.parent),
         type="reference.deleted",
         reference_ids=[reference_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return DeletedResponse()
 
@@ -394,7 +411,9 @@ async def get_document_citations(
     """Return the document's own citation and the references it cites."""
 
     self_reference, references, links = _document_citations(db, document_id)
-    return DocumentCitationsResponse(self=self_reference, references=references, links=links)
+    return DocumentCitationsResponse(
+        self=self_reference, references=references, links=links
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -430,7 +449,9 @@ class ReferenceDeleteActionParams(BaseModel):
 class ReferenceRestoreActionParams(BaseModel):
     """Params for reference.restore — re-create a row from a snapshot."""
 
-    payload: dict[str, Any] = Field(description="Full Reference row snapshot to restore")
+    payload: dict[str, Any] = Field(
+        description="Full Reference row snapshot to restore"
+    )
 
 
 def _invert_reference_to_restore(

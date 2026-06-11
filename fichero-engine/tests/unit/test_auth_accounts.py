@@ -34,6 +34,8 @@ def client(app_db, monkeypatch):
     with TestClient(api_main.app) as test_client:
         yield test_client
     api_main.app.dependency_overrides.clear()
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "1")
+    importlib.reload(api_main)
 
 
 def test_bootstrap_first_user_creates_owner(client, app_db, monkeypatch):
@@ -85,7 +87,9 @@ def test_login_success_returns_session_and_me(client, app_db, monkeypatch):
     assert me.json()["username"] == "alice"
 
 
-def test_login_unknown_user_and_bad_password_both_return_401(client, app_db, monkeypatch):
+def test_login_unknown_user_and_bad_password_both_return_401(
+    client, app_db, monkeypatch
+):
     _enable_multiuser(monkeypatch)
     app_db.create_user(
         username="alice",

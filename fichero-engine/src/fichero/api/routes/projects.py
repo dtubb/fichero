@@ -13,6 +13,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -54,6 +55,7 @@ async def create_project(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> Project:
     project = Project(**request.model_dump())
     db.save(project)
@@ -61,8 +63,9 @@ async def create_project(
         x_fichero_library_path,
         type="research.created",
         entity_ids=[project.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return project
 
@@ -108,6 +111,7 @@ async def patch_project(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> Project:
     project = db.get(Project, project_id)
     if project is None:
@@ -120,8 +124,9 @@ async def patch_project(
         x_fichero_library_path,
         type="research.updated",
         entity_ids=[project.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return project
 
@@ -134,6 +139,7 @@ async def delete_project(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> None:
     project = db.get(Project, project_id)
     if project is None:
@@ -147,8 +153,9 @@ async def delete_project(
         x_fichero_library_path,
         type="research.deleted",
         entity_ids=[project_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
 
@@ -177,6 +184,7 @@ async def include_item(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ProjectInclusion:
     if db.get(Project, project_id) is None:
         raise HTTPException(404, f"Project not found: {project_id}")
@@ -205,8 +213,9 @@ async def include_item(
         x_fichero_library_path,
         type="research.updated",
         entity_ids=[project_id, request.target_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return incl
 
@@ -223,6 +232,7 @@ async def remove_inclusion(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> None:
     incl = db.get(ProjectInclusion, inclusion_id)
     if incl is None:
@@ -234,8 +244,9 @@ async def remove_inclusion(
         x_fichero_library_path,
         type="research.updated",
         entity_ids=[project_id, inclusion_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
 
@@ -251,10 +262,7 @@ async def list_items(
 ) -> ProjectInclusionListResponse:
     if db.get(Project, project_id) is None:
         raise HTTPException(404, f"Project not found: {project_id}")
-    rows = [
-        i for i in db.query(ProjectInclusion)
-        if i.project_id == project_id
-    ]
+    rows = [i for i in db.query(ProjectInclusion) if i.project_id == project_id]
     if target_type is not None:
         rows = [r for r in rows if r.target_type == target_type]
     rows.sort(key=lambda r: r.added_at, reverse=True)
@@ -272,7 +280,8 @@ async def project_membership(
     db: Database = Depends(get_library_database),
 ) -> list[Project]:
     inclusions = [
-        i for i in db.query(ProjectInclusion)
+        i
+        for i in db.query(ProjectInclusion)
         if i.target_id == target_id
         and (target_type is None or i.target_type == target_type)
     ]

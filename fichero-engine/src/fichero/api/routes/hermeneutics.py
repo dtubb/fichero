@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.db import Database
 from fichero.hermeneutics_models import (
@@ -192,14 +193,16 @@ async def create_framework(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> InterpretiveFramework:
     framework = create_framework_impl(db, request)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="interpretation.created",
         interpretation_ids=[framework.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return framework
 
@@ -260,21 +263,21 @@ async def update_framework(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> InterpretiveFramework:
     framework = update_framework_impl(db, framework_id, request)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="interpretation.updated",
         interpretation_ids=[framework.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return framework
 
 
-def delete_framework_impl(
-    db: Database, framework_id: str
-) -> InterpretiveFramework:
+def delete_framework_impl(db: Database, framework_id: str) -> InterpretiveFramework:
     """Soft-delete (deactivate) a framework; returns it. Shared route/action path.
 
     The delete is a deactivation (``is_active=False``), so its inverse is simply
@@ -302,14 +305,16 @@ async def delete_framework(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> FrameworkDeactivatedResponse:
     framework = delete_framework_impl(db, framework_id)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="interpretation.deleted",
         interpretation_ids=[framework.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return FrameworkDeactivatedResponse(status="deactivated")
 
@@ -380,6 +385,7 @@ async def create_interpretation(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> Interpretation:
     interpretation = create_interpretation_impl(db, request)
     emit_change(
@@ -388,8 +394,9 @@ async def create_interpretation(
         interpretation_ids=[interpretation.id],
         document_ids=[interpretation.document_id] if interpretation.document_id else [],
         claim_ids=[interpretation.claim_id] if interpretation.claim_id else [],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return interpretation
 
@@ -465,6 +472,7 @@ async def update_interpretation(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> Interpretation:
     interpretation = update_interpretation_impl(db, interpretation_id, request)
     emit_change(
@@ -473,8 +481,9 @@ async def update_interpretation(
         interpretation_ids=[interpretation.id],
         document_ids=[interpretation.document_id] if interpretation.document_id else [],
         claim_ids=[interpretation.claim_id] if interpretation.claim_id else [],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return interpretation
 
@@ -484,9 +493,7 @@ async def update_interpretation(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def create_pattern_impl(
-    db: Database, request: PatternCreateRequest
-) -> PatternInstance:
+def create_pattern_impl(db: Database, request: PatternCreateRequest) -> PatternInstance:
     """Build + persist a pattern instance (no emit — caller emits). Shared path."""
     now = datetime.now()
     pattern = PatternInstance(
@@ -518,14 +525,16 @@ async def create_pattern(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> PatternInstance:
     pattern = create_pattern_impl(db, request)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="interpretation.created",
         interpretation_ids=[pattern.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return pattern
 
@@ -585,14 +594,16 @@ async def update_pattern(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> PatternInstance:
     pattern = update_pattern_impl(db, pattern_id, request)
     emit_change(
         x_fichero_library_path or str(db.path.parent),
         type="interpretation.updated",
         interpretation_ids=[pattern.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return pattern
 
@@ -628,6 +639,7 @@ async def add_claim_to_pattern(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> PatternInstance:
     pattern, changed = add_claim_to_pattern_impl(db, pattern_id, claim_id)
     if changed:
@@ -636,8 +648,9 @@ async def add_claim_to_pattern(
             type="interpretation.updated",
             interpretation_ids=[pattern.id],
             claim_ids=[claim_id],
-            actor="ui",
+            actor=actor,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
     return pattern
 
@@ -657,6 +670,7 @@ async def create_circle_state(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> HermeneuticCircleState:
     now = datetime.now()
     state = HermeneuticCircleState(
@@ -677,8 +691,9 @@ async def create_circle_state(
         type="interpretation.created",
         interpretation_ids=[state.id],
         claim_ids=[state.claim_id] if state.claim_id else [],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return state
 
@@ -718,6 +733,7 @@ async def navigate_circle(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> HermeneuticCircleState:
     state = db.get(HermeneuticCircleState, state_id)
     if not state:
@@ -748,8 +764,9 @@ async def navigate_circle(
         type="interpretation.updated",
         interpretation_ids=[state.id],
         claim_ids=[state.claim_id] if state.claim_id else [],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return state
 
@@ -766,6 +783,7 @@ async def backtrack_circle(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> HermeneuticCircleState:
     state = db.get(HermeneuticCircleState, state_id)
     if not state:
@@ -788,8 +806,9 @@ async def backtrack_circle(
             type="interpretation.updated",
             interpretation_ids=[state.id],
             claim_ids=[state.claim_id] if state.claim_id else [],
-            actor="ui",
+            actor=actor,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
     return state
 
@@ -890,17 +909,40 @@ from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: 
 
 # Patchable field sets used by the invert helpers to restore prior state.
 _FRAMEWORK_FIELDS = (
-    "name", "framework_type", "description", "core_questions", "key_concepts",
-    "typical_applications", "origin", "creator", "language", "metadata", "is_active",
+    "name",
+    "framework_type",
+    "description",
+    "core_questions",
+    "key_concepts",
+    "typical_applications",
+    "origin",
+    "creator",
+    "language",
+    "metadata",
+    "is_active",
 )
 _INTERPRETATION_FIELDS = (
-    "interpretation_text", "act", "predicate", "confidence",
-    "key_insights", "tensions", "connections", "metadata",
+    "interpretation_text",
+    "act",
+    "predicate",
+    "confidence",
+    "key_insights",
+    "tensions",
+    "connections",
+    "metadata",
 )
 _PATTERN_FIELDS = (
-    "name", "description", "pattern_type", "claim_ids", "entity_ids",
-    "frequency", "significance", "status", "framework_id",
-    "supporting_passages", "metadata",
+    "name",
+    "description",
+    "pattern_type",
+    "claim_ids",
+    "entity_ids",
+    "frequency",
+    "significance",
+    "status",
+    "framework_id",
+    "supporting_passages",
+    "metadata",
 )
 
 
@@ -970,7 +1012,10 @@ def _invert_framework_update(
 ) -> tuple[str, dict] | None:
     if not before:
         return None
-    return ("framework.update", _restore_params(before, _FRAMEWORK_FIELDS, "framework_id"))
+    return (
+        "framework.update",
+        _restore_params(before, _FRAMEWORK_FIELDS, "framework_id"),
+    )
 
 
 @action(

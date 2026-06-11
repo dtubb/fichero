@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.app_db import get_app_db
 from fichero.db import Database
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.llm import get_model_cost
@@ -446,6 +447,7 @@ async def create_node(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> NodeResponse:
     """Create a new node instance from a tool.
 
@@ -458,9 +460,10 @@ async def create_node(
     emit_change(
         x_fichero_library_path,
         type="workflow.updated",
-        actor="ui",
+        actor=actor,
         run_id=None,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
 
     return NodeResponse(
@@ -511,6 +514,7 @@ async def create_workflow(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Create and save a workflow definition."""
     try:
@@ -519,9 +523,10 @@ async def create_workflow(
         emit_change(
             x_fichero_library_path,
             type="workflow.created",
-            actor="ui",
+            actor=actor,
             run_id=None,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
         return WorkflowResponse(
@@ -583,6 +588,7 @@ async def import_workflow(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Import a workflow from JSON data."""
     try:
@@ -591,9 +597,10 @@ async def import_workflow(
         emit_change(
             x_fichero_library_path,
             type="workflow.created",
-            actor="ui",
+            actor=actor,
             run_id=None,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
         return WorkflowResponse(
@@ -659,6 +666,7 @@ async def reinstall_default_workflows(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ReinstallDefaultWorkflowsResponse:
     """Delete and re-seed the bundled default workflows (Transcribe, Catalogue).
 
@@ -675,9 +683,10 @@ async def reinstall_default_workflows(
         emit_change(
             x_fichero_library_path,
             type="workflow.created",
-            actor="ui",
+            actor=actor,
             run_id=None,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
         return ReinstallDefaultWorkflowsResponse(seeded=seeded, status="ok")
     except Exception as exc:
@@ -758,7 +767,9 @@ async def get_workflow(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{workflow_id}/estimate-cost", response_model=WorkflowCostEstimateResponse)
+@router.post(
+    "/{workflow_id}/estimate-cost", response_model=WorkflowCostEstimateResponse
+)
 async def estimate_workflow_cost(
     workflow_id: str,
     request: WorkflowCostEstimateRequest,
@@ -769,7 +780,9 @@ async def estimate_workflow_cost(
 
     workflow = db.get(Workflow, workflow_id)
     if not workflow:
-        raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {workflow_id}"
+        )
 
     file_count = max(1, int(request.file_count))
     input_tokens_per_file = max(1, int(request.estimated_input_tokens_per_file))
@@ -783,10 +796,9 @@ async def estimate_workflow_cost(
 
     estimated_input_tokens = file_count * input_tokens_per_file
     estimated_output_tokens = file_count * output_tokens_per_file
-    estimated_cost_usd = (
-        estimated_input_tokens * (input_cost_per_million / 1_000_000)
-        + estimated_output_tokens * (output_cost_per_million / 1_000_000)
-    )
+    estimated_cost_usd = estimated_input_tokens * (
+        input_cost_per_million / 1_000_000
+    ) + estimated_output_tokens * (output_cost_per_million / 1_000_000)
 
     return WorkflowCostEstimateResponse(
         workflow_id=workflow_id,
@@ -814,7 +826,9 @@ def update_workflow_impl(
 
     existing = db.get(Workflow, workflow_id)
     if not existing:
-        raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {workflow_id}"
+        )
 
     # Use model_dump_for_storage() to exclude ports (they come from registry)
     existing.name = workflow.name
@@ -844,6 +858,7 @@ async def update_workflow(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Update an existing workflow."""
     try:
@@ -860,9 +875,10 @@ async def update_workflow(
         emit_change(
             x_fichero_library_path,
             type="workflow.updated",
-            actor="ui",
+            actor=actor,
             run_id=None,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
         # Debug: verify what was saved
@@ -915,7 +931,9 @@ def patch_workflow_impl(
 
     workflow = db.get(Workflow, workflow_id)
     if not workflow:
-        raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {workflow_id}"
+        )
 
     if patch.name is not None:
         workflow.name = patch.name
@@ -942,6 +960,7 @@ async def patch_workflow(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Partially update a workflow (rename, move to folder, etc.)."""
     try:
@@ -950,9 +969,10 @@ async def patch_workflow(
         emit_change(
             x_fichero_library_path,
             type="workflow.updated",
-            actor="ui",
+            actor=actor,
             run_id=None,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
         return WorkflowResponse(
@@ -983,7 +1003,9 @@ def delete_workflow_impl(db: Database, workflow_id: str) -> "Workflow":  # noqa:
 
     workflow = db.get(Workflow, workflow_id)
     if not workflow:
-        raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {workflow_id}"
+        )
     db.delete(workflow)
     return workflow
 
@@ -996,6 +1018,7 @@ async def delete_workflow(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowDeletedResponse:
     """Delete a saved workflow."""
     try:
@@ -1004,12 +1027,15 @@ async def delete_workflow(
         emit_change(
             x_fichero_library_path,
             type="workflow.deleted",
-            actor="ui",
+            actor=actor,
             run_id=None,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
-        return WorkflowDeletedResponse(message=f"Workflow {workflow_id} deleted successfully")
+        return WorkflowDeletedResponse(
+            message=f"Workflow {workflow_id} deleted successfully"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -1026,7 +1052,9 @@ def duplicate_workflow_impl(db: Database, workflow_id: str) -> "Workflow":  # no
 
     original = db.get(Workflow, workflow_id)
     if not original:
-        raise HTTPException(status_code=404, detail=f"Workflow not found: {workflow_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {workflow_id}"
+        )
 
     new_workflow = Workflow(
         name=f"{original.name} (Copy)",
@@ -1051,6 +1079,7 @@ async def duplicate_workflow(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Duplicate a workflow with a new ID and modified name."""
     try:
@@ -1059,9 +1088,10 @@ async def duplicate_workflow(
         emit_change(
             x_fichero_library_path,
             type="workflow.created",
-            actor="ui",
+            actor=actor,
             run_id=None,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
         return WorkflowResponse(
@@ -1114,6 +1144,7 @@ async def reorder_workflows(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> WorkflowReorderResponse:
     """Reorder workflows within a folder."""
     try:
@@ -1122,9 +1153,10 @@ async def reorder_workflows(
         emit_change(
             x_fichero_library_path,
             type="workflow.updated",
-            actor="ui",
+            actor=actor,
             run_id=None,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
 
         return WorkflowReorderResponse(status="reordered", count=len(workflow_ids))
@@ -1324,7 +1356,9 @@ def _action_update_workflow(
 
     existing = db.get(Workflow, params.workflow_id)
     if existing is None:
-        raise HTTPException(status_code=404, detail=f"Workflow not found: {params.workflow_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {params.workflow_id}"
+        )
     before = _snap_workflow(existing)
     wf = update_workflow_impl(db, params.workflow_id, params.workflow)
     after = _snap_workflow(wf)
@@ -1352,7 +1386,9 @@ def _action_patch_workflow(
 
     existing = db.get(Workflow, params.workflow_id)
     if existing is None:
-        raise HTTPException(status_code=404, detail=f"Workflow not found: {params.workflow_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Workflow not found: {params.workflow_id}"
+        )
     before = _snap_workflow(existing)
     patch = WorkflowPatchRequest(
         **params.model_dump(exclude={"workflow_id"}, exclude_unset=True)
@@ -1494,7 +1530,9 @@ def _action_set_sort_orders(
     for entry in params.orders:
         wf = db.get(Workflow, entry.id)
         if wf is None:
-            raise HTTPException(status_code=404, detail=f"Workflow not found: {entry.id}")
+            raise HTTPException(
+                status_code=404, detail=f"Workflow not found: {entry.id}"
+            )
         before_orders.append({"id": wf.id, "sort_order": wf.sort_order})
         wf.sort_order = entry.sort_order
         db.save(wf)
@@ -1522,7 +1560,9 @@ def _action_create_node(
     so NOT undoable). Mirrors the ``POST /tools/{tool}/create-node`` route."""
     node = create_node_from_tool(params.tool_name, params.position_x, params.position_y)
     if not node:
-        raise HTTPException(status_code=404, detail=f"Tool not found: {params.tool_name}")
+        raise HTTPException(
+            status_code=404, detail=f"Tool not found: {params.tool_name}"
+        )
     node_dict = {
         "id": node.id,
         "tool": node.tool,

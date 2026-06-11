@@ -15,6 +15,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -38,8 +39,12 @@ LEGACY_KG_ENTITY_EMBEDDINGS_TABLE = "kg_entities"
 
 
 class EntityMergeRequest(BaseModel):
-    absorbing_entity_id: str = Field(description="Entity that absorbs the others (survivor)")
-    absorbed_entity_ids: list[str] = Field(description="Entities merged into the absorber")
+    absorbing_entity_id: str = Field(
+        description="Entity that absorbs the others (survivor)"
+    )
+    absorbed_entity_ids: list[str] = Field(
+        description="Entities merged into the absorber"
+    )
     merged_aliases: list[str] = Field(default_factory=list)
     merged_description: str | None = None
 
@@ -68,12 +73,16 @@ class EmbedEntitiesResponse(BaseModel):
 
 class BatchEntityCurationRequest(BaseModel):
     entity_ids: list[str] = Field(min_length=1, description="Entity IDs to update.")
-    curation_state: EntityCurationState = Field(description="New curation state for every listed entity.")
+    curation_state: EntityCurationState = Field(
+        description="New curation state for every listed entity."
+    )
 
 
 class BatchEntityCurationResponse(BaseModel):
     updated: int
-    entity_ids: list[str] = Field(default_factory=list, description="Entity IDs whose state actually changed.")
+    entity_ids: list[str] = Field(
+        default_factory=list, description="Entity IDs whose state actually changed."
+    )
 
 
 class _EmbedEntityRequest(BaseModel):
@@ -127,7 +136,9 @@ def search_entities_semantic_impl(
     try:
         query_vector = db._embed_text(q)  # type: ignore[attr-defined]
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Embedding generation failed: {exc}") from exc
+        raise HTTPException(
+            status_code=503, detail=f"Embedding generation failed: {exc}"
+        ) from exc
     results = db.search_vectors(table_name, query_vector, limit=limit)
     entity_ids = [r["id"] for r in results]
     if not entity_ids:
@@ -137,7 +148,8 @@ def search_entities_semantic_impl(
     items = [
         {**entities[eid].model_dump(), "similarity_score": score_map.get(eid, 0.0)}
         for eid in entity_ids
-        if eid in entities and (entity_type is None or entities[eid].entity_type == entity_type)
+        if eid in entities
+        and (entity_type is None or entities[eid].entity_type == entity_type)
     ]
     return KGGraphListResponse(items=items, count=len(items))
 
@@ -188,13 +200,18 @@ def merge_entities_impl(
     """
     absorber = db.get(KnowledgeEntity, request.absorbing_entity_id)
     if absorber is None:
-        raise HTTPException(status_code=404, detail=f"Absorbing entity not found: {request.absorbing_entity_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Absorbing entity not found: {request.absorbing_entity_id}",
+        )
 
     absorbed: list[KnowledgeEntity] = []
     for eid in request.absorbed_entity_ids:
         ent = db.get(KnowledgeEntity, eid)
         if ent is None:
-            raise HTTPException(status_code=404, detail=f"Absorbed entity not found: {eid}")
+            raise HTTPException(
+                status_code=404, detail=f"Absorbed entity not found: {eid}"
+            )
         if ent.merged_into_id is not None:
             raise HTTPException(
                 status_code=409,
@@ -235,7 +252,9 @@ def merge_entities_impl(
         if any(eid in absorbed_ids for eid in old_ids):
             new_ids = [absorber.id if eid in absorbed_ids else eid for eid in old_ids]
             seen: set[str] = set()
-            claim.entity_ids = [eid for eid in new_ids if not (eid in seen or seen.add(eid))]  # type: ignore[func-returns-value]
+            claim.entity_ids = [
+                eid for eid in new_ids if not (eid in seen or seen.add(eid))
+            ]  # type: ignore[func-returns-value]
             claim.updated_at = now
             db.save(claim)
             repointed_claim_ids.append(claim.id)
@@ -266,6 +285,7 @@ async def merge_entities(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> EntityAuditResponse:
     """Merge multiple entities into a single absorbing entity, with audit."""
     audit, entity_ids, repointed_claim_ids = merge_entities_impl(db, request)
@@ -278,8 +298,9 @@ async def merge_entities(
         type="entity.merged",
         entity_ids=entity_ids,
         claim_ids=repointed_claim_ids,
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return _audit_response(audit)
 
@@ -297,7 +318,9 @@ async def batch_set_entity_curation_state(
     for entity_id in request.entity_ids:
         entity = db.get(KnowledgeEntity, entity_id)
         if entity is None:
-            raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+            raise HTTPException(
+                status_code=404, detail=f"Entity not found: {entity_id}"
+            )
         entities.append(entity)
 
     now = datetime.now()
@@ -323,11 +346,15 @@ async def split_entity(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> EntityAuditResponse:
     """Split one entity into a primary + new split-off entities."""
     primary = db.get(KnowledgeEntity, request.primary_entity_id)
     if primary is None:
-        raise HTTPException(status_code=404, detail=f"Primary entity not found: {request.primary_entity_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Primary entity not found: {request.primary_entity_id}",
+        )
 
     moved = {a.strip() for a in request.aliases_to_move if a.strip()}
     alias_changes: dict[str, Any] = {
@@ -342,7 +369,9 @@ async def split_entity(
     for sid in request.split_off_entity_ids:
         sp = db.get(KnowledgeEntity, sid)
         if sp is None:
-            raise HTTPException(status_code=404, detail=f"Split-off entity not found: {sid}")
+            raise HTTPException(
+                status_code=404, detail=f"Split-off entity not found: {sid}"
+            )
         sp.merged_into_id = None
         sp.updated_at = now
         db.save(sp)
@@ -368,8 +397,9 @@ async def split_entity(
         x_fichero_library_path,
         type="entity.split",
         entity_ids=[primary.id, *split_ids],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return _audit_response(audit)
 
@@ -381,7 +411,9 @@ def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
     replace). Raises ``HTTPException`` on missing/already-undone records."""
     audit = db.get(EntityMergeAudit, audit_id)
     if audit is None:
-        raise HTTPException(status_code=404, detail=f"Audit record not found: {audit_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Audit record not found: {audit_id}"
+        )
     if audit.reversal_id != audit.id:
         raise HTTPException(
             status_code=409,
@@ -392,12 +424,17 @@ def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
     if audit.operation_type == EntityMergeOperationType.merge:
         absorber = db.get(KnowledgeEntity, audit.target_entity_id)
         if absorber is None:
-            raise HTTPException(status_code=404, detail=f"Target entity not found: {audit.target_entity_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Target entity not found: {audit.target_entity_id}",
+            )
         restored: list[str] = []
         for eid in audit.source_entity_ids:
             ent = db.get(KnowledgeEntity, eid)
             if ent is None:
-                raise HTTPException(status_code=404, detail=f"Source entity not found: {eid}")
+                raise HTTPException(
+                    status_code=404, detail=f"Source entity not found: {eid}"
+                )
             ent.merged_into_id = None
             ent.updated_at = now
             db.save(ent)
@@ -412,7 +449,12 @@ def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
             operation_type=EntityMergeOperationType.undo_merge,
             source_entity_ids=audit.source_entity_ids,
             target_entity_id=audit.target_entity_id,
-            alias_changes={"added": [], "removed": [], "moved_to": {}, "restored_from": restored},
+            alias_changes={
+                "added": [],
+                "removed": [],
+                "moved_to": {},
+                "restored_from": restored,
+            },
             reversal_id=audit_id,
             created_by="human",
             created_at=now,
@@ -420,7 +462,10 @@ def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
     elif audit.operation_type == EntityMergeOperationType.split:
         primary = db.get(KnowledgeEntity, audit.target_entity_id)
         if primary is None:
-            raise HTTPException(status_code=404, detail=f"Primary entity not found: {audit.target_entity_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Primary entity not found: {audit.target_entity_id}",
+            )
         moved = audit.alias_changes.get("restored_from", [])
         primary.aliases = sorted(set(primary.aliases) | set(moved))
         primary.updated_at = now
@@ -435,7 +480,10 @@ def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
             created_at=now,
         )
     else:
-        raise HTTPException(status_code=409, detail=f"Cannot undo operation type: {audit.operation_type}")
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot undo operation type: {audit.operation_type}",
+        )
 
     db.save(undo)
     audit.reversal_id = undo.id
@@ -462,7 +510,8 @@ async def list_entity_audits(
     audits = db.all(EntityMergeAudit)
     if entity_id:
         audits = [
-            a for a in audits
+            a
+            for a in audits
             if a.target_entity_id == entity_id or entity_id in a.source_entity_ids
         ]
     audits.sort(key=lambda a: a.created_at, reverse=True)
@@ -531,6 +580,7 @@ async def search_entities_semantic(
 
 class CandidatePair(BaseModel):
     """One candidate merge pair surfaced by graph-context similarity."""
+
     entity_a_id: str
     entity_a_name: str
     entity_b_id: str
@@ -574,9 +624,8 @@ async def candidate_pairs(
     candidate_node_pairs = [
         (a, b)
         for i, a in enumerate(nodes)
-        for b in nodes[i + 1:]
-        if (not same_type_only)
-        or (by_id[a].entity_type == by_id[b].entity_type)
+        for b in nodes[i + 1 :]
+        if (not same_type_only) or (by_id[a].entity_type == by_id[b].entity_type)
     ]
     if not candidate_node_pairs:
         return KGGraphListResponse(items=[], count=0)
@@ -593,18 +642,21 @@ async def candidate_pairs(
         ent_b = by_id.get(v)
         if ent_a is None or ent_b is None:
             continue
-        rows.append(CandidatePair(
-            entity_a_id=u,
-            entity_a_name=ent_a.canonical_name,
-            entity_b_id=v,
-            entity_b_name=ent_b.canonical_name,
-            jaccard=float(coef),
-            shared_neighbors=shared,
-            entity_type=(
-                ent_a.entity_type.value if ent_a.entity_type
-                and hasattr(ent_a.entity_type, "value") else None
-            ),
-        ))
+        rows.append(
+            CandidatePair(
+                entity_a_id=u,
+                entity_a_name=ent_a.canonical_name,
+                entity_b_id=v,
+                entity_b_name=ent_b.canonical_name,
+                jaccard=float(coef),
+                shared_neighbors=shared,
+                entity_type=(
+                    ent_a.entity_type.value
+                    if ent_a.entity_type and hasattr(ent_a.entity_type, "value")
+                    else None
+                ),
+            )
+        )
     rows.sort(key=lambda r: r.jaccard, reverse=True)
     rows = rows[:top_k]
     return KGGraphListResponse(items=rows, count=len(rows))
@@ -709,4 +761,6 @@ def _action_unmerge_entities(
 # items: list["EntityAuditResponse"]). See #1144.
 from fichero.models import EntityAuditListResponse  # noqa: E402
 
-EntityAuditListResponse.model_rebuild(_types_namespace={"EntityAuditResponse": EntityAuditResponse})
+EntityAuditListResponse.model_rebuild(
+    _types_namespace={"EntityAuditResponse": EntityAuditResponse}
+)

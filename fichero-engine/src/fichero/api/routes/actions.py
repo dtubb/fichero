@@ -13,6 +13,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
 from fichero.db import Database
@@ -188,21 +189,27 @@ def delete_action_impl(store: ActionStore, action_id: str) -> bool:
 async def list_actions(store: ActionStore = Depends(get_action_store)):
     """List all actions."""
     actions = store.list_all()
-    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
+    return ActionListResponse(
+        items=[action_to_response(a) for a in actions], count=len(actions)
+    )
 
 
 @router.get("/builtin", response_model=ActionListResponse)
 async def list_builtin_actions(store: ActionStore = Depends(get_action_store)):
     """List built-in actions only."""
     actions = store.list_builtin()
-    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
+    return ActionListResponse(
+        items=[action_to_response(a) for a in actions], count=len(actions)
+    )
 
 
 @router.get("/custom", response_model=ActionListResponse)
 async def list_custom_actions(store: ActionStore = Depends(get_action_store)):
     """List user-created actions only."""
     actions = store.list_custom()
-    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
+    return ActionListResponse(
+        items=[action_to_response(a) for a in actions], count=len(actions)
+    )
 
 
 @router.get("/recent", response_model=ActionListResponse)
@@ -212,7 +219,9 @@ async def list_recent_actions(
 ):
     """List recently used actions."""
     actions = store.list_recent(limit=limit)
-    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
+    return ActionListResponse(
+        items=[action_to_response(a) for a in actions], count=len(actions)
+    )
 
 
 @router.get("/popular", response_model=ActionListResponse)
@@ -222,11 +231,15 @@ async def list_popular_actions(
 ):
     """List most frequently used actions."""
     actions = store.list_popular(limit=limit)
-    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
+    return ActionListResponse(
+        items=[action_to_response(a) for a in actions], count=len(actions)
+    )
 
 
 @router.get("/categories", response_model=ActionCategoriesResponse)
-async def list_categories(store: ActionStore = Depends(get_action_store)) -> ActionCategoriesResponse:
+async def list_categories(
+    store: ActionStore = Depends(get_action_store),
+) -> ActionCategoriesResponse:
     """List all action categories."""
     categories = store.get_categories()
     return ActionCategoriesResponse(categories=categories)
@@ -238,7 +251,9 @@ async def list_actions_by_category(
 ):
     """List actions in a specific category."""
     actions = store.list_by_category(category)
-    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
+    return ActionListResponse(
+        items=[action_to_response(a) for a in actions], count=len(actions)
+    )
 
 
 # =========================================================================
@@ -264,7 +279,9 @@ async def search_actions(
     tag_list = [t.strip() for t in tags.split(",")] if tags else None
 
     actions = store.search(query=query, category=category, tags=tag_list)
-    return ActionListResponse(items=[action_to_response(a) for a in actions], count=len(actions))
+    return ActionListResponse(
+        items=[action_to_response(a) for a in actions], count=len(actions)
+    )
 
 
 # =========================================================================
@@ -283,11 +300,13 @@ async def get_action(action_id: str, store: ActionStore = Depends(get_action_sto
 
 @router.post("", response_model=ActionResponse)
 async def create_action(
-    request: CreateActionRequest, store: ActionStore = Depends(get_action_store),
+    request: CreateActionRequest,
+    store: ActionStore = Depends(get_action_store),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ):
     """Create a new action."""
     action = create_action_impl(store, request)
@@ -295,8 +314,9 @@ async def create_action(
         x_fichero_library_path,
         type="action.created",
         entity_ids=[action.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return action_to_response(action)
 
@@ -310,6 +330,7 @@ async def update_action(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ):
     """Update an action."""
     action = store.get(action_id)
@@ -342,8 +363,9 @@ async def update_action(
         x_fichero_library_path,
         type="action.updated",
         entity_ids=[action.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return action_to_response(action)
 
@@ -356,6 +378,7 @@ async def delete_action(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ActionSuccessResponse:
     """Delete an action."""
     success = delete_action_impl(store, action_id)
@@ -363,8 +386,9 @@ async def delete_action(
         x_fichero_library_path,
         type="action.deleted",
         entity_ids=[action_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return ActionSuccessResponse(success=success)
 
@@ -382,6 +406,7 @@ async def record_action_use(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ) -> ActionSuccessResponse:
     """Record that an action was used."""
     action = store.get(action_id)
@@ -393,8 +418,9 @@ async def record_action_use(
         x_fichero_library_path,
         type="action.updated",
         entity_ids=[action_id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return ActionSuccessResponse(success=True)
 
@@ -405,7 +431,9 @@ async def record_action_use(
 
 
 @router.get("/{action_id}/export", response_model=ActionJsonResponse)
-async def export_action(action_id: str, store: ActionStore = Depends(get_action_store)) -> ActionJsonResponse:
+async def export_action(
+    action_id: str, store: ActionStore = Depends(get_action_store)
+) -> ActionJsonResponse:
     """Export an action as JSON."""
     try:
         json_str = store.export_action(action_id)
@@ -422,6 +450,7 @@ async def import_action(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ):
     """Import an action from JSON."""
     try:
@@ -430,8 +459,9 @@ async def import_action(
             x_fichero_library_path,
             type="action.created",
             entity_ids=[action.id],
-            actor="ui",
+            actor=actor,
             origin_window=x_fichero_origin_window,
+            origin_user=actor,
         )
         return action_to_response(action)
     except ValueError as e:
@@ -451,6 +481,7 @@ async def create_action_from_node(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ):
     """Create an action from a workflow node."""
     action = store.create_from_node(
@@ -464,8 +495,9 @@ async def create_action_from_node(
         x_fichero_library_path,
         type="action.created",
         entity_ids=[action.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return action_to_response(action)
 
@@ -478,6 +510,7 @@ async def create_composite_action(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    actor: str = Depends(request_actor),
 ):
     """Create a composite action from multiple nodes."""
     action = store.create_composite(
@@ -492,8 +525,9 @@ async def create_composite_action(
         x_fichero_library_path,
         type="action.created",
         entity_ids=[action.id],
-        actor="ui",
+        actor=actor,
         origin_window=x_fichero_origin_window,
+        origin_user=actor,
     )
     return action_to_response(action)
 
