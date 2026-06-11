@@ -1,7 +1,26 @@
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "NotesBrowserView")
+
+private struct NoteUpdateActionParams: Encodable {
+    let noteId: String
+    let update: Components.Schemas.NotePatchRequest
+
+    enum CodingKeys: String, CodingKey {
+        case noteId = "note_id"
+        case update
+    }
+}
+
+private struct NoteDeleteActionParams: Encodable {
+    let noteId: String
+
+    enum CodingKeys: String, CodingKey {
+        case noteId = "note_id"
+    }
+}
 
 // swiftlint:disable type_body_length
 /// Standalone notes browser (#1500). Lists every Note record, filterable by
@@ -14,6 +33,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "NotesBr
 struct NotesBrowserView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(NoteStore.self) private var noteStore
+    @EnvironmentObject private var windowState: WindowState
 
     @State private var kindFilter: String = ""        // "" = all kinds
     @State private var tagFilter: String = ""
@@ -287,7 +307,14 @@ struct NotesBrowserView: View {
         let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let noteId = note.id else { return }
         do {
-            _ = try await noteStore.update(noteId: noteId, body: trimmed)
+            guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+            var update = Components.Schemas.NotePatchRequest()
+            update.body = trimmed
+            let result = try await library.actionsService.invokeAction(
+                name: "note.update",
+                params: NoteUpdateActionParams(noteId: noteId, update: update)
+            )
+            LastAction.shared.record(auditId: result.auditId, actionName: "note.update")
             editingId = nil
         } catch {
             logger.error("update note failed: \(error.localizedDescription)")
@@ -302,7 +329,12 @@ struct NotesBrowserView: View {
 
     private func deleteNote(noteId: String) async {
         do {
-            try await noteStore.delete(noteId: noteId)
+            guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+            let result = try await library.actionsService.invokeAction(
+                name: "note.delete",
+                params: NoteDeleteActionParams(noteId: noteId)
+            )
+            LastAction.shared.record(auditId: result.auditId, actionName: "note.delete")
         } catch {
             logger.error("delete note failed: \(error.localizedDescription)")
         }

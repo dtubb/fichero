@@ -1,5 +1,13 @@
 import SwiftUI
 
+private struct DocumentDeleteActionParams: Encodable {
+    let docId: String
+
+    enum CodingKeys: String, CodingKey {
+        case docId = "doc_id"
+    }
+}
+
 // MARK: - Keyboard Shortcuts Extension
 
 extension LibraryView {
@@ -126,10 +134,14 @@ extension LibraryView {
 
     /// Perform the actual deletion after confirmation
     private func performDeleteSelected() async {
-        guard let library = libraryManager.globalLibrary else { return }
+        guard let library = libraryManager.getLibrary(id: windowState.libraryId) else { return }
         for doc in documentsToDelete {
             do {
-                try await library.documentStore.deleteDocument(doc)
+                let result = try await library.actionsService.invokeAction(
+                    name: "document.delete",
+                    params: DocumentDeleteActionParams(docId: doc.id)
+                )
+                LastAction.shared.record(auditId: result.auditId, actionName: "document.delete")
             } catch {
                 ErrorService.shared.reportError(
                     ErrorModel.fileSystemError(

@@ -1,6 +1,14 @@
 import FicheroAPIClient
 import SwiftUI
 
+private struct ClaimDeleteActionParams: Encodable {
+    let claimId: String
+
+    enum CodingKeys: String, CodingKey {
+        case claimId = "claim_id"
+    }
+}
+
 // MARK: - ClaimSummaryCard Detail Views + Actions
 
 extension ClaimSummaryCard {
@@ -279,11 +287,15 @@ extension ClaimSummaryCard {
 
     func deleteClaim() {
         guard let claimId = claim.id else { return }
+        let libraryId = LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId
+        guard let library = LibraryManager.shared.getLibrary(id: libraryId) else { return }
         Task {
             do {
-                // Route through the store; the change-stream's `claim.deleted`
-                // event fans the refresh to every claim surface (#1862).
-                try await claimStore.delete(claimIds: [claimId])
+                let result = try await library.actionsService.invokeAction(
+                    name: "claim.delete",
+                    params: ClaimDeleteActionParams(claimId: claimId)
+                )
+                LastAction.shared.record(auditId: result.auditId, actionName: "claim.delete")
             } catch {
                 mutationError = error.localizedDescription
             }

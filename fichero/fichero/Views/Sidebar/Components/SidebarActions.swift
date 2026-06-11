@@ -4,6 +4,14 @@ import SwiftUI
 /// Structured logger for sidebar action operations
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "SidebarActions")
 
+private struct DocumentDeleteActionParams: Encodable {
+    let docId: String
+
+    enum CodingKeys: String, CodingKey {
+        case docId = "doc_id"
+    }
+}
+
 // MARK: - Import/Delete/Rename Extension
 
 extension SidebarView {
@@ -94,7 +102,11 @@ extension SidebarView {
         do {
             switch item.itemType {
             case .document(let doc):
-                try await library.documentStore.deleteDocument(doc)
+                let result = try await library.actionsService.invokeAction(
+                    name: "document.delete",
+                    params: DocumentDeleteActionParams(docId: doc.id)
+                )
+                LastAction.shared.record(auditId: result.auditId, actionName: "document.delete")
             case .savedSearch(let search):
                 try await library.savedSearchServiceGenerated.deleteSavedSearch(search.id)
             case .conversation(let conversation):

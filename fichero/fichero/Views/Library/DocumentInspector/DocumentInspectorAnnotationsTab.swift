@@ -1,4 +1,23 @@
+import FicheroAPIClient
 import SwiftUI
+
+private struct AnnotationUpdateActionParams: Encodable {
+    let annotationId: String
+    let update: Components.Schemas.AnnotationPatchRequest
+
+    enum CodingKeys: String, CodingKey {
+        case annotationId = "annotation_id"
+        case update
+    }
+}
+
+private struct AnnotationDeleteActionParams: Encodable {
+    let annotationId: String
+
+    enum CodingKeys: String, CodingKey {
+        case annotationId = "annotation_id"
+    }
+}
 
 extension Notification.Name {
     /// Posted when the user taps an annotation row in the inspector's Annotations
@@ -19,6 +38,7 @@ struct DocumentInspectorAnnotationsTab: View {
     let document: Document
 
     @Environment(AnnotationStore.self) private var annotationStore
+    @EnvironmentObject private var windowState: WindowState
     @ObservedObject private var claimFocusState = ClaimFocusState.shared
     @State private var newNoteText: String = ""
     @State private var searchText: String = ""
@@ -193,7 +213,16 @@ struct DocumentInspectorAnnotationsTab: View {
             selectedAnnotationId = nil
         }
         Task {
-            _ = await annotationStore.delete(id: annotation.id)
+            guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+            do {
+                let result = try await library.actionsService.invokeAction(
+                    name: "annotation.delete",
+                    params: AnnotationDeleteActionParams(annotationId: annotation.id)
+                )
+                LastAction.shared.record(auditId: result.auditId, actionName: "annotation.delete")
+            } catch {
+                // Keep the UI state local; the store will resync on the next change event.
+            }
         }
     }
 
@@ -206,10 +235,21 @@ struct DocumentInspectorAnnotationsTab: View {
         guard !isSavingEdit else { return }
         isSavingEdit = true
         Task {
-            let updated = await annotationStore.updateText(id: annotation.id, text: editText)
-            isSavingEdit = false
-            if updated != nil {
+            guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else {
+                isSavingEdit = false
+                return
+            }
+            var update = Components.Schemas.AnnotationPatchRequest()
+            update.text = editText
+            do {
+                let result = try await library.actionsService.invokeAction(
+                    name: "annotation.update",
+                    params: AnnotationUpdateActionParams(annotationId: annotation.id, update: update)
+                )
+                LastAction.shared.record(auditId: result.auditId, actionName: "annotation.update")
                 editingAnnotation = nil
+            } catch {
+                isSavingEdit = false
             }
         }
     }

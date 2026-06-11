@@ -1,7 +1,26 @@
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentNotesTab")
+
+private struct NoteUpdateActionParams: Encodable {
+    let noteId: String
+    let update: Components.Schemas.NotePatchRequest
+
+    enum CodingKeys: String, CodingKey {
+        case noteId = "note_id"
+        case update
+    }
+}
+
+private struct NoteDeleteActionParams: Encodable {
+    let noteId: String
+
+    enum CodingKeys: String, CodingKey {
+        case noteId = "note_id"
+    }
+}
 
 /// Notes tab in the Document Inspector. Wires `NoteService` → `/api/notes`.
 /// Lists free-text notes linked to this document; lets the user add, inline-edit,
@@ -10,6 +29,7 @@ struct DocumentNotesTab: View {
     let document: Document
 
     @Environment(NoteStore.self) private var noteStore
+    @EnvironmentObject private var windowState: WindowState
     @State private var newText = ""
     @State private var editingId: String?
     @State private var editingText = ""
@@ -200,7 +220,14 @@ struct DocumentNotesTab: View {
         let trimmed = editingText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let noteId = note.id else { return }
         do {
-            _ = try await noteStore.update(noteId: noteId, body: trimmed)
+            guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+            var update = Components.Schemas.NotePatchRequest()
+            update.body = trimmed
+            let result = try await library.actionsService.invokeAction(
+                name: "note.update",
+                params: NoteUpdateActionParams(noteId: noteId, update: update)
+            )
+            LastAction.shared.record(auditId: result.auditId, actionName: "note.update")
             editingId = nil
         } catch {
             logger.error("update note failed: \(error.localizedDescription)")
@@ -238,7 +265,12 @@ struct DocumentNotesTab: View {
 
     private func deleteNote(noteId: String) async {
         do {
-            try await noteStore.delete(noteId: noteId)
+            guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
+            let result = try await library.actionsService.invokeAction(
+                name: "note.delete",
+                params: NoteDeleteActionParams(noteId: noteId)
+            )
+            LastAction.shared.record(auditId: result.auditId, actionName: "note.delete")
         } catch {
             logger.error("delete note failed: \(error.localizedDescription)")
         }
