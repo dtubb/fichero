@@ -73,6 +73,49 @@ extension ActionLibraryService {
         invokeLogger.info("invokeAction(\(name)) ok — audit \(result.auditId)")
         return result
     }
+
+    /// Undo a previously invoked action by replaying its recorded inverse —
+    /// `POST /api/actions/audit/{auditId}/undo`. The backend looks up the audit
+    /// row, runs the action's `invert`, and writes a *new* audit row for the
+    /// undo itself (so the result's `auditId` is the inverse row, not the one
+    /// being reversed). This is the ⌘Z seam for #2015: the UI hands back the
+    /// `audit_id` it captured at invoke time and the change stream propagates
+    /// the reversed state into the open views.
+    ///
+    /// - Parameters:
+    ///   - auditId: The audit row to reverse (captured from `invokeAction`).
+    ///   - originWindow: Optional self-echo de-dup seam for the change stream.
+    /// - Returns: The `{ ok, audit_id, changed_domains }` result for the undo.
+    @discardableResult
+    func undoAction(
+        auditId: String,
+        originWindow: String? = nil
+    ) async throws -> ActionInvokeResult {
+        let url = client.baseURL.appending(path: "api/actions/audit/\(auditId)/undo")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addEngineAuth(libraryPath: client.currentLibraryPath)
+        if let originWindow {
+            request.setValue(originWindow, forHTTPHeaderField: "X-Fichero-Origin-Window")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let detail = (try? JSONDecoder().decode(ErrorResponse.self, from: data))?.detail
+                ?? String(data: data, encoding: .utf8)
+                ?? "Undo failed"
+            invokeLogger.error("undoAction(\(auditId)) HTTP \(http.statusCode): \(detail)")
+            throw APIError.httpError(statusCode: http.statusCode, message: detail)
+        }
+
+        let result = try JSONDecoder().decode(ActionInvokeResult.self, from: data)
+        invokeLogger.info("undoAction(\(auditId)) ok — inverse audit \(result.auditId)")
+        return result
+    }
 }
 
 // MARK: - Wire models

@@ -154,6 +154,12 @@ struct FicheroApp: App {
                     .environmentObject(libraryManager)
             }
 
+            // Edit menu — ⌘Z drives the audited-action undo (#2015), replacing
+            // SwiftUI's view-local UndoManager items so there's exactly one Undo.
+            CommandGroup(replacing: .undoRedo) {
+                UndoLastActionButton()
+            }
+
             // Edit menu
             CommandGroup(after: .pasteboard) {
                 Divider()

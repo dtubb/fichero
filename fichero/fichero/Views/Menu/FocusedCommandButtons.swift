@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import OSLog
 import SwiftUI
 
 // MARK: - Focused Values for Menu Commands
@@ -414,6 +415,68 @@ struct FocusedNewTriggerButton: View {
             sidebarActions?.createTrigger()
         }
         .disabled(sidebarActions == nil)
+    }
+}
+
+// MARK: - Undo (audited actions)
+
+/// ⌘Z — undo the last audited action via `POST /api/actions/audit/{id}/undo` (#2015).
+///
+/// MVP **single-level** undo: it reverses the most recent action recorded in the
+/// shared `LastAction` holder (seeded today by the entity-merge button), then
+/// clears the holder so a repeated ⌘Z can't double-undo the same audit row.
+/// The observable change stream propagates the reversed state back into the open
+/// views, so there is no manual refresh here.
+///
+/// Multi-level undo — a per-window stack that walks the `/api/actions/audit`
+/// log row by row — is a deliberate follow-up. This replaces SwiftUI's default
+/// `.undoRedo` menu items so there is exactly one "Undo", and so the view-local
+/// `UndoManager` isn't fighting the audited backend undo.
+struct UndoLastActionButton: View {
+    /// `@State` over the `@Observable` shared holder so the menu item's title +
+    /// enabled state track the last recorded action without manual republishing.
+    @State private var lastAction = LastAction.shared
+
+    private var logger: Logger {
+        Logger(subsystem: "app.fichero.fichero", category: "ActionUndo")
+    }
+
+    var body: some View {
+        Button(undoTitle) {
+            performUndo()
+        }
+        .keyboardShortcut("z", modifiers: .command)
+        .disabled(lastAction.auditId == nil)
+    }
+
+    /// "Undo Merge" when an action is recorded, plain "Undo" otherwise.
+    private var undoTitle: String {
+        guard let name = lastAction.actionName else { return "Undo" }
+        return "Undo \(Self.menuLabel(for: name))"
+    }
+
+    /// `"entity.merge"` → `"Merge"`. Falls back to the raw name if unverbed.
+    private static func menuLabel(for actionName: String) -> String {
+        let verb = actionName.split(separator: ".").last.map(String.init) ?? actionName
+        guard let first = verb.first else { return verb }
+        return first.uppercased() + verb.dropFirst()
+    }
+
+    private func performUndo() {
+        guard let auditId = lastAction.auditId,
+              let service = LibraryManager.shared.globalLibrary?.actionsService else { return }
+        // Clear up front so a second ⌘Z can't replay the inverse of the same row
+        // (single-level undo). Re-records nothing: redo is a follow-up.
+        lastAction.auditId = nil
+        lastAction.actionName = nil
+        Task {
+            do {
+                _ = try await service.undoAction(auditId: auditId)
+                logger.info("⌘Z undo of audit \(auditId) succeeded")
+            } catch {
+                logger.error("⌘Z undo of audit \(auditId) failed: \(error.localizedDescription)")
+            }
+        }
     }
 }
 

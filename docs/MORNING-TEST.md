@@ -12,3 +12,10 @@ Things the autonomous overnight run built that need Daniel's **visual / runtime*
 ## Built overnight (added as the run proceeds)
 <!-- the loop appends: feature → issue → how to test -->
 - Merge two entities (Ontology Browser → select absorber → "Merge N entities") — should still merge correctly AND now write an audit row (#1848 exhibit A: UI button now routes through `POST /api/actions/invoke` `entity.merge`); verify no regression.
+
+## ⌘Z undo of the last audited action (#2015)
+
+After merging two entities, press **⌘Z** — the merge should undo (the entities
+un-merge). Single-level for now: ⌘Z reverses only the most recent audited action,
+then the menu item disables until another action is invoked. Multi-level undo
+(walking the audit log) is a follow-up.
