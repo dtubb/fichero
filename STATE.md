@@ -1,3 +1,12 @@
+## MANAGER STATUS — 2026-06-11 ~15:58 (Phase 2 Mac — 11 shipped; #2052 lane live)
+**0.0.2 pushed @ `b01e3696`. Phase 2 (Mac) in progress.**
+- ✅ **#2079 PID/owner-scoped orphan-kill** (b63b3cc5) — app launch never SIGTERMs a shared/remote engine (early-return on usesCustomHost; localhost path kills only dead-or-self orphans). BuildProject SUCCEEDED. Completes #2048 frontend half. **DANIEL: app launch on a shared-engine host must not kill that engine.**
+- ✅ #2042 File▸New + the openapi-#2019 app-build-break fix (prior tick).
+- ⏳ **Lane `pdfthumb-2052`** (#2052 PDF page thumbnail shows extracted text instead of page image — claude lane) — fix thumbnail resolver to always render page-image via storage endpoint (no-local-path), never the text artifact. PDFThumbnailView/QuickLookComponents.
+- **GATE (frontend):** swiftlint + Xcode BuildProject (tabId `windowtab1`) compile-only; never GUI test. It catches real breaks (caught the #2019 app-build failure last tick).
+- **Phase-2 queue:** #2053 (page labels), #2020 (entity-provenance), #2031 (persistent shell KEYSTONE) → #2032 (toolbar) → #2041 (Liquid Glass). Open follow-ups: #2076, #2077 + the build-break/CI-gap issue (Swift compile not in CI).
+- **Session total so far: 11 shipped** (#2055 #2023 #2046 #2043 #2075 #2078 #2024 #2048 #2025 #2042 #2079) + app-build restored.
+
 ## MANAGER STATUS — 2026-06-11 ~15:25 (Phase 2 Mac underway — 10 shipped + app build RESTORED)
 **0.0.2 pushed @ `ef8ffa2b`. Phase 2 (Mac) in progress.**
 - ✅ **#2042 File ▸ New creates a library** (1d0db6f1) — save panel → createLibrary → opens new window. Xcode BuildProject SUCCEEDED. **DANIEL: eyeball ⌘N → prompts location → creates .fichero → new window.**
