@@ -41265,6 +41265,11 @@
             "nullable": true,
             "title": "Sequence"
           },
+          "page_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Label"
+          },
           "bbox": {
             "prefixItems": [
               {

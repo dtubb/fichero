@@ -5,6 +5,20 @@ from unittest.mock import Mock, patch, MagicMock
 import tempfile
 
 
+def _make_pdf(tmp_path: Path, name: str, page_count: int, *, page_labels=None) -> Path:
+    fitz = pytest.importorskip("fitz")
+
+    path = tmp_path / name
+    doc = fitz.open()
+    for _ in range(page_count):
+        doc.new_page()
+    if page_labels is not None:
+        doc.set_page_labels(page_labels)
+    doc.save(path)
+    doc.close()
+    return path
+
+
 class TestIngestMode:
     """Tests for IngestMode enum."""
 
@@ -1365,8 +1379,8 @@ class TestTextExtraction:
                 assert doc.metadata.get("text_extracted") == True
                 assert len(doc.page_content) > 0  # Should have some content
 
-    def test_pdf_creates_page_children(self):
-        """Importing a PDF should create a parent Document plus one child per page.
+    def test_pdf_creates_page_children_with_named_page_labels(self, tmp_path):
+        """Importing a labeled PDF stamps each child page with the PDF's own label.
 
         Kreuzberg's page extraction is mocked so this test exercises only the
         ingest layer's fan-out logic — not pdfium's actual PDF parsing.
@@ -1374,7 +1388,15 @@ class TestTextExtraction:
         from fichero.ingest import ingest_file, IngestMode
         from fichero.models import FileType, DocType
 
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.pdf"
+        file_path = _make_pdf(
+            tmp_path,
+            "labeled.pdf",
+            6,
+            page_labels=[
+                {"startpage": 0, "style": "r", "firstpagenum": 1},
+                {"startpage": 3, "style": "D", "firstpagenum": 1},
+            ],
+        )
 
         saved_docs: list = []
 
@@ -1392,7 +1414,10 @@ class TestTextExtraction:
         fake_pages_result.pages = [
             {"page_number": 1, "content": "First page text", "is_blank": False},
             {"page_number": 2, "content": "Second page text", "is_blank": False},
-            {"page_number": 3, "content": "", "is_blank": True},
+            {"page_number": 3, "content": "Third page text", "is_blank": False},
+            {"page_number": 4, "content": "Fourth page text", "is_blank": False},
+            {"page_number": 5, "content": "Fifth page text", "is_blank": False},
+            {"page_number": 6, "content": "", "is_blank": True},
         ]
 
         fake_db = FakeDB()
@@ -1405,10 +1430,18 @@ class TestTextExtraction:
         assert parent.doc_type == DocType.file
 
         page_children = [d for d in saved_docs if d.doc_type == DocType.page and d.parent_id == parent.id]
-        assert len(page_children) == 3
+        assert len(page_children) == 6
 
         sequences = sorted(p.sequence for p in page_children if p.sequence is not None)
-        assert sequences == [1, 2, 3]
+        assert sequences == [1, 2, 3, 4, 5, 6]
+        assert [p.page_label for p in sorted(page_children, key=lambda p: p.sequence or 0)] == [
+            "i",
+            "ii",
+            "iii",
+            "1",
+            "2",
+            "3",
+        ]
 
         for page in page_children:
             assert page.metadata.get("pdf_parent_id") == parent.id
@@ -1417,8 +1450,96 @@ class TestTextExtraction:
 
         blank_pages = [p for p in page_children if p.metadata.get("is_blank")]
         assert len(blank_pages) == 1
-        assert blank_pages[0].sequence == 3
+        assert blank_pages[0].sequence == 6
         assert blank_pages[0].page_content is None
+
+    def test_pdf_page_children_without_named_page_labels_leave_page_label_none(self, tmp_path):
+        """Unlabeled PDFs must leave page_label unset so the UI falls back to sequence."""
+        from fichero.ingest import ingest_file, IngestMode
+        from fichero.models import DocType
+
+        file_path = _make_pdf(tmp_path, "plain.pdf", 2)
+
+        saved_docs: list = []
+
+        class FakeDB:
+            def save(self, doc):
+                saved_docs.append(doc)
+
+            def get(self, *_args, **_kwargs):
+                return None
+
+            def embed(self, *_args, **_kwargs):
+                pass
+
+        fake_pages_result = MagicMock()
+        fake_pages_result.pages = [
+            {"page_number": 1, "content": "First page text", "is_blank": False},
+            {"page_number": 2, "content": "Second page text", "is_blank": False},
+        ]
+
+        with patch("fichero.bookmarks.create_bookmark") as mock_bookmark, \
+             patch("kreuzberg.extract_file_sync", return_value=fake_pages_result):
+            mock_bookmark.return_value = None
+            ingest_file(file_path, mode=IngestMode.LINK, extract_text=True, db=FakeDB())
+
+        page_children = [d for d in saved_docs if d.doc_type == DocType.page]
+        assert len(page_children) == 2
+        assert all(page.page_label is None for page in page_children)
+
+    def test_pdf_page_label_source_failures_do_not_crash_page_creation(self, tmp_path):
+        """Broken or partial page-label sources fall back to None per page."""
+        from fichero.ingest import _create_pdf_page_children
+        from fichero.models import Document, DocType
+
+        file_path = tmp_path / "partial.pdf"
+        file_path.write_bytes(b"%PDF-1.7\n")
+
+        saved_docs: list = []
+
+        class FakeDB:
+            def save(self, doc):
+                saved_docs.append(doc)
+
+            def get(self, *_args, **_kwargs):
+                return None
+
+        class _GoodPage:
+            def get_label(self):
+                return "i"
+
+        class _BrokenPage:
+            def get_label(self):
+                raise RuntimeError("bad label")
+
+        class FakePDF:
+            def get_page_labels(self):
+                return [{"startpage": 0, "style": "r", "firstpagenum": 1}]
+
+            def __getitem__(self, index):
+                if index == 0:
+                    return _GoodPage()
+                if index == 1:
+                    return _BrokenPage()
+                raise RuntimeError("missing page")
+
+            def close(self):
+                pass
+
+        fake_pages_result = MagicMock()
+        fake_pages_result.pages = [
+            {"page_number": 1, "content": "First page text", "is_blank": False},
+            {"page_number": 2, "content": "Second page text", "is_blank": False},
+            {"page_number": 3, "content": "Third page text", "is_blank": False},
+        ]
+
+        parent = Document(name="partial.pdf", doc_type=DocType.file)
+        with patch("kreuzberg.extract_file_sync", return_value=fake_pages_result), \
+             patch("fitz.open", return_value=FakePDF()):
+            pages = _create_pdf_page_children(parent, file_path, FakeDB())
+
+        assert len(pages) == 3
+        assert [page.page_label for page in pages] == ["i", None, None]
 
     def test_text_extraction_disabled(self):
         """Should not extract text when extract_text=False."""

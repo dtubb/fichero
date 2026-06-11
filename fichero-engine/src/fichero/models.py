@@ -175,7 +175,8 @@ class Document(BaseModel):
     path: str | None = None  # File path (local or in library)
 
     # For pages/chunks
-    sequence: int | None = None  # Page number or order
+    sequence: int | None = None  # Raw 1-based page/image order
+    page_label: str | None = None  # Document's own numbering; distinct from sequence
     bbox: tuple[int, int, int, int] | None = None  # x, y, width, height
     prototype_key: str | None = None  # user-assigned document prototype/class key
 

@@ -437,46 +437,81 @@ def _create_pdf_page_children(
         logger.debug("PDF %s has no extractable pages", path.name)
         return []
 
+    pdf_doc = None
+    pdf_has_named_labels = False
+    try:
+        import fitz  # PyMuPDF
+
+        pdf_doc = fitz.open(str(path))
+        pdf_has_named_labels = bool(pdf_doc.get_page_labels())
+    except Exception as exc:
+        logger.debug("PDF page labels unavailable for %s: %s", path, exc)
+
     pages: list[Document] = []
-    for page_dict in page_records:
-        page_number = page_dict.get("page_number") or (len(pages) + 1)
-        content = page_dict.get("content") or ""
-        page_doc = Document(
-            parent_id=parent_doc.id,
-            doc_type=DocType.page,
-            file_type=None,  # a page is not a file in itself
-            name=f"{parent_doc.name} - Page {page_number}",
-            sequence=page_number,
-            status=Status.completed,
-            page_content=content if content else None,
-            metadata={
-                "pdf_parent_id": parent_doc.id,
-                "pdf_parent_name": parent_doc.name,
-                "pdf_path": str(path),  # so frontend can render page thumbnail locally
-                "page_number": page_number,
-                "is_blank": bool(page_dict.get("is_blank")),
-                "text_extracted": bool(content),
-                "text_length": len(content),
-            },
-        )
-        db.save(page_doc)
+    try:
+        for page_index, page_dict in enumerate(page_records):
+            page_number = page_dict.get("page_number") or (len(pages) + 1)
+            page_label = (
+                _page_label_for(pdf_doc, page_index)
+                if pdf_doc is not None and pdf_has_named_labels
+                else None
+            )
+            content = page_dict.get("content") or ""
+            page_doc = Document(
+                parent_id=parent_doc.id,
+                doc_type=DocType.page,
+                file_type=None,  # a page is not a file in itself
+                name=f"{parent_doc.name} - Page {page_number}",
+                sequence=page_number,
+                page_label=page_label,
+                status=Status.completed,
+                page_content=content if content else None,
+                metadata={
+                    "pdf_parent_id": parent_doc.id,
+                    "pdf_parent_name": parent_doc.name,
+                    "pdf_path": str(path),  # so frontend can render page thumbnail locally
+                    "page_number": page_number,
+                    "is_blank": bool(page_dict.get("is_blank")),
+                    "text_extracted": bool(content),
+                    "text_length": len(content),
+                },
+            )
+            db.save(page_doc)
 
-        # Persist per-page structured outputs (tables, image OCR /
-        # descriptions) as artifacts on the page Document. (#885)
-        _save_pdf_page_artifacts(page_doc, page_dict, db)
+            # Persist per-page structured outputs (tables, image OCR /
+            # descriptions) as artifacts on the page Document. (#885)
+            _save_pdf_page_artifacts(page_doc, page_dict, db)
 
-        if auto_embed and page_doc.page_content:
-            try:
-                db.embed(page_doc)
-            except Exception as exc:
-                logger.debug("Embedding failed for page %s: %s", page_number, exc)
+            if auto_embed and page_doc.page_content:
+                try:
+                    db.embed(page_doc)
+                except Exception as exc:
+                    logger.debug("Embedding failed for page %s: %s", page_number, exc)
 
-        _touch_ancestor_documents(db, page_doc.parent_id)
+            _touch_ancestor_documents(db, page_doc.parent_id)
 
-        pages.append(page_doc)
+            pages.append(page_doc)
+    finally:
+        if pdf_doc is not None:
+            pdf_doc.close()
 
     logger.info("Created %d page children for PDF %s", len(pages), path.name)
     return pages
+
+
+def _page_label_for(pdf_doc: Any, page_index: int) -> str | None:
+    """Return the PDF-defined label for a page, or ``None`` when unavailable."""
+    try:
+        label = pdf_doc[page_index].get_label()
+    except Exception as exc:
+        logger.debug("Failed to read PDF page label for index %d: %s", page_index, exc)
+        return None
+
+    if not isinstance(label, str):
+        return None
+
+    label = label.strip()
+    return label or None
 
 
 def _copy_to_library(source: Path, package_path: Path | None = None) -> Path:

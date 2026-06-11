@@ -131,6 +131,20 @@ class TestDocumentCRUD:
         assert retrieved.status == Status.processing
         assert retrieved.file_type == FileType.pdf
 
+    def test_document_page_label_round_trips(self, temp_db):
+        """Named PDF page labels must persist without a dedicated migration."""
+        doc = Document(
+            name="page-1",
+            doc_type=DocType.page,
+            sequence=1,
+            page_label="i",
+        )
+        temp_db.save(doc)
+
+        retrieved = temp_db.get(Document, doc.id)
+        assert retrieved is not None
+        assert retrieved.page_label == "i"
+
     def test_document_hierarchy(self, temp_db):
         """Test document parent-child relationships."""
         # Create collection
