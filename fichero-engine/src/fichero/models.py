@@ -1712,6 +1712,13 @@ class ActionAudit(BaseModel):
         description="AI run id if this action ran as part of an agent batch (#1832).",
     )
     created_at: datetime = Field(default_factory=datetime.now)
+    chain_seq: int | None = Field(
+        default=None,
+        description=(
+            "Monotonic append order for this database's audit chain. "
+            "Assigned under the database lock when the row is written."
+        ),
+    )
     undone: bool = Field(
         default=False,
         description="True once this action has been reversed via its inverse.",

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 import json
 import threading
 
 import pytest
 from pydantic import BaseModel
 
-from fichero.actions.audit_chain import verify_audit_chain
+from fichero.actions.audit_chain import compute_action_audit_hash, verify_audit_chain
 from fichero.actions.registry import (
     ActionContext,
     ActionRegistration,
@@ -75,7 +76,38 @@ def _invoke(db, name: str, value: str):
 
 
 def _audit_rows(db) -> list[ActionAudit]:
-    return sorted(db.all(ActionAudit), key=lambda a: (a.created_at, a.id))
+    return sorted(
+        db.all(ActionAudit),
+        key=lambda a: (a.chain_seq if a.chain_seq is not None else -1, a.id),
+    )
+
+
+def _seed_audit(
+    db,
+    *,
+    audit_id: str,
+    action_name: str,
+    value: str,
+    created_at: datetime,
+    prev_hash: str | None,
+    chain_seq: int,
+) -> ActionAudit:
+    audit = ActionAudit(
+        id=audit_id,
+        action_name=action_name,
+        actor="alice",
+        target_ids=[value],
+        params={"value": value},
+        before={"value": "before"},
+        after={"value": value},
+        run_id="run-1",
+        created_at=created_at,
+        chain_seq=chain_seq,
+        prev_hash=prev_hash,
+    )
+    audit.row_hash = compute_action_audit_hash(audit)
+    db.save(audit)
+    return audit
 
 
 def test_appended_actions_verify_and_link_contiguously(db, chain_actions):
@@ -87,10 +119,41 @@ def test_appended_actions_verify_and_link_contiguously(db, chain_actions):
     assert result.checked == 3
 
     rows = _audit_rows(db)
+    assert [row.chain_seq for row in rows] == [1, 2, 3]
     assert rows[0].prev_hash is None
     for prev, current in zip(rows, rows[1:]):
         assert current.prev_hash == prev.row_hash
         assert current.row_hash
+
+
+def test_same_microsecond_rows_verify_via_chain_seq_order(db):
+    shared_created_at = datetime(2026, 6, 11, 12, 0, 0, 123456)
+    first = _seed_audit(
+        db,
+        audit_id="same-ts-first",
+        action_name="test.chain_forward",
+        value="one",
+        created_at=shared_created_at,
+        prev_hash=None,
+        chain_seq=1,
+    )
+    _seed_audit(
+        db,
+        audit_id="same-ts-second",
+        action_name="test.chain_forward",
+        value="two",
+        created_at=shared_created_at,
+        prev_hash=first.row_hash,
+        chain_seq=2,
+    )
+
+    result = verify_audit_chain(db)
+    assert result.ok is True
+    assert result.checked == 2
+
+    rows = _audit_rows(db)
+    assert rows[0].created_at == rows[1].created_at == shared_created_at
+    assert [row.chain_seq for row in rows] == [1, 2]
 
 
 def test_verification_detects_edited_historical_row(db, chain_actions):
@@ -115,6 +178,26 @@ def test_verification_detects_deleted_middle_row(db, chain_actions):
 
     rows = _audit_rows(db)
     db._execute('DELETE FROM "actionaudits" WHERE id = $id', {"id": rows[1].id})
+
+    result = verify_audit_chain(db)
+    assert result.ok is False
+    assert result.broken_audit_id == rows[2].id
+    assert result.reason == "prev_hash mismatch"
+
+
+def test_verification_detects_reordered_chain_seq(db, chain_actions):
+    for value in ["one", "two", "three"]:
+        _invoke(db, chain_actions, value)
+
+    rows = _audit_rows(db)
+    db._execute(
+        'UPDATE "actionaudits" SET chain_seq = $chain_seq WHERE id = $id',
+        {"chain_seq": 3, "id": rows[0].id},
+    )
+    db._execute(
+        'UPDATE "actionaudits" SET chain_seq = $chain_seq WHERE id = $id',
+        {"chain_seq": 1, "id": rows[2].id},
+    )
 
     result = verify_audit_chain(db)
     assert result.ok is False
@@ -214,6 +297,8 @@ def test_near_simultaneous_invokes_produce_linear_chain(db):
 
         rows = _audit_rows(db)
         assert len(rows) == 2
+        assert [row.chain_seq for row in rows] == [1, 2]
+        assert len({row.chain_seq for row in rows}) == 2
         assert rows[0].prev_hash is None
         assert rows[1].prev_hash == rows[0].row_hash
         assert len({json.dumps(row.prev_hash) for row in rows}) == 2

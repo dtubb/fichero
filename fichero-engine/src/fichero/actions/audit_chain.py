@@ -70,8 +70,27 @@ def compute_action_audit_hash(audit: ActionAudit) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _backfill_chain_seq(db) -> None:
+    db._ensure_table(ActionAudit)
+    rows = db.all(ActionAudit)
+    if not rows or all(row.chain_seq is not None for row in rows):
+        return
+
+    for chain_seq, audit in enumerate(
+        sorted(rows, key=lambda a: (a.created_at, a.id)),
+        start=1,
+    ):
+        if audit.chain_seq == chain_seq:
+            continue
+        db._execute(
+            'UPDATE "actionaudits" SET chain_seq = $chain_seq WHERE id = $id',
+            {"chain_seq": chain_seq, "id": audit.id},
+        )
+
+
 def _audit_rows_in_chain_order(db) -> list[ActionAudit]:
-    return sorted(db.all(ActionAudit), key=lambda a: (a.created_at, a.id))
+    _backfill_chain_seq(db)
+    return sorted(db.all(ActionAudit), key=lambda a: (a.chain_seq, a.id))
 
 
 def current_audit_chain_head(db) -> str | None:
@@ -84,7 +103,12 @@ def current_audit_chain_head(db) -> str | None:
 def save_chained_audit(db, audit: ActionAudit) -> None:
     """Append ``audit`` under the database lock as one linear chain step."""
     with db._lock:
+        _backfill_chain_seq(db)
         audit.created_at = datetime.now()
+        next_seq = db._execute(
+            'SELECT COALESCE(MAX(chain_seq), 0) FROM "actionaudits"'
+        ).fetchone()[0]
+        audit.chain_seq = int(next_seq) + 1
         audit.prev_hash = current_audit_chain_head(db)
         audit.row_hash = compute_action_audit_hash(audit)
         db.save(audit)
