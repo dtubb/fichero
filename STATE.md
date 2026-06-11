@@ -1,3 +1,12 @@
+## MANAGER STATUS — 2026-06-11 ~12:50 (Phase 1: 3 SHIPPED, 2 lanes live)
+**0.0.2 pushed @ `fcca7442`. Shipped this session: #2055, #2023 (keystone), #2046.**
+- ✅ **#2055** LLM client pooling (`b8028f76`) · ✅ **#2023** actor-attribution keystone (`9f2b8c62`, full suite 4519 passed, security-reviewed — forgery-proof) · ✅ **#2046** scheduled+offsite backups (`fcca7442`, privacy-safe filesystem-only, 76 tests).
+- ⏳ **Lane `audit-chain-2043`** (#2043 tamper-evident hash-chained ActionAudit, gpt-5.5) — prev_hash/row_hash over immutable fields, EXCLUDES mutable `undone`, locked append, verify routine. Worktree ~/code/fichero-worktrees/audit-chain-2043.
+- ⏳ **Lane `trash-2075`** (#2075 Trash BACKEND soft-delete/restore/purge, gpt-5.4; UI deferred to Phase 2) — deleted_at/deleted_by, exclude from ALL read paths, restore+purge+list-trash actions. Worktree ~/code/fichero-worktrees/trash-2075.
+- **Integration gate per commit:** cherry-pick → targeted pytest (blast-radius) + ruff [+ full suite for keystones] → push → clean worktree → close. NO `--full`/xcodebuild test (GUI). Verified worker claims rather than trusting (#2055's "18 fails" were an env fluke).
+- **Owed cleanup tick:** prune stale KNOWN_VIOLATIONS so `verify_all --fast` greens (3 ratchet-drift fails: dead_files/observer_pattern/service_consistency — codebase got cleaner than baseline).
+- **Next auth-chain (serialize behind #2043):** #2025 ambient-authority → #2024 ACL/private-by-default → #2048 bind → #2026 Tailscale. Then Phase 2 Mac (EPIC #2030).
+
 ## MANAGER STATUS — 2026-06-11 ~12:35 (Phase 1 integrating: #2055 SHIPPED, #2023 in gate)
 **0.0.2 pushed @ `4319667b` (#2055). #2023 cherry-picked locally @ `9f2b8c62`, full-suite gate running.**
 - ✅ **#2055 LLM client pooling SHIPPED** (`b8028f76`→pushed `4319667b`): pooled httpx.AsyncClient per (identity, loop); fm-bridge persistent process deferred (documented). 327 blast-radius tests + ruff green. Closed.
