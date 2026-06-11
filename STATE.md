@@ -1,3 +1,21 @@
+## MANAGER STATUS — 2026-06-11 ~11:48 (Phase 1 dispatch: 2 lanes live)
+**0.0.2 @ `aec62640`, pushed, clean. Engine running prod-style (PID 29901, single proc, model-cache verified). Orphan-milestone triage CONFIRMED DONE — `gh issue list` shows 0 of 477 open issues without a milestone.**
+
+### Active worker lanes (tmux `fichero-workers`, external worktrees):
+- **`actor-2023`** (gpt-5.5-codex, YOLO) — **#2023** derive `ActionContext.actor` from `request.state.user`. KEYSTONE: the auth chain (#2043→#2025→#2024) serializes behind it. Worktree `~/code/fichero-worktrees/actor-2023`. Touches api/routes/* + registry.py + change_stream.py. Brief: `/tmp/actor-2023.txt`.
+- **`clients-2055`** (gpt-5.4-mini, YOLO) — **#2055** pool API LLM clients per identity + characterize fm-bridge (mirrors #2050). Worktree `~/code/fichero-worktrees/clients-2055`. Touches workflows/llm.py ONLY (disjoint from #2023 → no cherry-pick conflict). Brief: `/tmp/clients-2055.txt`.
+
+### Integrate-on-completion (manager) — VERIFY GATE = the verify_all scripts, all steps, NO GUI:
+poll worktree for commit → `git cherry-pick <sha>` → **`bash scripts/verify_all.sh --standard`** (swiftlint + ruff + ALL check_*.py guardrails + OpenAPI model-sync + version↔date + backend pytest — zero GUI) → security code-review on #2023 (forgery: actor must come from session, never request) → push → `git worktree remove --force` + `git branch -D` → close issue with sha + remove status:in-progress. NEVER push red. **NEVER run `--full` / `xcodebuild test` on this machine (spawns Fichero GUI windows — hard rule).** Frontend lanes gate with `--fast` + Xcode-MCP `BuildProject` (compile only, no GUI).
+
+### Seam facts verified on disk (index was stale, pre-#2022):
+- `auth.py:_enforce_auth` sets `request.state.user` (User|None), `.session`, `.bootstrap_auth`. MULTIUSER off → user=None → actor must resolve "system" (zero behavior change).
+- `registry.invoke` (registry.py:170) writes `ActionAudit(actor=ctx.actor)`; routes ALSO call `emit_change(actor="ui", origin_window=x_fichero_origin_window)` directly — BOTH surfaces need threading.
+- `.claude/worktrees/` is empty (only a stale .DS_Store); the dirs jcodemunch still indexes there are an index artifact, not real — re-index when convenient.
+
+### Phase-1 queue AFTER these land (auth chain, serialized behind #2023): #2043 tamper-evident log → #2025 ambient-authority → #2024 ACL/private-by-default → #2048 bind → #2026 Tailscale. Disjoint parallel-able: #2046 backups (new module), #1935 observable-one-path, Trash #2075 (overlaps documents.py — run AFTER #2023 integrates).
+
+---
 ## SESSION HANDOFF — 2026-06-11 ~10:55 (infra march + roadmap planned; continue Phase 1)
 **0.0.2 @ `de7d35ed`, pushed, clean (no worktrees/lanes; tmux only `seed`). Engine restarted production-style on the new code (single process; model-cache verified: embedder loads 1×, not per-page).**
 
