@@ -1,3 +1,28 @@
+## SESSION HANDOFF — 2026-06-11 ~10:55 (infra march + roadmap planned; continue Phase 1)
+**0.0.2 @ `de7d35ed`, pushed, clean (no worktrees/lanes; tmux only `seed`). Engine restarted production-style on the new code (single process; model-cache verified: embedder loads 1×, not per-page).**
+
+### docs/ROADMAP.md is now the authoritative 4-phase plan (READ IT FIRST)
+**Everything filed into a milestone; work milestones properly, in order:**
+1. **INFRASTRUCTURE (doing now)** — EPIC #2021 multi-user → **#2023 actor-from-session (NEXT)** → #2043 tamper-evident log → #2025 ambient-authority → #2024 ACL/sharing → #2048 bind → #2026 Tailscale; + #2045 SSE-hardening, #2046 backups, #1935 observable-one-path, #2055 client-reuse, **Trash #2075**.
+2. **MAC-ASSED APP** — EPIC #2030 (shell #2031 → zoned toolbar #2032 → styling/#2041 Liquid Glass) + #2020/#2052/#2053/#2042.
+3. **WORKFLOW & AI INFERENCE** — EPIC #2056 (batch #2057, profiles #2058, local-MLX #2066, scale #2062, Apple Vision #2060, image-edit backend #2061, local-only #2063).
+4. **RESEARCHER/AI/AGENT** — EPIC #2067 (Workspace≡RAG-chat≡Agent; agent IS a principal; Pi #2071 on mlx-lm-server; reuses #2022/#2023/#2024/#2015 — no parallel agent system).
+- **Cross-cutting PRIVACY GUARANTEE (#2063):** nothing goes online without explicit user consent; default-private; local-only setting + indicator.
+
+### Shipped this session (Phase-1 infra):
+- ✅ **#2050 model-cache** (embeddings/whisper/pykeen load once; reviewed) · ✅ **#2044 workers=1** · ✅ **#2051 Settings-crash** · ✅ **#2022 user-accounts BACKEND COMPLETE** (accounts.py scrypt + User/Session + /api/auth/* + owner admin + session middleware, behind `FICHERO_MULTIUSER` OFF, **security-reviewed APPROVE + hardened**). Commits through `de7d35ed`.
+
+### Two things WAITING ON DANIEL:
+- **#2049 embedding pooling** — pin `fastembed==0.5.1` (rec) vs re-embed real Marshall vectors. His call.
+- Click-verify (docs/MORNING-TEST.md): Settings ⌘, opens (#2051); buttons+⌘Z; App Intents; Track-B; #2009/#1973.
+
+### In flight when handing off: a background triage agent is assigning milestones to ~55 genuinely-orphaned OLD issues (#1666–#2006). (New issues #2020–#2075 already milestoned; gh issue list shows search-lag false-negatives — verify with `gh issue view`.) Check its result; finish any it flagged.
+
+### NEXT CONCRETE STEP: dispatch **#2023** (derive ActionContext.actor from request.state.user — the seam exists: auth.py sets request.state.user; ~100 ActionContext call sites need to read it). Backend worker (codex), feature-flag-safe, full-suite + review gate. Then continue Phase 1 down the list.
+
+### MANAGER MODE: workers implement, manager integrates + code-reviews. Worktrees only ~/code/fichero-worktrees; one Xcode build at a time; never push red; ≤1 pytest. codex weekly quota <10% (use claude lanes if codex dies). Daniel cleared the engine — manager MAY restart + run full suite.
+
+---
 ## SESSION HANDOFF — 2026-06-11 ~08:50 (#1848 frontend remainder COMPLETE + Track B Phase 2 DONE)
 **0.0.2 @ `d92c1c96`, pushed, clean (no worktrees/lanes; only tmux `seed`). All frontend lanes Xcode compile-verified green.**
 
