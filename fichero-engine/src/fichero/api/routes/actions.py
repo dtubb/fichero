@@ -11,7 +11,7 @@ Provides endpoints for:
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
@@ -140,6 +140,45 @@ def get_action_store(db: Database = Depends(get_library_database)) -> ActionStor
     return ActionStore(db)
 
 
+def create_action_impl(store: ActionStore, request: CreateActionRequest) -> Action:
+    """Build + persist a custom Action — the proven create logic.
+
+    Extracted from the ``POST /actions`` route so BOTH the route and the
+    ``actionlib.create`` audited action (EPIC #1848) drive the *same* code
+    (iterate-not-replace: the algorithm is wrapped, never re-derived). Emission
+    to the observable layer stays with the caller.
+    """
+    action = Action(
+        name=request.name,
+        description=request.description,
+        category=request.category,
+        tags=request.tags,
+        icon=request.icon,
+        node_template=request.node_template,
+        nodes=request.nodes,
+        edges=request.edges,
+        author=request.author,
+    )
+    store.save(action)
+    return action
+
+
+def delete_action_impl(store: ActionStore, action_id: str) -> bool:
+    """Validate + delete a custom Action — the proven delete logic.
+
+    Raises ``HTTPException(404)`` if the action is missing and
+    ``HTTPException(403)`` for a built-in (cannot be deleted). Shared verbatim by
+    the ``DELETE /actions/{id}`` route and the ``actionlib.delete`` action so the
+    same guard rails apply on every path. Emission stays with the caller.
+    """
+    action = store.get(action_id)
+    if not action:
+        raise HTTPException(status_code=404, detail="Action not found")
+    if action.is_builtin:
+        raise HTTPException(status_code=403, detail="Cannot delete built-in action")
+    return store.delete(action_id)
+
+
 # =========================================================================
 # List Endpoints
 # =========================================================================
@@ -251,19 +290,7 @@ async def create_action(
     ),
 ):
     """Create a new action."""
-    action = Action(
-        name=request.name,
-        description=request.description,
-        category=request.category,
-        tags=request.tags,
-        icon=request.icon,
-        node_template=request.node_template,
-        nodes=request.nodes,
-        edges=request.edges,
-        author=request.author,
-    )
-
-    store.save(action)
+    action = create_action_impl(store, request)
     emit_change(
         x_fichero_library_path,
         type="action.created",
@@ -331,14 +358,7 @@ async def delete_action(
     ),
 ) -> ActionSuccessResponse:
     """Delete an action."""
-    action = store.get(action_id)
-    if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
-
-    if action.is_builtin:
-        raise HTTPException(status_code=403, detail="Cannot delete built-in action")
-
-    success = store.delete(action_id)
+    success = delete_action_impl(store, action_id)
     emit_change(
         x_fichero_library_path,
         type="action.deleted",
@@ -476,3 +496,135 @@ async def create_composite_action(
         origin_window=x_fichero_origin_window,
     )
     return action_to_response(action)
+
+
+# ===========================================================================
+# Action layer registration (EPIC #1848 / sweep #2014)
+# ===========================================================================
+#
+# The workflow Action Library's two mutating ops become registered, AUDITED
+# actions so chat tools / App Intents / tests / the audit log all drive ONE
+# path via POST /api/actions/invoke. Each action WRAPS the proven *_impl above
+# (iterate-not-replace) and routes through `registry.invoke`, which writes the
+# generic ActionAudit and emits the same `action.created` / `action.deleted`
+# change event the typed routes above already emit. The typed routes are
+# untouched and stay green — the action is the *additional* uniform path.
+#
+# Named `actionlib.*` (NOT `action.*`) to avoid confusion with the registry's
+# own "action" concept — these mutate the *workflow Action Library*, a
+# DuckDB-backed store (`ActionStore`), not knowledge-graph objects.
+#
+# actionlib.delete is undoable: its before-snapshot is the full Action row, and
+# the inverse `actionlib.restore` re-saves it. actionlib.create is undoable too
+# (the inverse deletes the freshly-created row).
+
+from fichero.actions.registry import (  # noqa: E402
+    ActionContext,
+    ChangeSpec,
+    action,
+)
+
+
+class DeleteActionParams(BaseModel):
+    """Params for actionlib.delete — the action-library id to remove."""
+
+    action_id: str = Field(description="Action Library id to delete")
+
+
+class RestoreActionParams(BaseModel):
+    """Params for actionlib.restore — the JSON snapshot of a deleted Action."""
+
+    action: dict[str, Any] = Field(
+        description="Full Action.model_dump(mode='json') snapshot to re-insert"
+    )
+
+
+def _invert_create(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a create by deleting the row it inserted."""
+    if not after or not after.get("action_id"):
+        return None
+    return ("actionlib.delete", {"action_id": after["action_id"]})
+
+
+@action(
+    "actionlib.create",
+    CreateActionRequest,
+    domains=["action"],
+    undoable=True,
+    invert=_invert_create,
+)
+def _action_create_action(
+    db: Database, params: CreateActionRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    store = ActionStore(db)
+    action_obj = create_action_impl(store, params)
+    spec = ChangeSpec(
+        domains=["action"],
+        target_ids=[action_obj.id],
+        after={"action_id": action_obj.id, "created": True},
+        emit_type="action.created",
+        entity_ids=[action_obj.id],
+    )
+    return action_to_response(action_obj).model_dump(mode="json"), spec
+
+
+def _invert_delete(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo a delete by re-inserting the captured Action snapshot."""
+    if not before or not before.get("action"):
+        return None
+    return ("actionlib.restore", {"action": before["action"]})
+
+
+@action(
+    "actionlib.delete",
+    DeleteActionParams,
+    domains=["action"],
+    undoable=True,
+    invert=_invert_delete,
+)
+def _action_delete_action(
+    db: Database, params: DeleteActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    store = ActionStore(db)
+    # Snapshot the full row BEFORE delete validates + removes it — this is the
+    # undo payload (delete_action_impl raises 404/403 for missing/built-in).
+    existing = store.get(params.action_id)
+    before = (
+        {"action": existing.model_dump(mode="json")} if existing is not None else None
+    )
+    success = delete_action_impl(store, params.action_id)
+    spec = ChangeSpec(
+        domains=["action"],
+        target_ids=[params.action_id],
+        before=before,
+        after={"action_id": params.action_id, "deleted": success},
+        emit_type="action.deleted",
+        entity_ids=[params.action_id],
+    )
+    return {"success": success, "action_id": params.action_id}, spec
+
+
+@action(
+    "actionlib.restore",
+    RestoreActionParams,
+    domains=["action"],
+    undoable=False,
+)
+def _action_restore_action(
+    db: Database, params: RestoreActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    store = ActionStore(db)
+    action_obj = Action.model_validate(params.action)
+    store.save(action_obj)
+    spec = ChangeSpec(
+        domains=["action"],
+        target_ids=[action_obj.id],
+        after={"action_id": action_obj.id, "restored": True},
+        emit_type="action.created",
+        entity_ids=[action_obj.id],
+    )
+    return action_to_response(action_obj).model_dump(mode="json"), spec
