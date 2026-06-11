@@ -446,13 +446,16 @@ class ConversationUpdate(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
-@router.put("/conversations/{conversation_id}")
-async def update_conversation(
-    conversation_id: str,
-    request: ConversationUpdate,
-    db: Database = Depends(get_library_database),
-) -> ConversationHistory:
-    """Update conversation title and/or folder_path."""
+def update_conversation_impl(
+    db: Database, conversation_id: str, request: ConversationUpdate
+) -> Conversation:
+    """Apply title/folder_path edits to a conversation and persist it.
+
+    Extracted from the ``PUT /conversations/{id}`` route so BOTH the route and
+    the ``conversation.update`` action (EPIC #1848) drive the *same* code
+    (iterate-not-replace). Raises ``HTTPException(404)`` on an unknown id exactly
+    as the route did. Returns the mutated, persisted ``Conversation``.
+    """
     conv = db.get(Conversation, conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -465,6 +468,17 @@ async def update_conversation(
 
     conv.updated_at = datetime.now()
     db.save(conv)
+    return conv
+
+
+@router.put("/conversations/{conversation_id}")
+async def update_conversation(
+    conversation_id: str,
+    request: ConversationUpdate,
+    db: Database = Depends(get_library_database),
+) -> ConversationHistory:
+    """Update conversation title and/or folder_path."""
+    conv = update_conversation_impl(db, conversation_id, request)
 
     return ConversationHistory(
         id=conv.id,
@@ -477,12 +491,14 @@ async def update_conversation(
     )
 
 
-@router.post("/conversations/{conversation_id}/duplicate")
-async def duplicate_conversation(
-    conversation_id: str,
-    db: Database = Depends(get_library_database),
-) -> ConversationSummary:
-    """Duplicate a conversation with a new ID."""
+def duplicate_conversation_impl(db: Database, conversation_id: str) -> Conversation:
+    """Create and persist a copy of a conversation under a new id.
+
+    Extracted from the ``POST /conversations/{id}/duplicate`` route so BOTH the
+    route and the ``conversation.duplicate`` action drive the *same* copy logic
+    (iterate-not-replace). Raises ``HTTPException(404)`` on an unknown id.
+    Returns the new ``Conversation``.
+    """
     original = db.get(Conversation, conversation_id)
     if not original:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -499,6 +515,16 @@ async def duplicate_conversation(
     )
 
     db.save(new_conv)
+    return new_conv
+
+
+@router.post("/conversations/{conversation_id}/duplicate")
+async def duplicate_conversation(
+    conversation_id: str,
+    db: Database = Depends(get_library_database),
+) -> ConversationSummary:
+    """Duplicate a conversation with a new ID."""
+    new_conv = duplicate_conversation_impl(db, conversation_id)
 
     return ConversationSummary(
         id=new_conv.id,
@@ -511,17 +537,29 @@ async def duplicate_conversation(
     )
 
 
+def delete_conversation_impl(db: Database, conversation_id: str) -> Conversation:
+    """Delete a conversation, returning the row that was removed.
+
+    Extracted from the ``DELETE /conversations/{id}`` route so BOTH the route
+    and the ``conversation.delete`` action drive the *same* code
+    (iterate-not-replace). Returning the deleted ``Conversation`` lets the action
+    snapshot it as the undo payload. Raises ``HTTPException(404)`` on unknown id.
+    """
+    conv = db.get(Conversation, conversation_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    db.delete(conv)
+    return conv
+
+
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(
     conversation_id: str,
     db: Database = Depends(get_library_database),
 ) -> ConversationDeletedResponse:
     """Delete a conversation."""
-    conv = db.get(Conversation, conversation_id)
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    db.delete(conv)
+    delete_conversation_impl(db, conversation_id)
     return ConversationDeletedResponse(status="deleted")
 
 
@@ -692,3 +730,189 @@ async def extract_text(
         failed=failed,
         errors=errors[:10],  # Limit error list
     )
+
+
+# ---------------------------------------------------------------------------
+# Action layer registration (EPIC #1848 / sweep #2014) — conversation domain
+# ---------------------------------------------------------------------------
+#
+# Every conversation mutation (update / duplicate / delete) becomes a
+# registered, audited action that WRAPS the proven ``*_impl`` above — the typed
+# routes stay green and untouched; the action is the additional uniform path
+# that chat tools / App Intents / tests drive via POST /api/actions/invoke.
+# ``before``/``after`` snapshots ARE the undo payload.
+#
+# Undo design (mirrors the workflow sibling): ``db.save`` is an upsert by id, so
+# a single ``conversation.restore`` (full-snapshot upsert) inverts BOTH a delete
+# (re-inserts the row, same id) and an edit (overwrites with the prior snapshot).
+# ``restore`` records whether the row pre-existed, so its OWN inverse is
+# ``conversation.delete`` (after a recreate) or ``conversation.restore`` (after
+# an overwrite) — keeping every delete<->restore and edit<->restore redo chain
+# sane. ``conversation.duplicate`` creates a brand-new row (no prior state to
+# reverse to) and is left NOT undoable per the sweep scope.
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+def _snap_conversation(conv: Conversation) -> dict:
+    """JSON-able snapshot of a Conversation row (the undo payload)."""
+    return conv.model_dump(mode="json")
+
+
+class ConversationIdParams(BaseModel):
+    """Shared params for id-only conversation actions (duplicate / delete)."""
+
+    conversation_id: str
+
+
+class ConversationUpdateParams(BaseModel):
+    """``conversation.update`` params — the target id plus the editable fields.
+
+    Mirrors :class:`ConversationUpdate` (title / folder_path, ``extra="allow"``)
+    with the path id folded in so the action is self-contained.
+    """
+
+    conversation_id: str
+    title: Optional[str] = None
+    folder_path: Optional[str] = None
+
+    model_config = ConfigDict(extra="allow")
+
+
+class ConversationRestoreParams(BaseModel):
+    """``conversation.restore`` — re-materialize / overwrite a conversation by
+    snapshot (preserving its id)."""
+
+    snapshot: dict
+
+
+def _invert_to_restore_before(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo an edit/delete by restoring the captured pre-change snapshot."""
+    if not before:
+        return None
+    return ("conversation.restore", {"snapshot": before})
+
+
+def _invert_restore(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Inverse of restore — depends on whether the row pre-existed.
+
+    If ``before`` is None the restore RE-CREATED a missing row (it was undoing a
+    delete) -> redo by deleting again. If ``before`` is a snapshot the restore
+    OVERWROTE an existing row (undoing an edit) -> redo by restoring that prior
+    snapshot, which re-applies the edit. Keeps delete<->restore and
+    edit<->restore redo chains correct."""
+    if not after:
+        return None
+    cid = after.get("id")
+    if before is None:
+        if not cid:
+            return None
+        return ("conversation.delete", {"conversation_id": cid})
+    return ("conversation.restore", {"snapshot": before})
+
+
+@action(
+    "conversation.update",
+    ConversationUpdateParams,
+    domains=["conversation"],
+    undoable=True,
+    invert=_invert_to_restore_before,
+)
+def _action_update_conversation(
+    db: Database, params: ConversationUpdateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    existing = db.get(Conversation, params.conversation_id)
+    if existing is None:
+        raise HTTPException(
+            status_code=404, detail="Conversation not found"
+        )
+    before = _snap_conversation(existing)
+    request = ConversationUpdate(
+        title=params.title, folder_path=params.folder_path
+    )
+    conv = update_conversation_impl(db, params.conversation_id, request)
+    after = _snap_conversation(conv)
+    spec = ChangeSpec(
+        domains=["conversation"],
+        target_ids=[conv.id],
+        before=before,
+        after=after,
+        emit_type="conversation.updated",
+    )
+    return after, spec
+
+
+@action(
+    "conversation.duplicate",
+    ConversationIdParams,
+    domains=["conversation"],
+    undoable=False,
+)
+def _action_duplicate_conversation(
+    db: Database, params: ConversationIdParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    new_conv = duplicate_conversation_impl(db, params.conversation_id)
+    after = _snap_conversation(new_conv)
+    spec = ChangeSpec(
+        domains=["conversation"],
+        target_ids=[new_conv.id],
+        before=None,
+        after=after,
+        emit_type="conversation.created",
+    )
+    return after, spec
+
+
+@action(
+    "conversation.delete",
+    ConversationIdParams,
+    domains=["conversation"],
+    undoable=True,
+    invert=_invert_to_restore_before,
+)
+def _action_delete_conversation(
+    db: Database, params: ConversationIdParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    deleted = delete_conversation_impl(db, params.conversation_id)
+    before = _snap_conversation(deleted)
+    spec = ChangeSpec(
+        domains=["conversation"],
+        target_ids=[params.conversation_id],
+        before=before,
+        after=None,
+        emit_type="conversation.deleted",
+    )
+    return before, spec
+
+
+@action(
+    "conversation.restore",
+    ConversationRestoreParams,
+    domains=["conversation"],
+    undoable=True,
+    invert=_invert_restore,
+)
+def _action_restore_conversation(
+    db: Database, params: ConversationRestoreParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Upsert a conversation from its snapshot (preserving id). Records whether
+    the row pre-existed so its inverse picks delete (recreate) vs restore
+    (edit)."""
+    cid = params.snapshot.get("id")
+    existing = db.get(Conversation, cid) if cid else None
+    before = _snap_conversation(existing) if existing else None
+    conv = Conversation(**params.snapshot)
+    db.save(conv)
+    after = _snap_conversation(conv)
+    spec = ChangeSpec(
+        domains=["conversation"],
+        target_ids=[conv.id],
+        before=before,
+        after=after,
+        emit_type="conversation.updated" if before else "conversation.created",
+    )
+    return after, spec
