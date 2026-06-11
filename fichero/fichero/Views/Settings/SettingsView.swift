@@ -38,3 +38,33 @@ struct SettingsView: View {
         .frame(width: 680, height: 520)
     }
 }
+
+// MARK: - Preview / Regression Guard (#2051)
+
+/// Constructs the full settings root with the SAME environment objects the
+/// real `Settings` scene injects (`appState` + `libraryManager`). Because
+/// `TabView` builds every tab eagerly, rendering this preview exercises each
+/// pane's construct path — so any settings pane that reads an @EnvironmentObject
+/// NOT injected here (the exact bug behind #2051, where the Models tab's
+/// LibraryManager dependency was missing from the Settings scene) traps on
+/// render. Keep this preview's injected objects in sync with the `Settings`
+/// scene in `FicheroApp.swift`; a divergence here is the regression signal.
+#Preview("Settings (all panes)") {
+    SettingsPreviewHarness()
+}
+
+/// Forces every gated settings tab on (so the preview covers the full surface,
+/// not just the always-on Defaults tab) and injects the same environment
+/// objects the real `Settings` scene does. The flag flip lives in `init` so the
+/// preview body stays a clean single-expression `@ViewBuilder`.
+private struct SettingsPreviewHarness: View {
+    init() {
+        FeatureManager.shared.allFeaturesEnabled = true
+    }
+
+    var body: some View {
+        SettingsView()
+            .environmentObject(AppState())
+            .environmentObject(LibraryManager.shared)
+    }
+}
