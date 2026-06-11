@@ -280,6 +280,8 @@ class Document(BaseModel):
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+    deleted_at: datetime | None = None
+    deleted_by: str | None = None
 
     # User-defined order within parent folder. Set by /documents/reorder;
     # consumed by `SidebarItemBuilder.childOrder` Swift-side (lower =

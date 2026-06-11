@@ -846,6 +846,7 @@ class Database(DatabaseEmbeddingMixin):
             FROM artifacts a
             JOIN documents d ON d.id = a.document_id
             WHERE a.artifact_type IN ({placeholders})
+              AND d.deleted_at IS NULL
               AND lower(CAST(a.data AS VARCHAR)) LIKE $needle
             LIMIT $limit
             """,
@@ -858,7 +859,9 @@ class Database(DatabaseEmbeddingMixin):
             """
             SELECT d.id, d.name, d.doc_type, d.file_type, d.updated_at, d.page_content
             FROM documents d
-            WHERE d.page_content IS NOT NULL AND length(d.page_content) > 0
+            WHERE d.deleted_at IS NULL
+              AND d.page_content IS NOT NULL
+              AND length(d.page_content) > 0
             ORDER BY d.updated_at DESC
             LIMIT $limit
             """,
@@ -1187,6 +1190,21 @@ class Database(DatabaseEmbeddingMixin):
 
         return any(self.has_embedding(page.id) for page in pages)
 
+    def _is_active_document_id(self, document_id: str | None) -> bool:
+        """True when the document exists and is not soft-deleted."""
+        if not document_id:
+            return False
+        try:
+            from fichero.models import Document
+
+            doc = self.get(Document, document_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "Active-document lookup failed for %s: %s", document_id, exc
+            )
+            return False
+        return bool(doc and getattr(doc, "deleted_at", None) is None)
+
     def enrich_search_results_with_kg(
         self, results: list[SearchResult], query: str
     ) -> list[SearchResult]:
@@ -1416,6 +1434,8 @@ class Database(DatabaseEmbeddingMixin):
                     # Convert to SearchResult, filter by score
                     for r in raw_results:
                         document_id = r.get("document_id") or r.get("id")
+                        if not self._is_active_document_id(document_id):
+                            continue
                         if self._has_indexed_page_children(document_id):
                             continue
 
@@ -1483,6 +1503,8 @@ class Database(DatabaseEmbeddingMixin):
                         # Convert to results format
                         for _, row in fulltext_docs.sort_values("bm25", ascending=False).iterrows():
                             document_id = row.get("document_id") or row.get("id")
+                            if not self._is_active_document_id(document_id):
+                                continue
                             if self._has_indexed_page_children(document_id):
                                 continue
 

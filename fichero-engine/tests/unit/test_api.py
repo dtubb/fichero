@@ -240,15 +240,17 @@ class TestDocumentRoutes:
         assert response.status_code == 404
 
     def test_delete_document(self, client, db, sample_doc):
-        """Delete document removes it."""
+        """Delete document soft-deletes it."""
         db.save(sample_doc)
 
         response = client.delete(f"/api/documents/{sample_doc.id}")
         assert response.status_code == 204
-        assert db.get(Document, sample_doc.id) is None
+        persisted = db.get(Document, sample_doc.id)
+        assert persisted is not None
+        assert persisted.deleted_at is not None
 
-    def test_delete_document_cascades_descendants_and_artifacts(self, client, db):
-        """Delete document removes descendants and related artifacts."""
+    def test_delete_document_cascades_soft_delete_to_descendants(self, client, db):
+        """Delete document soft-deletes descendants."""
         parent = Document(name="Parent", doc_type=DocType.folder)
         child = Document(name="Child", doc_type=DocType.file, parent_id=parent.id, file_type=FileType.image)
         grandchild = Document(name="Grandchild", doc_type=DocType.file, parent_id=child.id, file_type=FileType.image)
@@ -266,10 +268,10 @@ class TestDocumentRoutes:
         response = client.delete(f"/api/documents/{parent.id}")
         assert response.status_code == 204
 
-        assert db.get(Document, parent.id) is None
-        assert db.get(Document, child.id) is None
-        assert db.get(Document, grandchild.id) is None
-        assert db.get(Artifact, child_artifact.id) is None
+        assert db.get(Document, parent.id).deleted_at is not None
+        assert db.get(Document, child.id).deleted_at is not None
+        assert db.get(Document, grandchild.id).deleted_at is not None
+        assert db.get(Artifact, child_artifact.id) is not None
 
     def test_delete_document_not_found(self, client, db):
         """Delete nonexistent document returns 404."""

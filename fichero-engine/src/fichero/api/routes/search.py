@@ -264,7 +264,11 @@ def _project_pdf_file_hits_to_pages(
             continue
 
         pages = sorted(
-            db.query(Document, parent_id=result.document_id, doc_type=DocType.page),
+            [
+                page
+                for page in db.query(Document, parent_id=result.document_id, doc_type=DocType.page)
+                if getattr(page, "deleted_at", None) is None
+            ],
             key=lambda page: page.sequence or 0,
         )
         if not pages:
@@ -916,7 +920,7 @@ async def reindex_all(
 async def embed_document(doc_id: str, db: Database = Depends(get_library_database)) -> EmbedDocumentResponse:
     """Create embedding for a specific document."""
     doc = db.get(Document, doc_id)
-    if not doc:
+    if not doc or getattr(doc, "deleted_at", None) is not None:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
     success = db.embed(doc)

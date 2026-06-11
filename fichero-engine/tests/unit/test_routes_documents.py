@@ -476,10 +476,14 @@ class TestBatchExcludeDocuments:
 
 
 class TestDeleteDocument:
-    def test_delete_removes_document(self, client, db):
+    def test_delete_soft_deletes_document(self, client, db):
         doc = _make_doc(db)
         r = client.delete(f"/api/documents/{doc.id}")
         assert r.status_code == 204
+        persisted = db.get(Document, doc.id)
+        assert persisted is not None
+        assert persisted.deleted_at is not None
+        assert persisted.deleted_by == "system"
         r2 = client.get(f"/api/documents/{doc.id}")
         assert r2.status_code == 404
 
@@ -487,21 +491,20 @@ class TestDeleteDocument:
         r = client.delete("/api/documents/no-such-id")
         assert r.status_code == 404
 
-    def test_delete_cascades_to_children(self, client, db):
+    def test_delete_soft_deletes_children(self, client, db):
         parent = _make_doc(db, "Parent")
         child = _make_doc(db, "Child", parent_id=parent.id)
         client.delete(f"/api/documents/{parent.id}")
+        assert db.get(Document, parent.id).deleted_at is not None
+        assert db.get(Document, child.id).deleted_at is not None
         r = client.get(f"/api/documents/{child.id}")
         assert r.status_code == 404
 
-    def test_delete_cascades_to_kg_claims_and_orphan_entities(self, client, db):
-        """Deleting a source document removes the claims it sourced and
-        prunes entities left with no remaining claims — logged to
-        MutationLog so the cascade is reversible. (#1021)"""
+    def test_delete_preserves_kg_rows_for_restore(self, client, db):
+        """Soft-delete hides the document without destroying its KG rows."""
         from fichero.knowledge_models import (
             KnowledgeClaim,
             KnowledgeEntity,
-            MutationLog,
         )
 
         doc = _make_doc(db, "Source Doc")
@@ -517,51 +520,59 @@ class TestDeleteDocument:
         r = client.delete(f"/api/documents/{doc.id}")
         assert r.status_code == 204
 
-        # Claim sourced from the deleted doc is gone.
-        assert db.get(KnowledgeClaim, claim.id) is None
-        # Entity had no other claims → pruned.
-        assert db.get(KnowledgeEntity, entity.id) is None
-        # Both deletions are logged and reversible.
-        logs = {
-            (m.entity_type, m.entity_id): m
-            for m in db.query(MutationLog)
-        }
-        claim_log = logs[("KnowledgeClaim", claim.id)]
-        assert claim_log.operation.value == "delete"
-        assert claim_log.before_state is not None
-        assert claim_log.after_state is None
-        entity_log = logs[("KnowledgeEntity", entity.id)]
-        assert entity_log.operation.value == "delete"
-        assert entity_log.before_state is not None
+        assert db.get(KnowledgeClaim, claim.id) is not None
+        assert db.get(KnowledgeEntity, entity.id) is not None
 
-    def test_delete_keeps_entities_still_referenced_by_other_docs(self, client, db):
-        """An entity referenced by a claim sourced from a *different*
-        document survives — only genuinely-orphaned entities are pruned.
-        (#1021)"""
-        from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 
-        doc_a = _make_doc(db, "Doc A")
-        doc_b = _make_doc(db, "Doc B")
-        shared = KnowledgeEntity(canonical_name="Chocó")
-        db.save(shared)
-        db.save(KnowledgeClaim(
-            text="Chocó claim from A.",
-            source_document_id=doc_a.id,
-            entity_ids=[shared.id],
-        ))
-        claim_b = KnowledgeClaim(
-            text="Chocó claim from B.",
-            source_document_id=doc_b.id,
-            entity_ids=[shared.id],
+class TestRestoreAndPurgeDocument:
+    def test_restore_clears_deleted_flags(self, client, db):
+        doc = _make_doc(db, "Restore Me")
+        assert client.delete(f"/api/documents/{doc.id}").status_code == 204
+
+        restore = client.post(f"/api/documents/{doc.id}/restore")
+        assert restore.status_code == 204
+
+        refreshed = db.get(Document, doc.id)
+        assert refreshed is not None
+        assert refreshed.deleted_at is None
+        assert refreshed.deleted_by is None
+        assert client.get(f"/api/documents/{doc.id}").status_code == 200
+
+    def test_purge_hard_deletes_document_and_kg_rows(self, client, db):
+        from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, MutationLog
+
+        doc = _make_doc(db, "Source Doc")
+        entity = KnowledgeEntity(canonical_name="Eldorado")
+        db.save(entity)
+        claim = KnowledgeClaim(
+            text="Eldorado is a mine.",
+            source_document_id=doc.id,
+            entity_ids=[entity.id],
         )
-        db.save(claim_b)
+        db.save(claim)
+        assert client.delete(f"/api/documents/{doc.id}").status_code == 204
 
-        r = client.delete(f"/api/documents/{doc_a.id}")
-        assert r.status_code == 204
+        purge = client.delete(f"/api/documents/{doc.id}/purge")
+        assert purge.status_code == 204
 
-        # Claim B and the shared entity both survive.
-        assert db.get(KnowledgeClaim, claim_b.id) is not None
-        assert db.get(KnowledgeEntity, shared.id) is not None
+        assert db.get(Document, doc.id) is None
+        assert db.get(KnowledgeClaim, claim.id) is None
+        assert db.get(KnowledgeEntity, entity.id) is None
+        logs = {(m.entity_type, m.entity_id): m for m in db.query(MutationLog)}
+        assert logs[("KnowledgeClaim", claim.id)].operation.value == "delete"
+        assert logs[("KnowledgeEntity", entity.id)].operation.value == "delete"
+
+    def test_trash_lists_deleted_without_normal_list_leak(self, client, db):
+        doc = _make_doc(db, "Trash Entry")
+        assert client.delete(f"/api/documents/{doc.id}").status_code == 204
+
+        normal = client.get("/api/documents")
+        assert normal.status_code == 200
+        assert all(item["id"] != doc.id for item in normal.json()["items"])
+
+        trash = client.get("/api/documents/trash")
+        assert trash.status_code == 200
+        assert any(item["id"] == doc.id for item in trash.json()["items"])
 
 
 # ---------------------------------------------------------------------------

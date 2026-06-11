@@ -118,8 +118,7 @@ class TestDocumentCreateAction:
         assert persisted.parent_id is None  # a collection sits at the root
 
     def test_create_undo_deletes_then_undo_of_undo_restores(self, db):
-        """(b) create -> undo (delete) removes it; the delete is itself undoable,
-        so undo-of-undo (restore) brings it back."""
+        """(b) create -> undo (soft-delete) hides it; undo-of-undo restores it."""
         ctx = _ctx()
         result = registry.invoke(db, "document.create", {"name": "ephemeral"}, ctx)
         new_id = result.result["id"]
@@ -128,7 +127,8 @@ class TestDocumentCreateAction:
         # undo create -> document.delete
         inv = _invoke_inverse(db, result.audit_id, ctx)
         assert inv == "document.delete"
-        assert db.get(Document, new_id) is None
+        assert db.get(Document, new_id) is not None
+        assert db.get(Document, new_id).deleted_at is not None
 
         # undo-of-undo: the delete audit inverts to document.restore -> doc back
         del_audit = next(
@@ -494,9 +494,12 @@ class TestDocumentDeleteAction:
 
         result = registry.invoke(db, "document.delete", {"doc_id": parent.id}, _ctx())
 
-        # (a) effect: the whole subtree is gone
-        assert db.get(Document, parent.id) is None
-        assert db.get(Document, child.id) is None
+        # (a) effect: the whole subtree is soft-deleted, not removed
+        assert db.get(Document, parent.id) is not None
+        assert db.get(Document, parent.id).deleted_at is not None
+        assert db.get(Document, parent.id).deleted_by == "ui"
+        assert db.get(Document, child.id) is not None
+        assert db.get(Document, child.id).deleted_at is not None
         assert set(result.result["deleted_document_ids"]) == {parent.id, child.id}
 
         audit = db.get(ActionAudit, result.audit_id)
@@ -509,28 +512,24 @@ class TestDocumentDeleteAction:
         assert kwargs["type"] == "document.deleted"
         assert set(kwargs["document_ids"]) == {parent.id, child.id}
 
-    def test_delete_undo_restores_documents_and_artifacts(self, db):
-        """(b/d) undo restores BOTH the documents and the artifacts deleted
-        alongside them — the corruption a naive doc-only restore would miss."""
+    def test_delete_undo_clears_deleted_flags(self, db):
         doc = _save_doc(db, name="d", status=Status.completed)
         art = Artifact(document_id=doc.id, artifact_type="transcript", content="hi")
         db.save(art)
         ctx = _ctx()
 
         result = registry.invoke(db, "document.delete", {"doc_id": doc.id}, ctx)
-        assert db.get(Document, doc.id) is None
-        assert db.get(Artifact, art.id) is None
+        assert db.get(Document, doc.id).deleted_at is not None
+        assert db.get(Artifact, art.id) is not None
 
-        # the before-snapshot carried the artifact
-        audit = db.get(ActionAudit, result.audit_id)
-        assert any(a["id"] == art.id for a in audit.before["artifacts"])
-
-        # (b) undo -> document.restore brings doc + artifact back verbatim
+        # (b) undo -> document.restore clears the tombstone
         inv = _invoke_inverse(db, result.audit_id, ctx)
         assert inv == "document.restore"
         restored = db.get(Document, doc.id)
         assert restored is not None
         assert restored.status == Status.completed
+        assert restored.deleted_at is None
+        assert restored.deleted_by is None
         assert db.get(Artifact, art.id) is not None
 
     def test_delete_unknown_doc_404(self, db):
@@ -550,16 +549,15 @@ class TestDocumentDeleteAction:
 
 
 class TestDocumentRestoreAction:
-    def test_restore_recreates_document_from_snapshot(self, db, spy_emit):
-        snapshot = Document(name="ghost-doc", doc_type=DocType.file).model_dump(
-            mode="json"
-        )
-        result = registry.invoke(
-            db, "document.restore", {"documents": [snapshot]}, _ctx()
-        )
+    def test_restore_clears_deleted_flags_by_id(self, db, spy_emit):
+        doc = _save_doc(db, name="ghost-doc", deleted_by="ui")
+        doc.deleted_at = doc.updated_at
+        db.save(doc)
+        result = registry.invoke(db, "document.restore", {"doc_id": doc.id}, _ctx())
         restored_id = result.result["restored_document_ids"][0]
         assert db.get(Document, restored_id) is not None
-        assert db.get(Document, restored_id).name == "ghost-doc"
+        assert db.get(Document, restored_id).deleted_at is None
+        assert db.get(Document, restored_id).deleted_by is None
 
         audit = db.get(ActionAudit, result.audit_id)
         assert audit.action_name == "document.restore"
@@ -573,3 +571,26 @@ class TestDocumentRestoreAction:
         # (d) restoring nothing writes no rows and reports an empty list
         result = registry.invoke(db, "document.restore", {"documents": []}, _ctx())
         assert result.result["restored_document_ids"] == []
+
+
+class TestDocumentPurgeAndTrashActions:
+    def test_purge_hard_deletes_document(self, db, spy_emit):
+        doc = _save_doc(db, name="purge-me")
+        registry.invoke(db, "document.delete", {"doc_id": doc.id}, _ctx())
+
+        result = registry.invoke(db, "document.purge", {"doc_id": doc.id}, _ctx())
+
+        assert db.get(Document, doc.id) is None
+        assert result.result["deleted_document_ids"] == [doc.id]
+        assert spy_emit[-1][1]["type"] == "document.deleted"
+
+    def test_list_trash_returns_deleted_only(self, db):
+        active = _save_doc(db, name="active")
+        deleted = _save_doc(db, name="deleted")
+        registry.invoke(db, "document.delete", {"doc_id": deleted.id}, _ctx())
+
+        result = registry.invoke(db, "document.list_trash", {}, _ctx())
+
+        item_ids = [item["id"] for item in result.result["items"]]
+        assert deleted.id in item_ids
+        assert active.id not in item_ids

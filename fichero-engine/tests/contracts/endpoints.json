@@ -25,6 +25,34 @@
       },
       {
         "method": "GET",
+        "path": "/actions/audit",
+        "operation_id": "list_audit_log_api_actions_audit_get",
+        "summary": "List Audit Log",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "AuditLogResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/actions/audit/{audit_id}/undo",
+        "operation_id": "undo_action_api_actions_audit__audit_id__undo_post",
+        "summary": "Undo Action",
+        "path_params": [
+          "audit_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ActionResultResponse"
+      },
+      {
+        "method": "GET",
         "path": "/actions/builtin",
         "operation_id": "list_builtin_actions_api_actions_builtin_get",
         "summary": "List Builtin Actions",
@@ -96,6 +124,16 @@
         "response_model": "ActionResponse"
       },
       {
+        "method": "POST",
+        "path": "/actions/invoke",
+        "operation_id": "invoke_action_api_actions_invoke_post",
+        "summary": "Invoke Action",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "InvokeActionRequest",
+        "response_model": "ActionResultResponse"
+      },
+      {
         "method": "GET",
         "path": "/actions/popular",
         "operation_id": "list_popular_actions_api_actions_popular_get",
@@ -126,6 +164,16 @@
         ],
         "request_model": null,
         "response_model": "ActionListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/registry",
+        "operation_id": "list_registered_actions_api_actions_registry_get",
+        "summary": "List Registered Actions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RegisteredActionsResponse"
       },
       {
         "method": "GET",
@@ -830,6 +878,38 @@
         "query_params": [],
         "request_model": "ArtifactUpdate",
         "response_model": "ArtifactResponse"
+      }
+    ],
+    "auth": [
+      {
+        "method": "POST",
+        "path": "/auth/login",
+        "operation_id": "login_api_auth_login_post",
+        "summary": "Login",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "LoginRequest",
+        "response_model": "LoginResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/logout",
+        "operation_id": "logout_api_auth_logout_post",
+        "summary": "Logout",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StatusResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/auth/me",
+        "operation_id": "me_api_auth_me_get",
+        "summary": "Me",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "UserResponse"
       }
     ],
     "batches": [
@@ -1947,6 +2027,11 @@
             "type": "string"
           },
           {
+            "name": "include_deleted",
+            "required": false,
+            "type": "boolean"
+          },
+          {
             "name": "limit",
             "required": false,
             "type": "integer"
@@ -2059,6 +2144,27 @@
         "summary": "List Roots",
         "path_params": [],
         "query_params": [],
+        "request_model": null,
+        "response_model": "fichero__models__DocumentListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/trash",
+        "operation_id": "list_deleted_documents_api_documents_trash_get",
+        "summary": "List Deleted Documents",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
         "request_model": null,
         "response_model": "fichero__models__DocumentListResponse"
       },
@@ -2254,6 +2360,18 @@
         "response_model": "PrototypeAssignResponse"
       },
       {
+        "method": "DELETE",
+        "path": "/documents/{doc_id}/purge",
+        "operation_id": "purge_document_api_documents__doc_id__purge_delete",
+        "summary": "Purge Document",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
         "method": "GET",
         "path": "/documents/{doc_id}/related",
         "operation_id": "related_documents_api_documents__doc_id__related_get",
@@ -2270,6 +2388,18 @@
         ],
         "request_model": null,
         "response_model": "RelatedDocumentListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/documents/{doc_id}/restore",
+        "operation_id": "restore_document_api_documents__doc_id__restore_post",
+        "summary": "Restore Document",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
       },
       {
         "method": "GET",
@@ -8187,6 +8317,40 @@
         "query_params": [],
         "request_model": null,
         "response_model": "TriggerResponse"
+      }
+    ],
+    "users": [
+      {
+        "method": "GET",
+        "path": "/users",
+        "operation_id": "list_users_api_users_get",
+        "summary": "List Users",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "UserListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/users",
+        "operation_id": "create_user_api_users_post",
+        "summary": "Create User",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateUserRequest",
+        "response_model": "UserResponse"
+      },
+      {
+        "method": "PATCH",
+        "path": "/users/{user_id}",
+        "operation_id": "update_user_api_users__user_id__patch",
+        "summary": "Update User",
+        "path_params": [
+          "user_id"
+        ],
+        "query_params": [],
+        "request_model": "UpdateUserRequest",
+        "response_model": "UserResponse"
       }
     ],
     "view": [

@@ -118,6 +118,13 @@ def _get_image_dimensions(image_path: Path) -> tuple[int, int]:
         return (1024, 1024)  # Default fallback
 
 
+def _document_or_404(db: Database, document_id: str) -> Document:
+    doc = db.get(Document, document_id)
+    if doc is None or getattr(doc, "deleted_at", None) is not None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
+    return doc
+
+
 def _serve_iiif_image(
     image_path: Path,
     region: str,
@@ -221,9 +228,7 @@ async def get_image_info(
     db: Database = Depends(get_library_database),
 ) -> ImageInfoResponse:
     """Get IIIF image information."""
-    doc = db.get(Document, identifier)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {identifier}")
+    doc = _document_or_404(db, identifier)
 
     image_path = _get_image_path(doc, db.path.parent)
     if not image_path:
@@ -276,9 +281,7 @@ async def serve_iiif_image(
     db: Database = Depends(get_library_database),
 ) -> Response:
     """Serve IIIF image tile/region."""
-    doc = db.get(Document, identifier)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {identifier}")
+    doc = _document_or_404(db, identifier)
 
     image_path = _get_image_path(doc, db.path.parent)
     if not image_path:
@@ -304,9 +307,7 @@ async def get_iiif_manifest(
     db: Database = Depends(get_library_database),
 ) -> IIIFManifest:
     """Get IIIF manifest for document."""
-    doc = db.get(Document, document_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
+    doc = _document_or_404(db, document_id)
 
     image_path = _get_image_path(doc, db.path.parent)
     if not image_path:
@@ -377,9 +378,7 @@ async def get_document_image(
     db: Database = Depends(get_library_database),
 ) -> Response:
     """Get document image with optional resize."""
-    doc = db.get(Document, document_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
+    doc = _document_or_404(db, document_id)
 
     image_path = _get_image_path(doc, db.path.parent)
     if not image_path:

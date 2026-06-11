@@ -148,10 +148,11 @@ class TestImportFileAction:
         new_id = result.result["id"]
         assert db.get(Document, new_id) is not None
 
-        # (b) undo import -> document.delete removes it
+        # (b) undo import -> document.delete soft-deletes it
         inv = _invoke_inverse(db, result.audit_id, ctx)
         assert inv == "document.delete"
-        assert db.get(Document, new_id) is None
+        assert db.get(Document, new_id) is not None
+        assert db.get(Document, new_id).deleted_at is not None
 
         # (b) undo-of-undo: the delete audit inverts to document.restore -> back
         del_audit = next(
@@ -379,10 +380,11 @@ class TestImportUploadFileAction:
         new_id = result.result["id"]
         assert db.get(Document, new_id) is not None
 
-        # (b) undo -> document.delete
+        # (b) undo -> document.delete soft-deletes it
         inv = _invoke_inverse(db, result.audit_id, ctx)
         assert inv == "document.delete"
-        assert db.get(Document, new_id) is None
+        assert db.get(Document, new_id) is not None
+        assert db.get(Document, new_id).deleted_at is not None
 
     def test_upload_missing_path_400(self, db, fake_ingest):
         with pytest.raises(HTTPException) as exc:

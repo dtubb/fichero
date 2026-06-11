@@ -118,6 +118,42 @@ class TestEnhancedSearch:
         r = client.post("/api/search", json={"query": "   "})
         assert r.status_code == 200
 
+    def test_recent_search_excludes_soft_deleted_documents(self, client, db):
+        doc = Document(
+            name="Recently Deleted",
+            page_content="recent deleted body",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        db.save(doc)
+        doc.deleted_at = doc.updated_at
+        doc.deleted_by = "tester"
+        db.save(doc)
+
+        r = client.post("/api/search", json={"query": ""})
+        assert r.status_code == 200
+        assert all(item["document_id"] != doc.id for item in r.json()["results"])
+
+    def test_fulltext_search_excludes_soft_deleted_documents(self, client, db):
+        doc = Document(
+            name="Deleted Search Hit",
+            page_content="trash-search-needle",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+        )
+        db.save(doc)
+        db.embed(doc)
+        doc.deleted_at = doc.updated_at
+        doc.deleted_by = "tester"
+        db.save(doc)
+
+        r = client.post(
+            "/api/search",
+            json={"query": "trash-search-needle", "search_type": "fulltext", "min_score": 0.0},
+        )
+        assert r.status_code == 200
+        assert all(item["document_id"] != doc.id for item in r.json()["results"])
+
     def test_invalid_search_type_returns_400(self, client):
         r = client.post("/api/search", json={"query": "hello", "search_type": "magic"})
         assert r.status_code == 400

@@ -790,7 +790,11 @@ async def health_check(
         # Library-specific health check
         try:
             db = db_manager.get_database(x_fichero_library_path)
-            doc_count = db.count(Document)
+            doc_count = sum(
+                1
+                for doc in db.all(Document)
+                if getattr(doc, "deleted_at", None) is None
+            )
             return HealthResponse(
                 status="healthy",
                 library_path=x_fichero_library_path,
@@ -819,7 +823,11 @@ async def get_stats(db: Database = Depends(get_library_database)):
     from fichero.models import Document, Artifact
 
     return LibraryStatsResponse(
-        documents=db.count(Document),
+        documents=sum(
+            1
+            for doc in db.all(Document)
+            if getattr(doc, "deleted_at", None) is None
+        ),
         artifacts=db.count(Artifact),
         embedding_stats=EmbeddingStatsResponse(**db.embedding_stats()),
     )

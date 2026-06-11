@@ -212,9 +212,57 @@ def _normalize_document_id(doc_id: str) -> str:
     return doc_id.removeprefix("doc:")
 
 
-def _document_or_404(db: Database, doc_id: str) -> Document:
+def _is_document_deleted(doc: Document | None) -> bool:
+    return bool(doc and doc.deleted_at is not None)
+
+
+def _filter_document_visibility(
+    docs: list[Document],
+    *,
+    include_deleted: bool = False,
+    only_deleted: bool = False,
+) -> list[Document]:
+    if only_deleted:
+        return [doc for doc in docs if _is_document_deleted(doc)]
+    if include_deleted:
+        return docs
+    return [doc for doc in docs if not _is_document_deleted(doc)]
+
+
+def _list_documents_raw(db: Database, **filters: Any) -> list[Document]:
+    return list(db.query(Document, **filters)) if filters else list(db.all(Document))
+
+
+def _list_documents(
+    db: Database,
+    *,
+    include_deleted: bool = False,
+    only_deleted: bool = False,
+    **filters: Any,
+) -> list[Document]:
+    return _filter_document_visibility(
+        _list_documents_raw(db, **filters),
+        include_deleted=include_deleted,
+        only_deleted=only_deleted,
+    )
+
+
+def _get_document_row(
+    db: Database, doc_id: str, *, include_deleted: bool = False
+) -> Document | None:
     normalized_id = _normalize_document_id(doc_id)
     doc = db.get(Document, normalized_id)
+    if doc is None:
+        return None
+    if not include_deleted and _is_document_deleted(doc):
+        return None
+    return doc
+
+
+def _document_or_404(
+    db: Database, doc_id: str, *, include_deleted: bool = False
+) -> Document:
+    doc = _get_document_row(db, doc_id, include_deleted=include_deleted)
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
     return doc
@@ -235,7 +283,7 @@ def _filter_resolvable_documents(
     resolvable: list[Document] = []
     skipped_ids: list[str] = []
     for doc in docs:
-        if db.get(Document, doc.id) is None:
+        if _get_document_row(db, doc.id) is None:
             skipped_ids.append(doc.id)
             continue
         resolvable.append(doc)
@@ -254,6 +302,23 @@ def _workspace_doc_or_404(db: Database, doc_id: str) -> Document:
     if doc.doc_type != DocType.folder:
         raise HTTPException(status_code=400, detail="Document is not a folder")
     return doc
+
+
+def _descendant_document_ids(
+    db: Database, root_id: str, *, include_deleted: bool = True
+) -> list[str]:
+    stack = [root_id]
+    descendants: list[str] = []
+    while stack:
+        current_id = stack.pop()
+        descendants.append(current_id)
+        children = _list_documents(
+            db,
+            parent_id=current_id,
+            include_deleted=include_deleted,
+        )
+        stack.extend(child.id for child in children)
+    return descendants
 
 
 def _ordered_by_sort_order(docs: list[Document]) -> list[Document]:
@@ -309,7 +374,11 @@ def _resolve_workspace_item_target(db: Database, item: dict[str, Any]) -> Any:
     model = model_by_type.get(target_type)
     if model is None:
         return None
-    target = db.get(model, target_id)
+    target = (
+        _get_document_row(db, target_id)
+        if model is Document
+        else db.get(model, target_id)
+    )
     return target.model_dump() if target is not None else None
 
 
@@ -322,6 +391,9 @@ async def list_documents(
     doc_type: Optional[DocType] = Query(None, description="Filter by document type"),
     file_type: Optional[FileType] = Query(None, description="Filter by file type"),
     status: Optional[Status] = Query(None, description="Filter by status"),
+    include_deleted: bool = Query(
+        False, description="Include soft-deleted rows in the response"
+    ),
     limit: Optional[int] = Query(
         None, ge=1, description="Max results (no limit if not specified)"
     ),
@@ -351,10 +423,7 @@ async def list_documents(
         if status is not None:
             filters["status"] = status
 
-        if filters:
-            docs = list(db.query(Document, **filters))
-        else:
-            docs = list(db.all(Document))
+        docs = _list_documents(db, include_deleted=include_deleted, **filters)
 
         if normalized_parent_id is not None:
             docs = _filter_resolvable_documents(
@@ -381,7 +450,7 @@ async def list_collections(
     db: Database = Depends(get_library_database),
 ) -> DocumentListResponse:
     """List all root-level items (documents without parents)."""
-    items = _ordered_by_sort_order(list(db.query(Document, parent_id=None)))
+    items = _ordered_by_sort_order(_list_documents(db, parent_id=None))
     return DocumentListResponse(items=items, count=len(items))
 
 
@@ -390,7 +459,7 @@ async def list_roots(
     db: Database = Depends(get_library_database),
 ) -> DocumentListResponse:
     """List root documents (no parent)."""
-    items = _ordered_by_sort_order(list(db.query(Document, parent_id=None)))
+    items = _ordered_by_sort_order(_list_documents(db, parent_id=None))
     return DocumentListResponse(items=items, count=len(items))
 
 
@@ -404,7 +473,21 @@ async def list_workspaces(
     and let the user open / create them (#1617). Declared before the `/{doc_id}`
     route so the literal path isn't captured as a document id.
     """
-    items = _ordered_by_sort_order(list(db.query(Document, is_workspace=True)))
+    items = _ordered_by_sort_order(_list_documents(db, is_workspace=True))
+    return DocumentListResponse(items=items, count=len(items))
+
+
+@router.get("/trash")
+async def list_deleted_documents(
+    db: Database = Depends(get_library_database),
+    limit: Optional[int] = Query(
+        None, ge=1, description="Max results (no limit if not specified)"
+    ),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+) -> DocumentListResponse:
+    """List soft-deleted documents for the future Trash view."""
+    docs = _ordered_by_sort_order(_list_documents(db, only_deleted=True))
+    items = docs[offset : offset + limit] if limit is not None else docs[offset:]
     return DocumentListResponse(items=items, count=len(items))
 
 
@@ -425,9 +508,7 @@ async def get_document_workflow_runs(
     doc_id: str, db: Database = Depends(get_library_database)
 ) -> WorkflowRunProvenanceListResponse:
     """Return the recorded workflow runs for a single document."""
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    doc = _document_or_404(db, doc_id)
 
     items: list[WorkflowRunProvenanceResponse] = []
     for index, run in enumerate(doc.workflow_runs):
@@ -602,7 +683,7 @@ async def get_children(
         normalized_id = _normalize_document_id(doc_id)
         children = _filter_resolvable_documents(
             db,
-            list(db.query(Document, parent_id=normalized_id)),
+            _list_documents(db, parent_id=normalized_id),
             parent_id=normalized_id,
         )
         children = _ordered_by_sort_order(children)
@@ -613,7 +694,7 @@ async def get_children(
             # Verify parent exists only when there are no children to return.
             # During long-running workflows, a transient parent lookup miss can
             # race with reads; if children exist, prefer returning them over 404.
-            parent = db.get(Document, normalized_id)
+            parent = _get_document_row(db, normalized_id)
             perf["parent_found"] = parent is not None
             if not parent:
                 raise HTTPException(
@@ -631,13 +712,13 @@ async def get_ancestors(
 ) -> DocumentListResponse:
     """Get all ancestors (parent chain) of a document."""
     ancestors = []
-    current = db.get(Document, doc_id)
+    current = _get_document_row(db, doc_id)
 
     if not current:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
     while current and current.parent_id:
-        parent = db.get(Document, current.parent_id)
+        parent = _get_document_row(db, current.parent_id)
         if parent:
             ancestors.append(parent)
             current = parent
@@ -652,14 +733,14 @@ async def get_document_parent(
     doc_id: str, db: Database = Depends(get_library_database)
 ) -> Document:
     """Get the immediate parent of a document."""
-    doc = db.get(Document, doc_id)
+    doc = _get_document_row(db, doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
     if not doc.parent_id:
         raise HTTPException(status_code=404, detail=f"Document {doc_id} has no parent")
 
-    parent = db.get(Document, doc.parent_id)
+    parent = _get_document_row(db, doc.parent_id)
     if not parent:
         raise HTTPException(
             status_code=404, detail=f"Parent document not found: {doc.parent_id}"
@@ -761,9 +842,7 @@ async def assign_document_prototype(
     ),
     actor: str = Depends(request_actor),
 ) -> PrototypeAssignResponse:
-    doc = db.get(Document, doc_id)
-    if doc is None:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    _document_or_404(db, doc_id)
     if (
         request.page_start is not None
         and request.page_end is not None
@@ -789,7 +868,7 @@ async def assign_document_prototype(
         while frontier:
             next_frontier: list[str] = []
             for parent_id in frontier:
-                children = db.query(Document, parent_id=parent_id) or []
+                children = _list_documents(db, parent_id=parent_id) or []
                 for child in children:
                     if child.id not in scoped_ids:
                         scoped_ids.add(child.id)
@@ -797,7 +876,7 @@ async def assign_document_prototype(
             frontier = next_frontier
 
     updated = 0
-    for candidate in db.all(Document):
+    for candidate in _list_documents(db):
         if candidate.id not in scoped_ids:
             continue
         if request.page_start is not None or request.page_end is not None:
@@ -836,9 +915,7 @@ async def assign_document_prototype(
 async def list_page_ranges(
     doc_id: str, db: Database = Depends(get_library_database)
 ) -> PageRangeListResponse:
-    doc = db.get(Document, doc_id)
-    if doc is None:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    doc = _document_or_404(db, doc_id)
     ranges = [PageRangeItem(**item) for item in (doc.structure or [])]
     return PageRangeListResponse(items=ranges, count=len(ranges))
 
@@ -854,9 +931,7 @@ async def upsert_page_ranges(
     ),
     actor: str = Depends(request_actor),
 ) -> PageRangeListResponse:
-    doc = db.get(Document, doc_id)
-    if doc is None:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    doc = _document_or_404(db, doc_id)
     normalized: list[dict[str, Any]] = []
     for idx, item in enumerate(request.items):
         if item.page_start > item.page_end:
@@ -890,9 +965,7 @@ async def page_range_for_page(
     page: int,
     db: Database = Depends(get_library_database),
 ) -> PageRangeItem:
-    doc = db.get(Document, doc_id)
-    if doc is None:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    doc = _document_or_404(db, doc_id)
     for item in doc.structure or []:
         start = int(item.get("page_start", 0))
         end = int(item.get("page_end", 0))
@@ -988,26 +1061,74 @@ async def delete_document(
     ),
     actor: str = Depends(request_actor),
 ):
-    """Delete a document and all descendants.
-
-    Cleanup includes:
-    - Descendant documents in the hierarchy
-    - Artifacts attached to any deleted document
-    - Vector embeddings for deleted documents
-    - KG claims sourced from any deleted document + now-orphaned entities
-      (logged to MutationLog so the cascade is reversible — #1021)
-    """
-    to_delete_ids, claims_deleted, entities_pruned, _docs, _arts = delete_document_impl(
-        db, doc_id, library_path=x_fichero_library_path
-    )
+    """Soft-delete a document and all descendants."""
+    to_delete_ids, _before = delete_document_impl(db, doc_id, actor=actor)
 
     logger.info(
-        f"Deleted document subtree: root={doc_id}, total={len(to_delete_ids)}, "
-        f"kg_claims_deleted={claims_deleted}, kg_entities_pruned={entities_pruned}"
+        "Soft-deleted document subtree: root=%s total=%s actor=%s",
+        doc_id,
+        len(to_delete_ids),
+        actor,
     )
 
     # Observable data layer (#1863): broadcast the deleted subtree so every
     # window's DocumentStore drops the rows. Best-effort — never breaks delete.
+    emit_change(
+        x_fichero_library_path,
+        type="document.deleted",
+        document_ids=to_delete_ids,
+        actor=actor,
+        origin_window=x_fichero_origin_window,
+        origin_user=actor,
+    )
+
+
+@router.post("/{doc_id}/restore", status_code=204)
+async def restore_document(
+    doc_id: str,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
+):
+    """Restore a soft-deleted document subtree."""
+    target = _document_or_404(db, doc_id, include_deleted=True)
+    to_restore_ids = _descendant_document_ids(db, target.id, include_deleted=True)
+    restored_ids = restore_documents_impl(db, doc_ids=to_restore_ids)
+    if restored_ids:
+        emit_change(
+            x_fichero_library_path,
+            type="document.updated",
+            document_ids=restored_ids,
+            actor=actor,
+            origin_window=x_fichero_origin_window,
+            origin_user=actor,
+        )
+
+
+@router.delete("/{doc_id}/purge", status_code=204)
+async def purge_document(
+    doc_id: str,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
+):
+    """Permanently delete a document subtree."""
+    to_delete_ids, claims_deleted, entities_pruned, _docs, _arts = purge_document_impl(
+        db, doc_id, library_path=x_fichero_library_path
+    )
+    logger.info(
+        "Purged document subtree: root=%s total=%s kg_claims_deleted=%s kg_entities_pruned=%s",
+        doc_id,
+        len(to_delete_ids),
+        claims_deleted,
+        entities_pruned,
+    )
     emit_change(
         x_fichero_library_path,
         type="document.deleted",
@@ -1034,9 +1155,7 @@ async def related_documents(
     field notes and archival research where the user wants to follow
     a name or place across documents without manual searching.
     """
-    doc = db.get(Document, doc_id)
-    if doc is None:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    _document_or_404(db, doc_id)
 
     import json as _json
     from collections import Counter
@@ -1096,7 +1215,7 @@ async def related_documents(
     top = counter.most_common(limit)
     out: list[RelatedDocumentsResponse] = []
     for other_id, overlap_count in top:
-        other = db.get(Document, other_id)
+        other = _get_document_row(db, other_id)
         if other is None:
             continue
         # Resolve up to 3 sample entity names per related doc.
@@ -1153,7 +1272,7 @@ async def backfill_pdf_pages(
     """
     from fichero.ingest import _create_pdf_page_children
 
-    pdfs = db.query(Document, file_type=FileType.pdf)
+    pdfs = _list_documents(db, file_type=FileType.pdf)
     pdfs_scanned = len(pdfs)
     pdfs_backfilled = 0
     pages_created = 0
@@ -1165,7 +1284,7 @@ async def backfill_pdf_pages(
             skipped += 1
             continue
         try:
-            existing_pages = db.query(Document, parent_id=pdf.id, doc_type=DocType.page)
+            existing_pages = _list_documents(db, parent_id=pdf.id, doc_type=DocType.page)
         except Exception:
             existing_pages = []
         if existing_pages:
@@ -1376,7 +1495,7 @@ async def cleanup_orphan_documents(
     document (parent_id is None). This catches records left behind by past
     non-cascading deletes and malformed parent chains.
     """
-    all_docs = list(db.all(Document))
+    all_docs = _list_documents(db)
     if not all_docs:
         return OrphanCleanupResponse(orphaned_documents_deleted=0, artifacts_deleted=0)
 
@@ -1457,7 +1576,7 @@ def create_document_impl(db: Database, doc: "DocumentCreate") -> Document:
         prototype_key=doc.prototype_key,
     )
     if doc.parent_id:
-        parent = db.get(Document, doc.parent_id)
+        parent = _get_document_row(db, doc.parent_id)
         if not parent:
             raise HTTPException(
                 status_code=400, detail=f"Parent not found: {doc.parent_id}"
@@ -1475,9 +1594,7 @@ def update_document_impl(
     the full pre-mutation row — the undo payload the action inverts to
     ``document.restore``.
     """
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    doc = _document_or_404(db, doc_id)
 
     before = doc.model_dump(mode="json")
 
@@ -1538,13 +1655,11 @@ def move_document_impl(
     db: Database, doc_id: str, parent_id: str | None
 ) -> tuple[Document, dict[str, Any]]:
     """Re-parent a document. Returns ``(doc, before_snapshot)``."""
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    doc = _document_or_404(db, doc_id)
 
     # Verify new parent exists if specified
     if parent_id:
-        parent = db.get(Document, parent_id)
+        parent = _get_document_row(db, parent_id)
         if not parent:
             raise HTTPException(
                 status_code=400, detail=f"Parent not found: {parent_id}"
@@ -1569,9 +1684,7 @@ def reorder_documents_impl(
     """
     before_snapshots: list[dict[str, Any]] = []
     for i, doc_id in enumerate(doc_ids):
-        doc = db.get(Document, doc_id)
-        if not doc:
-            raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+        doc = _document_or_404(db, doc_id)
 
         # For now, only update documents in the specified folder path
         # In a more complex system, we'd verify the document is in the right folder
@@ -1651,12 +1764,7 @@ def batch_exclude_documents_impl(
             continue
         seen.add(normalized_id)
 
-        doc = db.get(Document, normalized_id)
-        if doc is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Document not found: {normalized_id}",
-            )
+        doc = _document_or_404(db, normalized_id)
 
         before = doc.model_dump(mode="json")
         before_snapshots.append(before)
@@ -1679,9 +1787,31 @@ def batch_exclude_documents_impl(
 
 
 def delete_document_impl(
+    db: Database, doc_id: str, *, actor: str
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Soft-delete a document subtree, preserving rows for trash / restore."""
+    doc = _document_or_404(db, doc_id)
+    to_delete_ids = _descendant_document_ids(db, doc.id, include_deleted=True)
+
+    deleted_at = datetime.now()
+    before_snapshots: list[dict[str, Any]] = []
+    for current_id in to_delete_ids:
+        current_doc = _get_document_row(db, current_id, include_deleted=True)
+        if current_doc is None:
+            continue
+        before_snapshots.append(current_doc.model_dump(mode="json"))
+        current_doc.deleted_at = deleted_at
+        current_doc.deleted_by = actor
+        current_doc.updated_at = deleted_at
+        db.save(current_doc)
+
+    return to_delete_ids, before_snapshots
+
+
+def purge_document_impl(
     db: Database, doc_id: str, *, library_path: str | None = None
 ) -> tuple[list[str], int, int, list[dict[str, Any]], list[dict[str, Any]]]:
-    """Delete a document + all descendants, returning everything undo needs.
+    """Hard-delete a document + all descendants, returning everything undo needs.
 
     Returns ``(to_delete_ids, claims_deleted, entities_pruned, document_snapshots,
     artifact_snapshots)``. The document + artifact snapshots are captured BEFORE
@@ -1691,20 +1821,8 @@ def delete_document_impl(
     + artifact rows, leaving the (separately-reversible) KG cascade alone so the
     two undo mechanisms never double-restore.
     """
-    doc = db.get(Document, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
-
-    # Gather full subtree to avoid leaving orphaned rows that no longer appear
-    # in hierarchy views but still remain searchable/queryable.
-    stack = [doc_id]
-    to_delete_ids: list[str] = []
-
-    while stack:
-        current_id = stack.pop()
-        to_delete_ids.append(current_id)
-        children = db.query(Document, parent_id=current_id)
-        stack.extend(child.id for child in children)
+    doc = _document_or_404(db, doc_id, include_deleted=True)
+    to_delete_ids = _descendant_document_ids(db, doc.id, include_deleted=True)
 
     if library_path:
         auto_snapshot_before_risky_operation(
@@ -1718,7 +1836,7 @@ def delete_document_impl(
     # Snapshot documents BEFORE deletion so undo can restore them verbatim.
     document_snapshots: list[dict[str, Any]] = []
     for current_id in to_delete_ids:
-        snap_doc = db.get(Document, current_id)
+        snap_doc = _get_document_row(db, current_id, include_deleted=True)
         if snap_doc is not None:
             document_snapshots.append(snap_doc.model_dump(mode="json"))
 
@@ -1737,7 +1855,7 @@ def delete_document_impl(
 
     # Delete children first for clean hierarchical teardown.
     for current_id in reversed(to_delete_ids):
-        current_doc = db.get(Document, current_id)
+        current_doc = _get_document_row(db, current_id, include_deleted=True)
         if current_doc:
             db.delete(current_doc)
 
@@ -1753,20 +1871,36 @@ def delete_document_impl(
 def restore_documents_impl(
     db: Database,
     *,
-    documents: list[dict[str, Any]],
+    doc_ids: list[str] | None = None,
+    documents: list[dict[str, Any]] | None = None,
     artifacts: list[dict[str, Any]] | None = None,
 ) -> list[str]:
-    """Re-create documents (and any artifacts) from JSON snapshots.
+    """Restore soft-deleted docs by id, or re-create rows from snapshots.
 
     The single inverse used by every undoable document action: it reuses the
     proven ``model_validate`` round-trip so undo restores the exact pre-mutation
     rows rather than re-deriving a field diff.
     """
     restored_ids: list[str] = []
+    seen_doc_ids: set[str] = set()
+
+    for document_id in doc_ids or []:
+        doc = _get_document_row(db, document_id, include_deleted=True)
+        if doc is None:
+            continue
+        doc.deleted_at = None
+        doc.deleted_by = None
+        doc.updated_at = datetime.now()
+        db.save(doc)
+        restored_ids.append(doc.id)
+        seen_doc_ids.add(doc.id)
+
     for snapshot in documents or []:
         restored = Document.model_validate(snapshot)
         db.save(restored)
-        restored_ids.append(restored.id)
+        if restored.id not in seen_doc_ids:
+            restored_ids.append(restored.id)
+            seen_doc_ids.add(restored.id)
     for snapshot in artifacts or []:
         db.save(Artifact.model_validate(snapshot))
     return restored_ids
@@ -1837,7 +1971,19 @@ class WorkspacePatchActionParams(BaseModel):
 
 
 class DocumentRestoreParams(BaseModel):
-    """Params for document.restore — re-create documents (+ artifacts) from snapshots."""
+    """Params for document.restore.
+
+    Supports BOTH user-facing undelete-by-id and audit undo-by-snapshot.
+    """
+
+    doc_id: str | None = Field(
+        default=None,
+        description="Single document id to restore (restores its subtree).",
+    )
+    doc_ids: list[str] = Field(
+        default_factory=list,
+        description="Explicit document ids to restore.",
+    )
 
     documents: list[dict[str, Any]] = Field(
         default_factory=list, description="Document.model_dump snapshots"
@@ -1846,6 +1992,11 @@ class DocumentRestoreParams(BaseModel):
         default_factory=list,
         description="Artifact snapshots deleted alongside the documents.",
     )
+
+
+class DocumentTrashListParams(BaseModel):
+    limit: int | None = Field(default=None, ge=1)
+    offset: int = Field(default=0, ge=0)
 
 
 def _invert_create_document(
@@ -1893,6 +2044,7 @@ def _invert_delete_document(
     return (
         "document.restore",
         {
+            "doc_ids": [snapshot["id"] for snapshot in before.get("documents", []) if snapshot.get("id")],
             "documents": before.get("documents", []),
             "artifacts": before.get("artifacts", []),
         },
@@ -2044,25 +2196,19 @@ def _action_batch_exclude(
 def _action_delete_document(
     db: Database, params: DocumentDeleteParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    (
-        to_delete_ids,
-        claims_deleted,
-        entities_pruned,
-        document_snapshots,
-        artifact_snapshots,
-    ) = delete_document_impl(db, params.doc_id, library_path=ctx.library_path)
+    to_delete_ids, document_snapshots = delete_document_impl(
+        db, params.doc_id, actor=ctx.actor
+    )
     spec = ChangeSpec(
         domains=["document"],
         target_ids=to_delete_ids,
-        before={"documents": document_snapshots, "artifacts": artifact_snapshots},
-        after=None,
+        before={"documents": document_snapshots},
+        after={"document_ids": to_delete_ids},
         emit_type="document.deleted",
         document_ids=to_delete_ids,
     )
     return {
         "deleted_document_ids": to_delete_ids,
-        "kg_claims_deleted": claims_deleted,
-        "kg_entities_pruned": entities_pruned,
     }, spec
 
 
@@ -2075,8 +2221,16 @@ def _action_delete_document(
 def _action_restore_documents(
     db: Database, params: DocumentRestoreParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
+    doc_ids = list(params.doc_ids)
+    if params.doc_id:
+        doc_ids.extend(
+            _descendant_document_ids(db, params.doc_id, include_deleted=True)
+        )
     restored_ids = restore_documents_impl(
-        db, documents=params.documents, artifacts=params.artifacts
+        db,
+        doc_ids=doc_ids,
+        documents=params.documents,
+        artifacts=params.artifacts,
     )
     spec = ChangeSpec(
         domains=["document"],
@@ -2086,6 +2240,57 @@ def _action_restore_documents(
         document_ids=restored_ids,
     )
     return {"restored_document_ids": restored_ids}, spec
+
+
+@action(
+    "document.purge",
+    DocumentDeleteParams,
+    domains=["document"],
+    undoable=False,
+)
+def _action_purge_document(
+    db: Database, params: DocumentDeleteParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    (
+        to_delete_ids,
+        claims_deleted,
+        entities_pruned,
+        _document_snapshots,
+        _artifact_snapshots,
+    ) = purge_document_impl(db, params.doc_id, library_path=ctx.library_path)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=to_delete_ids,
+        after={"document_ids": to_delete_ids},
+        emit_type="document.deleted",
+        document_ids=to_delete_ids,
+    )
+    return {
+        "deleted_document_ids": to_delete_ids,
+        "kg_claims_deleted": claims_deleted,
+        "kg_entities_pruned": entities_pruned,
+    }, spec
+
+
+@action(
+    "document.list_trash",
+    DocumentTrashListParams,
+    domains=["document"],
+    undoable=False,
+)
+def _action_list_document_trash(
+    db: Database, params: DocumentTrashListParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    docs = _ordered_by_sort_order(_list_documents(db, only_deleted=True))
+    items = (
+        docs[params.offset : params.offset + params.limit]
+        if params.limit is not None
+        else docs[params.offset :]
+    )
+    return {
+        "items": [doc.model_dump(mode="json") for doc in items],
+        "count": len(items),
+    }, ChangeSpec(domains=["document"])
 
 
 # ---------------------------------------------------------------------------

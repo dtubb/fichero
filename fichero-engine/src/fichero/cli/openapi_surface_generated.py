@@ -99,6 +99,32 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("list-audit-log")
+    def actions_list_audit_log_get(
+        ctx: typer.Context,
+        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+    ) -> None:
+        """List Audit Log (GET /api/actions/audit)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/actions/audit"
+            params = {
+                "limit": limit,
+            }
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("undo")
+    def actions_undo_post(
+        ctx: typer.Context,
+        audit_id: str = typer.Argument(..., help="Path parameter: audit_id."),
+    ) -> None:
+        """Undo Action (POST /api/actions/audit/{audit_id}/undo)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/actions/audit/{audit_id}/undo"
+            params = None
+            return client.request("POST", path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-builtin")
     def actions_list_builtin_get(
         ctx: typer.Context,
@@ -186,6 +212,20 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("invoke")
+    def actions_invoke_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Invoke Action (POST /api/actions/invoke)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/actions/invoke"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-popular")
     def actions_list_popular_get(
         ctx: typer.Context,
@@ -211,6 +251,17 @@ def register_generated_openapi_commands(
             params = {
                 "limit": limit,
             }
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-registered")
+    def actions_list_registered_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Registered Actions (GET /api/actions/registry)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/actions/registry"
+            params = None
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
@@ -777,6 +828,47 @@ def register_generated_openapi_commands(
             params = None
             payload = _load_json_payload(body, body_file, required=True)
             return client.request("PUT", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('auth')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for auth endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='auth')
+
+    @target_app.command("login")
+    def auth_login_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Login (POST /api/auth/login)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/auth/login"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("logout")
+    def auth_logout_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Logout (POST /api/auth/logout)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/auth/logout"
+            params = None
+            return client.request("POST", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("me")
+    def auth_me_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Me (GET /api/auth/me)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/auth/me"
+            params = None
+            return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('batches')
@@ -1863,6 +1955,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         doc_type: Optional[str] = typer.Option(None, "--doc-type", help="Query parameter: doc_type."),
         file_type: Optional[str] = typer.Option(None, "--file-type", help="Query parameter: file_type."),
+        include_deleted: Optional[bool] = typer.Option(None, "--include-deleted/--no-include-deleted", help="Query parameter: include_deleted."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
         offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
         parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Query parameter: parent_id."),
@@ -1874,6 +1967,7 @@ def register_generated_openapi_commands(
             params = {
                 "doc_type": doc_type,
                 "file_type": file_type,
+                "include_deleted": include_deleted,
                 "limit": limit,
                 "offset": offset,
                 "parent_id": parent_id,
@@ -1987,6 +2081,22 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             path = "/api/documents/roots"
             params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-deleted")
+    def documents_list_deleted_get(
+        ctx: typer.Context,
+        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
+    ) -> None:
+        """List Deleted Documents (GET /api/documents/trash)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/documents/trash"
+            params = {
+                "limit": limit,
+                "offset": offset,
+            }
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
@@ -2188,6 +2298,18 @@ def register_generated_openapi_commands(
             return client.request("PUT", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("purge")
+    def documents_purge_delete(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+    ) -> None:
+        """Purge Document (DELETE /api/documents/{doc_id}/purge)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{doc_id}/purge"
+            params = None
+            return client.request("DELETE", path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("related")
     def documents_related_get(
         ctx: typer.Context,
@@ -2201,6 +2323,18 @@ def register_generated_openapi_commands(
                 "limit": limit,
             }
             return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("restore")
+    def documents_restore_post(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+    ) -> None:
+        """Restore Document (POST /api/documents/{doc_id}/restore)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{doc_id}/restore"
+            params = None
+            return client.request("POST", path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-workflow-provenance-for-a")
@@ -8177,6 +8311,51 @@ def register_generated_openapi_commands(
             path = f"/api/triggers/{trigger_id}/resume"
             params = None
             return client.request("POST", path, params=params)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('users')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for users endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='users')
+
+    @target_app.command("list")
+    def users_list_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Users (GET /api/users)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/users"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create")
+    def users_create_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Create User (POST /api/users)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/users"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("update")
+    def users_update_patch(
+        ctx: typer.Context,
+        user_id: str = typer.Argument(..., help="Path parameter: user_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Update User (PATCH /api/users/{user_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/users/{user_id}"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PATCH", path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('view')

@@ -1002,6 +1002,207 @@
         }
       }
     },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Login",
+        "operationId": "login_api_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Logout",
+        "operationId": "logout_api_auth_logout_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Me",
+        "operationId": "me_api_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "List Users",
+        "operationId": "list_users_api_users_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "Create User",
+        "operationId": "create_user_api_users_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{user_id}": {
+      "patch": {
+        "tags": [
+          "users",
+          "users"
+        ],
+        "summary": "Update User",
+        "operationId": "update_user_api_users__user_id__patch",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/changes/stream": {
       "get": {
         "tags": [
@@ -6027,6 +6228,18 @@
             "description": "Filter by status"
           },
           {
+            "name": "include_deleted",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include soft-deleted rows in the response",
+              "default": false,
+              "title": "Include Deleted"
+            },
+            "description": "Include soft-deleted rows in the response"
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -6276,6 +6489,75 @@
         }
       }
     },
+    "/api/documents/trash": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "List Deleted Documents",
+        "description": "List soft-deleted documents for the future Trash view.",
+        "operationId": "list_deleted_documents_api_documents_trash_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "nullable": true,
+              "description": "Max results (no limit if not specified)",
+              "title": "Limit"
+            },
+            "description": "Max results (no limit if not specified)"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Offset for pagination",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Offset for pagination"
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fichero__models__DocumentListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{doc_id}": {
       "get": {
         "tags": [
@@ -6402,7 +6684,7 @@
           "documents"
         ],
         "summary": "Delete Document",
-        "description": "Delete a document and all descendants.\n\nCleanup includes:\n- Descendant documents in the hierarchy\n- Artifacts attached to any deleted document\n- Vector embeddings for deleted documents\n- KG claims sourced from any deleted document + now-orphaned entities\n  (logged to MutationLog so the cascade is reversible \u2014 #1021)",
+        "description": "Soft-delete a document and all descendants.",
         "operationId": "delete_document_api_documents__doc_id__delete",
         "parameters": [
           {
@@ -7271,6 +7553,116 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{doc_id}/restore": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Restore Document",
+        "description": "Restore a soft-deleted document subtree.",
+        "operationId": "restore_document_api_documents__doc_id__restore_post",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{doc_id}/purge": {
+      "delete": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Purge Document",
+        "description": "Permanently delete a document subtree.",
+        "operationId": "purge_document_api_documents__doc_id__purge_delete",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -23264,6 +23656,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -23434,6 +23836,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -23493,6 +23905,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "responses": {
@@ -23534,6 +23956,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -23725,6 +24157,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -23776,6 +24218,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -23957,6 +24409,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -24027,6 +24489,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "responses": {
@@ -24068,6 +24540,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -24231,6 +24713,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -24291,6 +24783,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -24407,6 +24909,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -24578,6 +25090,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -24637,6 +25159,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "responses": {
@@ -24678,6 +25210,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -24869,6 +25411,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -24920,6 +25472,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -25101,6 +25663,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -25171,6 +25743,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "responses": {
@@ -25212,6 +25794,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -25375,6 +25967,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
           }
         ],
         "requestBody": {
@@ -25435,6 +26037,16 @@
             "schema": {
               "type": "string",
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
             }
           }
         ],
@@ -30122,6 +30734,210 @@
         }
       }
     },
+    "/api/actions/invoke": {
+      "post": {
+        "tags": [
+          "actions",
+          "actions"
+        ],
+        "summary": "Invoke Action",
+        "description": "Validate + run a registered action through the audited choke point.",
+        "operationId": "invoke_action_api_actions_invoke_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvokeActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResultResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/actions/registry": {
+      "get": {
+        "tags": [
+          "actions",
+          "actions"
+        ],
+        "summary": "List Registered Actions",
+        "description": "List every registered action + its param JSON schema.\n\nThis is what chat tools (#1847) and App Intents (#1837) read to build their\ntool/intent definitions from the single registry.",
+        "operationId": "list_registered_actions_api_actions_registry_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisteredActionsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/actions/audit": {
+      "get": {
+        "tags": [
+          "actions",
+          "actions"
+        ],
+        "summary": "List Audit Log",
+        "description": "Recent action-audit rows, newest first \u2014 the UI's undo-stack history.\n\n``before``/``after`` payloads are deliberately omitted (they can be large and\nare only needed server-side for inversion); this returns the lightweight\nactor/action/target/timestamp/undone shape the undo stack reads.",
+        "operationId": "list_audit_log_api_actions_audit_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/actions/audit/{audit_id}/undo": {
+      "post": {
+        "tags": [
+          "actions",
+          "actions"
+        ],
+        "summary": "Undo Action",
+        "description": "Reverse an action \u2014 or redo, when the target audit is itself an inverse.\n\nTwo paths, both registry-driven and both producing a fresh audit row so the\nchain stays reversible indefinitely:\n\n* **Undo a forward action** (``inverse_of is None``): look the action up in the\n  registry, call its ``invert(before, after, ctx) -> (name, params)``, and\n  ``invoke`` that inverse, tagged ``inverse_of=this audit`` so it can be redone.\n* **Undo an inverse / redo** (``inverse_of`` set): replay the ORIGINAL forward\n  action with its recorded ``action_name`` + ``params``. This is correct for\n  *any* action regardless of how its inverse was implemented \u2014 no per-action\n  redo logic and no need for inverse actions (restore/unmerge) to be\n  independently ``undoable``.",
+        "operationId": "undo_action_api_actions_audit__audit_id__undo_post",
+        "parameters": [
+          {
+            "name": "audit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Audit Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionResultResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/actions": {
       "get": {
         "tags": [
@@ -34172,6 +34988,36 @@
         "title": "ActionResponse",
         "description": "Action response model."
       },
+      "ActionResultResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "result": {
+            "title": "Result"
+          },
+          "audit_id": {
+            "type": "string",
+            "title": "Audit Id"
+          },
+          "changed_domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Changed Domains"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "result",
+          "audit_id",
+          "changed_domains"
+        ],
+        "title": "ActionResultResponse"
+      },
       "ActionSuccessResponse": {
         "properties": {
           "success": {
@@ -35757,6 +36603,80 @@
         ],
         "title": "AttributionStep",
         "description": "One actor in a claim attribution chain."
+      },
+      "AuditLogEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "action_name": {
+            "type": "string",
+            "title": "Action Name"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "target_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Target Ids"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "undone": {
+            "type": "boolean",
+            "title": "Undone"
+          },
+          "inverse_of": {
+            "type": "string",
+            "nullable": true,
+            "title": "Inverse Of"
+          },
+          "undoable": {
+            "type": "boolean",
+            "title": "Undoable",
+            "description": "Whether this row can be reversed (or, if itself an inverse, redone)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "action_name",
+          "actor",
+          "target_ids",
+          "created_at",
+          "undone",
+          "undoable"
+        ],
+        "title": "AuditLogEntry",
+        "description": "One row of the audit log, shaped for the UI/undo stack."
+      },
+      "AuditLogResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLogEntry"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "AuditLogResponse"
       },
       "AuthorType": {
         "type": "string",
@@ -39961,6 +40881,37 @@
         "title": "CreateTriggerRequest",
         "description": "Request to create a new file trigger."
       },
+      "CreateUserRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Password"
+          },
+          "is_owner": {
+            "type": "boolean",
+            "title": "Is Owner",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "display_name",
+          "password"
+        ],
+        "title": "CreateUserRequest"
+      },
       "CropOperationRequest": {
         "properties": {
           "left": {
@@ -40444,6 +41395,17 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Deleted At"
+          },
+          "deleted_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Deleted By"
           },
           "sort_order": {
             "type": "integer",
@@ -44693,6 +45655,44 @@
         "title": "InterpretiveFramework",
         "description": "An interpretive lens applied to claims and evidence.\n\nFrameworks are reusable lenses that shape how evidence is interpreted.\nExample: \"Marxist historical materialism\" as a framework for analyzing\nlabor relations in historical documents."
       },
+      "InvokeActionRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Registered action name, '<domain>.<verb>'"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params",
+            "description": "Raw action params"
+          },
+          "origin_window": {
+            "type": "string",
+            "nullable": true,
+            "title": "Origin Window",
+            "description": "Self-echo de-dup seam for the change stream"
+          },
+          "actor": {
+            "type": "string",
+            "nullable": true,
+            "title": "Actor",
+            "description": "Override actor; defaults to 'ui'"
+          },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id",
+            "description": "AI run id, if any (#1832)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "InvokeActionRequest"
+      },
       "KGEntityGroup": {
         "properties": {
           "kind": {
@@ -45069,6 +46069,7 @@
           },
           "source_document_id": {
             "type": "string",
+            "nullable": true,
             "title": "Source Document Id"
           },
           "source_segment_id": {
@@ -45501,8 +46502,7 @@
         "additionalProperties": true,
         "type": "object",
         "required": [
-          "text",
-          "source_document_id"
+          "text"
         ],
         "title": "KnowledgeClaim"
       },
@@ -45946,6 +46946,21 @@
             "type": "string",
             "format": "date-time",
             "title": "Last Accessed"
+          },
+          "snapshot_interval_seconds": {
+            "type": "number",
+            "title": "Snapshot Interval Seconds",
+            "default": 0.0
+          },
+          "snapshot_retention_count": {
+            "type": "integer",
+            "title": "Snapshot Retention Count",
+            "default": 10
+          },
+          "snapshot_offsite_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Snapshot Offsite Path"
           }
         },
         "type": "object",
@@ -46136,6 +47151,11 @@
             "type": "string",
             "title": "Lance Path"
           },
+          "offsite_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Offsite Path"
+          },
           "file_count": {
             "type": "integer",
             "title": "File Count",
@@ -46276,6 +47296,49 @@
         ],
         "title": "LocalModelListResponse",
         "description": "List of local models."
+      },
+      "LoginRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Password"
+          },
+          "device_label": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": true,
+            "title": "Device Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LoginRequest"
+      },
+      "LoginResponse": {
+        "properties": {
+          "session_token": {
+            "type": "string",
+            "title": "Session Token"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_token",
+          "user"
+        ],
+        "title": "LoginResponse"
       },
       "MCPClaimDeletedResponse": {
         "properties": {
@@ -51306,6 +52369,59 @@
         "title": "ReferenceWithProvenanceResponse",
         "description": "Response from GET /api/references/{id}."
       },
+      "RegisteredActionInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "undoable": {
+            "type": "boolean",
+            "title": "Undoable"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Domains"
+          },
+          "params_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params Schema"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "undoable",
+          "domains",
+          "params_schema"
+        ],
+        "title": "RegisteredActionInfo"
+      },
+      "RegisteredActionsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RegisteredActionInfo"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "RegisteredActionsResponse"
+      },
       "RegistryCreateRequest": {
         "properties": {
           "key": {
@@ -52880,6 +53996,7 @@
           },
           "source_document_id": {
             "type": "string",
+            "nullable": true,
             "title": "Source Document Id"
           },
           "source_segment_id": {
@@ -53317,8 +54434,7 @@
         "additionalProperties": true,
         "type": "object",
         "required": [
-          "text",
-          "source_document_id"
+          "text"
         ],
         "title": "SearchClaimHit"
       },
@@ -55151,6 +56267,19 @@
         ],
         "title": "StatusOkResponse"
       },
+      "StatusResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "StatusResponse"
+      },
       "StepCreateRequest": {
         "properties": {
           "task_id": {
@@ -56913,6 +58042,44 @@
         "title": "UpdateTriggerRequest",
         "description": "Request to update an existing file trigger."
       },
+      "UpdateUserRequest": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "nullable": true,
+            "title": "Password"
+          },
+          "active": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "title": "UpdateUserRequest"
+      },
+      "UserListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UserResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "UserListResponse"
+      },
       "UserModelListResponse": {
         "properties": {
           "items": {
@@ -56993,6 +58160,45 @@
         ],
         "title": "UserModelResponse",
         "description": "User-configured model."
+      },
+      "UserResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "is_owner": {
+            "type": "boolean",
+            "title": "Is Owner"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "display_name",
+          "is_owner",
+          "active",
+          "created_at"
+        ],
+        "title": "UserResponse"
       },
       "ValidationError": {
         "properties": {
