@@ -964,23 +964,13 @@ class SavedSearchListResponse(BaseModel):
     count: int
 
 
-@router.post("/saved")
-async def save_search(
-    request: SavedSearchCreate, db: Database = Depends(get_library_database)
-) -> SavedSearchResponse:
-    """Save a search for later."""
-    saved = SavedSearch(
-        query=request.query,
-        is_smart_search=request.is_smart_search,
-        filters=request.filters,
-        search_type=request.search_type,
-        sort_by=request.sort_by,
-        sort_direction=request.sort_direction,
-        folder_path=request.folder_path,
-        sort_order=request.sort_order,
-    )
-    db.save(saved)
+def _saved_search_response(saved: SavedSearch) -> SavedSearchResponse:
+    """Render a ``SavedSearch`` row as the API response.
 
+    One place — the save / update / duplicate routes (and their actions) used to
+    rebuild this struct inline four times over. Collapsing the genuine
+    duplication onto this canonical renderer is the iterate-not-replace move.
+    """
     return SavedSearchResponse(
         id=saved.id,
         query=saved.query,
@@ -995,27 +985,42 @@ async def save_search(
     )
 
 
+def save_search_impl(db: Database, request: SavedSearchCreate) -> SavedSearch:
+    """Create + persist a ``SavedSearch`` from the create request.
+
+    Extracted from ``POST /saved`` so BOTH the route and the ``savedsearch.save``
+    action (EPIC #1848) drive the *same* code (iterate-not-replace). Returns the
+    persisted row.
+    """
+    saved = SavedSearch(
+        query=request.query,
+        is_smart_search=request.is_smart_search,
+        filters=request.filters,
+        search_type=request.search_type,
+        sort_by=request.sort_by,
+        sort_direction=request.sort_direction,
+        folder_path=request.folder_path,
+        sort_order=request.sort_order,
+    )
+    db.save(saved)
+    return saved
+
+
+@router.post("/saved")
+async def save_search(
+    request: SavedSearchCreate, db: Database = Depends(get_library_database)
+) -> SavedSearchResponse:
+    """Save a search for later."""
+    return _saved_search_response(save_search_impl(db, request))
+
+
 @router.get("/saved", response_model=SavedSearchListResponse)
 async def list_saved_searches(
     db: Database = Depends(get_library_database),
 ) -> SavedSearchListResponse:
     """List all saved searches."""
     searches = db.all(SavedSearch)
-    items = [
-        SavedSearchResponse(
-            id=s.id,
-            query=s.query,
-            is_smart_search=s.is_smart_search,
-            filters=s.filters,
-            search_type=s.search_type,
-            sort_by=s.sort_by,
-            sort_direction=s.sort_direction,
-            folder_path=s.folder_path,
-            sort_order=s.sort_order,
-            created_at=_safe_isoformat(getattr(s, "created_at", None)),
-        )
-        for s in searches
-    ]
+    items = [_saved_search_response(s) for s in searches]
     return SavedSearchListResponse(items=items, count=len(items))
 
 
@@ -1033,13 +1038,15 @@ class SavedSearchUpdate(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
-@router.put("/saved/{search_id}")
-async def update_saved_search(
-    search_id: str,
-    request: SavedSearchUpdate,
-    db: Database = Depends(get_library_database),
-) -> SavedSearchResponse:
-    """Update a saved search."""
+def update_saved_search_impl(
+    db: Database, search_id: str, request: SavedSearchUpdate
+) -> SavedSearch:
+    """Apply the present (non-None) ``SavedSearchUpdate`` fields and persist.
+
+    Extracted from ``PUT /saved/{search_id}`` so BOTH the route and the
+    ``savedsearch.update`` action drive the *same* code (iterate-not-replace).
+    Raises ``HTTPException(404)`` on an unknown id exactly as the route did.
+    """
     saved = db.get(SavedSearch, search_id)
     if not saved:
         raise HTTPException(status_code=404, detail="Saved search not found")
@@ -1062,26 +1069,26 @@ async def update_saved_search(
 
     saved.updated_at = datetime.now()
     db.save(saved)
-
-    return SavedSearchResponse(
-        id=saved.id,
-        query=saved.query,
-        is_smart_search=saved.is_smart_search,
-        filters=saved.filters,
-        search_type=saved.search_type,
-        sort_by=saved.sort_by,
-        sort_direction=saved.sort_direction,
-        folder_path=saved.folder_path,
-        sort_order=saved.sort_order,
-        created_at=_safe_isoformat(getattr(saved, "created_at", None)),
-    )
+    return saved
 
 
-@router.post("/saved/{search_id}/duplicate")
-async def duplicate_saved_search(
-    search_id: str, db: Database = Depends(get_library_database)
+@router.put("/saved/{search_id}")
+async def update_saved_search(
+    search_id: str,
+    request: SavedSearchUpdate,
+    db: Database = Depends(get_library_database),
 ) -> SavedSearchResponse:
-    """Duplicate a saved search with a new name."""
+    """Update a saved search."""
+    return _saved_search_response(update_saved_search_impl(db, search_id, request))
+
+
+def duplicate_saved_search_impl(db: Database, search_id: str) -> SavedSearch:
+    """Create + persist a copy of a saved search under a new id.
+
+    Extracted from ``POST /saved/{search_id}/duplicate`` so BOTH the route and
+    the ``savedsearch.duplicate`` action drive the *same* copy logic
+    (iterate-not-replace). Raises ``HTTPException(404)`` on an unknown id.
+    """
     original = db.get(SavedSearch, search_id)
     if not original:
         raise HTTPException(status_code=404, detail="Saved search not found")
@@ -1100,19 +1107,31 @@ async def duplicate_saved_search(
 
     # The database layer will generate a new ID
     db.save(new_saved)
+    return new_saved
 
-    return SavedSearchResponse(
-        id=new_saved.id,
-        query=new_saved.query,
-        is_smart_search=new_saved.is_smart_search,
-        filters=new_saved.filters,
-        search_type=new_saved.search_type,
-        sort_by=new_saved.sort_by,
-        sort_direction=new_saved.sort_direction,
-        folder_path=new_saved.folder_path,
-        sort_order=new_saved.sort_order,
-        created_at=_safe_isoformat(getattr(new_saved, "created_at", None)),
-    )
+
+@router.post("/saved/{search_id}/duplicate")
+async def duplicate_saved_search(
+    search_id: str, db: Database = Depends(get_library_database)
+) -> SavedSearchResponse:
+    """Duplicate a saved search with a new name."""
+    return _saved_search_response(duplicate_saved_search_impl(db, search_id))
+
+
+def delete_saved_search_impl(db: Database, search_id: str) -> SavedSearch:
+    """Delete a saved search, returning the row that was removed.
+
+    Extracted from ``DELETE /saved/{search_id}`` so BOTH the route and the
+    ``savedsearch.delete`` action drive the *same* code (iterate-not-replace).
+    Returning the deleted row lets the action snapshot it as the undo payload.
+    Raises ``HTTPException(404)`` on an unknown id.
+    """
+    saved = db.get(SavedSearch, search_id)
+    if not saved:
+        raise HTTPException(status_code=404, detail="Saved search not found")
+
+    db.delete(saved)
+    return saved
 
 
 @router.delete("/saved/{search_id}")
@@ -1120,12 +1139,37 @@ async def delete_saved_search(
     search_id: str, db: Database = Depends(get_library_database)
 ) -> DeletedResponse:
     """Delete a saved search."""
-    saved = db.get(SavedSearch, search_id)
-    if not saved:
-        raise HTTPException(status_code=404, detail="Saved search not found")
-
-    db.delete(saved)
+    delete_saved_search_impl(db, search_id)
     return DeletedResponse(status="deleted")
+
+
+def reorder_saved_searches_impl(
+    db: Database, search_ids: list[str], folder_path: str = "/"
+) -> tuple[int, dict[str, int], dict[str, int]]:
+    """Renumber the listed saved searches to their list position and persist.
+
+    Extracted from ``POST /saved/reorder`` so BOTH the route and the
+    ``savedsearch.reorder`` action drive the *same* code (iterate-not-replace).
+    Returns ``(count, before_orders, after_orders)`` — the order maps feed the
+    action's audit ``before``/``after`` so the reorder is recorded even though it
+    is not wired for one-click undo. Raises ``HTTPException(404)`` on an unknown
+    id, preserving the route's original (partial-update-on-failure) semantics.
+    """
+    before_orders: dict[str, int] = {}
+    for i, search_id in enumerate(search_ids):
+        saved = db.get(SavedSearch, search_id)
+        if not saved:
+            raise HTTPException(
+                status_code=404, detail=f"Saved search not found: {search_id}"
+            )
+
+        before_orders[search_id] = saved.sort_order
+        # Update sort order
+        saved.sort_order = i
+        db.save(saved)
+
+    after_orders = {sid: i for i, sid in enumerate(search_ids)}
+    return len(search_ids), before_orders, after_orders
 
 
 @router.post("/saved/reorder")
@@ -1135,19 +1179,8 @@ async def reorder_saved_searches(
     db: Database = Depends(get_library_database),
 ) -> ReorderResponse:
     """Reorder saved searches within a folder."""
-    # Update sort_order for each saved search
-    for i, search_id in enumerate(search_ids):
-        saved = db.get(SavedSearch, search_id)
-        if not saved:
-            raise HTTPException(
-                status_code=404, detail=f"Saved search not found: {search_id}"
-            )
-
-        # Update sort order
-        saved.sort_order = i
-        db.save(saved)
-
-    return ReorderResponse(status="reordered", count=len(search_ids))
+    count, _before, _after = reorder_saved_searches_impl(db, search_ids, folder_path)
+    return ReorderResponse(status="reordered", count=count)
 
 
 # =============================================================================
@@ -1466,3 +1499,251 @@ async def get_grid_view_data(
         page=page,
         page_size=page_size,
     )
+
+
+# =============================================================================
+# Action layer registration (EPIC #1848 / sweep #2014) — saved-search domain
+# =============================================================================
+#
+# Every saved-search mutation (save / update / duplicate / delete / reorder)
+# becomes a registered, audited action that WRAPS the proven ``*_impl`` above —
+# the typed routes stay green and untouched; the action is the additional
+# uniform path that chat tools / App Intents / tests drive via
+# POST /api/actions/invoke, with the ActionAudit row written at registry.invoke.
+# ``before``/``after`` snapshots ARE the undo payload.
+#
+# Undo design (mirrors the conversation sibling): ``db.save`` is an upsert by id,
+# so a single ``savedsearch.restore`` (full-snapshot upsert) inverts BOTH a
+# delete (re-inserts the row, same id) and an edit (overwrites with the prior
+# snapshot). ``restore`` records whether the row pre-existed, so its OWN inverse
+# is ``savedsearch.delete`` (after a recreate) or ``savedsearch.restore`` (after
+# an overwrite) — keeping every delete<->restore and edit<->restore redo chain
+# sane. ``savedsearch.save`` / ``savedsearch.duplicate`` create brand-new rows
+# (no prior state to reverse to) and ``savedsearch.reorder`` touches a whole
+# folder; per the sweep scope only update + delete are wired undoable, but every
+# action still writes an ActionAudit row (who-changed-what).
+
+from fichero.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+
+
+def _snap_saved_search(saved: SavedSearch) -> dict:
+    """JSON-able snapshot of a SavedSearch row (the undo payload)."""
+    return saved.model_dump(mode="json")
+
+
+class SavedSearchIdParams(BaseModel):
+    """Shared params for id-only saved-search actions (duplicate / delete)."""
+
+    search_id: str
+
+
+class SavedSearchUpdateParams(BaseModel):
+    """``savedsearch.update`` params — the target id plus the editable fields.
+
+    Mirrors :class:`SavedSearchUpdate` (``extra="allow"``) with the path id
+    folded in so the action is self-contained.
+    """
+
+    search_id: str
+    query: Optional[str] = None
+    is_smart_search: Optional[bool] = None
+    filters: Optional[dict] = None
+    search_type: Optional[str] = None
+    sort_by: Optional[str] = None
+    sort_direction: Optional[str] = None
+    folder_path: Optional[str] = None
+
+    model_config = ConfigDict(extra="allow")
+
+
+class ReorderSavedSearchesParams(BaseModel):
+    """``savedsearch.reorder`` params — the ordered ids within a folder."""
+
+    search_ids: list[str]
+    folder_path: str = "/"
+
+
+class SavedSearchRestoreParams(BaseModel):
+    """``savedsearch.restore`` — re-materialize / overwrite a saved search by
+    snapshot (preserving its id)."""
+
+    snapshot: dict
+
+
+def _invert_to_restore_before(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Undo an edit/delete by restoring the captured pre-change snapshot."""
+    if not before:
+        return None
+    return ("savedsearch.restore", {"snapshot": before})
+
+
+def _invert_restore(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Inverse of restore — depends on whether the row pre-existed.
+
+    If ``before`` is None the restore RE-CREATED a missing row (it was undoing a
+    delete) -> redo by deleting again. If ``before`` is a snapshot the restore
+    OVERWROTE an existing row (undoing an edit) -> redo by restoring that prior
+    snapshot, which re-applies the edit. Keeps delete<->restore and
+    edit<->restore redo chains correct."""
+    if not after:
+        return None
+    sid = after.get("id")
+    if before is None:
+        if not sid:
+            return None
+        return ("savedsearch.delete", {"search_id": sid})
+    return ("savedsearch.restore", {"snapshot": before})
+
+
+@action(
+    "savedsearch.save",
+    SavedSearchCreate,
+    domains=["savedsearch"],
+    undoable=False,
+)
+def _action_save_search(
+    db: Database, params: SavedSearchCreate, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    saved = save_search_impl(db, params)
+    after = _snap_saved_search(saved)
+    spec = ChangeSpec(
+        domains=["savedsearch"],
+        target_ids=[saved.id],
+        before=None,
+        after=after,
+        emit_type="savedsearch.created",
+    )
+    return after, spec
+
+
+@action(
+    "savedsearch.update",
+    SavedSearchUpdateParams,
+    domains=["savedsearch"],
+    undoable=True,
+    invert=_invert_to_restore_before,
+)
+def _action_update_saved_search(
+    db: Database, params: SavedSearchUpdateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    existing = db.get(SavedSearch, params.search_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Saved search not found")
+    before = _snap_saved_search(existing)
+    request = SavedSearchUpdate(
+        query=params.query,
+        is_smart_search=params.is_smart_search,
+        filters=params.filters,
+        search_type=params.search_type,
+        sort_by=params.sort_by,
+        sort_direction=params.sort_direction,
+        folder_path=params.folder_path,
+    )
+    saved = update_saved_search_impl(db, params.search_id, request)
+    after = _snap_saved_search(saved)
+    spec = ChangeSpec(
+        domains=["savedsearch"],
+        target_ids=[saved.id],
+        before=before,
+        after=after,
+        emit_type="savedsearch.updated",
+    )
+    return after, spec
+
+
+@action(
+    "savedsearch.duplicate",
+    SavedSearchIdParams,
+    domains=["savedsearch"],
+    undoable=False,
+)
+def _action_duplicate_saved_search(
+    db: Database, params: SavedSearchIdParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    new_saved = duplicate_saved_search_impl(db, params.search_id)
+    after = _snap_saved_search(new_saved)
+    spec = ChangeSpec(
+        domains=["savedsearch"],
+        target_ids=[new_saved.id],
+        before=None,
+        after=after,
+        emit_type="savedsearch.created",
+    )
+    return after, spec
+
+
+@action(
+    "savedsearch.delete",
+    SavedSearchIdParams,
+    domains=["savedsearch"],
+    undoable=True,
+    invert=_invert_to_restore_before,
+)
+def _action_delete_saved_search(
+    db: Database, params: SavedSearchIdParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    deleted = delete_saved_search_impl(db, params.search_id)
+    before = _snap_saved_search(deleted)
+    spec = ChangeSpec(
+        domains=["savedsearch"],
+        target_ids=[params.search_id],
+        before=before,
+        after=None,
+        emit_type="savedsearch.deleted",
+    )
+    return before, spec
+
+
+@action(
+    "savedsearch.reorder",
+    ReorderSavedSearchesParams,
+    domains=["savedsearch"],
+    undoable=False,
+)
+def _action_reorder_saved_searches(
+    db: Database, params: ReorderSavedSearchesParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    count, before_orders, after_orders = reorder_saved_searches_impl(
+        db, params.search_ids, params.folder_path
+    )
+    spec = ChangeSpec(
+        domains=["savedsearch"],
+        target_ids=list(params.search_ids),
+        before={"sort_orders": before_orders},
+        after={"sort_orders": after_orders},
+        emit_type="savedsearch.reordered",
+    )
+    return {"count": count}, spec
+
+
+@action(
+    "savedsearch.restore",
+    SavedSearchRestoreParams,
+    domains=["savedsearch"],
+    undoable=True,
+    invert=_invert_restore,
+)
+def _action_restore_saved_search(
+    db: Database, params: SavedSearchRestoreParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Upsert a saved search from its snapshot (preserving id). Records whether
+    the row pre-existed so its inverse picks delete (recreate) vs restore
+    (edit)."""
+    sid = params.snapshot.get("id")
+    existing = db.get(SavedSearch, sid) if sid else None
+    before = _snap_saved_search(existing) if existing else None
+    saved = SavedSearch(**params.snapshot)
+    db.save(saved)
+    after = _snap_saved_search(saved)
+    spec = ChangeSpec(
+        domains=["savedsearch"],
+        target_ids=[saved.id],
+        before=before,
+        after=after,
+        emit_type="savedsearch.updated" if before else "savedsearch.created",
+    )
+    return after, spec
