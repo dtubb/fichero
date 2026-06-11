@@ -48,6 +48,7 @@ INFRASTRUCTURE_FILES = {
 # Current generated-client migration backlog. Drop entries as services move to
 # FicheroClient / generated OpenAPI operations.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "ActionInvokeService.swift": "#1848 — action layer cli-only, store/UI deferred",
     "AppleScriptSupport.swift": "#1943 — AppleScript bridge still uses raw URLSession/URLRequest",
     "ImageEditingServiceGenerated.swift": "#1943 — image editing service still hand-builds image endpoints",
     "WorkflowServiceGenerated.swift": "#1943 — workflow service still has raw preview transport helper",
