@@ -1,3 +1,13 @@
+## MANAGER STATUS — 2026-06-11 ~13:30 (Phase 1: 5 SHIPPED, 2 lanes live)
+**0.0.2 pushed @ `012e6415`. Shipped this session: #2055, #2023 (keystone), #2046, #2043, #2075.**
+- ✅ #2055 LLM client pooling · ✅ #2023 actor-attribution keystone · ✅ #2046 scheduled+offsite backups · ✅ **#2043** tamper-evident hash-chained ActionAudit (full suite 4531) · ✅ **#2075** Trash BACKEND soft-delete/restore/purge for Document (full suite 4537).
+- ⏳ **Lane `acl-2024`** (#2024 per-library/folder ACL choke-point, gpt-5.5) — owner/editor/viewer + folder grant/deny, enforce at registry.invoke (write) + `get_library_database` (read), behind FICHERO_MULTIUSER. SECURITY KEYSTONE → full suite + security review on integration. Unblocks #2025.
+- ⏳ **Lane `guardrails-2078`** (#2078 reconcile completeness-matrix baselines to green, gpt-5.4-mini) — baseline backend-first endpoints (auth #2022 / actions #1848 / trash #2075) + prune ratchet drift so `verify_all --fast` exits 0. Discharges the owed cleanup.
+- **Filed:** #2076 (audit-chain microsecond-ordering follow-up), #2077 (Trash UI + claim/entity/note soft-delete, Phase 2), #2078 (guardrail reconciliation).
+- **Sequencing note:** #2025 (kill ambient authority) DEPENDS ON #2024 (needs the ACL to authorize against) — do #2024 FIRST, then #2025. They overlap the library-access path → serialize, don't parallelize.
+- **Gate:** cherry-pick → targeted pytest + ruff [+ FULL suite for choke-point/registry changes like #2024] → security review → push → clean worktree → close. NEVER `--full`/xcodebuild (GUI). Verify worker claims (a worker's "18 fails" earlier was an env fluke; another's full-suite claim held).
+- **After #2024:** #2025 → #2048 (bind host) → #2026 (Tailscale); then Phase 2 Mac (EPIC #2030).
+
 ## MANAGER STATUS — 2026-06-11 ~12:50 (Phase 1: 3 SHIPPED, 2 lanes live)
 **0.0.2 pushed @ `fcca7442`. Shipped this session: #2055, #2023 (keystone), #2046.**
 - ✅ **#2055** LLM client pooling (`b8028f76`) · ✅ **#2023** actor-attribution keystone (`9f2b8c62`, full suite 4519 passed, security-reviewed — forgery-proof) · ✅ **#2046** scheduled+offsite backups (`fcca7442`, privacy-safe filesystem-only, 76 tests).
