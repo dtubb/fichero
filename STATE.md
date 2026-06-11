@@ -1,3 +1,26 @@
+## MANAGER STATUS — 2026-06-11 ~20:30 (infra lanes integrated + review complete → INFRA FOUNDATION DONE)
+**0.0.2 @ `9e86ebcc` pushed; embeddings (`4293c54d`) staged, full suite running before push.**
+
+### Integrated this session
+- ✅ **#2076** audit chain_seq ordering — shipped `9e86ebcc`, pushed, closed (595 passed + ruff).
+- 🔄 **#2095 + #2115** embeddings overhaul — cherry-picked + amended (`4293c54d`); full suite gating the push (touches db.py + search).
+  - **DECISION:** worker defaulted to `BAAI/bge-m3` but I verified it is **NOT in fastembed 0.8.0's catalog** (would crash at model-load). Flipped default to `intfloat/multilingual-e5-large` (loadable) — now with its **required `query:`/`passage:` prefixes** (were missing — a silent retrieval bug, likely why "search wasn't very good"). bge-m3 stays configurable via FICHERO_EMBED_MODEL; both 1024-dim so the future swap is a clean re-embed. Follow-up **#2117** wires bge-m3 properly.
+  - Passage/chunk-level embedding (anchored doc/page/offset) is the bigger retrieval win — lands intact. **A deliberate re-embed of real libraries is still TODO** (run it manually; don't auto-run).
+
+### Infra+security review (#2027 #2028) — DONE, findings filed
+Two review agents swept the session's foundation. **Both closed.** Foundation is sound where built; gaps filed as backlog (all behind FICHERO_MULTIUSER OFF-by-default or the remote-lab arc — none block single-user Mac work):
+- **Security #2124–2129:** #2124 CRITICAL (viewer can write + unaudited via ~40 routes not on the registry — #2014 sweep incomplete), #2125 (entity-types route ungated), #2126 (app-config routes no authz → MCP-server exfil), #2127 (audit chain unkeyed SHA-256 → needs HMAC + truncation anchor), #2128 (ACL DENY ignored for unrecognized id keys), #2129 (low).
+- **Infra #2118–2123:** #2118 CRITICAL (DBWriter migration incomplete → dropped writes under 2 writers), #2119 CRITICAL (single-process-per-library lock), #2120 (LanceDB writes unguarded), #2121 (allowlist+source resolution hardcoded macOS), #2122 (tailnet bind vs shared-secret), #2123 (snapshot/replay hardening).
+
+### INFRA FOUNDATION = DONE → MAC NEXT
+The #2021 multi-user/security/network foundation is built + shipped (18 issues this session). Remaining "Infrastructure" open = today's hardening backlog + the separate AI-infra EPIC (#2056 MLX). **Before turning multi-user ON, do #2124 + #2118 (CRITICALs) — but they're flag-off, not Mac blockers.**
+NEXT: start **MAC** at the node model — **#2114 prototype/class system** (brief staged /tmp/prototypes-2114.txt, backend, worktree prototypes-2114) is the first slice of EPIC #2081, then shell #2031.
+
+### HELD for Daniel's build (don't BuildProject while he's at the Mac)
+- `entitytable-2020` worktree (#2020 entity Table, commit 82af4a10) — integrate when Daniel says OK-to-build.
+- #2107 metadata Info-tab bug (frontend; likely optional-decode like #2019).
+
+---
 ## SESSION HANDOFF — 2026-06-11 ~20:00 (Daniel's day-long design session + infra completion)
 **0.0.2 @ `fda57f18`, pushed, working tree clean.** Engine NOT restarted (still on old code; fine).
 
