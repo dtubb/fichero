@@ -27,6 +27,7 @@ Implementation notes:
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -44,6 +45,14 @@ DEFAULT_MODEL = "TransE"
 DEFAULT_EMBEDDING_DIM = 64
 DEFAULT_NUM_EPOCHS = 50
 DEFAULT_BATCH_SIZE = 32
+
+# Process-global cache for trained PyKEEN models, keyed by library path.
+#
+# ``db_manager`` gives each Database instance its own path, but a given library
+# should only deserialize its trained model once per process. Cache the loaded
+# pipeline per library directory and reuse it across callers.
+_MODEL_CACHE: dict[str, object] = {}
+_MODEL_CACHE_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -138,6 +147,7 @@ def train_model(
         device=torch.device("cpu"),
     )
     result.save_to_directory(str(out_dir))
+    _invalidate_model_cache(out_dir)
 
     return {
         "triples": len(raw_triples),
@@ -158,17 +168,36 @@ def load_model(db: "Database"):
     import torch
 
     out_dir = _model_path(db)
-    if not out_dir.exists():
+    model_pkl = out_dir / "trained_model.pkl"
+    if not model_pkl.exists():
         return None
-    try:
-        # PyKEEN serializes the trained model as trained_model.pkl.
-        model_pkl = out_dir / "trained_model.pkl"
-        if not model_pkl.exists():
+    cache_key = str(out_dir.resolve())
+    model = _MODEL_CACHE.get(cache_key)
+    if model is not None:
+        return model
+
+    with _MODEL_CACHE_LOCK:
+        model = _MODEL_CACHE.get(cache_key)
+        if model is not None:
+            return model
+        try:
+            # PyKEEN serializes the trained model as trained_model.pkl.
+            if not model_pkl.exists():
+                return None
+            model = torch.load(str(model_pkl), weights_only=False)
+            _MODEL_CACHE[cache_key] = model
+            logger.info("Loaded PyKEEN model (process-global): %s", cache_key)
+            return model
+        except Exception as exc:
+            logger.warning("load_model failed: %s", exc)
             return None
-        return torch.load(str(model_pkl), weights_only=False)
-    except Exception as exc:
-        logger.warning("load_model failed: %s", exc)
-        return None
+
+
+def _invalidate_model_cache(out_dir: Path) -> None:
+    """Drop any cached PyKEEN model for ``out_dir`` after retraining."""
+    cache_key = str(out_dir.resolve())
+    with _MODEL_CACHE_LOCK:
+        _MODEL_CACHE.pop(cache_key, None)
 
 
 def predict_for_subject(

@@ -49,6 +49,15 @@ MODELS_BASE = (
     Path.home() / "Library" / "Application Support" / "com.fichero.fichero" / "models"
 )
 
+# Process-global Whisper cache, keyed by the model identity and runtime target.
+#
+# Whisper models are large and expensive to load. The audio tools create a new
+# transcription task per file, so constructing the model inside the sync helper
+# reloaded it on every call. Cache the loaded object here so all callers in the
+# process share one copy per (model_size, download_root, device).
+_WHISPER_MODEL_CACHE: dict[tuple[str, str, str | None], Any] = {}
+_WHISPER_MODEL_CACHE_LOCK = threading.Lock()
+
 
 # =============================================================================
 # Audio-Specific Port and Config Schemas
@@ -136,18 +145,10 @@ def transcribe_with_whisper_sync(
     Returns:
         Transcribed text
     """
-    try:
-        import whisper
-    except ImportError:
-        raise ImportError(
-            "openai-whisper is not installed. Install with: pip install openai-whisper"
-        )
-
     download_root = str(MODELS_BASE / "whisper")
     Path(download_root).mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"Loading Whisper model '{model_size}' from {download_root}")
-    model = whisper.load_model(model_size, download_root=download_root)
+    model = _get_shared_whisper_model(model_size, download_root, device=None)
 
     logger.info(f"Transcribing: {Path(file_path).name}")
     result = model.transcribe(
@@ -156,6 +157,48 @@ def transcribe_with_whisper_sync(
     )
 
     return result["text"].strip()
+
+
+def _get_shared_whisper_model(
+    model_size: str,
+    download_root: str,
+    device: str | None,
+) -> Any:
+    """Return the process-global Whisper model for one identity, loading once."""
+    cache_key = (model_size, download_root, device)
+    model = _WHISPER_MODEL_CACHE.get(cache_key)
+    if model is not None:
+        return model
+
+    with _WHISPER_MODEL_CACHE_LOCK:
+        model = _WHISPER_MODEL_CACHE.get(cache_key)
+        if model is None:
+            try:
+                import whisper
+            except ImportError as exc:
+                raise ImportError(
+                    "openai-whisper is not installed. Install with: pip install openai-whisper"
+                ) from exc
+
+            if device is None:
+                model = whisper.load_model(
+                    model_size,
+                    download_root=download_root,
+                )
+            else:
+                model = whisper.load_model(
+                    model_size,
+                    download_root=download_root,
+                    device=device,
+                )
+            _WHISPER_MODEL_CACHE[cache_key] = model
+            logger.info(
+                "Loaded Whisper model (process-global): %s @ %s device=%s",
+                model_size,
+                download_root,
+                device,
+            )
+        return model
 
 
 async def transcribe_with_whisper(
