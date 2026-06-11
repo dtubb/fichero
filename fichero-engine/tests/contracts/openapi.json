@@ -1220,6 +1220,16 @@
               "type": "string",
               "title": "X-Fichero-Library-Path"
             }
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Last-Event-Id"
+            }
           }
         ],
         "responses": {
