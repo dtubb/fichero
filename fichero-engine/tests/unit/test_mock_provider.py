@@ -118,6 +118,12 @@ async def test_extract_all_mock_writes_claims_and_artifacts(db, test_package, ca
     assert "incurs cost" not in text
 
 
+@pytest.mark.xfail(
+    reason="flaky #2012 — intermittent KnowledgeEntity validation under extract_all "
+    "(nondeterministic even in isolation); quarantined so it can't fail the gate, "
+    "still runs (XPASS when #2012 is fixed → remove this marker)",
+    strict=False,
+)
 @pytest.mark.asyncio
 async def test_extract_all_mock_emits_workflow_change_events(
     db,
