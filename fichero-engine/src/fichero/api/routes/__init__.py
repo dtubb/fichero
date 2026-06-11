@@ -3,6 +3,7 @@
 __all__ = [
     "actions_registry",
     "activity",
+    "auth_accounts",
     "artifacts",
     "batch",
     "chat",

@@ -16,13 +16,18 @@ This is separate from library databases which store:
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import duckdb
 from pydantic import BaseModel
 from fichero.storage import settings
-from fichero.models import Provider, Model
+from fichero.models import (
+    AccountSession,
+    AccountUser,
+    Model,
+    Provider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +48,8 @@ def get_db_path() -> str:
 class AppDatabase:
     """App-wide database for providers and settings."""
     _TABLE_BY_MODEL_NAME: dict[str, str] = {
+        "AccountUser": "users",
+        "AccountSession": "sessions",
         "Provider": "providers",
         "Model": "models",
         "MCPServer": "mcp_servers",
@@ -147,6 +154,34 @@ class AppDatabase:
             )
         """)
 
+        # Users table (app-wide identity directory)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id VARCHAR PRIMARY KEY,
+                username VARCHAR NOT NULL UNIQUE,
+                display_name VARCHAR NOT NULL,
+                password_hash VARCHAR NOT NULL,
+                is_owner BOOLEAN DEFAULT FALSE,
+                active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Sessions table (app-wide session store)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                id VARCHAR PRIMARY KEY,
+                user_id VARCHAR NOT NULL,
+                token_hash VARCHAR NOT NULL UNIQUE,
+                device_label VARCHAR DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL,
+                revoked BOOLEAN DEFAULT FALSE,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
         # Create indexes
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(provider_type)"
@@ -156,6 +191,21 @@ class AppDatabase:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_users_owner ON users(is_owner, active)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)"
         )
 
         logger.info("App database schema initialized")
@@ -583,6 +633,204 @@ class AppDatabase:
         }
         for key, value in factory_defaults.items():
             self.set_setting(key, value)
+
+    # =========================================================================
+    # Users and sessions
+    # =========================================================================
+
+    def create_user(
+        self,
+        *,
+        username: str,
+        display_name: str,
+        password_hash: str,
+        is_owner: bool = False,
+        active: bool = True,
+    ) -> AccountUser:
+        """Insert a new user row and return the typed record."""
+        user = AccountUser(
+            username=username.strip(),
+            display_name=display_name.strip(),
+            password_hash=password_hash,
+            is_owner=is_owner,
+            active=active,
+        )
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO users (
+                    id, username, display_name, password_hash,
+                    is_owner, active, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+                [
+                    user.id,
+                    user.username,
+                    user.display_name,
+                    user.password_hash,
+                    user.is_owner,
+                    user.active,
+                    user.created_at,
+                ],
+            )
+            self.conn.commit()
+        return user
+
+    def _row_to_user(self, row) -> AccountUser:
+        return AccountUser(
+            id=row[0],
+            username=row[1],
+            display_name=row[2],
+            password_hash=row[3],
+            is_owner=row[4],
+            active=row[5],
+            created_at=row[6],
+        )
+
+    def get_user_by_username(self, username: str) -> AccountUser | None:
+        """Get a user row by username."""
+        with self._lock:
+            result = self.conn.execute(
+                "SELECT * FROM users WHERE username = ?",
+                [username.strip()],
+            ).fetchone()
+        return self._row_to_user(result) if result else None
+
+    def get_user(self, user_id: str) -> AccountUser | None:
+        """Get a user by ID."""
+        with self._lock:
+            result = self.conn.execute(
+                "SELECT * FROM users WHERE id = ?",
+                [user_id],
+            ).fetchone()
+        return self._row_to_user(result) if result else None
+
+    def list_users(self) -> list[AccountUser]:
+        """List all users, owner-first."""
+        with self._lock:
+            rows = self.conn.execute(
+                """
+                SELECT * FROM users
+                ORDER BY is_owner DESC, created_at, username
+                """
+            ).fetchall()
+        return [self._row_to_user(row) for row in rows]
+
+    def set_password(self, user_id: str, password_hash: str) -> AccountUser | None:
+        """Update a user's password hash."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                [password_hash, user_id],
+            )
+            self.conn.commit()
+        return self.get_user(user_id)
+
+    def set_active(self, user_id: str, active: bool) -> AccountUser | None:
+        """Enable or disable a user."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE users SET active = ? WHERE id = ?",
+                [active, user_id],
+            )
+            self.conn.commit()
+        return self.get_user(user_id)
+
+    def create_session(
+        self,
+        user_id: str,
+        token_hash: str,
+        device_label: str | None,
+        ttl: timedelta,
+    ) -> AccountSession:
+        """Insert a new session row and return the typed record."""
+        now = datetime.now()
+        session = AccountSession(
+            user_id=user_id,
+            token_hash=token_hash,
+            device_label=(device_label or "").strip(),
+            created_at=now,
+            last_seen_at=now,
+            expires_at=now + ttl,
+        )
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO sessions (
+                    id, user_id, token_hash, device_label,
+                    created_at, last_seen_at, expires_at, revoked
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                [
+                    session.id,
+                    session.user_id,
+                    session.token_hash,
+                    session.device_label,
+                    session.created_at,
+                    session.last_seen_at,
+                    session.expires_at,
+                    session.revoked,
+                ],
+            )
+            self.conn.commit()
+        return session
+
+    def _row_to_session(self, row) -> AccountSession:
+        return AccountSession(
+            id=row[0],
+            user_id=row[1],
+            token_hash=row[2],
+            device_label=row[3] or "",
+            created_at=row[4],
+            last_seen_at=row[5],
+            expires_at=row[6],
+            revoked=row[7],
+        )
+
+    def get_session_by_token_hash(self, token_hash: str) -> AccountSession | None:
+        """Get a session by its stored token hash."""
+        with self._lock:
+            result = self.conn.execute(
+                "SELECT * FROM sessions WHERE token_hash = ?",
+                [token_hash],
+            ).fetchone()
+        return self._row_to_session(result) if result else None
+
+    def touch_session(
+        self,
+        token_hash: str,
+        when: datetime | None = None,
+    ) -> AccountSession | None:
+        """Update the last-seen timestamp for a session."""
+        now = when or datetime.now()
+        with self._lock:
+            self.conn.execute(
+                "UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?",
+                [now, token_hash],
+            )
+            self.conn.commit()
+        return self.get_session_by_token_hash(token_hash)
+
+    def revoke_session(self, token_hash: str) -> AccountSession | None:
+        """Mark one session as revoked."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE sessions SET revoked = TRUE WHERE token_hash = ?",
+                [token_hash],
+            )
+            self.conn.commit()
+        return self.get_session_by_token_hash(token_hash)
+
+    def revoke_all_for_user(self, user_id: str) -> None:
+        """Revoke all sessions for one user."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE sessions SET revoked = TRUE WHERE user_id = ?",
+                [user_id],
+            )
+            self.conn.commit()
 
     def delete_model(self, model_id: str):
         """Delete a model."""

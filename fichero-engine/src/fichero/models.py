@@ -824,6 +824,40 @@ class Event(BaseModel):
 
 
 # =============================================================================
+# Account - App-Wide User/Session Storage
+# =============================================================================
+
+
+class AccountUser(BaseModel):
+    """App-wide user account stored in the global app database."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    username: str
+    display_name: str
+    password_hash: str
+    is_owner: bool = False
+    active: bool = True
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class AccountSession(BaseModel):
+    """App-wide session record stored in the global app database."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    user_id: str
+    token_hash: str
+    device_label: str = ""
+    created_at: datetime = Field(default_factory=datetime.now)
+    last_seen_at: datetime = Field(default_factory=datetime.now)
+    expires_at: datetime
+    revoked: bool = False
+
+
+# =============================================================================
 # Provider - AI Service Provider
 # =============================================================================
 

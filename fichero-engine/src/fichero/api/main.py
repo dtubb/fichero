@@ -824,6 +824,7 @@ from fichero.api.routes import (  # noqa: E402
     actions,
     actions_registry,
     activity,
+    auth_accounts,
     annotations,
     artifacts,
     batch,
@@ -900,6 +901,8 @@ RouteSpec = tuple[object, str, list[str]]
 
 _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (activity.router, "/api", ["activity"]),
+    (auth_accounts.auth_router, "/api", ["auth"]),
+    (auth_accounts.users_router, "/api", ["users"]),
     # /api/changes/stream — per-library change-event SSE; foundation of the
     # observable data layer (#1863). Core tier: the SwiftUI stores subscribe
     # unconditionally.

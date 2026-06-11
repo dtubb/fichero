@@ -13,6 +13,7 @@ isn't 127.0.0.1.
 """
 from __future__ import annotations
 
+from datetime import datetime
 import logging
 import os
 import secrets
@@ -22,6 +23,9 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from fichero import accounts
+from fichero.app_db import get_app_db
+
 logger = logging.getLogger(__name__)
 
 # Endpoints that don't require auth. Health is unauthenticated so the Swift
@@ -30,6 +34,7 @@ logger = logging.getLogger(__name__)
 _UNAUTHENTICATED_PATHS = frozenset(
     {
         "/api/health",
+        "/api/auth/login",
         "/openapi.json",
         "/docs",
         "/redoc",
@@ -92,6 +97,28 @@ def initialize_token(*, force_rotate: bool = False) -> str:
     return token
 
 
+def _use_multiuser_auth() -> bool:
+    """Feature flag for multi-user session auth."""
+    raw = os.getenv("FICHERO_MULTIUSER", "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _authenticate_session_token(token: str):
+    """Resolve a bearer session token to a live user/session pair."""
+    token_hash = accounts.hash_token(token)
+    app_db = get_app_db()
+    session = app_db.get_session_by_token_hash(token_hash)
+    if session is None:
+        return None, None
+    if session.revoked or session.expires_at <= datetime.now():
+        return None, session
+    user = app_db.get_user(session.user_id)
+    if user is None or not user.active:
+        return None, session
+    app_db.touch_session(token_hash)
+    return user, session
+
+
 def attach_auth_middleware(app: FastAPI, token: str) -> None:
     """Add a middleware that requires `Authorization: Bearer <token>` on
     every request not in `_UNAUTHENTICATED_PATHS`, and that the request
@@ -117,12 +144,43 @@ def attach_auth_middleware(app: FastAPI, token: str) -> None:
         ):
             return await call_next(request)
 
+        if not _use_multiuser_auth():
+            provided = request.headers.get("authorization", "")
+            if not secrets.compare_digest(provided, expected_header):
+                return JSONResponse(
+                    {"detail": "missing or invalid Authorization header"},
+                    status_code=401,
+                )
+            return await call_next(request)
+
         provided = request.headers.get("authorization", "")
-        # Constant-time comparison to avoid timing oracles on the token value.
-        if not secrets.compare_digest(provided, expected_header):
+        if secrets.compare_digest(provided, expected_header):
+            request.state.bootstrap_auth = True
+            request.state.user = None
+            return await call_next(request)
+
+        if not provided.startswith("Bearer "):
             return JSONResponse(
                 {"detail": "missing or invalid Authorization header"},
                 status_code=401,
             )
+
+        raw_token = provided.removeprefix("Bearer ").strip()
+        if not raw_token:
+            return JSONResponse(
+                {"detail": "missing or invalid Authorization header"},
+                status_code=401,
+            )
+
+        user, session = _authenticate_session_token(raw_token)
+        if user is None or session is None:
+            return JSONResponse(
+                {"detail": "missing or invalid Authorization header"},
+                status_code=401,
+            )
+
+        request.state.user = user
+        request.state.session = session
+        request.state.bootstrap_auth = False
 
         return await call_next(request)
