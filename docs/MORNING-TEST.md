@@ -11,3 +11,4 @@ Things the autonomous overnight run built that need Daniel's **visual / runtime*
 
 ## Built overnight (added as the run proceeds)
 <!-- the loop appends: feature → issue → how to test -->
+- Merge two entities (Ontology Browser → select absorber → "Merge N entities") — should still merge correctly AND now write an audit row (#1848 exhibit A: UI button now routes through `POST /api/actions/invoke` `entity.merge`); verify no regression.
