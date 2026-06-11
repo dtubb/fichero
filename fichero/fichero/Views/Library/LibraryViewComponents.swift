@@ -54,7 +54,10 @@ struct MailStyleRow: View {
                             .foregroundColor(.accentColor)
                     }
 
-                    Text(document.name)
+                    // PDF page rows show their page number (prefer an
+                    // extracted page_label once #2080 lands), not the
+                    // internal id/filename. Non-page docs keep their name. (#2053)
+                    Text(document.pageThumbnailLabel ?? document.name)
                         .font(.headline)
                         .lineLimit(3)
                         .truncationMode(.middle)
@@ -277,7 +280,11 @@ struct DocumentThumbnailView: View {
                     .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
             )
 
-            Text(document.name)
+            // PDF page children label by page number (prefer extracted
+            // page_label once #2080 lands), never their internal id/filename.
+            // `pageThumbnailLabel` is nil for non-page docs, so top-level
+            // documents keep their name. (#2053)
+            Text(document.pageThumbnailLabel ?? document.name)
                 .font(.caption)
                 .lineLimit(2)
                 .truncationMode(.middle)
