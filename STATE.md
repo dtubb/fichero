@@ -1,3 +1,12 @@
+## MANAGER STATUS — 2026-06-11 ~16:30 (Phase 2 Mac — 12 shipped; #2053 lane live)
+**0.0.2 pushed @ `1626b611`. Phase 2 (Mac) in progress.**
+- ✅ **#2052 PDF page thumbnail** (3b7358ac) — thumbnail precedence fixed: PDFs always render page-image via storage endpoint → placeholder; text never the thumbnail. BuildProject SUCCEEDED. **DANIEL: PDF page rows show page IMAGES, not text.**
+- ⏳ **Lane `pagelabels-2053`** (#2053 FRONTEND — label PDF page thumbnails by page number, prefer page_label; claude lane). Backend page_label extraction split out to **#2080**.
+- **Session total: 12 shipped** (#2055 #2023 #2046 #2043 #2075 #2078 #2024 #2048 #2025 #2042 #2079 #2052) + app-build restored.
+- **Eyeball queue for Daniel:** #2042 (⌘N new library), #2052 (PDF page images), #2079 (no shared-engine kill).
+- **Phase-2 queue:** #2053 (in flight) → #2020 (entity-provenance) → #2031 (persistent shell KEYSTONE, planner pass first) → #2032 → #2041. Follow-ups open: #2076, #2077, #2080, build-break/CI-gap.
+- **GATE (frontend):** cherry-pick → swiftlint → Xcode BuildProject (tabId windowtab1, compile-only, never GUI test). Catches real breaks.
+
 ## MANAGER STATUS — 2026-06-11 ~15:58 (Phase 2 Mac — 11 shipped; #2052 lane live)
 **0.0.2 pushed @ `b01e3696`. Phase 2 (Mac) in progress.**
 - ✅ **#2079 PID/owner-scoped orphan-kill** (b63b3cc5) — app launch never SIGTERMs a shared/remote engine (early-return on usesCustomHost; localhost path kills only dead-or-self orphans). BuildProject SUCCEEDED. Completes #2048 frontend half. **DANIEL: app launch on a shared-engine host must not kill that engine.**
