@@ -1,3 +1,15 @@
+## MANAGER STATUS — 2026-06-11 ~14:30 (PHASE 1 COMPLETE — 9 shipped; pivoting to Phase 2 Mac)
+**0.0.2 pushed @ `8a09061c`. PHASE 1 (multi-user auth/security/network foundation) DONE.**
+Shipped this session (9): #2055, #2023, #2046, #2043, #2075, #2078, #2024, #2048, #2025.
+- **Auth chain COMPLETE + verified:** accounts #2022 → actor #2023 → tamper-evident audit-chain #2043 → ACL #2024 → no-ambient-authority #2025 → bind-host #2048. ALL behind `FICHERO_MULTIUSER` (off = zero behavior change; single-user app untouched). Each gated through full suite (4552 passed) + security review.
+- **Phase-1 remnants (not blocking the pivot):** #2026 Tailscale (deployment/docs — engine binds tailnet via FICHERO_BIND_HOST #2048, clients via EngineConfig; transport-only), #1935 observable-one-path, #2045 SSE-hardening (largely covered by #2025's change-stream read-ACL gating — re-scope/verify before doing).
+- **Follow-ups filed:** #2076 (audit-chain microsecond ordering), #2077 (Trash UI + claim/entity/note soft-delete), #2079 (Swift PID-scoped orphan-kill = frontend half of #2048).
+
+### ▶ PHASE 2 — MAC INTERFACE (EPIC #2030) now in focus
+Frontend lanes = `claude --dangerously-skip-permissions` (NOT codex), external worktree. MANAGER runs the ONLY Xcode `BuildProject` (compile, serial, NO GUI test — hard rule). Register new .swift via `ruby scripts/add-swift-file.rb`. Gate = swiftlint + BuildProject (compile); visual confirmation deferred to Daniel.
+- ⏳ **Lane `filenew-2042`** (#2042 File ▸ New creates a library — save panel → .fichero package → open window). FicheroApp.swift commands + FileMenuCommands.swift + LibraryManager.
+- **Next Phase-2:** #2031 (persistent shell, keystone) → #2032 (zoned toolbar) → #2041 (Liquid Glass); bugs #2052 (PDF thumbnail), #2053 (page labels), #2020 (entity-provenance table); EPICs #1962 (Finder selection), #1969 (semantic fonts).
+
 ## MANAGER STATUS — 2026-06-11 ~14:05 (Phase 1: 7 SHIPPED, 2 lanes live)
 **0.0.2 pushed @ `6505730a`. Shipped this session: #2055, #2023, #2046, #2043, #2075, #2078, #2024.**
 - ✅ #2055 client pooling · ✅ #2023 actor keystone · ✅ #2046 backups · ✅ #2043 audit hash-chain · ✅ #2075 Trash backend · ✅ #2078 guardrails-green (verify_all --fast exits 0) · ✅ **#2024 ACL choke-point** (full suite 4544; fichero/authz.py owner/editor/viewer + folder deny, fail-closed, behind FICHERO_MULTIUSER; security-reviewed PASS).
