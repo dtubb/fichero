@@ -1,3 +1,12 @@
+## MANAGER STATUS — 2026-06-11 ~17:05 (Phase 2 Mac — 13 shipped; #2080 backend lane)
+**0.0.2 pushed @ `3efdc0d7`.**
+- ✅ **#2053 frontend** (6c773732) — PDF page thumbnails labeled by page number via Document.pageThumbnailLabel (prefers page_label). BuildProject green. **DANIEL: page rows labeled 1,2,3…**
+- ⏳ **Lane `pagelabel-2080`** (#2080 backend — add Document.page_label + populate from PDF named labels at ingest, codex gpt-5.4) — COMPLETES #2053 (frontend already prefers page_label). Fully pytest-verifiable.
+- **Session total: 13 shipped** (#2055 #2023 #2046 #2043 #2075 #2078 #2024 #2048 #2025 #2042 #2079 #2052 #2053).
+- **Eyeball queue:** #2042 (⌘N), #2052 (PDF page images), #2079 (no shared-engine kill), #2053 (page numbers).
+- **Phase-2 queue:** #2020 (entity-provenance) → #2031 (persistent shell KEYSTONE — code-explorer/planner pass FIRST, good for Daniel's eyes) → #2032 → #2041. Follow-ups: #2076 #2077 + build-break/CI-gap.
+- **GATE:** backend = cherry-pick → targeted pytest + ruff (FULL suite if it touches a god-node/choke-point); frontend = swiftlint + Xcode BuildProject (windowtab1, compile-only). NEVER GUI test.
+
 ## MANAGER STATUS — 2026-06-11 ~16:30 (Phase 2 Mac — 12 shipped; #2053 lane live)
 **0.0.2 pushed @ `1626b611`. Phase 2 (Mac) in progress.**
 - ✅ **#2052 PDF page thumbnail** (3b7358ac) — thumbnail precedence fixed: PDFs always render page-image via storage endpoint → placeholder; text never the thumbnail. BuildProject SUCCEEDED. **DANIEL: PDF page rows show page IMAGES, not text.**
