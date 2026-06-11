@@ -1,3 +1,14 @@
+## SESSION HANDOFF — 2026-06-11 ~01:35 (#2014 DONE — entire engine write surface audited)
+**0.0.2 @ `395532d3`, pushed, full suite green (4423 passed; #2012 flake xfail-quarantined).**
+
+**#1848 steps 1-2 SHIPPED overnight.** #2013 keystone (registry+audit+invoke) + #2014 sweep = **109 audited actions across 14 domains** (claim16/provider11/ontology12/workflow10/biblio9/document8/batch8/imageedit7/annotation5/savedsearch6/conversation4/note4/import4/actionlib3 + entity.merge/unmerge). Every engine mutation → registry.invoke → ActionAudit(actor/before/after) → emit_change. ~280 thorough tests. #2014 CLOSED. See [[one-audited-action-layer-shipped]] + docs/architecture/action_layer.md.
+Side wins: manual claims (#2019, KnowledgeClaim.source_document_id optional), guardrail scanner fixes, #2012 flake quarantined.
+
+**IN FLIGHT (downstream #1848):** dn-undo (#2015 generalized undo + audit-log endpoint), dn-chat (#2016 chat tools from registry #1847), dn-missing (#2018 the 5 missing actions). Integrate via the proven method (worktree-test → cherry-pick → -rf gate).
+
+**STILL FRONTEND/Daniel:** #2017 App Intents; #2015 ⌘Z UndoManager wiring; route UI buttons (merge first) through /api/actions/invoke; Track B #2003/#2004/#2005 visual, #2010/#2011; #2009 Interpretations live; #1973 beachball; #2006 frame-warning. docs/MORNING-TEST.md has the click-list.
+
+---
 # STATE.md — Fichero
 
 ## SESSION HANDOFF — 2026-06-10 ~7:33pm (#1848 KEYSTONE landed; domain sweep #2014 next)
