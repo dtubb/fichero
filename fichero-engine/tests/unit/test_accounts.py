@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from fichero import accounts
+from fichero.api.routes.auth_accounts import _dummy_password_hash
 
 
 def test_hash_is_self_describing_and_salted():
@@ -18,6 +19,17 @@ def test_verify_roundtrip():
     h = accounts.hash_password("correct horse battery staple")
     assert accounts.verify_password("correct horse battery staple", h) is True
     assert accounts.verify_password("wrong", h) is False
+
+
+def test_dummy_password_hash_is_cached_stable_scrypt_and_verifies_false():
+    _dummy_password_hash.cache_clear()
+
+    first = _dummy_password_hash()
+    second = _dummy_password_hash()
+
+    assert first is second
+    assert first.startswith("scrypt$")
+    assert accounts.verify_password("wrong", first) is False
 
 
 def test_empty_password_rejected():

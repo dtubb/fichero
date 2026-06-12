@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from fichero.integrations.base import AppIntegration, ImportedItem
+from fichero.integrations.base import AppIntegration, ImportedItem, escape_applescript
 
 logger = logging.getLogger(__name__)
 
@@ -73,14 +73,17 @@ class TinderboxIntegration(AppIntegration):
         if not self.is_available:
             return []
 
+        limit = int(limit)
+
         if search:
             # Search for notes matching query
+            search_escaped = escape_applescript(search)
             script = f'''
             tell application "Tinderbox 9"
                 set resultList to {{}}
                 set counter to 0
                 repeat with doc in documents
-                    set matchingNotes to find doc query "$Name.contains(\\"{search}\\") | $Text.contains(\\"{search}\\")"
+                    set matchingNotes to find doc query "$Name.contains(\\"{search_escaped}\\") | $Text.contains(\\"{search_escaped}\\")"
                     repeat with n in matchingNotes
                         if counter >= {limit} then exit repeat
                         set noteInfo to {{|id|:id of n, |name|:name of n, |path|:path of n, |prototype|:name of prototype of n, |created|:created of n as string, |modified|:modified of n as string}}
@@ -94,12 +97,13 @@ class TinderboxIntegration(AppIntegration):
             '''
         elif container:
             # List notes in specific container
+            container_escaped = escape_applescript(container)
             script = f'''
             tell application "Tinderbox 9"
                 set resultList to {{}}
                 set counter to 0
                 set frontDoc to front document
-                set containerNote to find frontDoc query "$Path==\\"{container}\\""
+                set containerNote to find frontDoc query "$Path==\\"{container_escaped}\\""
                 if containerNote is not {{}} then
                     set containerNote to item 1 of containerNote
                     repeat with n in children of containerNote
@@ -165,10 +169,11 @@ class TinderboxIntegration(AppIntegration):
         if not self.is_available:
             return None
 
+        external_id_escaped = escape_applescript(external_id)
         script = f'''
         tell application "Tinderbox 9"
             set frontDoc to front document
-            set n to note id "{external_id}" of frontDoc
+            set n to note id "{external_id_escaped}" of frontDoc
             if n is not missing value then
                 return {{|id|:id of n, |name|:name of n, |path|:path of n, |text|:text of n, |prototype|:name of prototype of n, |created|:created of n as string, |modified|:modified of n as string, |url|:URL of n, |color|:color of n}}
             end if
@@ -290,15 +295,14 @@ modified: {item.modified_at.isoformat() if item.modified_at else ""}
         name = metadata.get("name", file_path.stem) if metadata else file_path.stem
 
         # Escape content for AppleScript
-        content_escaped = (
-            content.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-        )
-        name_escaped = name.replace('"', '\\"')
+        content_escaped = escape_applescript(content)
+        name_escaped = escape_applescript(str(name))
 
         # Build script based on options
         if container:
+            container_escaped = escape_applescript(container)
             container_clause = f'''
-            set containerNote to find frontDoc query "$Path==\\"{container}\\""
+            set containerNote to find frontDoc query "$Path==\\"{container_escaped}\\""
             if containerNote is not {{}} then
                 set newNote to make new note in item 1 of containerNote
             else
@@ -310,8 +314,9 @@ modified: {item.modified_at.isoformat() if item.modified_at else ""}
 
         prototype_clause = ""
         if prototype:
+            prototype_escaped = escape_applescript(prototype)
             prototype_clause = (
-                f'set prototype of newNote to prototype "{prototype}" of frontDoc'
+                f'set prototype of newNote to prototype "{prototype_escaped}" of frontDoc'
             )
 
         script = f'''
@@ -357,14 +362,13 @@ modified: {item.modified_at.isoformat() if item.modified_at else ""}
         if not self.is_available:
             return None
 
-        name_escaped = name.replace('"', '\\"')
-        text_escaped = (
-            text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-        )
+        name_escaped = escape_applescript(name)
+        text_escaped = escape_applescript(text)
 
         if container:
+            container_escaped = escape_applescript(container)
             container_clause = f'''
-            set containerNote to find frontDoc query "$Path==\\"{container}\\""
+            set containerNote to find frontDoc query "$Path==\\"{container_escaped}\\""
             if containerNote is not {{}} then
                 set newNote to make new note in item 1 of containerNote
             else
@@ -376,17 +380,19 @@ modified: {item.modified_at.isoformat() if item.modified_at else ""}
 
         prototype_clause = ""
         if prototype:
+            prototype_escaped = escape_applescript(prototype)
             prototype_clause = (
-                f'set prototype of newNote to prototype "{prototype}" of frontDoc'
+                f'set prototype of newNote to prototype "{prototype_escaped}" of frontDoc'
             )
 
         # Build attribute setting commands
         attr_commands = []
         if attributes:
             for key, value in attributes.items():
-                value_escaped = str(value).replace('"', '\\"')
+                key_escaped = escape_applescript(str(key))
+                value_escaped = escape_applescript(str(value))
                 attr_commands.append(
-                    f'set value of attribute "{key}" of newNote to "{value_escaped}"'
+                    f'set value of attribute "{key_escaped}" of newNote to "{value_escaped}"'
                 )
 
         attr_clause = "\n".join(attr_commands)
@@ -416,10 +422,11 @@ modified: {item.modified_at.isoformat() if item.modified_at else ""}
         if not self.is_available:
             return False
 
+        external_id_escaped = escape_applescript(external_id)
         script = f'''
         tell application "Tinderbox 9"
             set frontDoc to front document
-            set n to note id "{external_id}" of frontDoc
+            set n to note id "{external_id_escaped}" of frontDoc
             if n is not missing value then
                 select n
                 activate
@@ -440,13 +447,15 @@ modified: {item.modified_at.isoformat() if item.modified_at else ""}
 
         # Build attribute query
         attr_list = ", ".join(
-            f'|{a}|:value of attribute "{a}" of n' for a in attribute_names
+            f'|{escape_applescript(a)}|:value of attribute "{escape_applescript(a)}" of n'
+            for a in attribute_names
         )
 
+        external_id_escaped = escape_applescript(external_id)
         script = f'''
         tell application "Tinderbox 9"
             set frontDoc to front document
-            set n to note id "{external_id}" of frontDoc
+            set n to note id "{external_id_escaped}" of frontDoc
             if n is not missing value then
                 return {{{attr_list}}}
             end if
@@ -475,17 +484,19 @@ modified: {item.modified_at.isoformat() if item.modified_at else ""}
         # Build attribute setting commands
         attr_commands = []
         for key, value in attributes.items():
-            value_escaped = str(value).replace('"', '\\"')
+            key_escaped = escape_applescript(str(key))
+            value_escaped = escape_applescript(str(value))
             attr_commands.append(
-                f'set value of attribute "{key}" of n to "{value_escaped}"'
+                f'set value of attribute "{key_escaped}" of n to "{value_escaped}"'
             )
 
         attr_clause = "\n".join(attr_commands)
 
+        external_id_escaped = escape_applescript(external_id)
         script = f'''
         tell application "Tinderbox 9"
             set frontDoc to front document
-            set n to note id "{external_id}" of frontDoc
+            set n to note id "{external_id_escaped}" of frontDoc
             if n is not missing value then
                 {attr_clause}
                 return "success"

@@ -16,6 +16,11 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
+def escape_applescript(value: str) -> str:
+    """Escape a Python string for interpolation into an AppleScript string literal."""
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
 class IntegrationStatus(str, Enum):
     """Status of an app integration."""
 

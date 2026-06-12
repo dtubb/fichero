@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
+from functools import cache
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -23,7 +24,9 @@ logger = logging.getLogger(__name__)
 SESSION_TTL = timedelta(days=30)
 # Constant-time fallback for "username not found" so login latency does not
 # reveal whether a username exists.
-_DUMMY_PASSWORD_HASH = accounts.hash_password("fichero-login-dummy-password")
+@cache
+def _dummy_password_hash() -> str:
+    return accounts.hash_password("fichero-login-dummy-password")
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 users_router = APIRouter(prefix="/users", tags=["users"])
@@ -125,7 +128,7 @@ def login(
 
     user = app_db.get_user_by_username(body.username.strip())
     if user is None:
-        accounts.verify_password(body.password, _DUMMY_PASSWORD_HASH)
+        accounts.verify_password(body.password, _dummy_password_hash())
         raise HTTPException(status_code=401, detail="invalid username or password")
     if not user.active:
         raise HTTPException(status_code=403, detail="user is disabled")

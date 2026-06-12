@@ -15,7 +15,7 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
-from fichero.integrations.base import AppIntegration, ImportedItem
+from fichero.integrations.base import AppIntegration, ImportedItem, escape_applescript
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +71,14 @@ class BookendsIntegration(AppIntegration):
         if not self.is_available:
             return []
 
+        limit = int(limit)
+
         if search:
             # Search for references
+            search_escaped = escape_applescript(search)
             script = f'''
             tell application "Bookends"
-                set refIDs to «event ToySRFLD» "{search}" given «class TEFN»:"any"
+                set refIDs to «event ToySRFLD» "{search_escaped}" given «class TEFN»:"any"
                 set resultList to {{}}
                 set counter to 0
                 repeat with refID in refIDs
@@ -147,9 +150,10 @@ class BookendsIntegration(AppIntegration):
         if not self.is_available:
             return None
 
+        external_id_escaped = escape_applescript(external_id)
         script = f'''
         tell application "Bookends"
-            set refID to "{external_id}"
+            set refID to "{external_id_escaped}"
             set refInfo to {{|id|:refID, |title|:«event ToySRFLD» refID given «class TEFN»:"title", |authors|:«event ToySRFLD» refID given «class TEFN»:"authors", |type|:«event ToySRFLD» refID given «class TEFN»:"type", |year|:«event ToySRFLD» refID given «class TEFN»:"date", |abstract|:«event ToySRFLD» refID given «class TEFN»:"abstract", |journal|:«event ToySRFLD» refID given «class TEFN»:"journal", |volume|:«event ToySRFLD» refID given «class TEFN»:"volume", |pages|:«event ToySRFLD» refID given «class TEFN»:"pages", |doi|:«event ToySRFLD» refID given «class TEFN»:"doi", |url|:«event ToySRFLD» refID given «class TEFN»:"url", |attachments|:«event ToySRFLD» refID given «class TEFN»:"attachments"}}
             return refInfo
         end tell
@@ -229,9 +233,10 @@ class BookendsIntegration(AppIntegration):
             return item.file_path
 
         # Try to get the attachment path via AppleScript
+        external_id_escaped = escape_applescript(external_id)
         script = f'''
         tell application "Bookends"
-            set attachPath to «event ToySRFLD» "{external_id}" given «class TEFN»:"attachments"
+            set attachPath to «event ToySRFLD» "{external_id_escaped}" given «class TEFN»:"attachments"
             return attachPath
         end tell
         '''
@@ -268,16 +273,20 @@ class BookendsIntegration(AppIntegration):
         title = metadata.get("title", file_path.stem) if metadata else file_path.stem
         authors = metadata.get("authors", "") if metadata else ""
         ref_type = metadata.get("type", "0") if metadata else "0"  # 0 = Generic
+        title_escaped = escape_applescript(str(title))
+        authors_escaped = escape_applescript(str(authors))
+        ref_type_escaped = escape_applescript(str(ref_type))
+        file_path_escaped = escape_applescript(str(file_path))
 
         # Create reference and attach file
         script = f'''
         tell application "Bookends"
-            set newRef to «event ToySADDA» {{«class TEFN»:"title", «class TEVA»:"{title}"}}
-            if "{authors}" is not "" then
-                «event ToySRFLD» newRef given «class TEFN»:"authors", «class TEVA»:"{authors}"
+            set newRef to «event ToySADDA» {{«class TEFN»:"title", «class TEVA»:"{title_escaped}"}}
+            if "{authors_escaped}" is not "" then
+                «event ToySRFLD» newRef given «class TEFN»:"authors", «class TEVA»:"{authors_escaped}"
             end if
-            «event ToySRFLD» newRef given «class TEFN»:"type", «class TEVA»:"{ref_type}"
-            «event ToySATTA» newRef given «class DEST»:POSIX file "{file_path}"
+            «event ToySRFLD» newRef given «class TEFN»:"type", «class TEVA»:"{ref_type_escaped}"
+            «event ToySATTA» newRef given «class DEST»:POSIX file "{file_path_escaped}"
             return newRef as string
         end tell
         '''
@@ -295,9 +304,11 @@ class BookendsIntegration(AppIntegration):
         if not self.is_available:
             return None
 
+        external_id_escaped = escape_applescript(external_id)
+        style_escaped = escape_applescript(style)
         script = f'''
         tell application "Bookends"
-            set citation to «event ToySFCIT» "{external_id}" given «class STYL»:"{style}"
+            set citation to «event ToySFCIT» "{external_id_escaped}" given «class STYL»:"{style_escaped}"
             return citation
         end tell
         '''
@@ -312,9 +323,10 @@ class BookendsIntegration(AppIntegration):
         if not self.is_available:
             return False
 
+        external_id_escaped = escape_applescript(external_id)
         script = f'''
         tell application "Bookends"
-            «event ToySGOTO» "{external_id}"
+            «event ToySGOTO» "{external_id_escaped}"
             activate
         end tell
         '''
