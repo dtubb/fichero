@@ -248,6 +248,18 @@ def _project_pdf_file_hits_to_pages(
 
     projected: list[SearchResult] = []
     seen_doc_ids: set[str] = set()
+    pdf_parent_ids = [
+        result.document_id
+        for result in results
+        if str((result.metadata or {}).get("doc_type") or "").lower() == "file"
+        and str((result.metadata or {}).get("file_type") or "").lower() == "pdf"
+    ]
+    pages_by_parent_id: dict[str, list[Document]] = {}
+    if pdf_parent_ids:
+        for page in db.query_in(Document, "parent_id", pdf_parent_ids):
+            if page.doc_type != DocType.page or getattr(page, "deleted_at", None) is not None:
+                continue
+            pages_by_parent_id.setdefault(page.parent_id or "", []).append(page)
 
     def _page_match_score(text: str) -> int:
         folded = _fold_for_search(text or "")
@@ -264,11 +276,7 @@ def _project_pdf_file_hits_to_pages(
             continue
 
         pages = sorted(
-            [
-                page
-                for page in db.query(Document, parent_id=result.document_id, doc_type=DocType.page)
-                if getattr(page, "deleted_at", None) is None
-            ],
+            pages_by_parent_id.get(result.document_id, []),
             key=lambda page: page.sequence or 0,
         )
         if not pages:

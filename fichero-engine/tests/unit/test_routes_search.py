@@ -382,6 +382,111 @@ class TestEnhancedSearch:
         assert anchor["document_id"] == page2.id
         assert result["transcript_excerpts"][0]["match_start"] is not None
 
+    def test_pdf_file_projection_batches_page_lookups(self, client, db, monkeypatch):
+        from fichero.db import Database, SearchResult
+
+        parent_a = Document(
+            id="pdf-a",
+            name="a.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            page_content="Full PDF A",
+        )
+        parent_b = Document(
+            id="pdf-b",
+            name="b.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            page_content="Full PDF B",
+        )
+        page_a1 = Document(
+            id="pdf-a-page-1",
+            parent_id=parent_a.id,
+            name="a.pdf - Page 1",
+            doc_type=DocType.page,
+            sequence=1,
+            page_content="No matching name on this page.",
+        )
+        page_a2 = Document(
+            id="pdf-a-page-2",
+            parent_id=parent_a.id,
+            name="a.pdf - Page 2",
+            doc_type=DocType.page,
+            sequence=2,
+            page_content="Camilo appears with strong context.",
+        )
+        page_b1 = Document(
+            id="pdf-b-page-1",
+            parent_id=parent_b.id,
+            name="b.pdf - Page 1",
+            doc_type=DocType.page,
+            sequence=1,
+            page_content="Camilo appears in the second PDF.",
+        )
+        for doc in (parent_a, parent_b, page_a1, page_a2, page_b1):
+            db.save(doc)
+
+        hits = [
+            SearchResult(
+                document_id=parent_a.id,
+                score=0.91,
+                content_preview="Camilo appears with strong context.",
+                metadata={"name": parent_a.name, "doc_type": "file", "file_type": "pdf"},
+                highlights=[],
+            ),
+            SearchResult(
+                document_id=parent_b.id,
+                score=0.81,
+                content_preview="Camilo appears in the second PDF.",
+                metadata={"name": parent_b.name, "doc_type": "file", "file_type": "pdf"},
+                highlights=[],
+            ),
+        ]
+
+        real_query = Database.query
+        real_query_in = Database.query_in
+        per_parent_queries: list[str] = []
+        query_in_calls: list[tuple[str, tuple[str, ...]]] = []
+
+        def counting_query(self, model, **filters):
+            if model is Document and filters.get("parent_id") in {parent_a.id, parent_b.id}:
+                per_parent_queries.append(filters["parent_id"])
+            return real_query(self, model, **filters)
+
+        def counting_query_in(self, model, column, values):
+            if model is Document and column == "parent_id":
+                query_in_calls.append((column, tuple(values)))
+            return real_query_in(self, model, column, values)
+
+        monkeypatch.setattr(Database, "query", counting_query)
+        monkeypatch.setattr(Database, "query_in", counting_query_in)
+        monkeypatch.setattr(
+            Database,
+            "search",
+            lambda self, **kwargs: (
+                hits,
+                2,
+                {"search_type": "hybrid", "execution_time_ms": 1.0, "has_more": False},
+            ),
+        )
+
+        r = client.post("/api/search", json={"query": "camilo", "search_type": "hybrid"})
+
+        assert r.status_code == 200
+        body = r.json()
+        assert [item["document_id"] for item in body["results"]] == [
+            page_a2.id,
+            page_b1.id,
+        ]
+        assert [item["metadata"]["pdf_parent_id"] for item in body["results"]] == [
+            parent_a.id,
+            parent_b.id,
+        ]
+        assert per_parent_queries == []
+        assert len(query_in_calls) == 1
+        assert query_in_calls[0][0] == "parent_id"
+        assert set(query_in_calls[0][1]) == {parent_a.id, parent_b.id}
+
     def test_default_search_includes_content_entities_and_claims(self, client, db, monkeypatch):
         doc, entity, claim = _seed_semantic_search_scope_library(db)
         monkeypatch.setattr(type(db), "search", lambda self, **kwargs: _mock_content_search(doc))
