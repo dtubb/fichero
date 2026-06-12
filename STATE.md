@@ -1,3 +1,12 @@
+## 2026-06-12 ~06:15 (ALL CRITICALS CLOSED — 26 shipped; Phase 1 finishing)
+**0.0.2 @ `0185503a` pushed (4625 passed).** Loop running Daniel's phase order: 1) finish security → 2) Mac-assed review → 3) iOS/iPad+gating → 4) intelligence/node editing.
+- ✅ **#2139 (last CRITICAL, arbitrary file read) + #2150** — path-confine REDO (path_security.py confines all path resolution to library root + the engine's own rendition/thumbnail/cache/artifact dirs). First attempt over-confined (broke 25 image-editing tests) → reverted, corrected, re-shipped green.
+- ✅ **26 shipped total**: the whole security audit's CRITICAL/HIGH (authz, RCE cluster, concurrency, audit-HMAC, file-read) + 9 workflow code bugs + embeddings + docs + GitHub cleanup.
+- ⏳ **conn-auth lane** (#2155 bootstrap-secret loopback-only [Daniel-flagged for notarized release] + #2156 devices table/POST /api/pair/per-device tokens + #2159 HMAC server-proof). Then #2157 TLS LAN listener + #2158 Bonjour (follow-up lane).
+- 📋 Remaining Phase 1: prog-security-gate #2153, #2145/2146/2129 (rate-limit/upload/session), remote #2121, AI #2151/2152; then fable-5 RE-REVIEW (#345).
+- Held for Daniel build: #2020 entityTable, #2107, #2160 QR sheet, #2161 client nit, #2162 iOS.
+- INCIDENT (recovered): a &&-chained push shipped a red suite → reverted + hardened gate (memory verify-suite-result-before-push: parse 0-failed THEN push).
+
 ## OVERNIGHT — 2026-06-11 ~23:00 (security/infra fix wave COMPLETE — 16 shipped)
 **0.0.2 @ `9ad5575b` pushed (4602 passed).** All review-found CRITICAL/HIGH from the multi-model audit are fixed + verified, EXCEPT the path-confine file-read (#2139, CRITICAL) which is next in queue.
 - ✅ **#2127 audit HMAC** (9ad5575b) — keyed HMAC + external head/count anchor → forgery+truncation detectable.
