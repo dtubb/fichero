@@ -69,3 +69,59 @@ Manager or integrator expectations:
 - verify the cross-stack gate with the backend running
 
 One more repo-specific rule matters for API work: if you change the backend API, you must commit the regenerated client-facing contract artifacts in the same change set so the Swift side stays buildable.
+
+## Contributing Mechanics
+
+### New Swift files require registration
+
+The `Fichero` main target uses traditional PBX file references. A `.swift` file written to disk is invisible to the Xcode compiler until it is registered:
+
+```bash
+ruby scripts/add-swift-file.rb fichero/fichero/Views/MyFolder/MyView.swift
+```
+
+`scripts/add-swift-file.rb` uses the `xcodeproj` Ruby gem (installed at `~/.gem/ruby/2.6.0/gems/xcodeproj-1.27.0/`). Never edit `project.pbxproj` by hand. Test-target files are the exception — those use sync'd groups and are picked up automatically.
+
+### No per-task branches
+
+Commit work directly to the milestone branch. Do not create a branch per issue or per task. For a large or risky slice an isolated agent worktree under `.claude/worktrees/` is fine, but it is keyed to the work, not to a version.
+
+### Conventional commits with issue references
+
+```
+feat: add document tagging endpoint (#420)
+fix: resolve entity merge race condition (#388)
+chore: bump ruff to 0.4.5
+```
+
+Prefixes: `feat`, `fix`, `chore`, `refactor`, `test`, `docs`, `style`. Always include the GitHub issue number when the commit closes or advances one.
+
+### Never push directly to main
+
+All work goes through a PR. Create it and merge it yourself once the build gate passes.
+
+### 0.0.x no-migration rule
+
+Backend schema changes go into `db.py` `_ensure_table` via the Pydantic model field. Fresh databases pick up new columns automatically.
+
+Do not add `ALTER TABLE ADD COLUMN` migration functions for columns that are already declared in the model. Only structural historical changes — table renames, data backfills — belong in `db_migrations.py`. This rule applies for the entire 0.0.x series and will change when 0.1.0 ships to real users.
+
+### Feature tier
+
+If your work is only active under `FICHERO_FEATURE_TIER=dev`, say so in your PR description. Core routes must work in `release` tier. The `dev` tier adds staged features (`/api/kg/*`, research, graph, mind-palace, etc.) that are not yet exposed in production builds.
+
+## Expanding the Action Registry
+
+All backend mutations go through `registry.invoke`. Do not write to DuckDB directly from a route handler.
+
+Route handlers should look like this:
+
+```python
+ctx = ActionContext(actor=request.state.user, origin_window=request.headers.get("X-Window-Id"))
+result = await registry.invoke("document.tag", {"doc_id": doc_id, "tag": tag}, ctx)
+return result
+```
+
+If you are adding a new mutation, define it as a named action in the registry. This gives it an automatic audit record, change-event emission, and an undo path at no extra cost.
+
+See [action-registry.md](./action-registry.md) for the full guide: how to define an action, implement invert, write the required tests, and use the generic invocation endpoint.

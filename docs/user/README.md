@@ -1,9 +1,14 @@
 # Fichero User Manual
 
+New to Fichero? Start with [What Fichero Is](./what-fichero-is.md).
+
 This manual describes the Fichero app as it exists in the current SwiftUI client and Python engine. It focuses on the real library, reading, search, knowledge-graph, notes, annotation, and workflow behavior implemented under `fichero/fichero/`.
 
 ## Table of Contents
 
+- [What Fichero Is](./what-fichero-is.md)
+- [Installing Fichero](./install.md)
+- [AI and Privacy](./ai-and-privacy.md)
 - [Getting Started](./getting-started.md)
 - [Importing Documents](./importing-documents.md)
 - [Reading, Transcription, and Editing](./reading-and-editing.md)

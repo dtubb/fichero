@@ -8,6 +8,8 @@ This section explains how the current Fichero codebase works for contributors. I
 - [OpenAPI and Generated Clients](./openapi-and-clients.md)
 - [Data Layer, Search, and Knowledge Graph Storage](./data-search-and-kg.md)
 - [Workflows, Activity, and Curation](./workflows-activity-and-curation.md)
+- [Action Registry](./action-registry.md)
+- [Security Model](./security-model.md)
 - [Setup and Contributing](./setup-and-contributing.md)
 
 ## Read This First
@@ -27,6 +29,12 @@ That architecture shapes almost every contributor task:
 - UI work usually means changing SwiftUI views and hand-written service wrappers.
 - data, AI, ingest, and search work usually means changing FastAPI routes and backend modules.
 - contract changes require an OpenAPI sync so the Swift side compiles again.
+
+## Contributing
+
+For environment setup, build commands, and branch discipline, see [Setup and Contributing](./setup-and-contributing.md). The key mechanics: commit directly to the milestone branch, register new Swift files with `scripts/add-swift-file.rb`, use conventional commits with issue references, and never push to `main` without a PR.
+
+For all backend mutations, the starting point is the action registry. Every write goes through `registry.invoke` — not directly to DuckDB. See [Action Registry](./action-registry.md) for how to define actions, write the required tests, and use the generic invocation endpoint. The [Security Model](./security-model.md) covers the shared-secret token, multi-user ACL, Tailscale transport, and audit attribution.
 
 ## Core Reference Material In This Repo
 
