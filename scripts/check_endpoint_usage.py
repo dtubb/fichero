@@ -40,7 +40,6 @@ KNOWN_GAPS: dict[str, str] = {
     'GET /api/activity/entity-types': "#1920 baseline - cli-only",
     'GET /api/activity/feed': "#1920 baseline - cli-only",
     'GET /api/activity/metrics/summary': "#1920 baseline - cli-only",
-    'GET /api/activity/stream': "#1920 baseline - swift-only",
     'GET /api/activity/top': "#1920 baseline - cli-only",
     'GET /api/activity/trends': "#1920 baseline - cli-only",
     'GET /api/actions/registry': "#1848 action layer - cli-only, store/UI deferred",
@@ -155,7 +154,6 @@ KNOWN_GAPS: dict[str, str] = {
     'GET /api/search/views/map': "#1920 baseline - cli-only",
     'GET /api/search/views/table': "#1920 baseline - cli-only",
     'POST /api/settings/ai-defaults/repair': "#1920 baseline - cli-only",
-    'GET /api/storage/debug/{doc_id}': "#1920 baseline - swift-only",
     'GET /api/storage/snapshots': "#1920 baseline - cli-only",
     'POST /api/storage/snapshots': "#1920 baseline - cli-only",
     'DELETE /api/storage/snapshots/{snapshot_id}': "#1920 baseline - cli-only",
@@ -178,7 +176,6 @@ KNOWN_GAPS: dict[str, str] = {
     'GET /api/tasks/tasks/{task_id}/result': "#1920 baseline - cli-only",
     'DELETE /api/workflow-execution/cache': "#1920 baseline - cli-only",
     'GET /api/workflow-execution/cache/stats': "#1920 baseline - cli-only",
-    'GET /api/workflow-execution/stream/{thread_id}': "#1920 baseline - swift-only",
     'GET /api/workflow-execution/threads/{thread_id}/diagram.png': "#1920 baseline - cli-only",
     'DELETE /api/workflow-execution/workflows/{workflow_id}/cache': "#1920 baseline - cli-only",
     'GET /api/workflow-execution/workflows/{workflow_id}/cache/stats': "#1920 baseline - cli-only",
@@ -186,6 +183,9 @@ KNOWN_GAPS: dict[str, str] = {
     'GET /api/workflow-execution/workflows/{workflow_id}/visualization.png': "#1920 baseline - cli-only",
     'GET /api/workflows/modes': "#1920 baseline - cli-only",
     'POST /api/workflows/{workflow_id}/estimate-cost': "#1920 baseline - cli-only",
+    'GET /api/pair/devices': "#2156 device pairing — cli-only; frontend pairing UI deferred to #2160",
+    'POST /api/pair/code': "#2156 mint pairing code — cli-only; frontend pairing UI deferred to #2160",
+    'POST /api/pair/devices/{device_id}/revoke': "#2156 revoke device — cli-only; frontend pairing UI deferred to #2160",
 }
 
 

@@ -13,6 +13,16 @@
         "operationId": "health_check_api_health_get",
         "parameters": [
           {
+            "name": "nonce",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Nonce"
+            }
+          },
+          {
             "name": "X-Fichero-Library-Path",
             "in": "header",
             "required": false,
@@ -20,6 +30,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Library-Path"
+            }
+          },
+          {
+            "name": "X-Fichero-Client-Nonce",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client-Nonce"
             }
           }
         ],
@@ -1186,6 +1206,139 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair/code": {
+      "post": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Create Pairing Code",
+        "description": "Mint a short-lived one-time pairing code for an owner.",
+        "operationId": "create_pairing_code_api_pair_code_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairCodeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair": {
+      "post": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Pair Device",
+        "description": "Exchange a valid one-time pairing code for a device token.",
+        "operationId": "pair_device_api_pair_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair/devices": {
+      "get": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "List Devices",
+        "description": "List paired devices for owners.",
+        "operationId": "list_devices_api_pair_devices_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair/devices/{device_id}/revoke": {
+      "post": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Revoke Device",
+        "description": "Revoke one paired device token.",
+        "operationId": "revoke_device_api_pair_devices__device_id__revoke_post",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
                 }
               }
             }
@@ -41206,6 +41359,67 @@
         "title": "DetectLanguageResponse",
         "description": "Language detection result."
       },
+      "DeviceListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "DeviceListResponse"
+      },
+      "DeviceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_seen": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Seen"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "user_id",
+          "created_at",
+          "last_seen",
+          "revoked"
+        ],
+        "title": "DeviceResponse"
+      },
       "DiskUsageResponse": {
         "properties": {
           "whisper": {
@@ -44587,6 +44801,11 @@
             "type": "object",
             "nullable": true,
             "title": "Remote Backend"
+          },
+          "server_proof": {
+            "type": "string",
+            "nullable": true,
+            "title": "Server Proof"
           }
         },
         "type": "object",
@@ -49807,6 +50026,63 @@
           "items"
         ],
         "title": "PageRangeUpsertRequest"
+      },
+      "PairCodeResponse": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "expires_at"
+        ],
+        "title": "PairCodeResponse"
+      },
+      "PairRequest": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Code"
+          },
+          "device_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Device Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "device_name"
+        ],
+        "title": "PairRequest"
+      },
+      "PairResponse": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id"
+          },
+          "device_token": {
+            "type": "string",
+            "title": "Device Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "device_token"
+        ],
+        "title": "PairResponse"
       },
       "PaleographyPresetResponse": {
         "properties": {

@@ -40,6 +40,7 @@ interpretation_app = typer.Typer(help="Inspect and curate hermeneutic interpreta
 audit_app = typer.Typer(help="Review entity merge/split audit trail.", no_args_is_help=True)
 settings_app = typer.Typer(help="Read and write AI-defaults settings.", no_args_is_help=True)
 providers_app = typer.Typer(help="Manage LLM provider configurations.", no_args_is_help=True)
+devices_app = typer.Typer(help="Manage paired devices.", no_args_is_help=True)
 app.add_typer(docs_app, name="docs")
 app.add_typer(workflow_app, name="workflow")
 app.add_typer(kg_app, name="kg")
@@ -52,6 +53,7 @@ app.add_typer(interpretation_app, name="interpretation")
 app.add_typer(audit_app, name="audit")
 app.add_typer(settings_app, name="settings")
 app.add_typer(providers_app, name="providers")
+app.add_typer(devices_app, name="devices")
 workflow_app.add_typer(threads_app, name="threads")
 
 # Execution statuses the workflow status endpoint may return when the run has
@@ -167,6 +169,21 @@ register_generated_openapi_commands(
 def health(ctx: typer.Context) -> None:
     """Check that the backend is up."""
     _invoke(ctx, lambda c: c.health())
+
+
+@devices_app.command("list")
+def devices_list(ctx: typer.Context) -> None:
+    """List paired devices."""
+    _invoke(ctx, lambda c: c.list_devices())
+
+
+@devices_app.command("revoke")
+def devices_revoke(
+    ctx: typer.Context,
+    device_id: str = typer.Argument(..., help="Paired device id."),
+) -> None:
+    """Revoke a paired device token."""
+    _invoke(ctx, lambda c: c.revoke_device(device_id))
 
 
 def _iter_importable_files(root: Path, recursive: bool) -> list[Path]:

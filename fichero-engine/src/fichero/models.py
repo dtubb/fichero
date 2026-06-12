@@ -860,6 +860,20 @@ class AccountSession(BaseModel):
     revoked: bool = False
 
 
+class Device(BaseModel):
+    """App-wide paired device credential stored in the global app database."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    name: str
+    user_id: str
+    token_hash: str
+    created_at: datetime = Field(default_factory=datetime.now)
+    last_seen: datetime = Field(default_factory=datetime.now)
+    revoked: bool = False
+
+
 class LibraryRole(BaseModel):
     """Per-user role for one library, stored in the global app database."""
 
@@ -1200,6 +1214,7 @@ class HealthResponse(BaseModel):
     backend_version: str | None = None
     active_libraries: int | None = None
     remote_backend: dict[str, Any] | None = None
+    server_proof: str | None = None
 
 
 class EmbeddingStatsResponse(BaseModel):
@@ -1822,6 +1837,7 @@ __all__ = [
     "TriggerListResponse",
     "AccountUser",
     "AccountSession",
+    "Device",
     "LibraryRole",
     "LibraryAclOverride",
 ]

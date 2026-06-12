@@ -56,19 +56,18 @@ def test_mutating_library_routes_use_write_authorized_db_dependency() -> None:
         for offender in offenders
         if offender not in READ_ONLY_MUTATING_VERB_ALLOWLIST
     ]
-    if unexpected:
-        lines = [
-            "Mutating route handlers must depend on get_library_database_for_write, "
-            "not the read-only get_library_database. This keeps viewers read-only "
-            "when FICHERO_MULTIUSER is enabled.",
-            "",
-            "Unexpected read-only dependencies:",
-            *[f"  {offender}" for offender in unexpected],
-            "",
-            "If the route uses POST/PUT/PATCH/DELETE for a genuinely read-only "
-            "operation, add it to READ_ONLY_MUTATING_VERB_ALLOWLIST with a reason.",
-        ]
-        pytest.fail("\n".join(lines))
+    lines = [
+        "Mutating route handlers must depend on get_library_database_for_write, "
+        "not the read-only get_library_database. This keeps viewers read-only "
+        "when FICHERO_MULTIUSER is enabled.",
+        "",
+        "Unexpected read-only dependencies:",
+        *[f"  {offender}" for offender in unexpected],
+        "",
+        "If the route uses POST/PUT/PATCH/DELETE for a genuinely read-only "
+        "operation, add it to READ_ONLY_MUTATING_VERB_ALLOWLIST with a reason.",
+    ]
+    assert not unexpected, "\n".join(lines)
 
 
 def test_write_dependency_guardrail_allowlist_is_not_stale() -> None:

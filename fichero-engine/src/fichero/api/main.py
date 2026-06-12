@@ -15,6 +15,8 @@ Environment Variables:
     TOKENIZERS_PARALLELISM: Set to "false" to disable tokenizer parallelism (avoids fork warnings)
 """
 
+import hashlib
+import hmac
 import os
 import sys
 import warnings
@@ -852,6 +854,10 @@ def assert_library_write_authorized(
 async def health_check(
     request: Request,
     x_fichero_library_path: str | None = Header(None, alias="X-Fichero-Library-Path"),
+    x_fichero_client_nonce: str | None = Header(
+        None, alias="X-Fichero-Client-Nonce"
+    ),
+    nonce: str | None = None,
 ) -> HealthResponse:
     """Health check endpoint.
 
@@ -875,26 +881,50 @@ async def health_check(
                 for doc in db.all(Document)
                 if getattr(doc, "deleted_at", None) is None
             )
-            return HealthResponse(
-                status="healthy",
-                library_path=x_fichero_library_path,
-                database=str(db.path),
-                document_count=doc_count,
+            return _with_server_proof(
+                HealthResponse(
+                    status="healthy",
+                    library_path=x_fichero_library_path,
+                    database=str(db.path),
+                    document_count=doc_count,
+                ),
+                nonce or x_fichero_client_nonce,
             )
         except Exception as e:
-            return HealthResponse(
-                status="unhealthy",
-                library_path=x_fichero_library_path,
-                error=str(e),
+            return _with_server_proof(
+                HealthResponse(
+                    status="unhealthy",
+                    library_path=x_fichero_library_path,
+                    error=str(e),
+                ),
+                nonce or x_fichero_client_nonce,
             )
     else:
         # General backend health
-        return HealthResponse(
-            status="healthy",
-            backend_version="0.1.0",
-            active_libraries=db_manager.active_count,
-            remote_backend=build_remote_backend_status().as_dict(),
+        return _with_server_proof(
+            HealthResponse(
+                status="healthy",
+                backend_version="0.1.0",
+                active_libraries=db_manager.active_count,
+                remote_backend=build_remote_backend_status().as_dict(),
+            ),
+            nonce or x_fichero_client_nonce,
         )
+
+
+def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthResponse:
+    """Attach HMAC(server bootstrap secret, nonce) when the client asks."""
+    if not nonce:
+        return response
+    secret = globals().get("_api_token")
+    if not isinstance(secret, str) or not secret:
+        return response
+    response.server_proof = hmac.new(
+        secret.encode("utf-8"),
+        nonce.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return response
 
 
 @app.get("/api/stats", response_model=LibraryStatsResponse)
@@ -965,6 +995,7 @@ from fichero.api.routes import (  # noqa: E402
     local_models,
     mcp_servers,
     mcp_tools,
+    pairing,
     migrations,
     mind_palace,
     mindpalace_render,
@@ -997,6 +1028,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (activity.router, "/api", ["activity"]),
     (auth_accounts.auth_router, "/api", ["auth"]),
     (auth_accounts.users_router, "/api", ["users"]),
+    (pairing.router, "/api", ["pairing"]),
     # /api/changes/stream — per-library change-event SSE; foundation of the
     # observable data layer (#1863). Core tier: the SwiftUI stores subscribe
     # unconditionally.

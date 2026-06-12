@@ -1,7 +1,11 @@
 {
-  "_doc": "Backend endpoints intentionally not (yet) wired into the cli surface. Each key is an openapi path; value is the reason. This file IS the cli wiring backlog — drop an entry once it's called. CI-enforced.",
+  "_doc": "Backend endpoints intentionally not (yet) wired into the cli surface. Each key is an openapi path; value is the reason. This file IS the cli wiring backlog \u2014 drop an entry once it's called. CI-enforced.",
   "paths": {
     "/api/activity/stream": "streaming endpoint; CLI harness uses request/response commands, not live event streams",
+    "/api/pair": "#2156 device pairing/auth \u2014 pairing UI is frontend #2160 (held); device flow is the iOS QR-pairing path, not a desktop/CLI surface op",
+    "/api/pair/code": "#2156 device pairing/auth \u2014 pairing UI is frontend #2160 (held); device flow is the iOS QR-pairing path, not a desktop/CLI surface op",
+    "/api/pair/devices": "#2156 device pairing/auth \u2014 pairing UI is frontend #2160 (held); device flow is the iOS QR-pairing path, not a desktop/CLI surface op",
+    "/api/pair/devices/{device_id}/revoke": "#2156 device pairing/auth \u2014 pairing UI is frontend #2160 (held); device flow is the iOS QR-pairing path, not a desktop/CLI surface op",
     "/api/storage/debug/{doc_id}": "debug-only endpoint; intentionally omitted from the default generated CLI surface",
     "/api/tasks/tasks/health": "internal queue-health endpoint; intentionally omitted from the default generated CLI surface",
     "/api/workflow-execution/stream/{thread_id}": "streaming endpoint; CLI harness uses pollable workflow commands, not live event streams"

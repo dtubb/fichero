@@ -44,12 +44,16 @@ _UNAUTHENTICATED_PATHS = frozenset(
     {
         "/api/health",
         "/api/auth/login",
+        "/api/pair",
         "/openapi.json",
         "/docs",
         "/redoc",
     }
 )
 _UNAUTHENTICATED_PREFIXES = ("/docs/", "/redoc/")
+_LOOPBACK_HOSTS = {"127.0.0.1", "::1"}
+_TESTCLIENT_HOSTS = {"localhost", "testserver", "testclient"}
+_FORWARDED_HEADERS = ("forwarded", "x-forwarded-for", "x-forwarded-host", "x-real-ip")
 
 
 def _token_file_path() -> Path:
@@ -129,6 +133,35 @@ def _authenticate_session_token(token: str):
     return user, session
 
 
+def _authenticate_device_token(token: str):
+    """Resolve a bearer device token to a live user/device pair."""
+    token_hash = accounts.hash_token(token)
+    app_db = get_app_db()
+    device = app_db.get_device_by_token_hash(token_hash)
+    if device is None or device.revoked:
+        return None, device
+    user = app_db.get_user(device.user_id)
+    if user is None or not user.active:
+        return None, device
+    app_db.touch_device(token_hash)
+    return user, device
+
+
+def _is_loopback_request(request: Request) -> bool:
+    """Return true only for direct loopback clients.
+
+    Forwarding headers make a request proxy-originated for bootstrap-secret
+    purposes; do not trust their values. TestClient uses synthetic host names,
+    accepted only under pytest so auth middleware tests can exercise the path.
+    """
+    client_host = request.client.host if request.client else None
+    if client_host in _LOOPBACK_HOSTS:
+        return not any(name in request.headers for name in _FORWARDED_HEADERS)
+    if client_host in _TESTCLIENT_HOSTS and os.environ.get("PYTEST_CURRENT_TEST"):
+        return not any(name in request.headers for name in _FORWARDED_HEADERS)
+    return False
+
+
 def actor_from_request(request: Request) -> str:
     """Return the trusted audit actor for this request.
 
@@ -176,28 +209,19 @@ def attach_auth_middleware(app: FastAPI, token: str) -> None:
 
     @app.middleware("http")
     async def _enforce_auth(request: Request, call_next):
-        # Loopback-only check (defense in depth — uvicorn already binds 127.0.0.1
-        # but a misconfiguration shouldn't bypass auth).
-        # "testserver" is used by FastAPI's TestClient in test environments.
-        client_host = request.client.host if request.client else None
-        if client_host not in {
-            "127.0.0.1",
-            "::1",
-            "localhost",
-            "testserver",
-            "testclient",
-        }:
-            logger.warning("Reject non-loopback request from %s", client_host)
-            return JSONResponse({"detail": "loopback only"}, status_code=403)
-
         # Allow unauthenticated paths through.
         if request.url.path in _UNAUTHENTICATED_PATHS or any(
             request.url.path.startswith(prefix) for prefix in _UNAUTHENTICATED_PREFIXES
         ):
             return await call_next(request)
 
+        is_loopback = _is_loopback_request(request)
         if not _use_multiuser_auth():
             provided = request.headers.get("authorization", "")
+            if not is_loopback:
+                client_host = request.client.host if request.client else None
+                logger.warning("Reject non-loopback request from %s", client_host)
+                return JSONResponse({"detail": "loopback only"}, status_code=403)
             if not secrets.compare_digest(provided, expected_header):
                 return JSONResponse(
                     {"detail": "missing or invalid Authorization header"},
@@ -207,8 +231,13 @@ def attach_auth_middleware(app: FastAPI, token: str) -> None:
 
         provided = request.headers.get("authorization", "")
         if secrets.compare_digest(provided, expected_header):
-            # Bootstrap superuser path: the shared secret remains the standing
-            # owner-capable credential even when multi-user mode is enabled.
+            if not is_loopback:
+                return JSONResponse(
+                    {"detail": "bootstrap auth is loopback only"},
+                    status_code=401,
+                )
+            # Bootstrap superuser path: the shared secret remains owner-capable
+            # only for direct same-Mac loopback clients.
             request.state.bootstrap_auth = True
             request.state.user = None
             return await call_next(request)
@@ -227,14 +256,21 @@ def attach_auth_middleware(app: FastAPI, token: str) -> None:
             )
 
         user, session = _authenticate_session_token(raw_token)
-        if user is None or session is None:
+        if user is not None and session is not None:
+            request.state.user = user
+            request.state.session = session
+            request.state.bootstrap_auth = False
+            return await call_next(request)
+
+        user, device = _authenticate_device_token(raw_token)
+        if user is None or device is None:
             return JSONResponse(
                 {"detail": "missing or invalid Authorization header"},
                 status_code=401,
             )
 
         request.state.user = user
-        request.state.session = session
+        request.state.device = device
         request.state.bootstrap_auth = False
 
         return await call_next(request)

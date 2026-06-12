@@ -6205,6 +6205,59 @@ def register_generated_openapi_commands(
             return client.request("DELETE", path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('pair')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for pair endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='pair')
+
+    @target_app.command("device")
+    def pair_device_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Pair Device (POST /api/pair)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/pair"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-pairing-code")
+    def pair_create_pairing_code_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Create Pairing Code (POST /api/pair/code)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/pair/code"
+            params = None
+            return client.request("POST", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-devices")
+    def pair_list_devices_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Devices (GET /api/pair/devices)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/pair/devices"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("revoke-device")
+    def pair_revoke_device_post(
+        ctx: typer.Context,
+        device_id: str = typer.Argument(..., help="Path parameter: device_id."),
+    ) -> None:
+        """Revoke Device (POST /api/pair/devices/{device_id}/revoke)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/pair/devices/{device_id}/revoke"
+            params = None
+            return client.request("POST", path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('policies')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for policies endpoints.', no_args_is_help=True)

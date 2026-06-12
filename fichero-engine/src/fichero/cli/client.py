@@ -280,6 +280,13 @@ class FicheroClient:
     def health(self) -> Any:
         return self.request("GET", "/api/health")
 
+    # -- devices -----------------------------------------------------------
+    def list_devices(self) -> Any:
+        return self.request("GET", "/api/pair/devices")
+
+    def revoke_device(self, device_id: str) -> Any:
+        return self.request("POST", f"/api/pair/devices/{device_id}/revoke")
+
     # -- notes -------------------------------------------------------------
     def create_note(
         self,

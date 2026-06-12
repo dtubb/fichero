@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import importlib
 
 import pytest
 from fastapi.testclient import TestClient
 
 from fichero import accounts
+from fichero.actions import registry
 from fichero.api.auth import initialize_token
+from fichero.api.routes import pairing
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -20,6 +22,15 @@ def _enable_multiuser(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _disable_multiuser(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def clear_pairing_state():
+    pairing._PAIRING_CODES.clear()
+    pairing._PAIRING_ATTEMPTS.clear()
+    yield
+    pairing._PAIRING_CODES.clear()
+    pairing._PAIRING_ATTEMPTS.clear()
 
 
 @pytest.fixture
@@ -267,3 +278,121 @@ def test_multiuser_flag_off_leaves_shared_secret_behavior_unchanged(
 
     shared_secret = client.get("/api/providers", headers=_bearer(initialize_token()))
     assert shared_secret.status_code == 200
+
+
+def test_pairing_valid_code_returns_device_token_that_authenticates(
+    client,
+    app_db,
+    monkeypatch,
+):
+    _enable_multiuser(monkeypatch)
+    app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    login = client.post(
+        "/api/auth/login",
+        json={"username": "owner", "password": "password"},
+    )
+    session_token = login.json()["session_token"]
+
+    code_response = client.post("/api/pair/code", headers=_bearer(session_token))
+    assert code_response.status_code == 200
+
+    pair_response = client.post(
+        "/api/pair",
+        json={
+            "code": code_response.json()["code"],
+            "device_name": "Alice iPad",
+        },
+    )
+
+    assert pair_response.status_code == 200
+    device_token = pair_response.json()["device_token"]
+    me = client.get("/api/auth/me", headers=_bearer(device_token))
+    assert me.status_code == 200
+    assert me.json()["username"] == "owner"
+
+
+def test_revoked_device_token_is_rejected(client, app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    user = app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    raw_token = accounts.new_session_token()
+    device = app_db.create_device(
+        name="Alice iPad",
+        user_id=user.id,
+        token_hash=accounts.hash_token(raw_token),
+    )
+    app_db.revoke_device(device.id)
+
+    response = client.get("/api/auth/me", headers=_bearer(raw_token))
+
+    assert response.status_code == 401
+
+
+def test_pairing_rejects_reused_and_expired_codes(client, app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    login = client.post(
+        "/api/auth/login",
+        json={"username": "owner", "password": "password"},
+    )
+    session_token = login.json()["session_token"]
+
+    code = client.post("/api/pair/code", headers=_bearer(session_token)).json()["code"]
+    first = client.post(
+        "/api/pair",
+        json={"code": code, "device_name": "Alice iPad"},
+    )
+    reused = client.post(
+        "/api/pair",
+        json={"code": code, "device_name": "Alice iPad"},
+    )
+
+    expired_code = client.post(
+        "/api/pair/code",
+        headers=_bearer(session_token),
+    ).json()["code"]
+    pairing._PAIRING_CODES[expired_code].expires_at = datetime.now() - timedelta(
+        seconds=1
+    )
+    expired = client.post(
+        "/api/pair",
+        json={"code": expired_code, "device_name": "Alice iPad"},
+    )
+
+    assert first.status_code == 200
+    assert reused.status_code == 401
+    assert expired.status_code == 401
+
+
+def test_pairing_is_rate_limited(client, app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+
+    statuses = [
+        client.post(
+            "/api/pair",
+            json={"code": "NOPE", "device_name": "Alice iPad"},
+        ).status_code
+        for _ in range(pairing.PAIRING_RATE_LIMIT + 1)
+    ]
+
+    assert statuses[:-1] == [401] * pairing.PAIRING_RATE_LIMIT
+    assert statuses[-1] == 429
+
+
+def test_device_actions_are_registered():
+    assert "device.list" in registry.names()
+    assert "device.revoke" in registry.names()

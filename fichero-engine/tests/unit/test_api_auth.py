@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from fichero import accounts
 from fichero.api.auth import attach_auth_middleware
 
 
@@ -42,3 +43,66 @@ def test_private_endpoint_still_requires_bearer_token():
         headers={"Authorization": "Bearer test-token"},
     )
     assert authed.status_code == 200
+
+
+def test_bootstrap_secret_rejects_non_loopback_multiuser(monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    client = TestClient(_app_with_auth(), client=("192.0.2.10", 5000))
+
+    response = client.get(
+        "/api/private",
+        headers={"Authorization": "Bearer test-token"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_bootstrap_secret_accepts_loopback_without_forwarding(monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    client = TestClient(_app_with_auth())
+
+    response = client.get(
+        "/api/private",
+        headers={"Authorization": "Bearer test-token"},
+    )
+
+    assert response.status_code == 200
+
+
+def test_bootstrap_secret_rejects_forwarded_loopback_multiuser(monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    client = TestClient(_app_with_auth())
+
+    response = client.get(
+        "/api/private",
+        headers={
+            "Authorization": "Bearer test-token",
+            "X-Forwarded-For": "192.0.2.10",
+        },
+    )
+
+    assert response.status_code == 401
+
+
+def test_non_loopback_device_token_authenticates_multiuser(monkeypatch, app_db):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    user = app_db.create_user(
+        username="alice",
+        display_name="Alice",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    raw_token = accounts.new_session_token()
+    app_db.create_device(
+        name="Alice iPad",
+        user_id=user.id,
+        token_hash=accounts.hash_token(raw_token),
+    )
+    client = TestClient(_app_with_auth(), client=("192.0.2.10", 5000))
+
+    response = client.get(
+        "/api/private",
+        headers={"Authorization": f"Bearer {raw_token}"},
+    )
+
+    assert response.status_code == 200

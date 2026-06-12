@@ -25,6 +25,7 @@ from fichero.storage import settings
 from fichero.models import (
     AccountSession,
     AccountUser,
+    Device,
     LibraryAclOverride,
     LibraryRole,
     Model,
@@ -52,6 +53,7 @@ class AppDatabase:
     _TABLE_BY_MODEL_NAME: dict[str, str] = {
         "AccountUser": "users",
         "AccountSession": "sessions",
+        "Device": "devices",
         "LibraryRole": "library_roles",
         "LibraryAclOverride": "library_acl_overrides",
         "Provider": "providers",
@@ -186,6 +188,20 @@ class AppDatabase:
             )
         """)
 
+        # Devices table (app-wide paired-device token store)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS devices (
+                id VARCHAR PRIMARY KEY,
+                name VARCHAR NOT NULL,
+                user_id VARCHAR NOT NULL,
+                token_hash VARCHAR NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                revoked BOOLEAN DEFAULT FALSE,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
         # Per-library ACL tables (global identity scope, not per-library DB).
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS library_roles (
@@ -238,6 +254,12 @@ class AppDatabase:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_devices_token_hash ON devices(token_hash)"
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_library_roles_user_library "
@@ -1064,6 +1086,121 @@ class AppDatabase:
                 [user_id],
             )
             self.conn.commit()
+
+    # =========================================================================
+    # Devices
+    # =========================================================================
+
+    def create_device(
+        self,
+        *,
+        name: str,
+        user_id: str,
+        token_hash: str,
+    ) -> Device:
+        """Insert a paired device credential and return the typed record."""
+        now = datetime.now()
+        device = Device(
+            name=name.strip(),
+            user_id=user_id,
+            token_hash=token_hash,
+            created_at=now,
+            last_seen=now,
+        )
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO devices (
+                    id, name, user_id, token_hash, created_at, last_seen, revoked
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    device.id,
+                    device.name,
+                    device.user_id,
+                    device.token_hash,
+                    device.created_at,
+                    device.last_seen,
+                    device.revoked,
+                ],
+            )
+            self.conn.commit()
+        return device
+
+    def _row_to_device(self, row) -> Device:
+        return Device(
+            id=row[0],
+            name=row[1],
+            user_id=row[2],
+            token_hash=row[3],
+            created_at=row[4],
+            last_seen=row[5],
+            revoked=row[6],
+        )
+
+    def get_device(self, device_id: str) -> Device | None:
+        """Return one paired device by id."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, name, user_id, token_hash, created_at, last_seen, revoked
+                FROM devices
+                WHERE id = ?
+                """,
+                [device_id],
+            ).fetchone()
+        return self._row_to_device(result) if result else None
+
+    def get_device_by_token_hash(self, token_hash: str) -> Device | None:
+        """Return one paired device by stored token hash."""
+        with self._lock:
+            result = self.conn.execute(
+                """
+                SELECT id, name, user_id, token_hash, created_at, last_seen, revoked
+                FROM devices
+                WHERE token_hash = ?
+                """,
+                [token_hash],
+            ).fetchone()
+        return self._row_to_device(result) if result else None
+
+    def list_devices(self) -> list[Device]:
+        """List all paired devices."""
+        with self._lock:
+            rows = self.conn.execute(
+                """
+                SELECT id, name, user_id, token_hash, created_at, last_seen, revoked
+                FROM devices
+                ORDER BY revoked, created_at, name
+                """
+            ).fetchall()
+        return [self._row_to_device(row) for row in rows]
+
+    def touch_device(
+        self,
+        token_hash: str,
+        when: datetime | None = None,
+    ) -> None:
+        """Update the last-seen timestamp for a device token."""
+        now = when or datetime.now()
+        with self._lock:
+            self.conn.execute(
+                "UPDATE devices SET last_seen = ? WHERE token_hash = ?",
+                [now, token_hash],
+            )
+            self.conn.commit()
+        return None
+
+    def revoke_device(self, device_id: str) -> Device | None:
+        """Mark one paired device as revoked."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE devices SET revoked = TRUE WHERE id = ?",
+                [device_id],
+            )
+            self.conn.commit()
+        return self.get_device(device_id)
 
     def delete_model(self, model_id: str):
         """Delete a model."""

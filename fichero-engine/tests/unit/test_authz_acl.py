@@ -374,8 +374,11 @@ def test_app_wide_config_gates_require_authenticated_owner(users, monkeypatch):
 def test_app_wide_config_gates_short_circuit_when_multiuser_off(users, monkeypatch):
     monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
 
-    _require_authenticated_or_bootstrap(_request(None))
-    _require_owner_or_bootstrap(_request(users.viewer))
+    # Flag OFF → both gates allow everyone (return None, no HTTPException), even
+    # an unauthenticated request and a viewer who would be rejected by the owner
+    # gate once FICHERO_MULTIUSER is enabled.
+    assert _require_authenticated_or_bootstrap(_request(None)) is None
+    assert _require_owner_or_bootstrap(_request(users.viewer)) is None
 
 
 @pytest.mark.anyio

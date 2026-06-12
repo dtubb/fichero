@@ -2903,7 +2903,13 @@
         "operation_id": "health_check_api_health_get",
         "summary": "Health Check",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "nonce",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "request_model": null,
         "response_model": "HealthResponse"
       }
@@ -6266,6 +6272,50 @@
         "query_params": [],
         "request_model": null,
         "response_model": null
+      }
+    ],
+    "pair": [
+      {
+        "method": "POST",
+        "path": "/pair",
+        "operation_id": "pair_device_api_pair_post",
+        "summary": "Pair Device",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PairRequest",
+        "response_model": "PairResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/pair/code",
+        "operation_id": "create_pairing_code_api_pair_code_post",
+        "summary": "Create Pairing Code",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PairCodeResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/pair/devices",
+        "operation_id": "list_devices_api_pair_devices_get",
+        "summary": "List Devices",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DeviceListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/pair/devices/{device_id}/revoke",
+        "operation_id": "revoke_device_api_pair_devices__device_id__revoke_post",
+        "summary": "Revoke Device",
+        "path_params": [
+          "device_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StatusResponse"
       }
     ],
     "policies": [
