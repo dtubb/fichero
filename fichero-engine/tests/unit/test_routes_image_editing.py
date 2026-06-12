@@ -15,7 +15,8 @@ from fichero.models import DocType, Document, FileType
 
 
 def _make_image_doc(db, tmp_path, name: str = "sample.jpg", size: tuple[int, int] = (80, 50)):
-    image_path = tmp_path / name
+    image_path = db.path.parent / "files" / name
+    image_path.parent.mkdir(parents=True, exist_ok=True)
     img = Image.new("RGB", size, "white")
     img.putpixel((0, 0), (255, 0, 0))
     img.save(image_path, format="JPEG")
@@ -28,7 +29,8 @@ def _make_image_doc(db, tmp_path, name: str = "sample.jpg", size: tuple[int, int
 def _make_gray_image_doc(
     db, tmp_path, name: str = "gray.jpg", size: tuple[int, int] = (80, 50)
 ):
-    image_path = tmp_path / name
+    image_path = db.path.parent / "files" / name
+    image_path.parent.mkdir(parents=True, exist_ok=True)
     img = Image.new("RGB", size, (128, 128, 128))
     img.putpixel((0, 0), (255, 0, 0))
     img.save(image_path, format="JPEG")
@@ -39,7 +41,8 @@ def _make_gray_image_doc(
 
 
 def _make_foreground_image_doc(db, tmp_path, name: str = "foreground.png"):
-    image_path = tmp_path / name
+    image_path = db.path.parent / "files" / name
+    image_path.parent.mkdir(parents=True, exist_ok=True)
     img = Image.new("RGB", (60, 40), "white")
     for x in range(20, 40):
         for y in range(10, 30):
@@ -52,7 +55,8 @@ def _make_foreground_image_doc(db, tmp_path, name: str = "foreground.png"):
 
 
 def _make_segmentable_image_doc(db, tmp_path, name: str = "segments.png"):
-    image_path = tmp_path / name
+    image_path = db.path.parent / "files" / name
+    image_path.parent.mkdir(parents=True, exist_ok=True)
     img = Image.new("RGB", (100, 60), "white")
     for x in range(10, 30):
         for y in range(10, 30):
@@ -273,7 +277,8 @@ class TestImagePreviewRoute:
         # orientation=6 (rotate 90° for display) should come back oriented
         # portrait (60x90) — matching what the SwiftUI viewer / Finder show, so
         # the editor opens at the same orientation as the viewer (#1529).
-        image_path = tmp_path / "rotated.jpg"
+        image_path = db.path.parent / "files" / "rotated.jpg"
+        image_path.parent.mkdir(parents=True, exist_ok=True)
         img = Image.new("RGB", (90, 60), "white")
         exif = Image.Exif()
         exif[0x0112] = 6  # Orientation: rotate 90° CW for display
@@ -327,7 +332,8 @@ class TestImagePreviewRoute:
         assert img.size == (50, 80)
 
     def test_preview_applies_saved_fuzzy_clean_operation(self, client, db, tmp_path):
-        image_path = tmp_path / "speckle.png"
+        image_path = db.path.parent / "files" / "speckle.png"
+        image_path.parent.mkdir(parents=True, exist_ok=True)
         image = Image.new("RGB", (9, 9), (128, 128, 128))
         image.putpixel((4, 4), (0, 0, 0))
         image.save(image_path, format="PNG")
@@ -356,7 +362,8 @@ class TestImagePreviewRoute:
     def test_preview_enhance_operation_supports_saved_denoise_param(
         self, client, db, tmp_path
     ):
-        image_path = tmp_path / "speckle.png"
+        image_path = db.path.parent / "files" / "speckle.png"
+        image_path.parent.mkdir(parents=True, exist_ok=True)
         image = Image.new("RGB", (9, 9), (128, 128, 128))
         image.putpixel((4, 4), (0, 0, 0))
         image.save(image_path, format="PNG")

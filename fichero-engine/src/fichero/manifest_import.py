@@ -324,11 +324,14 @@ def document_payload(
     """
     image = preferred_image(node)
     metadata = _canonical_metadata(node)
+    image_path = image.get("source_path") if image else None
+    if image_path and Path(str(image_path)).expanduser().is_absolute():
+        image_path = None
     payload: dict[str, Any] = {
         "name": node.get("name") or node.get("external_id"),
         "parent_id": parent_id,
         "doc_type": _NODE_TYPE_TO_DOC_TYPE[node["node_type"]],
-        "path": image.get("source_path") if image else metadata.get("source_assets"),
+        "path": image_path,
         "page_content": node.get("text"),
         "metadata": metadata,
     }

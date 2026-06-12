@@ -21,7 +21,8 @@ class TestMarkdownFolderExport:
             file_type=FileType.text,
             page_content="This is the letter transcription.",
         )
-        image_path = tmp_path / "source.jpg"
+        image_path = db.path.parent / "files" / "source.jpg"
+        image_path.parent.mkdir(parents=True, exist_ok=True)
         image_path.write_bytes(b"fake image bytes")
         image_doc = Document(
             id="doc-image",
@@ -101,7 +102,8 @@ class TestWordExport:
             name="Word Export",
             doc_type=DocType.folder,
         )
-        image_path = tmp_path / "photo.jpg"
+        image_path = db.path.parent / "files" / "photo.jpg"
+        image_path.parent.mkdir(parents=True, exist_ok=True)
         image_path.write_bytes(b"jpg bytes")
         image_doc = Document(
             id="word-image",

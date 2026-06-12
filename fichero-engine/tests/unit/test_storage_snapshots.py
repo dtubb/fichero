@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from fichero.db import Database
-from fichero.models import Document, KnownLibrary
+from fichero.models import Document, KnownLibrary, LibrarySnapshot, SnapshotInitiatorType
 from fichero.storage import StorageSettings
 from fichero import storage_snapshots
 
@@ -132,6 +132,40 @@ def test_snapshot_manifest_records_reason_paths_and_sizes(
     assert "vectors" in manifest["paths"]["embeddings"]
     assert manifest["sizes"]["duckdb_size_bytes"] > 0
     assert manifest["sizes"]["lance_size_bytes"] > 0
+
+
+@pytest.mark.parametrize(
+    ("duckdb_path", "lance_path"),
+    [
+        ("/etc/passwd", "safe/vectors"),
+        ("../escape", "safe/vectors"),
+        ("safe/duckdb", "/etc/passwd"),
+        ("safe/duckdb", "../escape"),
+    ],
+)
+def test_snapshot_restore_refuses_record_paths_outside_snapshots_dir(
+    tmp_path: Path,
+    monkeypatch,
+    duckdb_path: str,
+    lance_path: str,
+) -> None:
+    _use_snapshot_state(monkeypatch, tmp_path)
+    library_path = tmp_path / "Traversal.fichero"
+    _create_library_with_document(library_path)
+    snapshot = LibrarySnapshot(
+        id=f"snap-{abs(hash((duckdb_path, lance_path)))}",
+        library_path=str(library_path),
+        library_name="Traversal",
+        reason="malicious record",
+        initiator=SnapshotInitiatorType.user,
+        snapshot_path=str(storage_snapshots.settings.snapshots_dir / "Traversal"),
+        duckdb_path=duckdb_path,
+        lance_path=lance_path,
+    )
+    storage_snapshots._save_snapshot_record(snapshot)
+
+    with pytest.raises(FileNotFoundError):
+        storage_snapshots.restore_snapshot(snapshot.id)
 
 
 def test_snapshot_export_uses_read_only_duckdb_connection(

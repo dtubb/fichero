@@ -25,6 +25,8 @@ import time.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -153,6 +155,31 @@ class TestDocumentCreateAction:
             )
         assert exc.value.status_code == 400
 
+    def test_create_rejects_path_outside_library(self, db):
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db,
+                "document.create",
+                {"name": "passwd", "path": "/etc/passwd"},
+                _ctx(),
+            )
+        assert exc.value.status_code == 400
+
+    def test_create_allows_absolute_path_under_library(self, db):
+        source = Path(db.path).parent / "files" / "safe.txt"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("safe")
+
+        result = registry.invoke(
+            db,
+            "document.create",
+            {"name": "safe", "path": str(source)},
+            _ctx(),
+        )
+
+        persisted = db.get(Document, result.result["id"])
+        assert persisted.path == str(source)
+
 
 # ===========================================================================
 # document.update
@@ -220,6 +247,18 @@ class TestDocumentUpdateAction:
                 {"doc_id": doc.id, "update": {"doc_type": "banana"}},
                 _ctx(),
             )
+
+    def test_update_rejects_path_outside_library(self, db):
+        doc = _save_doc(db, name="d")
+
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db,
+                "document.update",
+                {"doc_id": doc.id, "update": {"path": "/etc/passwd"}},
+                _ctx(),
+            )
+        assert exc.value.status_code == 400
 
 
 # ===========================================================================

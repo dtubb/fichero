@@ -39,7 +39,8 @@ def _ctx(actor: str = "ui") -> ActionContext:
 
 
 def _make_image_doc(db, tmp_path, name="sample.jpg", size=(120, 90)) -> Document:
-    image_path = tmp_path / name
+    image_path = db.path.parent / "files" / name
+    image_path.parent.mkdir(parents=True, exist_ok=True)
     img = Image.new("RGB", size, "white")
     img.putpixel((0, 0), (255, 0, 0))
     img.save(image_path, format="JPEG")
@@ -49,7 +50,8 @@ def _make_image_doc(db, tmp_path, name="sample.jpg", size=(120, 90)) -> Document
 
 
 def _make_segmentable_doc(db, tmp_path, name="segments.png") -> Document:
-    image_path = tmp_path / name
+    image_path = db.path.parent / "files" / name
+    image_path.parent.mkdir(parents=True, exist_ok=True)
     img = Image.new("RGB", (100, 60), "white")
     for x in range(10, 30):
         for y in range(10, 30):
@@ -327,7 +329,8 @@ class TestAppendOpActions:
 
     def test_remove_background_appends_png_preview(self, db, tmp_path):
         # foreground-on-white so the threshold method produces an alpha mask
-        image_path = tmp_path / "fg.png"
+        image_path = db.path.parent / "files" / "fg.png"
+        image_path.parent.mkdir(parents=True, exist_ok=True)
         img = Image.new("RGB", (60, 40), "white")
         for x in range(20, 40):
             for y in range(10, 30):

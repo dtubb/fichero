@@ -19,7 +19,9 @@ from PIL import Image
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.models import Document, FileType
+from fichero.path_security import allowed_source_roots, resolve_under_allowed_roots
 from fichero.storage import get_display, get_thumbnail, resolve_source
+from fichero.storage import settings as storage_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/iiif", tags=["iiif"])
@@ -101,10 +103,16 @@ def _get_image_path(
     if doc.file_type not in (FileType.image, FileType.pdf) and not doc.path:
         return None
 
-    return (
+    candidate = (
         get_display(doc, package_path=library_root)
         or get_thumbnail(doc, package_path=library_root)
         or resolve_source(doc, library_root=library_root)
+    )
+    if candidate is None:
+        return None
+    return resolve_under_allowed_roots(
+        candidate,
+        allowed_source_roots(library_root, storage_base=storage_settings.base_path),
     )
 
 

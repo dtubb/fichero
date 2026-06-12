@@ -209,6 +209,111 @@ class TestPdfStorageRoutes:
         assert cache_files_after[0].stat().st_mtime_ns == first_mtime_ns
 
 
+class TestSourceRouteConfinement:
+    def test_source_route_refuses_absolute_path_outside_library(self, client, db):
+        doc = Document(
+            id="outside-absolute",
+            name="passwd",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            path="/etc/passwd",
+            status=Status.completed,
+            metadata={},
+        )
+        db.save(doc)
+
+        response = client.get(f"/api/storage/source/{doc.id}")
+
+        assert response.status_code == 404
+
+    def test_source_route_refuses_metadata_path_outside_library(self, client, db):
+        doc = Document(
+            id="outside-metadata",
+            name="passwd",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            path=None,
+            status=Status.completed,
+            metadata={"source_path": "/etc/passwd"},
+        )
+        db.save(doc)
+
+        response = client.get(f"/api/storage/source/{doc.id}")
+
+        assert response.status_code == 404
+
+    def test_source_route_refuses_traversal_and_symlink_escape(
+        self, client, db, test_package, tmp_path
+    ):
+        outside = tmp_path / "outside.txt"
+        outside.write_text("outside secret")
+        symlink = test_package / "files" / "escape.txt"
+        symlink.symlink_to(outside)
+        docs = [
+            Document(
+                id="traversal-source",
+                name="traversal.txt",
+                doc_type=DocType.file,
+                file_type=FileType.text,
+                path="../outside.txt",
+                status=Status.completed,
+                metadata={},
+            ),
+            Document(
+                id="symlink-source",
+                name="escape.txt",
+                doc_type=DocType.file,
+                file_type=FileType.text,
+                path=str(symlink.relative_to(test_package)),
+                status=Status.completed,
+                metadata={},
+            ),
+        ]
+        for doc in docs:
+            db.save(doc)
+
+        assert client.get("/api/storage/source/traversal-source").status_code == 404
+        assert client.get("/api/storage/source/symlink-source").status_code == 404
+
+    def test_source_route_serves_relative_and_absolute_paths_under_library(
+        self, client, db, test_package
+    ):
+        relative_path = test_package / "files" / "re" / "relative.txt"
+        absolute_path = test_package / "files" / "ab" / "absolute.txt"
+        relative_path.parent.mkdir(parents=True, exist_ok=True)
+        absolute_path.parent.mkdir(parents=True, exist_ok=True)
+        relative_path.write_text("relative ok")
+        absolute_path.write_text("absolute ok")
+        relative_doc = Document(
+            id="relative-source",
+            name="relative.txt",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            path=str(relative_path.relative_to(test_package)),
+            status=Status.completed,
+            metadata={},
+        )
+        absolute_doc = Document(
+            id="absolute-source",
+            name="absolute.txt",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            path=str(absolute_path),
+            status=Status.completed,
+            metadata={},
+        )
+        db.save(relative_doc)
+        db.save(absolute_doc)
+
+        relative_response = client.get(f"/api/storage/source/{relative_doc.id}")
+        absolute_response = client.get(f"/api/storage/source/{absolute_doc.id}")
+
+        assert relative_response.status_code == 200
+        assert relative_response.text == "relative ok"
+        assert absolute_response.status_code == 200
+        assert absolute_response.text == "absolute ok"
+
+
 # ---------------------------------------------------------------------------
 # GET /api/storage/snapshots
 # ---------------------------------------------------------------------------

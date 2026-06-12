@@ -21,6 +21,7 @@ from uuid import uuid4
 
 import duckdb
 
+from fichero.path_security import resolve_snapshot_record_path
 from fichero.storage import settings  # settings from core storage module
 
 if TYPE_CHECKING:
@@ -376,9 +377,16 @@ def restore_snapshot(snapshot_id: str) -> dict:
     except Exception as exc:
         logger.warning("Could not close database before restore: %s", exc)
 
-    db_src_dir = settings.snapshots_dir / snapshot.duckdb_path
+    try:
+        db_src_dir = resolve_snapshot_record_path(
+            settings.snapshots_dir, snapshot.duckdb_path
+        )
+        lance_src = resolve_snapshot_record_path(
+            settings.snapshots_dir, snapshot.lance_path
+        )
+    except ValueError as exc:
+        raise FileNotFoundError(str(exc)) from exc
     db_src = db_src_dir / "fichero.duckdb" if db_src_dir.is_dir() else db_src_dir
-    lance_src = settings.snapshots_dir / snapshot.lance_path
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     current_db_path = lib_path / "fichero.duckdb"

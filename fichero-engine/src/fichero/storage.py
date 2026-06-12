@@ -43,6 +43,10 @@ if TYPE_CHECKING:
 
 from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from fichero.path_security import (
+    allowed_source_roots,
+    resolve_under_allowed_roots,
+)
 from fichero.perf import perf_span
 from fichero.paths import engine_state_dir
 
@@ -301,13 +305,21 @@ def resolve_source(
     Returns:
         Path to existing file, or None if not found
     """
+    allowed_roots = allowed_source_roots(library_root, storage_base=settings.base_path)
+
+    def confined_existing(candidate: Path) -> Path | None:
+        if not candidate.exists():
+            return None
+        return resolve_under_allowed_roots(candidate, allowed_roots)
+
     # Try bookmark first (macOS)
     if bookmark_data := _get_bookmark(doc):
         try:
             from fichero.bookmarks import resolve_bookmark
 
             if path := resolve_bookmark(bookmark_data):
-                return path
+                if confined := confined_existing(path):
+                    return confined
         except ImportError:
             pass  # bookmarks module not available
 
@@ -323,11 +335,12 @@ def resolve_source(
             # without breaking image paths (#1663). Resolve it against the
             # CURRENT library root rather than the process CWD.
             if not p.is_absolute() and library_root is not None:
-                candidate = (Path(library_root).expanduser() / p)
-                if candidate.exists():
-                    return candidate
-            elif p.is_absolute() and p.exists():
-                return p
+                candidate = Path(library_root).expanduser() / p
+                if confined := confined_existing(candidate):
+                    return confined
+            elif p.is_absolute():
+                if confined := confined_existing(p):
+                    return confined
 
     # Check metadata fields
     if doc.metadata:
@@ -337,8 +350,10 @@ def resolve_source(
                     p = Path(path_str).expanduser()
                 except TypeError:
                     continue
-                if p.exists():
-                    return p
+                if not p.is_absolute() and library_root is not None:
+                    p = Path(library_root).expanduser() / p
+                if confined := confined_existing(p):
+                    return confined
 
     # Library-relative fallback: the library was renamed/moved, so the stored
     # absolute path (which bakes in the old package name) no longer exists, but
@@ -354,8 +369,8 @@ def resolve_source(
                 continue
             tail = str(path_str).split("/files/", 1)[1]
             p = root / "files" / tail
-            if p.exists():
-                return p
+            if confined := confined_existing(p):
+                return confined
 
     return None
 

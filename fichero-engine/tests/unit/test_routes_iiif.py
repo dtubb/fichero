@@ -51,3 +51,17 @@ class TestIIIFImageInfo:
         assert r.status_code == 200
         assert r.json()["width"] == 40
         assert r.json()["height"] == 20
+
+    def test_out_of_root_image_path_returns_404(self, client, db):
+        doc = Document(
+            id="doc-outside-img",
+            name="passwd",
+            doc_type=DocType.file,
+            file_type=FileType.image,
+            path="/etc/passwd",
+        )
+        db.save(doc)
+
+        r = client.get(f"{BASE}/{doc.id}/info.json")
+
+        assert r.status_code == 404

@@ -126,7 +126,7 @@ class TestResolveSource:
         doc.path = str(file)
         doc.metadata = {}
 
-        result = resolve_source(doc)
+        result = resolve_source(doc, library_root=tmp_path)
         assert result == file
 
     def test_path_missing_uses_metadata_fallback(self, tmp_path):
@@ -140,7 +140,7 @@ class TestResolveSource:
         doc.path = "/nonexistent/path.jpg"
         doc.metadata = {"source_path": str(file)}
 
-        result = resolve_source(doc)
+        result = resolve_source(doc, library_root=tmp_path)
         assert result == file
 
     def test_metadata_tilde_path_is_expanded(self, tmp_path, monkeypatch):
@@ -155,7 +155,7 @@ class TestResolveSource:
         doc.path = "/nonexistent/path.jpg"
         doc.metadata = {"source_path": "~/from-home.jpg"}
 
-        result = resolve_source(doc)
+        result = resolve_source(doc, library_root=tmp_path)
         assert result == file
 
     def test_returns_none_if_nothing_exists(self):
@@ -201,7 +201,7 @@ class TestResolveSource:
             "full_path": str(file),
         }
 
-        result = resolve_source(doc)
+        result = resolve_source(doc, library_root=tmp_path)
         assert result == file
 
     def test_library_relative_doc_path_resolves_under_current_library(self, tmp_path):
@@ -252,7 +252,7 @@ class TestResolveSource:
         doc.metadata = {"bookmark": "invalid_base64"}  # Invalid bookmark
 
         # Without valid bookmark, should fall back to path
-        result = resolve_source(doc)
+        result = resolve_source(doc, library_root=tmp_path)
         assert result == path_file
 
 
@@ -305,7 +305,8 @@ class TestThumbnailGeneration:
             pytest.skip("Pillow not installed")
 
         # Create source image
-        source = tmp_path / "source.jpg"
+        source = tmp_path / "files" / "source.jpg"
+        source.parent.mkdir(parents=True, exist_ok=True)
         img = Image.new("RGB", (500, 500), color="red")
         img.save(source)
 
@@ -349,7 +350,8 @@ class TestThumbnailGeneration:
         except ImportError:
             pytest.skip("Pillow not installed")
 
-        source = tmp_path / "source-large.jpg"
+        source = tmp_path / "files" / "source-large.jpg"
+        source.parent.mkdir(parents=True, exist_ok=True)
         img = Image.new("RGB", (2400, 1600), color="blue")
         img.save(source)
 
@@ -386,7 +388,8 @@ class TestThumbnailGeneration:
         except ImportError:
             pytest.skip("Pillow not installed")
 
-        source = tmp_path / "source-cache.jpg"
+        source = tmp_path / "files" / "source-cache.jpg"
+        source.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (800, 600), color="green").save(source)
 
         test_settings = StorageSettings(base_path=tmp_path)
@@ -444,7 +447,8 @@ class TestStorageRouteHeaders:
             pytest.skip("Pillow not installed")
 
         # Create source and existing thumbnail
-        source = tmp_path / "source.jpg"
+        source = tmp_path / "files" / "source.jpg"
+        source.parent.mkdir(parents=True, exist_ok=True)
         img = Image.new("RGB", (500, 500), color="red")
         img.save(source)
 

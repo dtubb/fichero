@@ -33,8 +33,14 @@ from fichero.models import (
     DocumentNote,
     RelatedDocumentListResponse,
 )
+from fichero.path_security import (
+    allowed_source_roots,
+    path_within_any_root,
+    validate_stored_document_path,
+)
 from fichero.perf import perf_span
 from fichero.storage import auto_snapshot_before_risky_operation
+from fichero.storage import settings as storage_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -1565,6 +1571,14 @@ async def cleanup_orphan_documents(
 
 def create_document_impl(db: Database, doc: "DocumentCreate") -> Document:
     """Create + persist a new document (validating the parent if specified)."""
+    try:
+        validate_stored_document_path(
+            doc.path,
+            Path(db.path).parent,
+            storage_base=storage_settings.base_path,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     new_doc = Document(
         name=doc.name,
         parent_id=doc.parent_id,
@@ -1608,6 +1622,15 @@ def update_document_impl(
     # the only fields that mutate are ones the client explicitly set to a
     # non-null value. (#774 + audit on 2026-05-03.)
     update_data = update.model_dump(exclude_unset=True, exclude_none=True)
+    if "path" in update_data:
+        try:
+            validate_stored_document_path(
+                update_data.get("path"),
+                Path(db.path).parent,
+                storage_base=storage_settings.base_path,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # parent_id is NEVER mutated by this endpoint even if the client sends
     # a non-null value — reparenting must go through the dedicated
@@ -2340,7 +2363,26 @@ def _invert_import_upload_to_delete(
 def _action_import_upload_file(
     db: Database, params: UploadFileImportParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    file_path = Path(params.path)
+    library_root = Path(ctx.library_path) if ctx.library_path else Path(db.path).parent
+    file_path = Path(params.path).expanduser()
+    if not file_path.is_absolute():
+        file_path = library_root / file_path
+    try:
+        file_path = file_path.resolve()
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail=f"File not found: {params.path}") from exc
+    if not path_within_any_root(
+        file_path,
+        allowed_source_roots(
+            library_root,
+            storage_base=None,
+            include_engine_temp=False,
+        ),
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Upload path must stay inside the library package",
+        )
     if not file_path.exists():
         raise HTTPException(status_code=400, detail=f"File not found: {params.path}")
     if not file_path.is_file():
