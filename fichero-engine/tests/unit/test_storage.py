@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import Mock
 import tempfile
 import os
+import subprocess
 
 
 class TestStorageSettings:
@@ -93,6 +94,22 @@ class TestPathHelpers:
         from fichero.storage import has_display
 
         assert has_display("nonexistent-id-12345") is False
+
+    def test_sips_conversion_timeout_is_logged(self, tmp_path, monkeypatch, caplog):
+        """#2137: thumbnail conversion failures should be debug-visible."""
+        from fichero.storage import _sips_convert
+
+        source = tmp_path / "bad.jpg"
+        source.write_bytes(b"not really a jpeg")
+
+        def timeout(*args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=args[0], timeout=30)
+
+        monkeypatch.setattr("subprocess.run", timeout)
+
+        caplog.set_level("DEBUG", logger="fichero.storage")
+        assert _sips_convert(source) is None
+        assert "sips thumbnail conversion timed out" in caplog.text
 
 
 class TestResolveSource:

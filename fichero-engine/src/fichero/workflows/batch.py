@@ -13,9 +13,11 @@ import asyncio
 import json
 import logging
 import uuid
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any, AsyncIterator, Optional
 
 import duckdb
@@ -25,6 +27,7 @@ from fichero.workflows.activity import get_activity_tracker
 from fichero.workflows.workflow_store import WorkflowStore
 
 logger = logging.getLogger(__name__)
+MAX_BATCH_CACHE_SIZE = 512
 
 
 class BatchStatus(str, Enum):
@@ -168,11 +171,17 @@ class BatchManager:
         """Initialize batch manager with database path."""
         self.db_path = db_path
         self.activity_tracker = get_activity_tracker(str(db_path))
-        self._batches: dict[str, BatchExecution] = {}
+        self._batches: OrderedDict[str, BatchExecution] = OrderedDict()
         self._semaphores: dict[str, asyncio.Semaphore] = {}
         self._cancel_events: dict[str, asyncio.Event] = {}
         self._pause_events: dict[str, asyncio.Event] = {}
         self._init_database()
+
+    def _remember_batch(self, batch: BatchExecution) -> None:
+        self._batches[batch.batch_id] = batch
+        self._batches.move_to_end(batch.batch_id)
+        while len(self._batches) > MAX_BATCH_CACHE_SIZE:
+            self._batches.popitem(last=False)
 
     def _init_database(self) -> None:
         """Initialize database tables for batch tracking."""
@@ -263,7 +272,7 @@ class BatchManager:
         )
 
         # Store in memory and database
-        self._batches[batch_id] = batch
+        self._remember_batch(batch)
         await self._save_batch(batch)
         self.activity_tracker.batch_created(
             batch_id=batch_id,
@@ -329,6 +338,7 @@ class BatchManager:
         """Get batch by ID."""
         # Check memory cache first
         if batch_id in self._batches:
+            self._batches.move_to_end(batch_id)
             return self._batches[batch_id]
 
         # Load from database
@@ -403,7 +413,7 @@ class BatchManager:
 
         batch = await asyncio.to_thread(_load)
         if batch:
-            self._batches[batch_id] = batch
+            self._remember_batch(batch)
         return batch
 
     async def list_batches(
@@ -540,7 +550,7 @@ class BatchManager:
                     config = {"configurable": {"thread_id": item.thread_id}}
                     initial_state = build_initial_state(
                         item.inputs,
-                        library_path=str(self.db_path.parent),
+                        library_path=str(Path(self.db_path).parent),
                         metadata={"batch_id": batch_id, "item_index": item.item_index},
                     )
 
@@ -571,7 +581,7 @@ class BatchManager:
                         run_doc_ids = collect_processed_document_ids(
                             getattr(snapshot, "values", None)
                         )
-                        item_db = db_manager.get_database(str(self.db_path.parent))
+                        item_db = db_manager.get_database(str(Path(self.db_path).parent))
                         complete_run_documents(
                             item_db,
                             run_doc_ids,

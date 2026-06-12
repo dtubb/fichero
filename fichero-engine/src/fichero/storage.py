@@ -645,13 +645,21 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
                         img.save(dest, "JPEG", quality=settings.quality)
                     logger.info(f"Generated thumbnail via sips fallback: {source.name}")
                     return dest
-                except Exception:
-                    pass
+                except Exception as fallback_exc:
+                    logger.debug(
+                        "sips fallback image open failed for %s: %s",
+                        source.name,
+                        fallback_exc,
+                    )
                 finally:
                     try:
                         converted.unlink(missing_ok=True)
-                    except Exception:
-                        pass
+                    except OSError as unlink_exc:
+                        logger.debug(
+                            "Failed to remove temporary sips conversion %s: %s",
+                            converted,
+                            unlink_exc,
+                        )
 
         logger.warning(
             f"Image generation failed for {source.name} ({source.suffix}): {e}"
@@ -735,8 +743,16 @@ def _sips_convert(source: Path) -> Path | None:
         )
         if result.returncode == 0 and tmp.exists():
             return tmp
-    except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
-        pass
+        logger.debug(
+            "sips thumbnail conversion failed for %s: returncode=%s stderr=%s",
+            source.name,
+            result.returncode,
+            result.stderr.decode("utf-8", errors="replace").strip(),
+        )
+    except FileNotFoundError as exc:
+        logger.debug("sips thumbnail conversion unavailable for %s: %s", source.name, exc)
+    except subprocess.TimeoutExpired as exc:
+        logger.debug("sips thumbnail conversion timed out for %s: %s", source.name, exc)
     return None
 
 

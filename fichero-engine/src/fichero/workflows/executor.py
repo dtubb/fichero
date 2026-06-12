@@ -545,40 +545,20 @@ class WorkflowExecutor:
                     if step.get("error"):
                         error = step["error"]
                         current_node = step.get("current_node", node_id)
-
-                        # Check if we should retry
                         retry_count = current_state["retry_counts"].get(current_node, 0)
-                        if retry_count < current_state["max_retries"]:
-                            await self._emit_event(
-                                ProgressEvent(
-                                    event_type=ProgressEventType.NODE_RETRY,
-                                    task_id=current_state["task_id"],
-                                    workflow_id=current_state["workflow_id"],
-                                    node_id=current_node,
-                                    message=f"Retrying node {current_node} (attempt {retry_count + 1})",
-                                    data={"retry_count": retry_count + 1},
-                                    namespace=namespace,
-                                )
+                        current_state["retry_counts"][current_node] = retry_count + 1
+                        await self._emit_event(
+                            ProgressEvent(
+                                event_type=ProgressEventType.NODE_FAILED,
+                                task_id=current_state["task_id"],
+                                workflow_id=current_state["workflow_id"],
+                                node_id=current_node,
+                                error=error,
+                                message=f"Node {current_node} failed after {retry_count} retries",
+                                namespace=namespace,
                             )
-                            current_state["retry_counts"][current_node] = (
-                                retry_count + 1
-                            )
-                            current_state["error"] = None
-                        else:
-                            await self._emit_event(
-                                ProgressEvent(
-                                    event_type=ProgressEventType.NODE_FAILED,
-                                    task_id=current_state["task_id"],
-                                    workflow_id=current_state["workflow_id"],
-                                    node_id=current_node,
-                                    error=error,
-                                    message=f"Node {current_node} failed after {retry_count} retries",
-                                    namespace=namespace,
-                                )
-                            )
-                            current_state["error"] = (
-                                f"Node {current_node} failed: {error}"
-                            )
+                        )
+                        current_state["error"] = f"Node {current_node} failed: {error}"
 
         return current_state
 
@@ -749,12 +729,9 @@ async def execute_workflow_with_progress(
     return final_state, sse_adapter.get_sse_stream()
 
 
-# =============================================================================
-# Backward Compatibility
-# =============================================================================
-
-# Alias for backward compatibility
-execute_workflow = execute_workflow_with_progress
+# Progress-stream API alias. Keep this name distinct from
+# builder.execute_workflow, which returns a result dict used by schedulers.
+execute_workflow_with_event_stream = execute_workflow_with_progress
 
 
 # =============================================================================

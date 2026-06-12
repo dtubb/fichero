@@ -176,6 +176,44 @@ class TestUpsertEntity:
         assert loaded is not None
         assert loaded.entity_type == EntityType.location
 
+    def test_race_recovery_repoints_claims_before_duplicate_delete(self, db):
+        """#2135: dedup must not leave claims pointing at deleted entity ids."""
+        from fichero.workflows.tools._entity_writer import (
+            _repoint_claim_entity_references,
+        )
+
+        survivor = KnowledgeEntity(
+            canonical_name="Maria Angel",
+            entity_type=EntityType.person,
+        )
+        duplicate = KnowledgeEntity(
+            canonical_name="Maria Angel",
+            entity_type=EntityType.person,
+        )
+        db.save(survivor)
+        db.save(duplicate)
+        claim = KnowledgeClaim(
+            text="Maria Angel testified.",
+            entity_ids=[duplicate.id],
+            subject_entity_id=duplicate.id,
+            speaker_entity_id=duplicate.id,
+        )
+        db.save(claim)
+
+        repointed = _repoint_claim_entity_references(
+            db,
+            duplicate_ids={duplicate.id},
+            survivor_id=survivor.id,
+        )
+        db.delete(duplicate)
+
+        loaded = db.get(KnowledgeClaim, claim.id)
+        assert repointed == [claim.id]
+        assert db.get(KnowledgeEntity, duplicate.id) is None
+        assert loaded.entity_ids == [survivor.id]
+        assert loaded.subject_entity_id == survivor.id
+        assert loaded.speaker_entity_id == survivor.id
+
 
 class TestFuzzyEntityMatch:
     """#897 — cross-page event extraction produces N near-duplicate

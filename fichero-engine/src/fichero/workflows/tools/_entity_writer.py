@@ -986,6 +986,54 @@ def _find_cross_source_canonical_claim(
     return None
 
 
+def _repoint_claim_entity_references(
+    db: Database,
+    *,
+    duplicate_ids: set[str],
+    survivor_id: str,
+) -> list[str]:
+    """Replace duplicate entity references in claims before deleting rows."""
+    if not duplicate_ids:
+        return []
+
+    scalar_fields = (
+        "subject_entity_id",
+        "speaker_entity_id",
+        "subject_of_inquiry_entity_id",
+        "scribe_entity_id",
+        "editor_entity_id",
+    )
+    repointed_claim_ids: list[str] = []
+
+    for claim in db.query(KnowledgeClaim):
+        changed = False
+
+        old_ids = claim.entity_ids or []
+        if any(entity_id in duplicate_ids for entity_id in old_ids):
+            new_ids = [
+                survivor_id if entity_id in duplicate_ids else entity_id
+                for entity_id in old_ids
+            ]
+            seen: set[str] = set()
+            claim.entity_ids = [
+                entity_id
+                for entity_id in new_ids
+                if not (entity_id in seen or seen.add(entity_id))
+            ]
+            changed = True
+
+        for field_name in scalar_fields:
+            if getattr(claim, field_name, None) in duplicate_ids:
+                setattr(claim, field_name, survivor_id)
+                changed = True
+
+        if changed:
+            db.save(claim)
+            repointed_claim_ids.append(claim.id)
+
+    return repointed_claim_ids
+
+
 def _support_key(
     support: SourceSupport,
 ) -> tuple[str, str | None, int | None, int | None]:
@@ -1404,6 +1452,12 @@ def upsert_entity(
     if len(siblings) > 1:
         siblings.sort(key=lambda e: e.created_at)
         survivor = siblings[0]
+        duplicate_ids = {dup.id for dup in siblings[1:]}
+        repointed_claim_ids = _repoint_claim_entity_references(
+            db,
+            duplicate_ids=duplicate_ids,
+            survivor_id=survivor.id,
+        )
         # Aliases-fold helper inline so it's local to the race path.
         seen_folded = {a.strip().casefold(): a.strip()
                        for a in (survivor.aliases or [])
@@ -1423,8 +1477,8 @@ def upsert_entity(
         db.save(survivor)
         logger.warning(
             "upsert_entity: race-recovery merged %d duplicate(s) of "
-            "%r → %s (#1121)",
-            len(siblings) - 1, canonical_name, survivor.id,
+            "%r → %s and repointed %d claim(s) (#1121)",
+            len(siblings) - 1, canonical_name, survivor.id, len(repointed_claim_ids),
         )
         # The caller wants the surviving id, not the one we just
         # created (which we just deleted above if we lost the race).
