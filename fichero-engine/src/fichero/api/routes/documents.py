@@ -286,10 +286,17 @@ def _filter_resolvable_documents(
     and media requests. If a child id no longer resolves, omit it from the
     list response so the client never gets an id that immediately 404s.
     """
+    if not docs:
+        return []
+
+    resolved = _filter_document_visibility(
+        db.query_in(Document, "id", [doc.id for doc in docs])
+    )
+    resolved_ids = {doc.id for doc in resolved}
     resolvable: list[Document] = []
     skipped_ids: list[str] = []
     for doc in docs:
-        if _get_document_row(db, doc.id) is None:
+        if doc.id not in resolved_ids:
             skipped_ids.append(doc.id)
             continue
         resolvable.append(doc)

@@ -225,14 +225,15 @@ class TestGetChildren:
         good_child = _make_doc(db, "Good Child", parent_id=parent.id)
         stale_child = _make_doc(db, "Stale Child", parent_id=parent.id)
 
-        real_get = Database.get
+        real_query_in = Database.query_in
 
-        def flaky_get(self, model, doc_id):
-            if model is Document and doc_id == stale_child.id:
-                return None
-            return real_get(self, model, doc_id)
+        def flaky_query_in(self, model, column, values):
+            rows = real_query_in(self, model, column, values)
+            if model is Document and column == "id":
+                return [row for row in rows if row.id != stale_child.id]
+            return rows
 
-        monkeypatch.setattr(Database, "get", flaky_get)
+        monkeypatch.setattr(Database, "query_in", flaky_query_in)
 
         r = client.get(f"/api/documents/{parent.id}/children")
 
@@ -240,6 +241,46 @@ class TestGetChildren:
         ids = [d["id"] for d in r.json()["items"]]
         assert good_child.id in ids
         assert stale_child.id not in ids
+
+    def test_parent_browse_batches_child_resolution(self, client, db, monkeypatch):
+        from fichero.db import Database
+
+        parent = _make_doc(db, "Parent")
+        first = _make_ordered_doc(db, "First", sort_order=0, parent_id=parent.id)
+        second = _make_ordered_doc(db, "Second", sort_order=1, parent_id=parent.id)
+        third = _make_ordered_doc(db, "Third", sort_order=2, parent_id=parent.id)
+        child_ids = {first.id, second.id, third.id}
+
+        real_get = Database.get
+        real_query_in = Database.query_in
+        child_gets: list[str] = []
+        query_in_calls: list[tuple[str, tuple[str, ...]]] = []
+
+        def counting_get(self, model, doc_id):
+            if model is Document and doc_id in child_ids:
+                child_gets.append(doc_id)
+            return real_get(self, model, doc_id)
+
+        def counting_query_in(self, model, column, values):
+            if model is Document and column == "id":
+                query_in_calls.append((column, tuple(values)))
+            return real_query_in(self, model, column, values)
+
+        monkeypatch.setattr(Database, "get", counting_get)
+        monkeypatch.setattr(Database, "query_in", counting_query_in)
+
+        r = client.get(f"/api/documents?parent_id={parent.id}")
+
+        assert r.status_code == 200
+        assert [item["name"] for item in r.json()["items"]] == [
+            "First",
+            "Second",
+            "Third",
+        ]
+        assert child_gets == []
+        assert len(query_in_calls) == 1
+        assert query_in_calls[0][0] == "id"
+        assert set(query_in_calls[0][1]) == child_ids
 
 
 # ---------------------------------------------------------------------------
