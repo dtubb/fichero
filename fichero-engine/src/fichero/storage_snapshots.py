@@ -182,13 +182,6 @@ def snapshot_library(
     db_path = library_path_p / "fichero.duckdb"
     if db_path.exists():
         try:
-            try:
-                checkpoint_conn = duckdb.connect(str(db_path))
-                checkpoint_conn.execute("CHECKPOINT")
-                checkpoint_conn.close()
-            except Exception as exc:
-                logger.warning("DuckDB checkpoint skipped before snapshot: %s", exc)
-
             duckdb_copy_path = duckdb_file_dir / "fichero.duckdb"
             shutil.copy2(db_path, duckdb_copy_path)
             duckdb_size = duckdb_copy_path.stat().st_size

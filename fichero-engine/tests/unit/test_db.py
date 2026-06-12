@@ -10,8 +10,13 @@ Tests the simple Pythonic interface for:
 import pytest
 import tempfile
 import shutil
+import threading
+import time
 from pathlib import Path
 
+import duckdb
+
+from fichero import db as db_module
 from fichero.models import (
     Document, Artifact, Workflow, Run, Trace, Note, Event,
     DocType, FileType, Status, RunStatus
@@ -53,6 +58,102 @@ class TestDatabaseBasics:
         expected = Path.home() / "Library/Application Support/Fichero/library.duckdb"
         assert db.path == expected
         db.close()
+
+
+class TestDatabaseConcurrencySafety:
+    """Regression coverage for two-writer data-layer hardening."""
+
+    def test_execute_retries_duckdb_write_conflict(self, temp_db, monkeypatch):
+        """DuckDB write conflicts are retried with bounded backoff."""
+
+        class ConflictThenSuccess:
+            def __init__(self):
+                self.calls = 0
+
+            def execute(self, sql, params=None):
+                self.calls += 1
+                if self.calls < 3:
+                    raise duckdb.TransactionException(
+                        "TransactionContext Error: Conflict on update!"
+                    )
+                return {"sql": sql, "params": params}
+
+        fake_conn = ConflictThenSuccess()
+        sleeps: list[float] = []
+        monkeypatch.setattr(temp_db, "conn", fake_conn)
+        monkeypatch.setattr(db_module.time, "sleep", sleeps.append)
+
+        result = temp_db._execute("UPDATE documents SET name = ? WHERE id = ?", ["b", "a"])
+
+        assert result == {
+            "sql": "UPDATE documents SET name = ? WHERE id = ?",
+            "params": ["b", "a"],
+        }
+        assert fake_conn.calls == 3
+        assert sleeps == [0.01, 0.02]
+
+    def test_execute_raises_clear_error_after_retry_bound(self, temp_db, monkeypatch):
+        """Unresolved write conflicts fail with an actionable message."""
+
+        class AlwaysConflict:
+            def __init__(self):
+                self.calls = 0
+
+            def execute(self, sql, params=None):
+                self.calls += 1
+                raise duckdb.TransactionException(
+                    "TransactionContext Error: Conflict on update!"
+                )
+
+        fake_conn = AlwaysConflict()
+        monkeypatch.setattr(temp_db, "conn", fake_conn)
+        monkeypatch.setattr(db_module.time, "sleep", lambda _delay: None)
+
+        with pytest.raises(RuntimeError, match="write conflict did not resolve"):
+            temp_db._execute("UPDATE documents SET name = 'blocked'")
+
+        assert fake_conn.calls == 4
+
+    def test_execute_does_not_swallow_non_conflict_duckdb_error(
+        self, temp_db, monkeypatch
+    ):
+        """Non-transient DuckDB errors still surface unchanged."""
+
+        class BrokenConn:
+            def __init__(self):
+                self.calls = 0
+
+            def execute(self, sql, params=None):
+                self.calls += 1
+                raise duckdb.Error("Parser Error: syntax error at or near nope")
+
+        fake_conn = BrokenConn()
+        monkeypatch.setattr(temp_db, "conn", fake_conn)
+
+        with pytest.raises(duckdb.Error, match="Parser Error"):
+            temp_db._execute("nope")
+
+        assert fake_conn.calls == 1
+
+    def test_connect_reports_actionable_library_lock_error(self, monkeypatch, tmp_path):
+        """Read-write lock failures should not leak a raw DuckDB stack."""
+
+        def locked_connect(_path):
+            raise duckdb.IOException(
+                "IO Error: Could not set lock on file "
+                f'"{tmp_path / "locked.duckdb"}": Conflicting lock is held'
+            )
+
+        db = object.__new__(Database)
+        db.path = tmp_path / "locked.duckdb"
+        monkeypatch.setattr(db_module.duckdb, "connect", locked_connect)
+
+        with pytest.raises(RuntimeError) as exc_info:
+            db._connect()
+
+        message = str(exc_info.value)
+        assert "Library already open by another Fichero engine process" in message
+        assert "Only one engine may hold a library read-write" in message
 
 
 class TestDocumentCRUD:
@@ -635,6 +736,97 @@ class TestLanceDB:
         """Test searching nonexistent table."""
         results = temp_db.search_vectors("nonexistent", [0.1, 0.2])
         assert results == []
+
+    def test_save_vectors_serializes_delete_add_mutations(self, temp_db):
+        """Concurrent LanceDB replace writes must not interleave delete/add."""
+
+        class FakeTable:
+            def __init__(self):
+                self.events: list[tuple[str, str]] = []
+
+            def delete(self, predicate: str) -> None:
+                key = predicate.split("'")[1]
+                self.events.append(("delete", key))
+                time.sleep(0.01)
+
+            def add(self, data: list[dict]) -> None:
+                key = data[0]["id"]
+                self.events.append(("add", key))
+                time.sleep(0.01)
+
+        class FakeLance:
+            def __init__(self, table: FakeTable):
+                self.table = table
+
+            def list_tables(self):
+                return ["embeddings"]
+
+            def open_table(self, _name: str):
+                return self.table
+
+        table = FakeTable()
+        temp_db._lance_db = FakeLance(table)
+        start = threading.Barrier(3)
+
+        def worker(key: str) -> None:
+            start.wait()
+            temp_db.save_vectors(
+                "embeddings",
+                [{"id": key, "text": key, "vector": [0.1, 0.2, 0.3]}],
+                replace=True,
+            )
+
+        threads = [
+            threading.Thread(target=worker, args=("a",)),
+            threading.Thread(target=worker, args=("b",)),
+        ]
+        for thread in threads:
+            thread.start()
+        start.wait()
+        for thread in threads:
+            thread.join()
+
+        assert table.events in (
+            [("delete", "a"), ("add", "a"), ("delete", "b"), ("add", "b")],
+            [("delete", "b"), ("add", "b"), ("delete", "a"), ("add", "a")],
+        )
+
+    def test_save_embedding_serializes_delete_add_sequence(self, temp_db, monkeypatch):
+        """save_embedding keeps its delete+add pair in one lock scope."""
+
+        events: list[tuple[str, str]] = []
+        start = threading.Barrier(3)
+
+        def fake_delete(_field: str, value: str) -> None:
+            events.append(("delete", value))
+            time.sleep(0.01)
+
+        def fake_save_vectors(_table_name: str, data: list[dict], **_kwargs) -> None:
+            events.append(("add", data[0]["document_id"]))
+            time.sleep(0.01)
+
+        monkeypatch.setattr(temp_db, "_delete_embedding_rows", fake_delete)
+        monkeypatch.setattr(temp_db, "save_vectors", fake_save_vectors)
+
+        def worker(doc_id: str) -> None:
+            start.wait()
+            doc = Document(id=doc_id, name=f"{doc_id}.txt", page_content="hello world")
+            temp_db.save_embedding(doc, [0.1, 0.2, 0.3])
+
+        threads = [
+            threading.Thread(target=worker, args=("doc-a",)),
+            threading.Thread(target=worker, args=("doc-b",)),
+        ]
+        for thread in threads:
+            thread.start()
+        start.wait()
+        for thread in threads:
+            thread.join()
+
+        assert events in (
+            [("delete", "doc-a"), ("add", "doc-a"), ("delete", "doc-b"), ("add", "doc-b")],
+            [("delete", "doc-b"), ("add", "doc-b"), ("delete", "doc-a"), ("add", "doc-a")],
+        )
 
 
 class TestProviderCRUD:

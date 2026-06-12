@@ -5,6 +5,10 @@ Simple Pythonic wrapper for DuckDB + LanceDB.
 - DuckDB: Documents, artifacts, workflows, runs
 - LanceDB: Vector search (embeddings)
 
+One process owns a library read-write. DuckDB's file lock is the enforcement
+boundary; opening the same library read-write from another Fichero engine
+process must fail clearly instead of surfacing a raw DuckDB lock stack.
+
 Usage:
     from fichero.db import db
     from fichero.models import Document, Artifact, Workflow, Run
@@ -71,6 +75,9 @@ DEFAULT_MODEL = "intfloat/multilingual-e5-large"
 
 # Valid identifier pattern for SQL column/table names
 _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+_DUCKDB_WRITE_CONFLICT_RETRIES = 3
+_DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS = 0.01
 
 
 def _collect_folder_descendants_helper(conn: duckdb.DuckDBPyConnection, folder_id: str) -> set[str]:
@@ -395,12 +402,40 @@ class Database(DatabaseEmbeddingMixin):
 
     def _connect(self) -> duckdb.DuckDBPyConnection:
         """Open a DuckDB connection for this library path."""
-        return duckdb.connect(str(self.path))
+        try:
+            return duckdb.connect(str(self.path))
+        except duckdb.Error as exc:
+            if self._is_lock_error(exc):
+                raise RuntimeError(
+                    "Library already open by another Fichero engine process. "
+                    "Only one engine may hold a library read-write. "
+                    f"Close the other process before opening {self.path}."
+                ) from exc
+            raise
 
     @staticmethod
     def _is_invalidated_error(exc: Exception) -> bool:
         message = str(exc).lower()
         return "database has been invalidated" in message
+
+    @staticmethod
+    def _is_write_conflict_error(exc: Exception) -> bool:
+        message = str(exc).lower()
+        return (
+            "transactioncontext error: conflict" in message
+            or "conflict on update" in message
+            or "transaction conflict" in message
+            or "could not serialize" in message
+        )
+
+    @staticmethod
+    def _is_lock_error(exc: Exception) -> bool:
+        message = str(exc).lower()
+        return (
+            "could not set lock on file" in message
+            or "database is locked" in message
+            or ("lock" in message and "duckdb" in message)
+        )
 
     def _reconnect_after_invalidated(self) -> None:
         """Replace a DuckDB connection poisoned by a prior FatalException."""
@@ -425,23 +460,39 @@ class Database(DatabaseEmbeddingMixin):
             )
 
     def _execute(self, sql: str, params: Any | None = None):
-        """Execute SQL, reopening once if DuckDB invalidated this connection."""
+        """Execute SQL, retrying bounded DuckDB transient write conflicts."""
         with self._lock:
-            try:
-                if params is None:
-                    return self.conn.execute(sql)
-                return self.conn.execute(sql, params)
-            except duckdb.Error as exc:
-                if not self._is_invalidated_error(exc):
-                    raise
-                logger.warning(
-                    "DuckDB connection for %s was invalidated; reopening and retrying",
-                    self.path,
-                )
-                self._reconnect_after_invalidated()
-                if params is None:
-                    return self.conn.execute(sql)
-                return self.conn.execute(sql, params)
+            for attempt in range(_DUCKDB_WRITE_CONFLICT_RETRIES + 1):
+                try:
+                    if params is None:
+                        return self.conn.execute(sql)
+                    return self.conn.execute(sql, params)
+                except duckdb.Error as exc:
+                    if self._is_invalidated_error(exc):
+                        logger.warning(
+                            "DuckDB connection for %s was invalidated; reopening and retrying",
+                            self.path,
+                        )
+                        self._reconnect_after_invalidated()
+                        continue
+                    if not self._is_write_conflict_error(exc):
+                        raise
+                    if attempt >= _DUCKDB_WRITE_CONFLICT_RETRIES:
+                        raise RuntimeError(
+                            "DuckDB write conflict did not resolve after "
+                            f"{_DUCKDB_WRITE_CONFLICT_RETRIES} retries for {self.path}. "
+                            "The library is receiving concurrent writes; retry the operation."
+                        ) from exc
+                    delay = _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS * (attempt + 1)
+                    logger.warning(
+                        "DuckDB write conflict for %s; retrying in %.3fs (%s/%s)",
+                        self.path,
+                        delay,
+                        attempt + 1,
+                        _DUCKDB_WRITE_CONFLICT_RETRIES,
+                    )
+                    time.sleep(delay)
+            raise RuntimeError("DuckDB execution retry loop exited unexpectedly")
 
     # =========================================================================
     # Core CRUD Operations
@@ -965,18 +1016,19 @@ class Database(DatabaseEmbeddingMixin):
         if not data:
             return
 
-        if table_name in self._lance_tables():
-            table = self.lance.open_table(table_name)
-            if replace:
-                for row in data:
-                    key = row.get(key_field)
-                    if key is None:
-                        continue
-                    safe_key = str(key).replace("'", "''")
-                    table.delete(f"{key_field} = '{safe_key}'")
-            table.add(data)
-        else:
-            self.lance.create_table(table_name, data)
+        with self._lock:
+            if table_name in self._lance_tables():
+                table = self.lance.open_table(table_name)
+                if replace:
+                    for row in data:
+                        key = row.get(key_field)
+                        if key is None:
+                            continue
+                        safe_key = str(key).replace("'", "''")
+                        table.delete(f"{key_field} = '{safe_key}'")
+                table.add(data)
+            else:
+                self.lance.create_table(table_name, data)
 
     def search_vectors(
         self, table_name: str, query_vector: list[float], limit: int = 10
@@ -995,11 +1047,12 @@ class Database(DatabaseEmbeddingMixin):
 
     def _delete_embedding_rows(self, field: str, value: str) -> None:
         """Delete embedding rows by a trusted field/value pair."""
-        if EMBEDDINGS_TABLE not in self._lance_tables():
-            return
-        safe_value = value.replace("'", "''") if value else ""
-        table = self.lance.open_table(EMBEDDINGS_TABLE)
-        table.delete(f"{field} = '{safe_value}'")
+        with self._lock:
+            if EMBEDDINGS_TABLE not in self._lance_tables():
+                return
+            safe_value = value.replace("'", "''") if value else ""
+            table = self.lance.open_table(EMBEDDINGS_TABLE)
+            table.delete(f"{field} = '{safe_value}'")
 
     def save_embedding(
         self, doc: BaseModel, vector: list[float], text: str | None = None
@@ -1050,16 +1103,18 @@ class Database(DatabaseEmbeddingMixin):
             "vector_scale": quantized_scale,
         }
 
-        self._delete_embedding_rows("document_id", doc.id)
-        self.save_vectors(EMBEDDINGS_TABLE, [record], replace=True)
+        with self._lock:
+            self._delete_embedding_rows("document_id", doc.id)
+            self.save_vectors(EMBEDDINGS_TABLE, [record], replace=True)
 
     def save_passage_embeddings(self, doc: BaseModel, *, text: str | None = None) -> int:
         """Save passage/chunk-level embeddings for a document."""
         records = self.passage_embedding_records(doc, text=text)
         if not records:
             return 0
-        self._delete_embedding_rows("document_id", doc.id)
-        self.save_vectors(EMBEDDINGS_TABLE, records)
+        with self._lock:
+            self._delete_embedding_rows("document_id", doc.id)
+            self.save_vectors(EMBEDDINGS_TABLE, records)
         return len(records)
 
     def search_similar(

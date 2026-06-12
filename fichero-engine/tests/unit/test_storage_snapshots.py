@@ -134,6 +134,34 @@ def test_snapshot_manifest_records_reason_paths_and_sizes(
     assert manifest["sizes"]["lance_size_bytes"] > 0
 
 
+def test_snapshot_export_uses_read_only_duckdb_connection(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Snapshot export must not open a second read-write DuckDB connection."""
+    _use_snapshot_state(monkeypatch, tmp_path)
+    library_path = tmp_path / "ReadOnlyExport.fichero"
+    _create_library_with_document(library_path)
+    real_connect = storage_snapshots.duckdb.connect
+    read_only_flags: list[bool] = []
+
+    def connect_spy(path, *args, **kwargs):
+        read_only = kwargs.get("read_only", False)
+        read_only_flags.append(read_only)
+        if not read_only:
+            raise AssertionError("snapshot opened DuckDB read-write")
+        return real_connect(path, *args, **kwargs)
+
+    monkeypatch.setattr(storage_snapshots.duckdb, "connect", connect_spy)
+
+    storage_snapshots.snapshot_library(
+        str(library_path),
+        reason="manual checkpoint",
+    )
+
+    assert read_only_flags == [True]
+
+
 def test_snapshot_copies_offsite_when_configured(
     tmp_path: Path,
     monkeypatch,
