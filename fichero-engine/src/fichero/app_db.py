@@ -202,6 +202,20 @@ class AppDatabase:
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
+        # Migration: app.duckdb persists across versions, so `CREATE TABLE IF NOT
+        # EXISTS` will NOT add a new column to a devices table created before
+        # expires_at existed (#2173). Add it idempotently and backfill existing
+        # paired devices with a finite TTL derived from their creation time so the
+        # NOT-NULL invariant of fresh schemas is preserved for migrated rows.
+        _device_cols = {
+            row[1] for row in self.conn.execute("PRAGMA table_info(devices)").fetchall()
+        }
+        if "expires_at" not in _device_cols:
+            self.conn.execute("ALTER TABLE devices ADD COLUMN expires_at TIMESTAMP")
+            self.conn.execute(
+                "UPDATE devices SET expires_at = created_at + INTERVAL 90 DAY "
+                "WHERE expires_at IS NULL"
+            )
 
         # Per-library ACL tables (global identity scope, not per-library DB).
         self.conn.execute("""
