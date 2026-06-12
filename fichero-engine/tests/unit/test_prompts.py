@@ -7,10 +7,12 @@ from pathlib import Path
 import pytest
 
 from fichero.prompts import (
+    INSTRUMENT_SYSTEM_PROMPT,
     Prompt,
     PromptMetadata,
     PromptNotFound,
     _parse_prompt_file,
+    compose_system_prompt,
     get_prompt,
     list_versions,
     load_prompt,
@@ -199,3 +201,26 @@ class TestShippedPrompts:
         assert "Spanish" in out
         assert "expert archivist" in out
         assert "[ilegible]" in out
+
+
+class TestInstrumentSystemPrompt:
+    def test_core_doctrine_contains_non_negotiables(self):
+        lowered = INSTRUMENT_SYSTEM_PROMPT.lower()
+        assert "never pretend to be human" in lowered
+        assert "do not interpret the sources for the user" in lowered
+        assert "do not flatter, mirror, or manipulate the user" in lowered
+        assert "quote or cite source fragments with provenance or anchors" in lowered
+        assert "local-first and private" in lowered
+
+    def test_role_prompt_includes_core_doctrine(self):
+        prompt = compose_system_prompt(role="research")
+        assert INSTRUMENT_SYSTEM_PROMPT in prompt
+        assert "source discovery" in prompt
+
+    def test_extra_instructions_are_composed_not_dropped(self):
+        prompt = compose_system_prompt(
+            role="agent",
+            extra="Use the archive search tool before answering.",
+        )
+        assert INSTRUMENT_SYSTEM_PROMPT in prompt
+        assert "Use the archive search tool before answering." in prompt

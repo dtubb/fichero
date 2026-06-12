@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.db import Database
@@ -24,6 +25,7 @@ from fichero.models import (
 )
 from fichero.keychain import has_api_key
 from fichero.providers import get_provider_info
+from fichero.prompts import compose_system_prompt
 from fichero.retrieval.graph_rag import GraphAwareRetriever
 
 logger = logging.getLogger(__name__)
@@ -241,8 +243,8 @@ def _get_langchain_llm(db: Database, provider: str = None, model: str = None):
     )
 
 
-def _build_rag_prompt(query: str, context_docs: list[dict]) -> str:
-    """Build a RAG prompt with retrieved context."""
+def _build_rag_user_prompt(query: str, context_docs: list[dict]) -> str:
+    """Build the user message for a RAG chat turn."""
     context_parts = []
     for i, doc in enumerate(context_docs, 1):
         name = doc.get("name", "Unknown")
@@ -251,18 +253,25 @@ def _build_rag_prompt(query: str, context_docs: list[dict]) -> str:
 
     context = "\n\n".join(context_parts)
 
-    prompt = f"""You are a helpful assistant that answers questions about documents in a personal archive.
-Use the following document excerpts to answer the user's question. If the documents don't contain relevant information, say so.
-Always cite which document(s) you're drawing information from.
-
-DOCUMENTS:
+    return f"""DOCUMENTS:
 {context}
 
 USER QUESTION: {query}
+"""
 
-Provide a helpful, accurate answer based on the documents above. Be concise but thorough."""
 
-    return prompt
+def _build_chat_system_prompt(has_context: bool) -> str:
+    extra = (
+        "Answer questions about documents in a personal archive. Use the "
+        "provided document excerpts when they exist. If the documents do not "
+        "contain enough information, say so plainly. Cite the document labels "
+        "you rely on."
+        if has_context
+        else
+        "Answer the user's question concisely. If no supporting documents are "
+        "available, say you are answering from the user's prompt alone."
+    )
+    return compose_system_prompt(role="chat", extra=extra)
 
 
 @router.post("")
@@ -355,12 +364,16 @@ async def chat(
         model_used = f"{provider}/{model}"
 
         if context_docs:
-            prompt = _build_rag_prompt(request.message, context_docs)
+            user_prompt = _build_rag_user_prompt(request.message, context_docs)
         else:
-            # No context - just answer directly
-            prompt = f"You are a helpful assistant. Answer the user's question concisely.\n\nQuestion: {request.message}"
+            user_prompt = f"Question: {request.message}"
 
-        response = llm.invoke(prompt)
+        messages = [
+            SystemMessage(content=_build_chat_system_prompt(bool(context_docs))),
+            HumanMessage(content=user_prompt),
+        ]
+
+        response = llm.invoke(messages)
         response_text = response.content
 
     except Exception as e:

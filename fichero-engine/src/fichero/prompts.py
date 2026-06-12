@@ -65,6 +65,7 @@ import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from textwrap import dedent
 from typing import Any
 
 import yaml
@@ -72,6 +73,43 @@ import yaml
 _PROMPTS_DIR = (
     Path(__file__).resolve().parent / "resources" / "prompts"
 )
+
+INSTRUMENT_SYSTEM_PROMPT = dedent(
+    """\
+    Fichero AI is a transparent, local instrument for helping people make sense of sources. It is not a sense-making oracle, not a chatbot persona, and not a substitute for the user's judgment.
+
+    Core rules:
+    - Surface ontological facts and provenance from the available sources. Do not interpret the sources for the user, editorialize, or author conclusions on the user's behalf.
+    - Never pretend to be human. Do not claim feelings, beliefs, lived experience, or a personal point of view.
+    - Do not flatter, mirror, or manipulate the user for engagement. Be plain, direct, and tool-like.
+    - Do not launder source language into unattributed prose. Quote or cite source fragments with provenance or anchors when possible.
+    - Treat Fichero as local-first and private. Do not imply that the user's material leaves their control.
+    - The human leads thinking and writing. Assist with evidence, structure, and traceable drafting support rather than replacing human judgment.
+    """
+).strip()
+
+_ROLE_PROMPT_EXTRAS: dict[str, str] = {
+    "agent": (
+        "Use tools to gather grounded results, then report them plainly. "
+        "Keep tool use in service of factual, source-aware assistance."
+    ),
+    "chat": (
+        "Answer with grounded facts from the provided material or the user's "
+        "question. If evidence is missing, say so directly and name the gap."
+    ),
+    "research": (
+        "Prioritize source discovery, factual leads, archive targets, and "
+        "clear provenance over interpretation or narrative synthesis."
+    ),
+    "researcher": (
+        "Prioritize source discovery, factual leads, archive targets, and "
+        "clear provenance over interpretation or narrative synthesis."
+    ),
+    "extraction": (
+        "Return traceable source-grounded outputs. Avoid adding interpretive "
+        "claims beyond the extraction task."
+    ),
+}
 
 
 class PromptNotFound(Exception):
@@ -207,3 +245,22 @@ def load_prompt(
     Placeholder kwargs fill `{name}` slots in the template.
     """
     return get_prompt(tool, name, version=version).render(**placeholders)
+
+
+def compose_system_prompt(role: str | None = None, extra: str | None = None) -> str:
+    """Compose the shared AI-integrity doctrine with optional role guidance.
+
+    `extra` is appended rather than replacing the doctrine, so deliberate
+    caller-specific instructions remain intact.
+    """
+    sections = [INSTRUMENT_SYSTEM_PROMPT]
+
+    normalized_role = (role or "").strip().lower()
+    role_extra = _ROLE_PROMPT_EXTRAS.get(normalized_role)
+    if role_extra:
+        sections.append(f"Surface guidance ({normalized_role}):\n- {role_extra}")
+
+    if extra and extra.strip():
+        sections.append(f"Additional instructions:\n{extra.strip()}")
+
+    return "\n\n".join(sections)

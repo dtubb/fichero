@@ -5,6 +5,8 @@ is out of scope here — tests focus on conversation CRUD (list, get, update,
 delete, reorder) and the providers list. Chat routes live at /api/chat/...
 """
 
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from fichero.models import Conversation, Document
 
 
@@ -19,10 +21,10 @@ def _make_conv(conv_id: str = "conv-1", title: str = "My Chat") -> Conversation:
 
 class _FakeLLM:
     def __init__(self):
-        self.prompt = ""
+        self.messages = []
 
-    def invoke(self, prompt: str):
-        self.prompt = prompt
+    def invoke(self, messages):
+        self.messages = messages
 
         class _Response:
             content = "Ada Lovelace appears in the archive."
@@ -107,7 +109,12 @@ class TestChatWithSources:
         assert data["kg_entities_used"] == 0
         assert data["document_count"] == 1
         assert data["context_count"] == 1
-        assert "[Document 1: Lovelace notes]" in fake_llm.prompt
+        assert len(fake_llm.messages) == 2
+        assert isinstance(fake_llm.messages[0], SystemMessage)
+        assert isinstance(fake_llm.messages[1], HumanMessage)
+        assert "[Document 1: Lovelace notes]" in fake_llm.messages[1].content
+        assert "transparent, local instrument" in fake_llm.messages[0].content
+        assert "Never pretend to be human" in fake_llm.messages[0].content
         assert db.get(Conversation, data["conversation_id"]) is not None
 
     def test_chat_passes_graph_knobs_to_retriever(self, client, monkeypatch):
