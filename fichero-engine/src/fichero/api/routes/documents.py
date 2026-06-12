@@ -34,7 +34,7 @@ from fichero.models import (
     RelatedDocumentListResponse,
 )
 from fichero.perf import perf_span
-from fichero.storage import auto_snapshot_before_risky_operation
+from fichero.storage import _path_within, auto_snapshot_before_risky_operation
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -1563,8 +1563,39 @@ async def cleanup_orphan_documents(
 # =============================================================================
 
 
+def _library_root_from_db(db: Database) -> Path:
+    return Path(db.path).parent
+
+
+def _path_has_parent_traversal(path: Path) -> bool:
+    return ".." in path.parts
+
+
+def _validate_document_path(value: str | None, library_root: Path) -> None:
+    if not value:
+        return
+    try:
+        path = Path(value).expanduser()
+    except TypeError:
+        raise HTTPException(status_code=400, detail="Invalid document path") from None
+
+    if path.is_absolute():
+        candidate = path
+    elif _path_has_parent_traversal(path):
+        candidate = library_root / path
+    else:
+        return
+
+    if not _path_within(library_root, candidate):
+        raise HTTPException(
+            status_code=400,
+            detail="Document path must resolve inside the library package",
+        )
+
+
 def create_document_impl(db: Database, doc: "DocumentCreate") -> Document:
     """Create + persist a new document (validating the parent if specified)."""
+    _validate_document_path(doc.path, _library_root_from_db(db))
     new_doc = Document(
         name=doc.name,
         parent_id=doc.parent_id,
@@ -1608,6 +1639,8 @@ def update_document_impl(
     # the only fields that mutate are ones the client explicitly set to a
     # non-null value. (#774 + audit on 2026-05-03.)
     update_data = update.model_dump(exclude_unset=True, exclude_none=True)
+    if "path" in update_data:
+        _validate_document_path(update_data["path"], _library_root_from_db(db))
 
     # parent_id is NEVER mutated by this endpoint even if the client sends
     # a non-null value — reparenting must go through the dedicated
@@ -2340,7 +2373,14 @@ def _invert_import_upload_to_delete(
 def _action_import_upload_file(
     db: Database, params: UploadFileImportParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    file_path = Path(params.path)
+    library_root = _library_root_from_db(db)
+    file_path = Path(params.path).expanduser()
+    if not _path_within(library_root, file_path):
+        raise HTTPException(
+            status_code=400,
+            detail="Import path must resolve inside the library package",
+        )
+    file_path = file_path.resolve()
     if not file_path.exists():
         raise HTTPException(status_code=400, detail=f"File not found: {params.path}")
     if not file_path.is_file():

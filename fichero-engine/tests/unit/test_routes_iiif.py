@@ -7,6 +7,7 @@ pattern: actual paths are at /api/iiif/iiif/...
 
 from PIL import Image
 
+from fichero.api.routes.iiif import _get_image_path
 from fichero.models import Document, DocType, FileType
 
 
@@ -51,3 +52,19 @@ class TestIIIFImageInfo:
         assert r.status_code == 200
         assert r.json()["width"] == 40
         assert r.json()["height"] == 20
+
+    def test_get_image_path_refuses_out_of_root_path(self, tmp_path):
+        library_root = tmp_path / "test.fichero"
+        library_root.mkdir()
+        outside = tmp_path / "outside.jpg"
+        Image.new("RGB", (10, 10), "white").save(outside, format="JPEG")
+        doc = Document(
+            id="doc-outside-img",
+            name="outside.jpg",
+            doc_type=DocType.file,
+            file_type=FileType.image,
+            path=str(outside),
+            metadata={},
+        )
+
+        assert _get_image_path(doc, library_root=library_root) is None

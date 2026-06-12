@@ -21,7 +21,7 @@ from uuid import uuid4
 
 import duckdb
 
-from fichero.storage import settings  # settings from core storage module
+from fichero.storage import _path_within, settings  # settings from core storage module
 
 if TYPE_CHECKING:
     from fichero.models import LibrarySnapshot
@@ -29,6 +29,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_RETAINED_SNAPSHOTS = 10
+
+
+def _snapshot_member_path(recorded_path: str, *, field_name: str) -> Path:
+    try:
+        candidate = (settings.snapshots_dir / Path(recorded_path)).resolve()
+    except (OSError, RuntimeError):
+        raise ValueError(f"Invalid snapshot {field_name}: {recorded_path}") from None
+    if not _path_within(settings.snapshots_dir, candidate):
+        raise ValueError(
+            f"Snapshot {field_name} must resolve inside snapshots directory"
+        )
+    return candidate
 
 
 def _file_size(path: Path) -> int:
@@ -376,9 +388,9 @@ def restore_snapshot(snapshot_id: str) -> dict:
     except Exception as exc:
         logger.warning("Could not close database before restore: %s", exc)
 
-    db_src_dir = settings.snapshots_dir / snapshot.duckdb_path
+    db_src_dir = _snapshot_member_path(snapshot.duckdb_path, field_name="duckdb_path")
     db_src = db_src_dir / "fichero.duckdb" if db_src_dir.is_dir() else db_src_dir
-    lance_src = settings.snapshots_dir / snapshot.lance_path
+    lance_src = _snapshot_member_path(snapshot.lance_path, field_name="lance_path")
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     current_db_path = lib_path / "fichero.duckdb"

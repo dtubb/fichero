@@ -317,18 +317,23 @@ def document_payload(
 ) -> dict[str, Any]:
     """Build a ``POST /api/documents`` body for a manifest node.
 
-    Images are *referenced*: ``path`` points at the chosen rendition's
-    existing ``source_path`` on disk. The full ``images[]`` list (every role +
-    source path) is preserved under metadata so renditions survive the round
-    trip without any file being copied.
+    Images are referenced as metadata in link mode. ``Document.path`` is only
+    populated for relative/local paths; external absolute source paths remain
+    provenance metadata and are not later served by storage endpoints.
     """
     image = preferred_image(node)
     metadata = _canonical_metadata(node)
+    source_path = image.get("source_path") if image else metadata.get("source_assets")
+    path = None
+    if source_path:
+        candidate = Path(str(source_path)).expanduser()
+        if not candidate.is_absolute():
+            path = str(source_path)
     payload: dict[str, Any] = {
         "name": node.get("name") or node.get("external_id"),
         "parent_id": parent_id,
         "doc_type": _NODE_TYPE_TO_DOC_TYPE[node["node_type"]],
-        "path": image.get("source_path") if image else metadata.get("source_assets"),
+        "path": path,
         "page_content": node.get("text"),
         "metadata": metadata,
     }

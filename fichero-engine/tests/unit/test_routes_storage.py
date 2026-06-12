@@ -47,6 +47,77 @@ class TestThumbnailRoute:
         assert r.status_code == 404
 
 
+class TestSourceRouteConfinement:
+    def test_source_route_refuses_etc_passwd_doc_path(self, client, db):
+        if not Path("/etc/passwd").exists():
+            pytest.skip("/etc/passwd is not present on this platform")
+        doc = Document(
+            id="doc-etc-passwd-path",
+            name="passwd",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            path="/etc/passwd",
+            metadata={},
+        )
+        db.save(doc)
+
+        response = client.get(f"/api/storage/source/{doc.id}")
+
+        assert response.status_code == 404
+
+    def test_source_route_refuses_etc_passwd_metadata_path(self, client, db):
+        if not Path("/etc/passwd").exists():
+            pytest.skip("/etc/passwd is not present on this platform")
+        doc = Document(
+            id="doc-etc-passwd-metadata",
+            name="passwd",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            path=None,
+            metadata={"source_path": "/etc/passwd"},
+        )
+        db.save(doc)
+
+        response = client.get(f"/api/storage/source/{doc.id}")
+
+        assert response.status_code == 404
+
+    def test_source_route_serves_relative_and_absolute_in_library_paths(
+        self, client, db, test_package
+    ):
+        rel_source = test_package / "files" / "sr" / "relative.txt"
+        abs_source = test_package / "files" / "sr" / "absolute.txt"
+        rel_source.parent.mkdir(parents=True, exist_ok=True)
+        rel_source.write_text("relative source")
+        abs_source.write_text("absolute source")
+        rel_doc = Document(
+            id="doc-relative-source",
+            name="relative.txt",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            path=str(rel_source.relative_to(test_package)),
+            metadata={},
+        )
+        abs_doc = Document(
+            id="doc-absolute-source",
+            name="absolute.txt",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            path=str(abs_source),
+            metadata={},
+        )
+        db.save(rel_doc)
+        db.save(abs_doc)
+
+        rel_response = client.get(f"/api/storage/source/{rel_doc.id}")
+        abs_response = client.get(f"/api/storage/source/{abs_doc.id}")
+
+        assert rel_response.status_code == 200
+        assert rel_response.text == "relative source"
+        assert abs_response.status_code == 200
+        assert abs_response.text == "absolute source"
+
+
 class TestPdfStorageRoutes:
     @pytest.mark.parametrize(
         ("endpoint_template", "expected_content_type_prefix"),

@@ -84,6 +84,26 @@ def test_snapshot_restore_round_trips_database_rows_and_embeddings(
     assert result["lance_restored_path"] == str(library_path / "vectors")
 
 
+@pytest.mark.parametrize("poisoned_path", ["/etc/passwd", "../escape"])
+def test_snapshot_restore_rejects_duckdb_path_outside_snapshots_dir(
+    tmp_path: Path,
+    monkeypatch,
+    poisoned_path: str,
+) -> None:
+    _use_snapshot_state(monkeypatch, tmp_path)
+    library_path = tmp_path / "Poisoned.fichero"
+    _create_library_with_document(library_path)
+    snapshot = storage_snapshots.snapshot_library(
+        str(library_path),
+        reason="before poison",
+    )
+    poisoned = snapshot.model_copy(update={"duckdb_path": poisoned_path})
+    storage_snapshots._save_snapshot_record(poisoned)
+
+    with pytest.raises(ValueError, match="duckdb_path"):
+        storage_snapshots.restore_snapshot(snapshot.id)
+
+
 def test_snapshot_retention_keeps_last_n_snapshots(
     tmp_path: Path,
     monkeypatch,

@@ -194,9 +194,8 @@ def test_import_creates_documents_entities_claims(client, db, tmp_path):
     page = by_name["page_001"]
     # Parent wiring: page -> group.
     assert page["parent_id"] == by_name["Tiny Corpus"]["id"]
-    # Image is referenced (path points at the existing source file), not copied.
-    assert page["path"] == str(tmp_path / "page_001_enhanced.jpg")
-    assert Path(page["path"]).exists()
+    # External absolute sources stay in metadata provenance, not Document.path.
+    assert page["path"] is None
     # Renditions preserved in metadata.
     assert page["metadata"]["canonical_external_id"] == "tiny_corpus__page_001"
     assert page["metadata"]["images"][0]["role"] == "enhanced"
@@ -330,10 +329,8 @@ def test_copy_images_triggers_ingest_copy_and_keeps_page_content(tmp_path):
 
 
 def test_link_mode_references_source_and_warms_local_preview(tmp_path):
-    """Default (link) keeps the original reference behaviour — POST /documents
-    with path pointing at the on-disk source, no ingest copy, path NOT rewritten
-    to local — BUT still warms a LOCAL preview cache so the app never reaches
-    over the network to render a thumbnail/display."""
+    """Default (link) keeps the source as metadata provenance, no ingest copy,
+    no local rewrite, and still attempts to warm local preview caches."""
     from fichero.manifest_import import import_manifest
 
     manifest = _fixture_manifest(tmp_path)
@@ -347,9 +344,8 @@ def test_link_mode_references_source_and_warms_local_preview(tmp_path):
     page_post = next(
         c for c in rec.calls if c[1] == "/documents" and c[2]["name"] == "page_001"
     )
-    # The active path stays the (possibly remote) source — link does NOT
-    # rewrite to local.
-    assert page_post[2]["path"] == str(tmp_path / "page_001_enhanced.jpg")
+    # The external source is not stored as the active path.
+    assert page_post[2]["path"] is None
     assert page_post[2]["metadata"]["images"][0]["source_path"] == str(
         tmp_path / "page_001_enhanced.jpg"
     )

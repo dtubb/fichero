@@ -25,6 +25,8 @@ import time.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -153,6 +155,32 @@ class TestDocumentCreateAction:
             )
         assert exc.value.status_code == 400
 
+    def test_create_rejects_absolute_path_outside_library(self, db):
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db,
+                "document.create",
+                {"name": "passwd", "path": "/etc/passwd"},
+                _ctx(),
+            )
+        assert exc.value.status_code == 400
+
+    def test_create_allows_absolute_path_under_library(self, db):
+        library_root = Path(db.path).parent
+        source = library_root / "files" / "dc" / "scan.jpg"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(b"jpg")
+
+        result = registry.invoke(
+            db,
+            "document.create",
+            {"name": "scan.jpg", "path": str(source)},
+            _ctx(),
+        )
+
+        persisted = db.get(Document, result.result["id"])
+        assert persisted.path == str(source)
+
 
 # ===========================================================================
 # document.update
@@ -220,6 +248,17 @@ class TestDocumentUpdateAction:
                 {"doc_id": doc.id, "update": {"doc_type": "banana"}},
                 _ctx(),
             )
+
+    def test_update_rejects_parent_traversal_outside_library(self, db):
+        doc = _save_doc(db, name="d")
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db,
+                "document.update",
+                {"doc_id": doc.id, "update": {"path": "../secret.txt"}},
+                _ctx(),
+            )
+        assert exc.value.status_code == 400
 
 
 # ===========================================================================

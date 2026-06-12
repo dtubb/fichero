@@ -19,7 +19,7 @@ from PIL import Image
 from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.models import Document, FileType
-from fichero.storage import get_display, get_thumbnail, resolve_source
+from fichero.storage import _path_within, get_display, get_thumbnail, resolve_source
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/iiif", tags=["iiif"])
@@ -101,11 +101,17 @@ def _get_image_path(
     if doc.file_type not in (FileType.image, FileType.pdf) and not doc.path:
         return None
 
-    return (
+    image_path = (
         get_display(doc, package_path=library_root)
         or get_thumbnail(doc, package_path=library_root)
         or resolve_source(doc, library_root=library_root)
     )
+    if image_path is None:
+        return None
+    if library_root is not None and not _path_within(library_root, image_path):
+        logger.warning("Refusing IIIF image path outside library root: %s", image_path)
+        return None
+    return image_path
 
 
 def _get_image_dimensions(image_path: Path) -> tuple[int, int]:
