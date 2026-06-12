@@ -25,6 +25,25 @@ from fichero.retrieval.graph_rag import GraphAwareRetriever
 logger = logging.getLogger(__name__)
 
 
+def _resolve_abs_path(file_doc: "Document", library_root: "str | None") -> str:
+    """Resolve a document's stored path to an absolute on-disk path for downstream
+    file tools (vision/transcribe/audio).
+
+    Stored paths are library-relative (``files/fi/<hash>_<name>.pdf``) for COPY
+    ingests so the bundle can be moved/renamed (#1663). Downstream tools open the
+    path directly, which fails when the engine CWD isn't the library root (#2183).
+    ``resolve_source`` resolves bookmark (survives moves) → absolute → library-
+    relative, confined to allowed roots via path_security. Falls back to the raw
+    stored path when it can't resolve, so behaviour is never worse than before:
+    a legitimate LINK-ingest file outside the library returns its raw absolute
+    path (confinement rejects it, so resolve_source returns None → fallback).
+    """
+    from fichero.storage import resolve_source
+
+    resolved = resolve_source(file_doc, library_root=library_root)
+    return str(resolved) if resolved else (file_doc.path or "")
+
+
 def _resolve_page_to_parent(doc: "Document", db) -> "Document | None":
     """Resolve a page document to its parent file, preserving page context.
 
@@ -152,6 +171,15 @@ async def files_tool(
             docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
             docs = [d for d in docs if d is not None]
 
+            # Stored paths are library-relative (e.g. "files/fi/<hash>_<name>.pdf")
+            # for COPY ingests, so the bundle can be renamed/moved (#1663). Downstream
+            # tools (vision/transcribe) open these paths directly, which fails when
+            # the engine CWD isn't the library root. Resolve each file to its absolute,
+            # confined on-disk path via the canonical resolver; fall back to the raw
+            # path if it can't resolve so behaviour is never worse than before.
+            def _abs(file_doc: "Document") -> str:
+                return _resolve_abs_path(file_doc, library_path)
+
             # Per-page fan-out (#891). We emit one (file_path, document)
             # entry per ATOMIC UNIT of work:
             # - Folder → recursively expand to file descendants
@@ -195,8 +223,9 @@ async def files_tool(
                 if not page_children:
                     return False
                 ordered = sorted(page_children, key=lambda p: p.sequence or 0)
+                abs_path = _abs(file_doc)  # resolve the parent file once, not per page
                 for page in ordered:
-                    _add(file_doc.path, page)
+                    _add(abs_path, page)
                 return True
 
             def _expand_folder(folder: Document) -> None:
@@ -206,7 +235,7 @@ async def files_tool(
                     if child.doc_type == DocType.folder:
                         _expand_folder(child)
                     elif child.path and not _expand_to_pages(child):
-                        _add(child.path, child)
+                        _add(_abs(child), child)
 
             for doc in docs:
                 if doc.doc_type == DocType.folder:
@@ -216,13 +245,13 @@ async def files_tool(
                     )
                 elif doc.path:
                     if not _expand_to_pages(doc):
-                        _add(doc.path, doc)
+                        _add(_abs(doc), doc)
                 elif doc.parent_id:
                     # Page selected directly — emit just this page,
                     # using the parent's path as the file pointer.
                     resolved_parent = _resolve_page_to_parent(doc, db)
                     if resolved_parent is not None and resolved_parent.path:
-                        _add(resolved_parent.path, doc)
+                        _add(_abs(resolved_parent), doc)
                 else:
                     logger.warning(
                         f"files_tool: doc {doc.id} type={doc.doc_type} "
@@ -408,11 +437,13 @@ async def collection_tool(
             resolved: dict[str, Document] = {}
             for doc in docs:
                 if doc.path:
-                    resolved[doc.path] = doc
+                    resolved[_resolve_abs_path(doc, library_path)] = doc
                 elif doc.parent_id:
                     resolved_parent = _resolve_page_to_parent(doc, db)
                     if resolved_parent is not None and resolved_parent.path:
-                        resolved[resolved_parent.path] = resolved_parent
+                        resolved[_resolve_abs_path(resolved_parent, library_path)] = (
+                            resolved_parent
+                        )
             files = list(resolved.keys())
             documents = [d.model_dump() for d in resolved.values()]
             logger.info(
@@ -449,8 +480,10 @@ async def collection_tool(
             limit=limit,
         )
 
-        # Extract file paths and document data
-        file_paths = [doc.path for doc in files if doc.path]
+        # Extract file paths and document data (resolve library-relative → absolute)
+        file_paths = [
+            _resolve_abs_path(doc, library_path) for doc in files if doc.path
+        ]
         doc_data = [doc.model_dump() for doc in files]
 
         logger.info(f"Collection {collection_id}: found {len(files)} files")
@@ -774,7 +807,7 @@ async def search_tool(
                 if collection_id and not _is_descendant_of(db, doc, collection_id):
                     continue
                 if doc.path:
-                    files.append(doc.path)
+                    files.append(_resolve_abs_path(doc, library_path))
                 doc_dict = doc.model_dump()
                 doc_dict["search_score"] = item.get("search_score")
                 doc_dict["highlights"] = None
