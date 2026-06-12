@@ -8,7 +8,13 @@ import threading
 import pytest
 from pydantic import BaseModel
 
-from fichero.actions.audit_chain import compute_action_audit_hash, verify_audit_chain
+from fichero.actions.audit_chain import (
+    _audit_chain_key_file_path,
+    _compute_legacy_action_audit_hash,
+    _load_chain_anchor,
+    compute_action_audit_hash,
+    verify_audit_chain,
+)
 from fichero.actions.registry import (
     ActionContext,
     ActionRegistration,
@@ -105,7 +111,7 @@ def _seed_audit(
         chain_seq=chain_seq,
         prev_hash=prev_hash,
     )
-    audit.row_hash = compute_action_audit_hash(audit)
+    audit.row_hash = _compute_legacy_action_audit_hash(audit)
     db.save(audit)
     return audit
 
@@ -117,10 +123,19 @@ def test_appended_actions_verify_and_link_contiguously(db, chain_actions):
     result = verify_audit_chain(db)
     assert result.ok is True
     assert result.checked == 3
+    assert result.status == "ok"
+    assert result.hmac_rows == 3
+    assert result.legacy_rows == 0
+    assert result.anchored is True
+
+    anchor = _load_chain_anchor(db)
+    assert anchor is not None
+    assert anchor["chain_count"] == 3
 
     rows = _audit_rows(db)
     assert [row.chain_seq for row in rows] == [1, 2, 3]
     assert rows[0].prev_hash is None
+    assert anchor["head_row_hash"] == rows[-1].row_hash
     for prev, current in zip(rows, rows[1:]):
         assert current.prev_hash == prev.row_hash
         assert current.row_hash
@@ -150,6 +165,10 @@ def test_same_microsecond_rows_verify_via_chain_seq_order(db):
     result = verify_audit_chain(db)
     assert result.ok is True
     assert result.checked == 2
+    assert result.status == "ok_legacy"
+    assert result.legacy_rows == 2
+    assert result.hmac_rows == 0
+    assert result.anchored is False
 
     rows = _audit_rows(db)
     assert rows[0].created_at == rows[1].created_at == shared_created_at
@@ -160,16 +179,28 @@ def test_verification_detects_edited_historical_row(db, chain_actions):
     _invoke(db, chain_actions, "one")
     _invoke(db, chain_actions, "two")
 
-    first = _audit_rows(db)[0]
+    last = _audit_rows(db)[-1]
     db._execute(
-        'UPDATE "actionaudits" SET actor = $actor WHERE id = $id',
-        {"actor": "mallory", "id": first.id},
+        'UPDATE "actionaudits" SET actor = $actor, row_hash = $row_hash WHERE id = $id',
+        {
+            "actor": "mallory",
+            "row_hash": _compute_legacy_action_audit_hash(
+                ActionAudit(
+                    **{
+                        **last.model_dump(),
+                        "actor": "mallory",
+                    }
+                )
+            ),
+            "id": last.id,
+        },
     )
 
     result = verify_audit_chain(db)
     assert result.ok is False
-    assert result.broken_audit_id == first.id
-    assert result.reason == "row_hash mismatch"
+    assert result.broken_audit_id == last.id
+    assert result.reason == "legacy row_hash after HMAC cutover"
+    assert result.status == "tampered"
 
 
 def test_verification_detects_deleted_middle_row(db, chain_actions):
@@ -203,6 +234,7 @@ def test_verification_detects_reordered_chain_seq(db, chain_actions):
     assert result.ok is False
     assert result.broken_audit_id == rows[2].id
     assert result.reason == "prev_hash mismatch"
+    assert result.status == "tampered"
 
 
 def test_verification_detects_forged_row_with_wrong_prev_hash(db, chain_actions):
@@ -224,6 +256,90 @@ def test_verification_detects_forged_row_with_wrong_prev_hash(db, chain_actions)
     assert result.ok is False
     assert result.broken_audit_id == forged.id
     assert result.reason == "prev_hash mismatch"
+    assert result.status == "tampered"
+
+
+def test_verification_detects_plain_sha256_rehash_without_secret(db, chain_actions):
+    _invoke(db, chain_actions, "one")
+    _invoke(db, chain_actions, "two")
+
+    last = _audit_rows(db)[-1]
+    tampered = ActionAudit(
+        **{
+            **last.model_dump(),
+            "after": {"value": "tampered"},
+            "params": {"value": "tampered"},
+            "target_ids": ["tampered"],
+        }
+    )
+    db._execute(
+        'UPDATE "actionaudits" SET target_ids = $target_ids, params = $params, after = $after, row_hash = $row_hash WHERE id = $id',
+        {
+            "target_ids": json.dumps(tampered.target_ids),
+            "params": json.dumps(tampered.params),
+            "after": json.dumps(tampered.after),
+            "row_hash": _compute_legacy_action_audit_hash(tampered),
+            "id": last.id,
+        },
+    )
+
+    result = verify_audit_chain(db)
+    assert result.ok is False
+    assert result.broken_audit_id == last.id
+    assert result.reason == "legacy row_hash after HMAC cutover"
+    assert result.status == "tampered"
+
+
+def test_verification_detects_truncated_tail_via_external_anchor(db, chain_actions):
+    for value in ["one", "two", "three"]:
+        _invoke(db, chain_actions, value)
+
+    rows = _audit_rows(db)
+    db._execute('DELETE FROM "actionaudits" WHERE id = $id', {"id": rows[-1].id})
+
+    result = verify_audit_chain(db)
+    assert result.ok is False
+    assert result.status == "truncated"
+    assert result.reason is not None
+    assert "expected 3 rows" in result.reason
+    assert "found 2 rows" in result.reason
+
+
+def test_verification_detects_forged_middle_insert_with_plain_hash(db, chain_actions):
+    for value in ["one", "two", "three"]:
+        _invoke(db, chain_actions, value)
+
+    rows = _audit_rows(db)
+    db._execute(
+        'UPDATE "actionaudits" SET chain_seq = $chain_seq WHERE id = $id',
+        {"chain_seq": 3, "id": rows[1].id},
+    )
+    db._execute(
+        'UPDATE "actionaudits" SET chain_seq = $chain_seq WHERE id = $id',
+        {"chain_seq": 4, "id": rows[2].id},
+    )
+
+    forged = ActionAudit(
+        id="forged-middle",
+        action_name=chain_actions,
+        actor="mallory",
+        target_ids=["forged"],
+        params={"value": "forged"},
+        before={"value": "before"},
+        after={"value": "forged"},
+        run_id="run-1",
+        created_at=datetime(2026, 6, 11, 12, 0, 1),
+        chain_seq=2,
+        prev_hash=rows[0].row_hash,
+    )
+    forged.row_hash = _compute_legacy_action_audit_hash(forged)
+    db.save(forged)
+
+    result = verify_audit_chain(db)
+    assert result.ok is False
+    assert result.broken_audit_id == forged.id
+    assert result.reason == "legacy row_hash after HMAC cutover"
+    assert result.status == "tampered"
 
 
 def test_undo_mutates_undone_without_breaking_chain(db, chain_actions):
@@ -245,6 +361,27 @@ def test_undo_mutates_undone_without_breaking_chain(db, chain_actions):
     chain = verify_audit_chain(db)
     assert chain.ok is True
     assert chain.checked == 2
+
+
+def test_missing_secret_path_fails_closed_without_crashing_and_anchor_round_trips(
+    db, chain_actions
+):
+    _invoke(db, chain_actions, "one")
+
+    rows = _audit_rows(db)
+    anchor = _load_chain_anchor(db)
+    assert anchor is not None
+    assert anchor["chain_count"] == 1
+    assert anchor["head_row_hash"] == rows[-1].row_hash
+
+    key_path = _audit_chain_key_file_path()
+    if key_path.exists():
+        key_path.unlink()
+
+    result = verify_audit_chain(db)
+    assert result.ok is False
+    assert result.status == "tampered"
+    assert result.reason == "audit-chain secret unavailable for keyed rows"
 
 
 def test_near_simultaneous_invokes_produce_linear_chain(db):
