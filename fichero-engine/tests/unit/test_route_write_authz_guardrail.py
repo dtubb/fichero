@@ -24,7 +24,7 @@ READ_ONLY_MUTATING_VERB_ALLOWLIST: dict[str, str] = {
     "kg_sparql.py:85:sparql_query:POST": "POST body contains SPARQL; validator rejects mutating verbs and handler only queries RDF graph.",
     "mind_palace.py:753:capture_viewport:POST": "POST body contains viewport details; placeholder handler only reads the room.",
     "mindpalace_render.py:41:render_scene:POST": "POST body contains render request; handler only reads spatial scene rows.",
-    "search.py:564:enhanced_search:POST": "POST /api/search is read-only search/query compute.",
+    "search.py:572:enhanced_search:POST": "POST /api/search is read-only search/query compute.",
     "search_explain.py:291:explain_search:POST": "POST body contains explanation request; handler only reads search inputs and returns attribution.",
     "workflows.py:773:estimate_workflow_cost:POST": "POST body contains estimate inputs; handler only reads workflow pricing context.",
 }
