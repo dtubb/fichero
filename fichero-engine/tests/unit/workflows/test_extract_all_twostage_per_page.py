@@ -77,6 +77,89 @@ async def test_two_stage_writes_kg_rows_to_page_docs_not_folder(db, test_package
     assert len(page2_claims) > 0
 
 
+@pytest.mark.asyncio
+async def test_two_stage_extracts_entity_claims_concurrently_with_same_output(
+    db, test_package, monkeypatch
+):
+    page = Document(name="p", path="/tmp/p.png", doc_type=DocType.page)
+    db.save(page)
+
+    async def fake_stage1(**kwargs):
+        schema = kwargs.get("schema")
+        if schema is not extract_all_module._EntitiesOnly:
+            raise AssertionError(f"unexpected schema: {schema!r}")
+        return extract_all_module._EntitiesOnly(
+            people=[
+                extract_all_module._EntityOnly(name="Ada", entity_type="person"),
+                extract_all_module._EntityOnly(name="Bert", entity_type="person"),
+                extract_all_module._EntityOnly(name="Cy", entity_type="person"),
+            ],
+        )
+
+    active = 0
+    max_active = 0
+    call_order: list[str] = []
+
+    async def fake_claims_for_entity(
+        _context, entity_name, _entity_type, _llm_config, _instructions, extraction_sem
+    ):
+        nonlocal active, max_active
+        async with extraction_sem:
+            call_order.append(entity_name)
+            active += 1
+            max_active = max(max_active, active)
+            await extract_all_module.asyncio.sleep(0)
+            active -= 1
+        return [
+            {
+                "verb": "signed",
+                "object": f"{entity_name} ledger",
+                "source_text": f"{entity_name} signed the ledger",
+            }
+        ]
+
+    monkeypatch.setattr(
+        "fichero.workflows.tools.extract_all.chat_structured_with_fallback",
+        fake_stage1,
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.tools.extract_all._extract_claims_for_entity",
+        fake_claims_for_entity,
+    )
+
+    result = await extract_all_module._run_two_stage(
+        text="Ada signed the ledger. Bert signed the ledger. Cy signed the ledger.",
+        recovered_records=[{"doc_id": page.id, "text": "Ada signed the ledger."}],
+        state={"library_path": str(test_package), "selected_doc_ids": [page.id]},
+        llm_config=LLMConfig(provider="openai", model="gpt-4o-mini"),
+        output_language="English",
+        inputs={"persist_kg": False},
+    )
+
+    assert max_active > 1
+    assert call_order == ["Ada", "Bert", "Cy"]
+    assert result["value"]["people"] == [
+        {
+            "name": "Ada",
+            "verb": "signed",
+            "object": "Ada ledger",
+            "source_text": "Ada signed the ledger",
+        },
+        {
+            "name": "Bert",
+            "verb": "signed",
+            "object": "Bert ledger",
+            "source_text": "Bert signed the ledger",
+        },
+        {
+            "name": "Cy",
+            "verb": "signed",
+            "object": "Cy ledger",
+            "source_text": "Cy signed the ledger",
+        },
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Regression: Apple _EntitiesOnly grammar must stay permissive (#1272 revert).
 #

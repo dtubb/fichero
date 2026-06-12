@@ -1351,6 +1351,7 @@ async def _run_two_stage(
             logger.error("extract_all (two-stage): cannot open DB for KG writes: %s", exc)
 
     all_claims: dict[str, list[dict]] = {}
+    entity_jobs: list[dict[str, Any]] = []
     entity_done = 0
     for section_key, entities in all_entities.items():
         section = _section_by_key.get(section_key)
@@ -1372,85 +1373,105 @@ async def _run_two_stage(
                 entity_context = "\n\n".join(chunks[i] for i in relevant_indices)
             else:
                 entity_context = text
-            claims = await _extract_claims_for_entity(
-                entity_context, entity.name, section_key.rstrip("s"), llm_config,
-                claim_instructions, extraction_sem
-            )
-            all_claims[entity.name] = claims
-            entity_done += 1
-            await emit_progress_event(
-                progress_callback,
-                "file_complete",
-                "",
-                f"Stage 2 entity {entity_done}/{total_entities}",
-                entity_done,
-                total_entities,
-                message=(
-                    f"Stage 2 completed {section_key} '{entity.name}': "
-                    f"{len(claims)} claims"
+            entity_jobs.append({
+                "section_key": section_key,
+                "section": section,
+                "entity": entity,
+                "relevant_indices": relevant_indices,
+                "entity_context": entity_context,
+                "claims_task": _extract_claims_for_entity(
+                    entity_context,
+                    entity.name,
+                    section_key.rstrip("s"),
+                    llm_config,
+                    claim_instructions,
+                    extraction_sem,
                 ),
-            )
-            logger.info(
-                "Stage 2: %s/%s — %s '%s': %d claims",
-                entity_done, total_entities, section_key, entity.name, len(claims),
-            )
+            })
 
-            # Write this entity's KG rows immediately — partial runs leave
-            # partial KG instead of nothing (#1263 incremental resilience).
-            # Guard on `container` (needed for container.id), not `db`: db is
-            # only required for the optional inline write. When db=None the
-            # payload is still built so the downstream kg_writer node can
-            # persist it with its own connection (#1285).
-            if section and section["name"] not in _skip_sections and claims and container:
-                items = _build_entity_items_for_section(entity, section_key, claims)
-                if items:
-                    target_indices = relevant_indices or [0]
-                    for page_idx in target_indices:
-                        page_doc_id = (
-                            page_doc_ids[page_idx]
-                            if page_idx < len(page_doc_ids)
-                            else None
-                        )
-                        target_doc_id = page_doc_id or container.id
-                        page_label = (
-                            f"Page {page_idx + 1}"
-                            if len(chunks) > 1
-                            else None
-                        )
-                        page_text = chunks[page_idx] if page_idx < len(chunks) else entity_context
+    claim_results = await asyncio.gather(*(job["claims_task"] for job in entity_jobs))
 
-                        kg_payload.append({
-                            "section_name": section["name"],
-                            "section_key": section_key,
-                            "items": items,
-                            "target_doc_id": target_doc_id,
-                            "page_label": page_label,
-                            "source_excerpt": page_text[:500] if page_text else None,
-                            "provider": getattr(llm_config, "provider", None),
-                            "model": getattr(llm_config, "model", None),
-                            "grounding_text": page_text,
-                        })
-                        if persist_kg and db:
-                            try:
-                                entity_ids, claim_ids = _write_kg_rows(
-                                    db, section, items, target_doc_id,
-                                    page_label=page_label,
-                                    source_excerpt=page_text[:500] if page_text else None,
-                                    provider=getattr(llm_config, "provider", None),
-                                    model=getattr(llm_config, "model", None),
-                                    grounding_text=page_text,
-                                )
-                                written_entity_ids.extend(entity_ids)
-                                written_claim_ids.extend(claim_ids)
-                                written_document_ids.add(target_doc_id)
-                            except Exception as exc:
-                                logger.error(
-                                    "extract_all (two-stage): KG write failed for %s '%s' on %s: %s",
-                                    section_key,
-                                    entity.name,
-                                    target_doc_id,
-                                    exc,
-                                )
+    for job, claims in zip(entity_jobs, claim_results, strict=True):
+        section_key = job["section_key"]
+        section = job["section"]
+        entity = job["entity"]
+        relevant_indices = job["relevant_indices"]
+        entity_context = job["entity_context"]
+        all_claims[entity.name] = claims
+        entity_done += 1
+        await emit_progress_event(
+            progress_callback,
+            "file_complete",
+            "",
+            f"Stage 2 entity {entity_done}/{total_entities}",
+            entity_done,
+            total_entities,
+            message=(
+                f"Stage 2 completed {section_key} '{entity.name}': "
+                f"{len(claims)} claims"
+            ),
+        )
+        logger.info(
+            "Stage 2: %s/%s — %s '%s': %d claims",
+            entity_done, total_entities, section_key, entity.name, len(claims),
+        )
+
+        # Write this entity's KG rows immediately — partial runs leave
+        # partial KG instead of nothing (#1263 incremental resilience).
+        # Guard on `container` (needed for container.id), not `db`: db is
+        # only required for the optional inline write. When db=None the
+        # payload is still built so the downstream kg_writer node can
+        # persist it with its own connection (#1285).
+        if section and section["name"] not in _skip_sections and claims and container:
+            items = _build_entity_items_for_section(entity, section_key, claims)
+            if items:
+                target_indices = relevant_indices or [0]
+                for page_idx in target_indices:
+                    page_doc_id = (
+                        page_doc_ids[page_idx]
+                        if page_idx < len(page_doc_ids)
+                        else None
+                    )
+                    target_doc_id = page_doc_id or container.id
+                    page_label = (
+                        f"Page {page_idx + 1}"
+                        if len(chunks) > 1
+                        else None
+                    )
+                    page_text = chunks[page_idx] if page_idx < len(chunks) else entity_context
+
+                    kg_payload.append({
+                        "section_name": section["name"],
+                        "section_key": section_key,
+                        "items": items,
+                        "target_doc_id": target_doc_id,
+                        "page_label": page_label,
+                        "source_excerpt": page_text[:500] if page_text else None,
+                        "provider": getattr(llm_config, "provider", None),
+                        "model": getattr(llm_config, "model", None),
+                        "grounding_text": page_text,
+                    })
+                    if persist_kg and db:
+                        try:
+                            entity_ids, claim_ids = _write_kg_rows(
+                                db, section, items, target_doc_id,
+                                page_label=page_label,
+                                source_excerpt=page_text[:500] if page_text else None,
+                                provider=getattr(llm_config, "provider", None),
+                                model=getattr(llm_config, "model", None),
+                                grounding_text=page_text,
+                            )
+                            written_entity_ids.extend(entity_ids)
+                            written_claim_ids.extend(claim_ids)
+                            written_document_ids.add(target_doc_id)
+                        except Exception as exc:
+                            logger.error(
+                                "extract_all (two-stage): KG write failed for %s '%s' on %s: %s",
+                                section_key,
+                                entity.name,
+                                target_doc_id,
+                                exc,
+                            )
 
     # Convert to extraction format for the return value.
     combined_entities = _EntitiesOnly(
