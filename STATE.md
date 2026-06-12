@@ -1,3 +1,12 @@
+## OVERNIGHT — 2026-06-11 ~22:15 (security fix wave landing)
+**0.0.2 @ `5b533bcd` pushed (4591 passed).** Autonomous loop running (check ~12min, dispatch ~45min).
+- ✅ **sec-routes (ee6f7cbc)** → closed #2124 #2125 #2126 #2128: write-gating dep on all mutating routes + entity-types/app-config gates + generic ACL targets + new test_route_write_authz_guardrail.py.
+- ✅ **sec-rce (5b533bcd)** → closed #2138 (eval-RCE) #2140 #2141 #2142 #2143 #2144 + siblings #2148 #2149: AST-safe conditions (safe_condition.py), SSRF revalidation (url_security.py), defusedxml (xml_security.py), safe deser, cli_agent/MCP gating.
+- ✅ Earlier tonight: #2076, #2095/#2115 (embeddings), guardrail fix, docs MERGED (grounded).
+- ⏳ Still working: audit-hmac (#2127), db-concurrency (#2118/2119/2120).
+- 📋 Queue: wf-code-bugs (#2130-2137+2147), path-confine (#2139+2150), remote-hardening (#2121+tailscale docs), prog-security-gate (#2153)+test-writer, #2151/#2152, docs-ground-audit (#352). Then RE-REVIEW + MAC (#2114).
+- Held for Daniel build: entitytable-2020 (#2020), #2107.
+
 ## MANAGER STATUS — 2026-06-11 ~20:30 (infra lanes integrated + review complete → INFRA FOUNDATION DONE)
 **0.0.2 @ `9e86ebcc` pushed; embeddings (`4293c54d`) staged, full suite running before push.**
 
