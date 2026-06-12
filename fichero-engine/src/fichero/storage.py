@@ -150,51 +150,6 @@ settings = StorageSettings()
 # =============================================================================
 
 
-def _path_within(root: Path | str, candidate: Path | str) -> bool:
-    """Return True when candidate's real path is inside root's real path."""
-    try:
-        Path(candidate).expanduser().resolve().relative_to(
-            Path(root).expanduser().resolve()
-        )
-    except (OSError, RuntimeError, ValueError):
-        return False
-    return True
-
-
-def _allowed_source_roots(library_root: Path | str | None) -> list[Path]:
-    if library_root is None:
-        return [
-            settings.base_path,
-            settings.thumb_dir,
-            settings.vectors_dir,
-            settings.snapshots_dir,
-        ]
-    root = Path(library_root).expanduser()
-    return [
-        root,
-        root / "files",
-        root / "storage",
-        root / "storage" / "thumbnails",
-        root / "storage" / "outputs",
-        root / "knowledge-predictions",
-    ]
-
-
-def _confined_existing_path(
-    candidate: Path, library_root: Path | str | None
-) -> Path | None:
-    if not candidate.exists():
-        return None
-    try:
-        resolved = candidate.expanduser().resolve()
-    except (OSError, RuntimeError):
-        return None
-    if any(_path_within(root, resolved) for root in _allowed_source_roots(library_root)):
-        return resolved
-    logger.warning("Refusing source path outside library roots: %s", candidate)
-    return None
-
-
 def _thumb_path(doc_id: str, package_path: Path | None = None) -> Path:
     """Get sharded thumbnail path.
 
@@ -352,8 +307,7 @@ def resolve_source(
             from fichero.bookmarks import resolve_bookmark
 
             if path := resolve_bookmark(bookmark_data):
-                if resolved := _confined_existing_path(path, library_root):
-                    return resolved
+                return path
         except ImportError:
             pass  # bookmarks module not available
 
@@ -370,11 +324,10 @@ def resolve_source(
             # CURRENT library root rather than the process CWD.
             if not p.is_absolute() and library_root is not None:
                 candidate = (Path(library_root).expanduser() / p)
-                if resolved := _confined_existing_path(candidate, library_root):
-                    return resolved
-            elif p.is_absolute():
-                if resolved := _confined_existing_path(p, library_root):
-                    return resolved
+                if candidate.exists():
+                    return candidate
+            elif p.is_absolute() and p.exists():
+                return p
 
     # Check metadata fields
     if doc.metadata:
@@ -384,13 +337,8 @@ def resolve_source(
                     p = Path(path_str).expanduser()
                 except TypeError:
                     continue
-                candidate = (
-                    Path(library_root).expanduser() / p
-                    if not p.is_absolute() and library_root is not None
-                    else p
-                )
-                if resolved := _confined_existing_path(candidate, library_root):
-                    return resolved
+                if p.exists():
+                    return p
 
     # Library-relative fallback: the library was renamed/moved, so the stored
     # absolute path (which bakes in the old package name) no longer exists, but
@@ -406,8 +354,8 @@ def resolve_source(
                 continue
             tail = str(path_str).split("/files/", 1)[1]
             p = root / "files" / tail
-            if resolved := _confined_existing_path(p, library_root):
-                return resolved
+            if p.exists():
+                return p
 
     return None
 

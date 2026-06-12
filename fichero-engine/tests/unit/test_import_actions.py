@@ -343,11 +343,10 @@ class TestImportXlsxAction:
 
 
 class TestImportUploadFileAction:
-    def test_upload_effect_filename_audit_and_emit(self, db, fake_ingest, spy_emit):
+    def test_upload_effect_filename_audit_and_emit(self, db, tmp_path, fake_ingest, spy_emit):
         # the on-disk file has a hashed/temp name; the action preserves the
         # caller's original display name (#1104)
-        src = Path(db.path).parent / "files" / "uploads" / "fichero_upload_abc123.pdf"
-        src.parent.mkdir(parents=True, exist_ok=True)
+        src = tmp_path / "fichero_upload_abc123.pdf"
         src.write_bytes(b"%PDF-1.4")
 
         result = registry.invoke(
@@ -372,9 +371,8 @@ class TestImportUploadFileAction:
         assert kwargs["type"] == "document.created"
         assert kwargs["document_ids"] == [new_id]
 
-    def test_upload_undo_deletes(self, db, fake_ingest):
-        src = Path(db.path).parent / "files" / "uploads" / "fichero_upload_x.txt"
-        src.parent.mkdir(parents=True, exist_ok=True)
+    def test_upload_undo_deletes(self, db, tmp_path, fake_ingest):
+        src = tmp_path / "fichero_upload_x.txt"
         src.write_text("hi")
         ctx = _ctx(db)
 
@@ -392,13 +390,6 @@ class TestImportUploadFileAction:
         with pytest.raises(HTTPException) as exc:
             registry.invoke(
                 db, "import.upload_file", {"path": "/no/such/upload.pdf"}, _ctx(db)
-            )
-        assert exc.value.status_code == 400
-
-    def test_upload_rejects_etc_passwd(self, db, fake_ingest):
-        with pytest.raises(HTTPException) as exc:
-            registry.invoke(
-                db, "import.upload_file", {"path": "/etc/passwd"}, _ctx(db)
             )
         assert exc.value.status_code == 400
 

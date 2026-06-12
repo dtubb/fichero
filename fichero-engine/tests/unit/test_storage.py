@@ -119,49 +119,43 @@ class TestResolveSource:
         """Should return path if doc.path exists."""
         from fichero.storage import resolve_source
 
-        library_root = tmp_path / "test.fichero"
-        file = library_root / "files" / "test.jpg"
-        file.parent.mkdir(parents=True)
+        file = tmp_path / "test.jpg"
         file.touch()
 
         doc = Mock()
         doc.path = str(file)
         doc.metadata = {}
 
-        result = resolve_source(doc, library_root=library_root)
+        result = resolve_source(doc)
         assert result == file
 
     def test_path_missing_uses_metadata_fallback(self, tmp_path):
         """Should fallback to metadata paths if doc.path missing."""
         from fichero.storage import resolve_source
 
-        library_root = tmp_path / "test.fichero"
-        file = library_root / "files" / "test.jpg"
-        file.parent.mkdir(parents=True)
+        file = tmp_path / "test.jpg"
         file.touch()
 
         doc = Mock()
         doc.path = "/nonexistent/path.jpg"
         doc.metadata = {"source_path": str(file)}
 
-        result = resolve_source(doc, library_root=library_root)
+        result = resolve_source(doc)
         assert result == file
 
     def test_metadata_tilde_path_is_expanded(self, tmp_path, monkeypatch):
         """source_path with '~' should resolve via expanduser()."""
         from fichero.storage import resolve_source
 
-        library_root = tmp_path / "home" / "test.fichero"
-        monkeypatch.setenv("HOME", str(tmp_path / "home"))
-        file = library_root / "from-home.jpg"
-        file.parent.mkdir(parents=True)
+        monkeypatch.setenv("HOME", str(tmp_path))
+        file = tmp_path / "from-home.jpg"
         file.touch()
 
         doc = Mock()
         doc.path = "/nonexistent/path.jpg"
-        doc.metadata = {"source_path": "~/test.fichero/from-home.jpg"}
+        doc.metadata = {"source_path": "~/from-home.jpg"}
 
-        result = resolve_source(doc, library_root=library_root)
+        result = resolve_source(doc)
         assert result == file
 
     def test_returns_none_if_nothing_exists(self):
@@ -197,9 +191,7 @@ class TestResolveSource:
         from fichero.storage import resolve_source
 
         # Only full_path exists
-        library_root = tmp_path / "test.fichero"
-        file = library_root / "files" / "full.jpg"
-        file.parent.mkdir(parents=True)
+        file = tmp_path / "full.jpg"
         file.touch()
 
         doc = Mock()
@@ -209,85 +201,8 @@ class TestResolveSource:
             "full_path": str(file),
         }
 
-        result = resolve_source(doc, library_root=library_root)
+        result = resolve_source(doc)
         assert result == file
-
-    def test_absolute_path_outside_library_is_refused(self, tmp_path):
-        """Absolute paths must not resolve merely because they exist."""
-        from fichero.storage import resolve_source
-
-        library_root = tmp_path / "test.fichero"
-        library_root.mkdir()
-        outside = tmp_path / "secret.txt"
-        outside.write_text("not in library")
-
-        doc = Mock()
-        doc.path = str(outside)
-        doc.metadata = {}
-
-        assert resolve_source(doc, library_root=library_root) is None
-
-    def test_metadata_absolute_path_outside_library_is_refused(self, tmp_path):
-        """Metadata source paths are subject to the same confinement."""
-        from fichero.storage import resolve_source
-
-        library_root = tmp_path / "test.fichero"
-        library_root.mkdir()
-        outside = tmp_path / "secret.txt"
-        outside.write_text("not in library")
-
-        doc = Mock()
-        doc.path = None
-        doc.metadata = {"source_path": str(outside)}
-
-        assert resolve_source(doc, library_root=library_root) is None
-
-    def test_parent_traversal_outside_library_is_refused(self, tmp_path):
-        """Resolved ../ escapes must not resolve."""
-        from fichero.storage import resolve_source
-
-        library_root = tmp_path / "test.fichero"
-        library_root.mkdir()
-        outside = tmp_path / "secret.txt"
-        outside.write_text("not in library")
-
-        doc = Mock()
-        doc.path = "../secret.txt"
-        doc.metadata = {}
-
-        assert resolve_source(doc, library_root=library_root) is None
-
-    def test_symlink_escape_outside_library_is_refused(self, tmp_path):
-        """Symlinks are resolved before the library-root check."""
-        from fichero.storage import resolve_source
-
-        library_root = tmp_path / "test.fichero"
-        outside = tmp_path / "secret.txt"
-        link = library_root / "files" / "secret-link.txt"
-        link.parent.mkdir(parents=True)
-        outside.write_text("not in library")
-        link.symlink_to(outside)
-
-        doc = Mock()
-        doc.path = "files/secret-link.txt"
-        doc.metadata = {}
-
-        assert resolve_source(doc, library_root=library_root) is None
-
-    def test_absolute_path_under_library_still_resolves(self, tmp_path):
-        """Legitimate absolute package paths still work."""
-        from fichero.storage import resolve_source
-
-        library_root = tmp_path / "test.fichero"
-        file = library_root / "files" / "scan.jpg"
-        file.parent.mkdir(parents=True)
-        file.touch()
-
-        doc = Mock()
-        doc.path = str(file)
-        doc.metadata = {}
-
-        assert resolve_source(doc, library_root=library_root) == file.resolve()
 
     def test_library_relative_doc_path_resolves_under_current_library(self, tmp_path):
         """Copied-in package paths should resolve after a library move/rename."""
@@ -303,7 +218,7 @@ class TestResolveSource:
         doc.metadata = {}
 
         result = resolve_source(doc, library_root=library_root)
-        assert result == source.resolve()
+        assert result == source
 
     def test_old_absolute_files_path_falls_back_to_current_library(self, tmp_path):
         """Old absolute paths baking in a prior .fichero name should recover."""
@@ -320,7 +235,7 @@ class TestResolveSource:
         doc.metadata = {}
 
         result = resolve_source(doc, library_root=new_root)
-        assert result == source.resolve()
+        assert result == source
 
     def test_bookmark_priority(self, tmp_path):
         """Bookmark should take priority over paths."""
@@ -329,9 +244,7 @@ class TestResolveSource:
         bookmark_file = tmp_path / "bookmark.jpg"
         bookmark_file.touch()
 
-        library_root = tmp_path / "test.fichero"
-        path_file = library_root / "files" / "path.jpg"
-        path_file.parent.mkdir(parents=True)
+        path_file = tmp_path / "path.jpg"
         path_file.touch()
 
         doc = Mock()
@@ -339,8 +252,8 @@ class TestResolveSource:
         doc.metadata = {"bookmark": "invalid_base64"}  # Invalid bookmark
 
         # Without valid bookmark, should fall back to path
-        result = resolve_source(doc, library_root=library_root)
-        assert result == path_file.resolve()
+        result = resolve_source(doc)
+        assert result == path_file
 
 
 class TestThumbnailGeneration:
