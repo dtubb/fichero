@@ -575,6 +575,10 @@ async def lifespan(app: FastAPI):
     # from the pre-fix POST /providers behaviour (#704).
     _collapse_duplicate_providers()
 
+    # Pairing codes are process-local; warn if a non-standard launcher exposes
+    # a detectable multi-worker configuration.
+    pairing.warn_pairing_single_process_invariant()
+
     # Recover stale workflow runs left in 'running' by prior crashes/restarts (#1350).
     await _recover_stale_runs_on_startup()
 

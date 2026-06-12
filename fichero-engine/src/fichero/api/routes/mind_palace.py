@@ -753,7 +753,7 @@ async def suggest_arrangement(
 async def capture_viewport(
     room_id: str,
     request: CaptureRequest,
-    db: Database = Depends(get_library_database_for_write),
+    db: Database = Depends(get_library_database),
 ) -> CaptureViewportResponse:
     """Capture a viewport as an image.
 

@@ -28,7 +28,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database_for_write
+from fichero.api.main import get_library_database
 from fichero.db import Database
 
 logger = logging.getLogger(__name__)
@@ -84,7 +84,7 @@ class SparqlResponse(BaseModel):
 )
 async def sparql_query(
     request: SparqlRequest,
-    db: Database = Depends(get_library_database_for_write),
+    db: Database = Depends(get_library_database),
 ) -> SparqlResponse:
     if _MUTATING_KEYWORDS.search(request.query):
         raise HTTPException(

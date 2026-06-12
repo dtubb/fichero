@@ -5,8 +5,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-
 ROUTES_ROOT = (
     Path(__file__).resolve().parents[2]
     / "src"
@@ -18,7 +16,18 @@ MUTATING_METHODS = {"post", "put", "patch", "delete"}
 
 # Mutating HTTP verbs are sometimes used for read-only compute/export operations.
 # They may keep the read dependency only when listed here with a reason.
-READ_ONLY_MUTATING_VERB_ALLOWLIST: dict[str, str] = {}
+READ_ONLY_MUTATING_VERB_ALLOWLIST: dict[str, str] = {
+    "bibliography.py:168:export_bibtex:POST": "POST body selects document IDs; handler only reads metadata and returns BibTeX.",
+    "hermeneutics.py:822:suggest_interpretations:POST": "POST body contains suggestion parameters; handler only reads active frameworks.",
+    "kg_predictions.py:121:generate_heuristic_predictions:POST": "POST body contains prediction parameters; handler only reads claims and vector index.",
+    "kg_render.py:41:render_paragraph:POST": "POST body contains claim IDs/style; handler only reads claims and renders text.",
+    "kg_sparql.py:85:sparql_query:POST": "POST body contains SPARQL; validator rejects mutating verbs and handler only queries RDF graph.",
+    "mind_palace.py:753:capture_viewport:POST": "POST body contains viewport details; placeholder handler only reads the room.",
+    "mindpalace_render.py:41:render_scene:POST": "POST body contains render request; handler only reads spatial scene rows.",
+    "search.py:564:enhanced_search:POST": "POST /api/search is read-only search/query compute.",
+    "search_explain.py:291:explain_search:POST": "POST body contains explanation request; handler only reads search inputs and returns attribution.",
+    "workflows.py:773:estimate_workflow_cost:POST": "POST body contains estimate inputs; handler only reads workflow pricing context.",
+}
 
 
 def _decorated_methods(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:

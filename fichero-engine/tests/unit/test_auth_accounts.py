@@ -393,6 +393,25 @@ def test_pairing_is_rate_limited(client, app_db, monkeypatch):
     assert statuses[-1] == 429
 
 
+def test_pairing_attempt_pruning_removes_stale_hosts():
+    now = datetime.now()
+    stale = now - pairing.PAIRING_RATE_WINDOW - timedelta(seconds=1)
+    current = now - timedelta(seconds=1)
+    pairing._PAIRING_ATTEMPTS.update(
+        {
+            "stale.example": [stale],
+            "mixed.example": [stale, current],
+            "current.example": [current],
+        }
+    )
+
+    pairing._prune_pairing_attempts(now)
+
+    assert "stale.example" not in pairing._PAIRING_ATTEMPTS
+    assert pairing._PAIRING_ATTEMPTS["mixed.example"] == [current]
+    assert pairing._PAIRING_ATTEMPTS["current.example"] == [current]
+
+
 def test_device_actions_are_registered():
     assert "device.list" in registry.names()
     assert "device.revoke" in registry.names()

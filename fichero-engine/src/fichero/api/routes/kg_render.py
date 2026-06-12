@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database_for_write
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.llm import LLMConfig, chat
@@ -40,7 +40,7 @@ bio_router = APIRouter(prefix="/kg/entities", tags=["knowledge-graph"])
 )
 async def render_paragraph(
     request: ParagraphRenderRequest,
-    db: Database = Depends(get_library_database_for_write),
+    db: Database = Depends(get_library_database),
 ) -> ParagraphRenderResponse:
     """Render the supplied claims as a paragraph with citation metadata."""
 

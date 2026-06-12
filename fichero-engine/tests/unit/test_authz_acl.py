@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import importlib
 from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
 import fichero.api.routes.actions_registry  # noqa: F401 - registers acl.set
@@ -110,6 +112,10 @@ def _grant(app_db, user: AccountUser, library_path: str, role: str) -> None:
         library_path=authz.normalize_library_path(library_path),
         role=role,
     )
+
+
+def _bearer(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
 
 
 def _request(user: AccountUser | None, **target):
@@ -223,6 +229,49 @@ async def test_write_dependency_denies_viewer_and_allows_editor(
             x_fichero_library_path=library_path,
         )
     ) is db
+
+
+def test_viewer_can_search_but_cannot_save_search_route(
+    test_package, app_db, users, monkeypatch
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    monkeypatch.setenv("FICHERO_DISABLE_AUTH", "0")
+    library_path = str(test_package)
+    _grant(app_db, users.viewer, library_path, "viewer")
+
+    import fichero.api.main as api_main
+
+    api_main = importlib.reload(api_main)
+    try:
+        with TestClient(
+            api_main.app,
+            headers={"X-Fichero-Library-Path": library_path},
+        ) as client:
+            login = client.post(
+                "/api/auth/login",
+                json={"username": "viewer", "password": "password"},
+            )
+            assert login.status_code == 200
+            auth_headers = _bearer(login.json()["session_token"])
+
+            read_response = client.post(
+                "/api/search",
+                headers=auth_headers,
+                json={"query": "", "limit": 1},
+            )
+            assert read_response.status_code != 403
+            assert read_response.status_code == 200
+
+            write_response = client.post(
+                "/api/search/saved",
+                headers=auth_headers,
+                json={"query": "viewer should not save this"},
+            )
+            assert write_response.status_code == 403
+    finally:
+        api_main.app.dependency_overrides.clear()
+        monkeypatch.setenv("FICHERO_DISABLE_AUTH", "1")
+        importlib.reload(api_main)
 
 
 @pytest.mark.anyio

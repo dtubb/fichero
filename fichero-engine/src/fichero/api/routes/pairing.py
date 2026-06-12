@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import logging
+import os
 import secrets
+import sys
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -15,6 +18,8 @@ from fichero.api.auth import _use_multiuser_auth
 from fichero.api.routes.auth_accounts import _current_session_user
 from fichero.app_db import AppDatabase, get_app_db
 from fichero.models import AccountUser, Device
+
+logger = logging.getLogger(__name__)
 
 PAIRING_CODE_TTL = timedelta(seconds=60)
 PAIRING_RATE_LIMIT = 5
@@ -32,8 +37,13 @@ class _PairingCode:
     used: bool = False
 
 
+# Pairing codes and rate-limit attempts are intentionally process-local.
+# The engine manager clamps uvicorn to one worker, so one in-memory table is
+# authoritative. If the API is launched outside that path with multiple workers,
+# codes minted in one process will not be visible to another.
 _PAIRING_CODES: dict[str, _PairingCode] = {}
 _PAIRING_ATTEMPTS: dict[str, list[datetime]] = {}
+_PAIRING_WORKER_WARNING_EMITTED = False
 
 
 class PairCodeResponse(BaseModel):
@@ -125,14 +135,62 @@ def _prune_pairing_codes(now: datetime) -> None:
         _PAIRING_CODES.pop(code, None)
 
 
-def _check_pair_rate_limit(request: Request, now: datetime) -> None:
-    host = request.client.host if request.client else "unknown"
+def _prune_pairing_attempts(now: datetime) -> None:
     window_start = now - PAIRING_RATE_WINDOW
-    attempts = [
-        attempt
-        for attempt in _PAIRING_ATTEMPTS.get(host, [])
-        if attempt >= window_start
-    ]
+    stale_hosts: list[str] = []
+    for host, attempts in _PAIRING_ATTEMPTS.items():
+        current = [attempt for attempt in attempts if attempt >= window_start]
+        if current:
+            _PAIRING_ATTEMPTS[host] = current
+        else:
+            stale_hosts.append(host)
+    for host in stale_hosts:
+        _PAIRING_ATTEMPTS.pop(host, None)
+
+
+def _detect_configured_worker_count() -> int | None:
+    for name in ("FICHERO_UVICORN_WORKERS", "UVICORN_WORKERS", "WEB_CONCURRENCY"):
+        value = os.environ.get(name)
+        if value:
+            try:
+                return int(value)
+            except ValueError:
+                return None
+
+    argv = sys.argv[1:]
+    for index, arg in enumerate(argv):
+        if arg == "--workers" and index + 1 < len(argv):
+            try:
+                return int(argv[index + 1])
+            except ValueError:
+                return None
+        if arg.startswith("--workers="):
+            try:
+                return int(arg.split("=", 1)[1])
+            except ValueError:
+                return None
+    return None
+
+
+def warn_pairing_single_process_invariant() -> None:
+    """Log loudly if pairing is launched with a detectable multi-worker config."""
+    global _PAIRING_WORKER_WARNING_EMITTED
+    if _PAIRING_WORKER_WARNING_EMITTED:
+        return
+    _PAIRING_WORKER_WARNING_EMITTED = True
+    workers = _detect_configured_worker_count()
+    if workers is not None and workers != 1:
+        logger.warning(
+            "Pairing codes are process-local, but worker count appears to be %s. "
+            "Run Fichero with one uvicorn worker or pairing codes may fail across workers.",
+            workers,
+        )
+
+
+def _check_pair_rate_limit(request: Request, now: datetime) -> None:
+    _prune_pairing_attempts(now)
+    host = request.client.host if request.client else "unknown"
+    attempts = _PAIRING_ATTEMPTS.get(host, [])
     if len(attempts) >= PAIRING_RATE_LIMIT:
         _PAIRING_ATTEMPTS[host] = attempts
         raise HTTPException(status_code=429, detail="pairing rate limit exceeded")

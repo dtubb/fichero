@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database_for_write
+from fichero.api.main import get_library_database
 from fichero.db import Database
 from fichero.spatial_models import SpatialConnection, SpatialNode, SpatialRoom, SpatialStack
 
@@ -40,7 +40,7 @@ class SceneRenderResponse(BaseModel):
 @router.post("/render", response_model=SceneRenderResponse)
 async def render_scene(
     request: SceneRenderRequest,
-    db: Database = Depends(get_library_database_for_write),
+    db: Database = Depends(get_library_database),
 ) -> SceneRenderResponse:
     """Return a scene snapshot payload for multimodal agents.
 

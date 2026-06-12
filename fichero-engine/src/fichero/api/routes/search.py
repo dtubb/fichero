@@ -562,7 +562,7 @@ class ReorderResponse(BaseModel):
 
 @router.post("")
 async def enhanced_search(
-    request: SearchRequest, db: Database = Depends(get_library_database_for_write)
+    request: SearchRequest, db: Database = Depends(get_library_database)
 ) -> SearchResponse:
     """
     Perform enhanced search over documents.

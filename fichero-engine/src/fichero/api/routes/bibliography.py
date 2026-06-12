@@ -167,7 +167,7 @@ class ExportRequest(BaseModel):
 )
 async def export_bibtex(
     request: ExportRequest,
-    db: Database = Depends(get_library_database_for_write),
+    db: Database = Depends(get_library_database),
 ):
     from fastapi.responses import PlainTextResponse
 

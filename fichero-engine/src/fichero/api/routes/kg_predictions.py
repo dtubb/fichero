@@ -120,7 +120,7 @@ class ApplyPredictionsResponse(BaseModel):
 @router.post("/heuristic", response_model=HeuristicPredictionsResponse)
 async def generate_heuristic_predictions(
     request: HeuristicRequest,
-    db: Database = Depends(get_library_database_for_write),
+    db: Database = Depends(get_library_database),
 ) -> HeuristicPredictionsResponse:
     """Generate cheap candidate links via embedding similarity.
 

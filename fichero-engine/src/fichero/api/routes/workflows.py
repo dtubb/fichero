@@ -773,7 +773,7 @@ async def get_workflow(
 async def estimate_workflow_cost(
     workflow_id: str,
     request: WorkflowCostEstimateRequest,
-    db: Database = Depends(get_library_database_for_write),
+    db: Database = Depends(get_library_database),
 ) -> WorkflowCostEstimateResponse:
     """Estimate run cost from file count and per-file token assumptions."""
     from fichero.models import Workflow

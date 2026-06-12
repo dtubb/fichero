@@ -821,7 +821,7 @@ async def backtrack_circle(
 @router.post("/suggestions", response_model=HermesSuggestionListResponse)
 async def suggest_interpretations(
     request: HermesSuggestionRequest,
-    db: Database = Depends(get_library_database_for_write),
+    db: Database = Depends(get_library_database),
 ) -> HermesSuggestionListResponse:
     """Generate AI interpretation suggestions for claims.
 
