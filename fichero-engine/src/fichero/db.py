@@ -1203,6 +1203,23 @@ class Database(DatabaseEmbeddingMixin):
     # Semantic Search
     # =========================================================================
 
+    def _embedding_text_for_document(self, doc: BaseModel) -> str:
+        """Return the text payload that should be embedded for a document."""
+        text = ""
+        if hasattr(doc, "page_content") and doc.page_content:
+            stripped = doc.page_content.strip()
+            if _is_content_marker_only(stripped):
+                text = doc.name if hasattr(doc, "name") and doc.name else ""
+            else:
+                text = doc.page_content
+        elif hasattr(doc, "name") and doc.name:
+            text = doc.name
+
+        if not text or len(text.strip()) < MIN_CONTENT_LENGTH:
+            logger.debug("Skipping embedding for %s: content too short", doc.id)
+            return ""
+        return text
+
     def embed(self, doc: BaseModel, *, mode: str = "passage") -> bool:
         """Create embedding for a document.
 
@@ -1216,8 +1233,6 @@ class Database(DatabaseEmbeddingMixin):
         Returns:
             True if embedding was created
         """
-        # Get text to embed.
-        #
         # Marker-only content guard: when transcribe runs against a blank
         # or unreadable page it sets page_content to '[sin texto]' (or
         # '[ilegible]'). Embedding that literal string makes every
@@ -1227,18 +1242,8 @@ class Database(DatabaseEmbeddingMixin):
         # content as 'no content' and fall back to the doc's name —
         # which at least varies per-doc and reflects the legal-case
         # / archive structure the user is browsing.
-        text = ""
-        if hasattr(doc, "page_content") and doc.page_content:
-            stripped = doc.page_content.strip()
-            if _is_content_marker_only(stripped):
-                text = doc.name if hasattr(doc, "name") and doc.name else ""
-            else:
-                text = doc.page_content
-        elif hasattr(doc, "name") and doc.name:
-            text = doc.name
-
-        if not text or len(text.strip()) < MIN_CONTENT_LENGTH:
-            logger.debug("Skipping embedding for %s: content too short", doc.id)
+        text = self._embedding_text_for_document(doc)
+        if not text:
             return False
 
         try:

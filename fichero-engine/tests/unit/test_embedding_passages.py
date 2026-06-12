@@ -155,3 +155,36 @@ def test_non_latin_passages_store_and_embed_without_error(tmp_path) -> None:
     assert rows[0]["char_start"] == 0
     assert rows[0]["char_end"] == len(text)
     db.close()
+
+
+def test_reindex_all_batches_documents_without_changing_vector_count(tmp_path) -> None:
+    db = Database(tmp_path / "reindex-batch.duckdb")
+    docs = [
+        Document(
+            id=f"doc-{idx}",
+            name=f"Doc {idx}",
+            doc_type=DocType.page,
+            page_content=f"Document {idx} has enough searchable prose for embedding.",
+        )
+        for idx in range(3)
+    ]
+    for doc in docs:
+        db.save(doc)
+
+    embed_batches: list[list[str]] = []
+
+    def _vectors(texts: list[str], *, role: str = "passage") -> list[list[float]]:
+        assert role == "passage"
+        embed_batches.append(list(texts))
+        return [[float(len(embed_batches)), float(i)] for i, _text in enumerate(texts)]
+
+    with patch.object(db, "_embed_texts", side_effect=_vectors):
+        indexed = db.reindex_all(batch_size=2)
+
+    assert indexed == 3
+    assert [len(batch) for batch in embed_batches] == [2, 1]
+
+    rows = db.lance.open_table("embeddings").search().limit(10).to_list()
+    assert len(rows) == 3
+    assert {row["document_id"] for row in rows} == {doc.id for doc in docs}
+    db.close()

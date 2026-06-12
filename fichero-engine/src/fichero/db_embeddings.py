@@ -256,6 +256,7 @@ class DatabaseEmbeddingMixin:
         on_progress: Callable[[int, int], None] | None = None,
         *,
         mode: Literal["passage", "page"] = "passage",
+        batch_size: int = 32,
     ) -> int:
         """Reindex all documents with page_content.
 
@@ -270,16 +271,105 @@ class DatabaseEmbeddingMixin:
         docs = self.all(Document)
         total = len(docs)
         indexed = 0
+        batch_size = max(1, batch_size)
 
-        for i, doc in enumerate(docs):
-            if self.embed(doc, mode=mode):
-                indexed += 1
+        for start in range(0, total, batch_size):
+            batch = docs[start : start + batch_size]
+            embedded_ids = self._embed_document_batch(batch, mode=mode)
+            for doc in batch:
+                if doc.id in embedded_ids:
+                    indexed += 1
 
-            if on_progress:
-                on_progress(indexed, total)
+                if on_progress:
+                    on_progress(indexed, total)
 
         logger.info("Reindexed %s/%s documents", indexed, total)
         return indexed
+
+    def _embed_document_batch(
+        self,
+        docs: list[Any],
+        *,
+        mode: Literal["passage", "page"] = "passage",
+    ) -> set[str]:
+        """Embed a batch of documents with one forward pass per batch."""
+        docs_with_text = [
+            (doc, text)
+            for doc in docs
+            if (text := self._embedding_text_for_document(doc))
+        ]
+        if not docs_with_text:
+            return set()
+
+        try:
+            if mode == "page":
+                texts = [text for _doc, text in docs_with_text]
+                vectors = self._embed_texts(texts, role="passage")
+                embedded_ids: set[str] = set()
+                for (doc, text), vector in zip(docs_with_text, vectors, strict=True):
+                    self.save_embedding(doc, vector, text[:500])
+                    embedded_ids.add(doc.id)
+                return embedded_ids
+
+            units_by_doc_id: dict[str, list[EmbeddableUnit]] = {}
+            units: list[EmbeddableUnit] = []
+            docs_by_id = {}
+            for doc, text in docs_with_text:
+                doc_units = self.passage_units_for_document(doc, text=text)
+                if not doc_units:
+                    continue
+                docs_by_id[doc.id] = doc
+                units_by_doc_id[doc.id] = doc_units
+                units.extend(doc_units)
+
+            if not units:
+                return set()
+
+            vectors = self._embed_texts([unit.text for unit in units], role="passage")
+            records = []
+            for unit, vector in zip(units, vectors, strict=True):
+                doc = docs_by_id[unit.anchor.document_id]
+                stored_vector = vector
+                quantized_vector: list[int] | None = None
+                quantized_scale: float | None = None
+                if self._use_int8_embeddings():
+                    quantized_vector, quantized_scale = _quantize_int8(vector)
+                    stored_vector = _dequantize_int8(quantized_vector, quantized_scale)
+
+                records.append(
+                    {
+                        "id": unit.id,
+                        "document_id": unit.anchor.document_id,
+                        "text": unit.text,
+                        "vector": stored_vector,
+                        "embedding_scope": unit.kind,
+                        "passage_id": unit.id,
+                        "page_id": unit.anchor.page_id,
+                        "char_start": unit.anchor.char_start,
+                        "char_end": unit.anchor.char_end,
+                        "name": getattr(doc, "name", None),
+                        "doc_type": getattr(doc, "doc_type", None).value
+                        if hasattr(doc, "doc_type") and doc.doc_type
+                        else None,
+                        "file_type": getattr(doc, "file_type", None).value
+                        if hasattr(doc, "file_type") and doc.file_type
+                        else None,
+                        "vector_int8": quantized_vector,
+                        "vector_scale": quantized_scale,
+                    }
+                )
+
+            for doc_id in units_by_doc_id:
+                self._delete_embedding_rows("document_id", doc_id)
+            self.save_vectors(EMBEDDINGS_TABLE, records)
+            return set(units_by_doc_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to batch-embed %d document(s): %s", len(docs), exc)
+            embedded_ids: set[str] = set()
+            for doc, _text in docs_with_text:
+                if self.embed(doc, mode=mode):
+                    embedded_ids.add(doc.id)
+            return embedded_ids
 
     def embedding_stats(self) -> dict:
         """Get statistics about embeddings.
