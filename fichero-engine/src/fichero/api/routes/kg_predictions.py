@@ -17,7 +17,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     ClaimRelationType,
@@ -120,7 +120,7 @@ class ApplyPredictionsResponse(BaseModel):
 @router.post("/heuristic", response_model=HeuristicPredictionsResponse)
 async def generate_heuristic_predictions(
     request: HeuristicRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> HeuristicPredictionsResponse:
     """Generate cheap candidate links via embedding similarity.
 
@@ -193,7 +193,7 @@ async def apply_prediction_run(
     run_id: str,
     min_confidence: float = Query(default=0.7, ge=0.0, le=1.0),
     max_links: int = Query(default=100, ge=1, le=1000),
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ApplyPredictionsResponse:
     """Apply a prediction run's top-scoring predictions as claim links."""
     import pykeen.models  # noqa: PLC0415

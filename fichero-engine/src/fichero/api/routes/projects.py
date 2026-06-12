@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     Project,
@@ -50,7 +50,7 @@ class ProjectCreateRequest(BaseModel):
 @router.post("", response_model=Project)
 async def create_project(
     request: ProjectCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -106,7 +106,7 @@ class ProjectPatchRequest(BaseModel):
 async def patch_project(
     project_id: str,
     request: ProjectPatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -134,7 +134,7 @@ async def patch_project(
 @router.delete("/{project_id}", status_code=204)
 async def delete_project(
     project_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -179,7 +179,7 @@ class InclusionRequest(BaseModel):
 async def include_item(
     project_id: str,
     request: InclusionRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -227,7 +227,7 @@ async def include_item(
 async def remove_inclusion(
     project_id: str,
     inclusion_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"

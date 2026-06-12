@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from fichero.app_db import AppDatabase, get_app_db
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
 from fichero.models import Workflow
 from fichero.workflows.resolver import resolve_inputs
@@ -594,7 +594,7 @@ async def compare_tool_across_models(
 async def compare_workflow_node(
     request: NodeCompareRequest,
     app_db: AppDatabase = Depends(_get_app_database),
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> NodeComparisonResponse:
     """Compare one workflow node across Settings-configured models."""
     workflow = _workflow_from_request(request, db)
@@ -638,7 +638,7 @@ async def compare_workflow_node(
 @router.post("/compare-node/apply")
 async def apply_model_to_workflow_node(
     request: ApplyNodeModelRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ApplyNodeModelResponse:
     """Persist a selected provider/model choice onto one workflow node."""
     workflow = db.get(Workflow, request.workflow_id)

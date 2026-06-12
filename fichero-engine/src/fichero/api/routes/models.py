@@ -10,11 +10,13 @@ from typing import Optional
 from datetime import datetime, timedelta
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from fichero.api.routes.auth_accounts import _require_authenticated_or_bootstrap
+
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(_require_authenticated_or_bootstrap)])
 
 # Simple in-memory cache for HF API responses
 _cache: dict[str, tuple[datetime, list]] = {}

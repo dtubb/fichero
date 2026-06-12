@@ -13,7 +13,7 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.db_embeddings import KG_CLAIM_EMBEDDINGS_TABLE
 from fichero.models import KGGraphListResponse
@@ -90,7 +90,7 @@ def search_claims_semantic_impl(
 @router.post("/embed", response_model=EmbedClaimsResponse)
 async def embed_claims(
     request: _EmbedClaimRequest | None = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> EmbedClaimsResponse:
     """Embed claims into LanceDB for semantic search.
 

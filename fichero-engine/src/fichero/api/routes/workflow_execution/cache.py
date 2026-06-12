@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from fichero.db import Database
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.workflows.cache import get_node_cache
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ async def get_workflow_cache_stats(
 @router.delete("/workflows/{workflow_id}/cache")
 async def clear_workflow_cache(
     workflow_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> CacheClearResponse:
     """
     Clear all cached results for a workflow.
@@ -100,7 +100,7 @@ async def clear_workflow_cache(
 
 @router.delete("/cache")
 async def clear_all_cache(
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> CacheClearResponse:
     """
     Clear all cached node results.

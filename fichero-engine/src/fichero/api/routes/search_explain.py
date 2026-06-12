@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database, _fold_for_search
 from fichero.knowledge_models import KnowledgeClaim
 from fichero.models import Document
@@ -290,7 +290,7 @@ RAG_MODE_CONFIGS: dict[RAGMode, RAGModeConfig] = {
 )
 async def explain_search(
     request: SearchExplainRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SearchExplanation:
     """Generate explanation for a search query with full attribution."""
     start_time = time.time()

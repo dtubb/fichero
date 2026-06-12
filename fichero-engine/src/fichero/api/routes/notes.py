@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import Note, NoteKind, NoteLink
 from fichero.models import DocType, Document, NoteListResponse
@@ -122,7 +122,7 @@ def create_note_impl(db: Database, request: NoteCreateRequest) -> Note:
 @router.post("", response_model=Note)
 async def create_note(
     request: NoteCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -255,7 +255,7 @@ def patch_note_impl(
 async def patch_note(
     note_id: str,
     request: NotePatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -305,7 +305,7 @@ def restore_note_impl(db: Database, snapshot: dict) -> Note:
 @router.delete("/{note_id}", status_code=204)
 async def delete_note(
     note_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -342,7 +342,7 @@ class NoteLinkCreateRequest(BaseModel):
 async def create_note_link(
     note_id: str,
     request: NoteLinkCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -387,7 +387,7 @@ async def create_note_link(
 async def delete_note_link(
     note_id: str,
     link_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"

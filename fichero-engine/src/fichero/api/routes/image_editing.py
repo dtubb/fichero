@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import DocType, Document, ImageEditChain
 from fichero.storage import resolve_source
@@ -578,7 +578,7 @@ async def get_edit_chain(
 async def put_edit_chain(
     document_id: str,
     request: ImageEditChainUpsert,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ImageEditChainResponse:
     chain = set_operations_impl(db, document_id, request.operations)
     return ImageEditChainResponse(
@@ -592,7 +592,7 @@ async def put_edit_chain(
 async def crop_image(
     document_id: str,
     request: CropOperationRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ImageEditChainResponse:
     # Render off the event loop (crop can be heavy) — same as before, but the
     # whole render+append now lives in the shared impl the action also drives.
@@ -608,7 +608,7 @@ async def crop_image(
 async def rotate_image(
     document_id: str,
     request: RotateOperationRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ImageEditChainResponse:
     chain = rotate_image_impl(db, document_id, request)
     return ImageEditChainResponse(
@@ -622,7 +622,7 @@ async def rotate_image(
 async def enhance_image(
     document_id: str,
     request: EnhanceOperationRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ImageEditChainResponse:
     chain = enhance_image_impl(db, document_id, request)
     return ImageEditChainResponse(
@@ -636,7 +636,7 @@ async def enhance_image(
 async def remove_background_image(
     document_id: str,
     request: RemoveBackgroundOperationRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ImageEditChainResponse:
     chain = remove_background_image_impl(db, document_id, request)
     return ImageEditChainResponse(
@@ -650,7 +650,7 @@ async def remove_background_image(
 async def segment_image(
     document_id: str,
     request: SegmentOperationRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ImageEditChainResponse:
     chain, _child_ids = segment_image_impl(db, document_id, request)
     return ImageEditChainResponse(
@@ -662,7 +662,7 @@ async def segment_image(
 
 @router.delete("/{document_id}/edits", status_code=204)
 async def delete_edit_chain(
-    document_id: str, db: Database = Depends(get_library_database)
+    document_id: str, db: Database = Depends(get_library_database_for_write)
 ) -> None:
     clear_operations_impl(db, document_id)
 

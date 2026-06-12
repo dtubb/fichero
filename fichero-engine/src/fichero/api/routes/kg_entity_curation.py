@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.db_embeddings import KG_ENTITY_EMBEDDINGS_TABLE
 from fichero.knowledge_models import (
@@ -280,7 +280,7 @@ def merge_entities_impl(
 @router.post("/merge", response_model=EntityAuditResponse)
 async def merge_entities(
     request: EntityMergeRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -312,7 +312,7 @@ async def merge_entities(
 )
 async def batch_set_entity_curation_state(
     request: BatchEntityCurationRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> BatchEntityCurationResponse:
     entities: list[KnowledgeEntity] = []
     for entity_id in request.entity_ids:
@@ -341,7 +341,7 @@ async def batch_set_entity_curation_state(
 @router.post("/split", response_model=EntityAuditResponse)
 async def split_entity(
     request: EntitySplitRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -494,7 +494,7 @@ def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
 @router.post("/audit/{audit_id}/undo", response_model=EntityAuditResponse)
 async def undo_entity_operation(
     audit_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> EntityAuditResponse:
     """Undo a previous merge or split using its audit record."""
     return _audit_response(undo_entity_operation_impl(db, audit_id))
@@ -530,7 +530,7 @@ def _embed_entities_sync(
 @router.post("/semantic/embed", response_model=EmbedEntitiesResponse)
 async def embed_entities(
     request: _EmbedEntityRequest | None = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> EmbedEntitiesResponse:
     """Embed entities into LanceDB for semantic search.
 

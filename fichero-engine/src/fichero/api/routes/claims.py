@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     ClaimCurationState,
@@ -627,7 +627,7 @@ def assign_time_period_from_metadata_impl(
 @router.post("", response_model=KnowledgeClaim)
 async def create_claim(
     request: ClaimCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -655,7 +655,7 @@ async def create_claim(
 async def patch_claim(
     claim_id: str,
     request: ClaimPatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -682,7 +682,7 @@ async def patch_claim(
 @router.post("/resolve-source", response_model=ClaimSourceResolveResponse)
 async def resolve_claim_source(
     request: ClaimSourceResolveRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -772,7 +772,7 @@ async def get_claim(
 @router.delete("/{claim_id}", status_code=204)
 async def delete_claim(
     claim_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -843,7 +843,7 @@ def _descendant_doc_ids(db: Database, root_id: str) -> set[str]:
 @router.post("/assign-time-period", response_model=ClaimAssignTimePeriodResponse)
 async def assign_time_period(
     request: ClaimAssignTimePeriodRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -876,7 +876,7 @@ async def assign_time_period(
 )
 async def assign_time_period_from_metadata(
     request: ClaimAssignTimePeriodFromMetadataRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"

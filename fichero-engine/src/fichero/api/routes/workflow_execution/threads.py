@@ -9,7 +9,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from fichero.db import Database
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.workflows.workflow_store import WorkflowStore
 from fichero.workflows.activity import get_activity_tracker
 from fichero.workflows.types import EdgeDef, NodeDef, WorkflowDef
@@ -373,7 +373,7 @@ async def list_threads(
 @router.delete("/threads/{thread_id}")
 async def delete_thread(
     thread_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ThreadDeletedResponse:
     """
     Delete a workflow execution thread and its checkpoints.

@@ -24,6 +24,7 @@ from fichero.api.main import (
     assert_library_read_authorized,
     db_manager,
     get_library_database,
+    get_library_database_for_write,
 )
 from fichero.knowledge_models import KnowledgeClaim
 from fichero.db import Database
@@ -314,7 +315,7 @@ def _build_alias_to_entity_id_map(db: Database) -> dict[str, str]:
 @router.post("", response_model=KnowledgeEntity)
 async def upsert_entity(
     request: EntityUpsertRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -726,7 +727,7 @@ class EntityPatchRequest(BaseModel):
 async def patch_entity(
     entity_id: str,
     request: EntityPatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -834,7 +835,7 @@ async def delete_entity(
             "provenance for claims that mention multiple entities."
         ),
     ),
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -1112,7 +1113,7 @@ async def entity_drill_down(
 async def add_entity_aliases(
     entity_id: str,
     request: EntityAliasRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"

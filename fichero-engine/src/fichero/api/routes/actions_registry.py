@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field, ValidationError
 from fichero import authz
 from fichero.actions import ActionContext, ActionNotFoundError, ChangeSpec, action, registry
 from fichero.api.auth import action_context
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import ActionAudit
 
@@ -102,7 +102,7 @@ class AuditLogResponse(BaseModel):
 @router.post("/invoke", response_model=ActionResultResponse)
 async def invoke_action(
     request: InvokeActionRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> ActionResultResponse:
     """Validate + run a registered action through the audited choke point."""
@@ -193,7 +193,7 @@ async def list_audit_log(
 @router.post("/audit/{audit_id}/undo", response_model=ActionResultResponse)
 async def undo_action(
     audit_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     ClaimRelationType,
@@ -157,7 +157,7 @@ def restore_claim_link_impl(
 async def create_claim_link(
     claim_id: str,
     request: ClaimLinkCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -218,7 +218,7 @@ async def get_claim_link(
 async def update_claim_link(
     link_id: str,
     request: ClaimLinkUpdateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -244,7 +244,7 @@ async def update_claim_link(
 @router.delete("/claim-links/{link_id}")
 async def delete_claim_link(
     link_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"

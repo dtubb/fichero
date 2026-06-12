@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.db import Database
@@ -43,7 +43,7 @@ class CitationCreateRequest(BaseModel):
 )
 async def create_citation(
     request: CitationCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None,
         alias="X-Fichero-Library-Path",
@@ -149,7 +149,7 @@ class CitationPatchRequest(BaseModel):
 async def patch_citation(
     citation_id: str,
     request: CitationPatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None,
         alias="X-Fichero-Library-Path",
@@ -181,7 +181,7 @@ async def patch_citation(
 @router.delete("/{citation_id}", status_code=204)
 async def delete_citation(
     citation_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None,
         alias="X-Fichero-Library-Path",

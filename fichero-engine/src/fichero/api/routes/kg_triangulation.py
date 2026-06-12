@@ -12,7 +12,7 @@ import logging
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import MutationListResponse
 
@@ -125,7 +125,7 @@ class RecomputeResponse(BaseModel):
     ),
 )
 async def recompute_triangulation(
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> RecomputeResponse:
     """Persist corpus-wide support counts back onto claim rows."""
     from fichero.kg.triangulation import persist_support_counts

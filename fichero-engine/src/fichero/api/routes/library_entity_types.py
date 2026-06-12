@@ -14,8 +14,10 @@ from __future__ import annotations
 import logging
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from fichero import authz
+from fichero.api.main import _is_allowed_library_path
 from fichero.db import Database, DatabaseManager, db_manager
 from fichero.knowledge_models import LibraryEntityType
 from fichero.models import LibraryEntityTypeListResponse
@@ -29,9 +31,30 @@ def _get_db_manager() -> DatabaseManager:
     return db_manager
 
 
-def _get_library_db(lib_encoded: str, db_mgr: DatabaseManager) -> Database:
-    """Resolve library path from URL parameter and return its database."""
+def _get_library_db(
+    request: Request,
+    lib_encoded: str,
+    db_mgr: DatabaseManager,
+    *,
+    write: bool,
+) -> Database:
+    """Resolve, validate, authorize, and return a library database."""
     lib_path = unquote(lib_encoded)
+    if not _is_allowed_library_path(lib_path):
+        raise HTTPException(
+            status_code=403,
+            detail="Library path is not in an allowed location or not a .fichero package.",
+        )
+
+    user = getattr(getattr(request, "state", None), "user", None)
+    try:
+        if write:
+            authz.assert_can_write(user, lib_path)
+        else:
+            authz.assert_can_read(user, lib_path)
+    except authz.AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
     try:
         return db_mgr.get_database(lib_path)
     except FileNotFoundError as e:
@@ -44,6 +67,7 @@ def _get_library_db(lib_encoded: str, db_mgr: DatabaseManager) -> Database:
     tags=["library"],
 )
 def list_library_entity_types(
+    request: Request,
     lib: str,
     db_mgr: DatabaseManager = Depends(_get_db_manager),
 ) -> LibraryEntityTypeListResponse:
@@ -56,7 +80,7 @@ def list_library_entity_types(
         List of LibraryEntityType entries for this library.
     """
     lib_path = unquote(lib)
-    db = _get_library_db(lib, db_mgr)
+    db = _get_library_db(request, lib, db_mgr, write=False)
     try:
         items = db.query(LibraryEntityType, library_id=lib_path)
         return LibraryEntityTypeListResponse(items=items, count=len(items))
@@ -71,6 +95,7 @@ def list_library_entity_types(
     tags=["library"],
 )
 def add_library_entity_type(
+    request: Request,
     lib: str,
     entity_type_key: str,
     enabled: bool = True,
@@ -87,7 +112,7 @@ def add_library_entity_type(
         The created LibraryEntityType entry.
     """
     lib_path = unquote(lib)
-    db = _get_library_db(lib, db_mgr)
+    db = _get_library_db(request, lib, db_mgr, write=True)
     try:
         # Check if already exists
         matches = db.query(
@@ -126,6 +151,7 @@ def add_library_entity_type(
     tags=["library"],
 )
 def remove_library_entity_type(
+    request: Request,
     lib: str,
     entity_type_key: str,
     db_mgr: DatabaseManager = Depends(_get_db_manager),
@@ -137,7 +163,7 @@ def remove_library_entity_type(
         entity_type_key: Machine-readable entity type key to remove
     """
     lib_path = unquote(lib)
-    db = _get_library_db(lib, db_mgr)
+    db = _get_library_db(request, lib, db_mgr, write=True)
     try:
         matches = db.query(
             LibraryEntityType,

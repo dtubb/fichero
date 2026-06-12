@@ -11,9 +11,10 @@ import time
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from fichero.api.routes.auth_accounts import _require_owner_or_bootstrap
 from fichero.providers import get_provider_info
 from fichero.keychain import (
     get_api_key,
@@ -114,14 +115,21 @@ def delete_provider_api_key_impl(provider_type: str) -> None:
 
 
 @router.post("/{provider_type}/api-key")
-async def set_provider_api_key(provider_type: str, request: APIKeyRequest) -> APIKeyStoredResponse:
+async def set_provider_api_key(
+    provider_type: str,
+    request: APIKeyRequest,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> APIKeyStoredResponse:
     """Store API key for a provider type in keychain."""
     set_provider_api_key_impl(provider_type, request.api_key)
     return APIKeyStoredResponse(status="stored")
 
 
 @router.delete("/{provider_type}/api-key")
-async def delete_provider_api_key(provider_type: str) -> APIKeyDeletedResponse:
+async def delete_provider_api_key(
+    provider_type: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> APIKeyDeletedResponse:
     """Delete API key for a provider type from keychain."""
     delete_provider_api_key_impl(provider_type)
     return APIKeyDeletedResponse(status="deleted")
@@ -160,7 +168,10 @@ class ConnectionTestResponse(BaseModel):
 
 
 @router.post("/{provider_type}/test")
-async def test_provider_connection(provider_type: str) -> ConnectionTestResponse:
+async def test_provider_connection(
+    provider_type: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> ConnectionTestResponse:
     """
     Test connection to a provider.
 

@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.db import Database
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.app_db import get_app_db, AppDatabase
 from fichero.models import (
     Conversation,
@@ -268,7 +268,7 @@ Provide a helpful, accurate answer based on the documents above. Be concise but 
 @router.post("")
 async def chat(
     request: ChatRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ChatResponse:
     """
     Send a message and get a response with RAG.
@@ -475,7 +475,7 @@ def update_conversation_impl(
 async def update_conversation(
     conversation_id: str,
     request: ConversationUpdate,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ConversationHistory:
     """Update conversation title and/or folder_path."""
     conv = update_conversation_impl(db, conversation_id, request)
@@ -521,7 +521,7 @@ def duplicate_conversation_impl(db: Database, conversation_id: str) -> Conversat
 @router.post("/conversations/{conversation_id}/duplicate")
 async def duplicate_conversation(
     conversation_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ConversationSummary:
     """Duplicate a conversation with a new ID."""
     new_conv = duplicate_conversation_impl(db, conversation_id)
@@ -556,7 +556,7 @@ def delete_conversation_impl(db: Database, conversation_id: str) -> Conversation
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(
     conversation_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ConversationDeletedResponse:
     """Delete a conversation."""
     delete_conversation_impl(db, conversation_id)
@@ -567,7 +567,7 @@ async def delete_conversation(
 async def reorder_conversations(
     conversation_ids: list[str],
     folder_path: str = "/",
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ConversationReorderResponse:
     """Reorder conversations within a folder."""
     for index, conversation_id in enumerate(conversation_ids):
@@ -671,7 +671,7 @@ class ExtractTextResponse(BaseModel):
 @router.post("/extract-text")
 async def extract_text(
     request: ExtractTextRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ExtractTextResponse:
     """
     Extract text content from documents.

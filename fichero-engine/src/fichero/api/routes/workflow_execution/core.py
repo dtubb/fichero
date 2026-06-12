@@ -22,7 +22,7 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 
 from fichero.db import Database
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.models import Workflow
 from fichero.workflows.activity import get_activity_tracker
 from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
@@ -172,7 +172,7 @@ async def execute_workflow(
     request: ExecuteWorkflowRequest,
     http_request: Request,
     background_tasks: BackgroundTasks,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ExecuteAcceptedResponse:
     """
     Execute a workflow (non-blocking).
@@ -291,7 +291,7 @@ async def execute_workflow(
 async def resume_workflow(
     thread_id: str,
     request: ResumeWorkflowRequest | None = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ExecutionStatusResponse:
     """
     Resume a paused workflow from checkpoint.

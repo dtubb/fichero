@@ -1,9 +1,10 @@
 """Per-library ACL authorizer.
 
-Authorization is enforced at exactly two shared choke-points:
+Authorization is enforced at shared choke-points:
 
 * ``fichero.actions.registry.ActionRegistry.invoke`` for writes.
 * ``fichero.api.main.get_library_database`` for reads.
+* ``fichero.api.main.get_library_database_for_write`` for route writes.
 
 All checks are gated behind ``FICHERO_MULTIUSER``. With the flag off, this
 module returns allow so existing single-user behavior is unchanged.
@@ -183,47 +184,35 @@ def target_ids_from_params(params: Any) -> list[str]:
     if not isinstance(data, dict):
         return []
     target_ids: list[str] = []
-    for key in (
-        "target_id",
-        "document_id",
-        "doc_id",
-        "folder_id",
-        "parent_id",
-        "artifact_id",
-        "claim_id",
-        "entity_id",
-        "source_document_id",
-    ):
-        value = data.get(key)
-        if isinstance(value, str) and value and value not in target_ids:
-            target_ids.append(value)
-    for key in ("target_ids", "document_ids", "doc_ids", "folder_ids"):
-        value = data.get(key)
-        if isinstance(value, list):
-            for item in value:
-                if isinstance(item, str) and item and item not in target_ids:
-                    target_ids.append(item)
+    for key, value in data.items():
+        if key == "id" or key.endswith("_id"):
+            _append_target_id(target_ids, value)
+        elif key.endswith("_ids"):
+            _append_target_ids(target_ids, value)
     return target_ids
 
 
 def target_id_from_request(request: Any) -> str | None:
     """Best-effort target id extraction for read dependency checks."""
     for source in (getattr(request, "path_params", {}) or {}, getattr(request, "query_params", {}) or {}):
-        for key in (
-            "target_id",
-            "document_id",
-            "doc_id",
-            "folder_id",
-            "parent_id",
-            "artifact_id",
-            "claim_id",
-            "entity_id",
-            "source_document_id",
-        ):
-            value = source.get(key)
-            if isinstance(value, str) and value:
-                return value
+        for key, value in source.items():
+            if key == "id" or key.endswith("_id"):
+                target_ids: list[str] = []
+                _append_target_id(target_ids, value)
+                if target_ids:
+                    return target_ids[0]
     return None
+
+
+def _append_target_id(target_ids: list[str], value: Any) -> None:
+    if isinstance(value, str) and value and value not in target_ids:
+        target_ids.append(value)
+
+
+def _append_target_ids(target_ids: list[str], value: Any) -> None:
+    if isinstance(value, list):
+        for item in value:
+            _append_target_id(target_ids, item)
 
 
 def _allowed(

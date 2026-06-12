@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     KnowledgeClaim,
@@ -83,7 +83,7 @@ class UndoResponse(BaseModel):
 )
 async def undo_mutation(
     mutation_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> UndoResponse:
     log = db.get(MutationLog, mutation_id)
     if log is None:

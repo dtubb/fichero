@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.llm import LLMConfig, chat
@@ -40,7 +40,7 @@ bio_router = APIRouter(prefix="/kg/entities", tags=["knowledge-graph"])
 )
 async def render_paragraph(
     request: ParagraphRenderRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ParagraphRenderResponse:
     """Render the supplied claims as a paragraph with citation metadata."""
 
@@ -100,7 +100,7 @@ def _build_bio_prompt(entity: KnowledgeEntity, claims: list[KnowledgeClaim]) -> 
 )
 async def generate_entity_bio(
     entity_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> EntityBioResponse:
     """Generate a prose biography from SVO claims and persist as entity.description."""
     entity = db.get(KnowledgeEntity, entity_id)

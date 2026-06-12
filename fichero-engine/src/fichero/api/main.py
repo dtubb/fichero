@@ -752,6 +752,33 @@ async def get_library_database(
     Raises:
         HTTPException: If library path header is missing or invalid
     """
+    return _get_library_database_for_access(
+        request,
+        x_fichero_library_path,
+        write=False,
+    )
+
+
+async def get_library_database_for_write(
+    request: Request,
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+) -> Database:
+    """FastAPI dependency to get the database for mutating library routes."""
+    # TODO(security-audit): non-registry mutating routes are now AUTHZ-gated,
+    # but most still do not write ActionAudit rows; track that separately.
+    return _get_library_database_for_access(
+        request,
+        x_fichero_library_path,
+        write=True,
+    )
+
+
+def _get_library_database_for_access(
+    request: Request,
+    x_fichero_library_path: str,
+    *,
+    write: bool,
+) -> Database:
     if not x_fichero_library_path:
         raise HTTPException(
             status_code=400,
@@ -764,7 +791,10 @@ async def get_library_database(
             detail="Library path is not in an allowed location or not a .fichero package.",
         )
 
-    assert_library_read_authorized(request, x_fichero_library_path)
+    if write:
+        assert_library_write_authorized(request, x_fichero_library_path)
+    else:
+        assert_library_read_authorized(request, x_fichero_library_path)
 
     try:
         db = db_manager.get_database(x_fichero_library_path)
@@ -787,6 +817,26 @@ def assert_library_read_authorized(
 
     try:
         authz.assert_can_read(
+            getattr(getattr(request, "state", None), "user", None),
+            library_path,
+            target_id
+            if target_id is not None
+            else authz.target_id_from_request(request),
+        )
+    except authz.AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+def assert_library_write_authorized(
+    request: Request,
+    library_path: str,
+    target_id: str | None = None,
+) -> None:
+    """Authorize a user-initiated mutation before touching a library DB."""
+    from fichero import authz
+
+    try:
+        authz.assert_can_write(
             getattr(getattr(request, "state", None), "user", None),
             library_path,
             target_id

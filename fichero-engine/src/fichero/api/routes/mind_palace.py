@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.spatial_models import (
     ArrangementType,
@@ -168,7 +168,7 @@ class ViewportSaveRequest(BaseModel):
 @router.post("/rooms", response_model=SpatialRoom)
 async def create_room(
     request: RoomCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialRoom:
     now = datetime.now()
     room = SpatialRoom(
@@ -213,7 +213,7 @@ async def get_room(
 async def update_room(
     room_id: str,
     request: RoomUpdateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialRoom:
     room = db.get(SpatialRoom, room_id)
     if not room:
@@ -230,7 +230,7 @@ async def update_room(
 @router.delete("/rooms/{room_id}")
 async def delete_room(
     room_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MindPalaceDeletedResponse:
     room = db.get(SpatialRoom, room_id)
     if not room:
@@ -277,7 +277,7 @@ async def get_scene_summary(
 @router.post("/nodes", response_model=SpatialNode)
 async def place_node(
     request: NodeCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialNode:
     room = db.get(SpatialRoom, request.room_id)
     if not room:
@@ -334,7 +334,7 @@ async def get_node(
 async def move_node(
     node_id: str,
     request: NodeMoveRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialNode:
     node = db.get(SpatialNode, node_id)
     if not node:
@@ -359,7 +359,7 @@ async def move_node(
 @router.delete("/nodes/{node_id}")
 async def remove_node(
     node_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MindPalaceDeletedResponse:
     node = db.get(SpatialNode, node_id)
     if not node:
@@ -376,7 +376,7 @@ async def remove_node(
 @router.post("/connections", response_model=SpatialConnection)
 async def create_connection(
     request: ConnectionCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialConnection:
     room = db.get(SpatialRoom, request.room_id)
     if not room:
@@ -425,7 +425,7 @@ async def list_connections(
 @router.delete("/connections/{connection_id}")
 async def remove_connection(
     connection_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MindPalaceDeletedResponse:
     conn = db.get(SpatialConnection, connection_id)
     if not conn:
@@ -444,7 +444,7 @@ async def remove_connection(
 @router.post("/stacks", response_model=SpatialStack)
 async def create_stack(
     request: StackCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialStack:
     room = db.get(SpatialRoom, request.room_id)
     if not room:
@@ -491,7 +491,7 @@ async def get_stack(
 async def add_to_stack(
     stack_id: str,
     node_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialStack:
     stack = db.get(SpatialStack, stack_id)
     if not stack:
@@ -507,7 +507,7 @@ async def add_to_stack(
 async def remove_from_stack(
     stack_id: str,
     node_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialStack:
     stack = db.get(SpatialStack, stack_id)
     if not stack:
@@ -527,7 +527,7 @@ async def remove_from_stack(
 @router.post("/notes", response_model=NativeNote)
 async def create_note(
     request: NoteCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> NativeNote:
     now = datetime.now()
     note = NativeNote(
@@ -581,7 +581,7 @@ async def get_note(
 async def update_note(
     note_id: str,
     request: NoteUpdateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> NativeNote:
     note = db.get(NativeNote, note_id)
     if not note:
@@ -598,7 +598,7 @@ async def update_note(
 @router.delete("/notes/{note_id}")
 async def delete_note(
     note_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MindPalaceDeletedResponse:
     note = db.get(NativeNote, note_id)
     if not note:
@@ -635,7 +635,7 @@ async def save_viewport(
     room_id: str,
     user_id: str,
     request: ViewportSaveRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialViewport:
     rows = [
         v
@@ -676,7 +676,7 @@ async def focus_node(
     room_id: str,
     user_id: str = "user",
     node_id: str | None = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SpatialViewport:
     """Set focus on a specific node in a room."""
     rows = [
@@ -710,7 +710,7 @@ async def focus_node(
 async def suggest_arrangement(
     room_id: str,
     request: ArrangeRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> list[SpatialNode]:
     """Propose positions for nodes based on an arrangement strategy.
 
@@ -753,7 +753,7 @@ async def suggest_arrangement(
 async def capture_viewport(
     room_id: str,
     request: CaptureRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> CaptureViewportResponse:
     """Capture a viewport as an image.
 
@@ -781,7 +781,7 @@ async def capture_viewport(
 async def export_to_tinderbox(
     room_id: str,
     tinderbox_note_id: str | None = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> TinderboxExportResponse:
     """Export room notes to Tinderbox.
 
@@ -802,7 +802,7 @@ async def export_to_tinderbox(
 async def import_from_tinderbox(
     tinderbox_note_id: str,
     room_id: str | None = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> list[NativeNote]:
     """Import notes from Tinderbox.
 

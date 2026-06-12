@@ -12,7 +12,7 @@ from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import Artifact, ArtifactTypeListResponse, Document
 
@@ -90,7 +90,7 @@ def _artifact_response(artifact: Artifact) -> ArtifactResponse:
 @router.post("/", response_model=ArtifactResponse)
 async def create_artifact(
     request: ArtifactCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -283,7 +283,7 @@ class ArtifactUpdate(BaseModel):
 async def update_artifact(
     artifact_id: str,
     update: ArtifactUpdate,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -328,7 +328,7 @@ async def update_artifact(
 @router.delete("/{artifact_id}", status_code=204)
 async def delete_artifact(
     artifact_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),

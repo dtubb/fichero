@@ -15,8 +15,7 @@ from pydantic import BaseModel, Field
 
 from fichero import accounts
 from fichero.api.auth import _use_multiuser_auth
-from fichero.api.routes.providers import get_app_database
-from fichero.app_db import AppDatabase
+from fichero.app_db import AppDatabase, get_app_db
 from fichero.models import AccountUser
 
 logger = logging.getLogger(__name__)
@@ -87,18 +86,34 @@ def _to_public_user(user: AccountUser) -> UserResponse:
     )
 
 
+def get_app_database() -> AppDatabase:
+    return get_app_db()
+
+
 def _current_session_user(request: Request) -> AccountUser | None:
     user = getattr(request.state, "user", None)
     return user if isinstance(user, AccountUser) else None
 
 
 def _require_owner_or_bootstrap(request: Request) -> None:
+    if not _use_multiuser_auth():
+        return
     if getattr(request.state, "bootstrap_auth", False):
         return
     user = _current_session_user(request)
     if user is not None and user.is_owner:
         return
     raise HTTPException(status_code=403, detail="owner access required")
+
+
+def _require_authenticated_or_bootstrap(request: Request) -> None:
+    if not _use_multiuser_auth():
+        return
+    if getattr(request.state, "bootstrap_auth", False):
+        return
+    if _current_session_user(request) is not None:
+        return
+    raise HTTPException(status_code=401, detail="session required")
 
 
 @auth_router.post("/login", response_model=LoginResponse)

@@ -9,7 +9,7 @@ import re
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.db import Database
@@ -350,7 +350,7 @@ def _restore_reference_impl(db: Database, payload: dict[str, Any]) -> Reference:
 async def patch_reference(
     reference_id: str,
     request: ReferencePatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None,
         alias="X-Fichero-Library-Path",
@@ -378,7 +378,7 @@ async def patch_reference(
 @router.delete("/references/{reference_id}")
 async def delete_reference(
     reference_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None,
         alias="X-Fichero-Library-Path",

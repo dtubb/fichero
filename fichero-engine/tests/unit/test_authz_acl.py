@@ -15,7 +15,17 @@ from fichero.actions.registry import (
     registry,
 )
 from fichero.api.change_stream import _change_hub
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.api.routes.auth_accounts import (
+    _require_authenticated_or_bootstrap,
+    _require_owner_or_bootstrap,
+)
+from fichero.api.routes.library_entity_types import (
+    _get_db_manager,
+    _get_library_db,
+    add_library_entity_type,
+    list_library_entity_types,
+)
 from fichero.api.routes.changes import stream_library_changes
 from fichero.api.routes.entities import _digest_library_database
 from fichero.api.routes.library_registry import add_known_library
@@ -192,6 +202,83 @@ async def test_no_role_fails_closed_for_read_and_write(
 
 
 @pytest.mark.anyio
+async def test_write_dependency_denies_viewer_and_allows_editor(
+    db, app_db, users, monkeypatch
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    library_path = _library_path(db)
+    _grant(app_db, users.viewer, library_path, "viewer")
+    _grant(app_db, users.editor, library_path, "editor")
+
+    with pytest.raises(HTTPException) as viewer_exc:
+        await get_library_database_for_write(
+            _request(users.viewer),
+            x_fichero_library_path=library_path,
+        )
+    assert viewer_exc.value.status_code == 403
+
+    assert (
+        await get_library_database_for_write(
+            _request(users.editor),
+            x_fichero_library_path=library_path,
+        )
+    ) is db
+
+
+@pytest.mark.anyio
+async def test_multiuser_off_leaves_write_dependency_unchanged(
+    db, users, monkeypatch
+):
+    monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+    library_path = _library_path(db)
+
+    assert (
+        await get_library_database_for_write(
+            _request(users.stranger),
+            x_fichero_library_path=library_path,
+        )
+    ) is db
+
+
+@pytest.mark.anyio
+async def test_generic_id_extraction_enforces_subtree_denies(
+    db, app_db, users, acl_action, monkeypatch
+):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    library_path = _library_path(db)
+    _grant(app_db, users.editor, library_path, "editor")
+
+    note = Document(name="Denied note")
+    db.save(note)
+    app_db.set_library_acl_override(
+        user_id=users.editor.id,
+        library_path=authz.normalize_library_path(library_path),
+        target_id=note.id,
+        effect="deny",
+    )
+
+    assert authz.target_id_from_request(_request(users.editor, note_id=note.id)) == note.id
+    with pytest.raises(HTTPException) as read_exc:
+        await get_library_database(
+            _request(users.editor, note_id=note.id),
+            x_fichero_library_path=library_path,
+        )
+    assert read_exc.value.status_code == 403
+
+    class Params(BaseModel):
+        note_id: str
+
+    assert authz.target_ids_from_params(Params(note_id=note.id)) == [note.id]
+    with pytest.raises(authz.AuthorizationError):
+        registry.invoke(
+            db,
+            acl_action,
+            {"document_id": note.id},
+            ActionContext(actor="editor", library_path=library_path),
+        )
+
+
+@pytest.mark.anyio
 async def test_bootstrap_secret_without_user_fails_closed_for_read_and_write(
     db, acl_action, monkeypatch
 ):
@@ -212,6 +299,83 @@ async def test_bootstrap_secret_without_user_fails_closed_for_read_and_write(
             {},
             ActionContext(actor="system", library_path=library_path),
         )
+
+
+def test_library_entity_types_validate_path_and_acl(db, app_db, users, monkeypatch, tmp_path):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    library_path = _library_path(db)
+    _grant(app_db, users.viewer, library_path, "viewer")
+    _grant(app_db, users.editor, library_path, "editor")
+
+    result = list_library_entity_types(
+        _request(users.viewer),
+        library_path,
+        _get_db_manager(),
+    )
+    assert result.count == 0
+
+    with pytest.raises(HTTPException) as viewer_write_exc:
+        add_library_entity_type(
+            _request(users.viewer),
+            library_path,
+            "person",
+            True,
+            _get_db_manager(),
+        )
+    assert viewer_write_exc.value.status_code == 403
+
+    created = add_library_entity_type(
+        _request(users.editor),
+        library_path,
+        "person",
+        True,
+        _get_db_manager(),
+    )
+    assert created.entity_type_key == "person"
+
+    with pytest.raises(HTTPException) as stranger_exc:
+        list_library_entity_types(
+            _request(users.stranger),
+            library_path,
+            _get_db_manager(),
+        )
+    assert stranger_exc.value.status_code == 403
+
+    outside = tmp_path / "not-a-library"
+    outside.mkdir()
+    with pytest.raises(HTTPException) as path_exc:
+        _get_library_db(
+            _request(users.editor),
+            str(outside),
+            _get_db_manager(),
+            write=False,
+        )
+    assert path_exc.value.status_code == 403
+
+
+def test_app_wide_config_gates_require_authenticated_owner(users, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+
+    _require_authenticated_or_bootstrap(_request(users.viewer))
+    with pytest.raises(HTTPException) as anon_exc:
+        _require_authenticated_or_bootstrap(_request(None))
+    assert anon_exc.value.status_code == 401
+
+    _require_owner_or_bootstrap(_request(users.owner))
+    with pytest.raises(HTTPException) as viewer_exc:
+        _require_owner_or_bootstrap(_request(users.viewer))
+    assert viewer_exc.value.status_code == 403
+
+    bootstrap_request = SimpleNamespace(state=SimpleNamespace(bootstrap_auth=True, user=None))
+    _require_authenticated_or_bootstrap(bootstrap_request)
+    _require_owner_or_bootstrap(bootstrap_request)
+
+
+def test_app_wide_config_gates_short_circuit_when_multiuser_off(users, monkeypatch):
+    monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+
+    _require_authenticated_or_bootstrap(_request(None))
+    _require_owner_or_bootstrap(_request(users.viewer))
 
 
 @pytest.mark.anyio
@@ -376,7 +540,7 @@ def test_library_creator_is_bootstrapped_as_owner(app_db, users, monkeypatch, tm
     assert authz.ensure_owner_role(users.viewer, library_path) is False
 
 
-def test_acl_enforcement_stays_at_two_choke_points():
+def test_acl_enforcement_stays_at_shared_choke_points():
     root = "fichero-engine/src/fichero"
     with open(f"{root}/actions/registry.py", encoding="utf-8") as handle:
         registry_source = handle.read()
@@ -387,3 +551,4 @@ def test_acl_enforcement_stays_at_two_choke_points():
     assert "def invoke(" in registry_source
     assert "authz.assert_can_write(" in registry_source
     assert api_source.count("authz.assert_can_read(") == 1
+    assert api_source.count("authz.assert_can_write(") == 1

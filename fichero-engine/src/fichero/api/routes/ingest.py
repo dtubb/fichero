@@ -12,7 +12,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Header
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database, db_manager
+from fichero.api.main import get_library_database_for_write, db_manager
 from fichero.db import Database
 from fichero.models import Document
 
@@ -156,7 +156,7 @@ def import_folder_impl(
 @router.post("/file")
 async def ingest_file(
     request: IngestFileRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
 ) -> Document:
     """
@@ -171,7 +171,7 @@ async def ingest_file(
 async def ingest_folder(
     request: IngestFolderRequest,
     background_tasks: BackgroundTasks,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
 ) -> IngestTaskResponse:
     """
@@ -333,7 +333,7 @@ def import_xlsx_impl(db: Database, request: XlsxIngestRequest) -> XlsxIngestResp
 @router.post("/xlsx")
 async def ingest_xlsx(
     request: XlsxIngestRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
 ) -> XlsxIngestResponse:
     """

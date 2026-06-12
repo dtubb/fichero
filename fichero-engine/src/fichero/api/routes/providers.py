@@ -12,7 +12,11 @@ from pydantic import BaseModel
 
 from fichero.db import Database
 from fichero.app_db import get_app_db, AppDatabase
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
+from fichero.api.routes.auth_accounts import (
+    _require_authenticated_or_bootstrap,
+    _require_owner_or_bootstrap,
+)
 from fichero.models import Model, Provider, ProviderRef, ProviderType
 from fichero.models import AppleIntelligenceProbeResponse
 from fichero.providers import (
@@ -46,7 +50,7 @@ from fichero.api.routes.provider_models import (  # noqa: F401 (re-exported for 
 from fichero.api.routes.provider_keys import router as keys_router
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(_require_authenticated_or_bootstrap)])
 
 # Include sub-routers
 router.include_router(models_router)
@@ -297,6 +301,7 @@ def create_provider_impl(
 @router.post("")
 async def create_provider(
     request: ProviderCreate,
+    _owner: None = Depends(_require_owner_or_bootstrap),
     app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderResponse:
     """Create a new provider configuration (app-wide)."""
@@ -387,7 +392,7 @@ async def list_library_provider_refs(
 @router.post("/refs")
 async def add_provider_ref(
     request: ProviderRefCreate,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderRefResponse:
     """Add a provider reference to this library."""
@@ -447,7 +452,7 @@ def update_provider_ref_impl(
 async def update_provider_ref(
     ref_id: str,
     request: ProviderRefUpdate,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderRefResponse:
     """Update a provider reference."""
@@ -486,7 +491,7 @@ def delete_provider_ref_impl(db: Database, ref_id: str) -> ProviderRef:
 @router.delete("/refs/{ref_id}")
 async def delete_provider_ref(
     ref_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> DeletedResponse:
     """Remove a provider reference from this library."""
     delete_provider_ref_impl(db, ref_id)
@@ -551,6 +556,7 @@ def update_provider_impl(
 async def update_provider(
     provider_id: str,
     request: ProviderUpdate,
+    _owner: None = Depends(_require_owner_or_bootstrap),
     app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderResponse:
     """Update a provider configuration (app-wide)."""
@@ -586,6 +592,7 @@ def delete_provider_impl(app_db: AppDatabase, provider_id: str) -> Provider:
 @router.delete("/{provider_id}", response_model=DeletedResponse)
 async def delete_provider(
     provider_id: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
     app_db: AppDatabase = Depends(get_app_database),
 ) -> DeletedResponse:
     """Delete a provider (app-wide). Models are cascade deleted."""
@@ -712,6 +719,7 @@ def _derive_capabilities_from_registry(provider_type: str, model_id: str) -> lis
 async def add_model_to_provider(
     provider_id: str,
     request: ModelCreate,
+    _owner: None = Depends(_require_owner_or_bootstrap),
     app_db: AppDatabase = Depends(get_app_database),
 ) -> UserModelResponse:
     """Add a model configuration to a provider."""
@@ -793,6 +801,7 @@ def remove_model_impl(app_db: AppDatabase, provider_id: str, model_id: str) -> M
 async def remove_model_from_provider(
     provider_id: str,
     model_id: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
     app_db: AppDatabase = Depends(get_app_database),
 ) -> DeletedResponse:
     """Remove a model from a provider."""

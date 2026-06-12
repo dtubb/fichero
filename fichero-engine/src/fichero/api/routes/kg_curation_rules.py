@@ -7,7 +7,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     ClaimSuppressionRule,
@@ -126,7 +126,7 @@ async def list_entity_rules(
 @router.post("/entity-rules", response_model=EntityRuleReadResponse)
 async def create_entity_rule(
     request: EntityRuleCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> EntityRuleReadResponse:
     rule = EntityResolutionRule(**request.model_dump())
     db.save(rule)
@@ -136,7 +136,7 @@ async def create_entity_rule(
 @router.post("/entity-rules/batch", response_model=EntityRuleListResponse)
 async def create_entity_rules_batch(
     request: EntityRuleBatchCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> EntityRuleListResponse:
     created: list[EntityResolutionRule] = []
     for item in request.items:
@@ -152,7 +152,7 @@ async def create_entity_rules_batch(
 @router.delete("/entity-rules", response_model=EntityRuleDeleteResponse)
 async def delete_entity_rule(
     request: EntityRuleDeleteRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> EntityRuleDeleteResponse:
     rule = db.get(EntityResolutionRule, request.rule_id)
     if rule is None:
@@ -182,7 +182,7 @@ async def list_claim_rules(
 @router.post("/claim-rules", response_model=ClaimRuleReadResponse)
 async def create_claim_rule(
     request: ClaimRuleCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ClaimRuleReadResponse:
     rule = ClaimSuppressionRule(**request.model_dump())
     db.save(rule)
@@ -192,7 +192,7 @@ async def create_claim_rule(
 @router.post("/claim-rules/batch", response_model=ClaimRuleListResponse)
 async def create_claim_rules_batch(
     request: ClaimRuleBatchCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ClaimRuleListResponse:
     created: list[ClaimSuppressionRule] = []
     for item in request.items:
@@ -208,7 +208,7 @@ async def create_claim_rules_batch(
 @router.delete("/claim-rules", response_model=ClaimRuleDeleteResponse)
 async def delete_claim_rule(
     request: ClaimRuleDeleteRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ClaimRuleDeleteResponse:
     rule = db.get(ClaimSuppressionRule, request.rule_id)
     if rule is None:

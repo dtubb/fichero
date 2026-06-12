@@ -29,7 +29,7 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database, db_manager
 from fichero.workflows.activity import (
     Activity,
@@ -404,7 +404,7 @@ async def get_batch_activity(
 
 @router.delete("/cleanup")
 async def cleanup_old_activities(
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     days: int = Query(
         30, ge=1, le=365, description="Delete activities older than N days"
     ),

@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.db import Database
@@ -186,7 +186,7 @@ def create_framework_impl(
 @router.post("/frameworks", response_model=InterpretiveFramework)
 async def create_framework(
     request: FrameworkCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -256,7 +256,7 @@ def update_framework_impl(
 async def update_framework(
     framework_id: str,
     request: FrameworkUpdateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -298,7 +298,7 @@ def delete_framework_impl(db: Database, framework_id: str) -> InterpretiveFramew
 @router.delete("/frameworks/{framework_id}")
 async def delete_framework(
     framework_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -378,7 +378,7 @@ def create_interpretation_impl(
 @router.post("/interpretations", response_model=Interpretation)
 async def create_interpretation(
     request: InterpretationCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -465,7 +465,7 @@ def update_interpretation_impl(
 async def update_interpretation(
     interpretation_id: str,
     request: InterpretationUpdateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -518,7 +518,7 @@ def create_pattern_impl(db: Database, request: PatternCreateRequest) -> PatternI
 @router.post("/patterns", response_model=PatternInstance)
 async def create_pattern(
     request: PatternCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -587,7 +587,7 @@ def update_pattern_impl(
 async def update_pattern(
     pattern_id: str,
     request: PatternUpdateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -632,7 +632,7 @@ def add_claim_to_pattern_impl(
 async def add_claim_to_pattern(
     pattern_id: str,
     claim_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -663,7 +663,7 @@ async def add_claim_to_pattern(
 @router.post("/circle-state", response_model=HermeneuticCircleState)
 async def create_circle_state(
     request: CircleStateCreateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -726,7 +726,7 @@ async def get_circle_state(
 async def navigate_circle(
     state_id: str,
     request: CircleStateNavigateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -776,7 +776,7 @@ async def navigate_circle(
 )
 async def backtrack_circle(
     state_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Header(
         default=None, alias="X-Fichero-Library-Path"
     ),
@@ -821,7 +821,7 @@ async def backtrack_circle(
 @router.post("/suggestions", response_model=HermesSuggestionListResponse)
 async def suggest_interpretations(
     request: HermesSuggestionRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> HermesSuggestionListResponse:
     """Generate AI interpretation suggestions for claims.
 

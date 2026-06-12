@@ -16,7 +16,7 @@ from fichero.app_db import get_app_db
 from fichero.db import Database
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.llm import get_model_cost
 from fichero.workflows.types import (
     ToolDef,
@@ -509,7 +509,7 @@ def create_workflow_impl(db: Database, workflow: WorkflowDef) -> "Workflow":  # 
 @router.post("")
 async def create_workflow(
     workflow: WorkflowDef,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -583,7 +583,7 @@ async def import_workflow(
     name: str = "",
     description: str = "",
     workflow_data: dict = {},
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -661,7 +661,7 @@ async def export_workflow(
     response_model=ReinstallDefaultWorkflowsResponse,
 )
 async def reinstall_default_workflows(
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -773,7 +773,7 @@ async def get_workflow(
 async def estimate_workflow_cost(
     workflow_id: str,
     request: WorkflowCostEstimateRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> WorkflowCostEstimateResponse:
     """Estimate run cost from file count and per-file token assumptions."""
     from fichero.models import Workflow
@@ -853,7 +853,7 @@ def update_workflow_impl(
 async def update_workflow(
     workflow_id: str,
     workflow: WorkflowDef,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -955,7 +955,7 @@ def patch_workflow_impl(
 async def patch_workflow(
     workflow_id: str,
     patch: WorkflowPatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -1013,7 +1013,7 @@ def delete_workflow_impl(db: Database, workflow_id: str) -> "Workflow":  # noqa:
 @router.delete("/{workflow_id}")
 async def delete_workflow(
     workflow_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -1074,7 +1074,7 @@ def duplicate_workflow_impl(db: Database, workflow_id: str) -> "Workflow":  # no
 @router.post("/{workflow_id}/duplicate")
 async def duplicate_workflow(
     workflow_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -1139,7 +1139,7 @@ def reorder_workflows_impl(
 async def reorder_workflows(
     workflow_ids: list[str],
     folder_path: str = "/",
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"

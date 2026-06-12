@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import Document
 
@@ -68,7 +68,7 @@ class ImportResponse(BaseModel):
 )
 async def import_bibliography(
     request: ImportRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ImportResponse:
     entries = _parse_bibliography(request.text, request.format)
     return ImportResponse(count=len(entries), entries=entries)
@@ -86,7 +86,7 @@ async def import_bibliography(
 async def attach_record(
     document_id: str,
     request: AttachRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MetadataResponse:
     doc, _ = _attach_record_impl(db, document_id, request.text, request.format)
     return MetadataResponse(document_id=document_id, metadata=doc.source_metadata or {})
@@ -167,7 +167,7 @@ class ExportRequest(BaseModel):
 )
 async def export_bibtex(
     request: ExportRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ):
     from fastapi.responses import PlainTextResponse
 
@@ -202,7 +202,7 @@ class ResolveRequest(BaseModel):
 async def resolve(
     request: ResolveRequest,
     document_id: str | None = Query(default=None),
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MetadataResponse:
     from fichero.bibliography.doi_lookup import resolve_doi, resolve_isbn
 
@@ -251,7 +251,7 @@ class MetadataPatchRequest(BaseModel):
 async def patch_metadata(
     document_id: str,
     request: MetadataPatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MetadataResponse:
     doc, _ = _patch_metadata_impl(db, document_id, request.metadata)
     return MetadataResponse(document_id=document_id, metadata=doc.source_metadata)
@@ -278,7 +278,7 @@ async def run_extractor(
             "LLM."
         ),
     ),
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> MetadataResponse:
     doc = db.get(Document, document_id)
     if doc is None:

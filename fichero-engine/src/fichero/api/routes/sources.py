@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.models import Document
 from fichero.models import SourceListResponse
@@ -145,7 +145,7 @@ def _restore_source_impl(db: Database, payload: dict[str, Any]) -> Document:
 @router.post("", response_model=SourceUpsertResponse)
 async def upsert_source(
     request: SourceUpsertRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SourceUpsertResponse:
     """Create or update a source (stored as a Document)."""
     document, _ = _upsert_source_impl(db, request)
@@ -179,7 +179,7 @@ async def get_source(
 async def update_source(
     source_id: str,
     request: SourceUpsertRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> SourceUpsertResponse:
     """Update an existing source."""
     document, _ = _update_source_impl(db, source_id, request)
@@ -189,7 +189,7 @@ async def update_source(
 @router.delete("/{source_id}", status_code=204)
 async def delete_source(
     source_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> None:
     """Delete a source."""
     _delete_source_impl(db, source_id)

@@ -4,8 +4,13 @@ Settings API Routes
 Endpoints for managing app-wide settings like default AI models.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
+
+from fichero.api.routes.auth_accounts import (
+    _require_authenticated_or_bootstrap,
+    _require_owner_or_bootstrap,
+)
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -44,8 +49,10 @@ class AIDefaults(BaseModel):
 
 
 @router.get("/ai-defaults", response_model=AIDefaults)
-def get_ai_defaults() -> AIDefaults:
+def get_ai_defaults(request: Request) -> AIDefaults:
     """Get default AI models for each category."""
+    _require_authenticated_or_bootstrap(request)
+
     from fichero.app_db import get_app_db
 
     db = get_app_db()
@@ -75,7 +82,11 @@ def get_ai_defaults() -> AIDefaults:
 
 
 @router.put("/ai-defaults")
-def set_ai_defaults(body: AIDefaults) -> StatusOkResponse:
+def set_ai_defaults(
+    body: AIDefaults,
+    request: Request,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> StatusOkResponse:
     """Set default AI models for each category."""
     from fichero.app_db import get_app_db
 
@@ -119,7 +130,10 @@ def set_ai_defaults(body: AIDefaults) -> StatusOkResponse:
 
 
 @router.post("/ai-defaults/repair")
-def repair_ai_defaults() -> StatusOkResponse:
+def repair_ai_defaults(
+    request: Request,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> StatusOkResponse:
     """Re-seed any missing tier-alias defaults to factory models.
 
     Safe to call on an existing library — only fills gaps, never overwrites
@@ -145,7 +159,10 @@ def repair_ai_defaults() -> StatusOkResponse:
 
 
 @router.delete("/ai-defaults")
-def reset_ai_defaults() -> StatusOkResponse:
+def reset_ai_defaults(
+    request: Request,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> StatusOkResponse:
     """Reset all AI default settings to empty."""
     from fichero.app_db import get_app_db
 

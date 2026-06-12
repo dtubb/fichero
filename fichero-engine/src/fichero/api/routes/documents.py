@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import (
     Annotation,
@@ -548,7 +548,7 @@ async def get_document_note(
 async def put_document_note(
     doc_id: str,
     request: DocumentNoteUpsert,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -583,7 +583,7 @@ async def put_document_note(
 @router.delete("/{doc_id}/notes", status_code=204)
 async def delete_document_note(
     doc_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -615,7 +615,7 @@ async def delete_document_note(
 async def patch_workspace_items(
     doc_id: str,
     request: WorkspacePatchRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -752,7 +752,7 @@ async def get_document_parent(
 @router.post("", status_code=201)
 async def create_document(
     doc: DocumentCreate,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -778,7 +778,7 @@ async def create_document(
 async def update_document(
     doc_id: str,
     update: DocumentUpdate,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -805,7 +805,7 @@ async def update_document(
 @router.patch("/batch-exclude", response_model=DocumentBatchExcludeResponse)
 async def batch_exclude_documents(
     request: DocumentBatchExcludeRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -835,7 +835,7 @@ async def batch_exclude_documents(
 async def assign_document_prototype(
     doc_id: str,
     request: PrototypeAssignRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -924,7 +924,7 @@ async def list_page_ranges(
 async def upsert_page_ranges(
     doc_id: str,
     request: PageRangeUpsertRequest,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -1054,7 +1054,7 @@ def _cascade_delete_kg_rows(db: Database, doc_ids: set[str]) -> tuple[int, int]:
 @router.delete("/{doc_id}", status_code=204)
 async def delete_document(
     doc_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -1086,7 +1086,7 @@ async def delete_document(
 @router.post("/{doc_id}/restore", status_code=204)
 async def restore_document(
     doc_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -1111,7 +1111,7 @@ async def restore_document(
 @router.delete("/{doc_id}/purge", status_code=204)
 async def purge_document(
     doc_id: str,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -1252,7 +1252,7 @@ async def related_documents(
 
 @router.post("/pdfs/backfill-pages")
 async def backfill_pdf_pages(
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -1325,7 +1325,7 @@ async def backfill_pdf_pages(
 async def reorder_documents(
     doc_ids: list[str],
     folder_path: str = "/",
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -1401,7 +1401,7 @@ def import_uploaded_file_impl(
 async def import_file(
     file: UploadFile,
     parent_id: Optional[str] = None,
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -1454,7 +1454,7 @@ class MoveRequest(BaseModel):
 async def move_document(
     doc_id: str,
     parent_id: Optional[str] = Query(None),
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -1482,7 +1482,7 @@ async def move_document(
 
 @router.post("/cleanup-orphans")
 async def cleanup_orphan_documents(
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
