@@ -33,6 +33,8 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from fichero.xml_security import reject_xml_entities
+
 logger = logging.getLogger(__name__)
 
 # XMP namespaces recognized by Fichero
@@ -126,6 +128,8 @@ def _parse_xmp_file(xmp_path: Path) -> dict[str, Any]:
     Tries python-xmp-toolkit first, falls back to regex-based parsing
     for simple sidecar files.
     """
+    reject_xml_entities(xmp_path.read_bytes())
+
     # Try python-xmp-toolkit first (most robust)
     try:
         import libxmp

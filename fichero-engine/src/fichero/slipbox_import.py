@@ -19,11 +19,11 @@ from dataclasses import dataclass, field
 from html import unescape
 from pathlib import Path
 from typing import Iterable
-from xml.etree.ElementTree import iterparse
 
 from fichero.db import db_manager
 from fichero.ingest import IngestMode, detect_file_type, ingest_file
 from fichero.models import DocType, Document, Status
+from fichero.xml_security import iterparse_xml
 
 
 DEFAULT_SLIPBOX_FILESYSTEM = Path("~/code/slipbox").expanduser()
@@ -287,7 +287,7 @@ def _ensure_parent_hierarchy(
 def iter_tinderbox_notes(tbx_path: Path) -> Iterable[TinderboxNote]:
     """Stream notes from a Tinderbox ``.tbx`` XML file."""
 
-    for event, elem in iterparse(tbx_path, events=("end",)):
+    for event, elem in iterparse_xml(tbx_path, events=("end",)):
         if elem.tag != "item":
             continue
 

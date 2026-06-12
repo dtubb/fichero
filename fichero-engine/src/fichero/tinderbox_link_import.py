@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from xml.etree import ElementTree as ET
 
 from fichero.db import db_manager
 from fichero.models import DocType, Document, FileType, Status
+from fichero.xml_security import iterparse_xml
 
 
 @dataclass(frozen=True)
@@ -130,7 +130,7 @@ def import_tinderbox_links(
 
 def parse_tinderbox_notes(tbx_path: Path) -> list[dict[str, Any]]:
     notes: list[dict[str, Any]] = []
-    for event, elem in ET.iterparse(tbx_path, events=("end",)):
+    for event, elem in iterparse_xml(tbx_path, events=("end",)):
         tag = _local_name(elem.tag)
         if tag not in {"note", "item"}:
             continue
@@ -160,7 +160,7 @@ def parse_tinderbox_notes(tbx_path: Path) -> list[dict[str, Any]]:
     return notes
 
 
-def _collect_attrs(elem: ET.Element) -> dict[str, str]:
+def _collect_attrs(elem: Any) -> dict[str, str]:
     attrs: dict[str, str] = {str(k): str(v) for k, v in elem.attrib.items()}
     for child in list(elem):
         child_tag = _local_name(child.tag)

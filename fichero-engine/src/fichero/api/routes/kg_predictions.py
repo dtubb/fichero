@@ -49,7 +49,7 @@ def _ensure_pykeen_compat() -> None:
             model_file = Path(directory) / "trained_model.pkl"
             if not model_file.exists():
                 raise FileNotFoundError(f"trained_model.pkl not found in {directory}")
-            return torch.load(model_file, map_location="cpu")
+            return torch.load(model_file, map_location="cpu", weights_only=True)
 
         pykeen.models.Model.load_directory = _load_directory_compat
 

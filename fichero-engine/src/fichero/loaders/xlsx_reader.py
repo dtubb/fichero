@@ -1,7 +1,7 @@
 """
 Read .xlsx files as structured records without openpyxl.
 
-Uses stdlib zipfile + xml.etree to parse the Open XML format directly.
+Uses stdlib zipfile plus guarded XML parsing to parse the Open XML format directly.
 """
 
 from __future__ import annotations
@@ -10,10 +10,26 @@ import re
 import zipfile
 from pathlib import Path
 from typing import Any
-from xml.etree import ElementTree as ET
+
+from fichero.xml_security import parse_xml
 
 _NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 _REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+_MAX_XLSX_MEMBER_SIZE = 20 * 1024 * 1024
+
+
+def _validate_zip_members(zf: zipfile.ZipFile) -> None:
+    for info in zf.infolist():
+        if info.file_size > _MAX_XLSX_MEMBER_SIZE:
+            raise ValueError(f"XLSX member too large: {info.filename}")
+
+
+def _parse_xml_member(zf: zipfile.ZipFile, name: str):
+    info = zf.getinfo(name)
+    if info.file_size > _MAX_XLSX_MEMBER_SIZE:
+        raise ValueError(f"XLSX member too large: {name}")
+    with zf.open(info) as member:
+        return parse_xml(member)
 
 
 def _col_index(col_str: str) -> int:
@@ -35,7 +51,7 @@ def _parse_cell_ref(ref: str) -> tuple[int, int]:
 def _read_shared_strings(zf: zipfile.ZipFile) -> list[str]:
     if "xl/sharedStrings.xml" not in zf.namelist():
         return []
-    tree = ET.parse(zf.open("xl/sharedStrings.xml"))
+    tree = _parse_xml_member(zf, "xl/sharedStrings.xml")
     result: list[str] = []
     for si in tree.getroot().findall(f"{{{_NS}}}si"):
         # Concatenate all <t> children (handles rich-text runs)
@@ -62,7 +78,7 @@ def _read_sheet_cells(zf: zipfile.ZipFile, sheet_path: str, shared: list[str]) -
     Return a list-of-rows of string values.  Empty cells are None; rows are
     padded to the width of the widest row so every row has the same length.
     """
-    tree = ET.parse(zf.open(sheet_path))
+    tree = _parse_xml_member(zf, sheet_path)
     root = tree.getroot()
 
     # Collect (row_idx, col_idx, value) triples
@@ -160,6 +176,7 @@ def read_xlsx_records(
         raise FileNotFoundError(f"File not found: {path}")
 
     with zipfile.ZipFile(path) as zf:
+        _validate_zip_members(zf)
         shared = _read_shared_strings(zf)
         sheets = _sheet_names(zf)
 

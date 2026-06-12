@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from fichero import __main__ as cli
@@ -44,6 +45,23 @@ def test_iter_tinderbox_notes_decodes_base64_text(tmp_path):
     assert notes[0].name == "Writing note"
     assert notes[0].text == "anthropology of writing"
     assert notes[0].attributes["Created"] == "2026-05-27T10:00:00-03:00"
+
+
+def test_iter_tinderbox_notes_rejects_billion_laughs_entities(tmp_path):
+    tbx = tmp_path / "evil.tbx"
+    tbx.write_text(
+        """<?xml version="1.0"?>
+<!DOCTYPE lolz [
+ <!ENTITY lol "lol">
+ <!ENTITY lol1 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">
+]>
+<tinderbox><item id="n1" name="&lol1;"/></tinderbox>
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="entity declarations"):
+        list(iter_tinderbox_notes(tbx))
 
 
 def test_decode_tinderbox_text_strips_rtf_payload():

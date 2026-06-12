@@ -180,6 +180,15 @@ class TestResolver:
         assert evaluate_condition("$.nodes.check.count < 10", state) is False
         assert evaluate_condition("$.nodes.check.is_valid == true", state) is True
         assert evaluate_condition("$.inputs.skip == true", state) is True
+        assert evaluate_condition("$.nodes.check.count >= 10 and $.inputs.skip == true", state) is True
+
+    def test_evaluate_condition_rejects_rce_expression(self):
+        """Attribute/call based sandbox escapes are rejected and evaluate false."""
+        from fichero.workflows.resolver import evaluate_condition
+
+        state = {"inputs": {}, "outputs": {}}
+
+        assert evaluate_condition("().__class__.__bases__[0].__subclasses__()", state) is False
 
     def test_json_parse(self):
         """Test JSON parsing transform."""

@@ -13,11 +13,9 @@ Features:
 
 from __future__ import annotations
 
-import ast
 import asyncio
 import inspect
 import logging
-import operator
 import re
 import uuid
 from datetime import datetime
@@ -26,6 +24,7 @@ from typing import Any, Callable
 
 from pydantic import BaseModel, Field
 
+from fichero.workflows.safe_condition import safe_eval_expression
 from fichero.workflows.types import WorkflowDef
 from fichero.workflows.executor import WorkflowExecutor
 
@@ -365,107 +364,8 @@ def evaluate_condition(condition: ChainStepCondition, data: dict[str, Any]) -> b
 
     resolved_expr = re.sub(path_pattern, replace_path, expression)
 
-    # Safe operators mapping
-    SAFE_OPERATORS = {
-        ast.Eq: operator.eq,
-        ast.NotEq: operator.ne,
-        ast.Lt: operator.lt,
-        ast.LtE: operator.le,
-        ast.Gt: operator.gt,
-        ast.GtE: operator.ge,
-        ast.Is: operator.is_,
-        ast.IsNot: operator.is_not,
-        ast.In: lambda a, b: a in b,
-        ast.NotIn: lambda a, b: a not in b,
-        ast.And: lambda a, b: a and b,
-        ast.Or: lambda a, b: a or b,
-        ast.Not: operator.not_,
-        ast.Add: operator.add,
-        ast.Sub: operator.sub,
-        ast.Mult: operator.mul,
-        ast.Div: operator.truediv,
-        ast.Mod: operator.mod,
-    }
-
-    def safe_eval_node(node: ast.AST) -> Any:
-        """Recursively evaluate an AST node safely."""
-        if isinstance(node, ast.Expression):
-            return safe_eval_node(node.body)
-
-        elif isinstance(node, ast.Constant):
-            return node.value
-
-        elif isinstance(node, ast.List):
-            return [safe_eval_node(elt) for elt in node.elts]
-
-        elif isinstance(node, ast.Tuple):
-            return tuple(safe_eval_node(elt) for elt in node.elts)
-
-        elif isinstance(node, ast.Compare):
-            left = safe_eval_node(node.left)
-            for op, comparator in zip(node.ops, node.comparators):
-                op_func = SAFE_OPERATORS.get(type(op))
-                if op_func is None:
-                    raise ValueError(
-                        f"Unsupported comparison operator: {type(op).__name__}"
-                    )
-                right = safe_eval_node(comparator)
-                if not op_func(left, right):
-                    return False
-                left = right
-            return True
-
-        elif isinstance(node, ast.BoolOp):
-            op_func = SAFE_OPERATORS.get(type(node.op))
-            if op_func is None:
-                raise ValueError(
-                    f"Unsupported boolean operator: {type(node.op).__name__}"
-                )
-            result = safe_eval_node(node.values[0])
-            for value in node.values[1:]:
-                result = op_func(result, safe_eval_node(value))
-            return result
-
-        elif isinstance(node, ast.UnaryOp):
-            if isinstance(node.op, ast.Not):
-                return not safe_eval_node(node.operand)
-            elif isinstance(node.op, ast.USub):
-                return -safe_eval_node(node.operand)
-            elif isinstance(node.op, ast.UAdd):
-                return +safe_eval_node(node.operand)
-            else:
-                raise ValueError(
-                    f"Unsupported unary operator: {type(node.op).__name__}"
-                )
-
-        elif isinstance(node, ast.BinOp):
-            op_func = SAFE_OPERATORS.get(type(node.op))
-            if op_func is None:
-                raise ValueError(
-                    f"Unsupported binary operator: {type(node.op).__name__}"
-                )
-            left = safe_eval_node(node.left)
-            right = safe_eval_node(node.right)
-            return op_func(left, right)
-
-        elif isinstance(node, ast.Name):
-            # Only allow True, False, None
-            if node.id == "True":
-                return True
-            elif node.id == "False":
-                return False
-            elif node.id == "None":
-                return None
-            else:
-                raise ValueError(f"Unknown variable: {node.id}")
-
-        else:
-            raise ValueError(f"Unsupported expression type: {type(node).__name__}")
-
     try:
-        # Parse and safely evaluate the expression
-        tree = ast.parse(resolved_expr, mode="eval")
-        result = safe_eval_node(tree)
+        result = safe_eval_expression(resolved_expr)
         return bool(result)
     except SyntaxError as e:
         logger.warning(f"Condition syntax error: {e}")

@@ -184,7 +184,7 @@ def load_model(db: "Database"):
             # PyKEEN serializes the trained model as trained_model.pkl.
             if not model_pkl.exists():
                 return None
-            model = torch.load(str(model_pkl), weights_only=False)
+            model = torch.load(str(model_pkl), weights_only=True)
             _MODEL_CACHE[cache_key] = model
             logger.info("Loaded PyKEEN model (process-global): %s", cache_key)
             return model

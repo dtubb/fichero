@@ -35,6 +35,7 @@ import logging
 import re
 from typing import Any
 
+from fichero.workflows.safe_condition import safe_eval_expression
 from fichero.workflows.types import State
 
 logger = logging.getLogger(__name__)
@@ -527,8 +528,7 @@ def evaluate_condition(
     resolved_condition = resolved_condition.replace(" false", " False")
 
     try:
-        # Evaluate in restricted namespace
-        result = eval(resolved_condition, {"__builtins__": {}}, {})
+        result = safe_eval_expression(resolved_condition)
         return bool(result)
     except Exception as e:
         logger.warning(

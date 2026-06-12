@@ -82,3 +82,38 @@ async def test_cli_agent_timeout_kills_process():
     proc.kill.assert_called_once()
     assert result["exit_code"] == 124
     assert "timed out" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_cli_agent_denied_for_non_owner_under_multiuser(monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    inputs = {"task": "Run host code", "_config": {"cli": "claude"}}
+    state: State = {"user": {"is_owner": False}}
+    llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
+
+    with patch("fichero.workflows.tools.cli_agent.asyncio.create_subprocess_exec", new=AsyncMock()) as sp:
+        result = await cli_agent(inputs, state, llm_config)
+
+    sp.assert_not_awaited()
+    assert result["exit_code"] == 126
+    assert "requires owner" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_cli_agent_available_when_multiuser_flag_off(monkeypatch):
+    monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+    monkeypatch.delenv("FICHERO_BIND_HOST", raising=False)
+    inputs = {"task": "Summarize this text", "_config": {"cli": "claude"}}
+    state: State = {"user": {"is_owner": False}}
+    llm_config = LLMConfig(provider="openai", model="gpt-4o-mini")
+
+    proc = Mock()
+    proc.returncode = 0
+    proc.communicate = AsyncMock(return_value=(b"ok", b""))
+
+    with patch("fichero.workflows.tools.cli_agent.asyncio.create_subprocess_exec", new=AsyncMock(return_value=proc)) as sp:
+        result = await cli_agent(inputs, state, llm_config)
+
+    sp.assert_awaited_once()
+    assert result["stdout"] == "ok"
+    assert result["exit_code"] == 0

@@ -6,6 +6,7 @@ BaseCheckpointSaver interface.
 """
 
 import asyncio
+import pickle
 import shutil
 import tempfile
 from pathlib import Path
@@ -14,7 +15,7 @@ from uuid import uuid4
 import pytest
 import duckdb
 
-from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
+from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer, JsonCheckpointSerializer
 
 
 @pytest.fixture
@@ -118,6 +119,51 @@ class TestCheckpointerSetup:
         assert 'idx' in columns
         assert 'channel' in columns
         assert 'value' in columns
+
+
+def test_json_checkpoint_serializer_rejects_pickle_payload(monkeypatch):
+    """A malicious pickle blob is not deserialized by the checkpoint serializer."""
+    called = False
+
+    def fake_system(command):
+        nonlocal called
+        called = True
+        return 0
+
+    class Evil:
+        def __reduce__(self):
+            import os
+
+            return os.system, ("echo exploited",)
+
+    monkeypatch.setattr("os.system", fake_system)
+
+    serializer = JsonCheckpointSerializer()
+    with pytest.raises(Exception):
+        serializer.loads(pickle.dumps(Evil()))
+
+    assert called is False
+
+
+@pytest.mark.asyncio
+async def test_checkpointer_round_trips_json_checkpoint(temp_db):
+    checkpointer = AsyncDuckDBCheckpointer.from_db_path(temp_db)
+    checkpoint = {
+        "id": "checkpoint-json",
+        "type": "checkpoint",
+        "channel_values": {"score": 0.75, "status": "done"},
+        "channel_versions": {"score": 1},
+        "versions_seen": {"source": {"score": 1}},
+    }
+    metadata = {"source": "unit", "writes": {}}
+    config = {"configurable": {"thread_id": "thread-json"}}
+
+    saved = await checkpointer.aput(config, checkpoint, metadata, {})
+    loaded = await checkpointer.aget_tuple(saved)
+
+    assert loaded is not None
+    assert loaded.checkpoint == checkpoint
+    assert loaded.metadata == metadata
 
 
 class TestCheckpointSaveLoad:

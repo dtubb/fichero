@@ -16,11 +16,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import pickle
 from pathlib import Path
 from typing import Any, AsyncIterator
 
 import duckdb
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.checkpoint.base import (
     BaseCheckpointSaver,
     Checkpoint,
@@ -32,14 +32,21 @@ from langgraph.checkpoint.base import (
 logger = logging.getLogger(__name__)
 
 
-class PickleSerializer(SerializerProtocol):
-    """Default serializer using pickle."""
+class JsonCheckpointSerializer(SerializerProtocol):
+    """Adapter for LangGraph's safe JSON/msgpack serializer."""
+
+    def __init__(self) -> None:
+        self._serde = JsonPlusSerializer()
 
     def dumps(self, obj: Any) -> bytes:
-        return pickle.dumps(obj)
+        serde_type, payload = self._serde.dumps_typed(obj)
+        return serde_type.encode("ascii") + b"\n" + payload
 
     def loads(self, data: bytes) -> Any:
-        return pickle.loads(data)
+        serde_type, sep, payload = data.partition(b"\n")
+        if not sep:
+            raise ValueError("Invalid JSON checkpoint payload")
+        return self._serde.loads_typed((serde_type.decode("ascii"), payload))
 
 
 class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
@@ -78,9 +85,9 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
 
         Args:
             conn: DuckDB connection
-            serde: Serializer for checkpoint data (defaults to pickle)
+            serde: Serializer for checkpoint data (defaults to JsonPlusSerializer)
         """
-        super().__init__(serde=serde or PickleSerializer())
+        super().__init__(serde=serde or JsonCheckpointSerializer())
         self.conn = conn
         self._setup()
         logger.info("Initialized DuckDB checkpointer")

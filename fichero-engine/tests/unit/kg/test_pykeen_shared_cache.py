@@ -55,6 +55,16 @@ def test_same_library_loads_once_across_many_callers(tmp_path, monkeypatch):
 
     assert first is second is third
     assert calls["n"] == 1
+    assert first["weights_only"] is True
+
+
+def test_load_model_uses_torch_weights_only(tmp_path, monkeypatch):
+    _install_counting_torch(monkeypatch)
+    db = _seed_model_artifact(tmp_path / "library-sec" / "db.sqlite")
+
+    model = pykeen_predictor.load_model(db)
+
+    assert model["weights_only"] is True
 
 
 def test_distinct_libraries_each_load_once(tmp_path, monkeypatch):

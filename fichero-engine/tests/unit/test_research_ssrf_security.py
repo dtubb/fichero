@@ -9,9 +9,12 @@ To run: pytest fichero-engine/tests/unit/test_research_ssrf_security.py -v
 
 import ipaddress
 import socket
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, AsyncMock, MagicMock, Mock
 import pytest
 import httpx
+
+from fichero.llm import LLMConfig
+from fichero.workflows.tools.research import research_browser_navigate, research_document_fetch
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -111,6 +114,109 @@ class TestSSRFRedirectBypass:
             "CRITICAL: Redirect followed to localhost - SSRF bypass"
         assert resp.status_code == 400 or resp.status_code == 403, \
             "Should block redirects to internal addresses"
+
+    @pytest.mark.asyncio
+    async def test_browser_navigate_revalidates_redirect_target(self):
+        requested_urls = []
+
+        external_response = MagicMock()
+        external_response.status_code = 302
+        external_response.headers = {"location": "http://127.0.0.1:8765/"}
+        external_response.url = httpx.URL("https://example.org/redirect")
+
+        internal_response = MagicMock()
+        internal_response.status_code = 200
+        internal_response.headers = {"content-type": "text/html"}
+        internal_response.text = "<title>internal</title>"
+        internal_response.raise_for_status = Mock()
+
+        async def mock_get(url, **kwargs):
+            requested_urls.append(str(url))
+            if "127.0.0.1" in str(url):
+                return internal_response
+            assert kwargs.get("follow_redirects") is False
+            return external_response
+
+        mock_async_client = AsyncMock()
+        mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+        mock_async_client.__aexit__ = AsyncMock(return_value=None)
+        mock_async_client.get = AsyncMock(side_effect=mock_get)
+
+        with patch("httpx.AsyncClient", return_value=mock_async_client):
+            result = await research_browser_navigate(
+                {"url": "https://example.org/redirect"},
+                {},
+                LLMConfig(provider="openai", model="gpt-4o-mini"),
+            )
+
+        assert "127.0.0.1" not in requested_urls
+        assert "URL not allowed" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_document_fetch_revalidates_metadata_redirect_target(self):
+        requested_urls = []
+
+        redirect_response = MagicMock()
+        redirect_response.status_code = 302
+        redirect_response.headers = {"location": "http://169.254.169.254/latest/meta-data/"}
+        redirect_response.url = httpx.URL("https://example.org/metadata-redirect")
+
+        async def mock_get(url, **kwargs):
+            requested_urls.append(str(url))
+            assert kwargs.get("follow_redirects") is False
+            return redirect_response
+
+        mock_async_client = AsyncMock()
+        mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+        mock_async_client.__aexit__ = AsyncMock(return_value=None)
+        mock_async_client.get = AsyncMock(side_effect=mock_get)
+
+        with patch("httpx.AsyncClient", return_value=mock_async_client):
+            result = await research_document_fetch(
+                {
+                    "url": "https://example.org/metadata-redirect",
+                    "project_id": "p1",
+                    "create_as_source": False,
+                },
+                {},
+                LLMConfig(provider="openai", model="gpt-4o-mini"),
+            )
+
+        assert "169.254.169.254" not in requested_urls
+        assert result["success"] is False
+        assert "URL not allowed" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_document_fetch_redirect_hop_cap_enforced(self):
+        requested_urls = []
+
+        async def mock_get(url, **kwargs):
+            requested_urls.append(str(url))
+            response = MagicMock()
+            response.status_code = 302
+            response.headers = {"location": f"https://example.org/hop-{len(requested_urls)}"}
+            response.url = httpx.URL(str(url))
+            return response
+
+        mock_async_client = AsyncMock()
+        mock_async_client.__aenter__ = AsyncMock(return_value=mock_async_client)
+        mock_async_client.__aexit__ = AsyncMock(return_value=None)
+        mock_async_client.get = AsyncMock(side_effect=mock_get)
+
+        with patch("httpx.AsyncClient", return_value=mock_async_client):
+            result = await research_document_fetch(
+                {
+                    "url": "https://example.org/start",
+                    "project_id": "p1",
+                    "create_as_source": False,
+                },
+                {},
+                LLMConfig(provider="openai", model="gpt-4o-mini"),
+            )
+
+        assert len(requested_urls) == 6
+        assert result["success"] is False
+        assert "Redirect limit exceeded" in result["error"]
 
     def test_document_fetch_redirect_to_internal_blocked(self, client):
         """CRITICAL-1: Document fetch should validate redirect target.

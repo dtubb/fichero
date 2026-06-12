@@ -8,9 +8,12 @@ Supports stdio, HTTP, SSE, and WebSocket transports.
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 from typing import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
 
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.sessions import (
@@ -24,6 +27,35 @@ from langchain_mcp_adapters.tools import load_mcp_tools
 from mcp.client.session import ClientSession
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_STDIO_COMMAND_ALLOWLIST = frozenset(
+    {
+        "python",
+        "python3",
+        "node",
+        "npx",
+        "uv",
+        "uvx",
+        "bun",
+        "deno",
+    }
+)
+
+
+def _allowed_stdio_commands() -> set[str]:
+    configured = os.getenv("FICHERO_MCP_STDIO_ALLOWLIST", "")
+    commands = set(_DEFAULT_STDIO_COMMAND_ALLOWLIST)
+    commands.update(part.strip() for part in configured.split(",") if part.strip())
+    return commands
+
+
+def _is_stdio_command_allowed(command: str) -> bool:
+    basename = Path(command).name
+    allowed = _allowed_stdio_commands()
+    if command in allowed or basename in allowed:
+        return True
+    resolved = shutil.which(command)
+    return bool(resolved and (resolved in allowed or Path(resolved).name in allowed))
 
 
 # =============================================================================
@@ -66,6 +98,10 @@ class MCPServerConfig:
             if not self.command:
                 raise ValueError(
                     f"Server {self.name}: command required for stdio transport"
+                )
+            if not _is_stdio_command_allowed(self.command):
+                raise ValueError(
+                    f"Server {self.name}: stdio command is not allowlisted: {self.command}"
                 )
             return {
                 "transport": "stdio",

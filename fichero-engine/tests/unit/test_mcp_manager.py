@@ -158,6 +158,17 @@ class TestMCPServerConfig:
         with pytest.raises(ValueError, match="command required for stdio"):
             config.to_connection()
 
+    def test_to_connection_rejects_disallowed_stdio_command(self):
+        config = MCPServerConfig(
+            name="shell",
+            transport="stdio",
+            command="/bin/sh",
+            args=["-c", "echo exploited"],
+        )
+
+        with pytest.raises(ValueError, match="stdio command is not allowlisted"):
+            config.to_connection()
+
     def test_to_connection_missing_url(self):
         """Test error when http transport missing url."""
         config = MCPServerConfig(
@@ -266,7 +277,7 @@ class TestMCPManager:
     def test_list_servers(self):
         """Test listing all servers."""
         manager = MCPManager()
-        config1 = MCPServerConfig(name="server1", transport="stdio", command="cmd1")
+        config1 = MCPServerConfig(name="server1", transport="stdio", command="python")
         config2 = MCPServerConfig(name="server2", transport="http", url="http://localhost")
 
         manager.add_server(config1)
@@ -449,13 +460,13 @@ class TestMCPManager:
         manager = MCPManager()
 
         # Add two enabled servers
-        config1 = MCPServerConfig(name="server1", transport="stdio", command="cmd1")
-        config2 = MCPServerConfig(name="server2", transport="stdio", command="cmd2")
+        config1 = MCPServerConfig(name="server1", transport="stdio", command="python")
+        config2 = MCPServerConfig(name="server2", transport="stdio", command="python")
         manager.add_server(config1)
         manager.add_server(config2)
 
         # Add one disabled server
-        config3 = MCPServerConfig(name="server3", transport="stdio", command="cmd3", enabled=False)
+        config3 = MCPServerConfig(name="server3", transport="stdio", command="python", enabled=False)
         manager.add_server(config3)
 
         # Mock tools
@@ -488,8 +499,8 @@ class TestMCPManager:
         """Test that errors loading from one server don't stop others."""
         manager = MCPManager()
 
-        config1 = MCPServerConfig(name="server1", transport="stdio", command="cmd1")
-        config2 = MCPServerConfig(name="server2", transport="stdio", command="cmd2")
+        config1 = MCPServerConfig(name="server1", transport="stdio", command="python")
+        config2 = MCPServerConfig(name="server2", transport="stdio", command="python")
         manager.add_server(config1)
         manager.add_server(config2)
 

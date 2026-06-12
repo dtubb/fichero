@@ -19,11 +19,12 @@ from fichero.loaders.docling_loader import (
     load_with_docling_sync,
 )
 from fichero.loaders.document_loader import DocumentLoader
-from fichero.loaders.iiif_loader import IIIFLoader
+from fichero.loaders.iiif_loader import IIIFLoader, _get_safe
 from fichero.loaders.image_loader import ImageLoader
 from fichero.loaders.pdf_loader import PDFLoader, PDFTextLoader
 from fichero.loaders.unified import UnifiedLoader
 from fichero.loaders.xmp_loader import (
+    _parse_xmp_file,
     apply_xmp_to_document,
     has_xmp_sidecar,
     parse_xmp_sidecar,
@@ -204,6 +205,51 @@ def test_iiif_loader_image_url_and_label_helpers():
     assert loader._get_label({"label": {"en": ["English"]}}) == "English"
 
 
+class _IIIFResponse:
+    def __init__(self, *, status: int, url: str, location: str | None = None):
+        self.status = status
+        self.url = url
+        self.headers = {"location": location} if location else {}
+        self.released = False
+
+    def release(self):
+        self.released = True
+
+
+class _IIIFSession:
+    def __init__(self, redirects: dict[str, str]):
+        self.redirects = redirects
+        self.requested: list[str] = []
+
+    async def get(self, url: str, **kwargs):
+        self.requested.append(str(url))
+        assert kwargs.get("allow_redirects") is False
+        location = self.redirects.get(str(url))
+        if location:
+            return _IIIFResponse(status=302, url=str(url), location=location)
+        return _IIIFResponse(status=200, url=str(url))
+
+
+@pytest.mark.asyncio
+async def test_iiif_manifest_redirect_to_loopback_is_blocked():
+    session = _IIIFSession({"https://example.org/iiif/manifest": "http://127.0.0.1:8765/"})
+
+    with pytest.raises(ValueError, match="IIIF URL not allowed"):
+        await _get_safe(session, "https://example.org/iiif/manifest")
+
+    assert "http://127.0.0.1:8765/" not in session.requested
+
+
+@pytest.mark.asyncio
+async def test_iiif_embedded_image_metadata_url_is_blocked():
+    session = _IIIFSession({"https://example.org/iiif/image": "http://169.254.169.254/"})
+
+    with pytest.raises(ValueError, match="IIIF URL not allowed"):
+        await _get_safe(session, "https://example.org/iiif/image")
+
+    assert "http://169.254.169.254/" not in session.requested
+
+
 def test_image_loader_can_handle_and_load_pil_image(tmp_path):
     image_path = tmp_path / "sample.png"
     Image.new("RGB", size=(4, 3), color=(255, 0, 0)).save(image_path)
@@ -293,6 +339,23 @@ def test_parse_xmp_sidecar_calls_parser_for_present_file(tmp_path):
 
     assert parsed == {"xmp_title": "Archive page"}
     parse_fn.assert_called_once_with(sidecar)
+
+
+def test_parse_xmp_file_rejects_billion_laughs_entities(tmp_path):
+    sidecar = tmp_path / "scan.xmp"
+    sidecar.write_text(
+        """<?xml version="1.0"?>
+<!DOCTYPE lolz [
+ <!ENTITY lol "lol">
+ <!ENTITY lol1 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">
+]>
+<x:xmpmeta>&lol1;</x:xmpmeta>
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="entity declarations"):
+        _parse_xmp_file(sidecar)
 
 
 def test_apply_xmp_to_document_merges_without_overwrite():

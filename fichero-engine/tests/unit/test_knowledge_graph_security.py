@@ -91,6 +91,40 @@ class TestPyKEENSecurity:
         except ImportError:
             pytest.skip("PyKEEN not installed")
 
+    def test_pykeen_compat_loader_uses_weights_only(self, monkeypatch, tmp_path):
+        import sys
+        import types
+
+        calls = []
+
+        def fake_load(path, **kwargs):
+            calls.append((path, kwargs))
+            return {"ok": True}
+
+        class FakeModel:
+            pass
+
+        fake_pykeen = types.ModuleType("pykeen")
+        fake_models = types.ModuleType("pykeen.models")
+        fake_models.Model = FakeModel
+        fake_pykeen.models = fake_models
+        monkeypatch.setitem(sys.modules, "pykeen", fake_pykeen)
+        monkeypatch.setitem(sys.modules, "pykeen.models", fake_models)
+        monkeypatch.setitem(sys.modules, "torch", types.SimpleNamespace(load=fake_load))
+
+        from fichero.api.routes.kg_predictions import _ensure_pykeen_compat
+
+        model_dir = tmp_path / "model"
+        model_dir.mkdir()
+        (model_dir / "trained_model.pkl").write_bytes(b"not-a-pickle")
+
+        _ensure_pykeen_compat()
+        loaded = FakeModel.load_directory(str(model_dir))
+
+        assert loaded == {"ok": True}
+        assert calls[0][1]["weights_only"] is True
+        assert calls[0][1]["map_location"] == "cpu"
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Entity Access Control Tests
