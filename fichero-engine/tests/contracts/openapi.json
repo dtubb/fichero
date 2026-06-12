@@ -41404,6 +41404,11 @@
             "format": "date-time",
             "title": "Last Seen"
           },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
           "revoked": {
             "type": "boolean",
             "title": "Revoked"
@@ -41416,6 +41421,7 @@
           "user_id",
           "created_at",
           "last_seen",
+          "expires_at",
           "revoked"
         ],
         "title": "DeviceResponse"
