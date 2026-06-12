@@ -30,11 +30,11 @@ The THINK layer is yours. It is your notes and annotations on a reading: what yo
 
 This layer answers: *what do I make of this source?*
 
-### WRITE — Synthesis layer
+### WRITE — Synthesis layer *(in development)*
 
-The WRITE layer is where research becomes argument. Zettelkasten-style atomic notes, an outliner, and a writing space connected to your citations and knowledge graph. You build an argument from your sources and export it with citations intact.
+The WRITE layer is where research becomes argument: Zettelkasten-style atomic notes, an outliner, and a writing space connected to your citations and knowledge graph — so you build an argument from your sources and export it with citations intact.
 
-This layer answers: *what do I want to say about these sources?*
+This layer is **planned, not yet built** (the READ and THINK layers exist today; export with citations is partially available). It answers: *what do I want to say about these sources?*
 
 ---
 
