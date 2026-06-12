@@ -216,6 +216,13 @@ class AppDatabase:
                 "UPDATE devices SET expires_at = created_at + INTERVAL 90 DAY "
                 "WHERE expires_at IS NULL"
             )
+            # Flush the DDL into the main DB file immediately. DuckDB cannot
+            # REPLAY an ALTER ... ADD COLUMN from the WAL on recovery (internal
+            # error "GetDefaultDatabase with no default database set"), so if the
+            # process dies before the next checkpoint the WAL is poisoned and every
+            # restart crashes natively. CHECKPOINT here keeps the migration durable
+            # and out of the recovery WAL. See app-db migration incident 2026-06-12.
+            self.conn.execute("CHECKPOINT")
 
         # Per-library ACL tables (global identity scope, not per-library DB).
         self.conn.execute("""
