@@ -1,3 +1,11 @@
+## OVERNIGHT — 2026-06-11 ~23:00 (security/infra fix wave COMPLETE — 16 shipped)
+**0.0.2 @ `9ad5575b` pushed (4602 passed).** All review-found CRITICAL/HIGH from the multi-model audit are fixed + verified, EXCEPT the path-confine file-read (#2139, CRITICAL) which is next in queue.
+- ✅ **#2127 audit HMAC** (9ad5575b) — keyed HMAC + external head/count anchor → forgery+truncation detectable.
+- ✅ Full tally tonight (16): #2076, embeddings #2095/2115, then security/infra #2124 #2125 #2126 #2128 #2118 #2119 #2120 #2138 #2140 #2141 #2142 #2143 #2144 #2148 #2149 #2127. Docs merged + grounded. GitHub cleaned (49 branches deleted; remote = 0.0.2/main/ms-kg-hermeneutics).
+- ⏳ **wf-code-bugs lane** working (#2130/2147/2131/2132/2133/2134/2135/2136/2137 — workflow/scheduler/batch/executor/KG code bugs, each w/ test).
+- 📋 NEXT (queue): path-confine #2139(CRIT)+#2150 → connection-auth backend #2155(bootstrap-secret, Daniel-flagged)+#2156+#2159+#2157+#2158 → prog-security-gate #2153 → AI #2151/#2152 → remote #2121 → export #2163. Then RE-REVIEW, then MAC backend #2114.
+- Held for Daniel: entitytable-2020 #2020, #2107, QR sheet #2160, client nit #2161, iOS #2162. Main-consolidation #2154 = Daniel's call.
+
 ## OVERNIGHT — 2026-06-11 ~22:15 (security fix wave landing)
 **0.0.2 @ `5b533bcd` pushed (4591 passed).** Autonomous loop running (check ~12min, dispatch ~45min).
 - ✅ **sec-routes (ee6f7cbc)** → closed #2124 #2125 #2126 #2128: write-gating dep on all mutating routes + entity-types/app-config gates + generic ACL targets + new test_route_write_authz_guardrail.py.
