@@ -167,6 +167,46 @@ def test_expired_session_is_rejected(client, app_db, monkeypatch):
     assert response.status_code == 401
 
 
+def test_session_last_seen_touch_is_throttled(client, app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    user = app_db.create_user(
+        username="alice",
+        display_name="Alice",
+        password_hash=accounts.hash_password("password"),
+        is_owner=False,
+    )
+    raw_token = accounts.new_session_token()
+    token_hash = accounts.hash_token(raw_token)
+    app_db.create_session(
+        user_id=user.id,
+        token_hash=token_hash,
+        device_label="test-device",
+        ttl=timedelta(days=1),
+    )
+    app_db.touch_session(token_hash, when=datetime.now() - timedelta(minutes=5))
+    original_touch = app_db.touch_session
+    touches = []
+
+    def touch_spy(*args, **kwargs):
+        touches.append((args, kwargs))
+        return original_touch(*args, **kwargs)
+
+    monkeypatch.setattr(app_db, "touch_session", touch_spy)
+
+    first = client.get("/api/auth/me", headers=_bearer(raw_token))
+    after_first = app_db.get_session_by_token_hash(token_hash).last_seen_at
+    second = client.get("/api/auth/me", headers=_bearer(raw_token))
+    after_second = app_db.get_session_by_token_hash(token_hash).last_seen_at
+    original_touch(token_hash, when=datetime.now() - timedelta(minutes=5))
+    third = client.get("/api/auth/me", headers=_bearer(raw_token))
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert third.status_code == 200
+    assert len(touches) == 2
+    assert after_second == after_first
+
+
 def test_revoked_session_is_rejected(client, app_db, monkeypatch):
     _enable_multiuser(monkeypatch)
     user = app_db.create_user(
@@ -335,6 +375,87 @@ def test_revoked_device_token_is_rejected(client, app_db, monkeypatch):
     response = client.get("/api/auth/me", headers=_bearer(raw_token))
 
     assert response.status_code == 401
+
+
+def test_device_token_expiry_and_revocation(client, app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    user = app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    fresh_token = accounts.new_session_token()
+    expired_token = accounts.new_session_token()
+    revoked_token = accounts.new_session_token()
+
+    app_db.create_device(
+        name="Fresh iPad",
+        user_id=user.id,
+        token_hash=accounts.hash_token(fresh_token),
+        ttl=timedelta(days=1),
+    )
+    app_db.create_device(
+        name="Expired iPad",
+        user_id=user.id,
+        token_hash=accounts.hash_token(expired_token),
+        ttl=timedelta(seconds=-1),
+    )
+    revoked = app_db.create_device(
+        name="Revoked iPad",
+        user_id=user.id,
+        token_hash=accounts.hash_token(revoked_token),
+        ttl=timedelta(days=1),
+    )
+    app_db.revoke_device(revoked.id)
+
+    fresh = client.get("/api/auth/me", headers=_bearer(fresh_token))
+    expired = client.get("/api/auth/me", headers=_bearer(expired_token))
+    revoked_response = client.get("/api/auth/me", headers=_bearer(revoked_token))
+
+    assert fresh.status_code == 200
+    assert expired.status_code == 401
+    assert revoked_response.status_code == 401
+
+
+def test_device_last_seen_touch_is_throttled(client, app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    user = app_db.create_user(
+        username="owner",
+        display_name="Owner",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    raw_token = accounts.new_session_token()
+    token_hash = accounts.hash_token(raw_token)
+    app_db.create_device(
+        name="Alice iPad",
+        user_id=user.id,
+        token_hash=token_hash,
+        ttl=timedelta(days=1),
+    )
+    app_db.touch_device(token_hash, when=datetime.now() - timedelta(minutes=5))
+    original_touch = app_db.touch_device
+    touches = []
+
+    def touch_spy(*args, **kwargs):
+        touches.append((args, kwargs))
+        return original_touch(*args, **kwargs)
+
+    monkeypatch.setattr(app_db, "touch_device", touch_spy)
+
+    first = client.get("/api/auth/me", headers=_bearer(raw_token))
+    after_first = app_db.get_device_by_token_hash(token_hash).last_seen
+    second = client.get("/api/auth/me", headers=_bearer(raw_token))
+    after_second = app_db.get_device_by_token_hash(token_hash).last_seen
+    original_touch(token_hash, when=datetime.now() - timedelta(minutes=5))
+    third = client.get("/api/auth/me", headers=_bearer(raw_token))
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert third.status_code == 200
+    assert len(touches) == 2
+    assert after_second == after_first
 
 
 def test_pairing_rejects_reused_and_expired_codes(client, app_db, monkeypatch):

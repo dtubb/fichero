@@ -871,6 +871,7 @@ class Device(BaseModel):
     token_hash: str
     created_at: datetime = Field(default_factory=datetime.now)
     last_seen: datetime = Field(default_factory=datetime.now)
+    expires_at: datetime
     revoked: bool = False
 
 

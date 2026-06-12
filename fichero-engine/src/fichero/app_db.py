@@ -197,6 +197,7 @@ class AppDatabase:
                 token_hash VARCHAR NOT NULL UNIQUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP NOT NULL,
                 revoked BOOLEAN DEFAULT FALSE,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
@@ -260,6 +261,9 @@ class AppDatabase:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_devices_token_hash ON devices(token_hash)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_devices_expires_at ON devices(expires_at)"
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_library_roles_user_library "
@@ -1097,6 +1101,7 @@ class AppDatabase:
         name: str,
         user_id: str,
         token_hash: str,
+        ttl: timedelta = timedelta(days=90),
     ) -> Device:
         """Insert a paired device credential and return the typed record."""
         now = datetime.now()
@@ -1106,14 +1111,16 @@ class AppDatabase:
             token_hash=token_hash,
             created_at=now,
             last_seen=now,
+            expires_at=now + ttl,
         )
         with self._lock:
             self.conn.execute(
                 """
                 INSERT INTO devices (
-                    id, name, user_id, token_hash, created_at, last_seen, revoked
+                    id, name, user_id, token_hash,
+                    created_at, last_seen, expires_at, revoked
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     device.id,
@@ -1122,6 +1129,7 @@ class AppDatabase:
                     device.token_hash,
                     device.created_at,
                     device.last_seen,
+                    device.expires_at,
                     device.revoked,
                 ],
             )
@@ -1136,7 +1144,8 @@ class AppDatabase:
             token_hash=row[3],
             created_at=row[4],
             last_seen=row[5],
-            revoked=row[6],
+            expires_at=row[6],
+            revoked=row[7],
         )
 
     def get_device(self, device_id: str) -> Device | None:
@@ -1144,7 +1153,8 @@ class AppDatabase:
         with self._lock:
             result = self.conn.execute(
                 """
-                SELECT id, name, user_id, token_hash, created_at, last_seen, revoked
+                SELECT id, name, user_id, token_hash,
+                       created_at, last_seen, expires_at, revoked
                 FROM devices
                 WHERE id = ?
                 """,
@@ -1157,7 +1167,8 @@ class AppDatabase:
         with self._lock:
             result = self.conn.execute(
                 """
-                SELECT id, name, user_id, token_hash, created_at, last_seen, revoked
+                SELECT id, name, user_id, token_hash,
+                       created_at, last_seen, expires_at, revoked
                 FROM devices
                 WHERE token_hash = ?
                 """,
@@ -1170,7 +1181,8 @@ class AppDatabase:
         with self._lock:
             rows = self.conn.execute(
                 """
-                SELECT id, name, user_id, token_hash, created_at, last_seen, revoked
+                SELECT id, name, user_id, token_hash,
+                       created_at, last_seen, expires_at, revoked
                 FROM devices
                 ORDER BY revoked, created_at, name
                 """

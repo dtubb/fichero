@@ -37,6 +37,8 @@ from fichero.app_db import get_app_db
 
 logger = logging.getLogger(__name__)
 
+_LAST_SEEN_THROTTLE_SECONDS = 60
+
 # Endpoints that don't require auth. Health is unauthenticated so the Swift
 # app can poll readiness before it has a chance to read the token file.
 # OpenAPI docs are static metadata with no library data.
@@ -117,6 +119,10 @@ def _use_multiuser_auth() -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
+def _should_touch_last_seen(last_seen_at: datetime, now: datetime) -> bool:
+    return (now - last_seen_at).total_seconds() >= _LAST_SEEN_THROTTLE_SECONDS
+
+
 def _authenticate_session_token(token: str):
     """Resolve a bearer session token to a live user/session pair."""
     token_hash = accounts.hash_token(token)
@@ -129,7 +135,9 @@ def _authenticate_session_token(token: str):
     user = app_db.get_user(session.user_id)
     if user is None or not user.active:
         return None, session
-    app_db.touch_session(token_hash)
+    now = datetime.now()
+    if _should_touch_last_seen(session.last_seen_at, now):
+        app_db.touch_session(token_hash, when=now)
     return user, session
 
 
@@ -138,12 +146,14 @@ def _authenticate_device_token(token: str):
     token_hash = accounts.hash_token(token)
     app_db = get_app_db()
     device = app_db.get_device_by_token_hash(token_hash)
-    if device is None or device.revoked:
+    if device is None or device.revoked or device.expires_at <= datetime.now():
         return None, device
     user = app_db.get_user(device.user_id)
     if user is None or not user.active:
         return None, device
-    app_db.touch_device(token_hash)
+    now = datetime.now()
+    if _should_touch_last_seen(device.last_seen, now):
+        app_db.touch_device(token_hash, when=now)
     return user, device
 
 

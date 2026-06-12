@@ -67,6 +67,7 @@ class DeviceResponse(BaseModel):
     user_id: str
     created_at: datetime
     last_seen: datetime
+    expires_at: datetime
     revoked: bool
 
 
@@ -103,6 +104,7 @@ def _to_public_device(device: Device) -> DeviceResponse:
         user_id=device.user_id,
         created_at=device.created_at,
         last_seen=device.last_seen,
+        expires_at=device.expires_at,
         revoked=device.revoked,
     )
 
