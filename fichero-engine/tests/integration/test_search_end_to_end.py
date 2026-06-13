@@ -509,12 +509,13 @@ class TestKnowledgeGraphRoutes:
         results = asyncio.run(
             related_documents("fix-leidy-001", limit=10, db=search_library)
         )
-        ids = {r.document_id for r in results}
+        assert results.count >= 1
+        ids = {r.document_id for r in results.items}
         assert "rel-third" in ids
         # Self is never in related.
         assert "fix-leidy-001" not in ids
         # Sample entity names round-trip from KnowledgeEntity.canonical_name.
-        third_row = next(r for r in results if r.document_id == "rel-third")
+        third_row = next(r for r in results.items if r.document_id == "rel-third")
         assert third_row.shared_entities >= 1
         assert "Quibdó" in third_row.sample_entity_names
 

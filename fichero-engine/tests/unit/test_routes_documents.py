@@ -6,9 +6,12 @@ pagination. No external dependencies; uses real in-memory DB fixture.
 """
 
 
+import asyncio
+
 
 from fichero import storage as storage_module
-from fichero.knowledge_models import MutationLog
+from fichero.api.routes.documents import related_documents
+from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, MutationLog
 from fichero.models import Document, DocType
 
 
@@ -159,6 +162,166 @@ class TestDocumentNotes:
     def test_notes_missing_document_returns_404(self, client):
         r = client.put("/api/documents/no-such-doc/notes", json={"content": "x"})
         assert r.status_code == 404
+
+
+class TestRelatedDocuments:
+    def test_direct_helper_returns_envelope_with_items_not_row_list(self, db):
+        seed = _make_doc(db, "Seed")
+        peer = _make_doc(db, "Peer")
+        db.save(KnowledgeEntity(id="ent-shared", canonical_name="Quibdo"))
+        db.save(
+            KnowledgeClaim(
+                id="claim-seed",
+                text="Seed mentions Quibdo.",
+                source_document_id=seed.id,
+                entity_ids=["ent-shared"],
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                id="claim-peer",
+                text="Peer mentions Quibdo.",
+                source_document_id=peer.id,
+                entity_ids=["ent-shared"],
+            )
+        )
+
+        response = asyncio.run(related_documents(seed.id, limit=10, db=db))
+
+        assert response.count == 1
+        assert len(response.items) == 1
+        assert response.items[0].document_id == peer.id
+        assert response.items[0].shared_entities == 1
+
+    def test_route_returns_empty_when_document_has_no_claim_entities(self, client, db):
+        doc = _make_doc(db, "Lonely")
+
+        response = client.get(f"/api/documents/{doc.id}/related")
+
+        assert response.status_code == 200
+        assert response.json() == {"items": [], "count": 0}
+
+    def test_route_excludes_self_deduplicates_per_entity_and_orders_by_overlap(self, client, db):
+        seed = _make_doc(db, "Seed")
+        top = _make_doc(db, "Top overlap")
+        second = _make_doc(db, "Second overlap")
+        outsider = _make_doc(db, "Outsider")
+
+        for entity_id, name in [
+            ("ent-a", "Leidy"),
+            ("ent-b", "Quibdo"),
+            ("ent-c", "Mining"),
+        ]:
+            db.save(KnowledgeEntity(id=entity_id, canonical_name=name))
+
+        db.save(
+            KnowledgeClaim(
+                id="seed-1",
+                text="Seed mentions Leidy and Quibdo.",
+                source_document_id=seed.id,
+                entity_ids=["ent-a", "ent-b"],
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                id="seed-2",
+                text="Seed also mentions Mining.",
+                source_document_id=seed.id,
+                entity_ids=["ent-c"],
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                id="top-1",
+                text="Top shares Leidy twice.",
+                source_document_id=top.id,
+                entity_ids=["ent-a"],
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                id="top-2",
+                text="Top shares Leidy again.",
+                source_document_id=top.id,
+                entity_ids=["ent-a"],
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                id="top-3",
+                text="Top also shares Quibdo.",
+                source_document_id=top.id,
+                entity_ids=["ent-b"],
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                id="second-1",
+                text="Second only shares Mining.",
+                source_document_id=second.id,
+                entity_ids=["ent-c"],
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                id="outsider-1",
+                text="Outsider mentions an unrelated thing.",
+                source_document_id=outsider.id,
+                entity_ids=["ent-outsider"],
+            )
+        )
+
+        response = client.get(f"/api/documents/{seed.id}/related?limit=10")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["count"] == 2
+        assert [item["document_id"] for item in payload["items"]] == [top.id, second.id]
+        assert payload["items"][0]["shared_entities"] == 2
+        assert payload["items"][1]["shared_entities"] == 1
+        assert seed.id not in {item["document_id"] for item in payload["items"]}
+        assert outsider.id not in {item["document_id"] for item in payload["items"]}
+        assert set(payload["items"][0]["sample_entity_names"]) == {"Leidy", "Quibdo"}
+        assert payload["items"][1]["sample_entity_names"] == ["Mining"]
+
+    def test_direct_helper_ignores_malformed_entity_payloads(self, db):
+        seed = _make_doc(db, "Seed")
+        peer = _make_doc(db, "Peer")
+        db.save(KnowledgeEntity(id="ent-valid", canonical_name="Valid Entity"))
+        db.save(
+            KnowledgeClaim(
+                id="seed-bad-json",
+                text="Malformed payload",
+                source_document_id=seed.id,
+                entity_ids=[],
+            )
+        )
+        db._execute(
+            "UPDATE knowledgeclaims SET entity_ids = $raw WHERE id = $id",
+            {"raw": '{"unexpected": "shape"}', "id": "seed-bad-json"},
+        )
+        db.save(
+            KnowledgeClaim(
+                id="seed-valid",
+                text="Valid payload",
+                source_document_id=seed.id,
+                entity_ids=["ent-valid"],
+            )
+        )
+        db.save(
+            KnowledgeClaim(
+                id="peer-valid",
+                text="Peer shares the valid entity",
+                source_document_id=peer.id,
+                entity_ids=["ent-valid"],
+            )
+        )
+
+        response = asyncio.run(related_documents(seed.id, limit=10, db=db))
+
+        assert response.count == 1
+        assert [item.document_id for item in response.items] == [peer.id]
+        assert response.items[0].sample_entity_names == ["Valid Entity"]
 
 
 # ---------------------------------------------------------------------------
