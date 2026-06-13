@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from fichero.llm import LLMConfig
 
 from fichero.workflows.types import PortDef, DataType
+from fichero.workflows.tools._doc_lookup import find_document_by_path
 from fichero.workflows.tools.llm_prompting import (  # noqa: F401 (re-exported)
     apply_reference_matching,
     build_context_section,
@@ -463,9 +464,7 @@ async def save_artifact(
         if document_id:
             doc = db.get(Document, document_id)
         if not doc and file_path:
-            docs = db.query(Document, path=file_path)
-            if docs:
-                doc = docs[0]
+            doc = find_document_by_path(db, Document, file_path)
 
         if not doc:
             logger.warning(

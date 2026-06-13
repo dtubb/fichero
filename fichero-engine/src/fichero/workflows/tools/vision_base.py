@@ -78,6 +78,10 @@ from fichero.workflows.tools.llm_base import (
     save_artifact as llm_save_artifact,
     save_to_file as llm_save_to_file,
 )
+from fichero.workflows.tools._doc_lookup import (
+    iter_document_lookup_paths,
+    resolve_path_to_doc,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1086,7 +1090,8 @@ async def process_vision(
     if documents:
         for doc in documents:
             if isinstance(doc, dict) and doc.get("path"):
-                path_to_doc[doc["path"]] = doc.get("id")
+                for path_key in iter_document_lookup_paths(doc["path"]):
+                    path_to_doc[path_key] = doc.get("id")
     # Per-page fan-out (#891) pairs files[i] with documents[i] — for a
     # parent PDF expanded into N page children, every file_path is the
     # parent path and the unique info lives in the document dict (its
@@ -1251,7 +1256,7 @@ async def process_vision(
                 page_doc_id_by_index[file_index]
                 if file_index < len(page_doc_id_by_index)
                 else None
-            ) or path_to_doc.get(file_path)
+            ) or resolve_path_to_doc(path_to_doc, file_path)
             requested_page_index = (
                 page_index_by_index[file_index]
                 if file_index < len(page_index_by_index)
@@ -1622,7 +1627,7 @@ async def process_vision(
                     # When sources.py already expanded to page docs, parent_id
                     # is None here and propagation is correctly skipped (#1077).
                     if per_page_texts and len(per_page_texts) > 1:
-                        parent_id = path_to_doc.get(file_path)
+                        parent_id = resolve_path_to_doc(path_to_doc, file_path)
                         if parent_id:
                             await _propagate_to_page_children(
                                 parent_id,
