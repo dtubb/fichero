@@ -10,10 +10,13 @@ Branch `0.0.2` @ `51fe9a21`, **pushed, clean** (local == origin). Daniel runs th
 **Workflow path fix**: #2183 — all 4 source tools resolve library-relative paths via resolve_source (unblocked ICANH transcription).
 **5 adversarial test batches** (test-only, drained Test Coverage): auth surface, KG extraction core, db+search/documents routes, KG modules, workflow-builder+llm core.
 
-## Open follow-ups (filed)
-- **#2186** — re-add a robust async-isolated upload-streaming unit test (removed a flaky one; route-level 413 test covers the cap).
-- **#2187** — 11 integration tests failing + NOT gated (verify_all runs tests/unit/ ONLY). Triaged the headline one = STALE TEST (iterates a Pydantic model → tuples), not a product bug. Remaining 10 need per-test triage (env vs stale vs real). Consider a separate gated integration lane.
-- **#2157/#2158** (TLS LAN listener + Bonjour) — NOT done: the conn-net worker was blocked on no-network dep installs (cryptography/zeroconf). Worktree removed (0 commits). Re-dispatch when deps are confirmed present, or descope Bonjour.
+## 2026-06-13 daytime continuation (Daniel's queue: ICANH → #2187 → #2157/8 → Mac)
+- **#2188 DONE (812d3819):** transcription artifacts were silently discarded (regression from #2183: absolute file_path vs library-relative Document.path). Fixed via `_doc_lookup` helper. verify_all 4779 passed. Verified on real ICANH data.
+- **ICANH judged (see section below):** transcription works; presets pin gpt-4o-mini → Apple unreachable (#2189); Paleography fails at reference-search (#2190).
+- **#2187 DONE (de4c7198/df0d55fd):** integration-test rot — pure test rot, NO product bugs. Stale tests repaired vs current API (envelope #1148, ingest db-param, seeder count) + env/model/hang cases skip-guarded. 494 ins / 1058 del. Closed. *Backlog idea: a gated integration lane so it can't silently rot again.*
+- **#2157 IN FLIGHT (codex lane lan-tls-2157):** TLS LAN listener — cryptography 48.0.0 IS present (unblocked). Off-by-default, security-sensitive perimeter code; will gate FULL suite + HOLD for Daniel's security review before the flag is ever enabled.
+- **#2158 DEFERRED:** Bonjour needs `zeroconf` — NOT installed and NOT declared in pyproject; needs a dep add (+network). Descoped until deps land.
+- **#2186** — still open: re-add a robust async-isolated upload-streaming unit test.
 
 ## HARD rules in force
 - **codex gpt-5.4 tmux workers** for everything; Opus only for security reviews. Worktrees ONLY under `~/code/fichero-worktrees/`.
