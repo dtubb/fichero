@@ -1238,6 +1238,7 @@ class TestEmbeddingsModelLoading:
             lambda: None,
         )
         monkeypatch.delenv("FICHERO_EMBED_MODEL", raising=False)
+        db_embeddings_module._EMBEDDER_CACHE.clear()
 
         temp_db._embedder = None
         temp_db._ensure_embedder()

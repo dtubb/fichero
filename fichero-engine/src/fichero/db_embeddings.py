@@ -147,12 +147,12 @@ def _register_pinned_fastembed_model() -> None:
     from fastembed import TextEmbedding
     from fastembed.common.model_description import PoolingType
 
-    if not hasattr(TextEmbedding, "list_supported_models"):
+    if not hasattr(TextEmbedding, "_list_supported_models"):
         return
 
-    supported = TextEmbedding.list_supported_models()
+    supported = TextEmbedding._list_supported_models()
     if any(
-        model["model"].lower() == PINNED_EMBEDDING_SPACE.fastembed_model_name.lower()
+        model.model.lower() == PINNED_EMBEDDING_SPACE.fastembed_model_name.lower()
         for model in supported
     ):
         return
@@ -160,19 +160,19 @@ def _register_pinned_fastembed_model() -> None:
     source = next(
         model
         for model in supported
-        if model["model"].lower() == PINNED_EMBEDDING_SPACE.source_model_name.lower()
+        if model.model.lower() == PINNED_EMBEDDING_SPACE.source_model_name.lower()
     )
     TextEmbedding.add_custom_model(
         model=PINNED_EMBEDDING_SPACE.fastembed_model_name,
         pooling=PoolingType.MEAN,
         normalization=True,
-        sources=source["sources"],
-        dim=source["dim"],
-        model_file=source["model_file"],
-        description=source["description"],
-        license=source["license"],
-        size_in_gb=source["size_in_GB"],
-        additional_files=source["additional_files"],
+        sources=source.sources,
+        dim=source.dim,
+        model_file=source.model_file,
+        description=source.description,
+        license=source.license,
+        size_in_gb=source.size_in_GB,
+        additional_files=source.additional_files,
     )
 
 
