@@ -30,6 +30,11 @@ SWIFT_ROOT = ROOT / "fichero" / "fichero"
 
 # Seeded with current-tree vacuous tests.
 KNOWN_VACUOUS = {
+    # Allowlist-hygiene meta-tests: they assert via a shared helper
+    # (_assert_allowlist_has_reasons / stale-check) which the AST detector
+    # cannot trace into; the assertions are real (#2153).
+    "fichero-engine/tests/unit/test_security_guardrails.py::test_security_guardrail_allowlist_entries_have_reasons",
+    "fichero-engine/tests/unit/test_security_guardrails.py::test_security_guardrail_allowlists_are_not_stale",
     "fichero-engine/tests/conftest.py::test_package",
     "fichero-engine/tests/integration/test_action_library_integration.py::test_action_data",
     "fichero-engine/tests/integration/test_api_contracts.py::TestAPIConventions::test_snake_case_query_params",
