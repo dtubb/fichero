@@ -53,3 +53,115 @@ def test_category_default_applies_when_workflow_default_missing(monkeypatch):
     resolved = _resolve_node_llm_config(node, workflow_cfg)
     assert resolved.provider == "openai"
     assert resolved.model == "gpt-category"
+
+
+def test_node_specific_aliases_resolve_before_other_fallbacks(monkeypatch):
+    node = NodeDef(
+        id="n1",
+        tool="transcribe",
+        provider_name="$medium",
+        model_name="ignored-by-alias",
+        config={},
+    )
+    workflow_cfg = LLMConfig(provider="workflow-provider", model="workflow-model")
+
+    monkeypatch.setattr(
+        "fichero.llm.resolve_model_alias",
+        lambda provider, model: ("openrouter", "openai/gpt-4o-mini"),
+    )
+
+    resolved = _resolve_node_llm_config(node, workflow_cfg)
+    assert resolved.provider == "openrouter"
+    assert resolved.model == "openai/gpt-4o-mini"
+
+
+def test_generic_default_applies_when_category_default_missing(monkeypatch):
+    node = NodeDef(id="n1", tool="transcribe", config={})
+    workflow_cfg = LLMConfig(provider="", model="")
+
+    fake_db = SimpleNamespace(
+        get_default_model_for_category=lambda _category: None,
+        get_default_model=lambda: ("anthropic", "claude-sonnet-4"),
+        list_providers=lambda: [],
+        list_models=lambda _provider_id: [],
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.builder.get_tool_def",
+        lambda _tool: SimpleNamespace(uses_llm=True, category="vision"),
+    )
+    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+
+    resolved = _resolve_node_llm_config(node, workflow_cfg)
+    assert resolved.provider == "anthropic"
+    assert resolved.model == "claude-sonnet-4"
+
+
+def test_first_enabled_non_apple_provider_used_when_no_defaults(monkeypatch):
+    node = NodeDef(id="n1", tool="transcribe", config={})
+    workflow_cfg = LLMConfig(provider="", model="")
+
+    providers = [
+        SimpleNamespace(
+            id="apple-provider",
+            enabled=True,
+            provider_type=SimpleNamespace(value="apple"),
+        ),
+        SimpleNamespace(
+            id="openai-provider",
+            enabled=True,
+            provider_type=SimpleNamespace(value="openai"),
+        ),
+    ]
+    models_by_provider = {
+        "apple-provider": [SimpleNamespace(model_id="apple-intelligence", enabled=True)],
+        "openai-provider": [SimpleNamespace(model_id="gpt-4o-mini", enabled=True)],
+    }
+    fake_db = SimpleNamespace(
+        get_default_model_for_category=lambda _category: None,
+        get_default_model=lambda: None,
+        list_providers=lambda: providers,
+        list_models=lambda provider_id: models_by_provider[provider_id],
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.builder.get_tool_def",
+        lambda _tool: SimpleNamespace(uses_llm=True, category="vision"),
+    )
+    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+
+    resolved = _resolve_node_llm_config(node, workflow_cfg)
+    assert resolved.provider == "openai"
+    assert resolved.model == "gpt-4o-mini"
+
+
+def test_non_llm_tool_keeps_workflow_config(monkeypatch):
+    node = NodeDef(id="n1", tool="files", config={})
+    workflow_cfg = LLMConfig(provider="openai", model="gpt-4o-mini")
+
+    monkeypatch.setattr(
+        "fichero.workflows.builder.get_tool_def",
+        lambda _tool: SimpleNamespace(uses_llm=False, category="source"),
+    )
+
+    resolved = _resolve_node_llm_config(node, workflow_cfg)
+    assert resolved is workflow_cfg
+    assert resolved.provider == "openai"
+    assert resolved.model == "gpt-4o-mini"
+
+
+def test_provider_lookup_failure_falls_back_to_workflow_config(monkeypatch):
+    node = NodeDef(id="n1", tool="transcribe", config={})
+    workflow_cfg = LLMConfig(provider="openai", model="gpt-workflow")
+
+    monkeypatch.setattr(
+        "fichero.workflows.builder.get_tool_def",
+        lambda _tool: SimpleNamespace(uses_llm=True, category="vision"),
+    )
+    monkeypatch.setattr(
+        "fichero.app_db.get_app_db",
+        lambda: (_ for _ in ()).throw(RuntimeError("db unavailable")),
+    )
+
+    resolved = _resolve_node_llm_config(node, workflow_cfg)
+    assert resolved is workflow_cfg
+    assert resolved.provider == "openai"
+    assert resolved.model == "gpt-workflow"

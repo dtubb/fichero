@@ -7,15 +7,17 @@ Tests core LLM functionality including:
 - Hugging Face Inference API calls
 """
 
-import asyncio
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-import aiohttp
+from unittest.mock import AsyncMock, patch
 
 from fichero.llm import (
+    _build_fallback_config,
+    apple_intelligence_fits_in_context,
+    estimate_token_count,
     parse_thinking_response,
     is_thinking_model,
     vision_inference_api,
+    LLMConfig,
 )
 
 
@@ -231,6 +233,87 @@ async def test_vision_inference_api_no_images():
             model="test/model",
             api_key="key",
         )
+
+
+def test_estimate_token_count_is_conservative_and_handles_empty():
+    assert estimate_token_count("") == 0
+    assert estimate_token_count("abc") == 1
+    assert estimate_token_count("abcdefghij") == 3
+
+
+def test_apple_intelligence_fits_in_context_counts_all_budget_inputs():
+    prompt = "a" * 3000
+    instructions = "b" * 300
+
+    assert apple_intelligence_fits_in_context(
+        prompt,
+        instructions=instructions,
+        schema_overhead_tokens=100,
+        response_headroom=500,
+        context_size=2000,
+    ) is True
+    assert apple_intelligence_fits_in_context(
+        prompt,
+        instructions=instructions,
+        schema_overhead_tokens=400,
+        response_headroom=700,
+        context_size=2000,
+    ) is False
+
+
+def test_build_fallback_config_threads_transport_overrides(monkeypatch):
+    monkeypatch.setenv("FICHERO_LARGE_BASE_URL", "http://127.0.0.1:8765/v1")
+    monkeypatch.setenv("FICHERO_LARGE_API_KEY", "override-key")
+    monkeypatch.setattr(
+        "fichero.llm.resolve_model_alias",
+        lambda provider, model: ("openrouter", "openai/gpt-4o"),
+    )
+
+    cfg = LLMConfig(
+        provider="apple",
+        model="apple-intelligence",
+        temperature=0.2,
+        max_tokens=321,
+        api_key="original-key",
+        api_base="http://original",
+        timeout=45,
+        extra={"trace": "on"},
+        reasoning_effort="medium",
+    )
+
+    fallback = _build_fallback_config(cfg, "large")
+    assert fallback.provider == "openrouter"
+    assert fallback.model == "openai/gpt-4o"
+    assert fallback.temperature == 0.2
+    assert fallback.max_tokens == 321
+    assert fallback.api_key == "override-key"
+    assert fallback.api_base == "http://127.0.0.1:8765/v1"
+    assert fallback.timeout == 45
+    assert fallback.extra == {"trace": "on"}
+    assert fallback.reasoning_effort == "medium"
+
+
+def test_build_fallback_config_uses_original_transport_without_overrides(monkeypatch):
+    monkeypatch.delenv("FICHERO_MEDIUM_BASE_URL", raising=False)
+    monkeypatch.delenv("FICHERO_MEDIUM_API_BASE", raising=False)
+    monkeypatch.delenv("FICHERO_MEDIUM_API_KEY", raising=False)
+    monkeypatch.setattr(
+        "fichero.llm.resolve_model_alias",
+        lambda provider, model: ("anthropic", "claude-sonnet-4"),
+    )
+
+    cfg = LLMConfig(
+        provider="apple",
+        model="apple-intelligence",
+        api_key="keep-key",
+        api_base="http://keep-base",
+    )
+
+    fallback = _build_fallback_config(cfg, "medium")
+    assert fallback.provider == "anthropic"
+    assert fallback.model == "claude-sonnet-4"
+    assert fallback.api_key == "keep-key"
+    assert fallback.api_base == "http://keep-base"
 
 
 @pytest.mark.asyncio
