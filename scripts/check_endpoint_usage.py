@@ -35,6 +35,11 @@ HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options", "tra
 # Current baseline. The script exits 0 while every unused/asymmetric endpoint is
 # listed here and exits 1 when a new gap appears.
 KNOWN_GAPS: dict[str, str] = {
+    'POST /api/agent-memory': "#2152 agent memory - cli-only (SwiftUI deferred)",
+    'GET /api/agent-memory': "#2152 agent memory - cli-only (SwiftUI deferred)",
+    'GET /api/agent-memory/{note_id}': "#2152 agent memory - cli-only (SwiftUI deferred)",
+    'PATCH /api/agent-memory/{note_id}': "#2152 agent memory - cli-only (SwiftUI deferred)",
+    'DELETE /api/agent-memory/{note_id}': "#2152 agent memory - cli-only (SwiftUI deferred)",
     'POST /api/artifacts/': "#1943 - cli-only (Swift creates artifacts via ingest/workflow, not a direct call)",
     'PUT /api/actions/{action_id}': "#1920 baseline - cli-only",
     'GET /api/activity/entity-types': "#1920 baseline - cli-only",
