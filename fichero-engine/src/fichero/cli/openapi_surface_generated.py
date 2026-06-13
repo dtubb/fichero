@@ -542,6 +542,86 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('agent-memory')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for agent-memory endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='agent-memory')
+
+    @target_app.command("list-notes")
+    def agent_memory_list_notes_get(
+        ctx: typer.Context,
+        actor_id: Optional[str] = typer.Option(None, "--actor-id", help="Query parameter: actor_id."),
+        expediente: Optional[str] = typer.Option(None, "--expediente", help="Query parameter: expediente."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
+        page_id: Optional[str] = typer.Option(None, "--page-id", help="Query parameter: page_id."),
+        source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Query parameter: source_document_id."),
+    ) -> None:
+        """List Agent Notes (GET /api/agent-memory)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/agent-memory"
+            params = {
+                "actor_id": actor_id,
+                "expediente": expediente,
+                "kind": kind,
+                "page_id": page_id,
+                "source_document_id": source_document_id,
+            }
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-note")
+    def agent_memory_create_note_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Create Agent Note (POST /api/agent-memory)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/agent-memory"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("delete-note")
+    def agent_memory_delete_note_delete(
+        ctx: typer.Context,
+        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+    ) -> None:
+        """Delete Agent Note (DELETE /api/agent-memory/{note_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/agent-memory/{note_id}"
+            params = None
+            return client.request("DELETE", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-note")
+    def agent_memory_get_note_get(
+        ctx: typer.Context,
+        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+    ) -> None:
+        """Get Agent Note (GET /api/agent-memory/{note_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/agent-memory/{note_id}"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("patch-note")
+    def agent_memory_patch_note_patch(
+        ctx: typer.Context,
+        note_id: str = typer.Argument(..., help="Path parameter: note_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Patch Agent Note (PATCH /api/agent-memory/{note_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/agent-memory/{note_id}"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PATCH", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('agents')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for agents endpoints.', no_args_is_help=True)

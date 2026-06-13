@@ -564,6 +564,90 @@
         "response_model": "ActivityListResponse"
       }
     ],
+    "agent-memory": [
+      {
+        "method": "GET",
+        "path": "/agent-memory",
+        "operation_id": "list_agent_notes_api_agent_memory_get",
+        "summary": "List Agent Notes",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "actor_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "expediente",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "page_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "source_document_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "AgentNoteListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/agent-memory",
+        "operation_id": "create_agent_note_api_agent_memory_post",
+        "summary": "Create Agent Note",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "AgentNoteCreateRequest",
+        "response_model": "AgentNote"
+      },
+      {
+        "method": "DELETE",
+        "path": "/agent-memory/{note_id}",
+        "operation_id": "delete_agent_note_api_agent_memory__note_id__delete",
+        "summary": "Delete Agent Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/agent-memory/{note_id}",
+        "operation_id": "get_agent_note_api_agent_memory__note_id__get",
+        "summary": "Get Agent Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AgentNote"
+      },
+      {
+        "method": "PATCH",
+        "path": "/agent-memory/{note_id}",
+        "operation_id": "patch_agent_note_api_agent_memory__note_id__patch",
+        "summary": "Patch Agent Note",
+        "path_params": [
+          "note_id"
+        ],
+        "query_params": [],
+        "request_model": "AgentNotePatchRequest",
+        "response_model": "AgentNote"
+      }
+    ],
     "agents": [
       {
         "method": "POST",
