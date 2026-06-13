@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `fc349b39`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `be8c74f5`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -23,8 +23,11 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 ### SHIPPED (loop tick 2b, all gated ALL PASS + pushed, never red) — 0.0.2 @ fc349b39
 - **#2057** (fc349b39) added thin `chat_batch` / `vision_batch` wrappers over LangChain `.abatch()` with ordered per-item `LLMBatchItemError` results, `FICHERO_MAX_INFLIGHT_LLM` chunking, Apple bounded-gather fallback, and usage accounting. Worker targeted checks passed; manager gate `bash scripts/verify_all.sh --standard` passed with `verify_all (standard): ALL PASS` (`4811 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `batching-2057` worktree/window removed.
 
-### In flight (poll on wake) — tick 2
-- **codex `embeddings-pin`** (gpt-5.4, worktree `~/code/fichero-worktrees/embeddings-pin`): **#2194** (pin model+pooling, stamp model-id on vectors, mismatch guard — capability only, NO re-embed) + **#2193** (gate cloud embedding default). Brief `/tmp/brief_embeddings.txt`. → may add a migration (CHECKPOINT); db/embeddings god-node → FULL suite on integrate.
+### SHIPPED (loop tick 2c, all gated ALL PASS + pushed, never red) — 0.0.2 @ be8c74f5
+- **#2194 + #2193** (2c4d901a + be8c74f5) pinned current FastEmbed embedding space (`intfloat/multilingual-e5-large`, explicit mean pooling), stamped `embedding_model_id` on new Lance rows, added known mixed-space refusal with legacy unstamped warning, and gated `llm_embeddings.embed/aembed` behind local-only + paid-fallback policy. Initial worker targeted tests missed FastEmbed's typed `DenseModelDescription`/`ModelSource` contract; full gate failed; repair commit switched from dict-returning `list_supported_models()` to typed `_list_supported_models()` and added cache-isolation test coverage. Manager gate then passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4818 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issues closed; `embeddings-pin` worktree/window removed. No real data was re-embedded.
+
+### In flight (poll on wake) — tick 3
+- None currently active. Next: dispatch programmatic guardrail for typed AI/model metadata, then continue #938 / AI-test gaps / design-doc lanes.
 
 ### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
 1. **AI-backend tests** worker — implement Fable's test-gap checklist (workers write tests, manager runs full suite). Ties to #1987.
