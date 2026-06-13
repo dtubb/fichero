@@ -8,9 +8,11 @@ Tests core LLM functionality including:
 """
 
 import asyncio
+import sys
+import types
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from pydantic import BaseModel
 
@@ -327,6 +329,58 @@ def test_build_fallback_config_uses_original_transport_without_overrides(monkeyp
     assert fallback.api_base == "http://keep-base"
 
 
+def test_resolve_api_key_prefers_explicit_config_over_lookup(monkeypatch):
+    cfg = LLMConfig(provider="openai", model="gpt-5", api_key="config-key")
+    monkeypatch.setattr(llm, "get_api_key", lambda _provider: "lookup-key")
+
+    assert llm._resolve_api_key(cfg) == "config-key"
+
+
+def test_get_api_key_returns_none_for_keyless_local_provider() -> None:
+    assert llm.get_api_key("ollama") is None
+
+
+@pytest.mark.parametrize(
+    ("provider", "expected_base_url"),
+    [
+        ("ollama", "http://localhost:11434/v1"),
+        ("lmstudio", "http://localhost:1234/v1"),
+        ("omlx", "http://localhost:8000/v1"),
+    ],
+)
+def test_build_langchain_model_uses_placeholder_key_for_keyless_local_providers(
+    monkeypatch,
+    provider: str,
+    expected_base_url: str,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeChatOpenAI:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(llm, "_resolve_api_key", lambda _config: None)
+    monkeypatch.setattr(
+        llm,
+        "_get_shared_httpx_async_client",
+        lambda **_kwargs: "shared-httpx-client",
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "langchain_openai",
+        types.SimpleNamespace(ChatOpenAI=FakeChatOpenAI),
+    )
+
+    cfg = LLMConfig(provider=provider, model="local-model")
+    model = llm._build_langchain_model(cfg)
+
+    assert isinstance(model, FakeChatOpenAI)
+    assert captured["model"] == "local-model"
+    assert captured["api_key"] == provider
+    assert captured["base_url"] == expected_base_url
+    assert captured["http_async_client"] == "shared-httpx-client"
+
+
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="TODO: Complex async mocking - will be covered by integration tests")
 async def test_vision_inference_api_timeout():
@@ -485,6 +539,120 @@ async def test_plain_and_structured_fallback_share_paid_remote_gate_decision():
             await chat_structured_with_fallback(
                 prompt="hi", schema=_StructuredResult, config=primary_config
             )
+
+
+@pytest.mark.asyncio
+async def test_chat_structured_with_fallback_skips_remote_medium_and_large_when_paid_disabled():
+    from fichero.llm import (
+        chat_structured_with_fallback,
+        GuardrailViolationError,
+    )
+
+    primary_config = LLMConfig(provider="apple", model="apple-intelligence")
+    call_log: list[tuple[str, str]] = []
+    alias_calls: list[str] = []
+
+    async def fake_structured(*args, **kwargs):
+        config = kwargs.get("config") or args[2]
+        call_log.append((config.provider, config.model))
+        raise GuardrailViolationError("structured blocked")
+
+    def fake_resolve(provider: str, _model: str) -> tuple[str, str]:
+        alias_calls.append(provider)
+        if provider == "$medium":
+            return ("openai", "gpt-5-mini")
+        if provider == "$large":
+            return ("anthropic", "claude-sonnet-4")
+        raise AssertionError(provider)
+
+    with patch("fichero.llm.chat_structured", new=fake_structured), \
+         patch("fichero.llm.resolve_model_alias", side_effect=fake_resolve), \
+         patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=False):
+        with pytest.raises(GuardrailViolationError, match="structured blocked"):
+            await chat_structured_with_fallback(
+                prompt="hi", schema=_StructuredResult, config=primary_config
+            )
+
+    assert call_log == [("apple", "apple-intelligence")]
+    assert alias_calls == ["$medium", "$large"]
+
+
+@pytest.mark.asyncio
+async def test_chat_structured_with_fallback_attempts_cloud_medium_when_paid_enabled(
+    monkeypatch,
+):
+    from fichero.llm import (
+        chat_structured_with_fallback,
+        GuardrailViolationError,
+    )
+
+    primary_config = LLMConfig(provider="apple", model="apple-intelligence")
+    call_log: list[tuple[str, str]] = []
+
+    async def fake_structured(*args, **kwargs):
+        config = kwargs.get("config") or args[2]
+        call_log.append((config.provider, config.model))
+        if config.provider == "apple":
+            raise GuardrailViolationError("structured blocked")
+        return _StructuredResult(answer="from-cloud-medium")
+
+    monkeypatch.setenv("FICHERO_ALLOW_PAID_AI_FALLBACKS", "1")
+
+    with patch("fichero.llm.chat_structured", new=fake_structured), \
+         patch(
+             "fichero.llm.resolve_model_alias",
+             return_value=("openai", "gpt-5-mini"),
+         ):
+        result = await chat_structured_with_fallback(
+            prompt="hi", schema=_StructuredResult, config=primary_config
+        )
+
+    assert result == _StructuredResult(answer="from-cloud-medium")
+    assert call_log == [
+        ("apple", "apple-intelligence"),
+        ("openai", "gpt-5-mini"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_chat_structured_with_fallback_skips_same_model_medium_and_uses_large():
+    from fichero.llm import (
+        chat_structured_with_fallback,
+        GuardrailViolationError,
+    )
+
+    primary_config = LLMConfig(provider="apple", model="apple-intelligence")
+    call_log: list[tuple[str, str]] = []
+    alias_calls: list[str] = []
+
+    async def fake_structured(*args, **kwargs):
+        config = kwargs.get("config") or args[2]
+        call_log.append((config.provider, config.model))
+        if config.provider == "apple":
+            raise GuardrailViolationError("structured blocked")
+        return _StructuredResult(answer="from-large")
+
+    def fake_resolve(provider: str, _model: str) -> tuple[str, str]:
+        alias_calls.append(provider)
+        if provider == "$medium":
+            return ("apple", "apple-intelligence")
+        if provider == "$large":
+            return ("ollama", "llama3.2")
+        raise AssertionError(provider)
+
+    with patch("fichero.llm.chat_structured", new=fake_structured), \
+         patch("fichero.llm.resolve_model_alias", side_effect=fake_resolve), \
+         patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=False):
+        result = await chat_structured_with_fallback(
+            prompt="hi", schema=_StructuredResult, config=primary_config
+        )
+
+    assert result == _StructuredResult(answer="from-large")
+    assert call_log == [
+        ("apple", "apple-intelligence"),
+        ("ollama", "llama3.2"),
+    ]
+    assert alias_calls == ["$medium", "$large"]
 
 
 @pytest.mark.asyncio
@@ -859,3 +1027,149 @@ async def test_chat_with_fallback_reraises_unsupported_locale_when_no_large():
          ):
         with pytest.raises(UnsupportedLocaleError, match="locale rejected"):
             await chat_with_fallback("hi", config=config)
+
+
+@pytest.mark.asyncio
+async def test_collect_usage_records_chat_usage_metadata() -> None:
+    from fichero.llm import collect_usage, chat
+
+    cfg = LLMConfig(provider="openai", model="gpt-5")
+    response_msg = MagicMock()
+    response_msg.content = "ok"
+    response_msg.usage_metadata = {
+        "input_tokens": 50,
+        "output_tokens": 20,
+        "total_tokens": 70,
+    }
+    model = MagicMock()
+    model.ainvoke = AsyncMock(return_value=response_msg)
+
+    with patch("fichero.llm.get_langchain_model", return_value=model):
+        with collect_usage() as bucket:
+            await chat("hi", config=cfg)
+
+    assert bucket == [
+        {
+            "provider": "openai",
+            "model": "gpt-5",
+            "kind": "chat",
+            "input_tokens": 50,
+            "output_tokens": 20,
+            "total_tokens": 70,
+            "estimated": False,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_collect_usage_ignores_missing_chat_usage_metadata() -> None:
+    from fichero.llm import collect_usage, chat
+
+    cfg = LLMConfig(provider="openai", model="gpt-5")
+    response_msg = MagicMock()
+    response_msg.content = "ok"
+    response_msg.usage_metadata = None
+    model = MagicMock()
+    model.ainvoke = AsyncMock(return_value=response_msg)
+
+    with patch("fichero.llm.get_langchain_model", return_value=model):
+        with collect_usage() as bucket:
+            result = await chat("hi", config=cfg)
+
+    assert result == "ok"
+    assert bucket == []
+
+
+@pytest.mark.asyncio
+async def test_collect_usage_records_structured_usage_metadata() -> None:
+    from fichero.llm import collect_usage, chat_structured
+
+    cfg = LLMConfig(provider="openai", model="gpt-5")
+    raw_message = MagicMock()
+    raw_message.usage_metadata = {
+        "input_tokens": 120,
+        "output_tokens": 45,
+        "total_tokens": 165,
+    }
+    structured_model = MagicMock()
+    structured_model.ainvoke = AsyncMock(
+        return_value={
+            "raw": raw_message,
+            "parsed": _StructuredResult(answer="from-dict"),
+            "parsing_error": None,
+        }
+    )
+    base_model = MagicMock()
+    base_model.profile = {"structured_output": True}
+    base_model.with_structured_output = MagicMock(return_value=structured_model)
+
+    with patch("fichero.llm.get_langchain_model", return_value=base_model):
+        with collect_usage() as bucket:
+            result = await chat_structured(
+                prompt="hi", schema=_StructuredResult, config=cfg
+            )
+
+    assert result == _StructuredResult(answer="from-dict")
+    assert bucket == [
+        {
+            "provider": "openai",
+            "model": "gpt-5",
+            "kind": "structured",
+            "input_tokens": 120,
+            "output_tokens": 45,
+            "total_tokens": 165,
+            "estimated": False,
+            "method": "function_calling",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_collect_usage_ignores_missing_structured_usage_metadata() -> None:
+    from fichero.llm import collect_usage, chat_structured
+
+    cfg = LLMConfig(provider="omlx", model="local-model")
+    structured_model = MagicMock()
+    structured_model.ainvoke = AsyncMock(
+        return_value={
+            "raw": MagicMock(usage_metadata=None),
+            "parsed": _StructuredResult(answer="local"),
+            "parsing_error": None,
+        }
+    )
+    base_model = MagicMock()
+    base_model.with_structured_output = MagicMock(return_value=structured_model)
+
+    with patch("fichero.llm.get_langchain_model", return_value=base_model):
+        with collect_usage() as bucket:
+            result = await chat_structured(
+                prompt="hi", schema=_StructuredResult, config=cfg
+            )
+
+    assert result == _StructuredResult(answer="local")
+    assert bucket == []
+
+
+def test_raise_provider_quota_error_classifies_429() -> None:
+    exc = RuntimeError("too many requests")
+    exc.response = types.SimpleNamespace(status_code=429, text="too many requests")
+    cfg = LLMConfig(provider="openai", model="gpt-5")
+
+    with patch("fichero.llm._log_provider_quota_hit"):
+        with pytest.raises(llm.ProviderQuotaError) as caught:
+            llm._raise_provider_quota_error(cfg, exc)
+
+    assert caught.value.provider == "openai"
+    assert caught.value.model == "gpt-5"
+    assert caught.value.status_code == 429
+
+
+def test_raise_provider_quota_error_ignores_unrelated_500() -> None:
+    exc = RuntimeError("internal server error")
+    exc.response = types.SimpleNamespace(status_code=500, text="internal server error")
+    cfg = LLMConfig(provider="openai", model="gpt-5")
+
+    with patch("fichero.llm._log_provider_quota_hit") as log_quota_hit:
+        llm._raise_provider_quota_error(cfg, exc)
+
+    assert log_quota_hit.call_count == 0

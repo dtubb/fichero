@@ -12,6 +12,7 @@ from fichero import db_embeddings
 from fichero.db import Database
 from fichero.db_embeddings import (
     EMBEDDING_MODEL_ID_FIELD,
+    PINNED_FASTEMBED_MODEL_ALIAS,
     PINNED_EMBEDDING_MODEL_ID,
     PINNED_EMBEDDING_POOLING,
     EmbeddingSpaceMismatchError,
@@ -35,6 +36,17 @@ def test_format_for_model_e5_adds_role_prefixes() -> None:
 def test_format_for_model_bge_m3_has_no_prefix() -> None:
     assert format_for_model("BAAI/bge-m3", "Leidy", "query") == "Leidy"
     assert format_for_model("BAAI/bge-m3", "Leidy", "passage") == "Leidy"
+
+
+def test_format_for_model_pinned_e5_alias_keeps_required_prefixes() -> None:
+    assert (
+        format_for_model(PINNED_FASTEMBED_MODEL_ALIAS, "Needle", "query")
+        == "query: Needle"
+    )
+    assert (
+        format_for_model(PINNED_FASTEMBED_MODEL_ALIAS, "Needle", "passage")
+        == "passage: Needle"
+    )
 
 
 def test_default_model_and_env_override(monkeypatch) -> None:
