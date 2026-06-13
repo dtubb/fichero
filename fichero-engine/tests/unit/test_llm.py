@@ -10,15 +10,22 @@ Tests core LLM functionality including:
 import pytest
 from unittest.mock import AsyncMock, patch
 
+from pydantic import BaseModel
+
 from fichero.llm import (
     _build_fallback_config,
     apple_intelligence_fits_in_context,
     estimate_token_count,
     parse_thinking_response,
     is_thinking_model,
+    LocalOnlyViolationError,
     vision_inference_api,
     LLMConfig,
 )
+
+
+class _StructuredResult(BaseModel):
+    answer: str
 
 
 # =============================================================================
@@ -355,7 +362,7 @@ async def test_chat_with_fallback_passes_through_on_success():
 
 
 @pytest.mark.asyncio
-async def test_chat_with_fallback_routes_around_guardrail():
+async def test_chat_with_fallback_routes_around_guardrail_when_paid_fallback_enabled():
     """When Apple Intelligence raises GuardrailViolationError, the fallback
     resolves $large via resolve_model_alias and retries with the resolved
     config. Returns the fallback model's response."""
@@ -374,7 +381,8 @@ async def test_chat_with_fallback_routes_around_guardrail():
          patch(
              "fichero.llm.resolve_model_alias",
              return_value=("anthropic", "claude-sonnet-4"),
-         ):
+         ), \
+         patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True):
         result = await chat_with_fallback("hi", config=primary_config)
 
     assert result == "fallback response"
@@ -382,6 +390,97 @@ async def test_chat_with_fallback_routes_around_guardrail():
     assert call_log[0].provider == "apple"
     assert call_log[1].provider == "anthropic"
     assert call_log[1].model == "claude-sonnet-4"
+
+
+@pytest.mark.asyncio
+async def test_chat_with_fallback_skips_remote_large_when_paid_fallback_disabled():
+    """Plain chat fallback must match the structured path: no remote $large
+    call unless paid remote fallback consent is enabled."""
+    from fichero.llm import chat_with_fallback, LLMConfig, GuardrailViolationError
+
+    primary_config = LLMConfig(provider="apple", model="apple-intelligence")
+    call_log: list[LLMConfig] = []
+
+    async def fake_chat(prompt, config, system=None, **_kwargs):
+        call_log.append(config)
+        raise GuardrailViolationError("guardrailViolation: blocked")
+
+    with patch("fichero.llm.chat", new=fake_chat), \
+         patch(
+             "fichero.llm.resolve_model_alias",
+             return_value=("openai", "gpt-5"),
+         ), \
+         patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=False):
+        with pytest.raises(GuardrailViolationError, match="blocked"):
+            await chat_with_fallback("hi", config=primary_config)
+
+    assert [(c.provider, c.model) for c in call_log] == [
+        ("apple", "apple-intelligence")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_chat_with_fallback_local_large_allowed_when_paid_fallback_disabled():
+    """The paid fallback gate only blocks remote providers; local fallback
+    remains available for local-first workflows."""
+    from fichero.llm import chat_with_fallback, LLMConfig, GuardrailViolationError
+
+    primary_config = LLMConfig(provider="apple", model="apple-intelligence")
+    call_log: list[LLMConfig] = []
+
+    async def fake_chat(prompt, config, system=None, **_kwargs):
+        call_log.append(config)
+        if config.provider == "apple":
+            raise GuardrailViolationError("guardrailViolation: blocked")
+        return "local fallback response"
+
+    with patch("fichero.llm.chat", new=fake_chat), \
+         patch(
+             "fichero.llm.resolve_model_alias",
+             return_value=("ollama", "llama3.2"),
+         ), \
+         patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=False):
+        result = await chat_with_fallback("hi", config=primary_config)
+
+    assert result == "local fallback response"
+    assert [(c.provider, c.model) for c in call_log] == [
+        ("apple", "apple-intelligence"),
+        ("ollama", "llama3.2"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_plain_and_structured_fallback_share_paid_remote_gate_decision():
+    """For the same Apple failure and remote fallback config, both wrappers
+    refuse the remote provider when paid fallback consent is off."""
+    from fichero.llm import (
+        chat_structured_with_fallback,
+        chat_with_fallback,
+        LLMConfig,
+        GuardrailViolationError,
+    )
+
+    primary_config = LLMConfig(provider="apple", model="apple-intelligence")
+
+    async def fake_chat(prompt, config, system=None, **_kwargs):
+        raise GuardrailViolationError("plain blocked")
+
+    async def fake_structured(*_args, **_kwargs):
+        raise GuardrailViolationError("structured blocked")
+
+    with patch("fichero.llm.chat", new=fake_chat), \
+         patch("fichero.llm.chat_structured", new=fake_structured), \
+         patch(
+             "fichero.llm.resolve_model_alias",
+             return_value=("openai", "gpt-5"),
+         ), \
+         patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=False):
+        with pytest.raises(GuardrailViolationError, match="plain blocked"):
+            await chat_with_fallback("hi", config=primary_config)
+        with pytest.raises(GuardrailViolationError, match="structured blocked"):
+            await chat_structured_with_fallback(
+                prompt="hi", schema=_StructuredResult, config=primary_config
+            )
 
 
 @pytest.mark.asyncio
@@ -443,13 +542,69 @@ async def test_chat_with_fallback_routes_around_unsupported_locale():
          patch(
              "fichero.llm.resolve_model_alias",
              return_value=("anthropic", "claude-sonnet-4-6"),
-         ):
+         ), \
+         patch("fichero.llm._paid_remote_fallbacks_enabled", return_value=True):
         result = await chat_with_fallback("hola, esto es Español", config=primary_config)
 
     assert result == "fallback response"
     assert len(call_log) == 2
     assert call_log[0].provider == "apple"
     assert call_log[1].provider == "anthropic"
+
+
+@pytest.mark.asyncio
+async def test_chat_refuses_remote_provider_when_local_only_enabled(monkeypatch):
+    from fichero.llm import chat
+
+    monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
+    config = LLMConfig(provider="openai", model="gpt-5")
+
+    with pytest.raises(LocalOnlyViolationError, match="remote provider openai/gpt-5"):
+        await chat("hi", config=config)
+
+
+@pytest.mark.asyncio
+async def test_vision_refuses_remote_provider_when_local_only_enabled(monkeypatch):
+    from fichero.llm import vision
+
+    monkeypatch.setenv("FICHERO_LOCAL_ONLY", "true")
+    config = LLMConfig(provider="openai", model="gpt-4o")
+
+    with pytest.raises(LocalOnlyViolationError, match="vision call"):
+        await vision(["data:image/png;base64,AAAA"], "describe", config=config)
+
+
+@pytest.mark.asyncio
+async def test_chat_local_provider_succeeds_when_local_only_enabled(monkeypatch):
+    from fichero.llm import chat
+
+    monkeypatch.setenv("FICHERO_LOCAL_ONLY", "on")
+    config = LLMConfig(provider="mock", model="mock")
+
+    result = await chat("hi", config=config)
+
+    assert isinstance(result, str)
+    assert result
+
+
+@pytest.mark.asyncio
+async def test_chat_default_local_only_off_preserves_remote_provider_behavior(monkeypatch):
+    from fichero.llm import chat
+
+    monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
+    config = LLMConfig(provider="openai", model="gpt-5")
+
+    class FakeResponse:
+        content = "remote response"
+        usage_metadata = {}
+
+    fake_model = AsyncMock()
+    fake_model.ainvoke.return_value = FakeResponse()
+
+    with patch("fichero.llm.get_langchain_model", return_value=fake_model):
+        result = await chat("hi", config=config)
+
+    assert result == "remote response"
 
 
 @pytest.mark.asyncio

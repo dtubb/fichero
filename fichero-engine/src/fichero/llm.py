@@ -338,6 +338,21 @@ class ProviderQuotaError(RuntimeError):
         )
 
 
+class LocalOnlyViolationError(RuntimeError):
+    """Raised when local-only mode would otherwise call a remote provider."""
+
+    def __init__(self, provider: str, *, model: str | None = None, kind: str = "llm"):
+        self.provider = provider
+        self.model = model
+        self.kind = kind
+        model_label = f"/{model}" if model else ""
+        super().__init__(
+            "Local-only AI mode is enabled; refusing "
+            f"{kind} call to remote provider {provider}{model_label}. "
+            "Choose an on-device/local provider or disable FICHERO_LOCAL_ONLY."
+        )
+
+
 _PROVIDER_QUOTA_HITS: set[str] = set()
 _PROVIDER_QUOTA_HITS_LOCK = threading.Lock()
 
@@ -550,11 +565,37 @@ def _paid_remote_fallbacks_enabled() -> bool:
     return str(setting).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def is_local_only() -> bool:
+    """Whether LLM calls must stay on local / built-in providers only."""
+    raw = os.environ.get("FICHERO_LOCAL_ONLY")
+    if raw is not None:
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+    try:
+        from fichero.app_db import get_app_db
+
+        setting = get_app_db().get_setting("local_only_ai")
+    except Exception:
+        setting = None
+
+    if setting is None:
+        return False
+    return str(setting).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _is_local_or_builtin_provider(provider: str) -> bool:
     from fichero.providers import get_provider_info
 
     info = get_provider_info((provider or "").strip().lower())
     return bool(info and (info.is_local or info.is_builtin))
+
+
+def _enforce_local_only_provider(config: LLMConfig, *, kind: str) -> None:
+    if not is_local_only():
+        return
+    if _is_local_or_builtin_provider(config.provider):
+        return
+    raise LocalOnlyViolationError(config.provider, model=config.model, kind=kind)
 
 
 # =============================================================================
@@ -631,6 +672,8 @@ async def chat(
         Response string, or async generator if streaming
     """
     from langchain_core.messages import HumanMessage, SystemMessage
+
+    _enforce_local_only_provider(config, kind="chat")
 
     # Apple Intelligence (Foundation Models) lives outside LangChain — Swift-
     # native API requires the fm-bridge subprocess. Route before LangChain
@@ -765,9 +808,22 @@ async def chat_with_fallback(
         # regression, and to a cloud provider it's also a billing event.
         # #1560: local (omlx/ollama/lmstudio) AND builtin (apple) providers
         # run on-device for free, so don't mislabel them as PAID.
+        fallback_is_local = _is_local_or_builtin_provider(large_config.provider)
+        _enforce_local_only_provider(large_config, kind="chat fallback")
+
+        if not _paid_remote_fallbacks_enabled() and not fallback_is_local:
+            logger.warning(
+                "Skipping $large chat fallback %s/%s because paid remote "
+                "fallbacks are disabled by default. Configure a local "
+                "provider or set FICHERO_ALLOW_PAID_AI_FALLBACKS=1.",
+                large_config.provider,
+                large_config.model,
+            )
+            raise apple_exc
+
         _cost_note = (
             "an on-device model — no API cost"
-            if _is_local_or_builtin_provider(large_config.provider)
+            if fallback_is_local
             else "a PAID remote model — this request now incurs cost"
         )
         logger.warning(
@@ -1274,6 +1330,8 @@ async def vision(
     """
     from langchain_core.messages import HumanMessage
 
+    _enforce_local_only_provider(config, kind="vision")
+
     # Apple provider unified dispatch — Apple has no LangChain integration,
     # so we route by model BEFORE falling through to LangChain. Three Apple
     # models exist (per the bundled provider seed):
@@ -1654,6 +1712,8 @@ async def chat_structured(
     extract_all + cleanup, where the model emitted free-form text we
     asked nicely to be JSON, then parsed and prayed.
     """
+    _enforce_local_only_provider(config, kind="structured chat")
+
     if config.provider == "apple":
         return await _apple_intelligence_structured(
             prompt, schema, config, system,
@@ -1905,10 +1965,12 @@ async def chat_structured_with_fallback(
                 # retrying that tier. Try the next tier before surfacing.
                 continue
 
-            if (
-                not _paid_remote_fallbacks_enabled()
-                and not _is_local_or_builtin_provider(fallback_config.provider)
-            ):
+            fallback_is_local = _is_local_or_builtin_provider(fallback_config.provider)
+            _enforce_local_only_provider(
+                fallback_config, kind=f"structured ${tier} fallback"
+            )
+
+            if not _paid_remote_fallbacks_enabled() and not fallback_is_local:
                 logger.warning(
                     "Skipping $%s structured fallback %s/%s because paid "
                     "remote fallbacks are disabled by default. Configure "
@@ -1927,7 +1989,7 @@ async def chat_structured_with_fallback(
             # don't mislabel them as PAID.
             _cost_note = (
                 "an on-device model — no API cost"
-                if _is_local_or_builtin_provider(fallback_config.provider)
+                if fallback_is_local
                 else "a PAID remote model — this request now incurs cost"
             )
             logger.warning(
@@ -2818,6 +2880,8 @@ def get_langchain_model(config: LLMConfig) -> Any:
 __all__ = [
     # Config
     "LLMConfig",
+    "LocalOnlyViolationError",
+    "is_local_only",
     # Chat
     "chat",
     # Vision
