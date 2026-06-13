@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from langchain_core.messages import AIMessage
 
 from fichero.workflows.model_comparison import (
     ModelResult,
@@ -218,6 +217,30 @@ class TestModelComparisonEngine:
 
             assert len(result.results) == 1
             assert "API Error" in result.results[0].error
+
+    @pytest.mark.asyncio
+    async def test_compare_vision_awaits_async_vision(self):
+        """Regression: compare_vision must AWAIT the async ``vision`` coroutine.
+
+        Previously ``_run_vision_model`` wrapped the async ``vision`` in
+        ``asyncio.to_thread`` which only built the coroutine without awaiting it,
+        so every model failed with "object of type 'coroutine' has no len()".
+        """
+        async_vision = AsyncMock(return_value="Numero 2. En la ciudad de Novita...")
+
+        with patch("fichero.workflows.model_comparison.vision", async_vision):
+            engine = ModelComparisonEngine()
+            result = await engine.compare_vision(
+                images=["data:image/png;base64,AAAA"],
+                prompt="Transcribe",
+                models=[ModelSpec(provider="openai", model="gpt-4o")],
+            )
+
+        assert len(result.results) == 1
+        assert result.results[0].error is None
+        assert result.results[0].response.startswith("Numero 2.")
+        assert result.fastest_model == "openai/gpt-4o"
+        async_vision.assert_awaited_once()
 
     def test_get_history(self):
         """Test getting comparison history."""

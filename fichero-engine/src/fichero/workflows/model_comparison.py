@@ -617,8 +617,13 @@ class ModelComparisonEngine:
                 temperature=spec.temperature,
             )
 
+            # ``vision`` is an async coroutine that returns a str. It must be
+            # awaited directly — wrapping it in ``asyncio.to_thread`` only builds
+            # the coroutine object (never awaiting it), so ``response`` came back
+            # as a coroutine and every model failed with
+            # "object of type 'coroutine' has no len()".
             response = await asyncio.wait_for(
-                asyncio.to_thread(vision, images, prompt, config),
+                vision(images, prompt, config),
                 timeout=timeout_seconds,
             )
 
