@@ -85,7 +85,7 @@ class TestOpenAPISchemaValidity:
                         missing_ids.append(f"{method.upper()} {path}")
 
         if missing_ids:
-            pytest.fail(f"Missing operationId:\n" + "\n".join(missing_ids[:10]))
+            pytest.fail("Missing operationId:\n" + "\n".join(missing_ids[:10]))
 
 
 class TestAPIConventions:
@@ -106,7 +106,7 @@ class TestAPIConventions:
 
         if camel_case_params:
             pytest.fail(
-                f"Query params should use snake_case:\n" +
+                "Query params should use snake_case:\n" +
                 "\n".join(camel_case_params[:10])
             )
 
