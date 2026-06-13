@@ -8,6 +8,8 @@
     "/api/activity/stream": "baseline: not yet wired",
     "/api/activity/top": "baseline: not yet wired",
     "/api/activity/trends": "baseline: not yet wired",
+    "/api/agent-memory": "#2152 agent memory - UI deferred",
+    "/api/agent-memory/{note_id}": "#2152 agent memory - UI deferred",
     "/api/agents/write": "baseline: not yet wired",
     "/api/agents/write/approve": "baseline: not yet wired",
     "/api/agents/write/audit": "baseline: not yet wired",

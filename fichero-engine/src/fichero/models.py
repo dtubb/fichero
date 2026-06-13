@@ -780,6 +780,44 @@ class DocumentNote(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
+class AgentNoteSourceAnchor(BaseModel):
+    """User-visible provenance anchor for AI working-memory notes (#2152)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    document_id: str | None = None
+    page_id: str | None = None
+    expediente: str | None = None
+    page_label: str | None = None
+    char_start: int | None = None
+    char_end: int | None = None
+
+
+class AgentNoteActor(BaseModel):
+    """Who wrote the agent note — explicit, transparent attribution (#2152)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    actor_id: str
+    model_name: str | None = None
+    run_id: str | None = None
+
+
+class AgentNote(BaseModel):
+    """Per-library AI working-memory note with provenance and attribution."""
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    body: str
+    source_anchor: AgentNoteSourceAnchor
+    actor: AgentNoteActor
+    kind: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
 class ImageEditChain(BaseModel):
     """Ordered non-destructive edit operations for a document image."""
 
@@ -1543,6 +1581,13 @@ class MindPalaceListResponse(BaseModel):
     count: int
 
 
+class AgentNoteListResponse(BaseModel):
+    """Standardized envelope for agent-memory note endpoints."""
+
+    items: list[Any]  # Typically AgentNote
+    count: int
+
+
 class NoteListResponse(BaseModel):
     """Standardized envelope for GET /api/notes list endpoints."""
 
@@ -1825,6 +1870,10 @@ __all__ = [
     "IntegrationListResponse",
     "KGInclusionListResponse",
     "KGPredictionListResponse",
+    "AgentNote",
+    "AgentNoteActor",
+    "AgentNoteListResponse",
+    "AgentNoteSourceAnchor",
     "ContradictionEvidence",
     "ContradictionListResponse",
     "MCPServerListResponse",

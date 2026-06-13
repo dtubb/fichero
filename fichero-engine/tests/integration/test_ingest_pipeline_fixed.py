@@ -21,12 +21,21 @@ class MockDB:
 mock_db_instance = MockDB()
 
 # Patch the database module
+_original_fichero_db = sys.modules.get('fichero.db')
 sys.modules['fichero.db'] = MagicMock()
 sys.modules['fichero.db'].db = mock_db_instance
 
 # Now import the modules we need
 from fichero.ingest import ingest_folder, IngestMode
 from fichero.models import Document, DocType
+
+# Restore the real module entry so unrelated test collection keeps seeing the
+# actual database layer. ``fichero.ingest`` already captured the mocked `db`
+# binding it needs for this legacy suite.
+if _original_fichero_db is not None:
+    sys.modules['fichero.db'] = _original_fichero_db
+else:
+    del sys.modules['fichero.db']
 
 
 class TestIngestPipelineIntegration:
