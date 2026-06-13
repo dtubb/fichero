@@ -44,6 +44,7 @@ import os
 import re
 import threading
 import weakref
+from collections import OrderedDict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import AsyncIterator, Any, Literal as _Literal
@@ -78,6 +79,31 @@ logger = logging.getLogger(__name__)
 _usage_collector: contextvars.ContextVar[list[dict[str, Any]] | None] = (
     contextvars.ContextVar("fichero_llm_usage", default=None)
 )
+
+_DEFAULT_MAX_INFLIGHT_LLM = 6
+_LANGCHAIN_MODEL_CACHE_SIZE = 16
+
+_REMOTE_LLM_SEMAPHORE: asyncio.Semaphore | None = None
+_REMOTE_LLM_SEMAPHORE_LIMIT: int | None = None
+_REMOTE_LLM_SEMAPHORE_LOCK = threading.Lock()
+
+_ModelCacheKey = tuple[
+    str,
+    str,
+    float,
+    int,
+    int,
+    str,
+    str,
+    str,
+    str,
+    str,
+]
+_LANGCHAIN_MODEL_CACHE: weakref.WeakKeyDictionary[
+    Any, OrderedDict[_ModelCacheKey, Any]
+] = weakref.WeakKeyDictionary()
+_LANGCHAIN_MODEL_CACHE_NO_LOOP: OrderedDict[_ModelCacheKey, Any] = OrderedDict()
+_LANGCHAIN_MODEL_CACHE_LOCK = threading.Lock()
 
 
 @contextlib.contextmanager
@@ -643,6 +669,84 @@ def _resolve_api_key(config: LLMConfig) -> str | None:
     return get_api_key(config.provider)
 
 
+def _model_cache_extra_identity(config: LLMConfig) -> tuple[str, str]:
+    """Return provider-specific constructor fields that affect model identity."""
+    provider = (config.provider or "").strip().lower()
+    if provider == "bedrock":
+        return (str(config.extra.get("region", "us-east-1")), "")
+    if provider == "azure":
+        return ("", str(config.extra.get("api_version", "2024-02-01")))
+    return ("", "")
+
+
+def _langchain_model_cache_key(
+    config: LLMConfig,
+    *,
+    api_key_identity: str,
+) -> _ModelCacheKey:
+    provider = (config.provider or "").strip().lower()
+    base_url = (config.api_base or "").strip()
+    reasoning_effort = (config.reasoning_effort or "").strip().lower()
+    extra_a, extra_b = _model_cache_extra_identity(config)
+    return (
+        provider,
+        config.model,
+        float(config.temperature),
+        int(config.max_tokens),
+        int(config.timeout),
+        base_url,
+        api_key_identity,
+        reasoning_effort,
+        extra_a,
+        extra_b,
+    )
+
+
+def _max_inflight_llm() -> int:
+    raw = os.environ.get("FICHERO_MAX_INFLIGHT_LLM")
+    if raw is None:
+        return _DEFAULT_MAX_INFLIGHT_LLM
+    try:
+        parsed = int(raw.strip())
+    except ValueError:
+        logger.warning(
+            "Invalid FICHERO_MAX_INFLIGHT_LLM=%r; using default %d",
+            raw,
+            _DEFAULT_MAX_INFLIGHT_LLM,
+        )
+        return _DEFAULT_MAX_INFLIGHT_LLM
+    return parsed if parsed > 0 else _DEFAULT_MAX_INFLIGHT_LLM
+
+
+def _get_remote_llm_semaphore() -> asyncio.Semaphore:
+    global _REMOTE_LLM_SEMAPHORE, _REMOTE_LLM_SEMAPHORE_LIMIT
+
+    limit = _max_inflight_llm()
+    semaphore = _REMOTE_LLM_SEMAPHORE
+    if semaphore is not None and _REMOTE_LLM_SEMAPHORE_LIMIT == limit:
+        return semaphore
+
+    with _REMOTE_LLM_SEMAPHORE_LOCK:
+        semaphore = _REMOTE_LLM_SEMAPHORE
+        if semaphore is not None and _REMOTE_LLM_SEMAPHORE_LIMIT == limit:
+            return semaphore
+        semaphore = asyncio.Semaphore(limit)
+        _REMOTE_LLM_SEMAPHORE = semaphore
+        _REMOTE_LLM_SEMAPHORE_LIMIT = limit
+        return semaphore
+
+
+@contextlib.asynccontextmanager
+async def _remote_llm_call_slot(config: LLMConfig) -> AsyncIterator[None]:
+    """Throttle remote LLM calls without touching local / built-in providers."""
+    if _is_local_or_builtin_provider(config.provider):
+        yield
+        return
+
+    async with _get_remote_llm_semaphore():
+        yield
+
+
 # =============================================================================
 # Chat
 # =============================================================================
@@ -720,7 +824,7 @@ async def chat(
         messages = _convert_to_langchain_messages(prompt)
 
     if stream:
-        return _stream_chat_langchain(model, messages)
+        return _stream_chat_langchain(model, messages, config)
     else:
         # Hard wall-clock timeout (#844 robustness). LangChain accepts a
         # `timeout` kwarg per provider but enforcement varies — some
@@ -731,9 +835,10 @@ async def chat(
         # callers can route around.
         budget = _compute_timeout(config, "langchain")
         try:
-            response = await asyncio.wait_for(
-                model.ainvoke(messages), timeout=budget,
-            )
+            async with _remote_llm_call_slot(config):
+                response = await asyncio.wait_for(
+                    model.ainvoke(messages), timeout=budget,
+                )
         except asyncio.TimeoutError as exc:
             raise RuntimeError(
                 f"LangChain {config.provider}/{config.model} chat exceeded "
@@ -1282,11 +1387,16 @@ async def _apple_vision_dispatch(
                 pass
 
 
-async def _stream_chat_langchain(model, messages: list) -> AsyncIterator[str]:
+async def _stream_chat_langchain(
+    model: Any,
+    messages: list,
+    config: LLMConfig,
+) -> AsyncIterator[str]:
     """Stream chat response using LangChain."""
-    async for chunk in model.astream(messages):
-        if chunk.content:
-            yield chunk.content
+    async with _remote_llm_call_slot(config):
+        async for chunk in model.astream(messages):
+            if chunk.content:
+                yield chunk.content
 
 
 def _convert_to_langchain_messages(messages: list[dict]) -> list:
@@ -1357,7 +1467,8 @@ async def vision(
     message = HumanMessage(content=content)
 
     # Call model
-    response = await model.ainvoke([message])
+    async with _remote_llm_call_slot(config):
+        response = await model.ainvoke([message])
     return _strip_outer_code_fences(response.content)
 
 
@@ -1515,68 +1626,70 @@ async def vision_inference_api(
     logger.info(f"HF Inference API call: {model} ({len(image_bytes)} bytes)")
 
     try:
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=timeout)
-        ) as session:
-            # For vision models, we need to send the image as part of the request
-            # The exact format depends on the model, but for most vision models:
-            # - Use multipart/form-data with image and text
-            data = aiohttp.FormData()
-            data.add_field("inputs", prompt)
-            data.add_field("file", image_bytes, content_type="image/jpeg")
+        remote_config = LLMConfig(provider="huggingface", model=model, api_key=api_key)
+        async with _remote_llm_call_slot(remote_config):
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as session:
+                # For vision models, we need to send the image as part of the request
+                # The exact format depends on the model, but for most vision models:
+                # - Use multipart/form-data with image and text
+                data = aiohttp.FormData()
+                data.add_field("inputs", prompt)
+                data.add_field("file", image_bytes, content_type="image/jpeg")
 
-            async with session.post(url, headers=headers, data=data) as response:
-                if response.status == 200:
-                    result = await response.json()
+                async with session.post(url, headers=headers, data=data) as response:
+                    if response.status == 200:
+                        result = await response.json()
 
-                    # Response format varies by model type
-                    # Text generation models return: [{"generated_text": "..."}]
-                    # Some vision models return: {"text": "..."}
-                    if isinstance(result, list) and result:
-                        text = result[0].get("generated_text", "")
-                    elif isinstance(result, dict):
-                        text = result.get("text", result.get("generated_text", ""))
+                        # Response format varies by model type
+                        # Text generation models return: [{"generated_text": "..."}]
+                        # Some vision models return: {"text": "..."}
+                        if isinstance(result, list) and result:
+                            text = result[0].get("generated_text", "")
+                        elif isinstance(result, dict):
+                            text = result.get("text", result.get("generated_text", ""))
+                        else:
+                            text = str(result)
+
+                        logger.info(f"HF API response: {len(text)} chars")
+                        return text
+
+                    elif response.status == 503:
+                        # Model is loading
+                        error_data = await response.json()
+                        estimated_time = error_data.get("estimated_time", 20)
+                        raise RuntimeError(
+                            f"Model is loading. Estimated time: {estimated_time}s. "
+                            "Please try again in a moment."
+                        )
+
+                    elif response.status == 413:
+                        # Request too large (image too big)
+                        raise ValueError(
+                            f"Image too large ({len(image_bytes)} bytes). "
+                            "Try reducing the max_image_dimension setting."
+                        )
+
+                    elif response.status == 429:
+                        # Rate limit exceeded
+                        raise RuntimeError(
+                            "Hugging Face API rate limit exceeded. "
+                            "Please wait a moment and try again, or upgrade your API plan."
+                        )
+
+                    elif response.status == 400:
+                        # Bad request (often means model doesn't support this input)
+                        error_data = await response.json()
+                        error_msg = error_data.get("error", "Unknown error")
+                        raise ValueError(f"Model API error: {error_msg}")
+
                     else:
-                        text = str(result)
-
-                    logger.info(f"HF API response: {len(text)} chars")
-                    return text
-
-                elif response.status == 503:
-                    # Model is loading
-                    error_data = await response.json()
-                    estimated_time = error_data.get("estimated_time", 20)
-                    raise RuntimeError(
-                        f"Model is loading. Estimated time: {estimated_time}s. "
-                        "Please try again in a moment."
-                    )
-
-                elif response.status == 413:
-                    # Request too large (image too big)
-                    raise ValueError(
-                        f"Image too large ({len(image_bytes)} bytes). "
-                        "Try reducing the max_image_dimension setting."
-                    )
-
-                elif response.status == 429:
-                    # Rate limit exceeded
-                    raise RuntimeError(
-                        "Hugging Face API rate limit exceeded. "
-                        "Please wait a moment and try again, or upgrade your API plan."
-                    )
-
-                elif response.status == 400:
-                    # Bad request (often means model doesn't support this input)
-                    error_data = await response.json()
-                    error_msg = error_data.get("error", "Unknown error")
-                    raise ValueError(f"Model API error: {error_msg}")
-
-                else:
-                    # Other error
-                    error_text = await response.text()
-                    raise RuntimeError(
-                        f"HF Inference API error (status {response.status}): {error_text}"
-                    )
+                        # Other error
+                        error_text = await response.text()
+                        raise RuntimeError(
+                            f"HF Inference API error (status {response.status}): {error_text}"
+                        )
 
     except aiohttp.ClientError as e:
         raise RuntimeError(f"Network error calling HF Inference API: {e}")
@@ -1620,7 +1733,8 @@ async def chat_with_tools(
 
     # Call model with tools
     try:
-        response = await model_with_tools.ainvoke(messages)
+        async with _remote_llm_call_slot(config):
+            response = await model_with_tools.ainvoke(messages)
     except Exception as exc:
         _raise_provider_quota_error(config, exc)
         raise
@@ -1666,7 +1780,8 @@ async def structured_output(
 
     # Call model
     try:
-        result = await structured_model.ainvoke([HumanMessage(content=prompt)])
+        async with _remote_llm_call_slot(config):
+            result = await structured_model.ainvoke([HumanMessage(content=prompt)])
     except Exception as exc:
         _raise_provider_quota_error(config, exc)
         raise
@@ -1812,9 +1927,10 @@ async def chat_structured(
     # asyncio.wait_for is the backstop.
     budget = _compute_timeout(config, "langchain")
     try:
-        result = await asyncio.wait_for(
-            structured_model.ainvoke(messages), timeout=budget,
-        )
+        async with _remote_llm_call_slot(config):
+            result = await asyncio.wait_for(
+                structured_model.ainvoke(messages), timeout=budget,
+            )
     except asyncio.TimeoutError as exc:
         raise RuntimeError(
             f"LangChain {config.provider}/{config.model} structured call "
@@ -2672,7 +2788,7 @@ def _get_shared_httpx_async_client(
         return cached_client
 
 
-def get_langchain_model(config: LLMConfig) -> Any:
+def _build_langchain_model(config: LLMConfig) -> Any:
     """Create a LangChain ChatModel from Fichero LLMConfig.
 
     Architecture (#844):
@@ -2871,6 +2987,53 @@ def get_langchain_model(config: LLMConfig) -> Any:
         f"openrouter, ollama, lmstudio, groq, together, deepseek, dashscope, "
         f"xai, perplexity, fireworks, huggingface, azure, deepl, apple"
     )
+
+
+def _cache_langchain_model(
+    cache: OrderedDict[_ModelCacheKey, Any],
+    cache_key: _ModelCacheKey,
+    config: LLMConfig,
+) -> Any:
+    cached_model = cache.get(cache_key)
+    if cached_model is not None:
+        cache.move_to_end(cache_key)
+        return cached_model
+
+    cached_model = _build_langchain_model(config)
+    cache[cache_key] = cached_model
+    cache.move_to_end(cache_key)
+    while len(cache) > _LANGCHAIN_MODEL_CACHE_SIZE:
+        cache.popitem(last=False)
+    return cached_model
+
+
+def get_langchain_model(config: LLMConfig) -> Any:
+    """Return a cached LangChain ChatModel for one config identity."""
+    api_key_identity = _resolve_api_key(config) or ""
+    cache_key = _langchain_model_cache_key(
+        config,
+        api_key_identity=api_key_identity,
+    )
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is None:
+        with _LANGCHAIN_MODEL_CACHE_LOCK:
+            return _cache_langchain_model(
+                _LANGCHAIN_MODEL_CACHE_NO_LOOP,
+                cache_key,
+                config,
+            )
+
+    with _LANGCHAIN_MODEL_CACHE_LOCK:
+        cached_by_loop = _LANGCHAIN_MODEL_CACHE.get(loop)
+        if cached_by_loop is None:
+            cached_by_loop = OrderedDict()
+            _LANGCHAIN_MODEL_CACHE[loop] = cached_by_loop
+        return _cache_langchain_model(cached_by_loop, cache_key, config)
 
 
 # =============================================================================

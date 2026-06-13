@@ -7,11 +7,14 @@ Tests core LLM functionality including:
 - Hugging Face Inference API calls
 """
 
+import asyncio
+
 import pytest
 from unittest.mock import AsyncMock, patch
 
 from pydantic import BaseModel
 
+import fichero.llm as llm
 from fichero.llm import (
     _build_fallback_config,
     apple_intelligence_fits_in_context,
@@ -605,6 +608,117 @@ async def test_chat_default_local_only_off_preserves_remote_provider_behavior(mo
         result = await chat("hi", config=config)
 
     assert result == "remote response"
+
+
+def test_get_langchain_model_reuses_cached_model_for_identical_config(monkeypatch):
+    llm._LANGCHAIN_MODEL_CACHE.clear()
+    llm._LANGCHAIN_MODEL_CACHE_NO_LOOP.clear()
+
+    built_models: list[object] = []
+
+    def fake_build(_config: LLMConfig) -> object:
+        model = object()
+        built_models.append(model)
+        return model
+
+    monkeypatch.setattr(llm, "_build_langchain_model", fake_build)
+
+    shared = LLMConfig(
+        provider="openai",
+        model="gpt-5",
+        temperature=0.2,
+        max_tokens=512,
+        api_key="key-a",
+        api_base="https://api.example.test/v1",
+    )
+    same = LLMConfig(
+        provider="openai",
+        model="gpt-5",
+        temperature=0.2,
+        max_tokens=512,
+        api_key="key-a",
+        api_base="https://api.example.test/v1",
+    )
+    different_model = LLMConfig(
+        provider="openai",
+        model="gpt-5-mini",
+        temperature=0.2,
+        max_tokens=512,
+        api_key="key-a",
+        api_base="https://api.example.test/v1",
+    )
+    different_key = LLMConfig(
+        provider="openai",
+        model="gpt-5",
+        temperature=0.2,
+        max_tokens=512,
+        api_key="key-b",
+        api_base="https://api.example.test/v1",
+    )
+
+    first = llm.get_langchain_model(shared)
+    second = llm.get_langchain_model(same)
+    third = llm.get_langchain_model(different_model)
+    fourth = llm.get_langchain_model(different_key)
+
+    assert first is second
+    assert first is not third
+    assert first is not fourth
+    assert len(built_models) == 3
+
+
+class _ConcurrencyResponse:
+    content = "ok"
+    usage_metadata = {}
+
+
+class _CountingModel:
+    def __init__(self) -> None:
+        self.current = 0
+        self.maximum = 0
+        self.lock = asyncio.Lock()
+
+    async def ainvoke(self, _messages):
+        async with self.lock:
+            self.current += 1
+            self.maximum = max(self.maximum, self.current)
+        await asyncio.sleep(0.01)
+        async with self.lock:
+            self.current -= 1
+        return _ConcurrencyResponse()
+
+
+def _reset_remote_llm_limit(monkeypatch) -> _CountingModel:
+    llm._REMOTE_LLM_SEMAPHORE = None
+    llm._REMOTE_LLM_SEMAPHORE_LIMIT = None
+    monkeypatch.setenv("FICHERO_MAX_INFLIGHT_LLM", "2")
+    model = _CountingModel()
+    monkeypatch.setattr(llm, "get_langchain_model", lambda _config: model)
+    return model
+
+
+@pytest.mark.asyncio
+async def test_chat_concurrency_cap_limits_in_flight_calls(monkeypatch):
+    model = _reset_remote_llm_limit(monkeypatch)
+    config = LLMConfig(provider="openai", model="gpt-5")
+
+    tasks = [llm.chat("hello", config) for _ in range(8)]
+
+    await asyncio.gather(*tasks)
+
+    assert model.maximum <= 2
+
+
+@pytest.mark.asyncio
+async def test_vision_concurrency_cap_limits_in_flight_calls(monkeypatch):
+    model = _reset_remote_llm_limit(monkeypatch)
+    config = LLMConfig(provider="openai", model="gpt-5")
+
+    tasks = [llm.vision(["data:image/png;base64,AAAA"], "describe", config) for _ in range(8)]
+
+    await asyncio.gather(*tasks)
+
+    assert model.maximum <= 2
 
 
 @pytest.mark.asyncio
