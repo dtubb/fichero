@@ -1,3 +1,42 @@
+# STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
+
+Branch `0.0.2` @ `ae8d554a`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+
+## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
+**Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
+My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + the model-comparison system.** Goals in Daniel's words: *good results AND cheap to run*; comparison working; **no cloud leaks**; **fallback clear & transparent**. Best practices: Pydantic, typed APIRouter endpoints, no hand-rolled endpoints, tests for everything. Use **codex workers** (not me hand-coding) + **Fable/Opus reviews**; make GOOD issues in the milestone, then work them with workers; use ICANH + the comparison endpoint to TEST results. Loop until the milestone is drained, then idle for the Mac session.
+
+### Done this session (pushed clean)
+- **compare-vision coroutine bug FIXED + pushed (`ae8d554a`)**: `_run_vision_model` wrapped async `vision()` in `asyncio.to_thread` → every model returned "object of type 'coroutine' has no len()". Now awaits directly + regression test. The `/api/model-comparison/compare-vision` endpoint is LIVE (smoke: gpt-4o-mini 16s/$0.0003). This is the bake-off / good-vs-cheap evaluation tool.
+- **AI-infra architecture review (frontier agent) DONE** → `docs/architecture/ai_infrastructure.md` (on disk, UNCOMMITTED — Fable is appending to it; commit once Fable returns). Filed + milestoned (#83): **#2191** (cloud-leak: `chat_with_fallback` → paid cloud, no consent gate — HIGH), **#2192** (no global local-only perimeter), **#2193** (cloud embedding default ungated), **#2194** (no embedding model/pooling pin → silent search corruption).
+- **Filed #2195** (AI-Infra): model-comparison CLI verbs + compare-a-transcribe/translate-WORKFLOW-across-models + estimate_cost coverage.
+
+### In flight (poll on wake)
+- **codex `vision-provider-2189`** (gpt-5.4, worktree `~/code/fichero-worktrees/vision-provider-2189`): **#2189** — Transcribe presets honor configured vision provider instead of pinning gpt-4o-mini. Brief `/tmp/brief_2189.txt`. → integrate when committed (targeted gate; preset/transcribe files).
+- **codex `compare-cli-2195`** (gpt-5.4, worktree `~/code/fichero-worktrees/compare-cli-2195`): **#2195** — comparison CLI + `/compare-workflow` route + compare_workflow engine method + estimate_cost. Brief `/tmp/brief_2195.txt`. **NEW ENDPOINT → FULL suite + openapi regen + guardrail baselines on integrate.**
+- **Fable `fable-ai-efficiency`** (bg Opus agent): validates #2055 (model/client reuse — same model loaded multiple times?), #2057 (.abatch batching), #2062 (bounded concurrency), #2191/#2193/#2194; appends efficiency + AI-test-plan sections to ai_infrastructure.md; posts per-issue comments; returns a test-gap checklist.
+
+### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
+1. **AI-backend tests** worker — implement Fable's test-gap checklist (workers write tests, manager runs full suite). Ties to #1987.
+2. **Cloud-leak + transparent fallback**: **#2191** (symmetric paid-fallback consent gate on `chat_with_fallback`), **#2192** (global `is_local_only()` perimeter), **#2193** (gate cloud embedding default). llm.py — one worker, FULL suite (god-ish file).
+3. **Embeddings**: **#2194/#2117/#2049** (pin bge-m3 model + pooling + stamp model-id on vectors). *Manager runs any re-embed deliberately — never a worker; do NOT re-embed real Marshall/ICANH data.*
+4. **Efficiency**: **#2057** (.abatch fan-out), **#2055** (client/model reuse), **#2062** (bounded concurrency) per Fable's ranked wins.
+5. **Multi-step transcribe**: **#938** (Transcribe multi-pass: small→large→combine) = the ICANH "Spanish Script (19th–20th c.)" preset. Needs my vision-judgment on prompts — I lead with a worker on plumbing. **#2190** (Paleography reference-search fails).
+6. **MLX on-device** (#1814/#2066/#2071 Pi harness on mlx-lm-server) + **in-app Agent** (#2067 + #2068–#2074) — bigger/design-led; scaffold via a design-doc lane first.
+
+### ICANH ground truth (my vision, for scoring bake-offs)
+Doc `18590129.pdf` (`files/fi/aa82ab20_fichero_upload_ouazq1uq.pdf`), an 1859 Nóvita (Chocó) notarial deed: opening is **"En la ciudad de Nóvita a veintiuno de Enero del año de mil ochocientos cincuenta i nueve"**, notary **Adolfo Hurtado**, parties **Juan Catarino Ayrilla** + **Eduvijes Ibárgüen**, creditor **Pompeyo Guzmán**, sum **400 pesos fuertes = 250 castellanos de oro en polvo**. gpt-4o-mini HALLUCINATES the opening ("Con la utilidad de Xrito") + garbles all numbers → weak baseline. Score candidates vs this.
+
+### HARD rules in force (unchanged)
+codex workers in worktrees ONLY (`~/code/fichero-worktrees/`); never edit main-tree `fichero-engine/src` live; cherry-pick atomic commits; `verify_all --standard` gate (full suite for new endpoints/god-nodes/DB); never push red; migrations CHECKPOINT after ALTER; keep `0.0.2 == origin`. Don't touch worktrees `entitytable-2020` / `lan-tls-2157` (#2157 HELD). Never run xcodebuild test / verify_all --full (GUI).
+
+## Resume prompt (paste after compact)
+```
+/loop Autonomous BACKEND manager — Daniel out, Mac work deferred to him tomorrow. Read STATE.md top block FIRST. Scope = AI Infrastructure (#83) + security + efficiency + the model-comparison system; goals = good-and-cheap, no cloud leaks, transparent fallback; best practices (Pydantic, typed endpoints, tests). Drive codex workers (not hand-coding) + Fable reviews. POLL: codex worktrees vision-provider-2189 (#2189) + compare-cli-2195 (#2195) for commits → integrate via cherry-pick + gate (FULL suite for #2195's new endpoint + openapi regen) → push (never red) → close issue. Fable fable-ai-efficiency returns a test-gap checklist + efficiency findings → dispatch a tests worker + #2191/#2192/#2193 cloud-leak worker (llm.py, full suite) + #2194 embeddings. Then #2057/#2055/#2062 efficiency, #938 multi-step transcribe (ICANH "Spanish Script 19th-20th c." — I lead prompts, score vs the ground truth in STATE), MLX #1814/#2066 + in-app agent #2067 (design-doc lane). Commit ai_infrastructure.md once Fable finishes. Do NOT touch Mac/SwiftUI, entitytable-2020, lan-tls-2157. Keep 0.0.2==origin.
+```
+
+---
+
 # STATE — handoff 2026-06-13 ~14:50 ADT (Daniel at a party — run AUTONOMOUSLY)
 
 Branch `0.0.2` @ `82c284d5`, pushed clean (local == origin). Daniel runs the engine himself
