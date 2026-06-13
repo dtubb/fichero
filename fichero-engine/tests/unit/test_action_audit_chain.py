@@ -12,7 +12,9 @@ from fichero.actions.audit_chain import (
     _audit_chain_key_file_path,
     _compute_legacy_action_audit_hash,
     _load_chain_anchor,
-    compute_action_audit_hash,
+    action_audit_hash_payload,
+    current_audit_chain_head,
+    save_chained_audit,
     verify_audit_chain,
 )
 from fichero.actions.registry import (
@@ -139,6 +141,76 @@ def test_appended_actions_verify_and_link_contiguously(db, chain_actions):
     for prev, current in zip(rows, rows[1:]):
         assert current.prev_hash == prev.row_hash
         assert current.row_hash
+
+
+def test_action_audit_hash_payload_canonicalizes_datetimes_nested_keys_and_tuples():
+    created_at = datetime(2026, 6, 13, 10, 30, 0)
+    audit = ActionAudit(
+        id="audit-1",
+        action_name="test.chain_forward",
+        actor="alice",
+        target_ids=("doc-1", "doc-2"),
+        params={
+            "when": created_at,
+            9: {"nested": created_at},
+            "tuple": ("x", created_at),
+        },
+        before={"state": created_at},
+        after={"items": [created_at]},
+        run_id="run-1",
+        created_at=created_at,
+        inverse_of=None,
+        prev_hash=None,
+    )
+
+    payload = action_audit_hash_payload(audit)
+
+    assert payload["created_at"] == created_at.isoformat()
+    assert payload["target_ids"] == ["doc-1", "doc-2"]
+    assert payload["params"]["when"] == created_at.isoformat()
+    assert payload["params"]["9"]["nested"] == created_at.isoformat()
+    assert payload["params"]["tuple"] == ["x", created_at.isoformat()]
+    assert payload["before"]["state"] == created_at.isoformat()
+    assert payload["after"]["items"] == [created_at.isoformat()]
+
+
+def test_current_head_and_save_chained_audit_track_latest_row_and_anchor(db):
+    assert current_audit_chain_head(db) is None
+
+    first = ActionAudit(
+        id="manual-1",
+        action_name="test.chain_manual",
+        actor="alice",
+        target_ids=["one"],
+        params={"value": "one"},
+        before={"value": "before"},
+        after={"value": "one"},
+        run_id="run-1",
+    )
+    save_chained_audit(db, first)
+    assert first.chain_seq == 1
+    assert first.prev_hash is None
+    assert current_audit_chain_head(db) == first.row_hash
+
+    second = ActionAudit(
+        id="manual-2",
+        action_name="test.chain_manual",
+        actor="alice",
+        target_ids=["two"],
+        params={"value": "two"},
+        before={"value": "before"},
+        after={"value": "two"},
+        run_id="run-1",
+    )
+    save_chained_audit(db, second)
+
+    anchor = _load_chain_anchor(db)
+    assert second.chain_seq == 2
+    assert second.prev_hash == first.row_hash
+    assert current_audit_chain_head(db) == second.row_hash
+    assert anchor is not None
+    assert anchor["chain_count"] == 2
+    assert anchor["head_row_hash"] == second.row_hash
 
 
 def test_same_microsecond_rows_verify_via_chain_seq_order(db):

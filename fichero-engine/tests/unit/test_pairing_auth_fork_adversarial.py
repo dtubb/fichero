@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import importlib
+from types import SimpleNamespace
 
 import pytest
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 
 from fichero import accounts
@@ -51,6 +52,13 @@ def _create_owner(app_db, *, active: bool = True):
         password_hash=accounts.hash_password("password"),
         is_owner=True,
         active=active,
+    )
+
+
+def _owner_request(user, *, bootstrap_auth: bool = False, host: str = "127.0.0.1"):
+    return SimpleNamespace(
+        state=SimpleNamespace(user=user, bootstrap_auth=bootstrap_auth),
+        client=SimpleNamespace(host=host),
     )
 
 
@@ -130,6 +138,140 @@ def test_pairing_rejects_code_for_deactivated_user(pairing_client, app_db):
 
     assert response.status_code == 401
     assert code not in pairing._PAIRING_CODES
+
+
+def test_owner_for_pairing_bootstrap_requires_exactly_one_active_owner(app_db):
+    owner = _create_owner(app_db)
+
+    resolved = pairing._owner_for_pairing(
+        _owner_request(None, bootstrap_auth=True),
+        app_db,
+    )
+    assert resolved.id == owner.id
+
+    second_owner = app_db.create_user(
+        username="owner-2",
+        display_name="Owner Two",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    with pytest.raises(HTTPException, match="owner access required"):
+        pairing._owner_for_pairing(_owner_request(None, bootstrap_auth=True), app_db)
+
+    app_db.set_active(owner.id, False)
+    app_db.set_active(second_owner.id, False)
+    with pytest.raises(HTTPException, match="owner access required"):
+        pairing._owner_for_pairing(_owner_request(None, bootstrap_auth=True), app_db)
+
+
+def test_create_pairing_code_prunes_stale_entries_before_minting(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    owner = _create_owner(app_db)
+    stale_expired = pairing._PairingCode(
+        code="EXPR-1111",
+        user_id=owner.id,
+        expires_at=datetime.now() - timedelta(seconds=1),
+    )
+    stale_used = pairing._PairingCode(
+        code="USED-1111",
+        user_id=owner.id,
+        expires_at=datetime.now() + timedelta(seconds=30),
+        used=True,
+    )
+    pairing._PAIRING_CODES[stale_expired.code] = stale_expired
+    pairing._PAIRING_CODES[stale_used.code] = stale_used
+    monkeypatch.setattr(pairing, "_new_pairing_code", lambda: "FRESH-2222")
+
+    response = pairing.create_pairing_code(_owner_request(owner), app_db)
+
+    assert response.code == "FRESH-2222"
+    assert set(pairing._PAIRING_CODES) == {"FRESH-2222"}
+    assert pairing._PAIRING_CODES["FRESH-2222"].user_id == owner.id
+    assert pairing._PAIRING_CODES["FRESH-2222"].expires_at == response.expires_at
+
+
+def test_pair_device_normalizes_code_and_device_name_and_consumes_code(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    owner = _create_owner(app_db)
+    pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
+        code="ABCD-EFGH",
+        user_id=owner.id,
+        expires_at=datetime.now() + timedelta(seconds=30),
+    )
+    monkeypatch.setattr(accounts, "new_session_token", lambda: "device-token")
+
+    response = pairing.pair_device(
+        _owner_request(None, host="198.51.100.25"),
+        pairing.PairRequest(code=" abcd-efgh ", device_name="  Alice iPad  "),
+        app_db,
+    )
+
+    stored = app_db.get_device(response.device_id)
+    assert response.device_token == "device-token"
+    assert stored is not None
+    assert stored.name == "Alice iPad"
+    assert stored.user_id == owner.id
+    assert pairing._PAIRING_CODES == {}
+
+
+def test_pair_device_rejects_blank_device_name_after_strip_without_consuming_code(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    owner = _create_owner(app_db)
+    pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
+        code="ABCD-EFGH",
+        user_id=owner.id,
+        expires_at=datetime.now() + timedelta(seconds=30),
+    )
+
+    with pytest.raises(HTTPException, match="device_name is required") as exc:
+        pairing.pair_device(
+            _owner_request(None, host="198.51.100.26"),
+            pairing.PairRequest(code="ABCD-EFGH", device_name="   "),
+            app_db,
+        )
+
+    assert exc.value.status_code == 422
+    assert "ABCD-EFGH" in pairing._PAIRING_CODES
+    assert pairing._PAIRING_CODES["ABCD-EFGH"].used is False
+
+
+def test_list_devices_returns_revoked_state_and_revoke_missing_device_404(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    owner = _create_owner(app_db)
+    active = app_db.create_device(
+        name="Laptop",
+        user_id=owner.id,
+        token_hash=accounts.hash_token("active-token"),
+    )
+    revoked = app_db.create_device(
+        name="Tablet",
+        user_id=owner.id,
+        token_hash=accounts.hash_token("revoked-token"),
+    )
+    app_db.revoke_device(revoked.id)
+
+    response = pairing.list_devices(_owner_request(owner), app_db)
+
+    assert response.count == 2
+    assert [device.id for device in response.items] == [active.id, revoked.id]
+    assert [device.revoked for device in response.items] == [False, True]
+
+    with pytest.raises(HTTPException, match="device not found") as exc:
+        pairing.revoke_device(_owner_request(owner), "missing-device", app_db)
+    assert exc.value.status_code == 404
+
+
+def test_warn_pairing_single_process_invariant_logs_once(monkeypatch, caplog):
+    monkeypatch.setattr(pairing, "_PAIRING_WORKER_WARNING_EMITTED", False)
+    monkeypatch.setattr(pairing, "_detect_configured_worker_count", lambda: 3)
+
+    with caplog.at_level("WARNING"):
+        pairing.warn_pairing_single_process_invariant()
+        pairing.warn_pairing_single_process_invariant()
+
+    warnings = [record.message for record in caplog.records if "process-local" in record.message]
+    assert len(warnings) == 1
+    assert "worker count appears to be 3" in warnings[0]
 
 
 def _auth_fork_app() -> FastAPI:
