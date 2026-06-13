@@ -1,3 +1,30 @@
+# STATE — handoff 2026-06-13 ~14:50 ADT (Daniel at a party — run AUTONOMOUSLY)
+
+Branch `0.0.2` @ `82c284d5`, pushed clean (local == origin). Daniel runs the engine himself
+(`uvicorn --reload --reload-dir fichero-engine/src`) → **all backend edits in WORKTREES**, integrate as atomic commits, gate, never push red.
+
+## ▶▶ AUTONOMOUS WORK ORDER — run until Daniel returns (this is the source of truth post-compact)
+
+**Lane 1 — ICANH transcription bake-off (I LEAD; needs Opus vision-judgment).**
+Library `~/Documents/Fichero-Libraries/ICANH-Andagoya.fichero` (15 PDFs, 19th-c Spanish notarial *cortesana* cursive). #2188 (save fix) shipped → transcription persists. Providers: OpenAI (gpt-4o / gpt-4o-mini), OpenRouter (qwen2.5-VL etc.), Apple Intelligence/Vision. Engine token: `~/Library/Application Support/Fichero/.api-key`. CLI: `PYTHONPATH=fichero-engine/src .venv/bin/python -m fichero --library <lib> <cmd>`. First PDF doc id `8c308569b2034510833f33598394ae8a` (18590129.pdf); page-1 doc `97817dc528e048a299d64785aaeaa5e9`.
+DO: (a) **Read the actual PDF pages with my own vision** (Read tool supports PDF `pages=`) to get ground truth. (b) **Bake-off** one hard page across providers — Apple Vision OCR, gpt-4o, qwen2.5-VL, and research/try other strong historical-HTR VLMs via OpenRouter (Gemini-2.x, Qwen2.5-VL-72B, etc.); score each vs what I read. (c) Try **MULTI-STEP** (vision-LLM transcribe → paleography/clean-up refine — likely best for cursive). (d) Fix **#2189** (Transcribe presets pin gpt-4o-mini, ignore configured vision provider) + **#2190** (Paleography fails at reference-search). (e) Update the Transcribe workflow/preset to the winner; re-run all 15 PDFs; then NER→SVO→catalogue. To force a model: edit the Transcribe node's provider/model (or the vision slot once #2189 makes presets honor it). Workflow defs live in the library DB; fetch via `curl -H "Authorization: Bearer $(cat ~/Library/Application\ Support/Fichero/.api-key)" "http://127.0.0.1:8765/api/workflows/<id>"`.
+
+**Lane 2 — Fable/Opus AI-Infrastructure architecture review (opens the NEXT milestone).**
+AI Infrastructure (EPIC **#2056**) is the next lane, design-led. Produce `docs/architecture/ai_infrastructure.md` + a sequenced build plan; file concrete bugs. Cover: ONE model-access layer (all providers in one place — OpenAI/OpenRouter/Apple/local-MLX) [#2059 Apple-vs-AI skills]; reuse/batching/concurrency + **cloud-leak** audit [#2065]; embeddings vector-space consistency — bge-m3 wiring [#2117] + CLS→mean pooling pin/re-embed [#2049]; on-device **MLX** agent [#1814, #2066]; in-app **Agent** [#2067 — manager-with-workers in sidebar; ties to action registry #1848]. Dispatch as a background review agent (Opus or Fable-style adversarial) so it runs while ICANH proceeds.
+
+**Lane 3 — autonomous backend cleanup (codex worktree workers, disjoint file-sets).**
+Backend issues that do NOT need Daniel's design call: **#2001** (Observable guardrail: non-route db.save emit guard), **#2049** (embedding pooling pin — capability only; *I* run any re-embed deliberately, never a worker), **#1090** (undo/rollback for artifacts — fits action layer #1848). Full-suite gate for god-node/DB changes.
+
+**HELD for Daniel (do NOT autonomously resolve):** **#2157** (security-model call — its comment has the #2157-spec-vs-shipped-#2177-test conflict; recommend adopting #2157's tightening + updating the #2177 test), all multi-user/auth DESIGN (#2022, #1844, #969), on-device-agent design (#2066/#2059 `needs-design`). Do NOT touch worktrees `entitytable-2020` (his held lane) or `lan-tls-2157` (#2157 held @ f0e305f0).
+
+## Done earlier today (all pushed clean, never red)
+- **#2188** transcribe-save regression fixed (`_doc_lookup` helper) — verified on real ICANH data, closed.
+- **#2187** integration-test rot repaired (pure test rot, no product bugs), closed.
+- ICANH judged → **#2189** (presets ignore vision provider) + **#2190** (Paleography reference-search) filed.
+- **#2157** LAN-TLS built but HELD (branch `feat/lan-tls-listener-2157` @ f0e305f0; gate caught the #2177 auth-contract conflict).
+
+---
+
 # STATE — handoff 2026-06-13 ~03:46 ADT (overnight autonomous run)
 
 Branch `0.0.2` @ `51fe9a21`, **pushed, clean** (local == origin). Daniel runs the backend himself (`uvicorn --reload --reload-dir fichero-engine/src`).
