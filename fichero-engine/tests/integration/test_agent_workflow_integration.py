@@ -20,7 +20,7 @@ import pytest
 from fichero.db import Database
 from fichero.workflows.workflow_store import WorkflowStore
 from fichero.workflows.checkpointer import AsyncDuckDBCheckpointer
-from fichero.workflows.builder import build_graph
+from fichero.workflows.builder import SystemicErrorDetected, build_graph
 from fichero.llm import LLMConfig
 from fichero.models import Workflow
 from fichero.workflows.types import WorkflowDef, NodeDef
@@ -173,12 +173,8 @@ class TestAgentWorkflowExecution:
         config = {"configurable": {"thread_id": thread_id, "checkpointer": checkpointer}}
         initial_state = {"messages": []}
 
-        final_state = await app.ainvoke(initial_state, config=config)
-
-        # Verify error was handled at top level
-        assert "error" in final_state
-        assert "No task provided" in final_state["error"]
-        assert final_state["current_node"] == "agent1"
+        with pytest.raises(SystemicErrorDetected, match="No task provided to agent"):
+            await app.ainvoke(initial_state, config=config)
 
 
     @pytest.mark.asyncio

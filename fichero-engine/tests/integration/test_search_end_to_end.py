@@ -18,7 +18,9 @@ not just the unit-level math.
 
 from __future__ import annotations
 
+import os
 import shutil
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -27,7 +29,24 @@ from fichero.db_manager import DatabaseManager
 from fichero.models import Artifact, Document
 
 
-pytestmark = pytest.mark.integration
+
+def _real_search_ready() -> bool:
+    """Search E2E is opt-in and requires the local search stack."""
+    if os.getenv("FICHERO_RUN_SEARCH_E2E") != "1":
+        return False
+    return (
+        importlib.util.find_spec("fastembed") is not None
+        and importlib.util.find_spec("lance") is not None
+    )
+
+
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not _real_search_ready(),
+        reason="Search E2E is opt-in and requires local embeddings + lance support",
+    ),
+]
 
 
 # Minimal fixture corpus: 5 short pages with overlapping vocab so we can

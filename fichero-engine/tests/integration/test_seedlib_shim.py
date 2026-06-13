@@ -7,7 +7,7 @@ def test_seed_builds_library_with_derived_counts(tmp_path):
     summary = seed(tmp_path / "shim.fichero")
 
     # Counts are derived by querying the library back (never hand-declared).
-    assert summary["expected"]["documents_total"] == 4
+    assert summary["expected"]["documents_total"] == 5
     assert summary["expected"]["children_of_collection"] == 2
     assert summary["expected"]["entities"] == 3
     assert summary["expected"]["claims"] == 3

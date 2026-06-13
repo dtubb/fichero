@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from langchain_core.tools import BaseTool
 
-from fichero.workflows.builder import build_graph
+from fichero.workflows.builder import SystemicErrorDetected, build_graph
 from fichero.workflows.types import (
     WorkflowDef,
     NodeDef,
@@ -174,12 +174,8 @@ class TestMCPWorkflowExecution:
             initial_state = State()
             config = {"configurable": {"thread_id": "test_mcp_error"}}
 
-            final_state = await app.ainvoke(initial_state, config=config)
-
-            # Verify error was captured at top level
-            assert "error" in final_state
-            assert "MCP tool failed" in final_state["error"]
-            assert final_state["current_node"] == "failing_node"
+            with pytest.raises(SystemicErrorDetected, match="MCP tool failed"):
+                await app.ainvoke(initial_state, config=config)
 
     @pytest.mark.asyncio
     async def test_multiple_mcp_tools_in_workflow(self):

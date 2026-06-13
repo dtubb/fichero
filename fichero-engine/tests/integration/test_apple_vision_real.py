@@ -20,12 +20,26 @@ Run targeted:
 
 from __future__ import annotations
 
+import os
 import pytest
-from pathlib import Path
 
-# Imported lazily inside fixtures so non-mac collection doesn't crash.
-# pytestmark applies the requires_apple_vision skip to every test below.
-pytestmark = pytest.mark.requires_apple_vision
+
+def _apple_vision_runtime_ready() -> bool:
+    """Real Vision smoke is opt-in and requires a usable macOS GUI session."""
+    if os.getenv("FICHERO_RUN_APPLE_VISION_REAL") != "1":
+        return False
+    try:
+        import Quartz  # noqa: F401
+        import Vision  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+pytestmark = pytest.mark.skipif(
+    not _apple_vision_runtime_ready(),
+    reason="Real Apple Vision smoke is opt-in and requires a usable macOS Vision runtime",
+)
 
 
 @pytest.fixture(scope="module")
