@@ -35,7 +35,57 @@ EMBED_MODEL_ENV = "FICHERO_EMBED_MODEL"
 EMBEDDINGS_TABLE = "embeddings"
 KG_ENTITY_EMBEDDINGS_TABLE = "kg_entity_embeddings"
 KG_CLAIM_EMBEDDINGS_TABLE = "kg_claim_embeddings"
+EMBEDDING_MODEL_ID_FIELD = "embedding_model_id"
 EmbeddingRole = Literal["query", "passage"]
+PINNED_FASTEMBED_MODEL_ALIAS = "fichero-pinned/multilingual-e5-large-mean-v1"
+PINNED_EMBEDDING_POOLING = "mean"
+PINNED_EMBEDDING_NORMALIZATION = "l2"
+PINNED_EMBEDDING_MODEL_ID = (
+    f"{DEFAULT_MODEL}|pooling={PINNED_EMBEDDING_POOLING}|"
+    f"normalization={PINNED_EMBEDDING_NORMALIZATION}|format=e5-role-prefix-v1"
+)
+
+
+@dataclass(frozen=True)
+class EmbeddingSpaceSpec:
+    """Pinned embedding space contract for stored/searchable vectors."""
+
+    source_model_name: str
+    fastembed_model_name: str
+    pooling: str
+    normalization: str
+    model_id: str
+
+
+PINNED_EMBEDDING_SPACE = EmbeddingSpaceSpec(
+    source_model_name=DEFAULT_MODEL,
+    fastembed_model_name=PINNED_FASTEMBED_MODEL_ALIAS,
+    pooling=PINNED_EMBEDDING_POOLING,
+    normalization=PINNED_EMBEDDING_NORMALIZATION,
+    model_id=PINNED_EMBEDDING_MODEL_ID,
+)
+
+
+class EmbeddingSpaceMismatchError(RuntimeError):
+    """Raised when a query would mix vectors from incompatible embedding spaces."""
+
+    def __init__(
+        self,
+        *,
+        table_name: str,
+        active_model_id: str,
+        stored_model_ids: set[str],
+    ) -> None:
+        self.table_name = table_name
+        self.active_model_id = active_model_id
+        self.stored_model_ids = frozenset(stored_model_ids)
+        stored = ", ".join(sorted(self.stored_model_ids))
+        super().__init__(
+            "Embedding model mismatch for table "
+            f"{table_name}: active pinned model-id {active_model_id!r} does not "
+            f"match stored vector model-id(s) {stored}. Refusing mixed-space "
+            "semantic search; re-embed deliberately before switching models."
+        )
 
 
 @dataclass(frozen=True)
@@ -92,6 +142,40 @@ def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
         return embedder
 
 
+def _register_pinned_fastembed_model() -> None:
+    """Register the pinned FastEmbed alias once so pooling stays explicit."""
+    from fastembed import TextEmbedding
+    from fastembed.common.model_description import PoolingType
+
+    if not hasattr(TextEmbedding, "list_supported_models"):
+        return
+
+    supported = TextEmbedding.list_supported_models()
+    if any(
+        model["model"].lower() == PINNED_EMBEDDING_SPACE.fastembed_model_name.lower()
+        for model in supported
+    ):
+        return
+
+    source = next(
+        model
+        for model in supported
+        if model["model"].lower() == PINNED_EMBEDDING_SPACE.source_model_name.lower()
+    )
+    TextEmbedding.add_custom_model(
+        model=PINNED_EMBEDDING_SPACE.fastembed_model_name,
+        pooling=PoolingType.MEAN,
+        normalization=True,
+        sources=source["sources"],
+        dim=source["dim"],
+        model_file=source["model_file"],
+        description=source["description"],
+        license=source["license"],
+        size_in_gb=source["size_in_GB"],
+        additional_files=source["additional_files"],
+    )
+
+
 def format_for_model(model_name: str, text: str, role: EmbeddingRole) -> str:
     """Apply model-specific input formatting.
 
@@ -102,6 +186,8 @@ def format_for_model(model_name: str, text: str, role: EmbeddingRole) -> str:
         raise ValueError(f"Unknown embedding role: {role!r}")
 
     normalized = model_name.lower()
+    if normalized == PINNED_EMBEDDING_SPACE.fastembed_model_name.lower():
+        normalized = PINNED_EMBEDDING_SPACE.source_model_name.lower()
     if normalized.startswith("intfloat/multilingual-e5-"):
         return f"{role}: {text}"
     return text
@@ -401,19 +487,16 @@ class DatabaseEmbeddingMixin:
             return {"indexed_count": 0, "table_exists": False}
 
     def _get_embedding_model_name(self) -> str:
-        """Get configured embedding model, defaulting to multilingual-e5-large."""
-        env_model = os.getenv(EMBED_MODEL_ENV, "").strip()
-        if env_model:
-            return env_model
-        try:
-            from fichero.app_db import get_app_db
+        """Return the pinned source model name for the local embedding space."""
+        return PINNED_EMBEDDING_SPACE.source_model_name
 
-            model = get_app_db().get_setting("default_embeddings_model")
-            if model:
-                return model
-        except Exception as e:
-            logger.debug("Could not read default_embeddings_model setting: %s", e)
-        return DEFAULT_MODEL
+    def _get_embedding_space(self) -> EmbeddingSpaceSpec:
+        """Return the explicit pinned embedding-space contract."""
+        return PINNED_EMBEDDING_SPACE
+
+    def _get_embedding_model_id(self) -> str:
+        """Return the stamped model-id for newly written vectors."""
+        return self._get_embedding_space().model_id
 
     def _use_int8_embeddings(self) -> bool:
         """Feature flag for int8 embedding storage."""
@@ -424,20 +507,24 @@ class DatabaseEmbeddingMixin:
         """Lazy-load the embedding model.
 
         Uses FastEmbed (ONNX-based, no scikit-learn dependency).
-        Reads configured model from app settings, falls back to DEFAULT_MODEL.
+        The model + pooling are pinned in code to avoid silent vector drift.
         """
         if self._embedder is None:
             try:
                 from fichero.local_models import MODELS_BASE
 
-                model_name = self._get_embedding_model_name()
-                self._embedding_model_name = model_name
+                space = self._get_embedding_space()
+                self._embedding_model_name = space.source_model_name
+                self._embedding_model_id = space.model_id
                 cache_dir = MODELS_BASE / "embeddings"
                 cache_dir.mkdir(parents=True, exist_ok=True)
+                _register_pinned_fastembed_model()
                 # Process-global: loaded once and shared across every Database
                 # instance / worker thread (see _get_shared_embedder). Previously
                 # this constructed a fresh ~500 MB model per instance/thread.
-                self._embedder = _get_shared_embedder(model_name, str(cache_dir))
+                self._embedder = _get_shared_embedder(
+                    space.fastembed_model_name, str(cache_dir)
+                )
             except ImportError:
                 raise ImportError(
                     "fastembed not installed. Install with: pip install fastembed"
@@ -482,6 +569,51 @@ class DatabaseEmbeddingMixin:
         formatted = [format_for_model(model_name, text, role) for text in texts]
         embeddings = list(self._embedder.embed(formatted))
         return [_l2_normalize(_vector_to_list(e)) for e in embeddings]
+
+    def _vector_model_metadata(self) -> dict[str, str]:
+        """Metadata stamped onto every newly written vector row."""
+        return {EMBEDDING_MODEL_ID_FIELD: self._get_embedding_model_id()}
+
+    def _warn_legacy_vector_table(self, table_name: str) -> None:
+        warned = getattr(self, "_warned_legacy_embedding_tables", set())
+        if table_name in warned:
+            return
+        logger.warning(
+            "Vector table %s contains legacy/unstamped embeddings; allowing search "
+            "for now, but future writes stamp %s.",
+            table_name,
+            self._get_embedding_model_id(),
+        )
+        warned = set(warned)
+        warned.add(table_name)
+        self._warned_legacy_embedding_tables = warned
+
+    def assert_vector_table_model_compatible(self, table_name: str) -> None:
+        """Refuse semantic search when stored vectors use a different known model-id."""
+        if table_name not in self._lance_tables():
+            return
+
+        table = self.lance.open_table(table_name)
+        rows = table.search().limit(32).to_list()
+        if not rows:
+            return
+
+        known_ids = {
+            row.get(EMBEDDING_MODEL_ID_FIELD)
+            for row in rows
+            if row.get(EMBEDDING_MODEL_ID_FIELD)
+        }
+        if not known_ids:
+            self._warn_legacy_vector_table(table_name)
+            return
+
+        active_model_id = self._get_embedding_model_id()
+        if any(model_id != active_model_id for model_id in known_ids):
+            raise EmbeddingSpaceMismatchError(
+                table_name=table_name,
+                active_model_id=active_model_id,
+                stored_model_ids=known_ids,
+            )
 
     def passage_units_for_document(
         self,
@@ -550,6 +682,7 @@ class DatabaseEmbeddingMixin:
                     else None,
                     "vector_int8": quantized_vector,
                     "vector_scale": quantized_scale,
+                    **self._vector_model_metadata(),
                 }
             )
         return records
@@ -605,6 +738,7 @@ class DatabaseEmbeddingMixin:
                 "description": entity.description or "",
                 "entity_type": entity.entity_type.value if entity.entity_type else None,
                 "vector": vector,
+                **self._vector_model_metadata(),
             }
             for entity, text, vector in zip(entities, texts, vectors)
         ]
@@ -638,6 +772,7 @@ class DatabaseEmbeddingMixin:
                     claim.curation_state.value if claim.curation_state else ""
                 ),
                 "vector": vector,
+                **self._vector_model_metadata(),
             }
             for claim, text, vector in zip(claims, texts, vectors)
         ]

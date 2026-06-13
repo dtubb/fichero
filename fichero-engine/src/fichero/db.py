@@ -55,6 +55,7 @@ from pydantic_core import PydanticUndefinedType
 from fichero.db_embeddings import (
     EMBEDDINGS_TABLE,
     DatabaseEmbeddingMixin,
+    EmbeddingSpaceMismatchError,
     _dequantize_int8,
     _quantize_int8,
 )
@@ -1045,6 +1046,7 @@ class Database(DatabaseEmbeddingMixin):
             return []
 
         table = self.lance.open_table(table_name)
+        self.assert_vector_table_model_compatible(table_name)
         results = table.search(query_vector).limit(limit).to_list()
         return results
 
@@ -1108,6 +1110,7 @@ class Database(DatabaseEmbeddingMixin):
             else None,
             "vector_int8": quantized_vector,
             "vector_scale": quantized_scale,
+            **self._vector_model_metadata(),
         }
 
         with self._lock:
@@ -1531,10 +1534,9 @@ class Database(DatabaseEmbeddingMixin):
                     query_vector = self._embed_text(semantic_query)
 
                     # Search vectors
-                    table = self.lance.open_table(EMBEDDINGS_TABLE)
-                    raw_results = (
-                        table.search(query_vector).limit(limit * 2).to_list()
-                    )  # Get more for hybrid
+                    raw_results = self.search_vectors(
+                        EMBEDDINGS_TABLE, query_vector, limit * 2
+                    )
 
                     # Convert to SearchResult, filter by score
                     for r in raw_results:
@@ -1577,6 +1579,8 @@ class Database(DatabaseEmbeddingMixin):
                                 },
                             }
                         )
+                except EmbeddingSpaceMismatchError:
+                    raise
                 except Exception as e:
                     logger.warning("Semantic search failed: %s", e)
 
@@ -1856,6 +1860,8 @@ class Database(DatabaseEmbeddingMixin):
 
             return results, total_count, search_stats
 
+        except EmbeddingSpaceMismatchError:
+            raise
         except Exception as e:
             logger.warning("Search failed: %s", e)
             return [], 0, {"search_type": search_type, "error": str(e)}

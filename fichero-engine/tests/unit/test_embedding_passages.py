@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+import sys
+import types
 from unittest.mock import patch
+
+import pytest
 
 from fichero import db_embeddings
 from fichero.db import Database
-from fichero.db_embeddings import format_for_model, split_text_passages
+from fichero.db_embeddings import (
+    EMBEDDING_MODEL_ID_FIELD,
+    PINNED_EMBEDDING_MODEL_ID,
+    PINNED_EMBEDDING_POOLING,
+    EmbeddingSpaceMismatchError,
+    format_for_model,
+    split_text_passages,
+)
 from fichero.models import DocType, Document
 
 
@@ -31,17 +42,32 @@ def test_default_model_and_env_override(monkeypatch) -> None:
         pass
 
     dummy = _Dummy()
-    monkeypatch.delenv("FICHERO_EMBED_MODEL", raising=False)
-    # Default is multilingual-e5-large: the loadable model in fastembed 0.8.0.
-    # bge-m3 is the intended default but isn't in the catalog yet (see #2117);
-    # both are 1024-dim so the swap is a deliberate re-embed, no store change.
+    monkeypatch.setenv("FICHERO_EMBED_MODEL", "BAAI/bge-m3")
     assert db_embeddings.DEFAULT_MODEL == "intfloat/multilingual-e5-large"
     assert dummy._get_embedding_model_name() == "intfloat/multilingual-e5-large"
+    assert dummy._get_embedding_model_id() == PINNED_EMBEDDING_MODEL_ID
+    assert dummy._get_embedding_space().pooling == PINNED_EMBEDDING_POOLING
 
-    # The env override is honored even for the future bge-m3 default — proves
-    # configurability is in place for when fastembed ships the model.
-    monkeypatch.setenv("FICHERO_EMBED_MODEL", "BAAI/bge-m3")
-    assert dummy._get_embedding_model_name() == "BAAI/bge-m3"
+
+def test_pinned_embedding_space_ignores_mutable_app_setting(monkeypatch) -> None:
+    class _Dummy(db_embeddings.DatabaseEmbeddingMixin):
+        pass
+
+    class FakeAppDB:
+        @staticmethod
+        def get_setting(key: str):
+            if key == "default_embeddings_model":
+                return "BAAI/bge-m3"
+            return None
+
+    monkeypatch.setitem(
+        sys.modules,
+        "fichero.app_db",
+        types.SimpleNamespace(get_app_db=lambda: FakeAppDB()),
+    )
+    dummy = _Dummy()
+    assert dummy._get_embedding_model_name() == db_embeddings.DEFAULT_MODEL
+    assert dummy._get_embedding_space().pooling == PINNED_EMBEDDING_POOLING
 
 
 def test_split_text_passages_offsets_overlap_and_reconstruct() -> None:
@@ -133,6 +159,77 @@ def test_passage_vectors_store_anchor_and_search_returns_matching_passage(
     assert results[0].metadata["passage_id"]
     assert results[0].metadata["page_id"] == doc.id
     assert results[0].metadata["char_start"] < results[0].metadata["char_end"]
+    row = db.lance.open_table("embeddings").search().limit(1).to_list()[0]
+    assert row[EMBEDDING_MODEL_ID_FIELD] == PINNED_EMBEDDING_MODEL_ID
+    db.close()
+
+
+def test_semantic_search_refuses_mismatched_known_embedding_model_id(tmp_path) -> None:
+    db = Database(tmp_path / "mismatch.duckdb")
+    doc = Document(
+        id="page-mismatch",
+        name="mismatch.txt",
+        doc_type=DocType.page,
+        page_content="Camilo found the ledger with enough text for semantic search.",
+    )
+    db.save(doc)
+
+    with patch.object(db, "_embed_text", return_value=[1.0, 0.0]):
+        db.save_embedding(doc, [1.0, 0.0], doc.page_content)
+
+    row = db.lance.open_table("embeddings").search().limit(1).to_list()[0]
+    row[EMBEDDING_MODEL_ID_FIELD] = "BAAI/bge-m3|pooling=mean|normalization=l2"
+    db._delete_embedding_rows("document_id", doc.id)
+    db.save_vectors("embeddings", [row], replace=True)
+
+    with patch.object(db, "_embed_text", return_value=[1.0, 0.0]):
+        with patch.object(db, "_is_active_document_id", return_value=True):
+            with pytest.raises(EmbeddingSpaceMismatchError, match="Embedding model mismatch"):
+                db.search("Camilo ledger", search_type="semantic", min_score=0.0)
+
+    db.close()
+
+
+def test_semantic_search_accepts_matching_known_embedding_model_id(tmp_path) -> None:
+    db = Database(tmp_path / "match.duckdb")
+    doc = Document(
+        id="page-match",
+        name="match.txt",
+        doc_type=DocType.page,
+        page_content="Camilo found the ledger with enough text for semantic search.",
+    )
+    db.save(doc)
+
+    with patch.object(db, "_embed_text", return_value=[1.0, 0.0]):
+        db.save_embedding(doc, [1.0, 0.0], doc.page_content)
+        with patch.object(db, "_is_active_document_id", return_value=True):
+            results, total_count, _stats = db.search(
+                "Camilo ledger",
+                search_type="semantic",
+                min_score=0.0,
+            )
+
+    assert total_count == 1
+    assert results[0].document_id == doc.id
+    db.close()
+
+
+def test_local_embeddings_still_work_when_local_only_enabled(tmp_path, monkeypatch) -> None:
+    db = Database(tmp_path / "local-only.duckdb")
+    doc = Document(
+        id="page-local",
+        name="local.txt",
+        doc_type=DocType.page,
+        page_content="Enough local text to create a pinned FastEmbed passage vector.",
+    )
+    db.save(doc)
+    monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
+
+    with patch.object(db, "_embed_text", return_value=[1.0, 0.0]):
+        assert db.embed(doc) is True
+
+    row = db.lance.open_table("embeddings").search().limit(1).to_list()[0]
+    assert row[EMBEDDING_MODEL_ID_FIELD] == PINNED_EMBEDDING_MODEL_ID
     db.close()
 
 
@@ -146,7 +243,7 @@ def test_non_latin_passages_store_and_embed_without_error(tmp_path) -> None:
     doc = Document(id="unicode-page", name="unicode.txt", page_content=text)
     db.save(doc)
 
-    with patch.object(db, "_embed_texts", return_value=[[1.0, 0.0]]):
+    with patch.object(db, "_embed_text", return_value=[1.0, 0.0]):
         assert db.embed(doc) is True
 
     rows = db.lance.open_table("embeddings").search().limit(10).to_list()

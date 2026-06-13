@@ -1214,9 +1214,10 @@ class TestEmbeddingsModelLoading:
     """Test embedding model loading/caching behavior."""
 
     def test_embedder_uses_managed_cache_dir(self, temp_db, monkeypatch):
-        """Embedding model should use app-managed cache dir and configured model."""
+        """Embedding model should use app-managed cache dir and the pinned alias."""
         import sys
         import types
+        import fichero.db_embeddings as db_embeddings_module
         from fichero.local_models import MODELS_BASE
 
         calls: list[dict] = []
@@ -1231,23 +1232,18 @@ class TestEmbeddingsModelLoading:
 
         fake_fastembed = types.SimpleNamespace(TextEmbedding=FakeTextEmbedding)
         monkeypatch.setitem(sys.modules, "fastembed", fake_fastembed)
-
-        class FakeAppDB:
-            @staticmethod
-            def get_setting(key: str):
-                if key == "default_embeddings_model":
-                    return "intfloat/multilingual-e5-base"
-                return None
-
-        fake_app_db_module = types.SimpleNamespace(get_app_db=lambda: FakeAppDB())
-        monkeypatch.setitem(sys.modules, "fichero.app_db", fake_app_db_module)
+        monkeypatch.setattr(
+            db_embeddings_module,
+            "_register_pinned_fastembed_model",
+            lambda: None,
+        )
         monkeypatch.delenv("FICHERO_EMBED_MODEL", raising=False)
 
         temp_db._embedder = None
         temp_db._ensure_embedder()
 
         assert len(calls) == 1
-        assert calls[0]["model_name"] == "intfloat/multilingual-e5-base"
+        assert calls[0]["model_name"] == "fichero-pinned/multilingual-e5-large-mean-v1"
         assert calls[0]["cache_dir"] == str(MODELS_BASE / "embeddings")
 
 
