@@ -75,6 +75,33 @@ def test_node_specific_aliases_resolve_before_other_fallbacks(monkeypatch):
     assert resolved.model == "openai/gpt-4o-mini"
 
 
+def test_explicit_node_override_beats_configured_vision_slot(monkeypatch):
+    node = NodeDef(
+        id="n1",
+        tool="transcribe",
+        provider_name="openai",
+        model_name="gpt-4o-mini",
+        config={},
+    )
+    workflow_cfg = LLMConfig(provider="", model="")
+
+    fake_db = SimpleNamespace(
+        get_default_model_for_category=lambda _category: ("apple", "apple-vision"),
+        get_default_model=lambda: ("openrouter", "openai/gpt-4o-mini"),
+        list_providers=lambda: [],
+        list_models=lambda _provider_id: [],
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.builder.get_tool_def",
+        lambda _tool: SimpleNamespace(uses_llm=True, category="vision"),
+    )
+    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+
+    resolved = _resolve_node_llm_config(node, workflow_cfg)
+    assert resolved.provider == "openai"
+    assert resolved.model == "gpt-4o-mini"
+
+
 def test_generic_default_applies_when_category_default_missing(monkeypatch):
     node = NodeDef(id="n1", tool="transcribe", config={})
     workflow_cfg = LLMConfig(provider="", model="")
@@ -94,6 +121,27 @@ def test_generic_default_applies_when_category_default_missing(monkeypatch):
     resolved = _resolve_node_llm_config(node, workflow_cfg)
     assert resolved.provider == "anthropic"
     assert resolved.model == "claude-sonnet-4"
+
+
+def test_transcribe_node_without_override_uses_vision_category_default(monkeypatch):
+    node = NodeDef(id="n1", tool="transcribe", config={})
+    workflow_cfg = LLMConfig(provider="", model="")
+
+    fake_db = SimpleNamespace(
+        get_default_model_for_category=lambda _category: ("apple", "apple-vision"),
+        get_default_model=lambda: ("openrouter", "openai/gpt-4o-mini"),
+        list_providers=lambda: [],
+        list_models=lambda _provider_id: [],
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.builder.get_tool_def",
+        lambda _tool: SimpleNamespace(uses_llm=True, category="vision"),
+    )
+    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+
+    resolved = _resolve_node_llm_config(node, workflow_cfg)
+    assert resolved.provider == "apple"
+    assert resolved.model == "apple-vision"
 
 
 def test_first_enabled_non_apple_provider_used_when_no_defaults(monkeypatch):

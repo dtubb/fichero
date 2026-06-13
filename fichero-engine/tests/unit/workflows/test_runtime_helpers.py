@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from fichero.workflows.runtime import to_workflow_def
+from fichero.workflows.runtime import apply_default_provider_model, to_workflow_def
+from fichero.workflows.types import WorkflowDef
 
 
 def test_to_workflow_def_accepts_object_style_nodes_and_edges():
@@ -81,3 +82,39 @@ def test_to_workflow_def_accepts_camel_case_node_provider_fields():
     wf_def = to_workflow_def(workflow)
     assert wf_def.nodes[0].provider_name == "openai"
     assert wf_def.nodes[0].model_name == "gpt-5"
+
+
+def test_apply_default_provider_model_leaves_node_workflows_unset(monkeypatch):
+    workflow = WorkflowDef(
+        id="wf-4",
+        name="Transcribe",
+        format="nodes",
+        nodes=[{"id": "transcribe", "tool": "transcribe"}],
+        edges=[],
+        provider="",
+        model="",
+    )
+
+    fake_db = SimpleNamespace(get_default_model=lambda: ("openrouter", "openai/gpt-4o-mini"))
+    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+
+    resolved = apply_default_provider_model(workflow)
+    assert resolved.provider == ""
+    assert resolved.model == ""
+
+
+def test_apply_default_provider_model_backfills_non_node_workflows(monkeypatch):
+    workflow = WorkflowDef(
+        id="wf-5",
+        name="Legacy",
+        format="steps",
+        provider="",
+        model="",
+    )
+
+    fake_db = SimpleNamespace(get_default_model=lambda: ("openrouter", "openai/gpt-4o-mini"))
+    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+
+    resolved = apply_default_provider_model(workflow)
+    assert resolved.provider == "openrouter"
+    assert resolved.model == "openai/gpt-4o-mini"

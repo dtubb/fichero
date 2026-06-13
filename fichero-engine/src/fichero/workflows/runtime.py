@@ -179,6 +179,13 @@ def apply_default_provider_model(workflow_def: WorkflowDef) -> WorkflowDef:
     if workflow_def.provider and workflow_def.model:
         return workflow_def
 
+    # Node workflows resolve model selection per-node in the builder. Backfilling
+    # the workflow-level generic default here masks category defaults like the
+    # configured vision slot, so transcribe-style presets would silently run on
+    # the generic LLM instead of default_vision_provider/default_vision_model.
+    if workflow_def.nodes:
+        return workflow_def
+
     try:
         from fichero.app_db import get_app_db
 

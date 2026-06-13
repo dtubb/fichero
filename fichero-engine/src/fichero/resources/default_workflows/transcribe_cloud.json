@@ -43,5 +43,7 @@
       "target_port": "files"
     }
   ],
-  "config": {}
+  "config": {
+    "preset_version": 2
+  }
 }

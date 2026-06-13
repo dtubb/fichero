@@ -7,7 +7,7 @@
   "folder_path": "/Transcribe",
   "tags": ["preset", "transcribe", "manuscript", "handwriting", "modern"],
   "config": {
-    "preset_version": 1
+    "preset_version": 2
   },
   "nodes": [
     {
