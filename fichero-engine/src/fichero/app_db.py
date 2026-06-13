@@ -1082,14 +1082,21 @@ class AppDatabase:
         self,
         token_hash: str,
         when: datetime | None = None,
+        expires_at: datetime | None = None,
     ) -> None:
         """Update the last-seen timestamp for a session."""
         now = when or datetime.now()
         with self._lock:
-            self.conn.execute(
-                "UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?",
-                [now, token_hash],
-            )
+            if expires_at is None:
+                self.conn.execute(
+                    "UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?",
+                    [now, token_hash],
+                )
+            else:
+                self.conn.execute(
+                    "UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE token_hash = ?",
+                    [now, expires_at, token_hash],
+                )
             self.conn.commit()
         return None
 

@@ -22,6 +22,21 @@ class TestValidateAPIKeyFormat:
         with pytest.raises(ProviderValidationError, match="Invalid OpenAI API key format"):
             _validate_api_key_format("openai", "invalid_key_123")
 
+    @pytest.mark.parametrize(
+        ("provider", "api_key"),
+        [
+            ("openai", "invalid_key_123"),
+            ("anthropic", "sk-abc123"),
+        ],
+    )
+    def test_invalid_key_errors_do_not_echo_api_key_prefix(self, provider, api_key):
+        with pytest.raises(ProviderValidationError) as excinfo:
+            _validate_api_key_format(provider, api_key)
+
+        message = str(excinfo.value)
+        assert api_key[:10] not in message
+        assert "got:" not in message
+
     def test_anthropic_key_valid(self):
         """Valid Anthropic key should pass."""
         _validate_api_key_format("anthropic", "sk-ant-abc123def456")

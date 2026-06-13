@@ -21,7 +21,7 @@ isn't 127.0.0.1.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import os
 import secrets
@@ -38,6 +38,7 @@ from fichero.app_db import get_app_db
 logger = logging.getLogger(__name__)
 
 _LAST_SEEN_THROTTLE_SECONDS = 60
+_SESSION_SLIDING_EXTENSION_TTL = timedelta(days=30)
 
 # Endpoints that don't require auth. Health is unauthenticated so the Swift
 # app can poll readiness before it has a chance to read the token file.
@@ -123,6 +124,29 @@ def _should_touch_last_seen(last_seen_at: datetime, now: datetime) -> bool:
     return (now - last_seen_at).total_seconds() >= _LAST_SEEN_THROTTLE_SECONDS
 
 
+def _session_refresh_window() -> timedelta | None:
+    raw = os.getenv("FICHERO_SESSION_SLIDING_REFRESH_WINDOW_SECONDS", "").strip()
+    if not raw:
+        return None
+    try:
+        seconds = int(raw)
+    except ValueError:
+        logger.warning(
+            "Ignoring invalid FICHERO_SESSION_SLIDING_REFRESH_WINDOW_SECONDS=%r", raw
+        )
+        return None
+    if seconds <= 0:
+        return None
+    return timedelta(seconds=seconds)
+
+
+def _session_expiry_should_refresh(expires_at: datetime, now: datetime) -> bool:
+    refresh_window = _session_refresh_window()
+    if refresh_window is None:
+        return False
+    return expires_at - now <= refresh_window
+
+
 def _authenticate_session_token(token: str):
     """Resolve a bearer session token to a live user/session pair."""
     token_hash = accounts.hash_token(token)
@@ -137,7 +161,13 @@ def _authenticate_session_token(token: str):
         return None, session
     now = datetime.now()
     if _should_touch_last_seen(session.last_seen_at, now):
-        app_db.touch_session(token_hash, when=now)
+        expires_at = None
+        if _session_expiry_should_refresh(session.expires_at, now):
+            expires_at = now + _SESSION_SLIDING_EXTENSION_TTL
+        app_db.touch_session(token_hash, when=now, expires_at=expires_at)
+        session.last_seen_at = now
+        if expires_at is not None:
+            session.expires_at = expires_at
     return user, session
 
 
