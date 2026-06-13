@@ -12,7 +12,7 @@ These tests validate that all components work together correctly.
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import TypedDict
 
 import pytest
 from langgraph.graph import StateGraph, START, END
