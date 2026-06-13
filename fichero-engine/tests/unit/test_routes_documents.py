@@ -460,8 +460,12 @@ class TestImportDocument:
 
         upload = ChunkedUpload()
 
+        # Pass the cap explicitly so the test is independent of the settings
+        # singleton's state under full-suite ordering (monkeypatching the module
+        # singleton is a no-op if another test replaced it). save_uploaded_file
+        # prefers max_bytes over settings.max_upload_bytes.
         with pytest.raises(UploadTooLargeError):
-            asyncio.run(save_uploaded_file(upload, chunk_size=4))
+            asyncio.run(save_uploaded_file(upload, chunk_size=4, max_bytes=5))
 
         assert upload.read_calls == 2
 
