@@ -782,6 +782,158 @@ class TestSaveClaim:
         assert first != second
 
 
+class TestClaimHelperFunctions:
+    def test_same_structured_claim_normalizes_entity_order_and_svo_noise(self):
+        from fichero.workflows.tools._entity_writer import _same_structured_claim
+
+        left = KnowledgeClaim(
+            text="Peña served as the alcalde of Popayán.",
+            entity_ids=["entity-a", "entity-b"],
+            subject_canonical="Peña",
+            predicate_verb="served as",
+            object_phrase="the alcalde of Popayán",
+        )
+        right = KnowledgeClaim(
+            text="PENA served as alcalde of Popayan!",
+            entity_ids=["entity-b", "entity-a"],
+            subject_canonical="Pena",
+            predicate_verb="served as",
+            object_phrase="alcalde of popayan",
+        )
+
+        assert _same_structured_claim(left, right) is True
+
+    def test_same_structured_claim_falls_back_to_text_similarity_when_svo_missing(self):
+        from fichero.workflows.tools._entity_writer import _same_structured_claim
+
+        prior = KnowledgeClaim(
+            text="Pedro testified before the council.",
+            entity_ids=["entity-a"],
+        )
+        near_duplicate = KnowledgeClaim(
+            text="Pedro testified before the council",
+            entity_ids=["entity-a"],
+        )
+        distinct = KnowledgeClaim(
+            text="Pedro bought the mine.",
+            entity_ids=["entity-a"],
+        )
+
+        assert _same_structured_claim(prior, near_duplicate) is True
+        assert _same_structured_claim(prior, distinct) is False
+
+    def test_find_cross_source_canonical_claim_ignores_same_source_duplicates(self, db):
+        from fichero.workflows.tools._entity_writer import (
+            _find_cross_source_canonical_claim,
+        )
+
+        db.save(
+            KnowledgeClaim(
+                text="Pedro filed the petition.",
+                source_document_id="doc-a",
+                entity_ids=["entity-a"],
+                subject_canonical="Pedro",
+                predicate_verb="filed",
+                object_phrase="the petition",
+            )
+        )
+
+        incoming = KnowledgeClaim(
+            text="Pedro filed the petition.",
+            source_document_id="doc-a",
+            entity_ids=["entity-a"],
+            subject_canonical="Pedro",
+            predicate_verb="filed",
+            object_phrase="the petition",
+        )
+
+        assert _find_cross_source_canonical_claim(db, incoming) is None
+
+    def test_find_cross_source_canonical_claim_finds_other_source_match(self, db):
+        from fichero.workflows.tools._entity_writer import (
+            _find_cross_source_canonical_claim,
+        )
+
+        same_source = KnowledgeClaim(
+            text="Pedro filed the petition.",
+            source_document_id="doc-a",
+            entity_ids=["entity-a"],
+            subject_canonical="Pedro",
+            predicate_verb="filed",
+            object_phrase="the petition",
+        )
+        other_source = KnowledgeClaim(
+            text="PENA filed the petition!",
+            source_document_id="doc-b",
+            entity_ids=["entity-a"],
+            subject_canonical="Pedro",
+            predicate_verb="filed",
+            object_phrase="the petition",
+        )
+        db.save(same_source)
+        db.save(other_source)
+
+        incoming = KnowledgeClaim(
+            text="Pedro filed the petition.",
+            source_document_id="doc-a",
+            entity_ids=["entity-a"],
+            subject_canonical="Pedro",
+            predicate_verb="filed",
+            object_phrase="the petition",
+        )
+
+        assert _find_cross_source_canonical_claim(db, incoming).id == other_source.id
+
+    def test_repoint_claim_entity_references_deduplicates_survivor_ids(self, db):
+        from fichero.workflows.tools._entity_writer import (
+            _repoint_claim_entity_references,
+        )
+
+        claim = KnowledgeClaim(
+            text="Pedro testified.",
+            entity_ids=["survivor", "duplicate", "duplicate"],
+            subject_entity_id="duplicate",
+        )
+        db.save(claim)
+
+        repointed = _repoint_claim_entity_references(
+            db,
+            duplicate_ids={"duplicate"},
+            survivor_id="survivor",
+        )
+
+        loaded = db.get(KnowledgeClaim, claim.id)
+        assert repointed == [claim.id]
+        assert loaded.entity_ids == ["survivor"]
+        assert loaded.subject_entity_id == "survivor"
+
+    def test_upsert_entity_accumulates_source_document_ids_without_duplicates(self, db):
+        from fichero.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db,
+            canonical_name="Eugenio Córdoba",
+            entity_type=EntityType.person,
+            source_document_id="page-1",
+        )
+        second = upsert_entity(
+            db,
+            canonical_name="Eugenio Cordoba",
+            entity_type=EntityType.person,
+            source_document_id="page-2",
+        )
+        third = upsert_entity(
+            db,
+            canonical_name="Eugenio Córdoba",
+            entity_type=EntityType.person,
+            source_document_id="page-2",
+        )
+
+        loaded = db.get(KnowledgeEntity, first)
+        assert first == second == third
+        assert loaded.source_document_ids == ["page-1", "page-2"]
+
+
 class TestTypeConflictDetector:
     """#1114 issue 1 — same canonical_name with different entity_types
     used to produce two rows. The classic example: "Atrató River"

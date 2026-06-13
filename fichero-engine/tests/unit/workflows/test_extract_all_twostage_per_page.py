@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from fichero.knowledge_models import EntityType, KnowledgeClaim, KnowledgeEntity
@@ -158,6 +160,127 @@ async def test_two_stage_extracts_entity_claims_concurrently_with_same_output(
             "source_text": "Cy signed the ledger",
         },
     ]
+
+
+@pytest.mark.asyncio
+async def test_two_stage_preserves_entity_order_when_claim_tasks_finish_out_of_order(
+    db, test_package, monkeypatch
+):
+    page = Document(name="p", path="/tmp/p.png", doc_type=DocType.page)
+    db.save(page)
+
+    async def fake_stage1(**kwargs):
+        schema = kwargs.get("schema")
+        if schema is not extract_all_module._EntitiesOnly:
+            raise AssertionError(f"unexpected schema: {schema!r}")
+        return extract_all_module._EntitiesOnly(
+            people=[
+                extract_all_module._EntityOnly(name="Ada", entity_type="person"),
+                extract_all_module._EntityOnly(name="Bert", entity_type="person"),
+                extract_all_module._EntityOnly(name="Cy", entity_type="person"),
+            ],
+        )
+
+    completion_order: list[str] = []
+    delays = {"Ada": 0.03, "Bert": 0.01, "Cy": 0.0}
+
+    async def fake_claims_for_entity(
+        _context, entity_name, _entity_type, _llm_config, _instructions, extraction_sem
+    ):
+        async with extraction_sem:
+            await asyncio.sleep(delays[entity_name])
+            completion_order.append(entity_name)
+        return [
+            {
+                "verb": "signed",
+                "object": f"{entity_name} ledger",
+                "source_text": f"{entity_name} signed the ledger",
+            }
+        ]
+
+    monkeypatch.setattr(
+        "fichero.workflows.tools.extract_all.chat_structured_with_fallback",
+        fake_stage1,
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.tools.extract_all._extract_claims_for_entity",
+        fake_claims_for_entity,
+    )
+
+    result = await extract_all_module._run_two_stage(
+        text="Ada signed the ledger. Bert signed the ledger. Cy signed the ledger.",
+        recovered_records=[{"doc_id": page.id, "text": "Ada signed the ledger."}],
+        state={"library_path": str(test_package), "selected_doc_ids": [page.id]},
+        llm_config=LLMConfig(provider="openai", model="gpt-4o-mini"),
+        output_language="English",
+        inputs={"persist_kg": False},
+    )
+
+    assert completion_order == ["Cy", "Bert", "Ada"]
+    assert [person["name"] for person in result["value"]["people"]] == [
+        "Ada",
+        "Bert",
+        "Cy",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_two_stage_entity_claim_failures_stay_local_to_the_failed_entity(
+    db, test_package, monkeypatch
+):
+    page = Document(name="p", path="/tmp/p.png", doc_type=DocType.page)
+    db.save(page)
+
+    async def fake_chat_structured_with_fallback(**kwargs):
+        schema = kwargs.get("schema")
+        if schema is extract_all_module._EntitiesOnly:
+            return extract_all_module._EntitiesOnly(
+                people=[
+                    extract_all_module._EntityOnly(name="Ada", entity_type="person"),
+                    extract_all_module._EntityOnly(name="Bert", entity_type="person"),
+                ],
+            )
+        if schema is extract_all_module._EntityClaims:
+            prompt = kwargs.get("prompt", "")
+            if "Entity: Bert" in prompt:
+                raise RuntimeError("malformed entity claims")
+            if "Entity: Ada" in prompt:
+                return extract_all_module._EntityClaims(
+                    subject="Ada",
+                    claims=[
+                        extract_all_module._SVOClaim(
+                            subject="Ada",
+                            verb="signed",
+                            object="the ledger",
+                            source_text="Ada signed the ledger",
+                        )
+                    ]
+                )
+        raise AssertionError(f"unexpected schema/prompt: {schema!r} {kwargs.get('prompt')!r}")
+
+    monkeypatch.setattr(
+        "fichero.workflows.tools.extract_all.chat_structured_with_fallback",
+        fake_chat_structured_with_fallback,
+    )
+
+    result = await extract_all_module._run_two_stage(
+        text="Ada signed the ledger. Bert signed the ledger.",
+        recovered_records=[{"doc_id": page.id, "text": "Ada signed the ledger. Bert signed the ledger."}],
+        state={"library_path": str(test_package), "selected_doc_ids": [page.id]},
+        llm_config=LLMConfig(provider="openai", model="gpt-4o-mini"),
+        output_language="English",
+        inputs={"persist_kg": False},
+    )
+
+    assert result["value"]["people"] == [
+        {
+            "name": "Ada",
+            "verb": "signed",
+            "object": "the ledger",
+            "source_text": "Ada signed the ledger",
+        }
+    ]
+    assert result["cached"] is False
 
 
 # ---------------------------------------------------------------------------
