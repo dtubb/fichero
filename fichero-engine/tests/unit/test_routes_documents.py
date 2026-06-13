@@ -119,6 +119,18 @@ class TestDocumentNotes:
         assert get.status_code == 200
         assert get.json()["content"] == "Remember this"
 
+    def test_doc_prefixed_note_routes_resolve_same_document(self, client, db):
+        doc = _make_doc(db, "Prefixed Notes Doc")
+
+        put = client.put(f"/api/documents/doc:{doc.id}/notes", json={"content": "Remember this too"})
+        get = client.get(f"/api/documents/doc:{doc.id}/notes")
+
+        assert put.status_code == 200
+        assert put.json()["document_id"] == doc.id
+        assert get.status_code == 200
+        assert get.json()["document_id"] == doc.id
+        assert get.json()["content"] == "Remember this too"
+
     def test_put_updates_existing_note(self, client, db):
         doc = _make_doc(db, "Updatable Note")
         first = client.put(f"/api/documents/{doc.id}/notes", json={"content": "v1"})
@@ -498,6 +510,46 @@ class TestUpdateDocument:
         assert payload["is_flagged"] is False
         assert payload["is_starred"] is False
 
+    def test_update_ignores_parent_id_even_when_client_sends_it(self, client, db):
+        parent = _make_doc(db, "Parent")
+        sibling_parent = _make_doc(db, "Sibling Parent")
+        child = _make_doc(db, "Child", parent_id=parent.id)
+
+        r = client.put(
+            f"/api/documents/{child.id}",
+            json={"name": "Renamed Child", "parent_id": sibling_parent.id},
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["name"] == "Renamed Child"
+        assert payload["parent_id"] == parent.id
+        assert db.get(Document, child.id).parent_id == parent.id
+
+    def test_update_page_content_merges_metadata_and_marks_user_edit(self, client, db, monkeypatch):
+        doc = Document(
+            name="Transcript",
+            doc_type=DocType.file,
+            metadata={"existing": "keep"},
+            page_content="before",
+        )
+        db.save(doc)
+        embed_calls: list[str] = []
+        monkeypatch.setattr(type(db), "embed", lambda self, saved_doc: embed_calls.append(saved_doc.id))
+
+        r = client.put(
+            f"/api/documents/{doc.id}",
+            json={"page_content": "after", "metadata": {"source": "manual"}},
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["page_content"] == "after"
+        assert payload["metadata"]["existing"] == "keep"
+        assert payload["metadata"]["source"] == "manual"
+        assert payload["metadata"]["page_content_user_edited_at"]
+        assert embed_calls == [doc.id]
+
 
 class TestBatchExcludeDocuments:
     def test_batch_exclude_updates_documents_and_logs_mutation(self, client, db):
@@ -531,6 +583,40 @@ class TestBatchExcludeDocuments:
         assert len(logs) == 2
         assert all(m.changed_fields == ["exclude_from_processing"] for m in logs)
         assert all(m.after_state["exclude_from_processing"] is True for m in logs)
+
+    def test_batch_exclude_deduplicates_and_skips_blank_ids(self, client, db):
+        doc = _make_doc(db, "Doc A")
+
+        r = client.patch(
+            "/api/documents/batch-exclude",
+            json={
+                "document_ids": ["", "  ", doc.id, doc.id],
+                "excluded": True,
+                "reason": "curation",
+            },
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["updated"] == 1
+        assert payload["document_ids"] == [doc.id]
+        assert db.get(Document, doc.id).exclude_from_processing is True
+
+        logs = [m for m in db.query(MutationLog) if m.entity_id == doc.id]
+        assert len(logs) == 1
+
+    def test_batch_exclude_missing_document_returns_404(self, client):
+        r = client.patch(
+            "/api/documents/batch-exclude",
+            json={
+                "document_ids": ["missing-doc"],
+                "excluded": True,
+                "reason": "curation",
+            },
+        )
+
+        assert r.status_code == 404
+        assert r.json()["detail"] == "Document not found: missing-doc"
 
 
 # ---------------------------------------------------------------------------

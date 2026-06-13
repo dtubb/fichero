@@ -614,9 +614,62 @@ class TestEnhancedSearch:
 
 
 class TestSearchStats:
-    def test_returns_stats(self, client):
+    def test_returns_stats(self, client, mock_db):
+        mock_db.embedding_stats.return_value = {
+            "indexed_count": 7,
+            "table_exists": True,
+            "entity_indexed_count": 2,
+            "entity_table_exists": True,
+            "claim_indexed_count": 3,
+            "claim_table_exists": False,
+        }
+
         r = client.get("/api/search/stats")
+
         assert r.status_code == 200
+        assert r.json() == {
+            "indexed_count": 7,
+            "table_exists": True,
+            "entity_indexed_count": 2,
+            "entity_table_exists": True,
+            "claim_indexed_count": 3,
+            "claim_table_exists": False,
+        }
+
+
+class TestSearchViews:
+    def test_table_view_filters_sorts_and_paginates(self, client, db):
+        alpha = Document(name="Alpha field note", doc_type=DocType.file, file_type=FileType.text)
+        beta = Document(name="Beta field note", doc_type=DocType.file, file_type=FileType.text)
+        gamma = Document(name="Gamma memo", doc_type=DocType.file, file_type=FileType.text)
+        db.save(alpha)
+        db.save(beta)
+        db.save(gamma)
+
+        r = client.get(
+            "/api/search/views/table",
+            params={
+                "query": "field",
+                "sort_by": "name",
+                "sort_direction": "asc",
+                "page": 1,
+                "page_size": 1,
+            },
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["total"] == 2
+        assert payload["page"] == 1
+        assert payload["page_size"] == 1
+        assert [row["name"] for row in payload["rows"]] == ["Alpha field note"]
+        assert [column["key"] for column in payload["columns"]] == [
+            "id",
+            "name",
+            "doc_type",
+            "created_at",
+            "relevance_score",
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -682,6 +735,30 @@ class TestUpdateSavedSearch:
         assert r.status_code == 200
         assert r.json()["query"] == "updated"
 
+    def test_update_preserves_fields_when_json_null_is_sent(self, client, db):
+        s = _make_saved_search(db, "original")
+        s.folder_path = "/research"
+        s.sort_direction = "asc"
+        s.filters = {"tag": "mining"}
+        db.save(s)
+
+        r = client.put(
+            f"/api/search/saved/{s.id}",
+            json={
+                "query": "updated",
+                "folder_path": None,
+                "sort_direction": None,
+                "filters": None,
+            },
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["query"] == "updated"
+        assert payload["folder_path"] == "/research"
+        assert payload["sort_direction"] == "asc"
+        assert payload["filters"] == {"tag": "mining"}
+
     def test_update_missing_returns_404(self, client):
         r = client.put("/api/search/saved/no-such-id", json={"query": "x"})
         assert r.status_code == 404
@@ -704,6 +781,29 @@ class TestDuplicateSavedSearch:
     def test_duplicate_missing_returns_404(self, client):
         r = client.post("/api/search/saved/no-such-id/duplicate")
         assert r.status_code == 404
+
+
+class TestReorderSavedSearches:
+    def test_reorder_persists_requested_sort_order(self, client, db):
+        first = _make_saved_search(db, "first")
+        second = _make_saved_search(db, "second")
+        third = _make_saved_search(db, "third")
+
+        r = client.post("/api/search/saved/reorder", json=[third.id, first.id, second.id])
+
+        assert r.status_code == 200
+        assert r.json() == {"status": "reordered", "count": 3}
+        assert db.get(SavedSearch, third.id).sort_order == 0
+        assert db.get(SavedSearch, first.id).sort_order == 1
+        assert db.get(SavedSearch, second.id).sort_order == 2
+
+    def test_reorder_missing_saved_search_returns_404(self, client, db):
+        saved = _make_saved_search(db, "first")
+
+        r = client.post("/api/search/saved/reorder", json=[saved.id, "missing-search"])
+
+        assert r.status_code == 404
+        assert r.json()["detail"] == "Saved search not found: missing-search"
 
 
 # ---------------------------------------------------------------------------

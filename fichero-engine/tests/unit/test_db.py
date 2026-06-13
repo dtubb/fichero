@@ -16,6 +16,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import duckdb
+from pydantic import BaseModel, Field
 
 from fichero import db as db_module
 from fichero.models import (
@@ -50,7 +51,21 @@ class TestDatabaseBasics:
         so clear it here and reload `fichero.storage` so its module-level
         `settings = StorageSettings()` re-reads the (now-empty) env.
         """
+        class FakeConn:
+            def close(self):
+                return None
+
         monkeypatch.delenv("FICHERO_BASE_PATH", raising=False)
+        monkeypatch.setattr(duckdb, "connect", lambda _path: FakeConn())
+        import fichero.db_migrations as _db_migrations
+        monkeypatch.setattr(_db_migrations, "migrate_document_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_workflow_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_saved_search_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_provider_refs_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_known_libraries_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_library_entity_types_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_references_table", lambda _conn: None)
+        monkeypatch.setattr(_db_migrations, "migrate_reference_provenance_table", lambda _conn: None)
         import fichero.storage as _storage_mod
         from importlib import reload as _reload
         _reload(_storage_mod)
@@ -711,6 +726,68 @@ class TestQuery:
         assert temp_db.count(Document, status=Status.completed) == 1
         assert temp_db.count(Document, status=Status.pending) == 1
 
+    def test_query_none_filter_matches_root_documents(self, temp_db):
+        """None filters must compile to IS NULL instead of = NULL."""
+        root = Document(name="root.txt", path="/root.txt", parent_id=None)
+        child = Document(name="child.txt", path="/child.txt", parent_id="parent-1")
+        temp_db.save(root)
+        temp_db.save(child)
+
+        docs = temp_db.query(Document, parent_id=None)
+
+        assert [doc.id for doc in docs] == [root.id]
+        assert docs[0].parent_id is None
+
+    def test_query_in_deduplicates_values_and_returns_each_match_once(self, temp_db):
+        """query_in should tolerate duplicate ids without duplicating rows."""
+        first = Document(name="first.txt", path="/first.txt")
+        second = Document(name="second.txt", path="/second.txt")
+        temp_db.save(first)
+        temp_db.save(second)
+
+        docs = temp_db.query_in(Document, "id", [first.id, second.id, first.id])
+
+        assert {doc.id for doc in docs} == {first.id, second.id}
+        assert len(docs) == 2
+
+
+class TestJsonFieldParsing:
+    """Test JSON/default coercion for DB rows loaded into Pydantic models."""
+
+    def test_parse_json_fields_uses_defaults_for_null_new_columns(self, temp_db):
+        class ExampleModel(BaseModel):
+            id: str
+            items: list[str] = Field(default_factory=list)
+            flags: dict[str, bool] = Field(default_factory=dict)
+            status: str = "pending"
+
+        parsed = temp_db._parse_json_fields(
+            ExampleModel,
+            {"id": "row-1", "items": None, "flags": None, "status": None},
+        )
+
+        assert parsed["items"] == []
+        assert parsed["flags"] == {}
+        assert parsed["status"] == "pending"
+
+    def test_parse_json_fields_decodes_json_strings(self, temp_db):
+        class ExampleModel(BaseModel):
+            id: str
+            items: list[str] = Field(default_factory=list)
+            metadata: dict[str, str] = Field(default_factory=dict)
+
+        parsed = temp_db._parse_json_fields(
+            ExampleModel,
+            {
+                "id": "row-1",
+                "items": '["alpha", "beta"]',
+                "metadata": '{"role": "source"}',
+            },
+        )
+
+        assert parsed["items"] == ["alpha", "beta"]
+        assert parsed["metadata"] == {"role": "source"}
+
 
 class TestLanceDB:
     """Test LanceDB vector operations."""
@@ -828,6 +905,70 @@ class TestLanceDB:
             [("delete", "doc-a"), ("add", "doc-a"), ("delete", "doc-b"), ("add", "doc-b")],
             [("delete", "doc-b"), ("add", "doc-b"), ("delete", "doc-a"), ("add", "doc-a")],
         )
+
+    def test_save_passage_embeddings_returns_zero_without_records(self, temp_db, monkeypatch):
+        monkeypatch.setattr(temp_db, "passage_embedding_records", lambda *_args, **_kwargs: [])
+        delete_calls: list[tuple[str, str]] = []
+        save_calls: list[tuple[str, list[dict]]] = []
+        monkeypatch.setattr(
+            temp_db, "_delete_embedding_rows", lambda field, value: delete_calls.append((field, value))
+        )
+        monkeypatch.setattr(
+            temp_db, "save_vectors", lambda table_name, data: save_calls.append((table_name, data))
+        )
+
+        count = temp_db.save_passage_embeddings(Document(id="doc-1", name="Doc 1"), text="body")
+
+        assert count == 0
+        assert delete_calls == []
+        assert save_calls == []
+
+    def test_save_passage_embeddings_replaces_rows_for_same_document(self, temp_db, monkeypatch):
+        records = [
+            {"id": "passage-1", "document_id": "doc-1", "text": "first", "vector": [0.1, 0.2, 0.3]},
+            {"id": "passage-2", "document_id": "doc-1", "text": "second", "vector": [0.4, 0.5, 0.6]},
+        ]
+        monkeypatch.setattr(temp_db, "passage_embedding_records", lambda *_args, **_kwargs: records)
+        delete_calls: list[tuple[str, str]] = []
+        saved_payloads: list[tuple[str, list[dict]]] = []
+        monkeypatch.setattr(
+            temp_db, "_delete_embedding_rows", lambda field, value: delete_calls.append((field, value))
+        )
+        monkeypatch.setattr(
+            temp_db, "save_vectors", lambda table_name, data: saved_payloads.append((table_name, data))
+        )
+
+        count = temp_db.save_passage_embeddings(Document(id="doc-1", name="Doc 1"), text="body")
+
+        assert count == 2
+        assert delete_calls == [("document_id", "doc-1")]
+        assert saved_payloads == [("embeddings", records)]
+
+    def test_embed_page_mode_uses_single_embedding_path(self, temp_db, monkeypatch):
+        doc = Document(id="doc-page", name="Page Doc", page_content="embedded body")
+        save_calls: list[tuple[str, list[float], str]] = []
+
+        monkeypatch.setattr(temp_db, "_embedding_text_for_document", lambda _doc: "embedded body")
+        monkeypatch.setattr(temp_db, "_embed_text", lambda text, role="passage": [0.1, 0.2, 0.3])
+        monkeypatch.setattr(
+            temp_db,
+            "save_embedding",
+            lambda saved_doc, vector, text=None: save_calls.append((saved_doc.id, vector, text or "")),
+        )
+
+        result = temp_db.embed(doc, mode="page")
+
+        assert result is True
+        assert save_calls == [("doc-page", [0.1, 0.2, 0.3], "embedded body")]
+
+    def test_embed_passage_mode_returns_false_when_no_passages_saved(self, temp_db, monkeypatch):
+        doc = Document(id="doc-passages", name="Passage Doc", page_content="embedded body")
+        monkeypatch.setattr(temp_db, "_embedding_text_for_document", lambda _doc: "embedded body")
+        monkeypatch.setattr(temp_db, "save_passage_embeddings", lambda *_args, **_kwargs: 0)
+
+        result = temp_db.embed(doc)
+
+        assert result is False
 
 
 class TestProviderCRUD:
