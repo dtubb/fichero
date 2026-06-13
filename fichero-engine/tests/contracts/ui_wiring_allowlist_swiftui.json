@@ -157,6 +157,7 @@
     "/api/workflow-execution/workflows/{workflow_id}/visualization": "baseline: not yet wired",
     "/api/workflow-execution/workflows/{workflow_id}/visualization.png": "baseline: not yet wired",
     "/api/workflows/modes": "baseline: not yet wired",
-    "/api/workflows/{workflow_id}/estimate-cost": "baseline: not yet wired"
+    "/api/workflows/{workflow_id}/estimate-cost": "baseline: not yet wired",
+    "/api/model-comparison/compare-workflow": "#2195 CLI-only model-comparison bake-off; SwiftUI comparison UI is #1753/#1739"
   }
 }

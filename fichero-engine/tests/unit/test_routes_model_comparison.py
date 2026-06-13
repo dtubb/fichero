@@ -241,6 +241,88 @@ class TestCompareModels:
         assert request.models[0].model == "gpt-4o-mini"
 
 
+class TestCompareWorkflow:
+    def test_compare_workflow_returns_results(self, client):
+        comparison = ComparisonResult(
+            prompt="[Workflow: Transcribe] {'selected_doc_ids': ['doc-1']}",
+            models_compared=["openai/gpt-4o-mini"],
+            results=[
+                ModelResult(
+                    provider="openai",
+                    model="gpt-4o-mini",
+                    response="Transcript text",
+                    latency_ms=42.0,
+                    cost_usd=0.0123,
+                )
+            ],
+            fastest_model="openai/gpt-4o-mini",
+            cheapest_model="openai/gpt-4o-mini",
+            comparison_id="cmp-workflow",
+        )
+        mock_engine = MagicMock()
+        mock_engine.compare_workflow = AsyncMock(return_value=comparison)
+
+        with patch(
+            "fichero.api.routes.model_comparison.get_comparison_engine",
+            return_value=mock_engine,
+        ):
+            r = client.post(
+                "/api/model-comparison/compare-workflow",
+                json={
+                    "workflow": {
+                        "id": "wf-1",
+                        "name": "Transcribe",
+                        "nodes": [{"id": "node-1", "tool": "transcribe"}],
+                        "edges": [],
+                    },
+                    "doc_id": "doc-1",
+                    "models": [{"provider": "openai", "model": "gpt-4o-mini"}],
+                },
+            )
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["comparison_id"] == "cmp-workflow"
+        assert payload["results"][0]["response"] == "Transcript text"
+        assert mock_engine.compare_workflow.await_args.kwargs["inputs"] == {
+            "selected_doc_ids": ["doc-1"]
+        }
+
+    def test_compare_workflow_resolves_saved_workflow(self, client, db):
+        workflow = Workflow(
+            name="Translate",
+            format="nodes",
+            nodes=[{"id": "node-1", "tool": "translate"}],
+            edges=[],
+        )
+        db.save(workflow)
+        comparison = ComparisonResult(
+            prompt="[Workflow: Translate] {'selected_doc_ids': ['doc-7']}",
+            models_compared=["openai/gpt-4o-mini"],
+            results=[],
+            comparison_id="cmp-saved",
+        )
+        mock_engine = MagicMock()
+        mock_engine.compare_workflow = AsyncMock(return_value=comparison)
+
+        with patch(
+            "fichero.api.routes.model_comparison.get_comparison_engine",
+            return_value=mock_engine,
+        ):
+            r = client.post(
+                "/api/model-comparison/compare-workflow",
+                json={
+                    "workflow_id": workflow.id,
+                    "doc_id": "doc-7",
+                    "models": [{"provider": "openai", "model": "gpt-4o-mini"}],
+                },
+            )
+
+        assert r.status_code == 200
+        workflow_arg = mock_engine.compare_workflow.await_args.kwargs["workflow"]
+        assert workflow_arg.id == workflow.id
+
+
 class TestCompareWorkflowNode:
     def test_compare_node_returns_apply_patches(self, client, app_db):
         _seed_model(app_db)

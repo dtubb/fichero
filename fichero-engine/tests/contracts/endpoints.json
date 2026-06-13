@@ -5963,6 +5963,16 @@
         "response_model": "ComparisonResultResponse"
       },
       {
+        "method": "POST",
+        "path": "/model-comparison/compare-workflow",
+        "operation_id": "compare_workflow_across_models_api_model_comparison_compare_workflow_post",
+        "summary": "Compare Workflow Across Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "WorkflowCompareRequest",
+        "response_model": "ComparisonResultResponse"
+      },
+      {
         "method": "GET",
         "path": "/model-comparison/comparison/{comparison_id}",
         "operation_id": "get_comparison_api_model_comparison_comparison__comparison_id__get",

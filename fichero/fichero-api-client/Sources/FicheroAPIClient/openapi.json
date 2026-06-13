@@ -16083,6 +16083,60 @@
         }
       }
     },
+    "/api/model-comparison/compare-workflow": {
+      "post": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Compare Workflow Across Models",
+        "description": "Run the same workflow once per provider/model override and compare outcomes.",
+        "operationId": "compare_workflow_across_models_api_model_comparison_compare_workflow_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Library-Path",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Fichero-Library-Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCompareRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonResultResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/model-comparison/compare-node": {
       "post": {
         "tags": [
@@ -49266,6 +49320,39 @@
         "title": "ModelSearchResponse",
         "description": "Paginated model search results."
       },
+      "ModelSpec": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "description": "LLM provider (openai, anthropic, etc)"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "Model name"
+          },
+          "temperature": {
+            "type": "number",
+            "title": "Temperature",
+            "description": "Temperature setting",
+            "default": 0.7
+          },
+          "max_tokens": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Max Tokens",
+            "description": "Max output tokens"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "ModelSpec",
+        "description": "Specification for a model to compare."
+      },
       "ModelsByTierResponse": {
         "properties": {
           "frontier": {
@@ -59394,6 +59481,52 @@
         ],
         "title": "WorkflowCodeExportResponse",
         "description": "Response with exported Python code for the workflow."
+      },
+      "WorkflowCompareRequest": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow Id",
+            "description": "Saved workflow ID when workflow is not supplied"
+          },
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowDef",
+            "nullable": true,
+            "description": "Unsaved workflow definition from the editor"
+          },
+          "doc_id": {
+            "type": "string",
+            "title": "Doc Id",
+            "description": "Document ID to run through the workflow"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelSpec"
+            },
+            "type": "array",
+            "title": "Models",
+            "description": "Models to compare"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs",
+            "description": "Additional workflow inputs merged with selected_doc_ids"
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "title": "Timeout Seconds",
+            "description": "Timeout per workflow run",
+            "default": 300
+          }
+        },
+        "type": "object",
+        "required": [
+          "doc_id"
+        ],
+        "title": "WorkflowCompareRequest",
+        "description": "Request to compare a whole workflow across multiple model overrides."
       },
       "WorkflowCostEstimateRequest": {
         "properties": {

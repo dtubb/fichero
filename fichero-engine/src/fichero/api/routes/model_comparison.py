@@ -81,6 +81,26 @@ class ToolCompareRequest(BaseModel):
     timeout_seconds: int = Field(default=120, description="Timeout per model")
 
 
+class WorkflowCompareRequest(BaseModel):
+    """Request to compare a whole workflow across multiple model overrides."""
+
+    workflow_id: str | None = Field(
+        default=None, description="Saved workflow ID when workflow is not supplied"
+    )
+    workflow: WorkflowDef | None = Field(
+        default=None, description="Unsaved workflow definition from the editor"
+    )
+    doc_id: str = Field(..., description="Document ID to run through the workflow")
+    models: list[ModelSpec] = Field(
+        default_factory=list, description="Models to compare"
+    )
+    inputs: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional workflow inputs merged with selected_doc_ids",
+    )
+    timeout_seconds: int = Field(default=300, description="Timeout per workflow run")
+
+
 class ModelInfo(BaseModel):
     """Information about a model."""
 
@@ -312,6 +332,28 @@ def _model_specs(
 
 def _workflow_from_request(
     request: NodeCompareRequest,
+    db: Database,
+) -> WorkflowDef:
+    if request.workflow:
+        return request.workflow
+    if not request.workflow_id:
+        raise HTTPException(status_code=400, detail="workflow_id or workflow required")
+    workflow = db.get(Workflow, request.workflow_id)
+    if not workflow:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    return WorkflowDef(
+        id=workflow.id,
+        name=workflow.name,
+        description=workflow.description,
+        provider=workflow.provider,
+        model=workflow.model,
+        nodes=[NodeDef(**node) for node in workflow.nodes],
+        edges=workflow.edges,
+    )
+
+
+def _workflow_from_compare_request(
+    request: WorkflowCompareRequest,
     db: Database,
 ) -> WorkflowDef:
     if request.workflow:
@@ -587,6 +629,34 @@ async def compare_tool_across_models(
         timeout_seconds=request.timeout_seconds,
     )
 
+    return ComparisonResultResponse(**result.to_dict())
+
+
+@router.post("/compare-workflow")
+async def compare_workflow_across_models(
+    request: WorkflowCompareRequest,
+    app_db: AppDatabase = Depends(_get_app_database),
+    db: Database = Depends(get_library_database_for_write),
+) -> ComparisonResultResponse:
+    """Run the same workflow once per provider/model override and compare outcomes."""
+    workflow = _workflow_from_compare_request(request, db)
+    model_specs = _model_specs(
+        [model.model_dump() for model in request.models],
+        app_db,
+    )
+    workflow_inputs = {
+        **request.inputs,
+        "selected_doc_ids": [request.doc_id],
+    }
+    engine = get_comparison_engine()
+    result = await engine.compare_workflow(
+        workflow=workflow,
+        inputs=workflow_inputs,
+        models=model_specs,
+        library_path=str(db.path.parent) if hasattr(db, "path") else "",
+        timeout_seconds=request.timeout_seconds,
+        db=db,
+    )
     return ComparisonResultResponse(**result.to_dict())
 
 

@@ -110,6 +110,75 @@ def test_run_workflow_builds_execute_body():
     }
 
 
+def test_compare_workflow_builds_request_body():
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "prompt": "[Workflow: wf-1]",
+                "models_compared": ["openai/gpt-4o"],
+                "results": [],
+                "fastest_model": None,
+                "cheapest_model": None,
+                "total_cost_usd": 0.0,
+                "total_latency_ms": 0.0,
+                "comparison_id": "cmp-1",
+                "timestamp": "2026-05-15T00:00:00",
+            },
+        )
+
+    _client(handler).compare_workflow(
+        workflow_id="wf-1",
+        doc_id="doc-9",
+        models=[{"provider": "openai", "model": "gpt-4o"}],
+    )
+    assert seen[0] == {
+        "workflow_id": "wf-1",
+        "doc_id": "doc-9",
+        "models": [{"provider": "openai", "model": "gpt-4o"}],
+        "inputs": {},
+        "timeout_seconds": 300,
+    }
+
+
+def test_compare_vision_builds_request_body():
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "prompt": "Describe",
+                "models_compared": ["openai/gpt-4o"],
+                "results": [],
+                "fastest_model": None,
+                "cheapest_model": None,
+                "total_cost_usd": 0.0,
+                "total_latency_ms": 0.0,
+                "comparison_id": "cmp-2",
+                "timestamp": "2026-05-15T00:00:00",
+            },
+        )
+
+    _client(handler).compare_vision(
+        images=["data:image/png;base64,AAAA"],
+        models=[{"provider": "openai", "model": "gpt-4o"}],
+        prompt="Describe",
+        detail="high",
+    )
+    assert seen[0] == {
+        "images": ["data:image/png;base64,AAAA"],
+        "prompt": "Describe",
+        "models": [{"provider": "openai", "model": "gpt-4o"}],
+        "detail": "high",
+        "timeout_seconds": 120,
+    }
+
+
 def test_translate_document_runs_translate_workflow():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path == "/api/workflows":

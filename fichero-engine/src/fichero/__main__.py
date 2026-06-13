@@ -7,6 +7,9 @@ entry point ``fichero = "fichero.__main__:main"`` is declared in pyproject.toml.
 
 from __future__ import annotations
 
+import base64
+import json
+import mimetypes
 import sys
 import time
 from pathlib import Path
@@ -41,6 +44,7 @@ audit_app = typer.Typer(help="Review entity merge/split audit trail.", no_args_i
 settings_app = typer.Typer(help="Read and write AI-defaults settings.", no_args_is_help=True)
 providers_app = typer.Typer(help="Manage LLM provider configurations.", no_args_is_help=True)
 devices_app = typer.Typer(help="Manage paired devices.", no_args_is_help=True)
+compare_app = typer.Typer(help="Compare models and workflows.", no_args_is_help=True)
 app.add_typer(docs_app, name="docs")
 app.add_typer(workflow_app, name="workflow")
 app.add_typer(kg_app, name="kg")
@@ -54,6 +58,7 @@ app.add_typer(audit_app, name="audit")
 app.add_typer(settings_app, name="settings")
 app.add_typer(providers_app, name="providers")
 app.add_typer(devices_app, name="devices")
+app.add_typer(compare_app, name="compare")
 workflow_app.add_typer(threads_app, name="threads")
 
 # Execution statuses the workflow status endpoint may return when the run has
@@ -150,6 +155,124 @@ def _resolve_required_doc_id(
     return str(doc_id).strip()
 
 
+def _normalize_json_payload(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    return value
+
+
+def _load_prompt(
+    *,
+    prompt: Optional[str],
+    prompt_file: Optional[Path],
+    default: Optional[str] = None,
+) -> str:
+    if prompt is not None and prompt_file is not None:
+        typer.secho(
+            "Error: pass either --prompt or --prompt-file, not both.",
+            err=True,
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=2)
+    if prompt_file is not None:
+        return prompt_file.read_text(encoding="utf-8")
+    if prompt is not None:
+        return prompt
+    if default is not None:
+        return default
+    typer.secho(
+        "Error: either --prompt or --prompt-file is required.",
+        err=True,
+        fg=typer.colors.RED,
+    )
+    raise typer.Exit(code=2)
+
+
+def _parse_models_csv(models: str) -> list[dict[str, str]]:
+    parsed: list[dict[str, str]] = []
+    for raw in [item.strip() for item in models.split(",") if item.strip()]:
+        provider, sep, model = raw.partition("/")
+        if not sep or not model.strip():
+            typer.secho(
+                f"Error: model '{raw}' must be in provider/model form.",
+                err=True,
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(code=2)
+        parsed.append({"provider": provider.strip(), "model": model.strip()})
+    if not parsed:
+        typer.secho("Error: at least one model is required.", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=2)
+    return parsed
+
+
+def _image_to_data_uri(path: Path) -> str:
+    mime_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def _response_summary(result: dict[str, Any]) -> str:
+    text = str(result.get("response") or "").replace("\n", " ").strip()
+    if not text and result.get("error"):
+        text = f"ERROR: {result['error']}"
+    if len(text) > 80:
+        return text[:77] + "..."
+    return text
+
+
+def _render_comparison(result: Any, *, as_json: bool) -> None:
+    payload = _normalize_json_payload(result)
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    fastest = payload.get("fastest_model") if isinstance(payload, dict) else None
+    cheapest = payload.get("cheapest_model") if isinstance(payload, dict) else None
+
+    rows: list[tuple[str, str, str, str]] = []
+    for result_row in results:
+        model_name = f"{result_row.get('provider', '')}/{result_row.get('model', '')}"
+        badges = []
+        if model_name == fastest:
+            badges.append("fastest")
+        if model_name == cheapest:
+            badges.append("cheapest")
+        if badges:
+            model_name = f"{model_name} [{' '.join(badges)}]"
+        rows.append(
+            (
+                model_name,
+                f"{float(result_row.get('latency_ms') or 0):.1f}",
+                f"${float(result_row.get('cost_usd') or 0):.4f}",
+                _response_summary(result_row),
+            )
+        )
+
+    headers = ("model", "latency_ms", "$cost", "response")
+    widths = [len(h) for h in headers]
+    for row in rows:
+        widths = [max(widths[i], len(row[i])) for i in range(len(headers))]
+
+    header_line = " | ".join(headers[i].ljust(widths[i]) for i in range(len(headers)))
+    divider = "-+-".join("-" * widths[i] for i in range(len(headers)))
+    typer.echo(header_line)
+    typer.echo(divider)
+    for row in rows:
+        typer.echo(" | ".join(row[i].ljust(widths[i]) for i in range(len(headers))))
+
+    if isinstance(payload, dict):
+        typer.echo("")
+        typer.echo(f"comparison_id: {payload.get('comparison_id', '')}")
+        typer.echo(f"total_cost_usd: {float(payload.get('total_cost_usd') or 0):.4f}")
+        typer.echo(f"total_latency_ms: {float(payload.get('total_latency_ms') or 0):.1f}")
+        if fastest:
+            typer.echo(f"fastest_model: {fastest}")
+        if cheapest:
+            typer.echo(f"cheapest_model: {cheapest}")
+
+
 register_generated_openapi_commands(
     app,
     _invoke,
@@ -162,6 +285,106 @@ register_generated_openapi_commands(
         "settings": settings_app,
     },
 )
+
+
+@compare_app.command("models")
+def compare_models_command(
+    ctx: typer.Context,
+    models: str = typer.Option(..., "--models", help="Comma-separated provider/model list."),
+    prompt: Optional[str] = typer.Option(None, "--prompt", help="Prompt text to compare."),
+    prompt_file: Optional[Path] = typer.Option(
+        None, "--prompt-file", exists=True, dir_okay=False, readable=True
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit raw JSON."),
+) -> None:
+    comparison_prompt = _load_prompt(prompt=prompt, prompt_file=prompt_file)
+    model_specs = _parse_models_csv(models)
+    try:
+        with _client(ctx) as client:
+            result = client.compare_models(prompt=comparison_prompt, models=model_specs)
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    _render_comparison(result, as_json=json_output or ctx.obj["json"])
+
+
+@compare_app.command("vision")
+def compare_vision_command(
+    ctx: typer.Context,
+    image: Path = typer.Option(..., "--image", exists=True, dir_okay=False, readable=True),
+    models: str = typer.Option(..., "--models", help="Comma-separated provider/model list."),
+    prompt: Optional[str] = typer.Option(None, "--prompt", help="Vision prompt."),
+    prompt_file: Optional[Path] = typer.Option(
+        None, "--prompt-file", exists=True, dir_okay=False, readable=True
+    ),
+    detail: str = typer.Option("high", "--detail", help="Vision detail level."),
+    json_output: bool = typer.Option(False, "--json", help="Emit raw JSON."),
+) -> None:
+    comparison_prompt = _load_prompt(
+        prompt=prompt,
+        prompt_file=prompt_file,
+        default="Describe this image in detail",
+    )
+    model_specs = _parse_models_csv(models)
+    try:
+        with _client(ctx) as client:
+            result = client.compare_vision(
+                images=[_image_to_data_uri(image)],
+                prompt=comparison_prompt,
+                models=model_specs,
+                detail=detail,
+            )
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    _render_comparison(result, as_json=json_output or ctx.obj["json"])
+
+
+@compare_app.command("tool")
+def compare_tool_command(
+    ctx: typer.Context,
+    tool: str = typer.Option(..., "--tool", help="Workflow tool name."),
+    inputs_json: Path = typer.Option(
+        ..., "--inputs-json", exists=True, dir_okay=False, readable=True
+    ),
+    models: str = typer.Option(..., "--models", help="Comma-separated provider/model list."),
+    json_output: bool = typer.Option(False, "--json", help="Emit raw JSON."),
+) -> None:
+    model_specs = _parse_models_csv(models)
+    inputs = json.loads(inputs_json.read_text(encoding="utf-8"))
+    try:
+        with _client(ctx) as client:
+            result = client.compare_tool(
+                tool_name=tool,
+                inputs=inputs,
+                models=model_specs,
+            )
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    _render_comparison(result, as_json=json_output or ctx.obj["json"])
+
+
+@compare_app.command("workflow")
+def compare_workflow_command(
+    ctx: typer.Context,
+    workflow: str = typer.Option(..., "--workflow", help="Workflow ID."),
+    doc_id: str = typer.Option(..., "--doc", help="Document ID to run."),
+    models: str = typer.Option(..., "--models", help="Comma-separated provider/model list."),
+    json_output: bool = typer.Option(False, "--json", help="Emit raw JSON."),
+) -> None:
+    model_specs = _parse_models_csv(models)
+    try:
+        with _client(ctx) as client:
+            result = client.compare_workflow(
+                workflow_id=workflow,
+                doc_id=doc_id,
+                models=model_specs,
+            )
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    _render_comparison(result, as_json=json_output or ctx.obj["json"])
 
 
 # -- top-level commands ----------------------------------------------------

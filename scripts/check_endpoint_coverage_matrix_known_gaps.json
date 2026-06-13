@@ -429,5 +429,6 @@
   "PUT /api/mcp-servers/{server_id}": "store missing",
   "PUT /api/schedules/{schedule_id}": "store missing",
   "PUT /api/settings/ai-defaults": "store missing",
-  "PUT /api/triggers/{trigger_id}": "store missing"
+  "PUT /api/triggers/{trigger_id}": "store missing",
+  "POST /api/model-comparison/compare-workflow": "store missing - #2195 CLI-only model-comparison bake-off; SwiftUI comparison UI is #1753/#1739"
 }

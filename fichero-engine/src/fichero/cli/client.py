@@ -44,6 +44,7 @@ from fichero.api.routes.entity_inspector import EntityInspectorResponse
 from fichero.api.routes.kg_graph import NeighborhoodResponse
 from fichero.api.routes.kg_rebuild import KGResetResponse, RebuildResponse
 from fichero.api.routes.kg_search import KGSearchResponse
+from fichero.api.routes.model_comparison import ComparisonResultResponse
 from fichero.api.routes.provider_models import ProviderResponse
 from fichero.api.routes.mind_palace import MindPalaceDeletedResponse
 from fichero.hermeneutics_models import Interpretation
@@ -555,6 +556,96 @@ class FicheroClient:
         return ExecutionStatusResponse.model_validate(
             self.request(
                 "GET", f"/api/workflow-execution/threads/{thread_id}/status"
+            )
+        )
+
+    def compare_models(
+        self,
+        *,
+        prompt: str,
+        models: list[dict[str, Any]],
+        system_prompt: str | None = None,
+        timeout_seconds: int = 120,
+    ) -> ComparisonResultResponse:
+        return ComparisonResultResponse.model_validate(
+            self.request(
+                "POST",
+                "/api/model-comparison/compare",
+                json={
+                    "prompt": prompt,
+                    "models": models,
+                    "system_prompt": system_prompt,
+                    "timeout_seconds": timeout_seconds,
+                },
+            )
+        )
+
+    def compare_vision(
+        self,
+        *,
+        images: list[str],
+        models: list[dict[str, Any]],
+        prompt: str = "Describe this image in detail",
+        detail: str = "auto",
+        timeout_seconds: int = 120,
+    ) -> ComparisonResultResponse:
+        return ComparisonResultResponse.model_validate(
+            self.request(
+                "POST",
+                "/api/model-comparison/compare-vision",
+                json={
+                    "images": images,
+                    "prompt": prompt,
+                    "models": models,
+                    "detail": detail,
+                    "timeout_seconds": timeout_seconds,
+                },
+            )
+        )
+
+    def compare_tool(
+        self,
+        *,
+        tool_name: str,
+        inputs: dict[str, Any],
+        models: list[dict[str, Any]],
+        tool_config: dict[str, Any] | None = None,
+        timeout_seconds: int = 120,
+    ) -> ComparisonResultResponse:
+        return ComparisonResultResponse.model_validate(
+            self.request(
+                "POST",
+                "/api/model-comparison/compare-tool",
+                json={
+                    "tool_name": tool_name,
+                    "inputs": inputs,
+                    "models": models,
+                    "tool_config": tool_config,
+                    "timeout_seconds": timeout_seconds,
+                },
+            )
+        )
+
+    def compare_workflow(
+        self,
+        *,
+        workflow_id: str,
+        doc_id: str,
+        models: list[dict[str, Any]],
+        inputs: dict[str, Any] | None = None,
+        timeout_seconds: int = 300,
+    ) -> ComparisonResultResponse:
+        return ComparisonResultResponse.model_validate(
+            self.request(
+                "POST",
+                "/api/model-comparison/compare-workflow",
+                json={
+                    "workflow_id": workflow_id,
+                    "doc_id": doc_id,
+                    "models": models,
+                    "inputs": inputs or {},
+                    "timeout_seconds": timeout_seconds,
+                },
             )
         )
 

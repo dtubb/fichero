@@ -317,5 +317,6 @@
   "PUT /api/settings/ai-defaults": "no undo registration in current tree",
   "PUT /api/sources/{source_id}": "no undo registration in current tree",
   "PUT /api/triggers/{trigger_id}": "no undo registration in current tree",
-  "PUT /api/workflows/{workflow_id}": "no undo registration in current tree"
+  "PUT /api/workflows/{workflow_id}": "no undo registration in current tree",
+  "POST /api/model-comparison/compare-workflow": "no undo registration - read-only comparison run, nothing to undo (#2195)"
 }

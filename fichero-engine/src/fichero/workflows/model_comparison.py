@@ -8,6 +8,7 @@ tracking cost, latency, and response quality for comparison.
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import time
@@ -27,7 +28,9 @@ from fichero.llm import (
     resolve_model_alias,
     vision,
 )
-from fichero.workflows.registry import register_tool
+from fichero.models import Artifact
+from fichero.workflows.runtime import build_initial_state, create_compiled_app
+from fichero.workflows.registry import get_tool_def, register_tool
 from fichero.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
@@ -144,6 +147,9 @@ MODEL_PRICING = {
     # OpenAI
     "gpt-4o": (5.0, 15.0),
     "gpt-4o-mini": (0.15, 0.60),
+    "gpt-5": (1.25, 10.0),
+    "gpt-5-mini": (0.25, 2.0),
+    "gpt-5-nano": (0.05, 0.40),
     "gpt-4-turbo": (10.0, 30.0),
     "gpt-4": (30.0, 60.0),
     "gpt-3.5-turbo": (0.50, 1.50),
@@ -156,12 +162,19 @@ MODEL_PRICING = {
     # Google
     "gemini-1.5-pro": (3.50, 10.50),
     "gemini-1.5-flash": (0.075, 0.30),
+    "gemini-2.5-flash": (0.30, 2.50),
+    "gemini-2.5-pro": (1.25, 10.0),
     "gemini-pro": (0.50, 1.50),
+    # Qwen / OpenRouter
+    "qwen2.5-vl": (0.40, 1.20),
+    "qwen-2.5-vl": (0.40, 1.20),
     # Mistral
     "mistral-large-latest": (3.0, 9.0),
     "mistral-medium-latest": (2.7, 8.1),
     "mistral-small-latest": (1.0, 3.0),
     # Local (free)
+    "apple": (0.0, 0.0),
+    "local": (0.0, 0.0),
     "llama3.2": (0.0, 0.0),
     "llama3.1": (0.0, 0.0),
     "mistral": (0.0, 0.0),
@@ -747,6 +760,82 @@ class ModelComparisonEngine:
         self.comparison_history.append(comparison)
         return comparison
 
+    async def compare_workflow(
+        self,
+        workflow,
+        inputs: dict[str, Any],
+        models: list[ModelSpec],
+        *,
+        library_path: str,
+        timeout_seconds: int = 300,
+        db: Any | None = None,
+    ) -> ComparisonResult:
+        """Run the same workflow once per model override and compare outcomes."""
+        comparison_id = str(uuid.uuid4())[:8]
+
+        logger.info(
+            "Starting workflow comparison %s for workflow %s with %d models",
+            comparison_id,
+            getattr(workflow, "id", None) or getattr(workflow, "name", "<unknown>"),
+            len(models),
+        )
+
+        tasks = [
+            self._run_workflow_with_model(
+                workflow=workflow,
+                inputs=inputs,
+                spec=spec,
+                library_path=library_path,
+                timeout_seconds=timeout_seconds,
+                db=db,
+            )
+            for spec in models
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        model_results: list[ModelResult] = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                spec = models[i]
+                model_results.append(
+                    ModelResult(
+                        provider=spec.provider,
+                        model=spec.model,
+                        response="",
+                        latency_ms=0,
+                        error=str(result),
+                    )
+                )
+            else:
+                model_results.append(result)
+
+        successful_results = [r for r in model_results if not r.error]
+        fastest_model = None
+        cheapest_model = None
+        if successful_results:
+            fastest = min(successful_results, key=lambda r: r.latency_ms)
+            fastest_model = f"{fastest.provider}/{fastest.model}"
+            cheapest = min(successful_results, key=lambda r: r.cost_usd)
+            cheapest_model = f"{cheapest.provider}/{cheapest.model}"
+
+        comparison = ComparisonResult(
+            prompt=(
+                f"[Workflow: {getattr(workflow, 'name', '') or getattr(workflow, 'id', '')}] "
+                f"{json.dumps(inputs, ensure_ascii=False)[:100]}"
+            ),
+            models_compared=[f"{s.provider}/{s.model}" for s in models],
+            results=model_results,
+            fastest_model=fastest_model,
+            cheapest_model=cheapest_model,
+            total_cost_usd=sum(r.cost_usd for r in model_results),
+            total_latency_ms=sum(r.latency_ms for r in model_results),
+            comparison_id=comparison_id,
+        )
+
+        self.comparison_history.append(comparison)
+        return comparison
+
     async def _run_tool_with_model(
         self,
         tool_func,
@@ -839,6 +928,205 @@ class ModelComparisonEngine:
                 latency_ms=(time.time() - start_time) * 1000,
                 error=str(e),
             )
+
+    async def _run_workflow_with_model(
+        self,
+        *,
+        workflow,
+        inputs: dict[str, Any],
+        spec: ModelSpec,
+        library_path: str,
+        timeout_seconds: int,
+        db: Any | None,
+    ) -> ModelResult:
+        """Run one workflow variant with a provider/model override."""
+        start_time = time.time()
+
+        try:
+            workflow_variant = self._workflow_with_model_override(workflow, spec)
+            final_state = await self._execute_workflow_variant(
+                workflow_variant=workflow_variant,
+                inputs=inputs,
+                library_path=library_path,
+                timeout_seconds=timeout_seconds,
+            )
+            latency_ms = (time.time() - start_time) * 1000
+            response = self._workflow_response_text(final_state, db=db)
+            input_tokens, output_tokens = self._workflow_token_estimate(
+                workflow_variant=workflow_variant,
+                inputs=inputs,
+                response=response,
+                final_state=final_state,
+            )
+            cost = estimate_cost(spec.model, input_tokens, output_tokens)
+
+            return ModelResult(
+                provider=spec.provider,
+                model=spec.model,
+                response=response,
+                latency_ms=latency_ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=cost,
+                raw_response=final_state if isinstance(final_state, dict) else None,
+            )
+        except asyncio.TimeoutError:
+            return ModelResult(
+                provider=spec.provider,
+                model=spec.model,
+                response="",
+                latency_ms=(time.time() - start_time) * 1000,
+                error=f"Timeout after {timeout_seconds}s",
+            )
+        except Exception as exc:
+            logger.exception(
+                "Workflow comparison failed for %s/%s: %s",
+                spec.provider,
+                spec.model,
+                exc,
+            )
+            return ModelResult(
+                provider=spec.provider,
+                model=spec.model,
+                response="",
+                latency_ms=(time.time() - start_time) * 1000,
+                error=str(exc),
+            )
+
+    async def _execute_workflow_variant(
+        self,
+        *,
+        workflow_variant,
+        inputs: dict[str, Any],
+        library_path: str,
+        timeout_seconds: int,
+    ) -> dict[str, Any]:
+        app, _ = create_compiled_app(
+            workflow_variant,
+            db_path=library_path,
+            enable_parallel=False,
+            skip_cache=True,
+        )
+        config = {
+            "configurable": {
+                "thread_id": f"compare-{uuid.uuid4().hex[:12]}",
+                "checkpoint_ns": "",
+            }
+        }
+        initial_state = build_initial_state(inputs, library_path=library_path)
+        initial_state["workflow_id"] = workflow_variant.id
+        final_state = await asyncio.wait_for(
+            app.ainvoke(initial_state, config=config),
+            timeout=timeout_seconds,
+        )
+        if isinstance(final_state, dict) and final_state.get("error"):
+            raise RuntimeError(str(final_state["error"]))
+        return final_state
+
+    def _workflow_with_model_override(self, workflow, spec: ModelSpec):
+        workflow_variant = (
+            workflow.model_copy(deep=True)
+            if hasattr(workflow, "model_copy")
+            else copy.deepcopy(workflow)
+        )
+        workflow_variant.provider = spec.provider
+        workflow_variant.model = spec.model
+        for node in workflow_variant.nodes:
+            tool_def = get_tool_def(node.tool)
+            if not (tool_def and tool_def.uses_llm):
+                continue
+            node.provider_name = spec.provider
+            node.model_name = spec.model
+        return workflow_variant
+
+    def _workflow_response_text(
+        self,
+        final_state: dict[str, Any] | Any,
+        *,
+        db: Any | None,
+    ) -> str:
+        if not isinstance(final_state, dict):
+            return str(final_state)
+
+        outputs = final_state.get("outputs")
+        completed = final_state.get("completed_nodes") or []
+        if isinstance(outputs, dict):
+            for node_id in reversed(completed):
+                text = self._extract_text(outputs.get(node_id))
+                if text:
+                    return text
+            for value in reversed(list(outputs.values())):
+                text = self._extract_text(value)
+                if text:
+                    return text
+
+        artifact_ids = final_state.get("artifacts")
+        if db is not None and isinstance(artifact_ids, list):
+            for artifact_id in reversed(artifact_ids):
+                try:
+                    artifact = db.get(Artifact, artifact_id)
+                except Exception:
+                    artifact = None
+                if artifact and artifact.content:
+                    return artifact.content
+
+        return self._extract_text(final_state) or ""
+
+    def _workflow_token_estimate(
+        self,
+        *,
+        workflow_variant,
+        inputs: dict[str, Any],
+        response: str,
+        final_state: dict[str, Any] | Any,
+    ) -> tuple[int, int]:
+        llm_node_count = 0
+        for node in getattr(workflow_variant, "nodes", []):
+            tool_def = get_tool_def(node.tool)
+            if tool_def and tool_def.uses_llm:
+                llm_node_count += 1
+        llm_node_count = max(llm_node_count, 1)
+
+        input_tokens = max(len(json.dumps(inputs, ensure_ascii=False)) // 4, 1)
+        output_tokens = max(len(response) // 4, 1) if response else 0
+
+        if isinstance(final_state, dict):
+            outputs = final_state.get("outputs")
+            if isinstance(outputs, dict):
+                extra_output_tokens = 0
+                for value in outputs.values():
+                    text = self._extract_text(value)
+                    if text:
+                        extra_output_tokens += len(text) // 4
+                output_tokens = max(output_tokens, extra_output_tokens)
+
+        return input_tokens * llm_node_count, output_tokens
+
+    def _extract_text(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        if isinstance(value, dict):
+            for key in (
+                "text",
+                "content",
+                "response",
+                "summary",
+                "description",
+                "result",
+                "output",
+                "translation",
+                "value",
+            ):
+                text = self._extract_text(value.get(key))
+                if text:
+                    return text
+            return ""
+        if isinstance(value, list):
+            parts = [self._extract_text(item) for item in value]
+            return "\n".join(part for part in parts if part)
+        return str(value)
 
 
 # Global engine instance

@@ -102,6 +102,16 @@ class TestEstimateCost:
         cost = estimate_cost("llama3.2", 10000, 5000)
         assert cost == 0.0
 
+    def test_estimate_cost_gemini_25_flash(self):
+        """Test newer Gemini pricing is recognized."""
+        cost = estimate_cost("gemini-2.5-flash", 1000, 500)
+        assert cost > 0
+
+    def test_estimate_cost_apple_is_free(self):
+        """Test Apple/local models are treated as free."""
+        cost = estimate_cost("apple", 10000, 5000)
+        assert cost == 0.0
+
 
 class TestModelSpec:
     """Tests for ModelSpec."""
@@ -241,6 +251,83 @@ class TestModelComparisonEngine:
         assert result.results[0].response.startswith("Numero 2.")
         assert result.fastest_model == "openai/gpt-4o"
         async_vision.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_compare_workflow_fans_out_and_aggregates_cost(self):
+        engine = ModelComparisonEngine()
+        workflow = MagicMock()
+        workflow.id = "wf-1"
+        workflow.name = "Transcribe"
+        workflow.nodes = [MagicMock(tool="transcribe")]
+        workflow_variant = MagicMock()
+
+        state_one = {
+            "completed_nodes": ["node-1"],
+            "outputs": {"node-1": {"text": "First model output"}},
+        }
+        state_two = {
+            "completed_nodes": ["node-1"],
+            "outputs": {"node-1": {"text": "Second model output is longer"}},
+        }
+
+        execute_mock = AsyncMock(side_effect=[state_one, state_two])
+        with patch.object(
+            engine,
+            "_workflow_with_model_override",
+            return_value=workflow_variant,
+        ), patch.object(
+            engine,
+            "_execute_workflow_variant",
+            execute_mock,
+        ):
+            result = await engine.compare_workflow(
+                workflow=workflow,
+                inputs={"selected_doc_ids": ["doc-1"]},
+                models=[
+                    ModelSpec(provider="openai", model="gpt-4o"),
+                    ModelSpec(provider="google", model="gemini-2.5-flash"),
+                ],
+                library_path="/tmp/test.fichero",
+            )
+
+        assert len(result.results) == 2
+        assert result.total_cost_usd == sum(item.cost_usd for item in result.results)
+        assert result.total_latency_ms == sum(item.latency_ms for item in result.results)
+        assert result.fastest_model in {"openai/gpt-4o", "google/gemini-2.5-flash"}
+        assert result.cheapest_model in {"openai/gpt-4o", "google/gemini-2.5-flash"}
+        assert result.results[0].response == "First model output"
+        assert result.results[1].response == "Second model output is longer"
+        assert execute_mock.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_compare_workflow_returns_error_result_for_failed_variant(self):
+        engine = ModelComparisonEngine()
+        workflow = MagicMock()
+        workflow.id = "wf-1"
+        workflow.name = "Translate"
+        workflow.nodes = [MagicMock(tool="translate")]
+        workflow_variant = MagicMock()
+
+        with patch.object(
+            engine,
+            "_workflow_with_model_override",
+            return_value=workflow_variant,
+        ), patch.object(
+            engine,
+            "_execute_workflow_variant",
+            AsyncMock(side_effect=RuntimeError("boom")),
+        ):
+            result = await engine.compare_workflow(
+                workflow=workflow,
+                inputs={"selected_doc_ids": ["doc-9"]},
+                models=[ModelSpec(provider="openai", model="gpt-4o")],
+                library_path="/tmp/test.fichero",
+            )
+
+        assert len(result.results) == 1
+        assert result.results[0].error == "boom"
+        assert result.fastest_model is None
+        assert result.cheapest_model is None
 
     def test_get_history(self):
         """Test getting comparison history."""
