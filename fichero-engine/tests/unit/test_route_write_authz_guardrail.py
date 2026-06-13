@@ -17,16 +17,16 @@ MUTATING_METHODS = {"post", "put", "patch", "delete"}
 # Mutating HTTP verbs are sometimes used for read-only compute/export operations.
 # They may keep the read dependency only when listed here with a reason.
 READ_ONLY_MUTATING_VERB_ALLOWLIST: dict[str, str] = {
-    "bibliography.py:168:export_bibtex:POST": "POST body selects document IDs; handler only reads metadata and returns BibTeX.",
-    "hermeneutics.py:822:suggest_interpretations:POST": "POST body contains suggestion parameters; handler only reads active frameworks.",
-    "kg_predictions.py:121:generate_heuristic_predictions:POST": "POST body contains prediction parameters; handler only reads claims and vector index.",
-    "kg_render.py:41:render_paragraph:POST": "POST body contains claim IDs/style; handler only reads claims and renders text.",
-    "kg_sparql.py:85:sparql_query:POST": "POST body contains SPARQL; validator rejects mutating verbs and handler only queries RDF graph.",
-    "mind_palace.py:753:capture_viewport:POST": "POST body contains viewport details; placeholder handler only reads the room.",
-    "mindpalace_render.py:41:render_scene:POST": "POST body contains render request; handler only reads spatial scene rows.",
-    "search.py:572:enhanced_search:POST": "POST /api/search is read-only search/query compute.",
-    "search_explain.py:291:explain_search:POST": "POST body contains explanation request; handler only reads search inputs and returns attribution.",
-    "workflows.py:773:estimate_workflow_cost:POST": "POST body contains estimate inputs; handler only reads workflow pricing context.",
+    "bibliography.py:export_bibtex:POST": "POST body selects document IDs; handler only reads metadata and returns BibTeX.",
+    "hermeneutics.py:suggest_interpretations:POST": "POST body contains suggestion parameters; handler only reads active frameworks.",
+    "kg_predictions.py:generate_heuristic_predictions:POST": "POST body contains prediction parameters; handler only reads claims and vector index.",
+    "kg_render.py:render_paragraph:POST": "POST body contains claim IDs/style; handler only reads claims and renders text.",
+    "kg_sparql.py:sparql_query:POST": "POST body contains SPARQL; validator rejects mutating verbs and handler only queries RDF graph.",
+    "mind_palace.py:capture_viewport:POST": "POST body contains viewport details; placeholder handler only reads the room.",
+    "mindpalace_render.py:render_scene:POST": "POST body contains render request; handler only reads spatial scene rows.",
+    "search.py:enhanced_search:POST": "POST /api/search is read-only search/query compute.",
+    "search_explain.py:explain_search:POST": "POST body contains explanation request; handler only reads search inputs and returns attribution.",
+    "workflows.py:estimate_workflow_cost:POST": "POST body contains estimate inputs; handler only reads workflow pricing context.",
 }
 
 
@@ -40,8 +40,8 @@ def _decorated_methods(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]
     return methods
 
 
-def _mutating_handlers_with_read_dependency() -> list[str]:
-    offenders: list[str] = []
+def _mutating_handlers_with_read_dependency() -> list[tuple[str, str]]:
+    offenders: list[tuple[str, str]] = []
     for path in sorted(ROUTES_ROOT.rglob("*.py")):
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
@@ -54,16 +54,22 @@ def _mutating_handlers_with_read_dependency() -> list[str]:
                 continue
             body = ast.get_source_segment(source, node) or ""
             if "Depends(get_library_database)" in body:
-                offenders.append(f"{rel}:{node.lineno}:{node.name}:{','.join(sorted(methods))}")
+                method_list = ",".join(sorted(methods))
+                offenders.append(
+                    (
+                        f"{rel}:{node.name}:{method_list}",
+                        f"{rel}:{node.lineno}:{node.name}:{method_list}",
+                    )
+                )
     return offenders
 
 
 def test_mutating_library_routes_use_write_authorized_db_dependency() -> None:
     offenders = _mutating_handlers_with_read_dependency()
     unexpected = [
-        offender
-        for offender in offenders
-        if offender not in READ_ONLY_MUTATING_VERB_ALLOWLIST
+        offender_with_line
+        for offender_key, offender_with_line in offenders
+        if offender_key not in READ_ONLY_MUTATING_VERB_ALLOWLIST
     ]
     lines = [
         "Mutating route handlers must depend on get_library_database_for_write, "
@@ -80,7 +86,7 @@ def test_mutating_library_routes_use_write_authorized_db_dependency() -> None:
 
 
 def test_write_dependency_guardrail_allowlist_is_not_stale() -> None:
-    offenders = set(_mutating_handlers_with_read_dependency())
+    offenders = {offender_key for offender_key, _ in _mutating_handlers_with_read_dependency()}
     stale = sorted(
         offender
         for offender in READ_ONLY_MUTATING_VERB_ALLOWLIST
@@ -102,3 +108,9 @@ def test_write_dependency_guardrail_allowlist_entries_have_reasons() -> None:
         "Every write-authz guardrail allowlist entry needs a justification:\n  "
         + "\n  ".join(missing_reasons)
     )
+
+
+def test_write_dependency_guardrail_keys_are_line_independent() -> None:
+    offenders = [offender_key for offender_key, _ in _mutating_handlers_with_read_dependency()]
+    assert "bibliography.py:168:export_bibtex:POST" not in offenders
+    assert "bibliography.py:export_bibtex:POST" in offenders
