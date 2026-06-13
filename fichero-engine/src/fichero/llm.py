@@ -45,7 +45,7 @@ import re
 import threading
 import weakref
 from collections import OrderedDict
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import AsyncIterator, Any, Literal as _Literal
 
@@ -376,6 +376,29 @@ class LocalOnlyViolationError(RuntimeError):
             "Local-only AI mode is enabled; refusing "
             f"{kind} call to remote provider {provider}{model_label}. "
             "Choose an on-device/local provider or disable FICHERO_LOCAL_ONLY."
+        )
+
+
+class LLMBatchItemError(RuntimeError):
+    """One item inside a batched LLM call failed."""
+
+    def __init__(
+        self,
+        index: int,
+        *,
+        provider: str,
+        model: str,
+        kind: str,
+        cause: BaseException,
+    ) -> None:
+        self.index = index
+        self.provider = provider
+        self.model = model
+        self.kind = kind
+        self.cause = cause
+        super().__init__(
+            f"{kind} batch item {index} failed for {provider}/{model}: "
+            f"{type(cause).__name__}: {cause}"
         )
 
 
@@ -747,6 +770,167 @@ async def _remote_llm_call_slot(config: LLMConfig) -> AsyncIterator[None]:
         yield
 
 
+@contextlib.asynccontextmanager
+async def _remote_llm_batch_slots(
+    config: LLMConfig,
+    count: int,
+) -> AsyncIterator[None]:
+    """Reserve up to ``count`` remote-call slots for one abatch chunk."""
+    if _is_local_or_builtin_provider(config.provider):
+        yield
+        return
+
+    semaphore = _get_remote_llm_semaphore()
+    permits = max(1, count)
+    for _ in range(permits):
+        await semaphore.acquire()
+    try:
+        yield
+    finally:
+        for _ in range(permits):
+            semaphore.release()
+
+
+def _batch_max_concurrency(config: LLMConfig) -> int | None:
+    if _is_local_or_builtin_provider(config.provider):
+        return None
+    return _max_inflight_llm()
+
+
+def _coerce_batch_item_exception(
+    config: LLMConfig,
+    exc: BaseException,
+) -> BaseException:
+    try:
+        _raise_provider_quota_error(config, exc)
+    except ProviderQuotaError as quota_exc:
+        return quota_exc
+    return exc
+
+
+def _record_batch_usage(
+    responses: list[Any],
+    config: LLMConfig,
+    *,
+    kind: str,
+) -> None:
+    for response in responses:
+        usage = getattr(response, "usage_metadata", None)
+        if isinstance(usage, dict) and usage:
+            _record_usage(
+                config.provider,
+                config.model,
+                kind,
+                input_tokens=usage.get("input_tokens"),
+                output_tokens=usage.get("output_tokens"),
+                total_tokens=usage.get("total_tokens"),
+            )
+
+
+async def _call_model_abatch(
+    model: Any,
+    inputs: list[Any],
+    config: LLMConfig,
+) -> list[Any]:
+    batch_config = None
+    max_concurrency = _batch_max_concurrency(config)
+    if max_concurrency is not None:
+        batch_config = {"max_concurrency": max_concurrency}
+
+    kwargs: dict[str, Any] = {}
+    if batch_config is not None:
+        kwargs["config"] = batch_config
+
+    try:
+        return await model.abatch(inputs, return_exceptions=True, **kwargs)
+    except TypeError as exc:
+        if "return_exceptions" not in str(exc):
+            raise
+        return await model.abatch(inputs, **kwargs)
+
+
+async def _run_abatch_chunks(
+    model: Any,
+    inputs: list[Any],
+    config: LLMConfig,
+) -> list[Any]:
+    if not inputs:
+        return []
+
+    max_concurrency = _batch_max_concurrency(config) or len(inputs)
+    results: list[Any] = []
+    for start in range(0, len(inputs), max_concurrency):
+        chunk = inputs[start:start + max_concurrency]
+        async with _remote_llm_batch_slots(config, len(chunk)):
+            chunk_results = await _call_model_abatch(model, chunk, config)
+        results.extend(chunk_results)
+    return results
+
+
+async def _bounded_batch_fallback(
+    limit: int,
+    factories: list[Callable[[], Any]],
+) -> list[Any]:
+    semaphore = asyncio.Semaphore(limit)
+
+    async def _run(factory: Callable[[], Any]) -> Any:
+        async with semaphore:
+            try:
+                return await factory()
+            except Exception as exc:
+                return exc
+
+    return await asyncio.gather(*(_run(factory) for factory in factories))
+
+
+def _normalize_batch_chat_prompt(
+    prompt: str | list[dict[str, Any]],
+    *,
+    system: str | None,
+) -> list[Any]:
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    if isinstance(prompt, str):
+        messages = []
+        if system:
+            messages.append(SystemMessage(content=system))
+        messages.append(HumanMessage(content=prompt))
+        return messages
+    return _convert_to_langchain_messages(prompt)
+
+
+def _normalize_batch_chat_result(
+    result: Any,
+    index: int,
+    config: LLMConfig,
+) -> str | LLMBatchItemError:
+    if isinstance(result, BaseException):
+        return LLMBatchItemError(
+            index,
+            provider=config.provider,
+            model=config.model,
+            kind="chat",
+            cause=_coerce_batch_item_exception(config, result),
+        )
+    return _strip_outer_code_fences(result.content)
+
+
+def _normalize_batch_vision_result(
+    result: Any,
+    index: int,
+    config: LLMConfig,
+) -> str | LLMBatchItemError:
+    if isinstance(result, BaseException):
+        return LLMBatchItemError(
+            index,
+            provider=config.provider,
+            model=config.model,
+            kind="vision",
+            cause=_coerce_batch_item_exception(config, result),
+        )
+    return _strip_outer_code_fences(result.content)
+
+
 # =============================================================================
 # Chat
 # =============================================================================
@@ -859,6 +1043,65 @@ async def chat(
                 total_tokens=usage.get("total_tokens"),
             )
         return _strip_outer_code_fences(response.content)
+
+
+async def chat_batch(
+    prompts: list[str | list[dict[str, Any]]],
+    config: LLMConfig,
+    *,
+    system: str | None = None,
+    permissive_guardrails: bool = False,
+    use_case: str | None = None,
+) -> list[str | LLMBatchItemError]:
+    """Send multiple chat prompts with per-item error isolation."""
+    _enforce_local_only_provider(config, kind="chat")
+
+    if not prompts:
+        return []
+
+    if config.provider in {"apple", "mock"}:
+        limit = _batch_max_concurrency(config) or _DEFAULT_MAX_INFLIGHT_LLM
+        results = await _bounded_batch_fallback(
+            limit,
+            [
+                lambda prompt=prompt: chat(
+                    prompt,
+                    config,
+                    system=system,
+                    permissive_guardrails=permissive_guardrails,
+                    use_case=use_case,
+                )
+                for prompt in prompts
+            ],
+        )
+        return [
+            result
+            if isinstance(result, str)
+            else LLMBatchItemError(
+                index,
+                provider=config.provider,
+                model=config.model,
+                kind="chat",
+                cause=_coerce_batch_item_exception(config, result),
+            )
+            for index, result in enumerate(results)
+        ]
+
+    model = get_langchain_model(config)
+    messages_batch = [
+        _normalize_batch_chat_prompt(prompt, system=system)
+        for prompt in prompts
+    ]
+    results = await _run_abatch_chunks(model, messages_batch, config)
+    _record_batch_usage(
+        [result for result in results if not isinstance(result, BaseException)],
+        config,
+        kind="chat",
+    )
+    return [
+        _normalize_batch_chat_result(result, index, config)
+        for index, result in enumerate(results)
+    ]
 
 
 async def chat_with_fallback(
@@ -1470,6 +1713,61 @@ async def vision(
     async with _remote_llm_call_slot(config):
         response = await model.ainvoke([message])
     return _strip_outer_code_fences(response.content)
+
+
+async def vision_batch(
+    image_lists: list[list[str]],
+    prompt: str,
+    config: LLMConfig,
+) -> list[str | LLMBatchItemError]:
+    """Analyze multiple image groups with per-item error isolation."""
+    from langchain_core.messages import HumanMessage
+
+    _enforce_local_only_provider(config, kind="vision")
+
+    if not image_lists:
+        return []
+
+    if config.provider == "apple":
+        limit = _batch_max_concurrency(config) or _DEFAULT_MAX_INFLIGHT_LLM
+        results = await _bounded_batch_fallback(
+            limit,
+            [
+                lambda images=images: vision(images, prompt, config)
+                for images in image_lists
+            ],
+        )
+        return [
+            result
+            if isinstance(result, str)
+            else LLMBatchItemError(
+                index,
+                provider=config.provider,
+                model=config.model,
+                kind="vision",
+                cause=_coerce_batch_item_exception(config, result),
+            )
+            for index, result in enumerate(results)
+        ]
+
+    model = get_langchain_model(config)
+    messages_batch = []
+    for images in image_lists:
+        content = [{"type": "text", "text": prompt}]
+        for img in images:
+            content.append({"type": "image_url", "image_url": {"url": img}})
+        messages_batch.append([HumanMessage(content=content)])
+
+    results = await _run_abatch_chunks(model, messages_batch, config)
+    _record_batch_usage(
+        [result for result in results if not isinstance(result, BaseException)],
+        config,
+        kind="vision",
+    )
+    return [
+        _normalize_batch_vision_result(result, index, config)
+        for index, result in enumerate(results)
+    ]
 
 
 # =============================================================================
@@ -3043,12 +3341,15 @@ def get_langchain_model(config: LLMConfig) -> Any:
 __all__ = [
     # Config
     "LLMConfig",
+    "LLMBatchItemError",
     "LocalOnlyViolationError",
     "is_local_only",
     # Chat
     "chat",
+    "chat_batch",
     # Vision
     "vision",
+    "vision_batch",
     # Embeddings
     "embed",
     "aembed",

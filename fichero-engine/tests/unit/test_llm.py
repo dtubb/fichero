@@ -19,11 +19,12 @@ from fichero.llm import (
     _build_fallback_config,
     apple_intelligence_fits_in_context,
     estimate_token_count,
-    parse_thinking_response,
     is_thinking_model,
-    LocalOnlyViolationError,
-    vision_inference_api,
+    LLMBatchItemError,
     LLMConfig,
+    LocalOnlyViolationError,
+    parse_thinking_response,
+    vision_inference_api,
 )
 
 
@@ -672,6 +673,34 @@ class _ConcurrencyResponse:
     usage_metadata = {}
 
 
+class _BatchResponse:
+    def __init__(self, content: str, usage_metadata: dict | None = None) -> None:
+        self.content = content
+        self.usage_metadata = usage_metadata or {}
+
+
+class _BatchCountingModel:
+    def __init__(self) -> None:
+        self.abatch_calls: list[list[object]] = []
+        self.configs: list[dict | None] = []
+
+    async def abatch(self, inputs, *, config=None, return_exceptions=False):
+        self.abatch_calls.append(list(inputs))
+        self.configs.append(config)
+        assert return_exceptions is True
+        return [_BatchResponse(f"result-{idx}") for idx, _ in enumerate(inputs)]
+
+
+class _BatchExceptionModel:
+    async def abatch(self, inputs, *, config=None, return_exceptions=False):
+        assert return_exceptions is True
+        return [
+            _BatchResponse("first"),
+            RuntimeError("boom"),
+            _BatchResponse("third"),
+        ][:len(inputs)]
+
+
 class _CountingModel:
     def __init__(self) -> None:
         self.current = 0
@@ -719,6 +748,99 @@ async def test_vision_concurrency_cap_limits_in_flight_calls(monkeypatch):
     await asyncio.gather(*tasks)
 
     assert model.maximum <= 2
+
+
+@pytest.mark.asyncio
+async def test_chat_batch_uses_model_abatch_and_preserves_order(monkeypatch):
+    model = _BatchCountingModel()
+    config = LLMConfig(provider="openai", model="gpt-5")
+    monkeypatch.setenv("FICHERO_MAX_INFLIGHT_LLM", "4")
+    monkeypatch.setattr(llm, "get_langchain_model", lambda _config: model)
+
+    results = await llm.chat_batch(["one", "two", "three"], config)
+
+    assert results == ["result-0", "result-1", "result-2"]
+    assert len(model.abatch_calls) == 1
+    assert len(model.abatch_calls[0]) == 3
+    assert model.configs == [{"max_concurrency": 4}]
+
+
+@pytest.mark.asyncio
+async def test_vision_batch_uses_model_abatch_and_preserves_order(monkeypatch):
+    model = _BatchCountingModel()
+    config = LLMConfig(provider="openai", model="gpt-5")
+    monkeypatch.setenv("FICHERO_MAX_INFLIGHT_LLM", "4")
+    monkeypatch.setattr(llm, "get_langchain_model", lambda _config: model)
+
+    results = await llm.vision_batch(
+        [
+            ["data:image/png;base64,AAAA"],
+            ["data:image/png;base64,BBBB"],
+            ["data:image/png;base64,CCCC"],
+        ],
+        "describe",
+        config,
+    )
+
+    assert results == ["result-0", "result-1", "result-2"]
+    assert len(model.abatch_calls) == 1
+    assert len(model.abatch_calls[0]) == 3
+    assert model.configs == [{"max_concurrency": 4}]
+
+
+@pytest.mark.asyncio
+async def test_chat_batch_reuses_one_cached_model_lookup(monkeypatch):
+    config = LLMConfig(provider="openai", model="gpt-5")
+    model = _BatchCountingModel()
+    calls = 0
+
+    def fake_get_model(_config):
+        nonlocal calls
+        calls += 1
+        return model
+
+    monkeypatch.setenv("FICHERO_MAX_INFLIGHT_LLM", "8")
+    monkeypatch.setattr(llm, "get_langchain_model", fake_get_model)
+
+    results = await llm.chat_batch(["one", "two", "three", "four"], config)
+
+    assert results == ["result-0", "result-1", "result-2", "result-3"]
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_chat_batch_respects_concurrency_cap_via_abatch_chunking(monkeypatch):
+    model = _BatchCountingModel()
+    config = LLMConfig(provider="openai", model="gpt-5")
+    monkeypatch.setenv("FICHERO_MAX_INFLIGHT_LLM", "2")
+    monkeypatch.setattr(llm, "get_langchain_model", lambda _config: model)
+
+    results = await llm.chat_batch(["one", "two", "three", "four", "five"], config)
+
+    assert results == ["result-0", "result-1", "result-0", "result-1", "result-0"]
+    assert [len(call) for call in model.abatch_calls] == [2, 2, 1]
+    assert model.configs == [
+        {"max_concurrency": 2},
+        {"max_concurrency": 2},
+        {"max_concurrency": 2},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_chat_batch_returns_typed_per_item_errors(monkeypatch):
+    config = LLMConfig(provider="openai", model="gpt-5")
+    monkeypatch.setenv("FICHERO_MAX_INFLIGHT_LLM", "8")
+    monkeypatch.setattr(llm, "get_langchain_model", lambda _config: _BatchExceptionModel())
+
+    results = await llm.chat_batch(["one", "two", "three"], config)
+
+    assert results[0] == "first"
+    assert results[2] == "third"
+    assert isinstance(results[1], LLMBatchItemError)
+    assert results[1].index == 1
+    assert results[1].kind == "chat"
+    assert isinstance(results[1].cause, RuntimeError)
+    assert "boom" in str(results[1].cause)
 
 
 @pytest.mark.asyncio
