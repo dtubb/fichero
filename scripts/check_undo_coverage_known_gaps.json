@@ -1,6 +1,7 @@
 {
   "DELETE /api/actions/{action_id}": "no undo registration in current tree",
   "DELETE /api/activity/cleanup": "no undo registration in current tree",
+  "DELETE /api/agent-memory/{note_id}": "#2152 agent memory - undo wiring deferred with UI",
   "DELETE /api/annotations/{annotation_id}": "no undo registration in current tree",
   "DELETE /api/artifacts/{artifact_id}": "no undo registration in current tree",
   "DELETE /api/batches/{batch_id}": "no undo registration in current tree",
@@ -57,6 +58,7 @@
   "DELETE /api/workflow-execution/threads/{thread_id}": "no undo registration in current tree",
   "DELETE /api/workflow-execution/workflows/{workflow_id}/cache": "no undo registration in current tree",
   "DELETE /api/workflows/{workflow_id}": "no undo registration in current tree",
+  "PATCH /api/agent-memory/{note_id}": "#2152 agent memory - undo wiring deferred with UI",
   "PATCH /api/annotations/{annotation_id}": "no undo registration in current tree",
   "PATCH /api/bibliography/document/{document_id}": "no undo registration in current tree",
   "PATCH /api/citations/graph/{citation_id}": "no undo registration in current tree",
@@ -100,6 +102,7 @@
   "POST /api/actions/from-node": "no undo registration in current tree",
   "POST /api/actions/import": "no undo registration in current tree",
   "POST /api/actions/{action_id}/use": "no undo registration in current tree",
+  "POST /api/agent-memory": "#2152 agent memory - undo wiring deferred with UI",
   "POST /api/agents/write": "no undo registration in current tree",
   "POST /api/agents/write/approve": "no undo registration in current tree",
   "POST /api/annotations": "no undo registration in current tree",
