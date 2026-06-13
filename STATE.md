@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `ae8d554a`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `5e734aca`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -17,9 +17,12 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 - **#2191 + #2192** (b629dfa0) symmetric paid-fallback consent gate on `chat_with_fallback` + `is_local_only()` perimeter at the model-access choke points — no silent cloud leak. Settings/UI exposure deferred to Mac session.
 - Fable review done → ai_infrastructure.md has Efficiency + AI-test (T1–T12) plans; #2055 reopened, #2193/#2194 confirmed.
 
+### SHIPPED (loop tick 2a, all gated ALL PASS + pushed, never red) — 0.0.2 @ 5e734aca
+- **#2055 + #2062** (5e734aca) cached `get_langchain_model` remote LangChain clients + bounded in-flight chat/vision concurrency. Worker targeted checks passed; manager gate `bash scripts/verify_all.sh --standard` passed with `verify_all (standard): ALL PASS` (`4806 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issues closed; `llm-efficiency` worktree/window removed.
+
 ### In flight (poll on wake) — tick 2
 - **codex `embeddings-pin`** (gpt-5.4, worktree `~/code/fichero-worktrees/embeddings-pin`): **#2194** (pin model+pooling, stamp model-id on vectors, mismatch guard — capability only, NO re-embed) + **#2193** (gate cloud embedding default). Brief `/tmp/brief_embeddings.txt`. → may add a migration (CHECKPOINT); db/embeddings god-node → FULL suite on integrate.
-- **codex `llm-efficiency`** (gpt-5.4, worktree `~/code/fichero-worktrees/llm-efficiency`): **#2055** (cache get_langchain_model) + **#2062** (bounded in-flight semaphore). Brief `/tmp/brief_efficiency.txt`. llm.py → FULL suite on integrate.
+- **codex `batching-2057`** (gpt-5.4, worktree `~/code/fichero-worktrees/batching-2057`): **#2057** thin `chat_batch` / `vision_batch` over LangChain `.abatch()`, building on #2055/#2062. Brief `/tmp/brief_batching_2057.txt`. llm.py → FULL suite on integrate.
 
 ### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
 1. **AI-backend tests** worker — implement Fable's test-gap checklist (workers write tests, manager runs full suite). Ties to #1987.
