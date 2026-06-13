@@ -8,8 +8,10 @@ shared-secret-only single-user app.
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timedelta
 from functools import cache
+import sys
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -22,6 +24,18 @@ from fichero.models import AccountUser
 logger = logging.getLogger(__name__)
 
 SESSION_TTL = timedelta(days=30)
+LOGIN_RATE_LIMIT = 5
+LOGIN_RATE_WINDOW = timedelta(minutes=1)
+
+# Login failure trackers are intentionally process-local.
+# The engine manager clamps uvicorn to one worker, so one in-memory table is
+# authoritative. If the API is launched outside that path with multiple workers,
+# lockouts recorded in one process will not be visible to another.
+_LOGIN_ATTEMPTS_BY_IP: dict[str, list[datetime]] = {}
+_LOGIN_ATTEMPTS_BY_ACCOUNT: dict[str, list[datetime]] = {}
+_LOGIN_WORKER_WARNING_EMITTED = False
+
+
 # Constant-time fallback for "username not found" so login latency does not
 # reveal whether a username exists.
 @cache
@@ -98,6 +112,113 @@ def _current_session_user(request: Request) -> AccountUser | None:
     return user if isinstance(user, AccountUser) else None
 
 
+def _prune_login_attempts(now: datetime) -> None:
+    window_start = now - LOGIN_RATE_WINDOW
+    for attempts_by_scope in (_LOGIN_ATTEMPTS_BY_IP, _LOGIN_ATTEMPTS_BY_ACCOUNT):
+        stale_scopes: list[str] = []
+        for scope, attempts in attempts_by_scope.items():
+            current = [attempt for attempt in attempts if attempt >= window_start]
+            if current:
+                attempts_by_scope[scope] = current
+            else:
+                stale_scopes.append(scope)
+        for scope in stale_scopes:
+            attempts_by_scope.pop(scope, None)
+
+
+def _detect_configured_worker_count() -> int | None:
+    for name in ("FICHERO_UVICORN_WORKERS", "UVICORN_WORKERS", "WEB_CONCURRENCY"):
+        value = os.environ.get(name)
+        if value:
+            try:
+                return int(value)
+            except ValueError:
+                return None
+
+    argv = sys.argv[1:]
+    for index, arg in enumerate(argv):
+        if arg == "--workers" and index + 1 < len(argv):
+            try:
+                return int(argv[index + 1])
+            except ValueError:
+                return None
+        if arg.startswith("--workers="):
+            try:
+                return int(arg.split("=", 1)[1])
+            except ValueError:
+                return None
+    return None
+
+
+def warn_login_single_process_invariant() -> None:
+    global _LOGIN_WORKER_WARNING_EMITTED
+    if _LOGIN_WORKER_WARNING_EMITTED:
+        return
+    _LOGIN_WORKER_WARNING_EMITTED = True
+    workers = _detect_configured_worker_count()
+    if workers is not None and workers != 1:
+        logger.warning(
+            "Login rate-limit state is process-local, but worker count appears to be %s. "
+            "Run Fichero with one uvicorn worker or lockouts may diverge across workers.",
+            workers,
+        )
+
+
+def _login_host(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def _login_account_scope(username: str) -> str:
+    return username.strip().lower()
+
+
+def _retry_after_seconds(attempts: list[datetime], now: datetime) -> int:
+    oldest_attempt = min(attempts)
+    retry_after = LOGIN_RATE_WINDOW - (now - oldest_attempt)
+    return max(1, int(retry_after.total_seconds()) + (1 if retry_after.microseconds else 0))
+
+
+def _raise_login_rate_limit(now: datetime, attempts: list[datetime]) -> None:
+    retry_after = _retry_after_seconds(attempts, now)
+    raise HTTPException(
+        status_code=429,
+        detail="too many login attempts; try again later",
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
+def _check_login_rate_limit(request: Request, username: str, now: datetime) -> None:
+    warn_login_single_process_invariant()
+    _prune_login_attempts(now)
+    host = _login_host(request)
+    account_scope = _login_account_scope(username)
+    ip_attempts = _LOGIN_ATTEMPTS_BY_IP.get(host, [])
+    if len(ip_attempts) >= LOGIN_RATE_LIMIT:
+        _LOGIN_ATTEMPTS_BY_IP[host] = ip_attempts
+        _raise_login_rate_limit(now, ip_attempts)
+    account_attempts = _LOGIN_ATTEMPTS_BY_ACCOUNT.get(account_scope, [])
+    if len(account_attempts) >= LOGIN_RATE_LIMIT:
+        _LOGIN_ATTEMPTS_BY_ACCOUNT[account_scope] = account_attempts
+        _raise_login_rate_limit(now, account_attempts)
+
+
+def _record_login_failure(request: Request, username: str, now: datetime) -> None:
+    host = _login_host(request)
+    ip_attempts = _LOGIN_ATTEMPTS_BY_IP.get(host, [])
+    ip_attempts.append(now)
+    _LOGIN_ATTEMPTS_BY_IP[host] = ip_attempts
+
+    account_scope = _login_account_scope(username)
+    account_attempts = _LOGIN_ATTEMPTS_BY_ACCOUNT.get(account_scope, [])
+    account_attempts.append(now)
+    _LOGIN_ATTEMPTS_BY_ACCOUNT[account_scope] = account_attempts
+
+
+def _reset_login_attempts(request: Request, username: str) -> None:
+    _LOGIN_ATTEMPTS_BY_IP.pop(_login_host(request), None)
+    _LOGIN_ATTEMPTS_BY_ACCOUNT.pop(_login_account_scope(username), None)
+
+
 def _require_owner_or_bootstrap(request: Request) -> None:
     if not _use_multiuser_auth():
         return
@@ -121,19 +242,27 @@ def _require_authenticated_or_bootstrap(request: Request) -> None:
 
 @auth_router.post("/login", response_model=LoginResponse)
 def login(
+    request: Request,
     body: LoginRequest,
     app_db: AppDatabase = Depends(get_app_database),
 ) -> LoginResponse:
     _multiuser_disabled()
 
-    user = app_db.get_user_by_username(body.username.strip())
+    now = datetime.now()
+    username = body.username.strip()
+    _check_login_rate_limit(request, username, now)
+
+    user = app_db.get_user_by_username(username)
     if user is None:
         accounts.verify_password(body.password, _dummy_password_hash())
+        _record_login_failure(request, username, now)
         raise HTTPException(status_code=401, detail="invalid username or password")
     if not user.active:
         raise HTTPException(status_code=403, detail="user is disabled")
     if not accounts.verify_password(body.password, user.password_hash):
+        _record_login_failure(request, username, now)
         raise HTTPException(status_code=401, detail="invalid username or password")
+    _reset_login_attempts(request, username)
 
     raw_token = accounts.new_session_token()
     app_db.create_session(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 import importlib
 
@@ -9,7 +10,7 @@ from fastapi.testclient import TestClient
 from fichero import accounts
 from fichero.actions import registry
 from fichero.api.auth import initialize_token
-from fichero.api.routes import pairing
+from fichero.api.routes import auth_accounts, pairing
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -26,11 +27,28 @@ def _disable_multiuser(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def clear_pairing_state():
+    auth_accounts._LOGIN_ATTEMPTS_BY_IP.clear()
+    auth_accounts._LOGIN_ATTEMPTS_BY_ACCOUNT.clear()
     pairing._PAIRING_CODES.clear()
     pairing._PAIRING_ATTEMPTS.clear()
     yield
+    auth_accounts._LOGIN_ATTEMPTS_BY_IP.clear()
+    auth_accounts._LOGIN_ATTEMPTS_BY_ACCOUNT.clear()
     pairing._PAIRING_CODES.clear()
     pairing._PAIRING_ATTEMPTS.clear()
+
+
+@contextmanager
+def _client_for_address(app_db, client_addr: tuple[str, int] = ("testclient", 50000)):
+    import fichero.api.main as api_main
+
+    api_main = importlib.reload(api_main)
+    from fichero.api.routes.providers import get_app_database
+
+    api_main.app.dependency_overrides[get_app_database] = lambda: app_db
+    with TestClient(api_main.app, client=client_addr) as test_client:
+        yield test_client
+    api_main.app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -146,6 +164,142 @@ def test_login_rejects_bad_credentials(client, app_db, monkeypatch, username, pa
     assert response.status_code == 401
 
 
+def test_login_rate_limit_locks_sixth_attempt(client, app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    app_db.create_user(
+        username="alice",
+        display_name="Alice",
+        password_hash=accounts.hash_password("correct horse battery staple"),
+        is_owner=True,
+    )
+
+    for _ in range(auth_accounts.LOGIN_RATE_LIMIT):
+        response = client.post(
+            "/api/auth/login",
+            json={"username": "alice", "password": "wrong-password"},
+        )
+        assert response.status_code == 401
+
+    locked = client.post(
+        "/api/auth/login",
+        json={"username": "alice", "password": "wrong-password"},
+    )
+
+    assert locked.status_code == 429
+    assert locked.headers["retry-after"].isdigit()
+
+
+def test_successful_login_resets_rate_limit_counter(client, app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    app_db.create_user(
+        username="alice",
+        display_name="Alice",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+
+    for _ in range(auth_accounts.LOGIN_RATE_LIMIT - 1):
+        response = client.post(
+            "/api/auth/login",
+            json={"username": "alice", "password": "wrong-password"},
+        )
+        assert response.status_code == 401
+
+    assert auth_accounts._LOGIN_ATTEMPTS_BY_ACCOUNT["alice"]
+
+    success = client.post(
+        "/api/auth/login",
+        json={"username": "alice", "password": "password"},
+    )
+
+    assert success.status_code == 200
+    assert "alice" not in auth_accounts._LOGIN_ATTEMPTS_BY_ACCOUNT
+
+    follow_up = client.post(
+        "/api/auth/login",
+        json={"username": "alice", "password": "wrong-password"},
+    )
+    assert follow_up.status_code == 401
+
+
+def test_login_lockout_applies_per_account_and_per_ip(app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    app_db.create_user(
+        username="alice",
+        display_name="Alice",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    app_db.create_user(
+        username="bob",
+        display_name="Bob",
+        password_hash=accounts.hash_password("password"),
+        is_owner=False,
+    )
+
+    with _client_for_address(app_db, ("198.51.100.10", 5000)) as ip_one:
+        for _ in range(auth_accounts.LOGIN_RATE_LIMIT):
+            response = ip_one.post(
+                "/api/auth/login",
+                json={"username": "alice", "password": "wrong-password"},
+            )
+            assert response.status_code == 401
+
+        same_account_new_ip = None
+        with _client_for_address(app_db, ("198.51.100.11", 5000)) as ip_two:
+            same_account_new_ip = ip_two.post(
+                "/api/auth/login",
+                json={"username": "alice", "password": "wrong-password"},
+            )
+        assert same_account_new_ip.status_code == 429
+
+        same_ip_other_account = ip_one.post(
+            "/api/auth/login",
+            json={"username": "bob", "password": "wrong-password"},
+        )
+        assert same_ip_other_account.status_code == 429
+
+
+def test_login_rate_limit_window_expiry_frees_account(client, app_db, monkeypatch):
+    _enable_multiuser(monkeypatch)
+    app_db.create_user(
+        username="alice",
+        display_name="Alice",
+        password_hash=accounts.hash_password("password"),
+        is_owner=True,
+    )
+    base_now = datetime(2026, 1, 1, 12, 0, 0)
+
+    class FrozenDateTime(datetime):
+        current = base_now
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.current if tz is None else tz.fromutc(cls.current.replace(tzinfo=tz))
+
+    monkeypatch.setattr(auth_accounts, "datetime", FrozenDateTime)
+
+    for _ in range(auth_accounts.LOGIN_RATE_LIMIT):
+        response = client.post(
+            "/api/auth/login",
+            json={"username": "alice", "password": "wrong-password"},
+        )
+        assert response.status_code == 401
+
+    locked = client.post(
+        "/api/auth/login",
+        json={"username": "alice", "password": "wrong-password"},
+    )
+    assert locked.status_code == 429
+
+    FrozenDateTime.current = base_now + auth_accounts.LOGIN_RATE_WINDOW + timedelta(seconds=1)
+    freed = client.post(
+        "/api/auth/login",
+        json={"username": "alice", "password": "wrong-password"},
+    )
+    assert freed.status_code == 401
+
+
 def test_expired_session_is_rejected(client, app_db, monkeypatch):
     _enable_multiuser(monkeypatch)
     user = app_db.create_user(
@@ -205,6 +359,8 @@ def test_session_last_seen_touch_is_throttled(client, app_db, monkeypatch):
     assert third.status_code == 200
     assert len(touches) == 2
     assert after_second == after_first
+
+
 
 
 def test_revoked_session_is_rejected(client, app_db, monkeypatch):
