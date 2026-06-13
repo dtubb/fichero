@@ -64,6 +64,8 @@ logger = logging.getLogger(__name__)
 
 THUMBNAIL_MAX_DIMENSION = 1024
 DISPLAY_MAX_DIMENSION = 1000
+DEFAULT_MAX_UPLOAD_BYTES = 500 * 1024 * 1024
+DEFAULT_UPLOAD_CHUNK_SIZE = 1024 * 1024
 
 
 # =============================================================================
@@ -97,6 +99,7 @@ class StorageSettings(BaseSettings):
 
     # Periodic snapshot scheduler polls for due libraries at this cadence.
     scheduled_snapshot_poll_interval_seconds: float = 60.0
+    max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES
 
     @computed_field
     @property
@@ -147,6 +150,14 @@ class StorageSettings(BaseSettings):
 
 # Global settings instance
 settings = StorageSettings()
+
+
+class UploadTooLargeError(ValueError):
+    """Raised when an uploaded body exceeds the configured size cap."""
+
+    def __init__(self, max_bytes: int):
+        self.max_bytes = max_bytes
+        super().__init__(f"Upload exceeds maximum allowed size of {max_bytes} bytes")
 
 
 # =============================================================================
@@ -951,7 +962,13 @@ def stats(package_path: Path | None = None) -> dict:
     }
 
 
-async def save_uploaded_file(file) -> Path:
+async def save_uploaded_file(
+    file,
+    *,
+    max_bytes: int | None = None,
+    content_length: int | str | None = None,
+    chunk_size: int = DEFAULT_UPLOAD_CHUNK_SIZE,
+) -> Path:
     """Save an uploaded FastAPI file to a temporary location.
 
     Args:
@@ -965,6 +982,21 @@ async def save_uploaded_file(file) -> Path:
         Use this with ingest_file(mode=IngestMode.COPY) which will
         copy the file to library storage.
     """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+
+    max_allowed = settings.max_upload_bytes if max_bytes is None else int(max_bytes)
+    if max_allowed <= 0:
+        raise ValueError("max_bytes must be positive")
+
+    if content_length not in (None, ""):
+        try:
+            declared_length = int(content_length)
+        except (TypeError, ValueError):
+            declared_length = None
+        if declared_length is not None and declared_length > max_allowed:
+            raise UploadTooLargeError(max_allowed)
+
     # Create temp file with same extension as uploaded file
     suffix = Path(file.filename).suffix if file.filename else ""
 
@@ -973,12 +1005,16 @@ async def save_uploaded_file(file) -> Path:
     temp_path = Path(temp_path)
 
     try:
-        # Read uploaded file content
-        content = await file.read()
-
-        # Write to temp file
-        with open(fd, "wb") as f:
-            f.write(content)
+        total_bytes = 0
+        with os.fdopen(fd, "wb") as f:
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                total_bytes += len(chunk)
+                if total_bytes > max_allowed:
+                    raise UploadTooLargeError(max_allowed)
+                f.write(chunk)
 
         logger.debug(f"Saved upload to temp: {temp_path}")
         return temp_path

@@ -60,6 +60,7 @@ from fichero.db_embeddings import (
 )
 from fichero.db_manager import DatabaseManager, db_manager  # noqa: F401
 from fichero.errors import ErrorCategory, handle_error
+from fichero.path_security import resolve_under_allowed_roots
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,12 @@ def _collect_folder_descendants_helper(conn: duckdb.DuckDBPyConnection, folder_i
                     seen.add(child_id)
                     frontier.append(child_id)
     return seen
+
+
+def _validated_identifier(identifier: str, *, kind: str) -> str:
+    if not _VALID_IDENTIFIER.fullmatch(identifier):
+        raise ValueError(f"Invalid {kind}: {identifier!r}")
+    return identifier
 
 
 # Markers transcribe writes when a page is blank or unreadable. When
@@ -1930,6 +1937,17 @@ class Database(DatabaseEmbeddingMixin):
         """Import from Parquet file, returns count of imported rows."""
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
+        library_root = self.path.parent
+        candidate = Path(path)
+        if not candidate.is_absolute():
+            candidate = library_root / candidate
+        confined_path = resolve_under_allowed_roots(candidate, [library_root])
+        if confined_path is None:
+            raise ValueError(f"Parquet path must stay inside the library package: {path}")
+
+        parquet_columns = self.conn.from_parquet(str(confined_path)).columns
+        for column in parquet_columns:
+            _validated_identifier(column, kind="Parquet column name")
 
         # Count before
         before = self.count(model)
@@ -1937,8 +1955,8 @@ class Database(DatabaseEmbeddingMixin):
         # Import
         self.conn.execute(f"""
             INSERT INTO {sql_table}
-            SELECT * FROM read_parquet('{path}')
-        """)
+            SELECT * FROM read_parquet(?)
+        """, [str(confined_path)])
 
         # Return new rows
         after = self.count(model)

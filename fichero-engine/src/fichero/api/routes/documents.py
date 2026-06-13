@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from fichero.api.auth import request_actor
@@ -1412,6 +1412,7 @@ def import_uploaded_file_impl(
 
 @router.post("/import")
 async def import_file(
+    request: Request,
     file: UploadFile,
     parent_id: Optional[str] = None,
     db: Database = Depends(get_library_database_for_write),
@@ -1422,12 +1423,16 @@ async def import_file(
     actor: str = Depends(request_actor),
 ) -> Document:
     """Import a file and create a document."""
-    from fichero.storage import save_uploaded_file
+    from fichero.storage import UploadTooLargeError, save_uploaded_file
 
-    # Save the uploaded file to temp location
-    temp_path = await save_uploaded_file(file)
+    temp_path: Path | None = None
 
     try:
+        # Save the uploaded file to temp location
+        temp_path = await save_uploaded_file(
+            file,
+            content_length=request.headers.get("content-length"),
+        )
         doc = import_uploaded_file_impl(
             db,
             temp_path,
@@ -1446,13 +1451,16 @@ async def import_file(
             origin_user=actor,
         )
         return doc
+    except UploadTooLargeError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
 
     finally:
         # Clean up temp file
-        try:
-            temp_path.unlink()
-        except Exception as e:
-            logger.warning(f"Failed to clean up temp file {temp_path}: {e}")
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to clean up temp file {temp_path}: {e}")
 
 
 class MoveRequest(BaseModel):

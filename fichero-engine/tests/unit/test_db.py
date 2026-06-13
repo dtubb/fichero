@@ -13,6 +13,7 @@ import shutil
 import threading
 import time
 from pathlib import Path
+from uuid import uuid4
 
 import duckdb
 
@@ -1036,6 +1037,36 @@ class TestParquet:
         assert len(all_docs) == 2
 
         db2.close()
+
+    def test_import_parquet_rejects_parent_traversal_path(self, temp_db):
+        """Parquet imports must stay confined to the library package."""
+        outside = temp_db.path.parent.parent / f"escaped-{uuid4().hex}.parquet"
+        conn = duckdb.connect()
+        try:
+            conn.execute(f"COPY (SELECT 1 AS ok) TO '{outside}' (FORMAT PARQUET)")
+        finally:
+            conn.close()
+        try:
+            with pytest.raises(ValueError, match="must stay inside the library package"):
+                temp_db.import_parquet(Document, Path("..") / outside.name)
+        finally:
+            outside.unlink(missing_ok=True)
+
+    def test_import_parquet_rejects_malicious_column_name(self, temp_db):
+        """Column names with SQL metacharacters are rejected before import."""
+        bad_path = temp_db.path.parent / "bad-columns.parquet"
+        conn = duckdb.connect()
+        try:
+            conn.execute(
+                f"""COPY (
+                    SELECT 1 AS "bad;drop table documents;--"
+                ) TO '{bad_path}' (FORMAT PARQUET)"""
+            )
+        finally:
+            conn.close()
+
+        with pytest.raises(ValueError, match="Invalid Parquet column name"):
+            temp_db.import_parquet(Document, bad_path)
 
 
 class TestEmbeddingsModelLoading:

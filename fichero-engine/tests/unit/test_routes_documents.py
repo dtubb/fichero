@@ -5,8 +5,14 @@ hierarchical collections. Tests cover CRUD, hierarchy traversal, and
 pagination. No external dependencies; uses real in-memory DB fixture.
 """
 
+import asyncio
+
+import pytest
+
+from fichero import storage as storage_module
 from fichero.knowledge_models import MutationLog
 from fichero.models import Document, DocType
+from fichero.storage import UploadTooLargeError, save_uploaded_file
 
 
 # ---------------------------------------------------------------------------
@@ -423,6 +429,41 @@ class TestImportDocument:
             "(import endpoint must use multipart filename, not temp path)"
         )
         assert not data["name"].startswith("fichero_upload_")
+
+    def test_import_rejects_oversized_upload_with_413(self, client, db, monkeypatch):
+        monkeypatch.setattr(storage_module.settings, "max_upload_bytes", 128)
+
+        r = client.post(
+            "/api/documents/import",
+            files={"file": ("too-large.bin", b"x" * 512, "application/octet-stream")},
+        )
+
+        assert r.status_code == 413, r.text
+        assert "maximum allowed size" in r.json()["detail"]
+        assert len(client.get("/api/documents").json()["items"]) == 1
+
+    def test_save_uploaded_file_stops_streaming_once_cap_is_hit(self, monkeypatch):
+        monkeypatch.setattr(storage_module.settings, "max_upload_bytes", 5)
+
+        class ChunkedUpload:
+            filename = "chunked.bin"
+
+            def __init__(self):
+                self.chunks = [b"abcd", b"efgh", b"ijkl"]
+                self.read_calls = 0
+
+            async def read(self, _size: int = -1) -> bytes:
+                self.read_calls += 1
+                if not self.chunks:
+                    return b""
+                return self.chunks.pop(0)
+
+        upload = ChunkedUpload()
+
+        with pytest.raises(UploadTooLargeError):
+            asyncio.run(save_uploaded_file(upload, chunk_size=4))
+
+        assert upload.read_calls == 2
 
 
 # ---------------------------------------------------------------------------
