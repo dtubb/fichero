@@ -11,10 +11,15 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 - **AI-infra architecture review (frontier agent) DONE** → `docs/architecture/ai_infrastructure.md` (on disk, UNCOMMITTED — Fable is appending to it; commit once Fable returns). Filed + milestoned (#83): **#2191** (cloud-leak: `chat_with_fallback` → paid cloud, no consent gate — HIGH), **#2192** (no global local-only perimeter), **#2193** (cloud embedding default ungated), **#2194** (no embedding model/pooling pin → silent search corruption).
 - **Filed #2195** (AI-Infra): model-comparison CLI verbs + compare-a-transcribe/translate-WORKFLOW-across-models + estimate_cost coverage.
 
-### In flight (poll on wake)
-- **codex `vision-provider-2189`** (gpt-5.4, worktree `~/code/fichero-worktrees/vision-provider-2189`): **#2189** — Transcribe presets honor configured vision provider instead of pinning gpt-4o-mini. Brief `/tmp/brief_2189.txt`. → integrate when committed (targeted gate; preset/transcribe files).
-- **codex `compare-cli-2195`** (gpt-5.4, worktree `~/code/fichero-worktrees/compare-cli-2195`): **#2195** — comparison CLI + `/compare-workflow` route + compare_workflow engine method + estimate_cost. Brief `/tmp/brief_2195.txt`. **NEW ENDPOINT → FULL suite + openapi regen + guardrail baselines on integrate.**
-- **Fable `fable-ai-efficiency`** (bg Opus agent): validates #2055 (model/client reuse — same model loaded multiple times?), #2057 (.abatch batching), #2062 (bounded concurrency), #2191/#2193/#2194; appends efficiency + AI-test-plan sections to ai_infrastructure.md; posts per-issue comments; returns a test-gap checklist.
+### SHIPPED (loop tick 1, all gated ALL PASS + pushed, never red) — 0.0.2 @ b629dfa0
+- **#2195** (1acd1c74) comparison CLI (`fichero compare vision/models/tool/workflow`) + new typed `POST /compare-workflow` route + compare_workflow engine method + estimate_cost coverage + openapi regen + 4 new-endpoint guardrail baselines registered (CLI-only; UI=#1753/#1739).
+- **#2189** (8c88b77c) transcribe presets honor configured vision provider (node workflows skip the generic backfill; pins dropped).
+- **#2191 + #2192** (b629dfa0) symmetric paid-fallback consent gate on `chat_with_fallback` + `is_local_only()` perimeter at the model-access choke points — no silent cloud leak. Settings/UI exposure deferred to Mac session.
+- Fable review done → ai_infrastructure.md has Efficiency + AI-test (T1–T12) plans; #2055 reopened, #2193/#2194 confirmed.
+
+### In flight (poll on wake) — tick 2
+- **codex `embeddings-pin`** (gpt-5.4, worktree `~/code/fichero-worktrees/embeddings-pin`): **#2194** (pin model+pooling, stamp model-id on vectors, mismatch guard — capability only, NO re-embed) + **#2193** (gate cloud embedding default). Brief `/tmp/brief_embeddings.txt`. → may add a migration (CHECKPOINT); db/embeddings god-node → FULL suite on integrate.
+- **codex `llm-efficiency`** (gpt-5.4, worktree `~/code/fichero-worktrees/llm-efficiency`): **#2055** (cache get_langchain_model) + **#2062** (bounded in-flight semaphore). Brief `/tmp/brief_efficiency.txt`. llm.py → FULL suite on integrate.
 
 ### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
 1. **AI-backend tests** worker — implement Fable's test-gap checklist (workers write tests, manager runs full suite). Ties to #1987.
