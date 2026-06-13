@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `5e734aca`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `fc349b39`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -20,9 +20,11 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 ### SHIPPED (loop tick 2a, all gated ALL PASS + pushed, never red) — 0.0.2 @ 5e734aca
 - **#2055 + #2062** (5e734aca) cached `get_langchain_model` remote LangChain clients + bounded in-flight chat/vision concurrency. Worker targeted checks passed; manager gate `bash scripts/verify_all.sh --standard` passed with `verify_all (standard): ALL PASS` (`4806 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issues closed; `llm-efficiency` worktree/window removed.
 
+### SHIPPED (loop tick 2b, all gated ALL PASS + pushed, never red) — 0.0.2 @ fc349b39
+- **#2057** (fc349b39) added thin `chat_batch` / `vision_batch` wrappers over LangChain `.abatch()` with ordered per-item `LLMBatchItemError` results, `FICHERO_MAX_INFLIGHT_LLM` chunking, Apple bounded-gather fallback, and usage accounting. Worker targeted checks passed; manager gate `bash scripts/verify_all.sh --standard` passed with `verify_all (standard): ALL PASS` (`4811 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `batching-2057` worktree/window removed.
+
 ### In flight (poll on wake) — tick 2
 - **codex `embeddings-pin`** (gpt-5.4, worktree `~/code/fichero-worktrees/embeddings-pin`): **#2194** (pin model+pooling, stamp model-id on vectors, mismatch guard — capability only, NO re-embed) + **#2193** (gate cloud embedding default). Brief `/tmp/brief_embeddings.txt`. → may add a migration (CHECKPOINT); db/embeddings god-node → FULL suite on integrate.
-- **codex `batching-2057`** (gpt-5.4, worktree `~/code/fichero-worktrees/batching-2057`): **#2057** thin `chat_batch` / `vision_batch` over LangChain `.abatch()`, building on #2055/#2062. Brief `/tmp/brief_batching_2057.txt`. llm.py → FULL suite on integrate.
 
 ### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
 1. **AI-backend tests** worker — implement Fable's test-gap checklist (workers write tests, manager runs full suite). Ties to #1987.
