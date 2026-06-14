@@ -190,6 +190,21 @@ def _node_provider_model(node: NodeDef) -> tuple[str, str]:
     return (provider, model)
 
 
+def _node_model_profile_ref(node: NodeDef) -> str:
+    ref = (
+        node.config.get("model_profile_id")
+        or node.config.get("profile_id")
+        or node.config.get("model_profile")
+    )
+    if ref:
+        return str(ref)
+
+    provider, _model = _node_provider_model(node)
+    from fichero.llm import extract_model_profile_reference
+
+    return extract_model_profile_reference(provider) or ""
+
+
 def validate_workflow_llm_preflight(
     workflow: WorkflowDef,
     workflow_llm_config: LLMConfig | None = None,
@@ -208,9 +223,28 @@ def validate_workflow_llm_preflight(
 
         capability = _required_llm_capability(tool_def)
         node_provider, node_model = _node_provider_model(node)
+        profile_ref = _node_model_profile_ref(node)
         kind = "vision" if capability == "vision" else "llm"
 
         try:
+            if profile_ref:
+                from fichero.llm import (
+                    enforce_local_only_provider,
+                    resolve_model_profile_for_capability,
+                )
+
+                profile_config = resolve_model_profile_for_capability(
+                    profile_ref,
+                    base_config=llm_config,
+                    required_capability=capability,
+                )
+                enforce_local_only_provider(
+                    profile_config.provider,
+                    profile_config.model,
+                    kind=kind,
+                )
+                continue
+
             if node_provider or node_model:
                 provider = node_provider or llm_config.provider
                 model = node_model or llm_config.model
@@ -229,6 +263,27 @@ def validate_workflow_llm_preflight(
 
             provider = llm_config.provider
             model = llm_config.model
+            from fichero.llm import extract_model_profile_reference
+
+            workflow_profile_ref = extract_model_profile_reference(provider)
+            if workflow_profile_ref:
+                from fichero.llm import (
+                    enforce_local_only_provider,
+                    resolve_model_profile_for_capability,
+                )
+
+                profile_config = resolve_model_profile_for_capability(
+                    workflow_profile_ref,
+                    base_config=llm_config,
+                    required_capability=capability,
+                )
+                enforce_local_only_provider(
+                    profile_config.provider,
+                    profile_config.model,
+                    kind=kind,
+                )
+                continue
+
             if not (provider and model):
                 try:
                     from fichero.app_db import get_app_db

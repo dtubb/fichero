@@ -57,6 +57,8 @@
     "/api/local-inference/profiles/{profile_id}/start": "#1814 backend local-MLX control surface; Mac/SwiftUI wiring deferred to Daniel-led app session",
     "/api/local-inference/profiles/{profile_id}/status": "#1814 backend local-MLX control surface; Mac/SwiftUI wiring deferred to Daniel-led app session",
     "/api/local-inference/profiles/{profile_id}/stop": "#1814 backend local-MLX control surface; Mac/SwiftUI wiring deferred to Daniel-led app session",
+    "/api/settings/model-profiles": "#2058 backend model-profile API; Settings UI/store wiring deferred",
+    "/api/settings/model-profiles/{profile_id}": "#2058 backend model-profile API; Settings UI/store wiring deferred",
     "/api/mcp-servers": "baseline: not yet wired",
     "/api/mcp-servers/tools/all": "baseline: not yet wired",
     "/api/mcp-servers/tools/load-into-workflow-registry": "baseline: not yet wired",

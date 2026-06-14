@@ -267,6 +267,17 @@ class LLMConfig:
 _TEXT_MODEL_ALIASES = {"$small", "$medium", "$large"}
 _VISION_MODEL_ALIASES = {"$vision_small", "$vision_medium", "$vision_large"}
 _MODEL_ALIASES = _TEXT_MODEL_ALIASES | _VISION_MODEL_ALIASES
+_MODEL_PROFILE_PREFIXES = ("$profile:", "profile:")
+
+
+def extract_model_profile_reference(value: str | None) -> str | None:
+    """Extract a model profile id/name from a provider-style reference."""
+    raw = (value or "").strip()
+    for prefix in _MODEL_PROFILE_PREFIXES:
+        if raw.startswith(prefix):
+            ref = raw[len(prefix):].strip()
+            return ref or None
+    return None
 
 
 class AppleUnavailableError(RuntimeError):
@@ -663,6 +674,59 @@ def validate_model_capability(
             f"Model {provider}/{model} is not marked as {label}-capable. "
             f"Choose a {label}-capable model for this workflow node."
         )
+
+
+def _profile_role_matches_capability(profile_role: str, capability: str | None) -> bool:
+    role = (profile_role or "").strip().lower()
+    required = (capability or "").strip().lower()
+    if role == "general" or not required:
+        return True
+    if required == "llm":
+        required = "text"
+    return role == required
+
+
+def resolve_model_profile_for_capability(
+    profile_ref: str,
+    *,
+    base_config: LLMConfig | None = None,
+    required_capability: str | None,
+) -> LLMConfig:
+    """Resolve a named profile and enforce role/capability/privacy policy."""
+    from fichero.app_db import get_app_db
+    from fichero.model_profiles import (
+        ModelProfileNotFoundError,
+        enforce_model_profile_privacy,
+        llm_config_from_profile,
+    )
+
+    ref = (profile_ref or "").strip()
+    embedded_ref = extract_model_profile_reference(ref)
+    if embedded_ref:
+        ref = embedded_ref
+    if not ref:
+        raise ModelProfileNotFoundError(profile_ref)
+
+    db = get_app_db()
+    profile = db.get_model_profile(ref) or db.get_model_profile_by_name(ref)
+    if profile is None:
+        raise ModelProfileNotFoundError(ref)
+    if not _profile_role_matches_capability(profile.role.value, required_capability):
+        required = (required_capability or "text").strip().lower()
+        if required == "llm":
+            required = "text"
+        raise ValueError(
+            f"Model profile '{profile.name}' is role '{profile.role.value}' "
+            f"and cannot be used for {required} workflow nodes."
+        )
+
+    enforce_model_profile_privacy(profile)
+    validate_model_capability(
+        profile.provider,
+        profile.model,
+        required_capability=required_capability,
+    )
+    return llm_config_from_profile(profile, base_config=base_config)
 
 
 def resolve_model_alias_for_capability(

@@ -8030,6 +8030,70 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-model-profiles")
+    def settings_list_model_profiles_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Model Profiles (GET /api/settings/model-profiles)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/settings/model-profiles"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-model-profile")
+    def settings_create_model_profile_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Create Model Profile (POST /api/settings/model-profiles)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/settings/model-profiles"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("delete-model-profile")
+    def settings_delete_model_profile_delete(
+        ctx: typer.Context,
+        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+    ) -> None:
+        """Delete Model Profile (DELETE /api/settings/model-profiles/{profile_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/settings/model-profiles/{profile_id}"
+            params = None
+            return client.request("DELETE", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-model-profile")
+    def settings_get_model_profile_get(
+        ctx: typer.Context,
+        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+    ) -> None:
+        """Get Model Profile (GET /api/settings/model-profiles/{profile_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/settings/model-profiles/{profile_id}"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("update-model-profile")
+    def settings_update_model_profile_put(
+        ctx: typer.Context,
+        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Update Model Profile (PUT /api/settings/model-profiles/{profile_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/settings/model-profiles/{profile_id}"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PUT", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('sources')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for sources endpoints.', no_args_is_help=True)

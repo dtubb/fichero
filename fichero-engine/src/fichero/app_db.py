@@ -31,6 +31,12 @@ from fichero.models import (
     Model,
     Provider,
 )
+from fichero.model_profiles import (
+    ModelProfile,
+    ModelProfileParams,
+    ModelProfilePrivacy,
+    ModelProfileRole,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +64,7 @@ class AppDatabase:
         "LibraryAclOverride": "library_acl_overrides",
         "Provider": "providers",
         "Model": "models",
+        "ModelProfile": "model_profiles",
         "MCPServer": "mcp_servers",
         "AppSetting": "settings",
     }
@@ -156,6 +163,27 @@ class AppDatabase:
             CREATE TABLE IF NOT EXISTS settings (
                 key VARCHAR PRIMARY KEY,
                 value VARCHAR NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Named AI model/provider profiles (app-wide)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS model_profiles (
+                id VARCHAR PRIMARY KEY,
+                name VARCHAR NOT NULL UNIQUE,
+                provider VARCHAR NOT NULL,
+                model VARCHAR NOT NULL,
+                role VARCHAR NOT NULL DEFAULT 'text',
+                privacy VARCHAR NOT NULL DEFAULT 'standard',
+                local_only BOOLEAN DEFAULT FALSE,
+                temperature DOUBLE,
+                max_tokens INTEGER,
+                timeout INTEGER,
+                reasoning_effort VARCHAR,
+                api_base VARCHAR,
+                extra JSON DEFAULT '{}',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -261,6 +289,9 @@ class AppDatabase:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_model_profiles_name ON model_profiles(name)"
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)"
@@ -736,6 +767,119 @@ class AppDatabase:
         }
         for key, value in factory_defaults.items():
             self.set_setting(key, value)
+
+    # =========================================================================
+    # Model Profiles
+    # =========================================================================
+
+    def _row_to_model_profile(self, row) -> ModelProfile:
+        params = ModelProfileParams(
+            temperature=row[7],
+            max_tokens=row[8],
+            timeout=row[9],
+            reasoning_effort=row[10],
+        )
+        try:
+            extra = json.loads(row[12] or "{}")
+        except (json.JSONDecodeError, TypeError):
+            extra = {}
+        if not isinstance(extra, dict):
+            extra = {}
+        return ModelProfile(
+            id=row[0],
+            name=row[1],
+            provider=row[2],
+            model=row[3],
+            role=ModelProfileRole(row[4]),
+            privacy=ModelProfilePrivacy(row[5]),
+            local_only=bool(row[6]),
+            params=params,
+            api_base=row[11],
+            extra=extra,
+            created_at=row[13],
+            updated_at=row[14],
+        )
+
+    def save_model_profile(self, profile: ModelProfile) -> ModelProfile:
+        """Save or update a named model/provider profile."""
+        now = datetime.now()
+        with self._lock:
+            self.conn.execute(
+                """
+                INSERT INTO model_profiles (
+                    id, name, provider, model, role, privacy, local_only,
+                    temperature, max_tokens, timeout, reasoning_effort,
+                    api_base, extra, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (id) DO UPDATE SET
+                    name = excluded.name,
+                    provider = excluded.provider,
+                    model = excluded.model,
+                    role = excluded.role,
+                    privacy = excluded.privacy,
+                    local_only = excluded.local_only,
+                    temperature = excluded.temperature,
+                    max_tokens = excluded.max_tokens,
+                    timeout = excluded.timeout,
+                    reasoning_effort = excluded.reasoning_effort,
+                    api_base = excluded.api_base,
+                    extra = excluded.extra,
+                    updated_at = excluded.updated_at
+            """,
+                [
+                    profile.id,
+                    profile.name,
+                    profile.provider,
+                    profile.model,
+                    profile.role.value,
+                    profile.privacy.value,
+                    profile.local_only,
+                    profile.params.temperature,
+                    profile.params.max_tokens,
+                    profile.params.timeout,
+                    profile.params.reasoning_effort,
+                    profile.api_base,
+                    json.dumps(profile.extra or {}),
+                    now,
+                ],
+            )
+            self.conn.commit()
+        return profile.model_copy(update={"updated_at": now})
+
+    def get_model_profile(self, profile_id: str) -> ModelProfile | None:
+        """Get a model profile by id."""
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT * FROM model_profiles WHERE id = ?", [profile_id]
+            ).fetchone()
+        return self._row_to_model_profile(row) if row else None
+
+    def get_model_profile_by_name(self, name: str) -> ModelProfile | None:
+        """Get a model profile by exact display name."""
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT * FROM model_profiles WHERE name = ?", [name]
+            ).fetchone()
+        return self._row_to_model_profile(row) if row else None
+
+    def list_model_profiles(self) -> list[ModelProfile]:
+        """List named model profiles in stable display order."""
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT * FROM model_profiles ORDER BY name, created_at"
+            ).fetchall()
+        return [self._row_to_model_profile(row) for row in rows]
+
+    def delete_model_profile(self, profile_id: str) -> ModelProfile | None:
+        """Delete a model profile by id."""
+        profile = self.get_model_profile(profile_id)
+        if profile is None:
+            return None
+        with self._lock:
+            self._delete_typed(profile)
+            self.conn.commit()
+        return profile
 
     # =========================================================================
     # Users and sessions

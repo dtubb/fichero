@@ -35,6 +35,74 @@ class TestGetAIDefaults:
         assert all(v == "" for v in data.values())
 
 
+class TestModelProfiles:
+    def test_model_profile_crud_roundtrip(self, client):
+        payload = {
+            "id": "fast-local",
+            "name": "Fast Local",
+            "provider": "ollama",
+            "model": "llama3.2",
+            "role": "text",
+            "privacy": "local_only",
+            "local_only": True,
+            "params": {
+                "temperature": 0.2,
+                "max_tokens": 512,
+                "timeout": 20,
+                "reasoning_effort": "low",
+            },
+        }
+
+        created = client.post("/api/settings/model-profiles", json=payload)
+        assert created.status_code == 201
+        data = created.json()
+        assert data["id"] == "fast-local"
+        assert data["provider"] == "ollama"
+        assert data["params"]["temperature"] == 0.2
+
+        listed = client.get("/api/settings/model-profiles")
+        assert listed.status_code == 200
+        assert [item["id"] for item in listed.json()["items"]] == ["fast-local"]
+
+        fetched = client.get("/api/settings/model-profiles/fast-local")
+        assert fetched.status_code == 200
+        assert fetched.json()["name"] == "Fast Local"
+
+        updated = client.put(
+            "/api/settings/model-profiles/fast-local",
+            json={
+                "name": "Fast Local Text",
+                "params": {"temperature": 0.1, "timeout": 10},
+            },
+        )
+        assert updated.status_code == 200
+        assert updated.json()["name"] == "Fast Local Text"
+        assert updated.json()["params"]["temperature"] == 0.1
+        assert updated.json()["params"]["timeout"] == 10
+
+        deleted = client.delete("/api/settings/model-profiles/fast-local")
+        assert deleted.status_code == 200
+        assert deleted.json()["status"] == "ok"
+        assert client.get("/api/settings/model-profiles/fast-local").status_code == 404
+
+    def test_private_profile_rejects_cloud_provider_without_mutating(self, client):
+        response = client.post(
+            "/api/settings/model-profiles",
+            json={
+                "id": "private-cloud",
+                "name": "Private Cloud",
+                "provider": "openai",
+                "model": "gpt-4o-mini",
+                "role": "text",
+                "privacy": "private",
+            },
+        )
+
+        assert response.status_code == 422
+        assert "refusing cloud provider openai/gpt-4o-mini" in response.text
+        assert client.get("/api/settings/model-profiles").json()["items"] == []
+
+
 class TestSetAIDefaults:
     def test_set_model_fields(self, client):
         payload = {

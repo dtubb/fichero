@@ -7995,6 +7995,62 @@
         "query_params": [],
         "request_model": null,
         "response_model": "StatusOkResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/settings/model-profiles",
+        "operation_id": "list_model_profiles_api_settings_model_profiles_get",
+        "summary": "List Model Profiles",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ModelProfileListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/settings/model-profiles",
+        "operation_id": "create_model_profile_api_settings_model_profiles_post",
+        "summary": "Create Model Profile",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ModelProfileCreate",
+        "response_model": "ModelProfile"
+      },
+      {
+        "method": "DELETE",
+        "path": "/settings/model-profiles/{profile_id}",
+        "operation_id": "delete_model_profile_api_settings_model_profiles__profile_id__delete",
+        "summary": "Delete Model Profile",
+        "path_params": [
+          "profile_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StatusOkResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/settings/model-profiles/{profile_id}",
+        "operation_id": "get_model_profile_api_settings_model_profiles__profile_id__get",
+        "summary": "Get Model Profile",
+        "path_params": [
+          "profile_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ModelProfile"
+      },
+      {
+        "method": "PUT",
+        "path": "/settings/model-profiles/{profile_id}",
+        "operation_id": "update_model_profile_api_settings_model_profiles__profile_id__put",
+        "summary": "Update Model Profile",
+        "path_params": [
+          "profile_id"
+        ],
+        "query_params": [],
+        "request_model": "ModelProfileUpdate",
+        "response_model": "ModelProfile"
       }
     ],
     "sources": [

@@ -15217,6 +15217,208 @@
         }
       }
     },
+    "/api/settings/model-profiles": {
+      "get": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "List Model Profiles",
+        "description": "List named AI model/provider profiles.",
+        "operationId": "list_model_profiles_api_settings_model_profiles_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelProfileListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Create Model Profile",
+        "description": "Create a named AI model/provider profile.",
+        "operationId": "create_model_profile_api_settings_model_profiles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelProfileCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelProfile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/model-profiles/{profile_id}": {
+      "get": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Get Model Profile",
+        "description": "Get a named AI model/provider profile.",
+        "operationId": "get_model_profile_api_settings_model_profiles__profile_id__get",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelProfile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Update Model Profile",
+        "description": "Update a named AI model/provider profile.",
+        "operationId": "update_model_profile_api_settings_model_profiles__profile_id__put",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelProfileUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelProfile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Delete Model Profile",
+        "description": "Delete a named AI model/provider profile.",
+        "operationId": "delete_model_profile_api_settings_model_profiles__profile_id__delete",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusOkResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings/ai-defaults": {
       "get": {
         "tags": [
@@ -49838,6 +50040,242 @@
         ],
         "title": "ModelInfo",
         "description": "Information about a model."
+      },
+      "ModelProfile": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "role": {
+            "$ref": "#/components/schemas/ModelProfileRole",
+            "default": "text"
+          },
+          "params": {
+            "$ref": "#/components/schemas/ModelProfileParams"
+          },
+          "privacy": {
+            "$ref": "#/components/schemas/ModelProfilePrivacy",
+            "default": "standard"
+          },
+          "local_only": {
+            "type": "boolean",
+            "title": "Local Only",
+            "default": false
+          },
+          "api_base": {
+            "type": "string",
+            "nullable": true,
+            "title": "Api Base"
+          },
+          "extra": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Extra"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "provider",
+          "model"
+        ],
+        "title": "ModelProfile",
+        "description": "Named bundle of provider/model/params/privacy for workflow resolution."
+      },
+      "ModelProfileCreate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "role": {
+            "$ref": "#/components/schemas/ModelProfileRole",
+            "default": "text"
+          },
+          "params": {
+            "$ref": "#/components/schemas/ModelProfileParams"
+          },
+          "privacy": {
+            "$ref": "#/components/schemas/ModelProfilePrivacy",
+            "default": "standard"
+          },
+          "local_only": {
+            "type": "boolean",
+            "title": "Local Only",
+            "default": false
+          },
+          "api_base": {
+            "type": "string",
+            "nullable": true,
+            "title": "Api Base"
+          },
+          "extra": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Extra"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "provider",
+          "model"
+        ],
+        "title": "ModelProfileCreate",
+        "description": "Request to create a named model profile."
+      },
+      "ModelProfileListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModelProfile"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ModelProfileListResponse",
+        "description": "Envelope for model profile list endpoints."
+      },
+      "ModelProfileParams": {
+        "properties": {
+          "temperature": {
+            "type": "number",
+            "nullable": true,
+            "title": "Temperature"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Max Tokens"
+          },
+          "timeout": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Timeout"
+          },
+          "reasoning_effort": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reasoning Effort"
+          }
+        },
+        "type": "object",
+        "title": "ModelProfileParams",
+        "description": "LLM parameters supported by the current LLMConfig surface."
+      },
+      "ModelProfilePrivacy": {
+        "type": "string",
+        "enum": [
+          "standard",
+          "local_only",
+          "private"
+        ],
+        "title": "ModelProfilePrivacy",
+        "description": "Privacy policy attached to a named model profile."
+      },
+      "ModelProfileRole": {
+        "type": "string",
+        "enum": [
+          "general",
+          "text",
+          "vision",
+          "audio",
+          "video",
+          "embeddings"
+        ],
+        "title": "ModelProfileRole",
+        "description": "Intended use/capability for a named model profile."
+      },
+      "ModelProfileUpdate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "role": {
+            "$ref": "#/components/schemas/ModelProfileRole",
+            "nullable": true
+          },
+          "params": {
+            "$ref": "#/components/schemas/ModelProfileParams",
+            "nullable": true
+          },
+          "privacy": {
+            "$ref": "#/components/schemas/ModelProfilePrivacy",
+            "nullable": true
+          },
+          "local_only": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Local Only"
+          },
+          "api_base": {
+            "type": "string",
+            "nullable": true,
+            "title": "Api Base"
+          },
+          "extra": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Extra"
+          }
+        },
+        "type": "object",
+        "title": "ModelProfileUpdate",
+        "description": "Partial update for a named model profile."
       },
       "ModelResponse": {
         "properties": {

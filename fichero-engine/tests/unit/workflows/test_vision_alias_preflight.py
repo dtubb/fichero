@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from fichero.llm import LLMConfig, resolve_model_alias_for_capability
+from fichero.model_profiles import ModelProfile
 from fichero.workflows.types import NodeDef, WorkflowDef
 from fichero.workflows.validation import (
     validate_workflow_llm_preflight,
@@ -247,6 +248,38 @@ def test_vision_large_cloud_provider_rejected_under_local_only(monkeypatch):
     assert len(errors) == 1
     assert "Local-only AI mode is enabled" in errors[0]
     assert "openai/gpt-4o" in errors[0]
+
+
+def test_private_model_profile_rejects_cloud_provider_in_preflight(monkeypatch):
+    monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
+    profile = ModelProfile(
+        id="private-cloud",
+        name="Private Cloud",
+        provider="openai",
+        model="gpt-4o-mini",
+        role="text",
+        privacy="private",
+    )
+    fake_db = _fake_db()
+    fake_db.get_model_profile = lambda profile_id: (
+        profile if profile_id == "private-cloud" else None
+    )
+    fake_db.get_model_profile_by_name = lambda _name: None
+    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+    node = NodeDef(
+        id="text",
+        tool="summarize_file",
+        config={"model_profile_id": "private-cloud"},
+    )
+
+    errors = validate_workflow_llm_preflight(
+        _workflow_for(node),
+        LLMConfig(provider="", model=""),
+    )
+
+    assert len(errors) == 1
+    assert "refusing cloud provider openai/gpt-4o-mini" in errors[0]
+    assert "Private Cloud" in errors[0]
 
 
 def test_spanish_script_multipass_preset_stays_valid_and_vision_unaliased(monkeypatch):

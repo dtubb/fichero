@@ -62,6 +62,24 @@ def _resolve_node_llm_config(
     if tool_def and tool_def.uses_llm:
         required_capability = _required_llm_capability_for_category(tool_def.category)
 
+    profile_ref = (
+        node_def.config.get("model_profile_id")
+        or node_def.config.get("profile_id")
+        or node_def.config.get("model_profile")
+    )
+    if not profile_ref:
+        from fichero.llm import extract_model_profile_reference
+
+        profile_ref = extract_model_profile_reference(node_provider)
+    if profile_ref:
+        from fichero.llm import resolve_model_profile_for_capability
+
+        return resolve_model_profile_for_capability(
+            str(profile_ref),
+            base_config=workflow_llm_config,
+            required_capability=required_capability,
+        )
+
     if node_provider or node_model:
         provider = node_provider or workflow_llm_config.provider
         model = node_model or workflow_llm_config.model
@@ -83,6 +101,20 @@ def _resolve_node_llm_config(
     try:
         from fichero.app_db import get_app_db
         app_db = get_app_db()
+
+        from fichero.llm import extract_model_profile_reference
+
+        workflow_profile_ref = extract_model_profile_reference(
+            workflow_llm_config.provider
+        )
+        if workflow_profile_ref:
+            from fichero.llm import resolve_model_profile_for_capability
+
+            return resolve_model_profile_for_capability(
+                workflow_profile_ref,
+                base_config=workflow_llm_config,
+                required_capability=required_capability,
+            )
 
         if workflow_llm_config.provider and workflow_llm_config.model:
             return workflow_llm_config

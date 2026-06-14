@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from fichero.llm import LLMConfig
+from fichero.model_profiles import ModelProfile, ModelProfileParams
 from fichero.workflows.builder import _resolve_node_llm_config
 from fichero.workflows.types import NodeDef
 
@@ -76,6 +77,86 @@ def test_node_specific_aliases_resolve_before_other_fallbacks(monkeypatch):
     resolved = _resolve_node_llm_config(node, workflow_cfg)
     assert resolved.provider == "openrouter"
     assert resolved.model == "openai/gpt-4o-mini"
+
+
+def test_node_profile_override_beats_alias_and_applies_params(monkeypatch):
+    node = NodeDef(
+        id="n1",
+        tool="summarize_file",
+        provider_name="$medium",
+        model_name="ignored-by-profile",
+        config={"model_profile_id": "fast-local"},
+    )
+    workflow_cfg = LLMConfig(
+        provider="openai",
+        model="gpt-workflow",
+        temperature=0.7,
+        max_tokens=2048,
+        timeout=60,
+    )
+    profile = ModelProfile(
+        id="fast-local",
+        name="Fast Local",
+        provider="ollama",
+        model="llama3.2",
+        role="text",
+        local_only=True,
+        params=ModelProfileParams(temperature=0.2, timeout=12),
+    )
+    fake_db = SimpleNamespace(
+        get_model_profile=lambda profile_id: (
+            profile if profile_id == "fast-local" else None
+        ),
+        get_model_profile_by_name=lambda _name: None,
+        list_providers=lambda: [],
+        list_models=lambda _provider_id: [],
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.builder.get_tool_def",
+        lambda _tool: SimpleNamespace(uses_llm=True, category="llm"),
+    )
+    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+
+    resolved = _resolve_node_llm_config(node, workflow_cfg)
+
+    assert resolved.provider == "ollama"
+    assert resolved.model == "llama3.2"
+    assert resolved.temperature == 0.2
+    assert resolved.max_tokens == 2048
+    assert resolved.timeout == 12
+
+
+def test_workflow_profile_reference_resolves_before_category_default(monkeypatch):
+    node = NodeDef(id="n1", tool="summarize_file", config={})
+    workflow_cfg = LLMConfig(provider="$profile:best-local", model="")
+    profile = ModelProfile(
+        id="best-local",
+        name="Best Local",
+        provider="mock",
+        model="mock",
+        role="text",
+        privacy="local_only",
+    )
+    fake_db = SimpleNamespace(
+        get_model_profile=lambda profile_id: (
+            profile if profile_id == "best-local" else None
+        ),
+        get_model_profile_by_name=lambda _name: None,
+        get_default_model_for_category=lambda _category: ("openai", "gpt-category"),
+        get_default_model=lambda: None,
+        list_providers=lambda: [],
+        list_models=lambda _provider_id: [],
+    )
+    monkeypatch.setattr(
+        "fichero.workflows.builder.get_tool_def",
+        lambda _tool: SimpleNamespace(uses_llm=True, category="llm"),
+    )
+    monkeypatch.setattr("fichero.app_db.get_app_db", lambda: fake_db)
+
+    resolved = _resolve_node_llm_config(node, workflow_cfg)
+
+    assert resolved.provider == "mock"
+    assert resolved.model == "mock"
 
 
 def test_explicit_node_override_beats_configured_vision_slot(monkeypatch):

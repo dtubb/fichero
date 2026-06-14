@@ -11,6 +11,14 @@ from fichero.api.routes.auth_accounts import (
     _require_authenticated_or_bootstrap,
     _require_owner_or_bootstrap,
 )
+from fichero.model_profiles import (
+    ModelProfile,
+    ModelProfileCreate,
+    ModelProfileListResponse,
+    ModelProfilePrivacyError,
+    ModelProfileUpdate,
+    enforce_model_profile_privacy,
+)
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -140,6 +148,118 @@ def _validate_provider_updates(body: AIDefaultsUpdate) -> None:
                 status_code=422,
                 detail=f"Unknown AI default provider for {field_name}: {value}",
             )
+
+
+def _validate_profile(profile: ModelProfile) -> None:
+    from fichero.providers import get_provider_info
+
+    if not profile.name:
+        raise HTTPException(status_code=422, detail="Model profile name is required")
+    if not profile.provider:
+        raise HTTPException(status_code=422, detail="Model profile provider is required")
+    if not profile.model:
+        raise HTTPException(status_code=422, detail="Model profile model is required")
+    if get_provider_info(profile.provider) is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown model profile provider: {profile.provider}",
+        )
+    try:
+        enforce_model_profile_privacy(profile)
+    except ModelProfilePrivacyError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _get_profile_or_404(db, profile_id: str) -> ModelProfile:
+    profile = db.get_model_profile(profile_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Model profile not found")
+    return profile
+
+
+@router.get("/model-profiles", response_model=ModelProfileListResponse)
+def list_model_profiles(request: Request) -> ModelProfileListResponse:
+    """List named AI model/provider profiles."""
+    _require_authenticated_or_bootstrap(request)
+
+    from fichero.app_db import get_app_db
+
+    return ModelProfileListResponse(items=get_app_db().list_model_profiles())
+
+
+@router.post("/model-profiles", response_model=ModelProfile, status_code=201)
+def create_model_profile(
+    body: ModelProfileCreate,
+    request: Request,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> ModelProfile:
+    """Create a named AI model/provider profile."""
+    from duckdb import ConstraintException
+    from fichero.app_db import get_app_db
+
+    profile = body.to_profile()
+    _validate_profile(profile)
+    try:
+        return get_app_db().save_model_profile(profile)
+    except ConstraintException as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Model profile already exists: {profile.name}",
+        ) from exc
+
+
+@router.get("/model-profiles/{profile_id}", response_model=ModelProfile)
+def get_model_profile(profile_id: str, request: Request) -> ModelProfile:
+    """Get a named AI model/provider profile."""
+    _require_authenticated_or_bootstrap(request)
+
+    from fichero.app_db import get_app_db
+
+    return _get_profile_or_404(get_app_db(), profile_id)
+
+
+@router.put("/model-profiles/{profile_id}", response_model=ModelProfile)
+def update_model_profile(
+    profile_id: str,
+    body: ModelProfileUpdate,
+    request: Request,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> ModelProfile:
+    """Update a named AI model/provider profile."""
+    from duckdb import ConstraintException
+    from fichero.app_db import get_app_db
+
+    db = get_app_db()
+    current = _get_profile_or_404(db, profile_id)
+    updates = {
+        field_name: getattr(body, field_name)
+        for field_name in body.model_fields_set
+        if getattr(body, field_name) is not None
+    }
+    profile = current.model_copy(update=updates)
+    _validate_profile(profile)
+    try:
+        return db.save_model_profile(profile)
+    except ConstraintException as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Model profile already exists: {profile.name}",
+        ) from exc
+
+
+@router.delete("/model-profiles/{profile_id}", response_model=StatusOkResponse)
+def delete_model_profile(
+    profile_id: str,
+    request: Request,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> StatusOkResponse:
+    """Delete a named AI model/provider profile."""
+    from fichero.app_db import get_app_db
+
+    deleted = get_app_db().delete_model_profile(profile_id)
+    if deleted is None:
+        raise HTTPException(status_code=404, detail="Model profile not found")
+    return StatusOkResponse(status="ok")
 
 
 @router.get("/ai-defaults", response_model=AIDefaults)

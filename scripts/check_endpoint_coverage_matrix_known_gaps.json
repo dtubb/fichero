@@ -35,6 +35,7 @@
   "DELETE /api/research/projects/{project_id}": "store missing",
   "DELETE /api/schedules/{schedule_id}": "store missing",
   "DELETE /api/settings/ai-defaults": "store missing",
+  "DELETE /api/settings/model-profiles/{profile_id}": "store missing - #2058 backend model-profile API; Settings UI/store wiring deferred",
   "DELETE /api/storage/snapshots/{snapshot_id}": "store missing",
   "DELETE /api/tasks/tasks/{task_id}": "store missing",
   "DELETE /api/triggers/{trigger_id}": "store missing",
@@ -213,6 +214,8 @@
   "GET /api/search/views/map": "store missing",
   "GET /api/search/views/table": "store missing",
   "GET /api/settings/ai-defaults": "store missing",
+  "GET /api/settings/model-profiles": "store missing - #2058 backend model-profile API; Settings UI/store wiring deferred",
+  "GET /api/settings/model-profiles/{profile_id}": "store missing - #2058 backend model-profile API; Settings UI/store wiring deferred",
   "GET /api/stats": "store missing",
   "GET /api/storage/debug/{doc_id}": "store missing",
   "GET /api/storage/display/{doc_id}": "store missing",
@@ -341,6 +344,7 @@
   "POST /api/local-inference/profiles/{profile_id}/start": "store missing - #1814 backend local-MLX control surface; Mac/SwiftUI wiring deferred",
   "POST /api/local-inference/profiles/{profile_id}/stop": "store missing - #1814 backend local-MLX control surface; Mac/SwiftUI wiring deferred",
   "POST /api/local-models/download/{model_type}/{model_id}": "store missing",
+  "POST /api/settings/model-profiles": "store missing - #2058 backend model-profile API; Settings UI/store wiring deferred",
   "POST /api/mcp-servers": "store missing",
   "POST /api/mcp-servers/tools/load-into-workflow-registry": "store missing",
   "POST /api/mcp-servers/tools/reload-workflow-registry": "store missing",
@@ -436,6 +440,7 @@
   "PUT /api/mcp-servers/{server_id}": "store missing",
   "PUT /api/schedules/{schedule_id}": "store missing",
   "PUT /api/settings/ai-defaults": "store missing",
+  "PUT /api/settings/model-profiles/{profile_id}": "store missing - #2058 backend model-profile API; Settings UI/store wiring deferred",
   "PUT /api/triggers/{trigger_id}": "store missing",
   "POST /api/model-comparison/compare-workflow": "store missing - #2195 CLI-only model-comparison bake-off; SwiftUI comparison UI is #1753/#1739"
 }
