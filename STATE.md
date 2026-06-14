@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `be8c74f5`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `d312b1d2`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -26,16 +26,21 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 ### SHIPPED (loop tick 2c, all gated ALL PASS + pushed, never red) — 0.0.2 @ be8c74f5
 - **#2194 + #2193** (2c4d901a + be8c74f5) pinned current FastEmbed embedding space (`intfloat/multilingual-e5-large`, explicit mean pooling), stamped `embedding_model_id` on new Lance rows, added known mixed-space refusal with legacy unstamped warning, and gated `llm_embeddings.embed/aembed` behind local-only + paid-fallback policy. Initial worker targeted tests missed FastEmbed's typed `DenseModelDescription`/`ModelSource` contract; full gate failed; repair commit switched from dict-returning `list_supported_models()` to typed `_list_supported_models()` and added cache-isolation test coverage. Manager gate then passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4818 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issues closed; `embeddings-pin` worktree/window removed. No real data was re-embedded.
 
+### SHIPPED (loop tick 2d, all gated ALL PASS + pushed, never red) — 0.0.2 @ 62e89694
+- **#2196** (62e89694) added a programmatic backend AI/model metadata guardrail: `scripts/check_ai_model_metadata.py` plus unit coverage, wired into `verify_all`. It forbids the exact raw-dict failure mode caught by the embeddings full gate: `TextEmbedding.list_supported_models()` in custom registration and raw dict subscripting of AI/model metadata fields (`sources`, `model_file`, `dim`, `size_in_GB`) inside targeted provider/adapter files. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4822 passed, 28 skipped, 22 xfailed`). Issue closed; `ai-metadata-guardrail-2196` worktree/window removed.
+
+### SHIPPED (loop tick 2e, all gated ALL PASS + pushed, never red) — 0.0.2 @ d312b1d2
+- **#2197** (d312b1d2) added backend-only AI Infrastructure test coverage for the remaining checklist gaps: provider/key precedence and keyless local provider placeholders; paid-fallback positive path and same-model short-circuit; alias config propagation; known/unknown cost estimation; usage collection with and without `usage_metadata`; E5 query/passage formatting; quota/429 classification vs unrelated 500s. Initial full gate caught a vacuous-test guardrail miss; amended test now uses a plain assertion and `check_test_assertions.py` reports `4279 asserting tests`. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4841 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `ai-backend-tests-2197` worktree/window removed.
+
 ### In flight (poll on wake) — tick 3
-- None currently active. Next: dispatch programmatic guardrail for typed AI/model metadata, then continue #938 / AI-test gaps / design-doc lanes.
+- None currently active. Next: continue #938 multi-step transcribe and #2190 paleography reference-search, plus design-doc lanes for MLX (#1814/#2066) and in-app agent (#2067). Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
 
 ### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
-1. **AI-backend tests** worker — implement Fable's test-gap checklist (workers write tests, manager runs full suite). Ties to #1987.
-2. **Cloud-leak + transparent fallback**: **#2191** (symmetric paid-fallback consent gate on `chat_with_fallback`), **#2192** (global `is_local_only()` perimeter), **#2193** (gate cloud embedding default). llm.py — one worker, FULL suite (god-ish file).
-3. **Embeddings**: **#2194/#2117/#2049** (pin bge-m3 model + pooling + stamp model-id on vectors). *Manager runs any re-embed deliberately — never a worker; do NOT re-embed real Marshall/ICANH data.*
-4. **Efficiency**: **#2057** (.abatch fan-out), **#2055** (client/model reuse), **#2062** (bounded concurrency) per Fable's ranked wins.
-5. **Multi-step transcribe**: **#938** (Transcribe multi-pass: small→large→combine) = the ICANH "Spanish Script (19th–20th c.)" preset. Needs my vision-judgment on prompts — I lead with a worker on plumbing. **#2190** (Paleography reference-search fails).
-6. **MLX on-device** (#1814/#2066/#2071 Pi harness on mlx-lm-server) + **in-app Agent** (#2067 + #2068–#2074) — bigger/design-led; scaffold via a design-doc lane first.
+1. **Multi-step transcribe**: **#938** (Transcribe multi-pass: small→large→combine) = the ICANH "Spanish Script (19th–20th c.)" preset. Manager leads prompts and scores outputs against the ICANH ground truth below using `/compare-vision` + `/compare-workflow`; worker handles plumbing/tests.
+2. **Paleography reference-search**: **#2190** — fix the failing reference-search node so the existing Paleography preset can complete after saving transcription.
+3. **Batch/eval polish**: use the now-shipped compare CLI/API and #2057 batching to evaluate good-and-cheap model choices without network leaks; keep tests/fakes network-free.
+4. **MLX on-device** (#1814/#2066/#2071 Pi harness on mlx-lm-server) + **in-app Agent** (#2067 + #2068–#2074) — bigger/design-led; scaffold via a design-doc lane first.
+5. **Deferred/held**: Mac/SwiftUI, `entitytable-2020`, `lan-tls-2157`, and auth/security design calls stay untouched.
 
 ### ICANH ground truth (my vision, for scoring bake-offs)
 Doc `18590129.pdf` (`files/fi/aa82ab20_fichero_upload_ouazq1uq.pdf`), an 1859 Nóvita (Chocó) notarial deed: opening is **"En la ciudad de Nóvita a veintiuno de Enero del año de mil ochocientos cincuenta i nueve"**, notary **Adolfo Hurtado**, parties **Juan Catarino Ayrilla** + **Eduvijes Ibárgüen**, creditor **Pompeyo Guzmán**, sum **400 pesos fuertes = 250 castellanos de oro en polvo**. gpt-4o-mini HALLUCINATES the opening ("Con la utilidad de Xrito") + garbles all numbers → weak baseline. Score candidates vs this.
