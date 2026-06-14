@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `d312b1d2`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `96d4aa68`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -32,15 +32,17 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 ### SHIPPED (loop tick 2e, all gated ALL PASS + pushed, never red) — 0.0.2 @ d312b1d2
 - **#2197** (d312b1d2) added backend-only AI Infrastructure test coverage for the remaining checklist gaps: provider/key precedence and keyless local provider placeholders; paid-fallback positive path and same-model short-circuit; alias config propagation; known/unknown cost estimation; usage collection with and without `usage_metadata`; E5 query/passage formatting; quota/429 classification vs unrelated 500s. Initial full gate caught a vacuous-test guardrail miss; amended test now uses a plain assertion and `check_test_assertions.py` reports `4279 asserting tests`. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4841 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `ai-backend-tests-2197` worktree/window removed.
 
+### SHIPPED (loop tick 3a, all gated ALL PASS + pushed, never red) — 0.0.2 @ 96d4aa68
+- **#2190** (96d4aa68) fixed `Transcribe Paleography` / HTR-style workflows failing after pass-one transcription when the optional `reference-search` node has no reference corpus/search index. Preset graph/ports were correct; backend `search_tool` now returns typed empty context (`documents=[]`, counts=0) only for expected missing search-index/corpus infrastructure, while unrelated search failures still return `error` and abort. Added a real workflow regression for `transcribe -> search -> transcribe_review` proving `metadata=[]` and completion when the embeddings/index table is absent. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4842 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `paleography-reference-2190` worktree/window removed.
+
 ### In flight (poll on wake) — tick 3
-- None currently active. Next: continue #938 multi-step transcribe and #2190 paleography reference-search, plus design-doc lanes for MLX (#1814/#2066) and in-app agent (#2067). Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
+- None currently active. Next: continue #938 multi-step transcribe, plus design-doc lanes for MLX (#1814/#2066) and in-app agent (#2067). Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
 
 ### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
 1. **Multi-step transcribe**: **#938** (Transcribe multi-pass: small→large→combine) = the ICANH "Spanish Script (19th–20th c.)" preset. Manager leads prompts and scores outputs against the ICANH ground truth below using `/compare-vision` + `/compare-workflow`; worker handles plumbing/tests.
-2. **Paleography reference-search**: **#2190** — fix the failing reference-search node so the existing Paleography preset can complete after saving transcription.
-3. **Batch/eval polish**: use the now-shipped compare CLI/API and #2057 batching to evaluate good-and-cheap model choices without network leaks; keep tests/fakes network-free.
-4. **MLX on-device** (#1814/#2066/#2071 Pi harness on mlx-lm-server) + **in-app Agent** (#2067 + #2068–#2074) — bigger/design-led; scaffold via a design-doc lane first.
-5. **Deferred/held**: Mac/SwiftUI, `entitytable-2020`, `lan-tls-2157`, and auth/security design calls stay untouched.
+2. **Batch/eval polish**: use the now-shipped compare CLI/API and #2057 batching to evaluate good-and-cheap model choices without network leaks; keep tests/fakes network-free.
+3. **MLX on-device** (#1814/#2066/#2071 Pi harness on mlx-lm-server) + **in-app Agent** (#2067 + #2068–#2074) — bigger/design-led; scaffold via a design-doc lane first.
+4. **Deferred/held**: Mac/SwiftUI, `entitytable-2020`, `lan-tls-2157`, and auth/security design calls stay untouched.
 
 ### ICANH ground truth (my vision, for scoring bake-offs)
 Doc `18590129.pdf` (`files/fi/aa82ab20_fichero_upload_ouazq1uq.pdf`), an 1859 Nóvita (Chocó) notarial deed: opening is **"En la ciudad de Nóvita a veintiuno de Enero del año de mil ochocientos cincuenta i nueve"**, notary **Adolfo Hurtado**, parties **Juan Catarino Ayrilla** + **Eduvijes Ibárgüen**, creditor **Pompeyo Guzmán**, sum **400 pesos fuertes = 250 castellanos de oro en polvo**. gpt-4o-mini HALLUCINATES the opening ("Con la utilidad de Xrito") + garbles all numbers → weak baseline. Score candidates vs this.
