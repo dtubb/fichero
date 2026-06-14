@@ -13,6 +13,7 @@ The builder:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from pathlib import Path
@@ -29,6 +30,19 @@ from fichero.workflows.tools.output_quality import (
 from fichero.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
+
+# Concurrency cap for parallel vision fan-out (#2221).
+# Bounds the number of simultaneously in-flight LLM/image calls so a batch
+# of multi-page PDFs processes steadily instead of exhausting RAM all at once.
+VISION_FAN_OUT_CONCURRENCY: int = 4
+_vision_fan_out_sem: asyncio.Semaphore | None = None
+
+
+def _get_vision_semaphore() -> asyncio.Semaphore:
+    global _vision_fan_out_sem
+    if _vision_fan_out_sem is None:
+        _vision_fan_out_sem = asyncio.Semaphore(VISION_FAN_OUT_CONCURRENCY)
+    return _vision_fan_out_sem
 
 
 def _required_llm_capability_for_category(category: str | None) -> str:
@@ -1040,12 +1054,14 @@ def _make_parallel_node_function(
 
                 tool_inputs["__progress_callback"] = emit_tool_progress
 
-            # Call the tool
-            result = await tool_fn(
-                inputs=tool_inputs,
-                state=state,
-                llm_config=node_llm_config,
-            )
+            # Cap concurrent in-flight vision/LLM calls to avoid OOM when a
+            # large batch dispatches dozens of Sends simultaneously (#2221).
+            async with _get_vision_semaphore():
+                result = await tool_fn(
+                    inputs=tool_inputs,
+                    state=state,
+                    llm_config=node_llm_config,
+                )
 
             # Check for errors - both top-level and in results array
             error_msg = None
