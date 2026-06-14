@@ -33168,6 +33168,279 @@
         }
       }
     },
+    "/api/local-inference/profiles": {
+      "get": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "List Local Inference Profiles",
+        "description": "List app-managed local inference profiles available to the app.",
+        "operationId": "list_local_inference_profiles_api_local_inference_profiles_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceProfileListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-inference/catalog": {
+      "get": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "List Local Inference Catalog",
+        "description": "List local inference model catalog entries for configured profiles.",
+        "operationId": "list_local_inference_catalog_api_local_inference_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceCatalogResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-inference/profiles/validate": {
+      "post": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "Validate Local Inference Profile",
+        "description": "Validate a local provider profile against no-cloud invariants.",
+        "operationId": "validate_local_inference_profile_api_local_inference_profiles_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalProviderProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceValidationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-inference/profiles/{profile_id}/status": {
+      "get": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "Get Local Inference Status",
+        "description": "Return current lifecycle status for an app-managed local provider.",
+        "operationId": "get_local_inference_status_api_local_inference_profiles__profile_id__status_get",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceServiceStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-inference/profiles/{profile_id}/health": {
+      "post": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "Check Local Inference Health",
+        "description": "Poll health for an app-managed local provider.",
+        "operationId": "check_local_inference_health_api_local_inference_profiles__profile_id__health_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceServiceStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-inference/profiles/{profile_id}/start": {
+      "post": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "Start Local Inference Profile",
+        "description": "Start or warm an app-managed local provider and wait for health.",
+        "operationId": "start_local_inference_profile_api_local_inference_profiles__profile_id__start_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalInferenceStartRequest",
+                "nullable": true,
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceServiceStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-inference/profiles/{profile_id}/stop": {
+      "post": {
+        "tags": [
+          "local-inference"
+        ],
+        "summary": "Stop Local Inference Profile",
+        "description": "Mark an app-managed local provider stopped.",
+        "operationId": "stop_local_inference_profile_api_local_inference_profiles__profile_id__stop_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalInferenceServiceStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/local-models": {
       "get": {
         "tags": [
@@ -48072,6 +48345,215 @@
         "title": "LibraryStatsResponse",
         "description": "Response from ``GET /api/stats`` for the active library."
       },
+      "LocalInferenceCatalogResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LocalModelCatalogEntry"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "LocalInferenceCatalogResponse",
+        "description": "Envelope for local model catalog entries."
+      },
+      "LocalInferenceProfileListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LocalProviderProfile"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "LocalInferenceProfileListResponse",
+        "description": "Envelope for app-managed local inference provider profiles."
+      },
+      "LocalInferenceServiceStatus": {
+        "properties": {
+          "profile_id": {
+            "type": "string",
+            "title": "Profile Id"
+          },
+          "provider_type": {
+            "$ref": "#/components/schemas/ProviderType"
+          },
+          "state": {
+            "$ref": "#/components/schemas/LocalServiceState"
+          },
+          "healthy": {
+            "type": "boolean",
+            "title": "Healthy"
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Base Url"
+          },
+          "model_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Id"
+          },
+          "pid": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pid"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Started At"
+          },
+          "restart_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Restart Count",
+            "default": 0
+          },
+          "last_error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Last Error"
+          },
+          "memory_warning": {
+            "type": "string",
+            "nullable": true,
+            "title": "Memory Warning"
+          },
+          "uptime_seconds": {
+            "type": "number",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Uptime Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "profile_id",
+          "provider_type",
+          "state",
+          "healthy",
+          "base_url"
+        ],
+        "title": "LocalInferenceServiceStatus",
+        "description": "Snapshot of the local service lifecycle state."
+      },
+      "LocalInferenceStartRequest": {
+        "properties": {
+          "timeout_seconds": {
+            "type": "number",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Timeout Seconds"
+          }
+        },
+        "type": "object",
+        "title": "LocalInferenceStartRequest",
+        "description": "Request body for starting or warming a local inference profile."
+      },
+      "LocalInferenceValidationResponse": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/LocalProviderProfile"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid",
+          "profile"
+        ],
+        "title": "LocalInferenceValidationResponse",
+        "description": "Result of profile validation."
+      },
+      "LocalModelCatalogEntry": {
+        "properties": {
+          "provider_type": {
+            "$ref": "#/components/schemas/ProviderType"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Capabilities"
+          },
+          "installed": {
+            "type": "boolean",
+            "title": "Installed",
+            "default": false
+          },
+          "download_size_bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Download Size Bytes"
+          },
+          "disk_usage_bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Disk Usage Bytes"
+          },
+          "memory_class": {
+            "type": "string",
+            "nullable": true,
+            "title": "Memory Class"
+          },
+          "license_label": {
+            "type": "string",
+            "nullable": true,
+            "title": "License Label"
+          },
+          "source": {
+            "$ref": "#/components/schemas/LocalModelSource",
+            "default": "user_configured"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_type",
+          "model_id",
+          "display_name"
+        ],
+        "title": "LocalModelCatalogEntry",
+        "description": "Typed catalog entry for a local inference model."
+      },
       "LocalModelInfoResponse": {
         "properties": {
           "model_id": {
@@ -48139,6 +48621,116 @@
         ],
         "title": "LocalModelListResponse",
         "description": "List of local models."
+      },
+      "LocalModelSource": {
+        "type": "string",
+        "enum": [
+          "bundled",
+          "app_cache",
+          "user_configured",
+          "remote_catalog"
+        ],
+        "title": "LocalModelSource",
+        "description": "Where a local catalog entry originates."
+      },
+      "LocalProviderProfile": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "provider_type": {
+            "$ref": "#/components/schemas/ProviderType"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Base Url"
+          },
+          "local_only": {
+            "type": "boolean",
+            "title": "Local Only",
+            "default": true
+          },
+          "allows_paid_fallbacks": {
+            "type": "boolean",
+            "title": "Allows Paid Fallbacks",
+            "default": false
+          },
+          "managed_by_app": {
+            "type": "boolean",
+            "title": "Managed By App",
+            "default": true
+          },
+          "startup_policy": {
+            "$ref": "#/components/schemas/LocalProviderStartupPolicy",
+            "default": "on_demand"
+          },
+          "healthcheck_path": {
+            "type": "string",
+            "title": "Healthcheck Path",
+            "default": "/health"
+          },
+          "timeout_seconds": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Timeout Seconds",
+            "default": 5.0
+          },
+          "max_concurrency": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Max Concurrency",
+            "default": 1
+          },
+          "visible_in_ui": {
+            "type": "boolean",
+            "title": "Visible In Ui",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "provider_type",
+          "model_id",
+          "base_url"
+        ],
+        "title": "LocalProviderProfile",
+        "description": "Configuration for an app-managed, local-only inference provider."
+      },
+      "LocalProviderStartupPolicy": {
+        "type": "string",
+        "enum": [
+          "on_demand",
+          "eager",
+          "manual"
+        ],
+        "title": "LocalProviderStartupPolicy",
+        "description": "When the app should start a managed local provider."
+      },
+      "LocalServiceState": {
+        "type": "string",
+        "enum": [
+          "stopped",
+          "starting",
+          "healthy",
+          "degraded",
+          "failed"
+        ],
+        "title": "LocalServiceState",
+        "description": "Lifecycle state for an app-managed local inference service."
       },
       "LoginRequest": {
         "properties": {
@@ -52527,6 +53119,35 @@
         ],
         "title": "ProviderResponse",
         "description": "User-configured provider."
+      },
+      "ProviderType": {
+        "type": "string",
+        "enum": [
+          "apple",
+          "mock",
+          "ollama",
+          "lmstudio",
+          "omlx",
+          "huggingface",
+          "openrouter",
+          "openai",
+          "anthropic",
+          "google",
+          "groq",
+          "together",
+          "deepseek",
+          "mistral",
+          "cohere",
+          "dashscope",
+          "xai",
+          "perplexity",
+          "fireworks",
+          "deepl",
+          "azure",
+          "bedrock"
+        ],
+        "title": "ProviderType",
+        "description": "Supported LLM provider types."
       },
       "ProviderUpdate": {
         "properties": {

@@ -4995,6 +4995,98 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('local-inference')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for local-inference endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='local-inference')
+
+    @target_app.command("list-catalog")
+    def local_inference_list_catalog_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Local Inference Catalog (GET /api/local-inference/catalog)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/local-inference/catalog"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-profiles")
+    def local_inference_list_profiles_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Local Inference Profiles (GET /api/local-inference/profiles)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/local-inference/profiles"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("validate-profile")
+    def local_inference_validate_profile_post(
+        ctx: typer.Context,
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Validate Local Inference Profile (POST /api/local-inference/profiles/validate)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/local-inference/profiles/validate"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("check-health")
+    def local_inference_check_health_post(
+        ctx: typer.Context,
+        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+    ) -> None:
+        """Check Local Inference Health (POST /api/local-inference/profiles/{profile_id}/health)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/local-inference/profiles/{profile_id}/health"
+            params = None
+            return client.request("POST", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("start-profile")
+    def local_inference_start_profile_post(
+        ctx: typer.Context,
+        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Start Local Inference Profile (POST /api/local-inference/profiles/{profile_id}/start)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/local-inference/profiles/{profile_id}/start"
+            params = None
+            payload = _load_json_payload(body, body_file, required=False)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-status")
+    def local_inference_get_status_get(
+        ctx: typer.Context,
+        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+    ) -> None:
+        """Get Local Inference Status (GET /api/local-inference/profiles/{profile_id}/status)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/local-inference/profiles/{profile_id}/status"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("stop-profile")
+    def local_inference_stop_profile_post(
+        ctx: typer.Context,
+        profile_id: str = typer.Argument(..., help="Path parameter: profile_id."),
+    ) -> None:
+        """Stop Local Inference Profile (POST /api/local-inference/profiles/{profile_id}/stop)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/local-inference/profiles/{profile_id}/stop"
+            params = None
+            return client.request("POST", path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('local-models')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for local-models endpoints.', no_args_is_help=True)

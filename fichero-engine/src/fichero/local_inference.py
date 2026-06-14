@@ -67,7 +67,7 @@ class LocalProviderProfile(BaseModel):
     managed_by_app: bool = True
     startup_policy: LocalProviderStartupPolicy = LocalProviderStartupPolicy.on_demand
     healthcheck_path: str = "/health"
-    timeout_seconds: float = Field(default=5.0, gt=0)
+    timeout_seconds: float = Field(default=5.0, ge=0)
     max_concurrency: int = Field(default=1, ge=1)
     visible_in_ui: bool = True
 
@@ -76,6 +76,13 @@ class LocalProviderProfile(BaseModel):
     def _healthcheck_path_must_be_absolute(cls, value: str) -> str:
         if not value.startswith("/"):
             raise ValueError("healthcheck_path must start with '/'")
+        return value
+
+    @field_validator("timeout_seconds")
+    @classmethod
+    def _timeout_seconds_must_be_positive(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("timeout_seconds must be greater than 0")
         return value
 
     @model_validator(mode="after")
@@ -228,6 +235,28 @@ class LocalInferenceProcess(Protocol):
 
     def is_running(self) -> bool:
         """Return whether the process is still running."""
+
+
+class ExternalLocalInferenceProcess:
+    """Process adapter for an app-owned server started outside this backend.
+
+    The Swift app can own the real process lifecycle while the backend exposes
+    a typed control/status surface and still validates loopback health.
+    """
+
+    def __init__(self) -> None:
+        self.pid: int | None = None
+        self._running = False
+
+    async def start(self) -> None:
+        self._running = True
+
+    async def stop(self) -> None:
+        self._running = False
+        self.pid = None
+
+    def is_running(self) -> bool:
+        return self._running
 
 
 class LocalHealthClient(Protocol):
@@ -466,6 +495,7 @@ class LocalInferenceServiceManager:
 
 
 __all__ = [
+    "ExternalLocalInferenceProcess",
     "HttpxLocalHealthClient",
     "LocalChatMessage",
     "LocalHealthClient",

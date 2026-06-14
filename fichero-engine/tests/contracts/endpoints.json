@@ -5091,6 +5091,86 @@
         "response_model": "LibraryCreateResponse"
       }
     ],
+    "local-inference": [
+      {
+        "method": "GET",
+        "path": "/local-inference/catalog",
+        "operation_id": "list_local_inference_catalog_api_local_inference_catalog_get",
+        "summary": "List Local Inference Catalog",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalInferenceCatalogResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/local-inference/profiles",
+        "operation_id": "list_local_inference_profiles_api_local_inference_profiles_get",
+        "summary": "List Local Inference Profiles",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalInferenceProfileListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/local-inference/profiles/validate",
+        "operation_id": "validate_local_inference_profile_api_local_inference_profiles_validate_post",
+        "summary": "Validate Local Inference Profile",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "LocalProviderProfile",
+        "response_model": "LocalInferenceValidationResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/local-inference/profiles/{profile_id}/health",
+        "operation_id": "check_local_inference_health_api_local_inference_profiles__profile_id__health_post",
+        "summary": "Check Local Inference Health",
+        "path_params": [
+          "profile_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalInferenceServiceStatus"
+      },
+      {
+        "method": "POST",
+        "path": "/local-inference/profiles/{profile_id}/start",
+        "operation_id": "start_local_inference_profile_api_local_inference_profiles__profile_id__start_post",
+        "summary": "Start Local Inference Profile",
+        "path_params": [
+          "profile_id"
+        ],
+        "query_params": [],
+        "request_model": "LocalInferenceStartRequest",
+        "response_model": "LocalInferenceServiceStatus"
+      },
+      {
+        "method": "GET",
+        "path": "/local-inference/profiles/{profile_id}/status",
+        "operation_id": "get_local_inference_status_api_local_inference_profiles__profile_id__status_get",
+        "summary": "Get Local Inference Status",
+        "path_params": [
+          "profile_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalInferenceServiceStatus"
+      },
+      {
+        "method": "POST",
+        "path": "/local-inference/profiles/{profile_id}/stop",
+        "operation_id": "stop_local_inference_profile_api_local_inference_profiles__profile_id__stop_post",
+        "summary": "Stop Local Inference Profile",
+        "path_params": [
+          "profile_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalInferenceServiceStatus"
+      }
+    ],
     "local-models": [
       {
         "method": "GET",
