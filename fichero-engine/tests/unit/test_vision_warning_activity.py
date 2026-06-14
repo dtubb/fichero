@@ -96,7 +96,7 @@ class TestAppleVisionOCREmitsWarning:
         from fichero.workflows.tools.vision_base import apple_vision_ocr
 
         with (
-            patch("fichero.workflows.tools.vision_base._log_vision_warning") as mock_warn,
+            patch("fichero.workflows.tools.vision_base._log_vision_warning"),
             patch(
                 "fichero.workflows.tools.vision_base.objc",
                 side_effect=AttributeError,

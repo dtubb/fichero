@@ -21,6 +21,7 @@ import base64
 import dataclasses
 import io
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
@@ -195,6 +196,199 @@ class VisionToolConfig(LLMToolConfig):
 
     # Whether Apple Vision is supported for this tool
     supports_apple_vision: bool = False
+
+
+@dataclass(slots=True)
+class VisionOCRBox:
+    """Normalized OCR geometry record."""
+
+    text: str
+    bbox: list[float]
+    confidence: float | None = None
+    page_index: int | None = None
+
+
+@dataclass(slots=True)
+class VisionOCRResult:
+    """Apple Vision OCR text plus line/word geometry."""
+
+    text: str
+    line_boxes: list[VisionOCRBox]
+    word_boxes: list[VisionOCRBox]
+
+
+def _vision_value(obj: Any, name: str) -> Any:
+    """Return an attribute value, calling it when Vision exposes a method."""
+    if not hasattr(obj, name):
+        return None
+    value = getattr(obj, name)
+    return value() if callable(value) else value
+
+
+def _vision_bbox_from_rect(rect: Any) -> list[float] | None:
+    """Coerce a Vision/Quartz rect into normalized [x, y, w, h]."""
+    if rect is None:
+        return None
+
+    if isinstance(rect, dict):
+        if {"x", "y", "width", "height"}.issubset(rect):
+            return [
+                float(rect["x"]),
+                float(rect["y"]),
+                float(rect["width"]),
+                float(rect["height"]),
+            ]
+        origin = rect.get("origin")
+        size = rect.get("size")
+        if isinstance(origin, dict) and isinstance(size, dict):
+            return [
+                float(origin.get("x", 0.0)),
+                float(origin.get("y", 0.0)),
+                float(size.get("width", 0.0)),
+                float(size.get("height", 0.0)),
+            ]
+
+    if isinstance(rect, (list, tuple)) and len(rect) >= 4:
+        return [float(rect[0]), float(rect[1]), float(rect[2]), float(rect[3])]
+
+    origin = getattr(rect, "origin", None)
+    size = getattr(rect, "size", None)
+    if origin is not None and size is not None:
+        return [
+            float(getattr(origin, "x", 0.0)),
+            float(getattr(origin, "y", 0.0)),
+            float(getattr(size, "width", 0.0)),
+            float(getattr(size, "height", 0.0)),
+        ]
+
+    if all(hasattr(rect, attr) for attr in ("x", "y", "width", "height")):
+        return [
+            float(getattr(rect, "x")),
+            float(getattr(rect, "y")),
+            float(getattr(rect, "width")),
+            float(getattr(rect, "height")),
+        ]
+
+    return None
+
+
+def _vision_candidate_confidence(candidate: Any) -> float | None:
+    confidence = _vision_value(candidate, "confidence")
+    if confidence is None:
+        return None
+    try:
+        return float(confidence)
+    except (TypeError, ValueError):
+        return None
+
+
+def _vision_candidate_text(candidate: Any) -> str:
+    text = _vision_value(candidate, "string")
+    return text if isinstance(text, str) else ""
+
+
+def _vision_candidate_bbox_for_range(candidate: Any, text_range: Any) -> Any:
+    for method_name in (
+        "boundingBoxForRange_error_",
+        "boundingBoxForRange_",
+        "boundingBoxForRange",
+        "boundingBox_forRange_",
+    ):
+        method = getattr(candidate, method_name, None)
+        if not callable(method):
+            continue
+        for args in ((text_range,), (text_range, None)):
+            try:
+                result = method(*args)
+            except TypeError:
+                continue
+            if isinstance(result, tuple) and result:
+                result = result[0]
+            if result is not None:
+                return result
+    return None
+
+
+def _vision_text_range(start: int, length: int) -> Any:
+    try:
+        from Foundation import NSMakeRange
+
+        return NSMakeRange(start, length)
+    except Exception:
+        return (start, length)
+
+
+def _vision_word_boxes(
+    candidate: Any,
+    text: str,
+    *,
+    page_index: int | None = None,
+) -> list[VisionOCRBox]:
+    """Build per-word geometry from a recognized text candidate."""
+    boxes: list[VisionOCRBox] = []
+    confidence = _vision_candidate_confidence(candidate)
+    for match in re.finditer(r"\S+", text):
+        bbox = _vision_candidate_bbox_for_range(
+            candidate,
+            _vision_text_range(match.start(), match.end() - match.start()),
+        )
+        bbox_list = _vision_bbox_from_rect(bbox)
+        if bbox_list is None:
+            continue
+        boxes.append(
+            VisionOCRBox(
+                text=match.group(0),
+                bbox=bbox_list,
+                confidence=confidence,
+                page_index=page_index,
+            )
+        )
+    return boxes
+
+
+def _vision_geometry_from_results(
+    results: list[Any],
+    *,
+    page_index: int | None = None,
+) -> VisionOCRResult:
+    """Convert Vision observations into typed text + geometry records."""
+    line_boxes: list[VisionOCRBox] = []
+    word_boxes: list[VisionOCRBox] = []
+    text_lines: list[str] = []
+
+    for observation in results:
+        candidates = observation.topCandidates_(1) if hasattr(observation, "topCandidates_") else []
+        candidate = candidates[0] if candidates else None
+        line_text = _vision_candidate_text(candidate) if candidate else ""
+        line_bbox = _vision_bbox_from_rect(_vision_value(observation, "boundingBox"))
+        confidence = _vision_candidate_confidence(candidate)
+
+        if line_bbox is not None:
+            line_boxes.append(
+                VisionOCRBox(
+                    text=line_text,
+                    bbox=line_bbox,
+                    confidence=confidence,
+                    page_index=page_index,
+                )
+            )
+
+        if line_text:
+            text_lines.append(line_text)
+            if candidate is not None:
+                word_boxes.extend(
+                    _vision_word_boxes(
+                        candidate,
+                        line_text,
+                        page_index=page_index,
+                    )
+                )
+
+    return VisionOCRResult(
+        text="\n".join(text_lines),
+        line_boxes=line_boxes,
+        word_boxes=word_boxes,
+    )
 
 
 # =============================================================================
@@ -397,6 +591,21 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
     page to a bitmap first since CGImageSource can't create CGImages from PDFs.
     For TIFs and oversized images, normalizes via Pillow first (#796).
     """
+    return apple_vision_ocr_with_geometry(image_path, language).text
+
+
+def apple_vision_ocr_with_geometry(
+    image_path: str,
+    language: str = "en",
+) -> VisionOCRResult:
+    """Extract text and normalized Apple Vision geometry from image or PDF.
+
+    This is the geometry-preserving helper API. The existing `apple_vision_ocr()`
+    wrapper keeps returning plain text for compatibility. The next safe
+    integration seam is `process_vision()`, which still consumes text-only
+    results and can later attach `line_boxes` / `word_boxes` to the transcription
+    artifact or records payload once that schema is ready.
+    """
     cleanup_path: str | None = None
     try:
         from Quartz import (
@@ -431,6 +640,8 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
         if is_pdf:
             # Render all PDF pages and OCR each one
             all_lines = []
+            all_line_boxes: list[VisionOCRBox] = []
+            all_word_boxes: list[VisionOCRBox] = []
             first_image, num_pages = _render_pdf_page_to_cgimage(image_path, 0)
             logger.info(f"PDF has {num_pages} pages, OCR-ing all pages")
 
@@ -440,13 +651,23 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
                 else:
                     cg_image, _ = _render_pdf_page_to_cgimage(image_path, page_idx)
 
-                page_text = _vision_ocr_cgimage(cg_image, language)
-                if page_text:
+                page_geometry = _vision_ocr_cgimage_with_geometry(
+                    cg_image,
+                    language,
+                    page_index=page_idx,
+                )
+                if page_geometry.text:
                     if num_pages > 1:
                         all_lines.append(f"--- Page {page_idx + 1} ---")
-                    all_lines.append(page_text)
+                    all_lines.append(page_geometry.text)
+                all_line_boxes.extend(page_geometry.line_boxes)
+                all_word_boxes.extend(page_geometry.word_boxes)
 
-            return "\n\n".join(all_lines)
+            return VisionOCRResult(
+                text="\n\n".join(all_lines),
+                line_boxes=all_line_boxes,
+                word_boxes=all_word_boxes,
+            )
         else:
             # Standard image path — ALWAYS Pillow-normalize first so
             # CoreGraphics gets a clean bounded PNG. JPEGs with CMYK,
@@ -482,7 +703,7 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
                     f"{effective_path}"
                 )
 
-            return _vision_ocr_cgimage(cg_image, language)
+            return _vision_ocr_cgimage_with_geometry(cg_image, language)
 
     except ImportError as e:
         msg = f"Apple Vision not available: {e}"
@@ -503,6 +724,15 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
 
 
 def _vision_ocr_cgimage(cg_image, language: str = "en") -> str:
+    return _vision_ocr_cgimage_with_geometry(cg_image, language).text
+
+
+def _vision_ocr_cgimage_with_geometry(
+    cg_image,
+    language: str = "en",
+    *,
+    page_index: int | None = None,
+) -> VisionOCRResult:
     """Run Vision OCR on a CGImage and return the recognized text.
 
     Retries with .Fast recognition level if Accurate returns empty, to handle
@@ -519,7 +749,7 @@ def _vision_ocr_cgimage(cg_image, language: str = "en") -> str:
     }
     lang = lang_map.get(language, language)
 
-    def _extract_text(request, recognition_level_name: str) -> str:
+    def _extract_text(request, recognition_level_name: str) -> VisionOCRResult | None:
         handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(
             cg_image, None
         )  # pylint: disable=no-member
@@ -538,22 +768,17 @@ def _vision_ocr_cgimage(cg_image, language: str = "en") -> str:
             _log_vision_warning(msg)
             return None
 
-        lines = []
-        for observation in results:
-            if hasattr(observation, "topCandidates_"):
-                candidates = observation.topCandidates_(1)
-                if candidates:
-                    lines.append(candidates[0].string())
-        return "\n".join(lines) if lines else None
+        geometry = _vision_geometry_from_results(results, page_index=page_index)
+        return geometry if geometry.text else None
 
     # Try Accurate first
     request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
     request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
     request.setRecognitionLanguages_([lang])
 
-    text = _extract_text(request, "Accurate")
-    if text is not None:
-        return text
+    geometry = _extract_text(request, "Accurate")
+    if geometry is not None:
+        return geometry
 
     # Retry with Fast if Accurate returned empty
     logger.info("Retrying with Fast recognition level")
@@ -561,15 +786,15 @@ def _vision_ocr_cgimage(cg_image, language: str = "en") -> str:
     request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelFast)  # pylint: disable=no-member
     request.setRecognitionLanguages_([lang])
 
-    text = _extract_text(request, "Fast")
-    if text is not None:
-        return text
+    geometry = _extract_text(request, "Fast")
+    if geometry is not None:
+        return geometry
 
     # Both attempts returned empty
     msg = f"Vision OCR returned empty even at Fast level (lang={language})"
     logger.error(msg)
     _log_vision_warning(msg)
-    return ""
+    return VisionOCRResult(text="", line_boxes=[], word_boxes=[])
 
 
 async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
