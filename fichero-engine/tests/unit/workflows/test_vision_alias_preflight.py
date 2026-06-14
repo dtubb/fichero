@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from fichero.llm import LLMConfig
+from fichero.llm import LLMConfig, resolve_model_alias_for_capability
 from fichero.workflows.types import NodeDef, WorkflowDef
 from fichero.workflows.validation import (
     validate_workflow_llm_preflight,
@@ -281,3 +281,101 @@ def test_spanish_script_multipass_preset_stays_valid_and_vision_unaliased(monkey
         workflow,
         LLMConfig(provider="", model=""),
     ) == []
+
+
+def test_spanish_script_v2_child_resolves_distinct_vision_tiers(monkeypatch):
+    monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
+    monkeypatch.setattr(
+        "fichero.app_db.get_app_db",
+        lambda: _fake_db(
+            settings={
+                "default_vision_small_provider": "apple",
+                "default_vision_small_model": "apple-vision-small",
+                "default_vision_medium_provider": "apple",
+                "default_vision_medium_model": "apple-vision-medium",
+                "default_vision_large_provider": "mlx",
+                "default_vision_large_model": "local-vision-large",
+            },
+            models_by_provider={
+                "apple": [
+                    _model("apple-vision-small", ["vision"]),
+                    _model("apple-vision-medium", ["vision"]),
+                ],
+                "mlx": [_model("local-vision-large", ["vision"])],
+            },
+        ),
+    )
+    path = (
+        Path(__file__).parents[3]
+        / "src/fichero/resources/default_workflows/transcribe_spanish_script_v2_child.json"
+    )
+    workflow = WorkflowDef(**json.loads(path.read_text()))
+    node_aliases = {
+        node.id: node.config.get("provider_name")
+        for node in workflow.nodes
+        if node.tool in {"transcribe", "transcribe_review"}
+    }
+
+    assert node_aliases == {
+        "transcribe-draft": "$vision_small",
+        "transcribe-review-medium": "$vision_medium",
+        "transcribe-final-large": "$vision_large",
+    }
+    assert resolve_model_alias_for_capability(
+        "$vision_small",
+        "",
+        required_capability="vision",
+    ) == ("apple", "apple-vision-small")
+    assert resolve_model_alias_for_capability(
+        "$vision_medium",
+        "",
+        required_capability="vision",
+    ) == ("apple", "apple-vision-medium")
+    assert resolve_model_alias_for_capability(
+        "$vision_large",
+        "",
+        required_capability="vision",
+    ) == ("mlx", "local-vision-large")
+    assert validate_workflow_preflight(
+        workflow,
+        LLMConfig(provider="", model=""),
+    ) == []
+
+
+def test_spanish_script_v2_child_rejects_cloud_vision_tier_under_local_only(monkeypatch):
+    monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
+    monkeypatch.setattr(
+        "fichero.app_db.get_app_db",
+        lambda: _fake_db(
+            settings={
+                "default_vision_small_provider": "apple",
+                "default_vision_small_model": "apple-vision-small",
+                "default_vision_medium_provider": "apple",
+                "default_vision_medium_model": "apple-vision-medium",
+                "default_vision_large_provider": "openai",
+                "default_vision_large_model": "gpt-4o",
+            },
+            models_by_provider={
+                "apple": [
+                    _model("apple-vision-small", ["vision"]),
+                    _model("apple-vision-medium", ["vision"]),
+                ],
+                "openai": [_model("gpt-4o", ["vision"])],
+            },
+        ),
+    )
+    path = (
+        Path(__file__).parents[3]
+        / "src/fichero/resources/default_workflows/transcribe_spanish_script_v2_child.json"
+    )
+    workflow = WorkflowDef(**json.loads(path.read_text()))
+
+    errors = validate_workflow_preflight(
+        workflow,
+        LLMConfig(provider="", model=""),
+    )
+
+    assert len(errors) == 1
+    assert "Final Reconcile" in errors[0]
+    assert "Local-only AI mode is enabled" in errors[0]
+    assert "openai/gpt-4o" in errors[0]

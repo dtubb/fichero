@@ -14,6 +14,8 @@ from fichero.workflows.default_workflows import (
     _load_preset_files,
     seed_default_workflows,
 )
+from fichero.workflows.types import WorkflowDef
+from fichero.workflows.validation import validate_workflow_preflight
 
 
 class TestLoadPresetFiles:
@@ -379,6 +381,12 @@ class TestLoadPresetFiles:
                 "transcribe-review-small",
                 "reference-search",
             ),
+            (
+                "Spanish Script v2 Child Passes (19th-20th C.)",
+                "transcribe-draft",
+                "transcribe-review-medium",
+                "reference-search",
+            ),
             ("Transcribe (Auto-Detect)", "transcribe-htr", "review-htr", "reference-search-htr"),
             (
                 "Transcribe (Auto-Detect)",
@@ -498,6 +506,92 @@ class TestLoadPresetFiles:
                 f"missing required prompt guidance: {needle!r}"
             )
 
+
+    def test_spanish_script_v2_presets_ship_beside_stable_preset(self):
+        presets = {p["name"]: p for p in _load_preset_files()}
+
+        stable = presets["Transcribe Spanish Script (19th-20th C., Multi-Pass)"]
+        child = presets["Spanish Script v2 Child Passes (19th-20th C.)"]
+        parent = presets["Transcribe Spanish Script v2 (19th-20th C., Sub-Workflow)"]
+
+        for preset in (child, parent):
+            assert preset.get("is_template") is True
+            assert preset.get("is_system") is True
+            assert preset.get("folder_path") == "/Transcribe"
+            assert preset.get("config", {}).get("preset_version") == 1
+            assert "sub-workflow" in preset.get("tags", [])
+            assert "v2" in preset.get("tags", [])
+
+        assert stable.get("config", {}).get("preset_version") == 1
+        assert stable["name"] != parent["name"]
+
+    def test_spanish_script_v2_child_uses_distinct_vision_tiers(self):
+        presets = {p["name"]: p for p in _load_preset_files()}
+        child = presets["Spanish Script v2 Child Passes (19th-20th C.)"]
+        node_by_id = {node["id"]: node for node in child["nodes"]}
+
+        assert node_by_id["transcribe-draft"]["config"]["provider_name"] == "$vision_small"
+        assert (
+            node_by_id["transcribe-review-medium"]["config"]["provider_name"]
+            == "$vision_medium"
+        )
+        assert (
+            node_by_id["transcribe-final-large"]["config"]["provider_name"]
+            == "$vision_large"
+        )
+        assert node_by_id["transcribe-draft"]["inputs"] == {"files": "$.inputs.files"}
+        assert node_by_id["transcribe-review-medium"]["inputs"] == {
+            "files": "$.inputs.files"
+        }
+        assert node_by_id["transcribe-final-large"]["inputs"] == {
+            "files": "$.inputs.files"
+        }
+
+        assert node_by_id["transcribe-final-large"]["config"]["update_page_content"] is True
+        assert node_by_id["transcribe-review-medium"]["config"]["update_page_content"] is False
+
+    def test_spanish_script_v2_parent_composes_child_with_typed_contract(self):
+        presets = {p["name"]: p for p in _load_preset_files()}
+        child = WorkflowDef(**presets["Spanish Script v2 Child Passes (19th-20th C.)"])
+        parent_data = presets["Transcribe Spanish Script v2 (19th-20th C., Sub-Workflow)"]
+        parent = WorkflowDef(**parent_data)
+
+        node_by_id = {node["id"]: node for node in parent_data["nodes"]}
+        sub_node = node_by_id["spanish-script-v2"]
+        config = sub_node["config"]
+
+        assert sub_node["tool"] == "sub_workflow"
+        assert config["workflow_ref"] == child.name
+        assert config["input_contract"] == [
+            {
+                "id": "files",
+                "data_type": "files",
+                "required": True,
+                "description": "Selected page image paths to transcribe.",
+            }
+        ]
+        assert config["output_contract"] == [
+            {
+                "id": "text",
+                "data_type": "text",
+                "required": True,
+                "description": "Final reconciled transcription text.",
+            }
+        ]
+        assert config["output_mapping"] == {
+            "text": "$.nodes.transcribe-final-large.text"
+        }
+        assert any(
+            edge["source"] == "files-source"
+            and edge["target"] == "spanish-script-v2"
+            and edge["source_port"] == "files"
+            and edge["target_port"] == "files"
+            for edge in parent_data["edges"]
+        )
+        assert validate_workflow_preflight(
+            parent,
+            workflow_resolver=lambda ref: child if ref == child.name else None,
+        ) == []
 
     def test_catalogue_inputs_route_via_transcribe_not_user_aggregate(self):
         """Catalogue + extract_all + merge_extracts read directly from
