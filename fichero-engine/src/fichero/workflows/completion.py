@@ -66,10 +66,19 @@ def collect_processed_document_ids(final_state: Any) -> set[str]:
     def _add(doc: Any) -> None:
         if isinstance(doc, dict):
             doc_id = doc.get("id")
+            doc_type = doc.get("doc_type")
+            parent_id = doc.get("parent_id")
         else:
             doc_id = getattr(doc, "id", None)
+            doc_type = getattr(doc, "doc_type", None)
+            parent_id = getattr(doc, "parent_id", None)
         if isinstance(doc_id, str) and doc_id:
             ids.add(doc_id)
+        # For page children emitted by sources.py per-page fan-out, the
+        # parent file doc is never in the documents list — include it so
+        # complete_run_documents can flip the parent to completed (#2219).
+        if doc_type == "page" and isinstance(parent_id, str) and parent_id:
+            ids.add(parent_id)
 
     outputs = final_state.get("outputs")
     if isinstance(outputs, dict):
@@ -107,13 +116,20 @@ def complete_run_documents(
 
     updated = 0
 
-    def _complete(doc: Any) -> None:
+    def _complete(doc: Any, explicit: bool = False) -> None:
         nonlocal updated
         if doc is None:
             return
 
         changed = False
-        if getattr(doc, "status", None) == Status.processing:
+        current_status = getattr(doc, "status", None)
+        if current_status == Status.processing:
+            doc.status = Status.completed
+            changed = True
+        elif explicit and current_status == Status.pending:
+            # A parent file doc targeted via per-page fan-out is never touched
+            # by save_artifact (which only sees page child IDs), so its status
+            # stays pending even though all its children were processed (#2219).
             doc.status = Status.completed
             changed = True
 
@@ -130,7 +146,7 @@ def complete_run_documents(
 
     for doc_id in document_ids:
         try:
-            _complete(db.get(Document, doc_id))
+            _complete(db.get(Document, doc_id), explicit=True)
             # Page children (PDF pages) may have been set to processing during
             # the run even when only the parent id surfaced in the outputs. The
             # processing guard leaves untouched siblings (e.g. unprocessed
