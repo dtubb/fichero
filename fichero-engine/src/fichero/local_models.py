@@ -20,6 +20,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+from fichero.db_embeddings import (
+    BGE_M3_MODEL,
+    DEFAULT_MODEL as DEFAULT_EMBEDDING_MODEL,
+    SUPPORTED_EMBEDDING_SPACES,
+)
 from fichero.paths import engine_state_dir
 
 logger = logging.getLogger(__name__)
@@ -48,38 +53,111 @@ WHISPER_MODELS: dict[str, dict] = {
     "turbo": {"params": "809M", "disk_mb": 1500, "speed": "~8x realtime"},
 }
 
+
+def _embedding_metadata(
+    *,
+    dimensions: int,
+    disk_mb: int,
+    ram_mb: int,
+    languages: str,
+    description: str,
+    quality: str,
+    speed: str,
+    activation_note: str,
+) -> dict:
+    """Build catalog metadata without implying every model is a search space."""
+    return {
+        "dimensions": dimensions,
+        "disk_mb": disk_mb,
+        "ram_mb": ram_mb,
+        "languages": languages,
+        "description": description,
+        "quality": quality,
+        "speed": speed,
+        "is_current_default": False,
+        "is_supported_embedding_space": False,
+        "requires_explicit_migration": True,
+        "activation_note": activation_note,
+        "embedding_space_status": "download_only",
+    }
+
+
 EMBEDDINGS_MODELS: dict[str, dict] = {
-    "BAAI/bge-m3": {
-        "dimensions": 1024,
-        "disk_mb": 2300,
-        "languages": "100+",
-        "description": "Default multilingual retrieval model",
-    },
-    "intfloat/multilingual-e5-large": {
-        "dimensions": 1024,
-        "disk_mb": 2200,
-        "languages": "100+",
-        "description": "Legacy multilingual E5 model",
-    },
+    BGE_M3_MODEL: _embedding_metadata(
+        dimensions=1024,
+        disk_mb=2300,
+        ram_mb=2300,
+        languages="100+ languages",
+        description="Large multilingual retrieval model",
+        quality="High multilingual retrieval quality; comparable footprint to the current default.",
+        speed="Slower startup and inference than small English models.",
+        activation_note="Supported only as an explicit embedding-space opt-in; existing vectors must be deliberately re-embedded before mixed-space search is allowed.",
+    ),
+    DEFAULT_EMBEDDING_MODEL: _embedding_metadata(
+        dimensions=1024,
+        disk_mb=2200,
+        ram_mb=2200,
+        languages="100+ languages",
+        description="Current pinned multilingual E5 retrieval model",
+        quality="Highest-quality current Fichero default for multilingual corpora.",
+        speed="Highest RAM use and slowest startup among listed embedding choices.",
+        activation_note="Active default embedding space. Keeping this preserves compatibility with existing indexed vectors.",
+    ),
     "intfloat/multilingual-e5-base": {
         "dimensions": 768,
         "disk_mb": 1100,
-        "languages": "100+",
-        "description": "Good multilingual, smaller",
+        "ram_mb": 1100,
+        "languages": "100+ languages",
+        "description": "Mid-size multilingual E5 retrieval model",
+        "quality": "Good multilingual quality with lower memory use than e5-large.",
+        "speed": "Faster than e5-large; still heavier than English-only small models.",
+        "is_current_default": False,
+        "is_supported_embedding_space": False,
+        "requires_explicit_migration": True,
+        "activation_note": "Downloadable local model choice only; not currently wired as an active Fichero search embedding space.",
+        "embedding_space_status": "download_only",
     },
-    "BAAI/bge-small-en-v1.5": {
-        "dimensions": 384,
-        "disk_mb": 130,
-        "languages": "English",
-        "description": "Fast English-only",
-    },
-    "all-MiniLM-L6-v2": {
-        "dimensions": 384,
-        "disk_mb": 90,
-        "languages": "English",
-        "description": "Tiny English-only",
-    },
+    "intfloat/multilingual-e5-small": _embedding_metadata(
+        dimensions=384,
+        disk_mb=470,
+        ram_mb=470,
+        languages="100+ languages",
+        description="Small multilingual E5 retrieval model",
+        quality="Lower multilingual quality than e5-large, but much lighter for memory-constrained use.",
+        speed="Fast startup and inference compared with e5-large.",
+        activation_note="Downloadable local model choice only; not currently wired as an active Fichero search embedding space.",
+    ),
+    "BAAI/bge-small-en-v1.5": _embedding_metadata(
+        dimensions=384,
+        disk_mb=130,
+        ram_mb=130,
+        languages="English",
+        description="Small English retrieval model",
+        quality="Strong English retrieval for the footprint; not suitable for multilingual collections.",
+        speed="Very fast startup and inference; good low-RAM option for English-primary corpora.",
+        activation_note="Downloadable local model choice only; not currently wired as an active Fichero search embedding space.",
+    ),
+    "all-MiniLM-L6-v2": _embedding_metadata(
+        dimensions=384,
+        disk_mb=90,
+        ram_mb=90,
+        languages="English",
+        description="Tiny English sentence-transformer model",
+        quality="Lowest quality listed; useful only when minimizing disk and RAM matters more than recall.",
+        speed="Fastest and smallest listed embedding model.",
+        activation_note="Downloadable local model choice only; not currently wired as an active Fichero search embedding space.",
+    ),
 }
+
+for _model_id, _metadata in EMBEDDINGS_MODELS.items():
+    if _model_id == DEFAULT_EMBEDDING_MODEL:
+        _metadata["is_current_default"] = True
+        _metadata["embedding_space_status"] = "current_default"
+        _metadata["requires_explicit_migration"] = False
+    if _model_id.lower() in SUPPORTED_EMBEDDING_SPACES:
+        _metadata["is_supported_embedding_space"] = True
+        if _model_id != DEFAULT_EMBEDDING_MODEL:
+            _metadata["embedding_space_status"] = "supported_opt_in"
 
 
 # =============================================================================

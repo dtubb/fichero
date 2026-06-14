@@ -5,7 +5,6 @@ Local models (Whisper speech-to-text, embedding models) are downloaded to
 download, and delete models without external calls (LocalModelManager mocked).
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 

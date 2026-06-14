@@ -11,6 +11,12 @@ from __future__ import annotations
 import pytest
 
 
+def test_default_embedding_model_stays_pinned_until_migration_exists() -> None:
+    from fichero.db_embeddings import DEFAULT_MODEL
+
+    assert DEFAULT_MODEL == "intfloat/multilingual-e5-large"
+
+
 def _supported_models() -> set[str]:
     from fastembed import TextEmbedding
 
