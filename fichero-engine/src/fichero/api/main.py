@@ -309,6 +309,7 @@ def _ensure_default_ai_defaults(app_db, apple_provider_id: str) -> None:
       - text / small / large → apple-intelligence
       - medium               → openrouter/openai/gpt-4o-mini
       - vision               → apple-vision
+      - vision aliases       → apple-vision
       - audio                → apple-speech
 
     Only writes a key when it is currently unset; user configuration is
@@ -327,6 +328,12 @@ def _ensure_default_ai_defaults(app_db, apple_provider_id: str) -> None:
         ("default_large_model", "apple-intelligence"),
         ("default_vision_provider", apple_type),
         ("default_vision_model", "apple-vision"),
+        ("default_vision_small_provider", apple_type),
+        ("default_vision_small_model", "apple-vision"),
+        ("default_vision_medium_provider", apple_type),
+        ("default_vision_medium_model", "apple-vision"),
+        ("default_vision_large_provider", apple_type),
+        ("default_vision_large_model", "apple-vision"),
         ("default_audio_provider", apple_type),
         ("default_audio_model", "apple-speech"),
     ]

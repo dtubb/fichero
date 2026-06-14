@@ -66,8 +66,11 @@ def test_node_specific_aliases_resolve_before_other_fallbacks(monkeypatch):
     workflow_cfg = LLMConfig(provider="workflow-provider", model="workflow-model")
 
     monkeypatch.setattr(
-        "fichero.llm.resolve_model_alias",
-        lambda provider, model: ("openrouter", "openai/gpt-4o-mini"),
+        "fichero.llm.resolve_model_alias_for_capability",
+        lambda provider, model, *, required_capability: (
+            "openrouter",
+            "openai/gpt-4o-mini",
+        ),
     )
 
     resolved = _resolve_node_llm_config(node, workflow_cfg)

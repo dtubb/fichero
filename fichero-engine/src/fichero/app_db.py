@@ -636,6 +636,12 @@ class AppDatabase:
             "default_medium_model",
             "default_large_provider",
             "default_large_model",
+            "default_vision_small_provider",
+            "default_vision_small_model",
+            "default_vision_medium_provider",
+            "default_vision_medium_model",
+            "default_vision_large_provider",
+            "default_vision_large_model",
             "default_primary_language",
             "default_temperature",
             "default_max_tokens",
@@ -701,6 +707,9 @@ class AppDatabase:
             "default_small_provider", "default_small_model",
             "default_medium_provider", "default_medium_model",
             "default_large_provider", "default_large_model",
+            "default_vision_small_provider", "default_vision_small_model",
+            "default_vision_medium_provider", "default_vision_medium_model",
+            "default_vision_large_provider", "default_vision_large_model",
             "default_primary_language",
             "default_temperature", "default_max_tokens", "default_prompt_prefix",
         ]
@@ -720,6 +729,9 @@ class AppDatabase:
             "default_medium_provider": "openrouter", "default_medium_model": "openai/gpt-4o-mini",
             "default_large_provider": apple, "default_large_model": "apple-intelligence",
             "default_vision_provider": apple, "default_vision_model": "apple-vision",
+            "default_vision_small_provider": apple, "default_vision_small_model": "apple-vision",
+            "default_vision_medium_provider": apple, "default_vision_medium_model": "apple-vision",
+            "default_vision_large_provider": apple, "default_vision_large_model": "apple-vision",
             "default_audio_provider": apple, "default_audio_model": "apple-speech",
         }
         for key, value in factory_defaults.items():

@@ -35255,6 +35255,36 @@
             "title": "Large Model",
             "default": ""
           },
+          "vision_small_provider": {
+            "type": "string",
+            "title": "Vision Small Provider",
+            "default": ""
+          },
+          "vision_small_model": {
+            "type": "string",
+            "title": "Vision Small Model",
+            "default": ""
+          },
+          "vision_medium_provider": {
+            "type": "string",
+            "title": "Vision Medium Provider",
+            "default": ""
+          },
+          "vision_medium_model": {
+            "type": "string",
+            "title": "Vision Medium Model",
+            "default": ""
+          },
+          "vision_large_provider": {
+            "type": "string",
+            "title": "Vision Large Provider",
+            "default": ""
+          },
+          "vision_large_model": {
+            "type": "string",
+            "title": "Vision Large Model",
+            "default": ""
+          },
           "primary_language": {
             "type": "string",
             "title": "Primary Language",

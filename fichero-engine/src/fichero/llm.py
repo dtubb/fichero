@@ -263,7 +263,9 @@ class LLMConfig:
 # =============================================================================
 
 
-_MODEL_ALIASES = {"$small", "$medium", "$large"}
+_TEXT_MODEL_ALIASES = {"$small", "$medium", "$large"}
+_VISION_MODEL_ALIASES = {"$vision_small", "$vision_medium", "$vision_large"}
+_MODEL_ALIASES = _TEXT_MODEL_ALIASES | _VISION_MODEL_ALIASES
 
 
 class AppleUnavailableError(RuntimeError):
@@ -532,8 +534,20 @@ def _raise_provider_quota_error(
     ) from exc
 
 
-def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
-    """Resolve $small / $medium / $large aliases against app-level settings.
+def _alias_tier(raw_alias: str) -> str:
+    tier = raw_alias[1:]
+    if tier.startswith("vision_"):
+        return tier
+    return tier
+
+
+def resolve_model_alias(
+    provider: str,
+    model: str,
+    *,
+    required_capability: str | None = None,
+) -> tuple[str, str]:
+    """Resolve configured model aliases against app-level settings.
 
     Returns the input pair unchanged when not an alias. Raises ValueError
     with an actionable message when the alias is used but the matching
@@ -548,6 +562,20 @@ def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
     if raw not in _MODEL_ALIASES:
         return (provider, model)
 
+    capability = (required_capability or "").strip().lower()
+    if raw in _TEXT_MODEL_ALIASES and capability == "vision":
+        raise ValueError(
+            f"{raw} is a text-tier model alias and cannot be used for vision "
+            "workflow nodes. Use $vision_small, $vision_medium, or "
+            "$vision_large, or choose a concrete vision-capable provider/model."
+        )
+    if raw in _VISION_MODEL_ALIASES and capability and capability != "vision":
+        raise ValueError(
+            f"{raw} is a vision-tier model alias and cannot be used for "
+            f"{capability} workflow nodes. Use $small, $medium, or $large "
+            "for text nodes, or choose a concrete capable provider/model."
+        )
+
     env_provider = os.environ.get(f"FICHERO_{raw[1:].upper()}_PROVIDER")
     env_model = os.environ.get(f"FICHERO_{raw[1:].upper()}_MODEL")
     if env_provider and env_model:
@@ -555,17 +583,110 @@ def resolve_model_alias(provider: str, model: str) -> tuple[str, str]:
 
     from fichero.app_db import get_app_db
     db = get_app_db()
-    tier = raw[1:]
+    tier = _alias_tier(raw)
     resolved_provider = db.get_setting(f"default_{tier}_provider")
     resolved_model = db.get_setting(f"default_{tier}_model")
 
     if not resolved_provider or not resolved_model:
+        label = tier.replace("_", " ")
         raise ValueError(
-            f"Workflow node uses {raw} but no default {tier} model is "
-            f"configured. Set one in Settings → AI Defaults → "
-            f"Default {tier} model."
+            f"Workflow node uses {raw} but no Default {label} model is "
+            "configured. Set one in Settings → AI Defaults."
         )
     return (resolved_provider, resolved_model)
+
+
+def _model_has_capability(
+    provider: str,
+    model: str,
+    required_capability: str,
+) -> bool | None:
+    """Return model capability support when saved model metadata exists.
+
+    ``None`` means no saved metadata was found, so callers should fall back to
+    provider-level capability metadata.
+    """
+    try:
+        from fichero.app_db import get_app_db
+
+        db = get_app_db()
+        provider_key = (provider or "").strip().lower()
+        model_key = (model or "").strip()
+        for saved_provider in db.list_providers():
+            provider_type = getattr(saved_provider, "provider_type", "")
+            provider_type_value = getattr(provider_type, "value", str(provider_type))
+            if str(provider_type_value).strip().lower() != provider_key:
+                continue
+            for saved_model in db.list_models(saved_provider.id):
+                if getattr(saved_model, "model_id", "") != model_key:
+                    continue
+                capabilities = [
+                    str(cap).strip().lower()
+                    for cap in (getattr(saved_model, "capabilities", None) or [])
+                ]
+                if not capabilities:
+                    return None
+                if required_capability in {"llm", "text"}:
+                    return "text" in capabilities or "llm" in capabilities
+                return required_capability in capabilities
+    except Exception as exc:
+        logger.debug("Model capability lookup failed for %s/%s: %s", provider, model, exc)
+    return None
+
+
+def validate_model_capability(
+    provider: str,
+    model: str,
+    *,
+    required_capability: str | None,
+) -> None:
+    """Validate concrete provider/model metadata for a required capability."""
+    capability = (required_capability or "").strip().lower()
+    if not capability:
+        return
+
+    if capability == "vision":
+        from fichero.providers import get_provider_info
+
+        provider_info = get_provider_info((provider or "").strip().lower())
+        if provider_info and not provider_info.supports_vision:
+            raise ValueError(
+                f"Provider {provider} does not support vision. Choose a "
+                "vision-capable provider/model for this workflow node."
+            )
+
+    model_support = _model_has_capability(provider, model, capability)
+    if model_support is False:
+        label = "text" if capability in {"llm", "text"} else capability
+        raise ValueError(
+            f"Model {provider}/{model} is not marked as {label}-capable. "
+            f"Choose a {label}-capable model for this workflow node."
+        )
+
+
+def resolve_model_alias_for_capability(
+    provider: str,
+    model: str,
+    *,
+    required_capability: str | None,
+) -> tuple[str, str]:
+    """Resolve aliases, then enforce provider/model capability metadata."""
+    resolved_provider, resolved_model = resolve_model_alias(
+        provider,
+        model,
+        required_capability=required_capability,
+    )
+    validate_model_capability(
+        resolved_provider,
+        resolved_model,
+        required_capability=required_capability,
+    )
+    return (resolved_provider, resolved_model)
+
+
+def enforce_local_only_provider(provider: str, model: str, *, kind: str) -> None:
+    """Apply the local-only policy to a concrete provider/model pair."""
+    _enforce_local_only_provider(LLMConfig(provider=provider, model=model), kind=kind)
 
 
 def _resolve_tier_transport_settings(tier: str) -> tuple[str | None, str | None]:

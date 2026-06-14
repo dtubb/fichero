@@ -18,6 +18,9 @@ class TestGetAIDefaults:
             "small_provider", "small_model",
             "medium_provider", "medium_model",
             "large_provider", "large_model",
+            "vision_small_provider", "vision_small_model",
+            "vision_medium_provider", "vision_medium_model",
+            "vision_large_provider", "vision_large_model",
             "primary_language",
             "temperature", "max_tokens",
             "prompt_prefix",
@@ -51,6 +54,12 @@ class TestSetAIDefaults:
             "medium_model": "openai/gpt-4o-mini",
             "large_provider": "apple",
             "large_model": "apple-intelligence",
+            "vision_small_provider": "apple",
+            "vision_small_model": "apple-vision",
+            "vision_medium_provider": "apple",
+            "vision_medium_model": "apple-vision",
+            "vision_large_provider": "apple",
+            "vision_large_model": "apple-vision",
             "primary_language": "Spanish",
             "temperature": "0.7",
             "max_tokens": "1000",
@@ -78,6 +87,12 @@ class TestSetAIDefaults:
             "medium_model": "openai/gpt-4o-mini",
             "large_provider": "apple",
             "large_model": "apple-intelligence",
+            "vision_small_provider": "apple",
+            "vision_small_model": "apple-vision",
+            "vision_medium_provider": "apple",
+            "vision_medium_model": "apple-vision",
+            "vision_large_provider": "apple",
+            "vision_large_model": "apple-vision",
             "primary_language": "English",
             "temperature": "",
             "max_tokens": "",
@@ -97,6 +112,12 @@ class TestSetAIDefaults:
         assert data["medium_model"] == "openai/gpt-4o-mini"
         assert data["large_provider"] == "apple"
         assert data["large_model"] == "apple-intelligence"
+        assert data["vision_small_provider"] == "apple"
+        assert data["vision_small_model"] == "apple-vision"
+        assert data["vision_medium_provider"] == "apple"
+        assert data["vision_medium_model"] == "apple-vision"
+        assert data["vision_large_provider"] == "apple"
+        assert data["vision_large_model"] == "apple-vision"
         assert data["primary_language"] == "English"
 
     def test_empty_values_clear_setting(self, client):
@@ -110,6 +131,9 @@ class TestSetAIDefaults:
             "small_provider": "apple", "small_model": "apple-intelligence",
             "medium_provider": "openrouter", "medium_model": "openai/gpt-4o-mini",
             "large_provider": "apple", "large_model": "apple-intelligence",
+            "vision_small_provider": "apple", "vision_small_model": "apple-vision",
+            "vision_medium_provider": "apple", "vision_medium_model": "apple-vision",
+            "vision_large_provider": "apple", "vision_large_model": "apple-vision",
             "primary_language": "Spanish",
             "temperature": "", "max_tokens": "",
             "prompt_prefix": "",
@@ -128,7 +152,25 @@ class TestSetAIDefaults:
         assert data["medium_model"] == "openai/gpt-4o-mini"
         assert data["large_provider"] == "apple"
         assert data["large_model"] == "apple-intelligence"
+        assert data["vision_small_provider"] == "apple"
+        assert data["vision_small_model"] == "apple-vision"
+        assert data["vision_medium_provider"] == "apple"
+        assert data["vision_medium_model"] == "apple-vision"
+        assert data["vision_large_provider"] == "apple"
+        assert data["vision_large_model"] == "apple-vision"
         assert data["primary_language"] == ""
+
+
+class TestRepairAIDefaults:
+    def test_repair_seeds_missing_vision_tier_aliases(self, client):
+        r = client.post("/api/settings/ai-defaults/repair")
+        assert r.status_code == 200
+        assert r.json()["status"] == "ok"
+
+        data = client.get("/api/settings/ai-defaults").json()
+        for tier in ("small", "medium", "large"):
+            assert data[f"vision_{tier}_provider"] == "apple"
+            assert data[f"vision_{tier}_model"] == "apple-vision"
 
 
 class TestResetAIDefaults:
@@ -159,9 +201,14 @@ class TestResetAIDefaults:
         assert data["primary_language"] == ""
         # Most typed categories use Apple Intelligence defaults.
         for key in ("text_provider", "small_provider", "large_provider",
-                    "vision_provider", "audio_provider"):
+                    "vision_provider", "audio_provider",
+                    "vision_small_provider", "vision_medium_provider",
+                    "vision_large_provider"):
             assert data[key] == "apple", f"{key} should be 'apple' after reset"
         for key in ("text_model", "small_model", "large_model"):
             assert data[key] == "apple-intelligence", f"{key} should be 'apple-intelligence' after reset"
+        for key in ("vision_model", "vision_small_model",
+                    "vision_medium_model", "vision_large_model"):
+            assert data[key] == "apple-vision", f"{key} should be 'apple-vision' after reset"
         assert data["medium_provider"] == "openrouter"
         assert data["medium_model"] == "openai/gpt-4o-mini"
