@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `96d4aa68`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `8f4ee240`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -35,11 +35,15 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 ### SHIPPED (loop tick 3a, all gated ALL PASS + pushed, never red) — 0.0.2 @ 96d4aa68
 - **#2190** (96d4aa68) fixed `Transcribe Paleography` / HTR-style workflows failing after pass-one transcription when the optional `reference-search` node has no reference corpus/search index. Preset graph/ports were correct; backend `search_tool` now returns typed empty context (`documents=[]`, counts=0) only for expected missing search-index/corpus infrastructure, while unrelated search failures still return `error` and abort. Added a real workflow regression for `transcribe -> search -> transcribe_review` proving `metadata=[]` and completion when the embeddings/index table is absent. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4842 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `paleography-reference-2190` worktree/window removed.
 
+### SHIPPED (loop tick 3b, all gated ALL PASS + pushed, never red) — 0.0.2 @ 8f4ee240
+- **#938** (8f4ee240) shipped the backend preset slice: new system/template workflow `Transcribe Spanish Script (19th-20th C., Multi-Pass)` under `/Transcribe`. It uses existing workflow graph machinery: draft transcription → optional reference search → review pass → final reconciliation that updates page content. Prompts explicitly target 19th–20th century Spanish notarial/secretarial cursive, preserve original orthography/names/dates/money/line breaks, and forbid hallucinating unreadable text. Manager review caught the worker's first attempt to use `$small`/`$large` aliases on `transcribe_review`; those were removed because `transcribe_review` is `category="vision"`, so all passes intentionally defer to the user's configured vision defaults + paid-fallback/no-cloud policy. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4847 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `transcribe-multipass-938` worktree/window removed.
+- **#2198 filed** as the follow-up for the remaining broad #938 engine work: sub-workflow nodes, explicit vision-tier aliases (`$small_vision`/`$large_vision` or equivalent), and `$thinking` semantics/cost prompts. Do not treat #938 closure as those deeper primitives being done.
+
 ### In flight (poll on wake) — tick 3
-- None currently active. Next: continue #938 multi-step transcribe, plus design-doc lanes for MLX (#1814/#2066) and in-app agent (#2067). Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
+- None currently active. Next: AI Infrastructure design-doc lanes for MLX/on-device (#1814/#2066/#2071) and in-app agent (#2067), or #2198 if staying in workflow-engine backend. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
 
 ### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
-1. **Multi-step transcribe**: **#938** (Transcribe multi-pass: small→large→combine) = the ICANH "Spanish Script (19th–20th c.)" preset. Manager leads prompts and scores outputs against the ICANH ground truth below using `/compare-vision` + `/compare-workflow`; worker handles plumbing/tests.
+1. **Workflow engine follow-up**: **#2198** — sub-workflow nodes + explicit vision-tier aliases + `$thinking` semantics for true cheap→large→combine model selection without bypassing no-cloud policy.
 2. **Batch/eval polish**: use the now-shipped compare CLI/API and #2057 batching to evaluate good-and-cheap model choices without network leaks; keep tests/fakes network-free.
 3. **MLX on-device** (#1814/#2066/#2071 Pi harness on mlx-lm-server) + **in-app Agent** (#2067 + #2068–#2074) — bigger/design-led; scaffold via a design-doc lane first.
 4. **Deferred/held**: Mac/SwiftUI, `entitytable-2020`, `lan-tls-2157`, and auth/security design calls stay untouched.
