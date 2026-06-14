@@ -28,7 +28,8 @@ but not wired/enforced · ❌ not built yet (issue filed).
 ## Tests
 - ✅ **Backend unit tests** (CrossLanguageGate → verify_python.sh → pytest)
 - ✅ **Swift unit tests** (xcodebuild test)
-- ✅ **CLI live-contract tests** (#252)
+- ✅ **CLI live-contract tests** (#252) — use the typed CLI as the backend
+  test harness before blaming SwiftUI (`docs/developer/cli-test-harness.md`)
 - ⚠️ **GUI / XCUITest** (#1230) exists but is QUEUED — not run in verify → **#1939**
 - ⚠️ **Test coverage backlog** — `scripts/scan_test_coverage_gaps.py` generates grouped untested-symbol reports and (manager-run) files one issue per module in milestone #82 with label `type:test`.
 
