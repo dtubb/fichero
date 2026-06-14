@@ -7,6 +7,7 @@ pagination. No external dependencies; uses real in-memory DB fixture.
 
 
 import asyncio
+import time
 from unittest.mock import AsyncMock
 
 import pytest
@@ -608,6 +609,45 @@ class TestCreateDocument:
         )
         assert result is doc
         assert emitted == [["threaded-doc"]]
+
+    def test_slow_create_write_does_not_starve_event_loop(self, db, monkeypatch):
+        request = documents_routes.DocumentCreate(name="Slow Doc")
+        doc = Document(id="slow-doc", name="Slow Doc", doc_type=DocType.file)
+        emitted: list[list[str]] = []
+
+        def slow_create_impl(_db, _request):
+            time.sleep(0.05)
+            return doc
+
+        monkeypatch.setattr(
+            documents_routes, "create_document_impl", slow_create_impl
+        )
+        monkeypatch.setattr(
+            documents_routes,
+            "emit_change",
+            lambda *_args, document_ids, **_kwargs: emitted.append(document_ids),
+        )
+
+        async def run_with_probe():
+            write_task = asyncio.create_task(
+                documents_routes.create_document(
+                    doc=request,
+                    db=db,
+                    x_fichero_library_path="/tmp/library.fichero",
+                    actor="tester",
+                )
+            )
+            started_at = time.perf_counter()
+            await asyncio.sleep(0.01)
+            probe_elapsed = time.perf_counter() - started_at
+            result = await write_task
+            return probe_elapsed, result
+
+        probe_elapsed, result = asyncio.run(run_with_probe())
+
+        assert probe_elapsed < 0.04
+        assert result is doc
+        assert emitted == [["slow-doc"]]
 
     @pytest.mark.parametrize(
         ("route", "impl", "args", "thread_result"),
