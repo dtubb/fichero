@@ -134,6 +134,45 @@ def test_snapshot_manifest_records_reason_paths_and_sizes(
     assert manifest["sizes"]["lance_size_bytes"] > 0
 
 
+def test_snapshot_quiesces_database_manager_before_copy(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _use_snapshot_state(monkeypatch, tmp_path)
+    library_path = tmp_path / "QuiesceSnapshot.fichero"
+    _create_library_with_document(library_path)
+    calls: list[tuple[Path, bool]] = []
+
+    def quiesce_spy(path: Path, *, close: bool) -> None:
+        calls.append((path, close))
+
+    monkeypatch.setattr(storage_snapshots, "_quiesce_library_database", quiesce_spy)
+
+    storage_snapshots.snapshot_library(str(library_path), reason="safe copy")
+
+    assert calls == [(library_path, True)]
+
+
+def test_restore_quiesces_database_manager_before_swap(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _use_snapshot_state(monkeypatch, tmp_path)
+    library_path = tmp_path / "QuiesceRestore.fichero"
+    _create_library_with_document(library_path)
+    snapshot = storage_snapshots.snapshot_library(str(library_path), reason="before")
+    calls: list[tuple[Path, bool]] = []
+
+    def quiesce_spy(path: Path, *, close: bool) -> None:
+        calls.append((path, close))
+
+    monkeypatch.setattr(storage_snapshots, "_quiesce_library_database", quiesce_spy)
+
+    storage_snapshots.restore_snapshot(snapshot.id)
+
+    assert calls == [(library_path, True)]
+
+
 @pytest.mark.parametrize(
     ("duckdb_path", "lance_path"),
     [

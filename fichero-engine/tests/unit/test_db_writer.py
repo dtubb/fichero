@@ -11,6 +11,7 @@ import pytest
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 
 from fichero.db import Database  # noqa: E402
+from fichero.db_manager import DatabaseManager  # noqa: E402
 from fichero.db_writer import DBWriter, DBWriterError  # noqa: E402
 from fichero.models import Document, DocType  # noqa: E402
 
@@ -161,3 +162,20 @@ def test_flush_on_unstarted_writer_raises(db):
     writer = DBWriter(db)
     with pytest.raises(DBWriterError, match="not running"):
         writer.flush(timeout=1)
+
+
+def test_db_manager_quiesce_flushes_checkpoints_and_closes(tmp_path):
+    manager = DatabaseManager()
+    package_path = tmp_path / "Managed.fichero"
+    writer = manager.get_db_writer(package_path)
+    doc = _doc("queued")
+    writer.save(doc)
+
+    manager.quiesce_database(package_path, checkpoint=True, close=True, timeout=5)
+
+    reopened = Database(package_path / "fichero.duckdb")
+    try:
+        assert reopened.get(Document, doc.id) is not None
+        assert manager.active_count == 0
+    finally:
+        reopened.close()

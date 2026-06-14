@@ -55,6 +55,13 @@ def _quote_identifier(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
 
 
+def _quiesce_library_database(library_path: Path, *, close: bool) -> None:
+    """Drain/checkpoint manager-owned DuckDB work before file-level operations."""
+    from fichero.db_manager import db_manager
+
+    db_manager.quiesce_database(library_path, checkpoint=True, close=close)
+
+
 def _load_known_library_config(library_path: Path):
     """Return the registered KnownLibrary row for a package, if any."""
     from fichero.db import Database
@@ -183,6 +190,7 @@ def snapshot_library(
     db_path = library_path_p / "fichero.duckdb"
     if db_path.exists():
         try:
+            _quiesce_library_database(library_path_p, close=True)
             duckdb_copy_path = duckdb_file_dir / "fichero.duckdb"
             shutil.copy2(db_path, duckdb_copy_path)
             duckdb_size = duckdb_copy_path.stat().st_size
@@ -367,15 +375,13 @@ def restore_snapshot(snapshot_id: str) -> dict:
     if not lib_path.exists():
         raise FileNotFoundError(f"Library not found: {lib_path}")
 
-    # Drop cached connections before swapping files. Existing open OS handles
-    # may still read the old inode, but new DatabaseManager calls will reopen
-    # the restored files.
+    # Drain/checkpoint and drop cached connections before swapping files.
+    # Existing open OS handles may still read the old inode, but new
+    # DatabaseManager calls will reopen the restored files.
     try:
-        from fichero.db_manager import db_manager
-
-        db_manager.close_database(lib_path)
+        _quiesce_library_database(lib_path, close=True)
     except Exception as exc:
-        logger.warning("Could not close database before restore: %s", exc)
+        raise RuntimeError(f"Could not quiesce database before restore: {exc}") from exc
 
     try:
         db_src_dir = resolve_snapshot_record_path(

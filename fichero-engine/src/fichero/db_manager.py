@@ -159,6 +159,51 @@ class DatabaseManager:
                     f"Closed database connection: {package_str} (thread {key[1]})"
                 )
 
+    def quiesce_database(
+        self,
+        package_path: str | Path,
+        *,
+        checkpoint: bool = True,
+        close: bool = False,
+        timeout: float | None = 120.0,
+    ) -> None:
+        """Drain managed writers and optionally checkpoint/close a package DB.
+
+        This is the safety seam for filesystem-level snapshot/restore work. It
+        covers connections and DBWriter queues owned by this process's
+        DatabaseManager; independent direct DuckDB connections outside the
+        manager remain outside this lock's scope.
+        """
+        package_str = str(Path(package_path))
+
+        with self._lock:
+            keys = [k for k in self._databases if k[0] == package_str]
+            writer_keys = [k for k in self._db_writers if k[0] == package_str]
+
+            for key in writer_keys:
+                self._db_writers[key].flush(timeout=timeout)
+
+            if checkpoint:
+                for key in keys:
+                    db = self._databases[key]
+                    with db._lock:
+                        db.conn.execute("CHECKPOINT")
+                    logger.info(
+                        "Checkpointed database: %s (thread %s)",
+                        package_str,
+                        key[1],
+                    )
+
+            if close:
+                self._stop_writers(writer_keys)
+                for key in keys:
+                    self._databases.pop(key).conn.close()
+                    logger.info(
+                        "Closed database connection: %s (thread %s)",
+                        package_str,
+                        key[1],
+                    )
+
     def close_current_thread(self) -> None:
         """Close this thread's connection + writer for every package.
 

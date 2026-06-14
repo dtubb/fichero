@@ -25,7 +25,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable
@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 _SUBSCRIBER_QUEUE_MAXSIZE = 1000
 _REPLAY_BUFFER_SIZE = 1000
+_REPLAY_LIBRARY_CAP = 1024
 
 
 # =============================================================================
@@ -116,19 +117,21 @@ class _ChangeHub:
         *,
         subscriber_queue_maxsize: int = _SUBSCRIBER_QUEUE_MAXSIZE,
         replay_buffer_size: int = _REPLAY_BUFFER_SIZE,
+        replay_library_cap: int = _REPLAY_LIBRARY_CAP,
     ) -> None:
         if subscriber_queue_maxsize < 2:
             raise ValueError("subscriber_queue_maxsize must be at least 2")
         if replay_buffer_size < 1:
             raise ValueError("replay_buffer_size must be at least 1")
+        if replay_library_cap < 1:
+            raise ValueError("replay_library_cap must be at least 1")
         self._subscriber_queue_maxsize = subscriber_queue_maxsize
         self._replay_buffer_size = replay_buffer_size
+        self._replay_library_cap = replay_library_cap
         self._subscribers: dict[str, set[_Subscriber]] = defaultdict(set)
         self._subscriber_by_queue: dict[asyncio.Queue, _Subscriber] = {}
-        self._replay_buffers: dict[str, deque[ChangeEvent]] = defaultdict(
-            lambda: deque(maxlen=self._replay_buffer_size)
-        )
-        self._next_event_id = 0
+        self._replay_buffers: OrderedDict[str, deque[ChangeEvent]] = OrderedDict()
+        self._next_event_ids: dict[str, int] = {}
         self._lock = threading.Lock()
 
     def subscribe(self, library_path: str) -> asyncio.Queue:
@@ -186,8 +189,8 @@ class _ChangeHub:
         queue is skipped, never raised.
         """
         with self._lock:
-            self._assign_event_id_locked(event)
-            self._replay_buffers[library_path].append(event)
+            self._assign_event_id_locked(library_path, event)
+            self._replay_buffer_locked(library_path).append(event)
             subs = list(self._subscribers.get(library_path, ()))
         delivered = 0
         for subscriber in subs:
@@ -288,6 +291,7 @@ class _ChangeHub:
         ring = self._replay_buffers.get(library_path)
         if not ring:
             return [], None
+        self._replay_buffers.move_to_end(library_path)
         oldest = ring[0].event_id
         if oldest is not None and parsed_id < oldest:
             return [], self._make_resync_event_locked(
@@ -304,17 +308,14 @@ class _ChangeHub:
         dropped_count: int,
         latest_available_event_id: int | None,
     ) -> ChangeEvent:
-        with self._lock:
-            return self._assign_event_id_locked(
-                ChangeEvent(
-                    type="stream.gap",
-                    actor="system",
-                    replay_required=True,
-                    gap_reason="subscriber_overflow",
-                    dropped_event_count=dropped_count,
-                    latest_available_event_id=latest_available_event_id,
-                )
-            )
+        return ChangeEvent(
+            type="stream.gap",
+            actor="system",
+            replay_required=True,
+            gap_reason="subscriber_overflow",
+            dropped_event_count=dropped_count,
+            latest_available_event_id=latest_available_event_id,
+        )
 
     def _make_resync_event_locked(
         self,
@@ -324,9 +325,12 @@ class _ChangeHub:
         library_path: str,
     ) -> ChangeEvent:
         ring = self._replay_buffers.get(library_path)
+        if ring:
+            self._replay_buffers.move_to_end(library_path)
         oldest = ring[0].event_id if ring else None
         latest = ring[-1].event_id if ring else None
         return self._assign_event_id_locked(
+            library_path,
             ChangeEvent(
                 type="stream.resync_required",
                 actor="system",
@@ -338,10 +342,28 @@ class _ChangeHub:
             )
         )
 
-    def _assign_event_id_locked(self, event: ChangeEvent) -> ChangeEvent:
-        self._next_event_id += 1
-        event.event_id = self._next_event_id
+    def _assign_event_id_locked(
+        self, library_path: str, event: ChangeEvent
+    ) -> ChangeEvent:
+        next_event_id = self._next_event_ids.get(library_path, 0) + 1
+        self._next_event_ids[library_path] = next_event_id
+        event.event_id = next_event_id
         return event
+
+    def _replay_buffer_locked(self, library_path: str) -> deque[ChangeEvent]:
+        ring = self._replay_buffers.get(library_path)
+        if ring is None:
+            ring = deque(maxlen=self._replay_buffer_size)
+            self._replay_buffers[library_path] = ring
+        else:
+            self._replay_buffers.move_to_end(library_path)
+        self._enforce_replay_library_cap_locked()
+        return ring
+
+    def _enforce_replay_library_cap_locked(self) -> None:
+        while len(self._replay_buffers) > self._replay_library_cap:
+            library_path, _ring = self._replay_buffers.popitem(last=False)
+            self._next_event_ids.pop(library_path, None)
 
 
 # Process-global singleton.

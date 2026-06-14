@@ -103,6 +103,29 @@ class TestChangeHub:
         hub = _ChangeHub()
         assert hub.emit("/lib/nobody.fichero", ChangeEvent(type="entity.updated")) == 0
 
+    def test_event_ids_are_contiguous_per_library(self):
+        hub = _ChangeHub()
+        queue_a = hub.subscribe("/lib/A.fichero")
+        queue_b = hub.subscribe("/lib/B.fichero")
+
+        hub.emit("/lib/A.fichero", ChangeEvent(type="entity.updated"))
+        hub.emit("/lib/B.fichero", ChangeEvent(type="entity.updated"))
+        hub.emit("/lib/A.fichero", ChangeEvent(type="entity.deleted"))
+
+        assert queue_a.get_nowait().event_id == 1
+        assert queue_a.get_nowait().event_id == 2
+        assert queue_b.get_nowait().event_id == 1
+
+    def test_replay_buffers_are_lru_capped_by_library(self):
+        hub = _ChangeHub(replay_library_cap=2)
+
+        hub.emit("/lib/A.fichero", ChangeEvent(type="entity.updated"))
+        hub.emit("/lib/B.fichero", ChangeEvent(type="entity.updated"))
+        hub.emit("/lib/C.fichero", ChangeEvent(type="entity.updated"))
+
+        assert set(hub._replay_buffers) == {"/lib/B.fichero", "/lib/C.fichero"}
+        assert "/lib/A.fichero" not in hub._next_event_ids
+
     def test_slow_subscriber_queue_stays_bounded_and_signals_gap(self):
         hub = _ChangeHub(subscriber_queue_maxsize=4)
         queue = hub.subscribe("/lib/A.fichero")
@@ -116,7 +139,13 @@ class TestChangeHub:
 
         assert queue.qsize() == 4
         items = [queue.get_nowait() for _ in range(queue.qsize())]
-        assert any(item.type == "stream.gap" for item in items)
+        gaps = [item for item in items if item.type == "stream.gap"]
+        assert gaps
+        assert all(item.event_id is None for item in gaps)
+        data_event_ids = [
+            item.event_id for item in items if item.type != "stream.gap"
+        ]
+        assert len(data_event_ids) == len(set(data_event_ids))
         assert items[-1].entity_ids == ["e5"]
 
     @pytest.mark.asyncio
