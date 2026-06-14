@@ -273,7 +273,6 @@ def validate_workflow_preflight(
 ) -> list[str]:
     """Validate LLM alias/capability/privacy policy before execution."""
     return [
-        *validate_workflow_connections(workflow),
         *validate_workflow_llm_preflight(workflow, workflow_llm_config),
         *validate_sub_workflow_references(
             workflow,
