@@ -89,6 +89,34 @@ def test_derived_loove_json_wins_over_heuristic(tmp_path):
     assert result.fertility.tokens_per_word == 1.42
 
 
+def test_derived_loove_json_can_score_language_outside_builtin_table(tmp_path):
+    (tmp_path / "example-model.json").write_text(
+        json.dumps(
+            {
+                "model_id": "example-model",
+                "coverage": {
+                    "ast": {
+                        "language_name": "Asturian",
+                        "script": "Latin",
+                        "score": 0.88,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = evaluate_language_fit(
+        LanguageFitModelSpec(provider="local", model="example-model"),
+        language_spec("ast"),
+        coverage_dir=tmp_path,
+    )
+
+    assert result.status == "derived"
+    assert result.language.name == "Asturian"
+    assert result.coverage_score == 0.88
+
+
 def test_missing_unsupported_language_returns_typed_warning(tmp_path):
     result = evaluate_language_fit(
         LanguageFitModelSpec(provider="unknown", model="mystery-model"),

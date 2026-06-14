@@ -237,12 +237,11 @@ def evaluate_language_fit(
     """Evaluate one provider/model pair for one language."""
 
     spec = normalize_model_spec(model.provider, model.model)
-    if not language.code or language.code not in _COMMON_LANGUAGES:
-        return _unsupported_language_record(spec, language)
-
     derived = _load_derived_record(spec, language, coverage_dir or default_coverage_dir())
     if derived is not None:
         return derived
+    if not language.code or language.code not in _COMMON_LANGUAGES:
+        return _unsupported_language_record(spec, language)
     return _heuristic_record(spec, language)
 
 
