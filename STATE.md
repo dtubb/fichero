@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `136cb9ad`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `b0b25180`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -66,13 +66,16 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 ### SHIPPED (loop tick 3j, all gated ALL PASS + pushed, never red) — 0.0.2 @ 0824b972
 - **#2059** (0824b972) shipped the Apple Skills vs AI Skills design doc (`docs/architecture/apple_vs_ai_skills.md`) and linked it from `ai_infrastructure.md`. Decision: model Apple on-device capabilities, local providers, and remote AI providers as implementations of one logical capability contract; select via profiles/policy; make fallback typed, local-only aware, paid-fallback gated, and auditable; keep App Intents as an invocation layer over backend actions/workflows, not a second mutation system. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4899 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `apple-ai-skills-2059` worktree/branch removed.
 
+### SHIPPED (loop tick 3k, all gated ALL PASS + pushed, never red) — 0.0.2 @ b0b25180
+- **#2203** (b0b25180) shipped the deliberate embedding-space migration path needed before any bge-m3 default flip or real-library re-embed. `search.reindex` now has explicit, confirmation-gated migration flags; scoped migrations are rejected; selected LanceDB embedding tables are dropped before rebuild so stale mixed-space rows cannot survive; documents/entities/claims are rebuilt for the active configured embedding model; before/after model ids are reported, including legacy unstamped rows. Also fixed batch document reindex rows to stamp embedding model metadata. No implicit re-embed of real data. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4903 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `embedding-migration-2203` worktree/branch removed.
+
 ### In flight (poll on wake) — tick 3
 - None currently active. Next: #1814 runtime MLX inference/embedding slice, #2203 explicit bge-m3 migration/default flip, or #2056 epic closure/triage. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
 
 ### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
 1. **Batch/eval polish**: use the now-shipped compare CLI/API and #2057 batching to evaluate good-and-cheap model choices without network leaks; keep tests/fakes network-free.
 2. **MLX on-device implementation**: #2199 first backend slice is done; #1814 remains the runtime embedding/inference thread; #2067/#2071 remain agent/product/runtime follow-ups.
-3. **Embedding roadmap cleanup**: #2203 is the only safe remaining embedding default flip path; it must be an explicit migration and must not re-embed real data implicitly.
+3. **Embedding roadmap cleanup**: #2203 shipped the explicit migration primitive. Any actual default flip / production re-embed remains a Daniel-controlled operational step, never implicit.
 4. **Deferred/held**: Mac/SwiftUI, `entitytable-2020`, `lan-tls-2157`, and auth/security design calls stay untouched.
 
 ### ICANH ground truth (my vision, for scoring bake-offs)
