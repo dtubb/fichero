@@ -42,6 +42,7 @@ than deleting databases.
 ## Canonical architecture docs
 
 - API/backend architecture: `docs/architecture/api/overview.md`
+- Workflow multi-pass engine primitives: `docs/architecture/workflow_multi_pass_engine.md`
 - SwiftUI/frontend architecture: `docs/architecture/swiftui/overview.md`
 - SwiftUI principles: `docs/architecture/swiftui/SWIFTUI_PRINCIPLES.md`
 
