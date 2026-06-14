@@ -7983,7 +7983,7 @@
         "summary": "Set Ai Defaults",
         "path_params": [],
         "query_params": [],
-        "request_model": "AIDefaults",
+        "request_model": "AIDefaultsUpdate",
         "response_model": "StatusOkResponse"
       },
       {

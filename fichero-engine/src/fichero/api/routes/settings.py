@@ -4,7 +4,7 @@ Settings API Routes
 Endpoints for managing app-wide settings like default AI models.
 """
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from fichero.api.routes.auth_accounts import (
@@ -56,6 +56,92 @@ class AIDefaults(BaseModel):
     prompt_prefix: str = ""
 
 
+class AIDefaultsUpdate(BaseModel):
+    """Partial update for default AI model configuration."""
+
+    vision_provider: str | None = None
+    vision_model: str | None = None
+    text_provider: str | None = None
+    text_model: str | None = None
+    audio_provider: str | None = None
+    audio_model: str | None = None
+    video_provider: str | None = None
+    video_model: str | None = None
+    embeddings_provider: str | None = None
+    embeddings_model: str | None = None
+    small_provider: str | None = None
+    small_model: str | None = None
+    medium_provider: str | None = None
+    medium_model: str | None = None
+    large_provider: str | None = None
+    large_model: str | None = None
+    vision_small_provider: str | None = None
+    vision_small_model: str | None = None
+    vision_medium_provider: str | None = None
+    vision_medium_model: str | None = None
+    vision_large_provider: str | None = None
+    vision_large_model: str | None = None
+    primary_language: str | None = None
+    temperature: str | None = None
+    max_tokens: str | None = None
+    prompt_prefix: str | None = None
+
+
+_AI_DEFAULT_FIELDS: tuple[tuple[str, str], ...] = (
+    ("vision_provider", "default_vision_provider"),
+    ("vision_model", "default_vision_model"),
+    ("text_provider", "default_text_provider"),
+    ("text_model", "default_text_model"),
+    ("audio_provider", "default_audio_provider"),
+    ("audio_model", "default_audio_model"),
+    ("video_provider", "default_video_provider"),
+    ("video_model", "default_video_model"),
+    ("embeddings_provider", "default_embeddings_provider"),
+    ("embeddings_model", "default_embeddings_model"),
+    ("small_provider", "default_small_provider"),
+    ("small_model", "default_small_model"),
+    ("medium_provider", "default_medium_provider"),
+    ("medium_model", "default_medium_model"),
+    ("large_provider", "default_large_provider"),
+    ("large_model", "default_large_model"),
+    ("vision_small_provider", "default_vision_small_provider"),
+    ("vision_small_model", "default_vision_small_model"),
+    ("vision_medium_provider", "default_vision_medium_provider"),
+    ("vision_medium_model", "default_vision_medium_model"),
+    ("vision_large_provider", "default_vision_large_provider"),
+    ("vision_large_model", "default_vision_large_model"),
+    ("primary_language", "default_primary_language"),
+    ("temperature", "default_temperature"),
+    ("max_tokens", "default_max_tokens"),
+    ("prompt_prefix", "default_prompt_prefix"),
+)
+
+_TIER_SETTING_KEYS = {
+    "default_small_provider", "default_small_model",
+    "default_medium_provider", "default_medium_model",
+    "default_large_provider", "default_large_model",
+    "default_vision_small_provider", "default_vision_small_model",
+    "default_vision_medium_provider", "default_vision_medium_model",
+    "default_vision_large_provider", "default_vision_large_model",
+}
+
+
+def _validate_provider_updates(body: AIDefaultsUpdate) -> None:
+    from fichero.providers import get_provider_info
+
+    for field_name in body.model_fields_set:
+        if not field_name.endswith("_provider"):
+            continue
+        value = getattr(body, field_name)
+        if value in (None, ""):
+            continue
+        if get_provider_info(value) is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unknown AI default provider for {field_name}: {value}",
+            )
+
+
 @router.get("/ai-defaults", response_model=AIDefaults)
 def get_ai_defaults(request: Request) -> AIDefaults:
     """Get default AI models for each category."""
@@ -95,60 +181,31 @@ def get_ai_defaults(request: Request) -> AIDefaults:
     )
 
 
-@router.put("/ai-defaults")
+@router.put("/ai-defaults", response_model=StatusOkResponse)
 def set_ai_defaults(
-    body: AIDefaults,
+    body: AIDefaultsUpdate,
     request: Request,
     _owner: None = Depends(_require_owner_or_bootstrap),
 ) -> StatusOkResponse:
     """Set default AI models for each category."""
     from fichero.app_db import get_app_db
 
+    _validate_provider_updates(body)
+
     db = get_app_db()
-    mapping = {
-        "default_vision_provider": body.vision_provider,
-        "default_vision_model": body.vision_model,
-        "default_text_provider": body.text_provider,
-        "default_text_model": body.text_model,
-        "default_audio_provider": body.audio_provider,
-        "default_audio_model": body.audio_model,
-        "default_video_provider": body.video_provider,
-        "default_video_model": body.video_model,
-        "default_embeddings_provider": body.embeddings_provider,
-        "default_embeddings_model": body.embeddings_model,
-        "default_small_provider": body.small_provider,
-        "default_small_model": body.small_model,
-        "default_medium_provider": body.medium_provider,
-        "default_medium_model": body.medium_model,
-        "default_large_provider": body.large_provider,
-        "default_large_model": body.large_model,
-        "default_vision_small_provider": body.vision_small_provider,
-        "default_vision_small_model": body.vision_small_model,
-        "default_vision_medium_provider": body.vision_medium_provider,
-        "default_vision_medium_model": body.vision_medium_model,
-        "default_vision_large_provider": body.vision_large_provider,
-        "default_vision_large_model": body.vision_large_model,
-        "default_primary_language": body.primary_language,
-        "default_temperature": body.temperature,
-        "default_max_tokens": body.max_tokens,
-        "default_prompt_prefix": body.prompt_prefix,
-    }
     # Tier-alias keys ($small/$medium/$large and vision variants) must never be
     # deleted mid-session — workflows silently lose their fallback target
     # (#1057, #2200). Skip empty values for these; explicit reset goes through
     # DELETE /ai-defaults.
-    _tier_keys = {
-        "default_small_provider", "default_small_model",
-        "default_medium_provider", "default_medium_model",
-        "default_large_provider", "default_large_model",
-        "default_vision_small_provider", "default_vision_small_model",
-        "default_vision_medium_provider", "default_vision_medium_model",
-        "default_vision_large_provider", "default_vision_large_model",
-    }
-    for key, value in mapping.items():
+    for field_name, key in _AI_DEFAULT_FIELDS:
+        if field_name not in body.model_fields_set:
+            continue
+        value = getattr(body, field_name)
+        if value is None:
+            continue
         if value:
             db.set_setting(key, value)
-        elif key not in _tier_keys:
+        elif key not in _TIER_SETTING_KEYS:
             db.delete_setting(key)
     return StatusOkResponse(status="ok")
 

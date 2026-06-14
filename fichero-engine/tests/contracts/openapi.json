@@ -15251,7 +15251,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AIDefaults"
+                "$ref": "#/components/schemas/AIDefaultsUpdate"
               }
             }
           },
@@ -35582,6 +35582,143 @@
         "type": "object",
         "title": "AIDefaults",
         "description": "Default AI model configuration per category."
+      },
+      "AIDefaultsUpdate": {
+        "properties": {
+          "vision_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Vision Provider"
+          },
+          "vision_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Vision Model"
+          },
+          "text_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Text Provider"
+          },
+          "text_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Text Model"
+          },
+          "audio_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audio Provider"
+          },
+          "audio_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audio Model"
+          },
+          "video_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Video Provider"
+          },
+          "video_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Video Model"
+          },
+          "embeddings_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Embeddings Provider"
+          },
+          "embeddings_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Embeddings Model"
+          },
+          "small_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Small Provider"
+          },
+          "small_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Small Model"
+          },
+          "medium_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Medium Provider"
+          },
+          "medium_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Medium Model"
+          },
+          "large_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Large Provider"
+          },
+          "large_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Large Model"
+          },
+          "vision_small_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Vision Small Provider"
+          },
+          "vision_small_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Vision Small Model"
+          },
+          "vision_medium_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Vision Medium Provider"
+          },
+          "vision_medium_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Vision Medium Model"
+          },
+          "vision_large_provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Vision Large Provider"
+          },
+          "vision_large_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Vision Large Model"
+          },
+          "primary_language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Primary Language"
+          },
+          "temperature": {
+            "type": "string",
+            "nullable": true,
+            "title": "Temperature"
+          },
+          "max_tokens": {
+            "type": "string",
+            "nullable": true,
+            "title": "Max Tokens"
+          },
+          "prompt_prefix": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prompt Prefix"
+          }
+        },
+        "type": "object",
+        "title": "AIDefaultsUpdate",
+        "description": "Partial update for default AI model configuration."
       },
       "APIKeyDeletedResponse": {
         "properties": {

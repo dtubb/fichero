@@ -120,6 +120,105 @@ class TestSetAIDefaults:
         assert data["vision_large_model"] == "apple-vision"
         assert data["primary_language"] == "English"
 
+    def test_partial_typed_update_preserves_unmentioned_defaults(self, client):
+        payload = {
+            "vision_provider": "apple",
+            "vision_model": "apple-vision",
+            "text_provider": "anthropic",
+            "text_model": "claude-3-5-sonnet-20241022",
+            "audio_provider": "apple",
+            "audio_model": "apple-speech",
+            "video_provider": "",
+            "video_model": "",
+            "embeddings_provider": "openai",
+            "embeddings_model": "text-embedding-3-small",
+            "small_provider": "apple",
+            "small_model": "apple-intelligence",
+            "medium_provider": "openrouter",
+            "medium_model": "openai/gpt-4o-mini",
+            "large_provider": "apple",
+            "large_model": "apple-intelligence",
+            "vision_small_provider": "apple",
+            "vision_small_model": "apple-vision",
+            "vision_medium_provider": "apple",
+            "vision_medium_model": "apple-vision",
+            "vision_large_provider": "apple",
+            "vision_large_model": "apple-vision",
+            "primary_language": "English",
+            "temperature": "0.2",
+            "max_tokens": "1000",
+            "prompt_prefix": "Existing prefix",
+        }
+        assert client.put("/api/settings/ai-defaults", json=payload).status_code == 200
+
+        partial = {
+            "large_provider": "anthropic",
+            "large_model": "claude-3-5-sonnet-20241022",
+        }
+        r = client.put("/api/settings/ai-defaults", json=partial)
+        assert r.status_code == 200
+
+        data = client.get("/api/settings/ai-defaults").json()
+        assert data["large_provider"] == "anthropic"
+        assert data["large_model"] == "claude-3-5-sonnet-20241022"
+        assert data["medium_provider"] == "openrouter"
+        assert data["medium_model"] == "openai/gpt-4o-mini"
+        assert data["text_provider"] == "anthropic"
+        assert data["text_model"] == "claude-3-5-sonnet-20241022"
+        assert data["primary_language"] == "English"
+        assert data["prompt_prefix"] == "Existing prefix"
+
+    def test_nulls_in_typed_partial_update_do_not_clear_existing_defaults(self, client):
+        payload = {
+            "text_provider": "openai",
+            "text_model": "gpt-4o",
+            "small_provider": "apple",
+            "small_model": "apple-intelligence",
+            "medium_provider": "openrouter",
+            "medium_model": "openai/gpt-4o-mini",
+            "large_provider": "apple",
+            "large_model": "apple-intelligence",
+        }
+        assert client.put("/api/settings/ai-defaults", json=payload).status_code == 200
+
+        r = client.put(
+            "/api/settings/ai-defaults",
+            json={
+                "text_provider": None,
+                "text_model": None,
+                "large_provider": "anthropic",
+                "large_model": "claude-3-5-sonnet-20241022",
+            },
+        )
+        assert r.status_code == 200
+
+        data = client.get("/api/settings/ai-defaults").json()
+        assert data["text_provider"] == "openai"
+        assert data["text_model"] == "gpt-4o"
+        assert data["large_provider"] == "anthropic"
+        assert data["large_model"] == "claude-3-5-sonnet-20241022"
+
+    def test_invalid_provider_model_selection_is_rejected_without_mutating(self, client):
+        payload = {
+            "large_provider": "apple",
+            "large_model": "apple-intelligence",
+        }
+        assert client.put("/api/settings/ai-defaults", json=payload).status_code == 200
+
+        r = client.put(
+            "/api/settings/ai-defaults",
+            json={
+                "large_provider": "not-a-provider",
+                "large_model": "not-a-model",
+            },
+        )
+        assert r.status_code == 422
+        assert "Unknown AI default provider" in r.json()["detail"]
+
+        data = client.get("/api/settings/ai-defaults").json()
+        assert data["large_provider"] == "apple"
+        assert data["large_model"] == "apple-intelligence"
+
     def test_empty_values_clear_setting(self, client):
         # Set then clear
         payload_set = {
