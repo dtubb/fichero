@@ -4,6 +4,8 @@ Model Comparison API Routes
 Endpoints for comparing responses across multiple LLM models.
 """
 
+import asyncio
+import base64
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,7 +25,8 @@ from fichero.model_recommendations import (
     ModelRecommendationResponse,
     build_model_recommendations,
 )
-from fichero.models import Workflow
+from fichero.models import Document, Workflow
+from fichero.storage import ensure_display, get_display
 from fichero.workflows.resolver import resolve_inputs
 from fichero.workflows.model_comparison import (
     ComparisonRequest,
@@ -63,7 +66,13 @@ class CompareRequest(BaseModel):
 class VisionCompareRequest(BaseModel):
     """Request to compare vision models."""
 
-    images: list[str] = Field(..., description="Image URLs or base64 data URIs")
+    images: list[str] = Field(
+        default_factory=list, description="Image URLs or base64 data URIs"
+    )
+    doc_ids: list[str] = Field(
+        default_factory=list,
+        description="Library document IDs to render and compare as images",
+    )
     prompt: str = Field(
         default="Describe this image in detail",
         description="Prompt for vision analysis",
@@ -362,6 +371,49 @@ def _model_specs(
             detail="No enabled models are configured in Settings",
         )
     return specs
+
+
+async def _render_compare_doc_images(
+    *,
+    doc_ids: list[str],
+    db: Database,
+) -> list[str]:
+    """Resolve library document IDs to display-image data URIs for comparison."""
+    if not doc_ids:
+        return []
+
+    package_path = db.path.parent if hasattr(db, "path") else None
+    if package_path is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Library path is required when comparing document IDs",
+        )
+
+    images: list[str] = []
+    for doc_id in doc_ids:
+        doc = db.get(Document, doc_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+        display_path = get_display(doc, package_path)
+        if not display_path:
+            display_path = await asyncio.to_thread(
+                ensure_display,
+                doc,
+                package_path=package_path,
+                db=db,
+            )
+
+        if not display_path or not display_path.exists():
+            raise HTTPException(
+                status_code=422,
+                detail=f"Display image not available for document: {doc_id}",
+            )
+
+        encoded = base64.b64encode(display_path.read_bytes()).decode("ascii")
+        images.append("data:image/jpeg;base64," + encoded)
+
+    return images
 
 
 def _language_fit_models(
@@ -682,6 +734,7 @@ async def get_models_grouped_by_tier(
 async def compare_vision_models(
     request: VisionCompareRequest,
     app_db: AppDatabase = Depends(_get_app_database),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ComparisonResultResponse:
     """Compare vision models on the same image(s).
 
@@ -691,12 +744,22 @@ async def compare_vision_models(
     Images can be:
     - URLs (https://...)
     - Base64 data URIs (data:image/jpeg;base64,...)
+    - Library document IDs via ``doc_ids`` (rendered through Fichero storage)
     """
     model_specs = _model_specs(request.models, app_db, require_capability="vision")
+    images = [
+        *request.images,
+        *await _render_compare_doc_images(doc_ids=request.doc_ids, db=db),
+    ]
+    if not images:
+        raise HTTPException(
+            status_code=422,
+            detail="At least one image URL/data URI or document ID is required",
+        )
 
     engine = get_comparison_engine()
     result = await engine.compare_vision(
-        images=request.images,
+        images=images,
         prompt=request.prompt,
         models=model_specs,
         detail=request.detail,

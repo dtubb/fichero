@@ -345,6 +345,54 @@ def test_reindex_all_batch_records_stamp_embedding_model_id(tmp_path) -> None:
     db.close()
 
 
+def test_embedding_append_accepts_legacy_unstamped_lancedb_schema(tmp_path) -> None:
+    db = Database(tmp_path / "legacy-schema.duckdb")
+    legacy_doc = Document(
+        id="page-legacy",
+        name="legacy.txt",
+        doc_type=DocType.page,
+        page_content="Legacy content long enough for the old embedding table.",
+    )
+    new_doc = Document(
+        id="page-new",
+        name="new.txt",
+        doc_type=DocType.page,
+        page_content="Camilo found a new ledger entry long enough to embed.",
+    )
+    db.save(legacy_doc, auto_embed=False)
+    db.save(new_doc, auto_embed=False)
+
+    db.save_vectors(
+        EMBEDDINGS_TABLE,
+        [
+            {
+                "id": "legacy-row",
+                "document_id": legacy_doc.id,
+                "text": legacy_doc.page_content,
+                "vector": [1.0, 0.0],
+                "embedding_scope": "page",
+                "passage_id": "",
+                "page_id": legacy_doc.id,
+                "char_start": 0,
+                "char_end": len(legacy_doc.page_content),
+                "name": legacy_doc.name,
+                "doc_type": legacy_doc.doc_type.value,
+                "file_type": None,
+                "vector_int8": None,
+                "vector_scale": None,
+            }
+        ],
+    )
+
+    with patch.object(db, "_embed_text", return_value=[0.0, 1.0]):
+        assert db.embed(new_doc)
+
+    rows = db.lance.open_table(EMBEDDINGS_TABLE).search().limit(10).to_list()
+    assert {row["document_id"] for row in rows} == {legacy_doc.id, new_doc.id}
+    assert all(EMBEDDING_MODEL_ID_FIELD not in row for row in rows)
+    db.close()
+
+
 def test_embedding_space_migration_requires_confirmation(tmp_path) -> None:
     db = Database(tmp_path / "migration-confirm.duckdb")
 

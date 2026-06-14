@@ -8,7 +8,7 @@ prefix="/model-comparison" mounted at "/api"). Engine calls are mocked.
 import json
 from unittest.mock import MagicMock, patch, AsyncMock
 
-from fichero.models import Model, Provider, ProviderType, Workflow
+from fichero.models import DocType, Document, Model, Provider, ProviderType, Workflow
 from fichero.workflows.model_comparison import ComparisonResult, ModelResult
 
 
@@ -499,6 +499,76 @@ class TestCompareModels:
         request = mock_engine.compare.await_args.args[0]
         assert request.models[0].provider == "openai"
         assert request.models[0].model == "gpt-4o-mini"
+
+
+# ---------------------------------------------------------------------------
+# POST /api/model-comparison/compare-vision
+# ---------------------------------------------------------------------------
+
+
+class TestCompareVision:
+    def test_compare_vision_resolves_library_doc_ids(self, client, app_db, db, tmp_path):
+        _seed_model(app_db, capabilities=["vision"])
+        doc = Document(
+            id="page-1",
+            name="Page 1",
+            doc_type=DocType.page,
+            page_content=None,
+        )
+        db.save(doc, auto_embed=False)
+        image = tmp_path / "page-1.jpg"
+        image.write_bytes(b"fake-jpeg")
+        comparison = ComparisonResult(
+            prompt="[Vision: 1 images] Transcribe",
+            models_compared=["openai/gpt-4o-mini"],
+            results=[
+                ModelResult(
+                    provider="openai",
+                    model="gpt-4o-mini",
+                    response="Transcript",
+                    latency_ms=5.0,
+                )
+            ],
+            comparison_id="cmp-vision-doc",
+        )
+        mock_engine = MagicMock()
+        mock_engine.compare_vision = AsyncMock(return_value=comparison)
+
+        with (
+            patch(
+                "fichero.api.routes.model_comparison.get_comparison_engine",
+                return_value=mock_engine,
+            ),
+            patch("fichero.api.routes.model_comparison.get_display", return_value=image),
+        ):
+            r = client.post(
+                "/api/model-comparison/compare-vision",
+                json={
+                    "doc_ids": [doc.id],
+                    "prompt": "Transcribe",
+                    "models": [{"provider": "openai", "model": "gpt-4o-mini"}],
+                },
+            )
+
+        assert r.status_code == 200
+        assert r.json()["comparison_id"] == "cmp-vision-doc"
+        assert mock_engine.compare_vision.await_args.kwargs["images"] == [
+            "data:image/jpeg;base64,ZmFrZS1qcGVn"
+        ]
+
+    def test_compare_vision_requires_image_or_doc_id(self, client, app_db):
+        _seed_model(app_db, capabilities=["vision"])
+
+        r = client.post(
+            "/api/model-comparison/compare-vision",
+            json={
+                "prompt": "Transcribe",
+                "models": [{"provider": "openai", "model": "gpt-4o-mini"}],
+            },
+        )
+
+        assert r.status_code == 422
+        assert "At least one image" in r.json()["detail"]
 
 
 class TestCompareWorkflow:

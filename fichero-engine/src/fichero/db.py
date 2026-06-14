@@ -1014,6 +1014,46 @@ class Database(DatabaseEmbeddingMixin):
                 table_names.append(str(table))
         return table_names
 
+    def _lance_table_field_names(self, table) -> set[str]:
+        """Return the field names for a LanceDB table across API versions."""
+        schema = getattr(table, "schema", None)
+        if callable(schema):
+            schema = schema()
+        names = getattr(schema, "names", None)
+        if names is not None:
+            return {str(name) for name in names}
+        fields = getattr(schema, "fields", None)
+        if fields is not None:
+            return {str(getattr(field, "name", field)) for field in fields}
+        return set()
+
+    def _coerce_vectors_to_existing_schema(
+        self, table_name: str, table, data: list[dict]
+    ) -> list[dict]:
+        """Drop fields a legacy LanceDB table cannot accept on append.
+
+        LanceDB tables created before newer vector metadata fields (notably
+        ``embedding_model_id``) reject appends that include those fields. Do not
+        rebuild or re-embed existing user data implicitly; append a row shaped
+        like the legacy table and let explicit embedding migration handle
+        stamping later.
+        """
+        fields = self._lance_table_field_names(table)
+        if not fields:
+            return data
+
+        extra_fields = set().union(*(row.keys() - fields for row in data))
+        if not extra_fields:
+            return data
+
+        logger.warning(
+            "LanceDB table %s has legacy schema; omitting unsupported vector "
+            "field(s) on append: %s",
+            table_name,
+            ", ".join(sorted(extra_fields)),
+        )
+        return [{key: value for key, value in row.items() if key in fields} for row in data]
+
     def save_vectors(
         self,
         table_name: str,
@@ -1033,6 +1073,7 @@ class Database(DatabaseEmbeddingMixin):
         with self._lock:
             if table_name in self._lance_tables():
                 table = self.lance.open_table(table_name)
+                data = self._coerce_vectors_to_existing_schema(table_name, table, data)
                 if replace:
                     for row in data:
                         key = row.get(key_field)

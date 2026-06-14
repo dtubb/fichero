@@ -14072,7 +14072,7 @@
           "model-comparison"
         ],
         "summary": "Compare Vision Models",
-        "description": "Compare vision models on the same image(s).\n\nSends the same image(s) to multiple vision-capable models\nand returns comparison results with timing and cost metrics.\n\nImages can be:\n- URLs (https://...)\n- Base64 data URIs (data:image/jpeg;base64,...)",
+        "description": "Compare vision models on the same image(s).\n\nSends the same image(s) to multiple vision-capable models\nand returns comparison results with timing and cost metrics.\n\nImages can be:\n- URLs (https://...)\n- Base64 data URIs (data:image/jpeg;base64,...)\n- Library document IDs via ``doc_ids`` (rendered through Fichero storage)",
         "operationId": "compare_vision_models_api_model_comparison_compare_vision_post",
         "requestBody": {
           "content": {
@@ -56131,6 +56131,14 @@
             "title": "Images",
             "description": "Image URLs or base64 data URIs"
           },
+          "doc_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Doc Ids",
+            "description": "Library document IDs to render and compare as images"
+          },
           "prompt": {
             "type": "string",
             "title": "Prompt",
@@ -56160,9 +56168,6 @@
           }
         },
         "type": "object",
-        "required": [
-          "images"
-        ],
         "title": "VisionCompareRequest",
         "description": "Request to compare vision models."
       },
