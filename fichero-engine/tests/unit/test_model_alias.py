@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from fichero.llm import resolve_model_alias
+from fichero.llm import resolve_model_alias, resolve_model_alias_for_capability
 
 
 class TestResolveModelAlias:
@@ -95,3 +95,15 @@ class TestResolveModelAlias:
             "openrouter",
             "openai/gpt-4o-mini",
         )
+
+    def test_capability_wrapper_accepts_two_argument_test_resolver(self, monkeypatch):
+        monkeypatch.setattr(
+            "fichero.llm.resolve_model_alias",
+            lambda provider, model: ("fake", "fake-model"),
+        )
+
+        assert resolve_model_alias_for_capability(
+            "$small",
+            "",
+            required_capability="text",
+        ) == ("fake", "fake-model")

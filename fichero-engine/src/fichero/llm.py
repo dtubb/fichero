@@ -39,6 +39,7 @@ import asyncio
 import base64
 import contextlib
 import contextvars
+import inspect
 import logging
 import os
 import re
@@ -671,11 +672,23 @@ def resolve_model_alias_for_capability(
     required_capability: str | None,
 ) -> tuple[str, str]:
     """Resolve aliases, then enforce provider/model capability metadata."""
-    resolved_provider, resolved_model = resolve_model_alias(
-        provider,
-        model,
-        required_capability=required_capability,
+    resolver = resolve_model_alias
+    try:
+        parameters = inspect.signature(resolver).parameters
+    except (TypeError, ValueError):
+        parameters = {}
+    supports_capability_kw = "required_capability" in parameters or any(
+        param.kind == inspect.Parameter.VAR_KEYWORD
+        for param in parameters.values()
     )
+    if supports_capability_kw:
+        resolved_provider, resolved_model = resolver(
+            provider,
+            model,
+            required_capability=required_capability,
+        )
+    else:
+        resolved_provider, resolved_model = resolver(provider, model)
     validate_model_capability(
         resolved_provider,
         resolved_model,
