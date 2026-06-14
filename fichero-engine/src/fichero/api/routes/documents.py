@@ -4,6 +4,7 @@ Document Routes
 CRUD operations for Document model.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -1433,7 +1434,8 @@ async def import_file(
             file,
             content_length=request.headers.get("content-length"),
         )
-        doc = import_uploaded_file_impl(
+        doc = await asyncio.to_thread(
+            import_uploaded_file_impl,
             db,
             temp_path,
             original_filename=file.filename,

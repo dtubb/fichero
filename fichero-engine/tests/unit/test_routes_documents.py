@@ -7,9 +7,11 @@ pagination. No external dependencies; uses real in-memory DB fixture.
 
 
 import asyncio
+from unittest.mock import AsyncMock
 
 
 from fichero import storage as storage_module
+from fichero.api.routes import documents as documents_routes
 from fichero.api.routes.documents import related_documents
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity, MutationLog
 from fichero.models import Document, DocType
@@ -601,6 +603,63 @@ class TestImportDocument:
             "(import endpoint must use multipart filename, not temp path)"
         )
         assert not data["name"].startswith("fichero_upload_")
+
+    def test_import_offloads_sync_ingest_work_to_thread(
+        self, db, tmp_path, monkeypatch
+    ):
+        class FakeRequest:
+            headers = {"content-length": "12"}
+
+        class FakeUpload:
+            filename = "analysis-mining-terms.md"
+
+        temp_path = tmp_path / "fichero_upload_tmp.md"
+        temp_path.write_text("# Analysis\n", encoding="utf-8")
+        doc = Document(
+            id="imported-doc",
+            name="analysis-mining-terms.md",
+            doc_type=DocType.file,
+        )
+        to_thread = AsyncMock(return_value=doc)
+        emitted: list[list[str]] = []
+
+        async def fake_save_uploaded_file(file, *, content_length=None):
+            assert file.filename == "analysis-mining-terms.md"
+            assert content_length == "12"
+            return temp_path
+
+        monkeypatch.setattr(storage_module, "save_uploaded_file", fake_save_uploaded_file)
+        monkeypatch.setattr(documents_routes.asyncio, "to_thread", to_thread)
+        monkeypatch.setattr(
+            documents_routes,
+            "emit_change",
+            lambda *_args, document_ids, **_kwargs: emitted.append(document_ids),
+        )
+
+        result = asyncio.run(
+            documents_routes.import_file(
+                request=FakeRequest(),
+                file=FakeUpload(),
+                parent_id="parent-1",
+                db=db,
+                x_fichero_library_path="/tmp/library.fichero",
+                actor="tester",
+            )
+        )
+
+        to_thread.assert_awaited_once()
+        assert to_thread.await_args.args == (
+            documents_routes.import_uploaded_file_impl,
+            db,
+            temp_path,
+        )
+        assert to_thread.await_args.kwargs == {
+            "original_filename": "analysis-mining-terms.md",
+            "parent_id": "parent-1",
+        }
+        assert result is doc
+        assert emitted == [[doc.id]]
+        assert not temp_path.exists()
 
     def test_import_rejects_oversized_upload_with_413(self, client, db, monkeypatch):
         monkeypatch.setattr(storage_module.settings, "max_upload_bytes", 128)
