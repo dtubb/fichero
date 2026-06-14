@@ -1580,6 +1580,7 @@ async def process_vision(
             # shielding this short-circuit and serving garbage on every run).
             # `force_ocr` overrides it for a PDF whose own text layer is garbage.
             pdf_layer_used = False
+            _llm_multipage = False  # set True when LLM path processes all PDF pages
             if (
                 not force_ocr
                 and tool_config.supports_apple_vision
@@ -1704,27 +1705,6 @@ async def process_vision(
                 parsed = text
             else:
                 logger.info(f"LLM Vision: {Path(file_path).name}")
-                # #670: PDFs must be rendered to a raster PNG before being
-                # sent to the vision LLM.  file_to_data_uri only handles
-                # standard image formats; passing a raw PDF produces either
-                # a crash, a mis-labelled MIME type, or unreadable bytes.
-                if file_path.lower().endswith(".pdf"):
-                    _pdf_page_idx = requested_page_index if requested_page_index is not None else 0
-                    logger.info(
-                        "LLM Vision PDF: rendering page %d of %s",
-                        _pdf_page_idx,
-                        Path(file_path).name,
-                    )
-                    image_uri = _pdf_page_to_data_uri(
-                        file_path,
-                        page_index=_pdf_page_idx,
-                        max_dimension=max_image_dimension,
-                    )
-                else:
-                    image_uri = file_to_data_uri(
-                        file_path, max_dimension=max_image_dimension
-                    )
-
                 # Check if we should use HF Inference API for thinking models
                 from fichero.llm import (
                     is_thinking_model,
@@ -1732,43 +1712,132 @@ async def process_vision(
                     parse_thinking_response,
                 )
 
-                if is_thinking_model(effective_config.model):
-                    # Use Inference API for thinking models
-                    logger.info(
-                        f"Using HF Inference API for thinking model: {effective_config.model}"
-                    )
+                # #2215 — whole-PDF, no per-page fan-out: process every page
+                # so per_page_texts is populated and _propagate_to_page_children
+                # can write each page's text to its page child document.
+                # When the workflow has already expanded to page children
+                # (requested_page_index is not None), fall through to the
+                # single-page path which writes directly to the page child doc.
+                if file_path.lower().endswith(".pdf") and requested_page_index is None:
+                    _llm_multipage = True
                     try:
-                        text = await vision_inference_api(
-                            images=[image_uri],
-                            prompt=final_prompt,
-                            model=effective_config.model,
-                            api_key=effective_config.api_key,
-                            temperature=effective_config.temperature,
-                            max_tokens=effective_config.max_tokens,
+                        import fitz as _fitz
+                        _fd = _fitz.open(file_path)
+                        _llm_num_pages = len(_fd)
+                        _fd.close()
+                    except Exception:
+                        try:
+                            _, _llm_num_pages = _render_pdf_page_to_cgimage(file_path, 0)
+                        except Exception:
+                            _llm_num_pages = 1
+                    logger.info(
+                        "LLM Vision PDF: processing all %d pages of %s",
+                        _llm_num_pages,
+                        Path(file_path).name,
+                    )
+                    _llm_page_texts: list[str] = []
+                    for _page_idx in range(_llm_num_pages):
+                        try:
+                            _page_uri = _pdf_page_to_data_uri(
+                                file_path,
+                                page_index=_page_idx,
+                                max_dimension=max_image_dimension,
+                            )
+                            if is_thinking_model(effective_config.model):
+                                _raw = await vision_inference_api(
+                                    images=[_page_uri],
+                                    prompt=final_prompt,
+                                    model=effective_config.model,
+                                    api_key=effective_config.api_key,
+                                    temperature=effective_config.temperature,
+                                    max_tokens=effective_config.max_tokens,
+                                )
+                                _ans, _thk = parse_thinking_response(_raw)
+                                if _thk:
+                                    logger.info("Thinking (page %d): %s...", _page_idx, _thk[:100])
+                                _llm_page_texts.append(str(_ans or ""))
+                            else:
+                                _pt = await vision(
+                                    images=[_page_uri],
+                                    prompt=final_prompt,
+                                    config=effective_config,
+                                )
+                                _llm_page_texts.append(_pt if isinstance(_pt, str) else "")
+                        except Exception as _pe:
+                            logger.warning(
+                                "LLM Vision: page %d of %s failed: %s",
+                                _page_idx, Path(file_path).name, _pe,
+                            )
+                            _llm_page_texts.append("")
+                    per_page_texts = _llm_page_texts
+                    _parts: list[str] = []
+                    for _i, _t in enumerate(per_page_texts):
+                        if _t:
+                            if _llm_num_pages > 1:
+                                _parts.append(f"--- Page {_i + 1} ---")
+                            _parts.append(_t)
+                    text = "\n\n".join(_parts)
+                    parsed = parse_output(text, output_format, output_options)
+                else:
+                    # Single page (per-page fan-out) or non-PDF.
+                    # #670: PDFs must be rendered to a raster PNG before being
+                    # sent to the vision LLM.  file_to_data_uri only handles
+                    # standard image formats; passing a raw PDF produces either
+                    # a crash, a mis-labelled MIME type, or unreadable bytes.
+                    if file_path.lower().endswith(".pdf"):
+                        _pdf_page_idx = requested_page_index  # not None: per-page fan-out
+                        logger.info(
+                            "LLM Vision PDF: rendering page %d of %s",
+                            _pdf_page_idx,
+                            Path(file_path).name,
+                        )
+                        image_uri = _pdf_page_to_data_uri(
+                            file_path,
+                            page_index=_pdf_page_idx,
+                            max_dimension=max_image_dimension,
+                        )
+                    else:
+                        image_uri = file_to_data_uri(
+                            file_path, max_dimension=max_image_dimension
                         )
 
-                        # Parse thinking response
-                        answer, thinking = parse_thinking_response(text)
+                    if is_thinking_model(effective_config.model):
+                        # Use Inference API for thinking models
+                        logger.info(
+                            f"Using HF Inference API for thinking model: {effective_config.model}"
+                        )
+                        try:
+                            text = await vision_inference_api(
+                                images=[image_uri],
+                                prompt=final_prompt,
+                                model=effective_config.model,
+                                api_key=effective_config.api_key,
+                                temperature=effective_config.temperature,
+                                max_tokens=effective_config.max_tokens,
+                            )
 
-                        # Log thinking process if present
-                        if thinking:
-                            logger.info(f"Model thinking process: {thinking[:200]}...")
+                            # Parse thinking response
+                            answer, thinking = parse_thinking_response(text)
 
-                        # Use answer for further processing
-                        parsed = parse_output(answer, output_format, output_options)
+                            # Log thinking process if present
+                            if thinking:
+                                logger.info(f"Model thinking process: {thinking[:200]}...")
 
-                    except Exception as e:
-                        logger.error(f"HF Inference API failed: {e}")
-                        raise
-                else:
-                    # Use standard LangChain router for regular models
-                    text = await vision(
-                        images=[image_uri],
-                        prompt=final_prompt,
-                        config=effective_config,
-                    )
-                    # Parse output according to format
-                    parsed = parse_output(text, output_format, output_options)
+                            # Use answer for further processing
+                            parsed = parse_output(answer, output_format, output_options)
+
+                        except Exception as e:
+                            logger.error(f"HF Inference API failed: {e}")
+                            raise
+                    else:
+                        # Use standard LangChain router for regular models
+                        text = await vision(
+                            images=[image_uri],
+                            prompt=final_prompt,
+                            config=effective_config,
+                        )
+                        # Parse output according to format
+                        parsed = parse_output(text, output_format, output_options)
 
             # Apply reference matching
             if reference_values:
@@ -1782,7 +1851,9 @@ async def process_vision(
             # cascade into downstream tools (#837 follow-up).
             # `[sin texto]` is the prompt's explicit no-text token and
             # is a real result — don't retry that one.
-            if not (text or "").strip() and vision_mode != "apple":
+            # Skip for _llm_multipage: per-page failures were logged individually;
+            # re-sending only page 0 would not help a multi-page failure.
+            if not (text or "").strip() and vision_mode != "apple" and not _llm_multipage:
                 logger.warning(
                     f"Vision LLM returned empty for {Path(file_path).name}; "
                     f"retrying once before declaring failure"

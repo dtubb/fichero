@@ -296,3 +296,66 @@ async def test_pdf_text_layer_page_child_uses_only_that_page(
     assert result["page_records"] == [
         {"doc_id": "page-2", "text": "Text from page 2"}
     ]
+
+
+@pytest.mark.asyncio
+async def test_llm_vision_multipage_pdf_processes_all_pages(tmp_path: Path) -> None:
+    """#2215 regression: LLM vision on a whole PDF (no per-page fan-out) must
+    process every page separately and populate per_page_texts so
+    _propagate_to_page_children distributes each page's transcript to its
+    child document. Before the fix, only page 0 was rendered (hard-coded
+    `page_index=0`) and _propagate_to_page_children never fired."""
+    pdf = tmp_path / "multipage.pdf"
+    _make_pdf_with_text(pdf, ["Page one body.", "Page two body."])
+
+    page_transcripts = ["Transcription of page one.", "Transcription of page two."]
+    llm_call_count = 0
+
+    async def _mock_vision(images, prompt, config):
+        nonlocal llm_call_count
+        text = page_transcripts[llm_call_count % len(page_transcripts)]
+        llm_call_count += 1
+        return text
+
+    save_mock = AsyncMock(return_value="artifact-parent")
+    propagate_mock = AsyncMock()
+
+    with (
+        patch("fichero.workflows.tools.vision_base.save_artifact", new=save_mock),
+        # Force LLM path: pretend this is a scanned PDF with no text layer
+        patch("fichero.workflows.tools.vision_base._try_pdf_text_layer", return_value=None),
+        # Avoid Quartz rendering in CI
+        patch(
+            "fichero.workflows.tools.vision_base._pdf_page_to_data_uri",
+            return_value="data:image/png;base64,STUB",
+        ),
+        patch(
+            "fichero.workflows.tools.vision_base._propagate_to_page_children",
+            new=propagate_mock,
+        ),
+        patch("fichero.llm.vision", new=_mock_vision),
+    ):
+        result = await process_vision(
+            files=[str(pdf)],
+            documents=[{"id": "parent-pdf", "path": str(pdf)}],
+            prompt="Transcribe.",
+            llm_config=_llm_config(),
+            library_path="/tmp/fichero-test-2215",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+        )
+
+    # LLM must be called once per page (2), not just once for page 0
+    assert llm_call_count == 2, (
+        f"Expected 2 LLM calls (one per page), got {llm_call_count}. "
+        "Fix: LLM path must iterate all pages, not hard-code page_index=0."
+    )
+    # Both page transcriptions appear in the combined output
+    assert "page one" in result["text"]
+    assert "page two" in result["text"]
+    # _propagate_to_page_children must be triggered with all per-page texts
+    propagate_mock.assert_awaited_once()
+    propagated_parent_id, propagated_texts = propagate_mock.await_args.args[:2]
+    assert propagated_parent_id == "parent-pdf"
+    assert propagated_texts == page_transcripts
