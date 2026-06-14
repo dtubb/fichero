@@ -266,3 +266,32 @@ class TestSaveClaimAutoAttribution:
             assert loaded.speaker_name is None
             assert loaded.quotation_kind is None
             assert loaded.audience is None
+
+
+class TestSaveClaimRecordedAt:
+    """#1657: save_claim must forward claim_recorded_at to KnowledgeClaim."""
+
+    def test_claim_recorded_at_stored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db, doc = _setup_db(tmp)
+            claim_id = save_claim(
+                db,
+                text="Pedro owned the mine.",
+                source_document_id=doc.id,
+                claim_recorded_at="1923-02-05",
+            )
+            loaded = db.get(KnowledgeClaim, claim_id)
+            assert loaded is not None
+            assert loaded.claim_recorded_at == "1923-02-05"
+
+    def test_claim_recorded_at_none_when_not_passed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db, doc = _setup_db(tmp)
+            claim_id = save_claim(
+                db,
+                text="Pedro owned the mine.",
+                source_document_id=doc.id,
+            )
+            loaded = db.get(KnowledgeClaim, claim_id)
+            assert loaded is not None
+            assert loaded.claim_recorded_at is None

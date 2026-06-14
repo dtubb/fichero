@@ -1947,6 +1947,7 @@ def _write_citation_usage_rows(
             model=model,
             speaker_name=speaker_name,
             confidence_origin="llm",
+            claim_recorded_at=(source_doc.metadata or {}).get("date") if source_doc else None,
         )
         if claim_id is not None:
             citation.metadata["claim_id"] = claim_id
@@ -2071,6 +2072,7 @@ def _write_kg_rows(
     # bibliography pipeline ships richer speaker-role tagging via #924.
     from fichero.models import Document as DocumentModel
     container_doc = db.get(DocumentModel, container_id)
+    doc_date: str | None = (container_doc.metadata or {}).get("date") if container_doc else None
     author_label: str | None = None
     if container_doc and container_doc.source_metadata:
         authors = container_doc.source_metadata.get("authors") or []
@@ -2502,6 +2504,7 @@ def _write_kg_rows(
                 confidence_origin=(
                     "heuristic" if svo_synthesised else "llm"
                 ),
+                claim_recorded_at=doc_date,
             )
             if claim_id is not None:
                 claims_written += 1
@@ -2553,6 +2556,7 @@ def _write_kg_rows(
                     confidence=claim_confidence,
                     source_language=detected_language,
                     confidence_origin=("heuristic" if svo_synthesised else "llm"),
+                    claim_recorded_at=doc_date,
                 )
                 if claim_id is not None:
                     claims_written += 1
@@ -2656,6 +2660,7 @@ def _write_kg_rows(
             confidence_origin=(
                 "heuristic" if svo_synthesised else "llm"
             ),
+            claim_recorded_at=doc_date,
         )
         entities_written += 1
         if claim_id is not None:

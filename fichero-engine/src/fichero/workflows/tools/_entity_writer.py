@@ -1699,6 +1699,7 @@ def save_claim(
     place_values: Optional[list[EvidentialPlace | dict]] = None,
     attribution_chain: Optional[list[AttributionStep | dict]] = None,
     source_supports: Optional[list[SourceSupport | dict]] = None,
+    claim_recorded_at: Optional[str] = None,
 ) -> str | None:
     """Save a `KnowledgeClaim` row. Returns the claim ID.
 
@@ -1892,6 +1893,7 @@ def save_claim(
         corroborating_source_ids=sorted({support.source_document_id for support in support_values}),
         evidential_confidence=claim_confidence,
         evidential_confidence_source=evidential_confidence_source,
+        claim_recorded_at=claim_recorded_at,
     )
     canonical = _find_cross_source_canonical_claim(db, claim)
     if canonical is not None:
