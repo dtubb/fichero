@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `7fc59a68`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `44219784`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -74,6 +74,9 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 
 ### SHIPPED (loop tick 4a, all gated ALL PASS + pushed, never red) — 0.0.2 @ 7fc59a68
 - **#2122** (7fc59a68) reconciled `bind_host.py` with `remote_backend.py` in favor of Daniel's loopback-only + `tailscale serve` / SSH-forwarding decision. `FICHERO_BIND_HOST` now rejects non-loopback values by default; `0.0.0.0` and `::` are always refused; the only non-loopback escape hatch is the explicit owner risk acknowledgement `FICHERO_ALLOW_NON_LOOPBACK_BIND=I_UNDERSTAND_SHARED_SECRET_RISK`, which emits a runtime warning because the shared bootstrap token is not an internet-facing auth boundary. CLI help and developer security docs now point to `tailscale serve` / SSH forwarding rather than binding a tailnet IP. Tests cover loopback variants, non-loopback refusal/ack, wildcard rejection, and remote-backend tailnet bind rejection. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4912 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `bind-host-2122` worktree/branch removed.
+
+### SHIPPED (loop tick 4b, all gated ALL PASS + pushed, never red) — 0.0.2 @ 44219784
+- **#2169** (44219784) added backend perf-regression guards and fixed one event-loop blocking hot path. `POST /api/ingest/file` now offloads synchronous file-copy/OCR/embed work through `asyncio.to_thread` and has a direct route guard. `GET /api/documents/{id}/children` now has a query-count guard proving resolvability uses one `query_in` batch rather than per-child `get` calls. `reindex_all` now has scatter-back coverage proving only document IDs returned by each embed batch count toward progress/indexed totals. Existing guards confirmed PDF page projection batching and Stage-2 claim extraction concurrency. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4915 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `perf-guards-2169` worktree/branch removed.
 
 ### In flight (poll on wake) — tick 3
 - None currently active. **AI Infrastructure milestone #83 is drained and epic #2056 is closed.** Remaining referenced follow-ups moved to owning lanes/milestones: #2058/#2063/#2064 (Settings & Providers), #2060 (Importers), #2061 (Image Editing), #2067/#2071 (Researcher). Next autonomous scope: backend-only security, efficiency, and comparison follow-ups. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
