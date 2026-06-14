@@ -6092,6 +6092,32 @@
       },
       {
         "method": "GET",
+        "path": "/model-comparison/language-fit",
+        "operation_id": "get_language_fit_api_model_comparison_language_fit_get",
+        "summary": "Get Language Fit",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "language",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "model",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "provider",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "LanguageFitResponse"
+      },
+      {
+        "method": "GET",
         "path": "/model-comparison/models",
         "operation_id": "list_available_models_api_model_comparison_models_get",
         "summary": "List Available Models",

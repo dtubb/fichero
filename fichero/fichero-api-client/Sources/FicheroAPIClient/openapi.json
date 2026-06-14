@@ -16110,6 +16110,70 @@
         }
       }
     },
+    "/api/model-comparison/language-fit": {
+      "get": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Get Language Fit",
+        "description": "Score local model/language tokenizer fit without cloud calls.\n\nIf provider/model are omitted, all enabled Settings models are scored.\nScores come from local derived LOOVE-style JSON when present; otherwise a\ntransparent heuristic fallback is returned.",
+        "operationId": "get_language_fit_api_model_comparison_language_fit_get",
+        "parameters": [
+          {
+            "name": "language",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Language"
+            }
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Provider"
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LanguageFitResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/model-comparison/estimate-cost": {
       "post": {
         "tags": [
@@ -48424,6 +48488,241 @@
         ],
         "title": "KnownLibrary",
         "description": "Persistent registry of known libraries.\n\nStored in the backend database to support CLI operations like\nlisting available libraries and switching between them (#1131).\nWhen a library is created via POST /api/library, it's auto-registered."
+      },
+      "LanguageCoverageRecord": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "normalized_model_id": {
+            "type": "string",
+            "title": "Normalized Model Id"
+          },
+          "language": {
+            "$ref": "#/components/schemas/LanguageSpec"
+          },
+          "coverage_score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Coverage Score",
+            "description": "Weighted tokenizer coverage score, not model intelligence."
+          },
+          "score_band": {
+            "type": "string",
+            "enum": [
+              "excellent",
+              "good",
+              "limited",
+              "poor",
+              "unknown"
+            ],
+            "title": "Score Band",
+            "default": "unknown"
+          },
+          "tier_counts": {
+            "$ref": "#/components/schemas/LanguageTierCounts",
+            "nullable": true
+          },
+          "fertility": {
+            "$ref": "#/components/schemas/LanguageFertility",
+            "nullable": true
+          },
+          "source": {
+            "$ref": "#/components/schemas/LanguageCoverageSource"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "derived",
+              "heuristic",
+              "unsupported_language",
+              "invalid_coverage_file"
+            ],
+            "title": "Status"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "normalized_model_id",
+          "language",
+          "source",
+          "status"
+        ],
+        "title": "LanguageCoverageRecord",
+        "description": "Per-model language fit result."
+      },
+      "LanguageCoverageSource": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "loove_derived_json",
+              "heuristic_fallback",
+              "missing"
+            ],
+            "title": "Kind",
+            "default": "missing"
+          },
+          "model_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Id"
+          },
+          "coverage_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "Coverage Path"
+          },
+          "generated_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Generated At"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "LanguageCoverageSource",
+        "description": "Where the score came from."
+      },
+      "LanguageFertility": {
+        "properties": {
+          "tokens_per_char": {
+            "type": "number",
+            "nullable": true,
+            "title": "Tokens Per Char"
+          },
+          "tokens_per_word": {
+            "type": "number",
+            "nullable": true,
+            "title": "Tokens Per Word"
+          },
+          "sample_chars": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Sample Chars"
+          },
+          "sample_tokens": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Sample Tokens"
+          }
+        },
+        "type": "object",
+        "title": "LanguageFertility",
+        "description": "Optional LOOVE fertility metrics from sample text."
+      },
+      "LanguageFitResponse": {
+        "properties": {
+          "language": {
+            "$ref": "#/components/schemas/LanguageSpec"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/LanguageCoverageRecord"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "privacy_note": {
+            "type": "string",
+            "title": "Privacy Note",
+            "default": "Language fit is computed from local derived coverage metadata or a transparent heuristic fallback. No cloud calls are made and no user documents are tokenized."
+          },
+          "source_note": {
+            "type": "string",
+            "title": "Source Note",
+            "default": "LOOVE-derived data measures tokenizer/language coverage; it does not measure model intelligence or task quality directly."
+          }
+        },
+        "type": "object",
+        "required": [
+          "language",
+          "results"
+        ],
+        "title": "LanguageFitResponse",
+        "description": "Language-fit recommendation response."
+      },
+      "LanguageSpec": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "script": {
+            "type": "string",
+            "nullable": true,
+            "title": "Script"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "LanguageSpec",
+        "description": "Language identity used for tokenizer-coverage lookup."
+      },
+      "LanguageTierCounts": {
+        "properties": {
+          "tier_0_native": {
+            "type": "integer",
+            "title": "Tier 0 Native",
+            "description": "Characters represented as native single-character tokens.",
+            "default": 0
+          },
+          "tier_1_embedded": {
+            "type": "integer",
+            "title": "Tier 1 Embedded",
+            "description": "Characters embedded inside multi-character tokens.",
+            "default": 0
+          },
+          "tier_2_byte_fallback": {
+            "type": "integer",
+            "title": "Tier 2 Byte Fallback",
+            "description": "Characters represented through byte fallback tokens.",
+            "default": 0
+          },
+          "tier_3_unreachable": {
+            "type": "integer",
+            "title": "Tier 3 Unreachable",
+            "description": "Characters not reachable by the tokenizer.",
+            "default": 0
+          },
+          "total_chars": {
+            "type": "integer",
+            "title": "Total Chars",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "LanguageTierCounts",
+        "description": "LOOVE tier counts for exemplar characters."
       },
       "LibraryCreateRequest": {
         "properties": {

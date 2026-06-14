@@ -6056,6 +6056,24 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-language-fit")
+    def model_comparison_get_language_fit_get(
+        ctx: typer.Context,
+        language: str = typer.Option(..., "--language", help="Query parameter: language."),
+        model: Optional[str] = typer.Option(None, "--model", help="Query parameter: model."),
+        provider: Optional[str] = typer.Option(None, "--provider", help="Query parameter: provider."),
+    ) -> None:
+        """Get Language Fit (GET /api/model-comparison/language-fit)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/model-comparison/language-fit"
+            params = {
+                "language": language,
+                "model": model,
+                "provider": provider,
+            }
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-available-models")
     def model_comparison_list_available_models_get(
         ctx: typer.Context,

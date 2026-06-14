@@ -5,6 +5,7 @@ and compare outputs. Routes live at /api/model-comparison/... (router
 prefix="/model-comparison" mounted at "/api"). Engine calls are mocked.
 """
 
+import json
 from unittest.mock import MagicMock, patch, AsyncMock
 
 from fichero.models import Model, Provider, ProviderType, Workflow
@@ -56,6 +57,123 @@ class TestListModels:
             assert "provider" in model
             assert "model" in model
             assert "input_price_per_million" in model
+
+
+# ---------------------------------------------------------------------------
+# GET /api/model-comparison/language-fit
+# ---------------------------------------------------------------------------
+
+
+class TestLanguageFit:
+    def test_language_fit_scores_explicit_model(self, client, tmp_path, monkeypatch):
+        monkeypatch.setenv("FICHERO_LANGUAGE_COVERAGE_DIR", str(tmp_path))
+
+        r = client.get(
+            "/api/model-comparison/language-fit",
+            params={
+                "language": "es",
+                "provider": "openai",
+                "model": "gpt-4o-mini",
+            },
+        )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["language"]["code"] == "es"
+        assert data["results"][0]["provider"] == "openai"
+        assert data["results"][0]["model"] == "gpt-4o-mini"
+        assert data["results"][0]["status"] == "heuristic"
+        assert data["results"][0]["source"]["kind"] == "heuristic_fallback"
+        assert "No cloud calls" in data["privacy_note"]
+
+    def test_language_fit_uses_settings_models_when_model_omitted(
+        self, client, app_db, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("FICHERO_LANGUAGE_COVERAGE_DIR", str(tmp_path))
+        _seed_model(app_db, model_id="gpt-4o-mini")
+        _seed_model(
+            app_db,
+            provider_type=ProviderType.anthropic,
+            provider_name="Anthropic",
+            model_id="claude-3-5-sonnet",
+        )
+
+        r = client.get("/api/model-comparison/language-fit?language=es")
+
+        assert r.status_code == 200
+        models = {(item["provider"], item["model"]) for item in r.json()["results"]}
+        assert ("openai", "gpt-4o-mini") in models
+        assert ("anthropic", "claude-3-5-sonnet") in models
+
+    def test_language_fit_uses_local_derived_coverage_file(
+        self, client, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("FICHERO_LANGUAGE_COVERAGE_DIR", str(tmp_path))
+        (tmp_path / "openai__gpt-4o-mini.json").write_text(
+            json.dumps(
+                {
+                    "model_id": "gpt-4o-mini",
+                    "coverage": {
+                        "es": {
+                            "score": 0.93,
+                            "tier_counts": {"tier_0": 90, "tier_1": 3},
+                            "fertility": {
+                                "tokens_per_char": 0.33,
+                                "tokens_per_word": 1.5,
+                                "sample_chars": 120,
+                                "sample_tokens": 40,
+                            },
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        r = client.get(
+            "/api/model-comparison/language-fit",
+            params={
+                "language": "es",
+                "provider": "openai",
+                "model": "gpt-4o-mini",
+            },
+        )
+
+        assert r.status_code == 200
+        result = r.json()["results"][0]
+        assert result["status"] == "derived"
+        assert result["coverage_score"] == 0.93
+        assert result["source"]["kind"] == "loove_derived_json"
+        assert result["tier_counts"]["tier_0_native"] == 90
+        assert result["fertility"]["tokens_per_word"] == 1.5
+
+    def test_language_fit_unsupported_language_is_typed(
+        self, client, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("FICHERO_LANGUAGE_COVERAGE_DIR", str(tmp_path))
+
+        r = client.get(
+            "/api/model-comparison/language-fit",
+            params={
+                "language": "zz",
+                "provider": "openai",
+                "model": "gpt-4o-mini",
+            },
+        )
+
+        assert r.status_code == 200
+        result = r.json()["results"][0]
+        assert result["status"] == "unsupported_language"
+        assert result["coverage_score"] is None
+        assert result["warnings"]
+
+    def test_language_fit_requires_provider_and_model_together(self, client):
+        r = client.get(
+            "/api/model-comparison/language-fit",
+            params={"language": "es", "provider": "openai"},
+        )
+
+        assert r.status_code == 400
 
 
 # ---------------------------------------------------------------------------

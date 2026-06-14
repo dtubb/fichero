@@ -12,6 +12,11 @@ from pydantic import BaseModel, Field
 from fichero.app_db import AppDatabase, get_app_db
 from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
+from fichero.language_coverage import (
+    LanguageFitModelSpec,
+    LanguageFitResponse,
+    recommend_language_fit,
+)
 from fichero.models import Workflow
 from fichero.workflows.resolver import resolve_inputs
 from fichero.workflows.model_comparison import (
@@ -330,6 +335,32 @@ def _model_specs(
     return specs
 
 
+def _language_fit_models(
+    app_db: AppDatabase,
+    *,
+    provider: str | None,
+    model: str | None,
+) -> list[LanguageFitModelSpec]:
+    if provider or model:
+        if not provider or not model:
+            raise HTTPException(
+                status_code=400,
+                detail="provider and model must be supplied together",
+            )
+        return [LanguageFitModelSpec(provider=provider, model=model)]
+    models = [
+        LanguageFitModelSpec(provider=m["provider"], model=m["model"])
+        for m in _configured_models(app_db)
+        if m.get("provider") and m.get("model")
+    ]
+    if not models:
+        raise HTTPException(
+            status_code=400,
+            detail="No enabled models are configured in Settings",
+        )
+    return models
+
+
 def _workflow_from_request(
     request: NodeCompareRequest,
     db: Database,
@@ -470,6 +501,23 @@ async def list_available_models(
     return ModelListResponse(
         models=[ModelInfo(**model) for model in _configured_models(app_db)]
     )
+
+
+@router.get("/language-fit", response_model=LanguageFitResponse)
+async def get_language_fit(
+    language: str,
+    provider: str | None = None,
+    model: str | None = None,
+    app_db: AppDatabase = Depends(_get_app_database),
+) -> LanguageFitResponse:
+    """Score local model/language tokenizer fit without cloud calls.
+
+    If provider/model are omitted, all enabled Settings models are scored.
+    Scores come from local derived LOOVE-style JSON when present; otherwise a
+    transparent heuristic fallback is returned.
+    """
+    models = _language_fit_models(app_db, provider=provider, model=model)
+    return recommend_language_fit(language, models)
 
 
 @router.post("/estimate-cost")
