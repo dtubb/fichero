@@ -2,8 +2,8 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
 
+from fichero.workflows.builder import build_graph
 from fichero.workflows.chaining import (
     WorkflowChain,
     ChainStep,
@@ -18,6 +18,8 @@ from fichero.workflows.chaining import (
     apply_transform,
     evaluate_condition,
 )
+from fichero.workflows.runtime import build_initial_state
+from fichero.workflows.types import WorkflowDef, NodeDef, EdgeDef
 
 
 # =============================================================================
@@ -529,3 +531,103 @@ class TestChainExecutor:
             event_types = [e.event_type.value for e in events]
             assert "chain_started" in event_types
             assert "chain_completed" in event_types
+
+
+# =============================================================================
+# Workflow Runtime Regression
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_reference_search_unavailable_is_empty_safe_for_transcribe_review(
+    monkeypatch,
+):
+    """Optional reference search must not abort two-pass transcription workflows."""
+
+    from fichero.workflows.tools.sources import search_tool
+
+    captured: dict = {}
+
+    async def transcribe_tool(inputs, state, llm_config):
+        return {"text": "draft paleography transcription"}
+
+    async def review_tool(inputs, state, llm_config):
+        captured["context"] = inputs.get("context")
+        captured["metadata"] = inputs.get("metadata")
+        return {
+            "text": "reviewed transcription",
+            "metadata_count": len(inputs.get("metadata") or []),
+        }
+
+    monkeypatch.setattr(
+        "fichero.workflows.builder.get_tool",
+        lambda tool_name: {
+            "transcribe": transcribe_tool,
+            "search": search_tool,
+            "transcribe_review": review_tool,
+        }.get(tool_name),
+    )
+
+    class MissingReferenceIndexRetriever:
+        def __init__(self, db):
+            self.db = db
+
+        def retrieve(self, **kwargs):
+            raise RuntimeError(
+                "Catalog Error: Table with name embeddings does not exist"
+            )
+
+    workflow = WorkflowDef(
+        id="wf-reference-search-optional",
+        name="Reference Search Optional",
+        nodes=[
+            NodeDef(id="transcribe", tool="transcribe", config={}),
+            NodeDef(id="reference-search", tool="search", config={}),
+            NodeDef(id="review", tool="transcribe_review", config={}),
+        ],
+        edges=[
+            EdgeDef(
+                source="transcribe",
+                target="reference-search",
+                source_port="text",
+                target_port="query",
+            ),
+            EdgeDef(
+                source="transcribe",
+                target="review",
+                source_port="text",
+                target_port="context",
+            ),
+            EdgeDef(
+                source="reference-search",
+                target="review",
+                source_port="documents",
+                target_port="metadata",
+            ),
+        ],
+    )
+
+    with (
+        patch("fichero.workflows.tools.sources.db_manager") as mock_manager,
+        patch(
+            "fichero.workflows.tools.sources.GraphAwareRetriever",
+            MissingReferenceIndexRetriever,
+        ),
+    ):
+        mock_manager.get_database.return_value = MagicMock()
+        initial_state = build_initial_state({}, library_path="/tmp/test.fichero")
+        initial_state["workflow_id"] = workflow.id
+        final_state = await build_graph(workflow, enable_parallel=False).ainvoke(
+            initial_state
+        )
+
+    assert final_state.get("error") is None
+    assert captured["context"] == "draft paleography transcription"
+    assert captured["metadata"] == []
+    assert final_state["outputs"]["reference-search"]["documents"] == []
+    assert final_state["outputs"]["reference-search"]["count"] == 0
+    assert final_state["outputs"]["review"]["metadata_count"] == 0
+    assert set(final_state.get("completed_nodes") or []) == {
+        "transcribe",
+        "reference-search",
+        "review",
+    }

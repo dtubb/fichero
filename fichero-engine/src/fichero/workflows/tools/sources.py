@@ -856,6 +856,20 @@ async def search_tool(
         }
 
     except Exception as e:
+        if _is_reference_search_unavailable_error(e):
+            logger.info(
+                "Search tool: reference corpus/index unavailable, returning empty result: %s",
+                e,
+            )
+            return {
+                "files": [],
+                "documents": [],
+                "count": 0,
+                "document_count": 0,
+                "context_count": 0,
+                "kg_claims_used": 0,
+                "kg_entities_used": 0,
+            }
         logger.error(f"Search tool failed: {e}")
         return {
             "files": [],
@@ -872,6 +886,43 @@ async def search_tool(
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
+
+def _is_reference_search_unavailable_error(exc: Exception) -> bool:
+    """Return True when search infra is absent and reference search should be optional.
+
+    Transcription presets use the search node as auxiliary context for pass-two
+    review. A library with no vector/search index should produce an empty
+    reference list, not abort the whole workflow after pass one already saved
+    its artifacts.
+    """
+    message = str(exc).lower()
+    infra_markers = (
+        "embedding",
+        "embeddings",
+        "vector",
+        "vectors",
+        "lance",
+        "search index",
+        "fts",
+        "full-text",
+        "full text",
+        "bm25",
+        "index",
+    )
+    unavailable_markers = (
+        "does not exist",
+        "not found",
+        "no such",
+        "missing",
+        "unavailable",
+        "not available",
+        "cannot open",
+        "failed to open",
+    )
+    return any(marker in message for marker in infra_markers) and any(
+        marker in message for marker in unavailable_markers
+    )
 
 
 def _get_files_in_folder(
