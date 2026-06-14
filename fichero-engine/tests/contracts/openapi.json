@@ -16174,6 +16174,49 @@
         }
       }
     },
+    "/api/model-comparison/recommend-models": {
+      "post": {
+        "tags": [
+          "model-comparison",
+          "model-comparison"
+        ],
+        "summary": "Recommend Models For Picker",
+        "description": "Rank model-picker candidates from local metadata only.\n\nThe endpoint composes Settings model rows, provider privacy posture, local\nlanguage coverage, cost metadata, and availability flags. It never invokes\nan LLM, tokenizes user documents, downloads metadata, or makes cloud calls.",
+        "operationId": "recommend_models_for_picker_api_model_comparison_recommend_models_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelRecommendationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelRecommendationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/model-comparison/estimate-cost": {
       "post": {
         "tags": [
@@ -50575,6 +50618,330 @@
         "type": "object",
         "title": "ModelProfileUpdate",
         "description": "Partial update for a named model profile."
+      },
+      "ModelRecommendationCandidate": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Capabilities"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "input_price_per_million": {
+            "type": "number",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Input Price Per Million",
+            "description": "Input token price per million tokens, when known."
+          },
+          "output_price_per_million": {
+            "type": "number",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Output Price Per Million",
+            "description": "Output token price per million tokens, when known."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "explicit",
+              "settings"
+            ],
+            "title": "Source",
+            "default": "explicit"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "ModelRecommendationCandidate",
+        "description": "Model metadata available to the local recommender."
+      },
+      "ModelRecommendationCost": {
+        "properties": {
+          "input_price_per_million": {
+            "type": "number",
+            "nullable": true,
+            "title": "Input Price Per Million"
+          },
+          "output_price_per_million": {
+            "type": "number",
+            "nullable": true,
+            "title": "Output Price Per Million"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "free",
+              "known",
+              "unknown"
+            ],
+            "title": "Status"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "note"
+        ],
+        "title": "ModelRecommendationCost",
+        "description": "Typed cost metadata for one candidate."
+      },
+      "ModelRecommendationItem": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "total_score": {
+            "type": "number",
+            "title": "Total Score"
+          },
+          "component_scores": {
+            "$ref": "#/components/schemas/ModelRecommendationScores"
+          },
+          "language_fit": {
+            "$ref": "#/components/schemas/LanguageCoverageRecord"
+          },
+          "privacy_posture": {
+            "type": "string",
+            "enum": [
+              "builtin_local",
+              "local",
+              "cloud",
+              "unknown"
+            ],
+            "title": "Privacy Posture"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/ModelRecommendationCost"
+          },
+          "availability_status": {
+            "type": "string",
+            "enum": [
+              "enabled",
+              "disabled",
+              "refused"
+            ],
+            "title": "Availability Status"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "explicit",
+              "settings"
+            ],
+            "title": "Source"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "rank",
+          "total_score",
+          "component_scores",
+          "language_fit",
+          "privacy_posture",
+          "cost",
+          "availability_status",
+          "enabled",
+          "available",
+          "source"
+        ],
+        "title": "ModelRecommendationItem",
+        "description": "Ranked model recommendation item."
+      },
+      "ModelRecommendationRequest": {
+        "properties": {
+          "language": {
+            "type": "string",
+            "title": "Language",
+            "description": "BCP-47-ish language code to score."
+          },
+          "task": {
+            "type": "string",
+            "nullable": true,
+            "title": "Task",
+            "description": "Human-readable task label for recommendation reasons."
+          },
+          "capability": {
+            "type": "string",
+            "nullable": true,
+            "title": "Capability",
+            "description": "Capability required by the caller, such as text or vision.",
+            "default": "text"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRecommendationCandidate"
+            },
+            "type": "array",
+            "title": "Candidates",
+            "description": "Optional explicit candidates; Settings models are used when omitted."
+          },
+          "local_only": {
+            "type": "boolean",
+            "title": "Local Only",
+            "description": "Refuse cloud providers when the caller requires local execution.",
+            "default": false
+          },
+          "private": {
+            "type": "boolean",
+            "title": "Private",
+            "description": "Refuse cloud providers when the task is private.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "language"
+        ],
+        "title": "ModelRecommendationRequest",
+        "description": "Request contract for no-network model recommendations."
+      },
+      "ModelRecommendationResponse": {
+        "properties": {
+          "language": {
+            "$ref": "#/components/schemas/LanguageSpec"
+          },
+          "task": {
+            "type": "string",
+            "nullable": true,
+            "title": "Task"
+          },
+          "capability": {
+            "type": "string",
+            "nullable": true,
+            "title": "Capability"
+          },
+          "local_only": {
+            "type": "boolean",
+            "title": "Local Only",
+            "default": false
+          },
+          "private": {
+            "type": "boolean",
+            "title": "Private",
+            "default": false
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRecommendationItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "privacy_note": {
+            "type": "string",
+            "title": "Privacy Note",
+            "default": "Recommendations are computed from local Settings, provider metadata, and local derived language-coverage data or heuristics. No cloud calls are made, no model invocation occurs, and no user documents are tokenized."
+          },
+          "source_note": {
+            "type": "string",
+            "title": "Source Note",
+            "default": "Language fit uses #1820 LOOVE-derived tokenizer/language coverage when available; it is one component of the #2204/#2116 model-picker metadata."
+          }
+        },
+        "type": "object",
+        "required": [
+          "language",
+          "items"
+        ],
+        "title": "ModelRecommendationResponse",
+        "description": "Response contract for ranked no-network model recommendations."
+      },
+      "ModelRecommendationScores": {
+        "properties": {
+          "language_fit": {
+            "type": "number",
+            "nullable": true,
+            "title": "Language Fit"
+          },
+          "cost": {
+            "type": "number",
+            "title": "Cost"
+          },
+          "privacy": {
+            "type": "number",
+            "title": "Privacy"
+          },
+          "availability": {
+            "type": "number",
+            "title": "Availability"
+          },
+          "capability": {
+            "type": "number",
+            "title": "Capability"
+          }
+        },
+        "type": "object",
+        "required": [
+          "language_fit",
+          "cost",
+          "privacy",
+          "availability",
+          "capability"
+        ],
+        "title": "ModelRecommendationScores",
+        "description": "Score components normalized to 0..1."
       },
       "ModelResponse": {
         "properties": {

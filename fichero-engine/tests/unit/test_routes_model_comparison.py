@@ -20,6 +20,7 @@ def _seed_model(
     model_id="gpt-4o-mini",
     input_cost=0.15,
     output_cost=0.60,
+    capabilities=None,
 ):
     provider = Provider(name=provider_name, provider_type=provider_type)
     app_db.save_provider(provider)
@@ -28,6 +29,7 @@ def _seed_model(
             provider_id=provider.id,
             name=model_id,
             model_id=model_id,
+            capabilities=capabilities or ["text"],
             input_cost=input_cost,
             output_cost=output_cost,
         )
@@ -174,6 +176,146 @@ class TestLanguageFit:
         )
 
         assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# POST /api/model-comparison/recommend-models
+# ---------------------------------------------------------------------------
+
+
+class TestRecommendModels:
+    def test_recommend_models_scores_explicit_candidates(
+        self, client, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("FICHERO_LANGUAGE_COVERAGE_DIR", str(tmp_path))
+        (tmp_path / "apple__apple-foundation.json").write_text(
+            json.dumps({"coverage": {"es": {"score": 0.94}}}),
+            encoding="utf-8",
+        )
+
+        r = client.post(
+            "/api/model-comparison/recommend-models",
+            json={
+                "language": "es",
+                "task": "paleography",
+                "private": True,
+                "candidates": [
+                    {
+                        "provider": "openai",
+                        "model": "gpt-4o",
+                        "capabilities": ["text"],
+                        "input_price_per_million": 5,
+                        "output_price_per_million": 15,
+                    },
+                    {
+                        "provider": "apple",
+                        "model": "apple-foundation",
+                        "capabilities": ["text"],
+                        "input_price_per_million": 0,
+                        "output_price_per_million": 0,
+                    },
+                ],
+            },
+        )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["items"][0]["provider"] == "apple"
+        assert data["items"][0]["privacy_posture"] == "builtin_local"
+        assert data["items"][0]["cost"]["status"] == "free"
+        assert data["items"][1]["availability_status"] == "refused"
+        assert "No cloud calls" in data["privacy_note"]
+
+    def test_recommend_models_uses_settings_candidates(
+        self, client, app_db, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("FICHERO_LANGUAGE_COVERAGE_DIR", str(tmp_path))
+        _seed_model(
+            app_db,
+            provider_type=ProviderType.apple,
+            provider_name="Apple Intelligence",
+            model_id="apple-foundation",
+            input_cost=0.0,
+            output_cost=0.0,
+        )
+
+        r = client.post(
+            "/api/model-comparison/recommend-models",
+            json={"language": "fr", "local_only": True},
+        )
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["items"][0]["provider"] == "apple"
+        assert data["items"][0]["source"] == "settings"
+        assert data["items"][0]["available"] is True
+
+    def test_recommend_models_keeps_unknown_settings_cost_typed(
+        self, client, app_db, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("FICHERO_LANGUAGE_COVERAGE_DIR", str(tmp_path))
+        _seed_model(
+            app_db,
+            provider_type=ProviderType.anthropic,
+            provider_name="Anthropic",
+            model_id="claude-unknown-price",
+            input_cost=None,
+            output_cost=None,
+        )
+
+        r = client.post(
+            "/api/model-comparison/recommend-models",
+            json={"language": "fr"},
+        )
+
+        assert r.status_code == 200
+        item = r.json()["items"][0]
+        assert item["cost"]["status"] == "unknown"
+        assert item["cost"]["input_price_per_million"] is None
+        assert item["cost"]["output_price_per_million"] is None
+        assert any("not treated as free" in warning for warning in item["warnings"])
+
+    def test_recommend_models_uses_loove_coverage_for_ranking(
+        self, client, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("FICHERO_LANGUAGE_COVERAGE_DIR", str(tmp_path))
+        (tmp_path / "openai__gpt-4o-mini.json").write_text(
+            json.dumps({"coverage": {"ja": {"score": 0.98}}}),
+            encoding="utf-8",
+        )
+        (tmp_path / "apple__apple-foundation.json").write_text(
+            json.dumps({"coverage": {"ja": {"score": 0.55}}}),
+            encoding="utf-8",
+        )
+
+        r = client.post(
+            "/api/model-comparison/recommend-models",
+            json={
+                "language": "ja",
+                "candidates": [
+                    {
+                        "provider": "apple",
+                        "model": "apple-foundation",
+                        "capabilities": ["text"],
+                        "input_price_per_million": 0,
+                        "output_price_per_million": 0,
+                    },
+                    {
+                        "provider": "openai",
+                        "model": "gpt-4o-mini",
+                        "capabilities": ["text"],
+                        "input_price_per_million": 0.15,
+                        "output_price_per_million": 0.60,
+                    },
+                ],
+            },
+        )
+
+        assert r.status_code == 200
+        items = r.json()["items"]
+        assert items[0]["provider"] == "openai"
+        assert items[0]["language_fit"]["status"] == "derived"
+        assert items[0]["language_fit"]["coverage_score"] == 0.98
 
 
 # ---------------------------------------------------------------------------

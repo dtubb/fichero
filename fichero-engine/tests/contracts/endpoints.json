@@ -6147,6 +6147,16 @@
         "response_model": "PresetsResponse"
       },
       {
+        "method": "POST",
+        "path": "/model-comparison/recommend-models",
+        "operation_id": "recommend_models_for_picker_api_model_comparison_recommend_models_post",
+        "summary": "Recommend Models For Picker",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ModelRecommendationRequest",
+        "response_model": "ModelRecommendationResponse"
+      },
+      {
         "method": "GET",
         "path": "/model-comparison/tools",
         "operation_id": "list_available_tools_api_model_comparison_tools_get",

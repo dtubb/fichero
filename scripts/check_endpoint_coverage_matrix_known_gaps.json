@@ -374,6 +374,7 @@
   "POST /api/model-comparison/compare-tool": "store missing",
   "POST /api/model-comparison/compare-vision": "store missing",
   "POST /api/model-comparison/estimate-cost": "store missing",
+  "POST /api/model-comparison/recommend-models": "store missing - #2204 backend model recommendation API; Settings/model-picker UI wiring tracked by #2116",
   "POST /api/multilingual/detect": "store missing",
   "POST /api/notes": "store missing",
   "POST /api/notes/{note_id}/links": "store missing",

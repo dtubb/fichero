@@ -87,6 +87,7 @@ KNOWN_GAPS: dict[str, str] = {
     'POST /api/ingest/xlsx': "#1920 baseline - cli-only",
     'GET /api/model-comparison/language-fit': "#1820 backend LOOVE language-fit API; Settings/model-picker UI wiring tracked by #2116",
     'POST /api/model-comparison/compare-workflow': "#2195 baseline - cli-only model bake-off; SwiftUI comparison UI is #1753/#1739",
+    'POST /api/model-comparison/recommend-models': "#2204 backend model recommendation API; Settings/model-picker UI wiring tracked by #2116",
     'GET /api/integrations/available': "#1920 baseline - cli-only",
     'GET /api/integrations/tinderbox/notes/{external_id}/attributes': "#1920 baseline - cli-only",
     'PUT /api/integrations/tinderbox/notes/{external_id}/attributes': "#1920 baseline - cli-only",

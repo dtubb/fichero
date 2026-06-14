@@ -17,6 +17,12 @@ from fichero.language_coverage import (
     LanguageFitResponse,
     recommend_language_fit,
 )
+from fichero.model_recommendations import (
+    ModelRecommendationCandidate,
+    ModelRecommendationRequest,
+    ModelRecommendationResponse,
+    build_model_recommendations,
+)
 from fichero.models import Workflow
 from fichero.workflows.resolver import resolve_inputs
 from fichero.workflows.model_comparison import (
@@ -305,6 +311,29 @@ def _configured_models(app_db: AppDatabase) -> list[dict[str, Any]]:
     return models
 
 
+def _configured_recommendation_candidates(
+    app_db: AppDatabase,
+) -> list[ModelRecommendationCandidate]:
+    providers = {p.id: p for p in app_db.list_providers() if p.enabled}
+    candidates: list[ModelRecommendationCandidate] = []
+    for model in app_db.list_models():
+        provider = providers.get(model.provider_id)
+        if not provider or not model.enabled:
+            continue
+        candidates.append(
+            ModelRecommendationCandidate(
+                provider=provider.provider_type.value,
+                model=model.model_id,
+                capabilities=model.capabilities,
+                enabled=model.enabled,
+                input_price_per_million=model.input_cost,
+                output_price_per_million=model.output_cost,
+                source="settings",
+            )
+        )
+    return candidates
+
+
 def _model_specs(
     requested: list[dict[str, Any]],
     app_db: AppDatabase,
@@ -518,6 +547,29 @@ async def get_language_fit(
     """
     models = _language_fit_models(app_db, provider=provider, model=model)
     return recommend_language_fit(language, models)
+
+
+@router.post("/recommend-models", response_model=ModelRecommendationResponse)
+async def recommend_models_for_picker(
+    request: ModelRecommendationRequest,
+    app_db: AppDatabase = Depends(_get_app_database),
+) -> ModelRecommendationResponse:
+    """Rank model-picker candidates from local metadata only.
+
+    The endpoint composes Settings model rows, provider privacy posture, local
+    language coverage, cost metadata, and availability flags. It never invokes
+    an LLM, tokenizes user documents, downloads metadata, or makes cloud calls.
+    """
+    settings_candidates = _configured_recommendation_candidates(app_db)
+    if not request.candidates and not settings_candidates:
+        raise HTTPException(
+            status_code=400,
+            detail="No enabled models are configured in Settings",
+        )
+    return build_model_recommendations(
+        request,
+        settings_candidates=settings_candidates,
+    )
 
 
 @router.post("/estimate-cost")
