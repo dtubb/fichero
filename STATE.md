@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `875fcfd4`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `826c1a89`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -113,6 +113,9 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 
 ### SHIPPED (loop tick 5b, all gated ALL PASS + pushed, never red) — 0.0.2 @ 875fcfd4
 - **Pydantic/OpenAPI typed-field guardrail** (875fcfd4) added `scripts/check_openapi_typed_fields.py` plus unit coverage. The checker is auto-run by `verify_all` via the existing `scripts/check_*.py` sweep and catches Swift service wrappers that place declared OpenAPI schema fields into `additionalProperties` instead of generated typed fields, while allowing legitimate dynamic maps (`metadata`, `filters`, `config`, `inputs`, etc.). This programmatically covers the silent data-loss mode Daniel flagged: backend Pydantic models ignore typed fields hidden in additionalProperties. Focused checks passed (`check_openapi_typed_fields.py`, ruff, script tests: `7 passed`); manager gate passed `verify_all (standard): ALL PASS` (`4957 passed, 28 skipped, 21 xfailed, 1 xpassed`). `pydantic-openapi-guardrail` worktree/branch removed.
+
+### SHIPPED (loop tick 5c, all gated ALL PASS + pushed, never red) — 0.0.2 @ 826c1a89
+- **#2007** (826c1a89) finished the deferred guardrail-script unit coverage and made the scanner helpers path-injectable for synthetic tmp-path tests without changing default repo-root CLI behavior. `check_emit_change_coverage.py`, `check_test_assertions.py`, and `scan_test_coverage_gaps.py` now accept optional roots/paths in their scan helpers; the six previously skipped tests are active; the unicode ellipsis cap and nested/class test-function assertion detection are fixed. Focused checks passed (`ruff`; targeted script tests: `15 passed`; direct smoke for all three scripts). Manager gate passed `verify_all (standard): ALL PASS` (`4963 passed, 22 skipped, 21 xfailed, 1 xpassed`). Issue closed; `guardrail-tests-2007` worktree/branch removed.
 
 ### In flight (poll on wake) — tick 3
 - None currently active. **AI Infrastructure milestone #83 is drained and epic #2056 is closed.** Remaining referenced follow-ups moved to owning lanes/milestones: #2058/#2063/#2064 (Settings & Providers), #2060 (Importers), #2061 (Image Editing), #2067/#2071 (Researcher). Next autonomous scope: backend-only security, efficiency, and comparison follow-ups. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
