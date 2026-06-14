@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `6b9b976f`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `3cc94de7`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -89,6 +89,9 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 
 ### SHIPPED (loop tick 4f, all gated ALL PASS + pushed, never red) — 0.0.2 @ 6b9b976f
 - **#2186** (6b9b976f) restored robust async-isolated upload-cap streaming coverage. `save_uploaded_file` now has a regression test proving oversized uploads stop consuming the multipart stream after the configured byte cap is hit, without `asyncio.run` nesting or brittle exact read-count assertions. Focused checks passed (`ruff` on `test_storage.py`; `test_storage.py` + document import route tests: `40 passed`). Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4920 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `upload-streaming-test-2186` worktree/branch removed.
+
+### SHIPPED (loop tick 4g, final #2164 slice, all gated ALL PASS + pushed, never red) — 0.0.2 @ 3cc94de7
+- **#2164 completed** (ec5d7d13 + 3cc94de7) offloaded async document write handlers and added explicit starvation coverage. Async routes now call the existing synchronous document mutation impls through `asyncio.to_thread`, preserving action-registry behavior while keeping `db.save` / `db.delete` / `db.embed` / DuckDB write-conflict `time.sleep` off the FastAPI event loop. Tests cover create/update/move/delete write-route offload contracts, write-conflict backoff sleeping on a worker thread, and a slow-create route not starving a fast event-loop probe. Focused checks passed (`ruff`; `test_routes_documents.py` + `test_db.py`: `131 passed`). Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4926 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `write-offload-2164` worktree/branch removed.
 
 ### In flight (poll on wake) — tick 3
 - None currently active. **AI Infrastructure milestone #83 is drained and epic #2056 is closed.** Remaining referenced follow-ups moved to owning lanes/milestones: #2058/#2063/#2064 (Settings & Providers), #2060 (Importers), #2061 (Image Editing), #2067/#2071 (Researcher). Next autonomous scope: backend-only security, efficiency, and comparison follow-ups. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
