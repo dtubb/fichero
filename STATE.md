@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `a889ba6f`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `b070f015`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -101,6 +101,9 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 
 ### SHIPPED (loop tick 4j, all gated ALL PASS + pushed, never red) — 0.0.2 @ a889ba6f
 - **#2026** (a889ba6f) documented the canonical Tailscale private-transport model for remote lab/iPad access. New `docs/remote-backend-tailscale.md` and linked user/developer docs now state: keep the engine loopback-only, publish via `tailscale serve https / http://127.0.0.1:8765`, never use `tailscale funnel`, never use public/wildcard bind for normal access, and treat Tailscale as transport rather than Fichero app authorization. ACENET docs now cross-link this model and repeat the bind-host/token caveats. Docs-only worker checks passed; manager gate passed `verify_all (standard): ALL PASS` (`4934 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `tailscale-remote-2026` worktree/branch removed.
+
+### SHIPPED (loop tick 4k, all gated ALL PASS + pushed, never red) — 0.0.2 @ b070f015
+- **#1809** (b070f015) hardened the backend AI-defaults/settings model-selection route. `PUT /api/settings/ai-defaults` now uses a typed `AIDefaultsUpdate` partial request model instead of full overwrite semantics, preserves unmentioned defaults, ignores nulls, keeps empty-string clear semantics for non-tier settings, protects tier aliases from accidental deletion, rejects unknown providers with 422 before mutation, and regenerates OpenAPI contract/client copies. Regression tests cover partial preservation, null preservation, and invalid-provider non-mutation. Focused checks passed (`ruff`; `test_routes_settings.py`: `10 passed`; OpenAPI sync clean); manager gate passed `verify_all (standard): ALL PASS` (`4937 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `settings-model-crash-1809` worktree/branch removed.
 
 ### In flight (poll on wake) — tick 3
 - None currently active. **AI Infrastructure milestone #83 is drained and epic #2056 is closed.** Remaining referenced follow-ups moved to owning lanes/milestones: #2058/#2063/#2064 (Settings & Providers), #2060 (Importers), #2061 (Image Editing), #2067/#2071 (Researcher). Next autonomous scope: backend-only security, efficiency, and comparison follow-ups. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
