@@ -99,6 +99,14 @@ parameter, not by request-level batching. There is **no use of LangChain
 - **In-app Agent (#2067):** no agent-loop scaffolding found in the engine beyond the
   workflow executor + action registry (#1848). PLANNED.
 
+See also: [MLX On-Device Agent Architecture](./mlx_on_device_agent.md), which turns
+that current-state read into the implementation plan for #2066 / #1814 / #2067.
+The short version: start with an app-managed OpenAI-compatible local MLX service
+because the backend already supports keyless local providers, keep local-only as a
+hard no-cloud boundary, and build the future in-app agent on the existing action
+registry + audit + SSE/change-stream seams instead of inventing a parallel tool
+system.
+
 ## 2. Reuse / batching / concurrency
 
 **BUILT:** model reuse is solid — `_get_shared_embedder` pools the embedder
