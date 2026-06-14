@@ -6,7 +6,7 @@ Uses pytest and httpx for async testing of FastAPI endpoints.
 
 import pytest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 import tempfile
 
 from fichero.models import Document, DocType, FileType, Status, Artifact
@@ -167,6 +167,54 @@ class TestDocumentRoutes:
         data = response.json()["items"]
         assert isinstance(data, list)
         assert len(data) == 1
+
+    def test_get_children_resolvability_check_uses_one_batched_lookup(
+        self, client, db, sample_collection, monkeypatch
+    ):
+        """Child browsing must not regress to one DB lookup per child."""
+        from fichero.db import Database
+
+        db.save(sample_collection)
+        children = [
+            Document(
+                id=f"child-{idx}",
+                name=f"Child {idx}",
+                doc_type=DocType.page,
+                parent_id=sample_collection.id,
+                sort_order=idx,
+            )
+            for idx in range(5)
+        ]
+        for child in children:
+            db.save(child)
+
+        query_in_calls: list[tuple[type, str, tuple[str, ...]]] = []
+        document_get_ids: list[str] = []
+        original_query_in = Database.query_in
+        original_get = Database.get
+
+        def counting_query_in(self, model_class, field_name, values):
+            query_in_calls.append((model_class, field_name, tuple(values)))
+            return original_query_in(self, model_class, field_name, values)
+
+        def counting_get(self, model_class, record_id):
+            if model_class is Document:
+                document_get_ids.append(record_id)
+            return original_get(self, model_class, record_id)
+
+        monkeypatch.setattr(Database, "query_in", counting_query_in)
+        monkeypatch.setattr(Database, "get", counting_get)
+
+        response = client.get(f"/api/documents/{sample_collection.id}/children")
+
+        assert response.status_code == 200
+        assert [item["id"] for item in response.json()["items"]] == [
+            child.id for child in children
+        ]
+        assert query_in_calls == [
+            (Document, "id", tuple(child.id for child in children))
+        ]
+        assert document_get_ids == []
 
     def test_get_children_doc_prefix(self, client, db, sample_doc, sample_collection):
         """GET /children accepts a doc:-prefixed id and returns the same result (#1345).
@@ -347,6 +395,32 @@ class TestSearchRoutes:
 
 class TestIngestRoutes:
     """Tests for /api/ingest endpoints."""
+
+    @pytest.mark.asyncio
+    async def test_ingest_file_offloads_sync_import_work_to_thread(self):
+        """The async route must not run file copy/OCR/embed work on the loop."""
+        from fichero.api.routes import ingest as ingest_routes
+
+        request = ingest_routes.IngestFileRequest(path="/tmp/input.jpg")
+        db = MagicMock()
+        doc = Document(id="new123", name="ingested.jpg", doc_type=DocType.file)
+        to_thread = AsyncMock(return_value=doc)
+
+        with patch.object(ingest_routes.asyncio, "to_thread", to_thread):
+            result = await ingest_routes.ingest_file(
+                request,
+                db=db,
+                x_fichero_library_path="/tmp/library.fichero",
+            )
+
+        to_thread.assert_awaited_once()
+        assert to_thread.await_args.args == (
+            ingest_routes.import_file_impl,
+            db,
+            request,
+            Path("/tmp/library.fichero"),
+        )
+        assert result is doc
 
     def test_ingest_file(self, client):
         """Ingest file creates document."""

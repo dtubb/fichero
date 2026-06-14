@@ -4,6 +4,7 @@ Ingest Routes
 File and folder ingestion endpoints.
 """
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Optional
@@ -164,7 +165,9 @@ async def ingest_file(
 
     Returns the created Document immediately.
     """
-    return import_file_impl(db, request, Path(x_fichero_library_path))
+    return await asyncio.to_thread(
+        import_file_impl, db, request, Path(x_fichero_library_path)
+    )
 
 
 @router.post("/folder")

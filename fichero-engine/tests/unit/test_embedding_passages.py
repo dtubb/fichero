@@ -445,3 +445,41 @@ def test_reindex_all_batches_documents_without_changing_vector_count(tmp_path) -
     assert len(rows) == 3
     assert {row["document_id"] for row in rows} == {doc.id for doc in docs}
     db.close()
+
+
+def test_reindex_all_counts_only_documents_returned_by_each_batch(tmp_path) -> None:
+    db = Database(tmp_path / "reindex-scatter.duckdb")
+    docs = [
+        Document(
+            id=f"scatter-{idx}",
+            name=f"Scatter {idx}",
+            doc_type=DocType.page,
+            page_content=f"Document {idx} has searchable text.",
+        )
+        for idx in range(4)
+    ]
+    for doc in docs:
+        db.save(doc)
+
+    batches: list[list[str]] = []
+    progress: list[tuple[int, int]] = []
+
+    def fake_embed_batch(batch, *, mode="passage") -> set[str]:
+        assert mode == "passage"
+        batch_ids = [doc.id for doc in batch]
+        batches.append(batch_ids)
+        return {batch_ids[-1]}
+
+    with patch.object(db, "_embed_document_batch", side_effect=fake_embed_batch):
+        indexed = db.reindex_all(
+            batch_size=2,
+            on_progress=lambda current, total: progress.append((current, total)),
+        )
+
+    assert indexed == 2
+    assert batches == [
+        ["scatter-0", "scatter-1"],
+        ["scatter-2", "scatter-3"],
+    ]
+    assert progress == [(0, 4), (1, 4), (1, 4), (2, 4)]
+    db.close()
