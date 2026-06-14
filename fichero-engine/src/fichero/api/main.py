@@ -694,6 +694,35 @@ async def validate_library_path_header(request: Request, call_next):
     return await call_next(request)
 
 
+def _configured_library_allowed_roots() -> list[Path]:
+    """Extra server-side library roots for remote/Linux engines.
+
+    FICHERO_LIBRARY_ALLOWED_ROOTS accepts an os.pathsep-separated list and also
+    tolerates commas/newlines for deployment systems that make pathsep awkward.
+    The filesystem root is ignored: library access must always be scoped.
+    """
+    raw = os.environ.get("FICHERO_LIBRARY_ALLOWED_ROOTS", "")
+    if not raw.strip():
+        return []
+
+    parts = raw.replace("\n", os.pathsep).replace(",", os.pathsep).split(os.pathsep)
+    roots: list[Path] = []
+    for part in parts:
+        value = part.strip()
+        if not value:
+            continue
+        root = Path(value).expanduser()
+        try:
+            resolved = root.resolve()
+        except Exception:
+            continue
+        if resolved == Path(resolved.anchor):
+            logger.warning("Ignoring unsafe FICHERO_LIBRARY_ALLOWED_ROOTS entry: %s", value)
+            continue
+        roots.append(resolved)
+    return roots
+
+
 def _is_allowed_library_path(library_path: str) -> bool:
     """Validate that a library path is in an allowed location.
 
@@ -708,6 +737,7 @@ def _is_allowed_library_path(library_path: str) -> bool:
       iCloud-synced Documents/Desktop physically live here
     - test temp dirs under /var/folders and /private/var/folders (macOS)
     - /tmp and /private/tmp — Linux CI and macOS sandbox pytest tmp_path
+    - FICHERO_LIBRARY_ALLOWED_ROOTS entries for remote/server deployments
 
     Symlink tolerance: when "Desktop & Documents in iCloud" is ON, ~/Documents
     is a symlink into ~/Library/Mobile Documents/com~apple~CloudDocs/Documents.
@@ -743,6 +773,7 @@ def _is_allowed_library_path(library_path: str) -> bool:
         Path("/private/var/folders"),
         Path("/tmp"),
         Path("/private/tmp"),
+        *_configured_library_allowed_roots(),
     ]
 
     candidates = [resolved, expanded]

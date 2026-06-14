@@ -323,12 +323,49 @@ def resolve_source(
             return None
         return resolve_under_allowed_roots(candidate, allowed_roots)
 
-    # Try bookmark first (macOS)
+    def library_confined_existing(candidate: Path) -> Path | None:
+        if library_root is None or not candidate.exists():
+            return None
+        library_roots = allowed_source_roots(
+            library_root,
+            storage_base=None,
+            include_engine_temp=False,
+        )
+        return resolve_under_allowed_roots(candidate, library_roots)
+
+    def package_candidate(path_value: object) -> Path | None:
+        if not path_value or library_root is None:
+            return None
+        try:
+            p = Path(path_value).expanduser()
+        except TypeError:
+            return None
+        root = Path(library_root).expanduser()
+        if not p.is_absolute():
+            return root / p
+        if "/files/" in str(p):
+            tail = str(p).split("/files/", 1)[1]
+            return root / "files" / tail
+        return p
+
+    # Prefer copied/in-package storage before macOS bookmarks. Remote engines
+    # should use package-confined files and avoid resolving client-host bookmarks.
+    package_candidates = [doc.path] + [
+        (doc.metadata or {}).get(k)
+        for k in ("source_path", "full_path", "display_path", "local_path")
+    ]
+    for path_value in package_candidates:
+        if candidate := package_candidate(path_value):
+            if confined := library_confined_existing(candidate):
+                return confined
+
+    # Try bookmark next when enabled (embedded macOS only by default).
     if bookmark_data := _get_bookmark(doc):
         try:
+            from fichero.bookmarks import is_available as bookmarks_available
             from fichero.bookmarks import resolve_bookmark
 
-            if path := resolve_bookmark(bookmark_data):
+            if bookmarks_available() and (path := resolve_bookmark(bookmark_data)):
                 if confined := confined_existing(path):
                     return confined
         except ImportError:

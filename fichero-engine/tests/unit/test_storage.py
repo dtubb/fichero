@@ -1,4 +1,5 @@
 """Unit tests for storage module."""
+import base64
 import pytest
 from pathlib import Path
 from unittest.mock import Mock
@@ -282,6 +283,32 @@ class TestResolveSource:
         # Without valid bookmark, should fall back to path
         result = resolve_source(doc, library_root=tmp_path)
         assert result == path_file
+
+    def test_remote_bookmark_disabled_prefers_package_path(self, tmp_path, monkeypatch):
+        """Remote engines must not resolve Mac bookmarks from by-reference docs."""
+        from fichero import bookmarks
+        from fichero.storage import resolve_source
+
+        library_root = tmp_path / "Remote.fichero"
+        source = library_root / "files" / "aa" / "page.jpg"
+        source.parent.mkdir(parents=True)
+        source.touch()
+
+        doc = Mock()
+        doc.path = "files/aa/page.jpg"
+        doc.metadata = {
+            "bookmark": base64.b64encode(b"mac-client-bookmark").decode("ascii"),
+            "source_path": "/Users/daniel/Desktop/original.jpg",
+        }
+
+        def fail_if_called(bookmark_data):
+            raise AssertionError("remote engine attempted to resolve a Mac bookmark")
+
+        monkeypatch.setenv("FICHERO_ENABLE_MAC_BOOKMARKS", "0")
+        monkeypatch.setattr(bookmarks, "resolve_bookmark", fail_if_called)
+
+        result = resolve_source(doc, library_root=library_root)
+        assert result == source
 
 
 class TestThumbnailGeneration:
