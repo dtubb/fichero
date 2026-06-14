@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `b72dda25`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `79610dba`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -107,6 +107,9 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 
 ### SHIPPED (loop tick 4l, all gated ALL PASS + pushed, never red) — 0.0.2 @ b72dda25
 - **#2158** (b72dda25) added an optional backend Bonjour/mDNS advertiser for `_fichero._tcp.local.`, gated by `FICHERO_ENABLE_BONJOUR=1`. The advertiser publishes TXT metadata (`version`, `api=1`, `spki`) without treating empty SPKI as TLS proof, integrates with FastAPI lifespan start/stop, adds `zeroconf` to backend/Briefcase runtime dependencies, and fails soft on missing dependency or invalid config so discovery cannot brick engine startup. Tests use fake zeroconf classes only; no real network advertisement occurs in CI. Focused checks passed (`ruff`; `test_discovery.py`: `7 passed`); manager gate passed `verify_all (standard): ALL PASS` (`4944 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `bonjour-discovery-2158` worktree/branch removed. Residual: Bonjour is discovery only, not auth, and direct LAN reachability still belongs to the held TLS/LAN listener lane.
+
+### SHIPPED (loop tick 5a, all gated ALL PASS + pushed, never red) — 0.0.2 @ 79610dba
+- **#1819** (79610dba) exposed safe lighter embedding-model choices without changing the active vector space. The local embeddings catalog now reports RAM/disk footprint, language fit, quality/speed tradeoff, current-default status, supported-opt-in vs download-only status, and migration/activation notes for listed models including `BAAI/bge-small-en-v1.5`, `intfloat/multilingual-e5-small`, and `BAAI/bge-m3`. `db_embeddings.DEFAULT_MODEL` remains pinned to `intfloat/multilingual-e5-large`; no real data was re-embedded and no default search embedding space changed. Added tests for default pinning, lighter-model metadata, and unsupported models not being silently advertised as active search spaces. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4950 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `embedding-options-1819` worktree/branch removed.
 
 ### In flight (poll on wake) — tick 3
 - None currently active. **AI Infrastructure milestone #83 is drained and epic #2056 is closed.** Remaining referenced follow-ups moved to owning lanes/milestones: #2058/#2063/#2064 (Settings & Providers), #2060 (Importers), #2061 (Image Editing), #2067/#2071 (Researcher). Next autonomous scope: backend-only security, efficiency, and comparison follow-ups. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
