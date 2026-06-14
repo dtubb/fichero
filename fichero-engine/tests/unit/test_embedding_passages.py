@@ -54,6 +54,46 @@ def test_format_for_model_pinned_e5_alias_keeps_required_prefixes() -> None:
     )
 
 
+def test_database_embed_text_defaults_to_e5_query_prefix(tmp_path) -> None:
+    db = Database(tmp_path / "e5-query-prefix.duckdb")
+    captured: list[list[str]] = []
+
+    class FakeEmbedder:
+        def embed(self, texts):
+            captured.append(list(texts))
+            yield [1.0, 0.0]
+
+    db._embedder = FakeEmbedder()
+    db._embedding_model_name = "intfloat/multilingual-e5-large"
+
+    assert db._embed_text("Camilo ledger") == [1.0, 0.0]
+
+    assert captured == [["query: Camilo ledger"]]
+    db.close()
+
+
+def test_database_embed_texts_formats_e5_passage_batches(tmp_path) -> None:
+    db = Database(tmp_path / "e5-passage-prefix.duckdb")
+    captured: list[list[str]] = []
+
+    class FakeEmbedder:
+        def embed(self, texts):
+            captured.append(list(texts))
+            yield [1.0, 0.0]
+            yield [0.0, 1.0]
+
+    db._embedder = FakeEmbedder()
+    db._embedding_model_name = "intfloat/multilingual-e5-large"
+
+    assert db._embed_texts(["First page", "Second page"], role="passage") == [
+        [1.0, 0.0],
+        [0.0, 1.0],
+    ]
+
+    assert captured == [["passage: First page", "passage: Second page"]]
+    db.close()
+
+
 def test_default_model_and_env_override(monkeypatch) -> None:
     class _Dummy(db_embeddings.DatabaseEmbeddingMixin):
         pass
