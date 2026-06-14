@@ -7,6 +7,34 @@ import os
 import subprocess
 
 
+class TestUploadStreaming:
+    @pytest.mark.asyncio
+    async def test_save_uploaded_file_stops_streaming_after_cap_is_hit(self):
+        from fichero.storage import UploadTooLargeError, save_uploaded_file
+
+        class ChunkedUpload:
+            filename = "oversized.txt"
+
+            def __init__(self) -> None:
+                self._chunks = [b"a" * 4, b"b" * 4, b"c" * 4, b"d" * 4]
+                self.read_calls = 0
+
+            async def read(self, size: int) -> bytes:
+                assert size == 4
+                self.read_calls += 1
+                if not self._chunks:
+                    return b""
+                return self._chunks.pop(0)
+
+        upload = ChunkedUpload()
+
+        with pytest.raises(UploadTooLargeError):
+            await save_uploaded_file(upload, max_bytes=10, chunk_size=4)
+
+        assert upload.read_calls < 4
+        assert upload._chunks
+
+
 class TestStorageSettings:
     """Tests for StorageSettings configuration."""
 
