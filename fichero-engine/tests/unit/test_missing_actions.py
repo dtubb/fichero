@@ -454,6 +454,51 @@ class TestSearchReindex:
         assert embed_spy["entities"] == []
         assert embed_spy["claims"] == []
 
+    def test_reindex_can_run_confirmed_embedding_space_migration(
+        self,
+        db,
+        monkeypatch,
+    ):
+        calls = []
+
+        def _migrate_embedding_space(**kwargs):
+            calls.append(kwargs)
+            return {
+                "embedding_model_id": "BAAI/bge-m3|pooling=mean",
+                "documents_indexed": 1,
+                "entities_indexed": 2,
+                "claims_indexed": 3,
+                "before": {"embeddings": ["old"]},
+                "after": {"embeddings": ["BAAI/bge-m3|pooling=mean"]},
+            }
+
+        monkeypatch.setattr(db, "migrate_embedding_space", _migrate_embedding_space)
+
+        result = registry.invoke(
+            db,
+            "search.reindex",
+            {
+                "migrate_embedding_space": True,
+                "confirm_embedding_migration": True,
+                "include_documents": True,
+                "include_entities": False,
+                "include_claims": True,
+            },
+            _ctx(),
+        )
+
+        assert result.ok
+        assert calls == [
+            {
+                "confirm": True,
+                "include_documents": True,
+                "include_entities": False,
+                "include_claims": True,
+            }
+        ]
+        assert result.result["documents_indexed"] == 1
+        assert result.result["claims_indexed"] == 3
+
     def test_reindex_validation_rejects_bad_type(self, db):
         with pytest.raises(ValidationError):
             registry.invoke(db, "search.reindex", {"entity_ids": "not-a-list"}, _ctx())

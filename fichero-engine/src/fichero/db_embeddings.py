@@ -103,6 +103,10 @@ class EmbeddingSpaceMismatchError(RuntimeError):
         )
 
 
+class EmbeddingMigrationConfirmationError(RuntimeError):
+    """Raised when a destructive embedding-space migration lacks confirmation."""
+
+
 @dataclass(frozen=True)
 class SourceAnchor:
     """Where an embeddable text unit came from."""
@@ -518,6 +522,7 @@ class DatabaseEmbeddingMixin:
                         else None,
                         "vector_int8": quantized_vector,
                         "vector_scale": quantized_scale,
+                        **self._vector_model_metadata(),
                     }
                 )
 
@@ -561,6 +566,91 @@ class DatabaseEmbeddingMixin:
             return {"indexed_count": table.count_rows(), "table_exists": True}
         except Exception:
             return {"indexed_count": 0, "table_exists": False}
+
+    def embedding_table_model_ids(
+        self,
+        *,
+        table_names: tuple[str, ...] = (
+            EMBEDDINGS_TABLE,
+            KG_ENTITY_EMBEDDINGS_TABLE,
+            KG_CLAIM_EMBEDDINGS_TABLE,
+        ),
+        sample_limit: int = 10_000,
+    ) -> dict[str, list[str]]:
+        """Return known model ids present in embedding tables.
+
+        Legacy rows without ``embedding_model_id`` are reported as
+        ``"<legacy-unstamped>"`` so migration previews can distinguish them
+        from empty tables.
+        """
+        ids_by_table: dict[str, list[str]] = {}
+        for table_name in table_names:
+            if table_name not in self._lance_tables():
+                ids_by_table[table_name] = []
+                continue
+
+            table = self.lance.open_table(table_name)
+            rows = table.search().limit(sample_limit).to_list()
+            ids = {
+                str(row.get(EMBEDDING_MODEL_ID_FIELD) or "<legacy-unstamped>")
+                for row in rows
+            }
+            ids_by_table[table_name] = sorted(ids)
+        return ids_by_table
+
+    def migrate_embedding_space(
+        self,
+        *,
+        confirm: bool = False,
+        include_documents: bool = True,
+        include_entities: bool = True,
+        include_claims: bool = True,
+        mode: Literal["passage", "page"] = "passage",
+    ) -> dict[str, Any]:
+        """Explicitly rebuild embedding tables for the active embedding space.
+
+        This is intentionally destructive and opt-in: selected LanceDB vector
+        tables are dropped before being rebuilt from DuckDB source records. It
+        is the safe path for switching from pinned E5 to bge-m3 because stale
+        rows for deleted documents/entities cannot survive the migration.
+        """
+        if not confirm:
+            raise EmbeddingMigrationConfirmationError(
+                "Embedding-space migration drops and rebuilds vector tables; "
+                "pass confirm=True to run it deliberately."
+            )
+
+        from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
+
+        before = self.embedding_table_model_ids()
+        table_names: list[str] = []
+        if include_documents:
+            table_names.append(EMBEDDINGS_TABLE)
+        if include_entities:
+            table_names.append(KG_ENTITY_EMBEDDINGS_TABLE)
+        if include_claims:
+            table_names.append(KG_CLAIM_EMBEDDINGS_TABLE)
+
+        with self._lock:
+            for table_name in table_names:
+                if table_name in self._lance_tables():
+                    self.lance.drop_table(table_name)
+
+        documents_indexed = self.reindex_all(mode=mode) if include_documents else 0
+        entities = self.all(KnowledgeEntity) if include_entities else []
+        claims = self.all(KnowledgeClaim) if include_claims else []
+        entities_indexed = self.embed_entities(entities) if entities else 0
+        claims_indexed = self.embed_claims(claims) if claims else 0
+        after = self.embedding_table_model_ids()
+
+        return {
+            "embedding_model_id": self._get_embedding_model_id(),
+            "documents_indexed": documents_indexed,
+            "entities_indexed": entities_indexed,
+            "claims_indexed": claims_indexed,
+            "before": before,
+            "after": after,
+        }
 
     def _get_embedding_model_name(self) -> str:
         """Return the configured source model name for the local embedding space."""

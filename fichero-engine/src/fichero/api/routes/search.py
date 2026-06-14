@@ -1785,6 +1785,29 @@ class SearchReindexParams(BaseModel):
     claim_ids: list[str] | None = Field(
         default=None, description="Claims to re-embed; None/empty = all claims"
     )
+    migrate_embedding_space: bool = Field(
+        default=False,
+        description=(
+            "Drop and rebuild selected embedding tables for the active embedding "
+            "space. Requires confirm_embedding_migration=true."
+        ),
+    )
+    confirm_embedding_migration: bool = Field(
+        default=False,
+        description="Required confirmation for destructive embedding-space migration.",
+    )
+    include_documents: bool = Field(
+        default=True,
+        description="When migrating embedding space, rebuild document embeddings.",
+    )
+    include_entities: bool = Field(
+        default=True,
+        description="When migrating embedding space, rebuild entity embeddings.",
+    )
+    include_claims: bool = Field(
+        default=True,
+        description="When migrating embedding space, rebuild claim embeddings.",
+    )
 
 
 @action(
@@ -1797,6 +1820,24 @@ def _action_search_reindex(
     db: Database, params: SearchReindexParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     """Re-embed claims + entities for semantic search in one audited pass."""
+    if params.migrate_embedding_space:
+        if params.entity_ids or params.claim_ids:
+            raise ValueError("embedding-space migration cannot be scoped by ids")
+        result = db.migrate_embedding_space(
+            confirm=params.confirm_embedding_migration,
+            include_documents=params.include_documents,
+            include_entities=params.include_entities,
+            include_claims=params.include_claims,
+        )
+        spec = ChangeSpec(
+            domains=["search"],
+            target_ids=[],
+            before=result.get("before"),
+            after=result,
+            emit_type="search.reindexed",
+        )
+        return result, spec
+
     if params.entity_ids:
         entities = [e for e in (db.get(KnowledgeEntity, eid) for eid in params.entity_ids) if e]
     else:

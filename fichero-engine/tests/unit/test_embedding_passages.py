@@ -14,10 +14,12 @@ from fichero.db_embeddings import (
     BGE_M3_EMBEDDING_MODEL_ID,
     BGE_M3_EMBEDDING_SPACE,
     BGE_M3_FASTEMBED_MODEL,
+    EMBEDDINGS_TABLE,
     EMBEDDING_MODEL_ID_FIELD,
     PINNED_FASTEMBED_MODEL_ALIAS,
     PINNED_EMBEDDING_MODEL_ID,
     PINNED_EMBEDDING_POOLING,
+    EmbeddingMigrationConfirmationError,
     EmbeddingSpaceMismatchError,
     format_for_model,
     split_text_passages,
@@ -280,6 +282,93 @@ def test_semantic_search_accepts_matching_known_embedding_model_id(tmp_path) -> 
                 min_score=0.0,
             )
 
+    assert total_count == 1
+    assert results[0].document_id == doc.id
+    db.close()
+
+
+def test_reindex_all_batch_records_stamp_embedding_model_id(tmp_path) -> None:
+    db = Database(tmp_path / "batch-stamp.duckdb")
+    doc = Document(
+        id="page-batch-stamp",
+        name="batch-stamp.txt",
+        doc_type=DocType.page,
+        page_content="Camilo found the ledger with enough text for batch reindex.",
+    )
+    db.save(doc)
+
+    with patch.object(db, "_embed_texts", return_value=[[1.0, 0.0]]):
+        assert db.reindex_all(batch_size=16) == 1
+
+    row = db.lance.open_table(EMBEDDINGS_TABLE).search().limit(1).to_list()[0]
+    assert row[EMBEDDING_MODEL_ID_FIELD] == PINNED_EMBEDDING_MODEL_ID
+    db.close()
+
+
+def test_embedding_space_migration_requires_confirmation(tmp_path) -> None:
+    db = Database(tmp_path / "migration-confirm.duckdb")
+
+    with pytest.raises(EmbeddingMigrationConfirmationError, match="confirm=True"):
+        db.migrate_embedding_space()
+
+    assert db.embedding_table_model_ids() == {
+        "embeddings": [],
+        "kg_entity_embeddings": [],
+        "kg_claim_embeddings": [],
+    }
+    db.close()
+
+
+def test_embedding_space_migration_rebuilds_documents_for_active_model(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db = Database(tmp_path / "migration-bge.duckdb")
+    doc = Document(
+        id="page-migrate",
+        name="migration.txt",
+        doc_type=DocType.page,
+        page_content="Camilo found the mining ledger with enough text for migration.",
+    )
+    db.save(doc)
+    with patch.object(db, "_embed_text", return_value=[0.0, 1.0]):
+        db.save_embedding(doc, [0.0, 1.0], doc.page_content)
+    stale_row = db.lance.open_table(EMBEDDINGS_TABLE).search().limit(1).to_list()[0]
+    stale_row["id"] = "stale-row"
+    stale_row["document_id"] = "deleted-doc"
+    stale_row["text"] = "stale old-space row"
+    stale_row["vector"] = [0.0, 1.0]
+    stale_row[EMBEDDING_MODEL_ID_FIELD] = "old-model|pooling=cls"
+    db.save_vectors(
+        EMBEDDINGS_TABLE,
+        [stale_row],
+    )
+
+    monkeypatch.setenv("FICHERO_EMBED_MODEL", "BAAI/bge-m3")
+    assert "old-model|pooling=cls" in db.embedding_table_model_ids()[EMBEDDINGS_TABLE]
+    with patch.object(db, "_embed_text", return_value=[1.0, 0.0]):
+        with patch.object(db, "_is_active_document_id", return_value=True):
+            with pytest.raises(EmbeddingSpaceMismatchError):
+                db.search("Camilo ledger", search_type="semantic", min_score=0.0)
+
+    with patch.object(db, "_embed_texts", return_value=[[1.0, 0.0]]):
+        result = db.migrate_embedding_space(confirm=True)
+
+    assert result["embedding_model_id"] == BGE_M3_EMBEDDING_MODEL_ID
+    assert result["documents_indexed"] == 1
+    assert result["entities_indexed"] == 0
+    assert result["claims_indexed"] == 0
+    assert result["after"][EMBEDDINGS_TABLE] == [BGE_M3_EMBEDDING_MODEL_ID]
+    rows = db.lance.open_table(EMBEDDINGS_TABLE).search().limit(10).to_list()
+    assert {row["document_id"] for row in rows} == {doc.id}
+
+    with patch.object(db, "_embed_text", return_value=[1.0, 0.0]):
+        with patch.object(db, "_is_active_document_id", return_value=True):
+            results, total_count, _stats = db.search(
+                "Camilo ledger",
+                search_type="semantic",
+                min_score=0.0,
+            )
     assert total_count == 1
     assert results[0].document_id == doc.id
     db.close()
