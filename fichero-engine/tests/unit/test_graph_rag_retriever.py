@@ -1,6 +1,27 @@
 from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 from fichero.models import Document
-from fichero.retrieval.graph_rag import GraphAwareRetriever
+from fichero.retrieval.graph_rag import GraphAwareRetriever, RetrievalPayload
+
+
+class TestRetrievalPayload:
+    def test_defaults_are_empty_and_instance_local(self):
+        first = RetrievalPayload()
+        second = RetrievalPayload()
+
+        assert first.context_docs == []
+        assert first.sources == []
+        assert first.kg_claims_used == 0
+        assert first.kg_entities_used == 0
+
+        first.context_docs.append({"id": "doc-1"})
+        first.sources.append({"document_id": "doc-1"})
+        first.kg_claims_used = 1
+        first.kg_entities_used = 2
+
+        assert second.context_docs == []
+        assert second.sources == []
+        assert second.kg_claims_used == 0
+        assert second.kg_entities_used == 0
 
 
 class TestGraphAwareRetriever:
