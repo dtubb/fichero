@@ -21,16 +21,13 @@ logger = logging.getLogger(__name__)
 
 # Default embedding model (FastEmbed - no scikit-learn dependency).
 #
-# NOTE: BAAI/bge-m3 is the *intended* multilingual default, but it is NOT in the
-# installed fastembed 0.8.0 TextEmbedding catalog (verified 2026-06-11), so it
-# cannot load at runtime yet. Until fastembed ships it (or we wire a
-# custom-model / sentence-transformers path — see #2117), the working default is
-# multilingual-e5-large, which IS in the catalog AND now receives its REQUIRED
-# query:/passage: prefixes via format_for_model() (previously missing — a silent
-# retrieval bug this lane fixes). Both are 1024-dim, so switching to bge-m3 later
-# is a deliberate re-embed with NO vector-store change. Override per deployment
-# with FICHERO_EMBED_MODEL.
+# NOTE: The default stays pinned to multilingual-e5-large until Fichero has an
+# explicit re-embed workflow. BAAI/bge-m3 is available as an opt-in embedding
+# space via FICHERO_EMBED_MODEL=BAAI/bge-m3; switching spaces deliberately
+# changes the stamped model id and existing indexed tables will refuse mixed
+# semantic search until re-embedded.
 DEFAULT_MODEL = "intfloat/multilingual-e5-large"
+BGE_M3_MODEL = "BAAI/bge-m3"
 EMBED_MODEL_ENV = "FICHERO_EMBED_MODEL"
 EMBEDDINGS_TABLE = "embeddings"
 KG_ENTITY_EMBEDDINGS_TABLE = "kg_entity_embeddings"
@@ -43,6 +40,10 @@ PINNED_EMBEDDING_NORMALIZATION = "l2"
 PINNED_EMBEDDING_MODEL_ID = (
     f"{DEFAULT_MODEL}|pooling={PINNED_EMBEDDING_POOLING}|"
     f"normalization={PINNED_EMBEDDING_NORMALIZATION}|format=e5-role-prefix-v1"
+)
+BGE_M3_FASTEMBED_MODEL = BGE_M3_MODEL
+BGE_M3_EMBEDDING_MODEL_ID = (
+    f"{BGE_M3_MODEL}|pooling=mean|normalization=l2|format=raw-v1"
 )
 
 
@@ -64,6 +65,20 @@ PINNED_EMBEDDING_SPACE = EmbeddingSpaceSpec(
     normalization=PINNED_EMBEDDING_NORMALIZATION,
     model_id=PINNED_EMBEDDING_MODEL_ID,
 )
+
+BGE_M3_EMBEDDING_SPACE = EmbeddingSpaceSpec(
+    source_model_name=BGE_M3_MODEL,
+    fastembed_model_name=BGE_M3_FASTEMBED_MODEL,
+    pooling="mean",
+    normalization="l2",
+    model_id=BGE_M3_EMBEDDING_MODEL_ID,
+)
+
+SUPPORTED_EMBEDDING_SPACES = {
+    PINNED_EMBEDDING_SPACE.source_model_name.lower(): PINNED_EMBEDDING_SPACE,
+    PINNED_EMBEDDING_SPACE.fastembed_model_name.lower(): PINNED_EMBEDDING_SPACE,
+    BGE_M3_EMBEDDING_SPACE.source_model_name.lower(): BGE_M3_EMBEDDING_SPACE,
+}
 
 
 class EmbeddingSpaceMismatchError(RuntimeError):
@@ -142,8 +157,8 @@ def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
         return embedder
 
 
-def _register_pinned_fastembed_model() -> None:
-    """Register the pinned FastEmbed alias once so pooling stays explicit."""
+def _register_e5_fastembed_model() -> None:
+    """Register the pinned E5 FastEmbed alias once so pooling stays explicit."""
     from fastembed import TextEmbedding
     from fastembed.common.model_description import PoolingType
 
@@ -174,6 +189,67 @@ def _register_pinned_fastembed_model() -> None:
         size_in_gb=source.size_in_GB,
         additional_files=source.additional_files,
     )
+
+
+def _register_pinned_fastembed_model() -> None:
+    """Backward-compatible name for the default pinned E5 registration."""
+    _register_e5_fastembed_model()
+
+
+def _register_bge_m3_fastembed_model() -> None:
+    """Register bge-m3 with FastEmbed until upstream ships it in the catalog."""
+    from fastembed import TextEmbedding
+    from fastembed.common.model_description import ModelSource, PoolingType
+
+    if not hasattr(TextEmbedding, "_list_supported_models"):
+        return
+
+    supported = TextEmbedding._list_supported_models()
+    if any(model.model.lower() == BGE_M3_MODEL.lower() for model in supported):
+        return
+
+    # Metadata mirrors qdrant/fastembed PR #602. Tests assert registration only;
+    # first real use may download the ONNX files through FastEmbed's normal path.
+    TextEmbedding.add_custom_model(
+        model=BGE_M3_FASTEMBED_MODEL,
+        pooling=PoolingType.MEAN,
+        normalization=True,
+        sources=ModelSource(hf=BGE_M3_MODEL),
+        dim=1024,
+        model_file="onnx/model.onnx",
+        description=(
+            "Text embeddings, Unimodal (text), Multilingual (100+ languages), "
+            "8192 input tokens truncation, versatility in Multi-Functionality, "
+            "Multi-Linguality, and Multi-Granularity."
+        ),
+        license="mit",
+        size_in_gb=2.27,
+        additional_files=["onnx/model.onnx_data", "onnx/sentencepiece.bpe.model"],
+    )
+
+
+def _register_fastembed_model_for_space(space: EmbeddingSpaceSpec) -> None:
+    if space == BGE_M3_EMBEDDING_SPACE:
+        _register_bge_m3_fastembed_model()
+        return
+    _register_e5_fastembed_model()
+
+
+def _configured_embedding_space() -> EmbeddingSpaceSpec:
+    configured = os.getenv(EMBED_MODEL_ENV, "").strip()
+    if not configured:
+        return PINNED_EMBEDDING_SPACE
+
+    space = SUPPORTED_EMBEDDING_SPACES.get(configured.lower())
+    if space is None:
+        supported = ", ".join(
+            sorted({space.source_model_name for space in SUPPORTED_EMBEDDING_SPACES.values()})
+        )
+        raise ValueError(
+            f"Unsupported {EMBED_MODEL_ENV}={configured!r}; supported embedding "
+            f"models: {supported}"
+        )
+    return space
 
 
 def format_for_model(model_name: str, text: str, role: EmbeddingRole) -> str:
@@ -487,12 +563,12 @@ class DatabaseEmbeddingMixin:
             return {"indexed_count": 0, "table_exists": False}
 
     def _get_embedding_model_name(self) -> str:
-        """Return the pinned source model name for the local embedding space."""
-        return PINNED_EMBEDDING_SPACE.source_model_name
+        """Return the configured source model name for the local embedding space."""
+        return self._get_embedding_space().source_model_name
 
     def _get_embedding_space(self) -> EmbeddingSpaceSpec:
-        """Return the explicit pinned embedding-space contract."""
-        return PINNED_EMBEDDING_SPACE
+        """Return the explicit embedding-space contract."""
+        return _configured_embedding_space()
 
     def _get_embedding_model_id(self) -> str:
         """Return the stamped model-id for newly written vectors."""
@@ -518,7 +594,7 @@ class DatabaseEmbeddingMixin:
                 self._embedding_model_id = space.model_id
                 cache_dir = MODELS_BASE / "embeddings"
                 cache_dir.mkdir(parents=True, exist_ok=True)
-                _register_pinned_fastembed_model()
+                _register_fastembed_model_for_space(space)
                 # Process-global: loaded once and shared across every Database
                 # instance / worker thread (see _get_shared_embedder). Previously
                 # this constructed a fresh ~500 MB model per instance/thread.

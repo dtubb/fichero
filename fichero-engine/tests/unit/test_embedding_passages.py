@@ -11,6 +11,9 @@ import pytest
 from fichero import db_embeddings
 from fichero.db import Database
 from fichero.db_embeddings import (
+    BGE_M3_EMBEDDING_MODEL_ID,
+    BGE_M3_EMBEDDING_SPACE,
+    BGE_M3_FASTEMBED_MODEL,
     EMBEDDING_MODEL_ID_FIELD,
     PINNED_FASTEMBED_MODEL_ALIAS,
     PINNED_EMBEDDING_MODEL_ID,
@@ -56,9 +59,10 @@ def test_default_model_and_env_override(monkeypatch) -> None:
     dummy = _Dummy()
     monkeypatch.setenv("FICHERO_EMBED_MODEL", "BAAI/bge-m3")
     assert db_embeddings.DEFAULT_MODEL == "intfloat/multilingual-e5-large"
-    assert dummy._get_embedding_model_name() == "intfloat/multilingual-e5-large"
-    assert dummy._get_embedding_model_id() == PINNED_EMBEDDING_MODEL_ID
-    assert dummy._get_embedding_space().pooling == PINNED_EMBEDDING_POOLING
+    assert dummy._get_embedding_model_name() == "BAAI/bge-m3"
+    assert dummy._get_embedding_model_id() == BGE_M3_EMBEDDING_MODEL_ID
+    assert dummy._get_embedding_space() == BGE_M3_EMBEDDING_SPACE
+    assert dummy._get_embedding_space().fastembed_model_name == BGE_M3_FASTEMBED_MODEL
 
 
 def test_pinned_embedding_space_ignores_mutable_app_setting(monkeypatch) -> None:
@@ -80,6 +84,61 @@ def test_pinned_embedding_space_ignores_mutable_app_setting(monkeypatch) -> None
     dummy = _Dummy()
     assert dummy._get_embedding_model_name() == db_embeddings.DEFAULT_MODEL
     assert dummy._get_embedding_space().pooling == PINNED_EMBEDDING_POOLING
+
+
+def test_unsupported_embedding_env_fails_loud(monkeypatch) -> None:
+    class _Dummy(db_embeddings.DatabaseEmbeddingMixin):
+        pass
+
+    monkeypatch.setenv("FICHERO_EMBED_MODEL", "unknown/model")
+    dummy = _Dummy()
+
+    with pytest.raises(ValueError, match="Unsupported FICHERO_EMBED_MODEL"):
+        dummy._get_embedding_space()
+
+
+def test_register_bge_m3_custom_fastembed_model(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    class PoolingType:
+        MEAN = "mean"
+
+    class ModelSource:
+        def __init__(self, *, hf: str):
+            self.hf = hf
+
+    class FakeTextEmbedding:
+        @staticmethod
+        def _list_supported_models():
+            return []
+
+        @staticmethod
+        def add_custom_model(**kwargs):
+            calls.append(kwargs)
+
+    fake_fastembed = types.ModuleType("fastembed")
+    fake_fastembed.__path__ = []
+    fake_fastembed.TextEmbedding = FakeTextEmbedding
+    fake_common = types.ModuleType("fastembed.common")
+    fake_common.__path__ = []
+    monkeypatch.setitem(sys.modules, "fastembed", fake_fastembed)
+    monkeypatch.setitem(sys.modules, "fastembed.common", fake_common)
+    monkeypatch.setitem(
+        sys.modules,
+        "fastembed.common.model_description",
+        types.SimpleNamespace(PoolingType=PoolingType, ModelSource=ModelSource),
+    )
+
+    db_embeddings._register_fastembed_model_for_space(BGE_M3_EMBEDDING_SPACE)
+
+    assert len(calls) == 1
+    assert calls[0]["model"] == "BAAI/bge-m3"
+    assert calls[0]["pooling"] == PoolingType.MEAN
+    assert calls[0]["normalization"] is True
+    assert calls[0]["sources"].hf == "BAAI/bge-m3"
+    assert calls[0]["dim"] == 1024
+    assert calls[0]["model_file"] == "onnx/model.onnx"
+    assert "onnx/model.onnx_data" in calls[0]["additional_files"]
 
 
 def test_split_text_passages_offsets_overlap_and_reconstruct() -> None:

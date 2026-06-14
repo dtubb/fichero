@@ -417,15 +417,21 @@ def _prewarm_embeddings() -> None:
     try:
         from fastembed import TextEmbedding
 
-        # Use the embedder's own canonical default (single source of truth) so
-        # pre-warm always loads the same model the real embedder uses (#1524).
-        from fichero.db_embeddings import DEFAULT_MODEL
+        # Use the embedder's own configured embedding space (single source of
+        # truth) so pre-warm always loads the same model the real embedder uses.
+        from fichero.db_embeddings import (
+            DEFAULT_MODEL,
+            _configured_embedding_space,
+            _register_fastembed_model_for_space,
+        )
         from fichero.local_models import MODELS_BASE
 
         # Guard against an unsupported model name (e.g. a stale setting, or a
         # default that fastembed dropped support for): fall back to the
         # canonical default rather than failing the whole pre-warm (#1524).
-        model_name = DEFAULT_MODEL
+        space = _configured_embedding_space()
+        _register_fastembed_model_for_space(space)
+        model_name = space.fastembed_model_name
         try:
             supported = {m["model"] for m in TextEmbedding.list_supported_models()}
             if model_name not in supported:
