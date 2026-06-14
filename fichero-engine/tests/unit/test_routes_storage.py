@@ -6,15 +6,18 @@ Tests focus on the simpler endpoints (stats, snapshots) and validate 404
 behaviour without needing to mock the entire file-serving pipeline.
 """
 
+import asyncio
 from io import BytesIO
 from pathlib import Path
 
 import pytest
 from PIL import Image
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import fitz
 
+from fichero import storage as storage_module
+from fichero.api.routes import storage as storage_routes
 from fichero.models import Document, DocType, FileType, Status
 from fichero.storage import expected_display_path, expected_thumbnail_path
 
@@ -45,6 +48,68 @@ class TestThumbnailRoute:
     def test_missing_doc_returns_404(self, client):
         r = client.get("/api/storage/thumbnail/no-such-doc")
         assert r.status_code == 404
+
+    def test_cache_miss_offloads_thumbnail_generation_to_thread(
+        self, db, tmp_path, monkeypatch
+    ):
+        doc = Document(
+            id="thumb-offload",
+            name="thumb.jpg",
+            doc_type=DocType.file,
+            file_type=FileType.image,
+            status=Status.completed,
+        )
+        db.save(doc)
+        generated_path = tmp_path / "thumb.jpg"
+        generated_path.write_bytes(b"jpeg")
+        to_thread = AsyncMock(return_value=generated_path)
+
+        monkeypatch.setattr(storage_module, "get_thumbnail", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(storage_routes.asyncio, "to_thread", to_thread)
+
+        response = asyncio.run(
+            storage_routes.get_thumbnail(
+                doc.id,
+                db=db,
+                x_fichero_library_path=str(tmp_path),
+            )
+        )
+
+        to_thread.assert_awaited_once()
+        assert to_thread.await_args.args == (storage_module.ensure_thumbnail, doc)
+        assert to_thread.await_args.kwargs == {"package_path": tmp_path, "db": db}
+        assert Path(response.path) == generated_path
+
+    def test_cache_miss_offloads_display_generation_to_thread(
+        self, db, tmp_path, monkeypatch
+    ):
+        doc = Document(
+            id="display-offload",
+            name="display.jpg",
+            doc_type=DocType.file,
+            file_type=FileType.image,
+            status=Status.completed,
+        )
+        db.save(doc)
+        generated_path = tmp_path / "display.jpg"
+        generated_path.write_bytes(b"jpeg")
+        to_thread = AsyncMock(return_value=generated_path)
+
+        monkeypatch.setattr(storage_module, "get_display", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(storage_routes.asyncio, "to_thread", to_thread)
+
+        response = asyncio.run(
+            storage_routes.get_display_image(
+                doc.id,
+                db=db,
+                x_fichero_library_path=str(tmp_path),
+            )
+        )
+
+        to_thread.assert_awaited_once()
+        assert to_thread.await_args.args == (storage_module.ensure_display, doc)
+        assert to_thread.await_args.kwargs == {"package_path": tmp_path, "db": db}
+        assert Path(response.path) == generated_path
 
 
 class TestPdfStorageRoutes:

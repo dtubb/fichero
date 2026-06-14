@@ -4,6 +4,7 @@ Storage Routes
 Thumbnail and file serving endpoints.
 """
 
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -90,7 +91,9 @@ async def get_thumbnail(
         perf["cache_state"] = "hit" if thumb_path else "miss"
 
         if not thumb_path:
-            thumb_path = ensure_thumbnail(doc, package_path=package_path, db=db)
+            thumb_path = await asyncio.to_thread(
+                ensure_thumbnail, doc, package_path=package_path, db=db
+            )
             perf["cache_state"] = "generated" if thumb_path else "unavailable"
 
         if not thumb_path or not thumb_path.exists():
@@ -125,7 +128,9 @@ async def get_display_image(
 
     # If no display image, try to generate one
     if not display_path:
-        display_path = ensure_display(doc, package_path=package_path, db=db)
+        display_path = await asyncio.to_thread(
+            ensure_display, doc, package_path=package_path, db=db
+        )
 
     if not display_path or not display_path.exists():
         raise HTTPException(status_code=404, detail="Display image not available")
