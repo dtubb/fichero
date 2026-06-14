@@ -110,6 +110,33 @@ class TestIntegrationRegistry:
         all_integrations = registry.list_all()
         assert len(all_integrations) == 2
 
+    def test_initialize_registers_default_integrations_once(self):
+        """Test initialization registers default integrations idempotently."""
+        registry = IntegrationRegistry()
+
+        registry.initialize()
+
+        integrations_by_name = {
+            integration.name: integration
+            for integration in registry.list_all()
+        }
+        assert set(integrations_by_name) == {"DEVONthink", "Bookends", "Tinderbox"}
+        assert registry.get("devonthink") is integrations_by_name["DEVONthink"]
+        assert registry.get("bookends") is integrations_by_name["Bookends"]
+        assert registry.get("tinderbox") is integrations_by_name["Tinderbox"]
+
+        first_instances = {
+            integration.name: id(integration)
+            for integration in registry.list_all()
+        }
+
+        registry.initialize()
+
+        assert {
+            integration.name: id(integration)
+            for integration in registry.list_all()
+        } == first_instances
+
 
 class TestDEVONthinkIntegration:
     """Tests for DEVONthink integration."""
