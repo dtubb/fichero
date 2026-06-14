@@ -118,6 +118,10 @@ coexist as implementations of the same logical capability contract. App Intents
 remain an invocation layer over typed backend actions/workflows, not a second
 mutation system.
 
+See also: [Image Editing Backend Strategy](./image_editing_backend_strategy.md),
+which decides the Pillow / Quartz / Core Image / OpenCV split for image
+editing at scale, including preview and batch behavior.
+
 ## 2. Reuse / batching / concurrency
 
 **BUILT:** model reuse is solid — `_get_shared_embedder` pools the embedder

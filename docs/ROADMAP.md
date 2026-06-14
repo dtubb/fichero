@@ -80,7 +80,7 @@ The native structure + polish.
 
 ### Phase 3 — WORKFLOW & AI INFERENCE (efficiency)
 Make inference fast, batched, scalable, private.
-- **EPIC #2056 AI Infrastructure:** #2057 (LangChain `.abatch` — 1000s-of-images lever), #2055 (client reuse), #2062 (bounded concurrency/memory), #2058 (dynamic profiles), #2063 (local-only), #2066 (local MLX via mlx-lm-server), #2060 (Apple Vision OCR), #2061 (image-edit backend OpenCV vs Quartz), #2059 (Apple skills vs AI skills), #2065 (code review).
+- **EPIC #2056 AI Infrastructure:** #2057 (LangChain `.abatch` — 1000s-of-images lever), #2055 (client reuse), #2062 (bounded concurrency/memory), #2058 (dynamic profiles), #2063 (local-only), #2066 (local MLX via mlx-lm-server), #2060 (Apple Vision OCR), #2061 (image-edit backend OpenCV vs Quartz; see `docs/architecture/image_editing_backend_strategy.md`), #2059 (Apple skills vs AI skills), #2065 (code review).
 - Milestone: Workflows.
 
 ### Phase 4 — RESEARCHER / AI / AGENT (north-star, on phases 1–3)

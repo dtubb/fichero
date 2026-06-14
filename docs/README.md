@@ -48,6 +48,7 @@ Internal architecture docs for contributors working on specific subsystems:
 - [docs/architecture/overview.md](./architecture/overview.md)
 - [docs/architecture/action_layer.md](./architecture/action_layer.md)
 - [docs/architecture/ai_infrastructure.md](./architecture/ai_infrastructure.md)
+- [docs/architecture/image_editing_backend_strategy.md](./architecture/image_editing_backend_strategy.md)
 - [docs/architecture/pi_agent_harness.md](./architecture/pi_agent_harness.md)
 - [docs/architecture/mlx_on_device_agent.md](./architecture/mlx_on_device_agent.md)
 - [docs/architecture/thinking-layer.md](./architecture/thinking-layer.md)

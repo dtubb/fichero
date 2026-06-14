@@ -43,6 +43,7 @@ than deleting databases.
 
 - API/backend architecture: `docs/architecture/api/overview.md`
 - AI infrastructure and model policy: `docs/architecture/ai_infrastructure.md`
+- Image editing backend strategy: `docs/architecture/image_editing_backend_strategy.md`
 - Pi in-app agent harness: `docs/architecture/pi_agent_harness.md`
 - MLX/on-device agent service boundary: `docs/architecture/mlx_on_device_agent.md`
 - Workflow multi-pass engine primitives: `docs/architecture/workflow_multi_pass_engine.md`
