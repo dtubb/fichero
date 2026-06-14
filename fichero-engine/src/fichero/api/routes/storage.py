@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from fichero.db import Database
 from fichero.api.library_header import require_library_path
-from fichero.api.main import get_library_database
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.models import Document, LibrarySnapshot, SnapshotInitiatorType
 from fichero.perf import perf_span
 from fichero.storage import (
@@ -268,7 +268,7 @@ class RegenerateMissingResponse(BaseModel):
 
 @router.post("/regenerate-missing", response_model=RegenerateMissingResponse)
 async def regenerate_missing_thumbnails(
-    db: Database = Depends(get_library_database),
+    db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> RegenerateMissingResponse:
     """Regenerate thumbnails for all documents that are missing one.

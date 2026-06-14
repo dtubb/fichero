@@ -249,7 +249,7 @@ def client(test_package, app_db):
     Also overrides the app database dependency to use the test app_db
     and the library database dependency to use the test package db.
     """
-    from fichero.api.main import get_library_database
+    from fichero.api.main import get_library_database, get_library_database_for_write
     from fichero.api.routes.entities import _digest_library_database
     from fichero.api.routes.providers import get_app_database
 
@@ -259,6 +259,7 @@ def client(test_package, app_db):
         lambda: db_manager.get_database(test_package)
     )
     app.dependency_overrides[get_library_database] = lambda: db_manager.get_database(test_package)
+    app.dependency_overrides[get_library_database_for_write] = lambda: db_manager.get_database(test_package)
 
     # Create client with default headers
     client = TestClient(

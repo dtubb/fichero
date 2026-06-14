@@ -508,7 +508,8 @@ class TestTranscribeTool:
         result = await transcribe(inputs, state, llm_config)
 
         assert result["text"] == ""
-        assert "error" in result
+        # No "error" key — empty-files is a warning, not a workflow-aborting error (#2220)
+        assert "error" not in result
 
     @pytest.mark.asyncio
     async def test_transcribe_builds_prompt(self):

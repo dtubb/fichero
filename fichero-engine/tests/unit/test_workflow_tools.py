@@ -383,14 +383,15 @@ class TestTranscribeTool:
 
     @pytest.mark.asyncio
     async def test_transcribe_no_files(self, mock_llm_config, mock_state):
-        """Test transcribe with no input files."""
+        """Test transcribe with no input files returns empty result without aborting workflow."""
         from fichero.workflows.tools.transcribe import transcribe
 
         result = await transcribe({}, mock_state, mock_llm_config)
 
-        assert result["error"] == "No input files provided"
+        # No "error" key — empty-files is a warning, not a workflow-aborting error (#2220)
+        assert "error" not in result
         assert result["text"] == ""
-        assert result["texts"] == []
+        assert result["results"] == []
 
     @pytest.mark.asyncio
     async def test_transcribe_with_files(self, mock_llm_config, mock_state, tmp_path):
@@ -469,12 +470,13 @@ class TestDescribeTool:
 
     @pytest.mark.asyncio
     async def test_describe_no_files(self, mock_llm_config, mock_state):
-        """Test describe with no input files."""
+        """Test describe with no input files returns empty result without aborting workflow."""
         from fichero.workflows.tools.describe import describe
 
         result = await describe({}, mock_state, mock_llm_config)
 
-        assert result["error"] == "No input files provided"
+        # No "error" key — empty-files is a warning, not a workflow-aborting error (#2220)
+        assert "error" not in result
         assert result["text"] == ""
 
     @pytest.mark.asyncio
