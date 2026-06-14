@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Ratchet guardrail for mutating backend endpoints that touch observed domains.
+"""Ratchet guardrail for observable backend writes that must broadcast changes.
 
 A violation is any top-level POST/PUT/PATCH/DELETE handler in a route module whose
 store-observed domain does not call emit_change().
+
+It also flags non-route saves of observable models when the save is not followed
+nearby by emit_change() or an explicit allow comment.
 
 The current gaps are seeded in KNOWN_GAPS so this script passes on the current tree
 and fails only when a new mutating route appears without emit coverage.
@@ -23,10 +26,30 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 MODELS_DIR = ROOT / "fichero" / "fichero" / "Models"
 ROUTES_DIR = ROOT / "fichero-engine" / "src" / "fichero" / "api" / "routes"
+API_DIR = ROOT / "fichero-engine" / "src" / "fichero" / "api"
 
 METHODS = {"post", "put", "patch", "delete"}
+ALLOW_COMMENT_RE = re.compile(
+    r"emit-change:\s*allow|emit_change:\s*allow|no\s+emit_change|observable-save:\s*allow",
+    re.I,
+)
 
-ROUTE_DOMAIN_MAP: dict[str, str] = {
+# Central observable-domain model map. Route coverage derives simple
+# singular/plural route filenames from this map, and the non-route persistence
+# scan uses the model names to keep findings high-signal.
+OBSERVABLE_DOMAIN_MODELS: dict[str, set[str]] = {
+    "annotation": {"Annotation"},
+    "artifact": {"Artifact"},
+    "citation": {"DocumentCitation"},
+    "claim": {"KnowledgeClaim", "KnowledgeClaimLink"},
+    "document": {"Document"},
+    "entity": {"KnowledgeEntity"},
+    "interpretation": {"Interpretation"},
+    "note": {"Note"},
+    "reference": {"Reference", "ReferenceProvenance"},
+}
+
+ROUTE_DOMAIN_OVERRIDES: dict[str, str] = {
     "annotations": "annotation",
     "notes": "note",
     "research_notes": "note",
@@ -97,8 +120,54 @@ class Row:
         return not self.emit_change
 
 
+@dataclass(frozen=True)
+class SaveRow:
+    file: str
+    function: str
+    line: int
+    model: str
+    domain: str
+    emit_change: bool
+    allowed: bool
+
+    @property
+    def key(self) -> str:
+        return f"{self.file}:{self.line}::{self.function}"
+
+    @property
+    def gap(self) -> bool:
+        return not self.emit_change and not self.allowed
+
+
 def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore")
+
+
+def _singular_plural(domain: str) -> set[str]:
+    names = {domain}
+    if domain.endswith("y"):
+        names.add(f"{domain[:-1]}ies")
+    elif domain.endswith(("s", "x", "z", "ch", "sh")):
+        names.add(f"{domain}es")
+    else:
+        names.add(f"{domain}s")
+    return names
+
+
+def _route_domain_map() -> dict[str, str]:
+    route_map = dict(ROUTE_DOMAIN_OVERRIDES)
+    for domain in OBSERVABLE_DOMAIN_MODELS:
+        for stem in _singular_plural(domain):
+            route_map.setdefault(stem, domain)
+    return route_map
+
+
+def _model_domain_map() -> dict[str, str]:
+    return {
+        model: domain
+        for domain, models in OBSERVABLE_DOMAIN_MODELS.items()
+        for model in models
+    }
 
 
 def _observed_domains(*, root: Path | None = None, models_dir: Path | None = None) -> set[str]:
@@ -139,6 +208,151 @@ def _has_emit_change(function_node: ast.AST) -> bool:
     return False
 
 
+def _call_name(call: ast.Call) -> str | None:
+    callee = call.func
+    if isinstance(callee, ast.Name):
+        return callee.id
+    if isinstance(callee, ast.Attribute):
+        return callee.attr
+    return None
+
+
+def _constructed_model(node: ast.AST, model_domains: dict[str, str]) -> str | None:
+    if not isinstance(node, ast.Call):
+        return None
+    callee = node.func
+    if isinstance(callee, ast.Name) and callee.id in model_domains:
+        return callee.id
+    if isinstance(callee, ast.Attribute) and callee.attr in {
+        "model_validate",
+        "model_construct",
+    }:
+        owner = callee.value
+        if isinstance(owner, ast.Name) and owner.id in model_domains:
+            return owner.id
+    return None
+
+
+def _save_call_model(call: ast.Call, inferred_models: dict[str, str]) -> str | None:
+    if _call_name(call) != "save" or not call.args:
+        return None
+    arg = call.args[0]
+    direct = _constructed_model(arg, _model_domain_map())
+    if direct:
+        return direct
+    if isinstance(arg, ast.Name):
+        return inferred_models.get(arg.id)
+    return None
+
+
+def _nearest_named_parent(node: ast.AST, parents: dict[ast.AST, ast.AST]) -> ast.AST | None:
+    current: ast.AST | None = node
+    while current is not None:
+        if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return current
+        current = parents.get(current)
+    return None
+
+
+def _function_name(function_node: ast.AST | None) -> str:
+    if isinstance(function_node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return function_node.name
+    return "<module>"
+
+
+def _has_nearby_emit_change(function_node: ast.AST | None, save_line: int, *, window: int = 12) -> bool:
+    if function_node is None:
+        return False
+    for node in ast.walk(function_node):
+        if not isinstance(node, ast.Call):
+            continue
+        if _call_name(node) != "emit_change":
+            continue
+        line = getattr(node, "lineno", -1)
+        if save_line <= line <= save_line + window:
+            return True
+    return False
+
+
+def _has_allow_comment(lines: list[str], line_no: int, *, window: int = 2) -> bool:
+    start = max(1, line_no - window)
+    end = min(len(lines), line_no + window)
+    return any(ALLOW_COMMENT_RE.search(lines[index - 1]) for index in range(start, end + 1))
+
+
+def _assigned_targets(target: ast.AST) -> list[str]:
+    if isinstance(target, ast.Name):
+        return [target.id]
+    if isinstance(target, (ast.Tuple, ast.List)):
+        names: list[str] = []
+        for elt in target.elts:
+            names.extend(_assigned_targets(elt))
+        return names
+    return []
+
+
+class _ObservableSaveVisitor(ast.NodeVisitor):
+    def __init__(self, *, rel_path: str, lines: list[str]) -> None:
+        self.rel_path = rel_path
+        self.lines = lines
+        self.model_domains = _model_domain_map()
+        self.parents: dict[ast.AST, ast.AST] = {}
+        self._scope_stack: list[dict[str, str]] = [{}]
+        self.rows: list[SaveRow] = []
+
+    def visit(self, node: ast.AST) -> None:  # noqa: D102
+        for child in ast.iter_child_nodes(node):
+            self.parents[child] = node
+        super().visit(node)
+
+    @property
+    def inferred_models(self) -> dict[str, str]:
+        return self._scope_stack[-1]
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
+        self._scope_stack.append({})
+        self.generic_visit(node)
+        self._scope_stack.pop()
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:  # noqa: N802
+        self._scope_stack.append({})
+        self.generic_visit(node)
+        self._scope_stack.pop()
+
+    def visit_Assign(self, node: ast.Assign) -> None:  # noqa: N802
+        model = _constructed_model(node.value, self.model_domains)
+        if model:
+            for target in node.targets:
+                for name in _assigned_targets(target):
+                    self.inferred_models[name] = model
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:  # noqa: N802
+        model = _constructed_model(node.value, self.model_domains) if node.value else None
+        if model:
+            for name in _assigned_targets(node.target):
+                self.inferred_models[name] = model
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+        model = _save_call_model(node, self.inferred_models)
+        if model:
+            line = getattr(node, "lineno", 0)
+            function_node = _nearest_named_parent(node, self.parents)
+            self.rows.append(
+                SaveRow(
+                    file=self.rel_path,
+                    function=_function_name(function_node),
+                    line=line,
+                    model=model,
+                    domain=self.model_domains[model],
+                    emit_change=_has_nearby_emit_change(function_node, line),
+                    allowed=_has_allow_comment(self.lines, line),
+                )
+            )
+        self.generic_visit(node)
+
+
 def scan(
     *,
     root: Path | None = None,
@@ -153,7 +367,7 @@ def scan(
     for path in sorted(route_root.glob("*.py")):
         if path.name == "__init__.py":
             continue
-        domain = ROUTE_DOMAIN_MAP.get(path.stem)
+        domain = _route_domain_map().get(path.stem)
         if not domain:
             continue
         if domain not in observed_domains and domain not in BACKEND_FIRST_DOMAINS:
@@ -188,11 +402,58 @@ def scan(
     return rows
 
 
+def scan_non_route_saves(
+    *,
+    root: Path | None = None,
+    api_dir: Path | None = None,
+    routes_dir: Path | None = None,
+) -> list[SaveRow]:
+    base_root = root or ROOT
+    # Keep the default scan on API-adjacent helpers. Whole-engine scanning also
+    # catches batch import/workflow writers whose route/action owners broadcast
+    # at coarser boundaries and produces too much noise for this guardrail.
+    api_root = api_dir or base_root / "fichero-engine" / "src" / "fichero" / "api"
+    route_root = routes_dir or base_root / "fichero-engine" / "src" / "fichero" / "api" / "routes"
+    rows: list[SaveRow] = []
+
+    for path in sorted(api_root.rglob("*.py")):
+        if path.name == "__init__.py":
+            continue
+        try:
+            path.relative_to(route_root)
+            continue
+        except ValueError:
+            pass
+        source = _read_text(path)
+        try:
+            module = ast.parse(source)
+        except SyntaxError:
+            continue
+        try:
+            rel_path = path.relative_to(base_root).as_posix()
+        except ValueError:
+            rel_path = path.as_posix()
+        visitor = _ObservableSaveVisitor(rel_path=rel_path, lines=source.splitlines())
+        visitor.visit(module)
+        rows.extend(visitor.rows)
+
+    return rows
+
+
 def _print_rows(rows: list[Row]) -> None:
     for row in rows:
         status = "known" if row.key in KNOWN_GAPS else "NEW" if row.gap else "ok"
         print(
             f"  [{status}] {row.key} | method={row.method.upper():5} domain={row.domain:8} "
+            f"emit_change={'Y' if row.emit_change else 'N'}"
+        )
+
+
+def _print_save_rows(rows: list[SaveRow]) -> None:
+    for row in rows:
+        status = "allowed" if row.allowed else "ok" if row.emit_change else "NEW"
+        print(
+            f"  [{status}] {row.key} | domain={row.domain:14} model={row.model:18} "
             f"emit_change={'Y' if row.emit_change else 'N'}"
         )
 
@@ -203,21 +464,28 @@ def main() -> int:
         return 0
 
     rows = scan()
+    save_rows = scan_non_route_saves()
     gaps = {row.key: row for row in rows if row.gap and row.key not in EXEMPT}
+    save_gaps = {row.key: row for row in save_rows if row.gap}
     known = set(KNOWN_GAPS)
 
     if "--list" in sys.argv[1:]:
         print(f"Emit-change coverage ({len(rows)} mutating routes):\n")
         _print_rows(rows)
+        print(f"\nNon-route observable saves ({len(save_rows)} save call(s)):\n")
+        _print_save_rows(save_rows)
         return 0
 
     new = sorted(set(gaps) - known)
     stale = sorted(known - set(gaps))
     covered = len(rows) - len(gaps)
+    save_covered = len(save_rows) - len(save_gaps)
 
     print("emit-change coverage:")
     print(f"  {len(rows)} mutating route(s) checked")
     print(f"  emit-change coverage: {len(known)} known gaps, {covered} routes covered")
+    print(f"  {len(save_rows)} non-route observable save(s) checked")
+    print(f"  non-route save coverage: {save_covered} covered/allowed")
 
     if stale:
         print(f"\n  {len(stale)} KNOWN_GAPS entries are now clean; remove them:")
@@ -229,6 +497,17 @@ def main() -> int:
         for key in new:
             row = gaps[key]
             print(f"      {key}  (method={row.method.upper()}, domain={row.domain})")
+        return 1
+
+    if save_gaps:
+        print(f"\n  {len(save_gaps)} non-route observable save gaps:")
+        for key in sorted(save_gaps):
+            row = save_gaps[key]
+            print(f"      {key}  (model={row.model}, domain={row.domain})")
+        print(
+            "\nFix: emit_change() within the next few lines after the save, or add a "
+            "nearby '# emit-change: allow ...' comment explaining why no UI refresh is needed."
+        )
         return 1
 
     if stale:
