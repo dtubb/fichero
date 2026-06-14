@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `13dc185d`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `136cb9ad`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -56,13 +56,16 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 ### SHIPPED (loop tick 3g, all gated ALL PASS + pushed, never red) — 0.0.2 @ 13dc185d
 - **#2201** (71a7af47 + 13dc185d) shipped the first backend `sub_workflow` primitive slice: typed Pydantic contract/config models, dynamic contract ports, runtime child execution through the existing graph builder, parent/child lineage metadata, declared output mapping, input/output data-type checks, optional JSON Schema enforcement, max-depth guard, literal-ref validation, and direct/transitive cycle rejection. External codex/opencode workers were unavailable (Codex quota until 02:02, OpenCode cloud unreachable), so manager implemented the constrained backend slice directly and kept tests mocked/no-cloud. First full gate caught over-broad preflight connection validation against existing presets; repair kept `validate_workflow_preflight` scoped to LLM policy + sub-workflow contract/reference checks. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4889 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `subworkflow-contracts-2201` worktree/branch removed.
 
+### SHIPPED (loop tick 3h, all gated ALL PASS + pushed, never red) — 0.0.2 @ 136cb9ad
+- **#2202** (136cb9ad) shipped Spanish Script v2 backend presets: a reusable child workflow `Spanish Script v2 Child Passes (19th-20th C.)` with draft/review/final passes using `$vision_small` / `$vision_medium` / `$vision_large`, plus a parent preset `Transcribe Spanish Script v2 (19th-20th C., Sub-Workflow)` that composes it through the typed `sub_workflow` contract. The original #938 preset remains installed and unaliased for stability. Tests cover preset shape, typed input/output contracts, distinct configured vision-tier resolution, and local-only rejection of a cloud `$vision_large` tier. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4896 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `spanish-script-v2-2202` worktree/branch removed.
+
 ### In flight (poll on wake) — tick 3
-- None currently active. Next: #2202 (Spanish Script v2 using sub-workflow + vision tiers), #1814 runtime MLX inference/embedding slice, or in-app agent design slices (#2067/#2071). Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
+- None currently active. Next: #1814 runtime MLX inference/embedding slice, #2117 supported bge-m3 path, #2065 AI-model-use review closure, or #2056/#2059 design triage. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
 
 ### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
-1. **Workflow engine follow-up**: **#2202** (Spanish Script v2 using sub-workflow + vision tiers).
-2. **Batch/eval polish**: use the now-shipped compare CLI/API and #2057 batching to evaluate good-and-cheap model choices without network leaks; keep tests/fakes network-free.
-3. **MLX on-device implementation**: #2199 first backend slice is done; #1814 remains the runtime embedding/inference thread; #2067/#2071 remain agent/product/runtime follow-ups.
+1. **Batch/eval polish**: use the now-shipped compare CLI/API and #2057 batching to evaluate good-and-cheap model choices without network leaks; keep tests/fakes network-free.
+2. **MLX on-device implementation**: #2199 first backend slice is done; #1814 remains the runtime embedding/inference thread; #2067/#2071 remain agent/product/runtime follow-ups.
+3. **Embedding roadmap cleanup**: #2117 and #2049 are partly superseded by #2194's pinned E5 work; verify issue bodies/current code before implementing anything that could re-embed real data.
 4. **Deferred/held**: Mac/SwiftUI, `entitytable-2020`, `lan-tls-2157`, and auth/security design calls stay untouched.
 
 ### ICANH ground truth (my vision, for scoring bake-offs)
