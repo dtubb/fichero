@@ -150,7 +150,7 @@ def test_snapshot_quiesces_database_manager_before_copy(
 
     storage_snapshots.snapshot_library(str(library_path), reason="safe copy")
 
-    assert calls == [(library_path, True)]
+    assert calls == [(library_path, False)]
 
 
 def test_restore_quiesces_database_manager_before_swap(

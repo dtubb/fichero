@@ -190,7 +190,7 @@ def snapshot_library(
     db_path = library_path_p / "fichero.duckdb"
     if db_path.exists():
         try:
-            _quiesce_library_database(library_path_p, close=True)
+            _quiesce_library_database(library_path_p, close=False)
             duckdb_copy_path = duckdb_file_dir / "fichero.duckdb"
             shutil.copy2(db_path, duckdb_copy_path)
             duckdb_size = duckdb_copy_path.stat().st_size
