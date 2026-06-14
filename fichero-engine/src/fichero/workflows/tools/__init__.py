@@ -102,6 +102,7 @@ from fichero.workflows.tools import research
 
 # Transform tools (fan-in, reshape, cleanup)
 from fichero.workflows.tools import aggregate
+from fichero.workflows.tools import sub_workflow  # noqa: F401  (#2201)
 from fichero.workflows.tools import ocr_cleanup  # noqa: F401  (#925)
 from fichero.workflows.tools import text_reflow  # noqa: F401  (#1260)
 from fichero.workflows.tools import book_index  # noqa: F401  (#1278)
@@ -187,6 +188,7 @@ __all__ = [
     "research",
     # Transform
     "aggregate",
+    "sub_workflow",
     "ocr_cleanup",
     "text_reflow",
     "book_index",

@@ -228,6 +228,12 @@ class State(TypedDict):
     # Execution metadata
     task_id: str  # Unique execution ID
     workflow_id: str  # Workflow definition ID
+    parent_task_id: str  # Parent run id when this is a child workflow
+    parent_workflow_id: str  # Parent workflow id when this is a child workflow
+    parent_node_id: str  # Parent sub_workflow node id
+    lineage_path: str  # Ordered parent/node/child path for nested runs
+    sub_workflow_depth: int  # Nested sub-workflow depth
+    sub_workflows: dict[str, Any]  # Test/runtime injection map for child workflows
 
     # Library context (required for source tools)
     library_path: str  # Path to .fichero library package

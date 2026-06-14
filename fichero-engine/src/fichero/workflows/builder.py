@@ -31,6 +31,13 @@ from fichero.llm import LLMConfig
 logger = logging.getLogger(__name__)
 
 
+def _required_llm_capability_for_category(category: str | None) -> str:
+    category_key = str(category or "").strip().lower()
+    if category_key in {"vision", "audio", "video"}:
+        return category_key
+    return "text"
+
+
 def _resolve_node_llm_config(
     node_def: NodeDef, workflow_llm_config: LLMConfig
 ) -> LLMConfig:
@@ -53,7 +60,7 @@ def _resolve_node_llm_config(
     tool_def = get_tool_def(node_def.tool)
     required_capability = None
     if tool_def and tool_def.uses_llm:
-        required_capability = "vision" if tool_def.category == "vision" else "text"
+        required_capability = _required_llm_capability_for_category(tool_def.category)
 
     if node_provider or node_model:
         provider = node_provider or workflow_llm_config.provider
@@ -606,6 +613,8 @@ def _make_node_function(
 
             # Merge with static config (config takes precedence)
             tool_kwargs = {**resolved_inputs, **node_def.config}
+            if node_def.tool == "sub_workflow":
+                tool_kwargs.setdefault("__node_id", node_id)
             if event_callback:
                 async def emit_tool_progress(
                     event_type: str,

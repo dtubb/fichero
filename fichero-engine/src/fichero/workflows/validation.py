@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import logging
 
+from collections.abc import Callable
+
 from fichero.workflows.types import (
     PortDef,
     NodeDef,
@@ -17,6 +19,7 @@ from fichero.workflows.types import (
 )
 from fichero.workflows.registry import TOOL_DEFS, enrich_node_with_ports
 from fichero.llm import LLMConfig
+from fichero.workflows.subworkflow import validate_sub_workflow_references
 
 logger = logging.getLogger(__name__)
 
@@ -266,9 +269,17 @@ def validate_workflow_llm_preflight(
 def validate_workflow_preflight(
     workflow: WorkflowDef,
     workflow_llm_config: LLMConfig | None = None,
+    workflow_resolver: Callable[[str], WorkflowDef | None] | None = None,
 ) -> list[str]:
     """Validate LLM alias/capability/privacy policy before execution."""
-    return validate_workflow_llm_preflight(workflow, workflow_llm_config)
+    return [
+        *validate_workflow_connections(workflow),
+        *validate_workflow_llm_preflight(workflow, workflow_llm_config),
+        *validate_sub_workflow_references(
+            workflow,
+            workflow_resolver=workflow_resolver,
+        ),
+    ]
 
 
 def get_compatible_tools(target_port: PortDef) -> list[ToolDef]:

@@ -202,6 +202,32 @@ def enrich_node_with_ports(node: NodeDef) -> NodeDef:
             logger.warning(f"Tool not found in registry: {node.tool}")
         return node
 
+    if node.tool == "sub_workflow":
+        try:
+            from fichero.workflows.subworkflow import (
+                contract_ports,
+                parse_sub_workflow_config,
+            )
+
+            config = parse_sub_workflow_config(node.config)
+            return node.model_copy(
+                update={
+                    "input_ports": contract_ports(
+                        config.input_contract,
+                        port_type="input",
+                    ),
+                    "output_ports": contract_ports(
+                        config.output_contract,
+                        port_type="output",
+                    ),
+                    "uses_llm": False,
+                }
+            )
+        except Exception:
+            # Preserve the static registry ports so validation can report the
+            # typed config error instead of hiding the node entirely.
+            pass
+
     # Create a new node with ports from registry
     # Use model_copy to preserve all existing fields
     return node.model_copy(
