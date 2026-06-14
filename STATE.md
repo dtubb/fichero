@@ -59,13 +59,17 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 ### SHIPPED (loop tick 3h, all gated ALL PASS + pushed, never red) — 0.0.2 @ 136cb9ad
 - **#2202** (136cb9ad) shipped Spanish Script v2 backend presets: a reusable child workflow `Spanish Script v2 Child Passes (19th-20th C.)` with draft/review/final passes using `$vision_small` / `$vision_medium` / `$vision_large`, plus a parent preset `Transcribe Spanish Script v2 (19th-20th C., Sub-Workflow)` that composes it through the typed `sub_workflow` contract. The original #938 preset remains installed and unaliased for stability. Tests cover preset shape, typed input/output contracts, distinct configured vision-tier resolution, and local-only rejection of a cloud `$vision_large` tier. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4896 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `spanish-script-v2-2202` worktree/branch removed.
 
+### SHIPPED (loop tick 3i, all gated ALL PASS + pushed, never red) — 0.0.2 @ 42ba1458
+- **#2117** (42ba1458) made `BAAI/bge-m3` loadable as an explicit opt-in embedding space via `FICHERO_EMBED_MODEL=BAAI/bge-m3`. FastEmbed custom-model metadata is registered when the installed catalog does not list bge-m3, bge-m3 vectors get a distinct `embedding_model_id`, unknown embedding env values fail loudly, and startup prewarm now uses the same configured embedding space as the real embedder. The global default remains pinned E5 intentionally: no real data was re-embedded and no existing library silently changes vector space. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4899 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `bge-m3-2117` worktree/branch removed.
+- **#2203 filed** for the deliberate bge-m3 default flip + real-library re-embed workflow. **#2049** closed as mitigated by #2194/#2117/#2203; **#2065** closed as the review issue whose concrete follow-ups are now filed/shipped.
+
 ### In flight (poll on wake) — tick 3
-- None currently active. Next: #1814 runtime MLX inference/embedding slice, #2117 supported bge-m3 path, #2065 AI-model-use review closure, or #2056/#2059 design triage. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
+- None currently active. Next: #1814 runtime MLX inference/embedding slice, #2203 explicit bge-m3 migration/default flip, or #2056/#2059 design triage. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
 
 ### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
 1. **Batch/eval polish**: use the now-shipped compare CLI/API and #2057 batching to evaluate good-and-cheap model choices without network leaks; keep tests/fakes network-free.
 2. **MLX on-device implementation**: #2199 first backend slice is done; #1814 remains the runtime embedding/inference thread; #2067/#2071 remain agent/product/runtime follow-ups.
-3. **Embedding roadmap cleanup**: #2117 and #2049 are partly superseded by #2194's pinned E5 work; verify issue bodies/current code before implementing anything that could re-embed real data.
+3. **Embedding roadmap cleanup**: #2203 is the only safe remaining embedding default flip path; it must be an explicit migration and must not re-embed real data implicitly.
 4. **Deferred/held**: Mac/SwiftUI, `entitytable-2020`, `lan-tls-2157`, and auth/security design calls stay untouched.
 
 ### ICANH ground truth (my vision, for scoring bake-offs)
