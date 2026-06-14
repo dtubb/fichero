@@ -442,6 +442,7 @@ async def process_video(
         files = [files]
 
     if not files:
+        logger.warning("process_video: no input files — all selected IDs may be stale/invalid")
         return {
             "text": "",
             "value": None,
@@ -450,7 +451,6 @@ async def process_video(
             "results": [],
             "artifacts": [],
             "output_files": [],
-            "error": "No input files provided",
         }
 
     # Override LLMConfig with user values if provided

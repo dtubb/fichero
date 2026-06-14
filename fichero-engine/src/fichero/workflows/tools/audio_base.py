@@ -457,6 +457,7 @@ async def process_audio(
         files = [files]
 
     if not files:
+        logger.warning("process_audio: no input files — all selected IDs may be stale/invalid")
         return {
             "text": "",
             "value": None,
@@ -465,7 +466,6 @@ async def process_audio(
             "results": [],
             "artifacts": [],
             "output_files": [],
-            "error": "No input files provided",
         }
 
     # Build path -> document_id mapping

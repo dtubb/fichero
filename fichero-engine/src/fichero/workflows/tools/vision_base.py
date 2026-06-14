@@ -1279,6 +1279,7 @@ async def process_vision(
         files = [files]
 
     if not files:
+        logger.warning("process_vision: no input files — all selected IDs may be stale/invalid")
         return {
             "text": "",
             "value": None,
@@ -1288,7 +1289,6 @@ async def process_vision(
             "artifacts": [],
             "output_files": [],
             "page_records": [],
-            "error": "No input files provided",
         }
 
     # vision_mode="auto" picks the engine from the resolved provider:

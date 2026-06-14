@@ -204,6 +204,7 @@ async def extract(
         files = [files]
 
     if not files:
+        logger.warning("extract: no input files — all selected IDs may be stale/invalid")
         return {
             "text": "",
             "data": {},
@@ -211,7 +212,6 @@ async def extract(
             "values": [],
             "results": [],
             "artifacts": [],
-            "error": "No input files provided",
         }
 
     if not fields:

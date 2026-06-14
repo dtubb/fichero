@@ -170,6 +170,14 @@ async def files_tool(
             db = db_manager.get_database(library_path)
             docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
             docs = [d for d in docs if d is not None]
+            if len(docs) < len(selected_doc_ids):
+                missing = set(selected_doc_ids) - {d.id for d in docs}
+                logger.warning(
+                    "files_tool: %d/%d selected_doc_ids not found (stale/invalid): %s",
+                    len(missing),
+                    len(selected_doc_ids),
+                    list(missing)[:5],
+                )
 
             # Stored paths are library-relative (e.g. "files/fi/<hash>_<name>.pdf")
             # for COPY ingests, so the bundle can be renamed/moved (#1663). Downstream
