@@ -1584,6 +1584,7 @@ async def process_vision(
             if (
                 not force_ocr
                 and tool_config.supports_apple_vision
+                and vision_mode != "llm"  # LLM mode must render+call LLM, not use text layer
                 and file_path.lower().endswith(".pdf")
             ):
                 layer = _try_pdf_text_layer(file_path)
