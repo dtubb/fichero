@@ -2,7 +2,7 @@
 
 ## Local-First Default
 
-The engine binds to `127.0.0.1` only. It never binds to `0.0.0.0`. There is no way for another machine (or another app on the same Mac) to reach the API over plain TCP without additional tunneling.
+The engine binds to `127.0.0.1` by default. It refuses wildcard binds (`0.0.0.0` and `::`) and is not reachable from another machine over plain TCP without additional private transport.
 
 To prevent other processes on the same Mac from calling the API, the engine generates a shared-secret token at startup and writes it to:
 
@@ -61,7 +61,7 @@ For iPad or remote access, the setup is:
 tailscale serve https / http://127.0.0.1:8765
 ```
 
-This exposes the API only to devices on your Tailscale tailnet. It is not publicly reachable.
+This exposes the API only to devices on your Tailscale tailnet. It is not publicly reachable, and the engine process still listens only on loopback.
 
 Do not use `tailscale funnel`. Funnel exposes the service to the public internet.
 
@@ -72,6 +72,11 @@ a non-loopback address requires the explicit escape hatch
 `FICHERO_ALLOW_NON_LOOPBACK_BIND=I_UNDERSTAND_SHARED_SECRET_RISK` and emits a
 runtime warning. That mode is for owner-debugging only; it is not the supported
 remote-access path.
+
+The shared-secret token remains required behind Tailscale. Treat the token as a
+password: do not commit it, paste it into shared logs, or use it as a substitute
+for user/object authorization. For setup details, see
+[Tailscale private transport for Fichero](../remote-backend-tailscale.md).
 
 Summary of what each layer does:
 

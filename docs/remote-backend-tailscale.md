@@ -1,0 +1,133 @@
+# Tailscale private transport for Fichero
+
+This is the supported model for using one Fichero engine from another device on
+your tailnet: keep the engine bound to loopback, then let `tailscale serve`
+publish a tailnet-private HTTPS proxy to that loopback service.
+
+Do not bind the engine to `0.0.0.0`, a LAN address, or a Tailscale `100.x`
+address for normal remote access. Do not use `tailscale funnel`. Funnel exposes
+the service on the public internet, and the Fichero engine is not a public web
+service.
+
+## Trust boundary
+
+Tailscale is transport security. It answers "can this device reach the service
+over the tailnet?" It does not answer "can this Fichero user read or edit this
+library, folder, claim, or document?"
+
+App-level authorization still belongs to Fichero:
+
+- The shared-secret API token is still required for protected endpoints.
+- Multi-user authorization, when enabled with `FICHERO_MULTIUSER=1`, still owns
+  per-library and per-folder permissions.
+- Tailscale ACLs can reduce which devices can reach the engine, but they are not
+  a substitute for object-level app authorization.
+
+## Start the engine
+
+On the Mac or lab machine that owns the library, start the engine on loopback:
+
+```bash
+PYTHONPATH=fichero-engine/src .venv/bin/python -m fichero engine start --port 8765
+```
+
+The default bind host is `127.0.0.1`. If you set it explicitly, keep it
+loopback-only:
+
+```bash
+export FICHERO_BIND_HOST=127.0.0.1
+PYTHONPATH=fichero-engine/src .venv/bin/python -m fichero engine start --port 8765
+```
+
+Current bind behavior is:
+
+- unset `FICHERO_BIND_HOST`: binds `127.0.0.1`
+- `127.0.0.1`, `localhost`, or `::1`: allowed
+- `0.0.0.0` or `::`: refused
+- any other non-loopback host: refused unless
+  `FICHERO_ALLOW_NON_LOOPBACK_BIND=I_UNDERSTAND_SHARED_SECRET_RISK` is set
+
+That escape hatch is for owner-debugging only. It emits a runtime warning
+because the shared-secret bootstrap token is not an internet-facing auth
+boundary. It is not the supported remote-access path.
+
+## Publish to the tailnet
+
+Install and sign in to Tailscale on the engine machine and on each client
+device. Then run this on the engine machine:
+
+```bash
+tailscale serve https / http://127.0.0.1:8765
+```
+
+Use `tailscale serve status` to inspect the generated tailnet URL. The important
+property is that Tailscale terminates the private tailnet connection and proxies
+to `http://127.0.0.1:8765` on the engine host. The engine itself still only sees
+a loopback service.
+
+Do not run:
+
+```bash
+tailscale funnel 8765
+```
+
+Do not change the engine start command to:
+
+```bash
+--host 0.0.0.0
+```
+
+Both patterns create the wrong security boundary for Fichero.
+
+## Token handling
+
+The engine writes its API token on the engine host:
+
+```bash
+"$HOME/Library/Application Support/Fichero/.api-key"
+```
+
+The token authorizes API access once a request has reached the engine. Treat it
+like a password:
+
+- Do not paste it into shared shell history, tickets, chat, or documentation.
+- Do not commit it to a repository.
+- Copy it only to devices that should be able to call the engine.
+- Rotate it by stopping the engine, deleting the token file on the engine host,
+  and restarting the engine.
+
+The health endpoint is unauthenticated, but library operations require:
+
+```http
+Authorization: Bearer <token>
+```
+
+CLI or MCP clients pointed at the Tailscale URL need both the remote API URL and
+the remote token:
+
+```bash
+export FICHERO_API_URL=https://<engine-name>.<tailnet-name>.ts.net
+export FICHERO_API_KEY=<remote-token>
+export FICHERO_LIBRARY_PATH=/path/on/engine/Library.fichero
+PYTHONPATH=fichero-engine/src .venv/bin/python -m fichero --json health
+```
+
+The library path is resolved on the engine machine. A path from the client
+device is not valid unless the same path also exists on the engine host.
+
+## Validation
+
+From a device on the tailnet:
+
+```bash
+curl -s https://<engine-name>.<tailnet-name>.ts.net/api/health
+```
+
+Expected properties:
+
+- no public DNS or public internet exposure is required
+- no engine process is bound to `0.0.0.0`, `::`, a LAN address, or a Tailscale
+  address
+- protected endpoints return `401` until the remote token is supplied
+- user and object authorization still comes from Fichero, not Tailscale
+

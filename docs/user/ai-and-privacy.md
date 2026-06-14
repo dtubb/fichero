@@ -65,13 +65,17 @@ The AI is an extraction instrument. Interpretation is yours.
 
 The Fichero engine runs on your Mac only. It binds to `127.0.0.1` (loopback) — it is not reachable from the internet or from other devices on your local network by default.
 
-If you want to use Fichero from an iPad or a second Mac, you can expose the engine to your personal [Tailscale](https://tailscale.com) network:
+If you want to use Fichero from an iPad or a second Mac, you can expose the loopback engine to your personal [Tailscale](https://tailscale.com) network:
 
 1. Install Tailscale on your Mac and the device you want to connect from.
 2. On your Mac, run: `tailscale serve https / http://127.0.0.1:8765`
 
-This makes the engine reachable over your tailnet only. It is not exposed to the internet.
+This makes the engine reachable over your tailnet only. It is not exposed to the internet, and the engine still listens only on loopback.
 
 **Do not use `tailscale funnel`.** Funnel exposes a service to the public internet. The Fichero engine is not designed to be publicly accessible.
+
+Tailscale is only the private transport. It does not replace Fichero's API token or app-level permissions. Treat the remote engine token like a password, and share it only with devices that should be able to call the engine.
+
+See [Tailscale private transport for Fichero](../remote-backend-tailscale.md) for setup details and the exact bind-host safety rules.
 
 This is an advanced workflow. The iPad client is in development; not all features available on macOS are available on iPad yet.

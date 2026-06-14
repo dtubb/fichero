@@ -9,6 +9,7 @@ This manual describes the Fichero app as it exists in the current SwiftUI client
 - [What Fichero Is](./what-fichero-is.md)
 - [Installing Fichero](./install.md)
 - [AI and Privacy](./ai-and-privacy.md)
+- [Tailscale Private Transport](../remote-backend-tailscale.md)
 - [Getting Started](./getting-started.md)
 - [Importing Documents](./importing-documents.md)
 - [Reading, Transcription, and Editing](./reading-and-editing.md)
