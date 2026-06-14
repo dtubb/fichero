@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `f68ccefd`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `e5a32ed5`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -80,6 +80,9 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 
 ### SHIPPED (loop tick 4c, partial #2164 slice, all gated ALL PASS + pushed, never red) — 0.0.2 @ f68ccefd
 - **#2164 partial** (f68ccefd) offloaded the `enhanced_search` content retriever path from the FastAPI event loop. `asyncio.to_thread` now wraps the synchronous `db.search` call plus PDF file-hit page projection, covering query embedding, LanceDB search, and batched page lookup work for the content-search path. Added a route-level guard test proving the handler awaits `asyncio.to_thread` instead of calling `db.search` inline. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4916 passed, 28 skipped, 21 xfailed, 1 xpassed`). #2164 remains open for the remaining upload-import, async write-handler/write-conflict backoff, and thumbnail/display cache-miss offload bullets; `search-offload-2164` worktree/branch removed.
+
+### SHIPPED (loop tick 4d, partial #2164 slice, all gated ALL PASS + pushed, never red) — 0.0.2 @ e5a32ed5
+- **#2164 partial** (e5a32ed5) offloaded the uploaded-file import route's blocking ingest/copy/OCR/embed work. `POST /api/documents/import` still streams the multipart body to a temp file asynchronously, then wraps `import_uploaded_file_impl` in `asyncio.to_thread`; temp cleanup and change emission remain in the route. Added a direct route guard proving the sync ingest helper is awaited through `to_thread` and temp files are still removed. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4917 passed, 28 skipped, 21 xfailed, 1 xpassed`). #2164 remains open for async write-handler/write-conflict backoff and thumbnail/display cache-miss offload bullets; `upload-offload-2164` worktree/branch removed.
 
 ### In flight (poll on wake) — tick 3
 - None currently active. **AI Infrastructure milestone #83 is drained and epic #2056 is closed.** Remaining referenced follow-ups moved to owning lanes/milestones: #2058/#2063/#2064 (Settings & Providers), #2060 (Importers), #2061 (Image Editing), #2067/#2071 (Researcher). Next autonomous scope: backend-only security, efficiency, and comparison follow-ups. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
