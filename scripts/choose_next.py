@@ -143,7 +143,76 @@ def _extract_milestones(block: str) -> tuple[str, ...]:
 
 def parse_roadmap(path: Path = DEFAULT_ROADMAP) -> list[RoadmapTier]:
     text = path.read_text(encoding="utf-8")
+    legacy_tiers = _parse_legacy_tiers(text)
+    if legacy_tiers:
+        return legacy_tiers
+    current_work_order = _parse_current_work_order(text)
+    if current_work_order:
+        return current_work_order
+    return _parse_phase_work_order(text)
+
+
+def _parse_legacy_tiers(text: str) -> list[RoadmapTier]:
     heading_re = re.compile(r"^## Tier (?P<key>\d+b?)\s+[—-]\s+(?P<title>.+)$", re.MULTILINE)
+    matches = list(heading_re.finditer(text))
+    tiers: list[RoadmapTier] = []
+    for index, match in enumerate(matches):
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        block = text[start:end]
+        tiers.append(
+            RoadmapTier(
+                key=match.group("key"),
+                title=match.group("title").strip(),
+                milestones=_extract_milestones(block),
+                issue_numbers=_dedupe_numbers(int(num) for num in re.findall(r"#(\d+)", block)),
+            )
+        )
+    return tiers
+
+
+def _parse_current_work_order(text: str) -> list[RoadmapTier]:
+    """Parse the current ROADMAP refined-order format.
+
+    The roadmap was changed from ``## Tier N`` headings to a numbered,
+    authoritative work-order block. Keep this deliberately conservative:
+    the ordered issue references in each numbered section are enough for
+    manager selection, while milestone-wide expansion remains available in
+    the legacy/phase formats.
+    """
+
+    marker = "### ▶▶ REFINED ORDER"
+    marker_index = text.find(marker)
+    if marker_index == -1:
+        return []
+
+    start = text.find("**1.", marker_index)
+    if start == -1:
+        return []
+    end_marker = "\n### Cross-cutting"
+    end = text.find(end_marker, start)
+    block = text[start:] if end == -1 else text[start:end]
+
+    heading_re = re.compile(r"^\*\*(?P<key>\d+)\.\s+(?P<title>[^*]+?)\*\*", re.MULTILINE)
+    matches = list(heading_re.finditer(block))
+    tiers: list[RoadmapTier] = []
+    for index, match in enumerate(matches):
+        section_start = match.end()
+        section_end = matches[index + 1].start() if index + 1 < len(matches) else len(block)
+        section = block[section_start:section_end]
+        tiers.append(
+            RoadmapTier(
+                key=match.group("key"),
+                title=match.group("title").strip().rstrip(":"),
+                milestones=(),
+                issue_numbers=_dedupe_numbers(int(num) for num in re.findall(r"#(\d+)", section)),
+            )
+        )
+    return tiers
+
+
+def _parse_phase_work_order(text: str) -> list[RoadmapTier]:
+    heading_re = re.compile(r"^### Phase (?P<key>\d+)\s+[—-]\s+(?P<title>.+)$", re.MULTILINE)
     matches = list(heading_re.finditer(text))
     tiers: list[RoadmapTier] = []
     for index, match in enumerate(matches):
@@ -403,8 +472,34 @@ def run_self_test() -> int:
     assert big_selection["tier"]["key"] == "1", big_selection
     assert big_selection["mode"] == "one-big", big_selection
     assert [issue["number"] for issue in big_selection["issues"]] == [74], big_selection
+
+    current_roadmap = """
+### ▶▶ REFINED ORDER (2026-06-11 PM design session) — authoritative over the 4 phases below
+**1. INFRASTRUCTURE (doing NOW — finish before Mac):**
+- Remaining backend: **#2045** SSE hardening · **#2026** Tailscale.
+
+**2. MAC-ASSED APP (#2030) — the big UI reform:**
+- **#2081 — Library node model (FOUNDATION, do early):**
+
+### Cross-cutting GUARANTEE — Privacy
+"""
+    parsed = parse_roadmap_from_text_for_test(current_roadmap)
+    assert [tier.key for tier in parsed] == ["1", "2"], parsed
+    assert parsed[0].title == "INFRASTRUCTURE (doing NOW — finish before Mac)", parsed[0]
+    assert parsed[0].issue_numbers == (2045, 2026), parsed[0]
+    assert parsed[1].issue_numbers == (2081,), parsed[1]
     print("choose_next self-test passed")
     return 0
+
+
+def parse_roadmap_from_text_for_test(text: str) -> list[RoadmapTier]:
+    legacy_tiers = _parse_legacy_tiers(text)
+    if legacy_tiers:
+        return legacy_tiers
+    current_work_order = _parse_current_work_order(text)
+    if current_work_order:
+        return current_work_order
+    return _parse_phase_work_order(text)
 
 
 def main() -> int:
