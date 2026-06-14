@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `23fd0bd3`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `4b8ebe58`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -43,13 +43,16 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 - **#2066** (23fd0bd3) shipped the AI Infrastructure design path for local MLX/on-device agent: new `docs/architecture/mlx_on_device_agent.md` plus pointer from `ai_infrastructure.md`. Decision: start with an app-managed OpenAI-compatible local MLX service because the backend already supports keyless local providers (`omlx`/`ollama`/`lmstudio`), keep local-only as a hard no-cloud boundary, define Pydantic/OpenAPI contract shapes before runtime code, and build the future in-app agent on existing action-registry + audit + SSE/change-stream seams. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4847 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `mlx-agent-design-2066` worktree/window removed.
 - **#2199 filed** as the first backend implementation slice from #2066: app-managed local MLX service manager + typed local provider profiles.
 
+### SHIPPED (loop tick 3d, all gated ALL PASS + pushed, never red) — 0.0.2 @ 4b8ebe58
+- **#2199** (4b8ebe58) shipped backend-only typed local inference contracts and an app-managed loopback service-manager abstraction for local MLX/oMLX profiles. New `fichero.local_inference` declares Pydantic contracts for local provider profiles, model catalog entries, service health/status, inference request/result, structured-output/tool-call envelopes, and token usage. The service manager enforces local provider/no-paid-fallback/loopback invariants, tracks lifecycle state/restart count/uptime, and uses injectable fake process/health clients for no-download/no-real-network tests. Manager/independent reviews caught and repaired startup health retry semantics, strict malformed-health parsing, reachable-but-unloaded cold starts, and crash restart timestamps. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4864 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `mlx-service-manager-2199` worktree/branch removed.
+
 ### In flight (poll on wake) — tick 3
-- None currently active. Next: #2199 backend local MLX service-manager contracts, #2198 workflow-engine follow-up, or in-app agent design slices (#2067/#2071). Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
+- None currently active. Next: #2198 workflow-engine follow-up, #1814 runtime MLX inference/embedding slice, or in-app agent design slices (#2067/#2071). Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
 
 ### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
 1. **Workflow engine follow-up**: **#2198** — sub-workflow nodes + explicit vision-tier aliases + `$thinking` semantics for true cheap→large→combine model selection without bypassing no-cloud policy.
 2. **Batch/eval polish**: use the now-shipped compare CLI/API and #2057 batching to evaluate good-and-cheap model choices without network leaks; keep tests/fakes network-free.
-3. **MLX on-device implementation**: **#2199** first backend slice; #1814 remains the runtime embedding/inference thread; #2067/#2071 remain agent/product/runtime follow-ups.
+3. **MLX on-device implementation**: #2199 first backend slice is done; #1814 remains the runtime embedding/inference thread; #2067/#2071 remain agent/product/runtime follow-ups.
 4. **Deferred/held**: Mac/SwiftUI, `entitytable-2020`, `lan-tls-2157`, and auth/security design calls stay untouched.
 
 ### ICANH ground truth (my vision, for scoring bake-offs)
