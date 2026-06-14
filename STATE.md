@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `8c0d892e`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `cb330be3`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -50,11 +50,14 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 - **#2198 design phase** (8c0d892e) added `docs/architecture/workflow_multi_pass_engine.md` plus architecture index link. The doc specifies first-class `sub_workflow` nodes with declared input/output contracts, child run lineage, cycle prevention, and error propagation; capability-scoped `$vision_small`/`$vision_medium`/`$vision_large` aliases that cannot route image nodes through text tiers; explicit reconciliation/`thinking_mode` boundaries; cost/privacy preflight requirements; and a migration path from the current Spanish Script preset. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4864 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed as design-complete, not as direct runtime implementation.
 - **#2200 / #2201 / #2202 filed** from #2198: capability-scoped vision aliases + local-only preflight; typed sub-workflow node contracts + lineage; Spanish Script v2 using sub-workflow + vision tiers.
 
+### SHIPPED (loop tick 3f, all gated ALL PASS + pushed, never red) — 0.0.2 @ cb330be3
+- **#2200** (a39be2ad + cb330be3) shipped capability-scoped vision aliases and workflow preflight. Backend now resolves `$vision_small` / `$vision_medium` / `$vision_large` through env/settings defaults, seeds typed vision AI defaults, regenerates OpenAPI copies, validates provider/model capability metadata for text/vision/audio/video workflow nodes, and applies local-only policy before execution. Manager review caught an audio/video capability edge and the first full gate caught stale two-arg alias resolver test stubs; both were repaired with regressions. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4880 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `vision-alias-preflight-2200` worktree/branch removed.
+
 ### In flight (poll on wake) — tick 3
-- None currently active. Next: #2200 (vision-tier aliases + local-only preflight), #2201 (typed sub-workflow node), #1814 runtime MLX inference/embedding slice, or in-app agent design slices (#2067/#2071). Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
+- None currently active. Next: #2201 (typed sub-workflow node), #2202 (Spanish Script v2 using sub-workflow + vision tiers), #1814 runtime MLX inference/embedding slice, or in-app agent design slices (#2067/#2071). Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
 
 ### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
-1. **Workflow engine follow-up**: **#2200** first (capability-scoped vision aliases + local-only preflight), then **#2201** (typed sub-workflow node contracts + lineage), then **#2202** (Spanish Script v2 using sub-workflow + vision tiers).
+1. **Workflow engine follow-up**: **#2201** (typed sub-workflow node contracts + lineage), then **#2202** (Spanish Script v2 using sub-workflow + vision tiers).
 2. **Batch/eval polish**: use the now-shipped compare CLI/API and #2057 batching to evaluate good-and-cheap model choices without network leaks; keep tests/fakes network-free.
 3. **MLX on-device implementation**: #2199 first backend slice is done; #1814 remains the runtime embedding/inference thread; #2067/#2071 remain agent/product/runtime follow-ups.
 4. **Deferred/held**: Mac/SwiftUI, `entitytable-2020`, `lan-tls-2157`, and auth/security design calls stay untouched.
