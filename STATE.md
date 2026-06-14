@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `fcd63051`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `7fc59a68`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -71,6 +71,9 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 
 ### SHIPPED (loop tick 3l, all gated ALL PASS + pushed, never red) — 0.0.2 @ fcd63051
 - **#1814** (fcd63051) shipped the backend internal endpoint slice for app-managed local MLX/oMLX inference. New typed `/api/local-inference/*` routes expose local profile/catalog/validation/status/health/start/stop contracts, backed by the existing `omlx` OpenAI-compatible provider seam and a new `ExternalLocalInferenceProcess` adapter so the Mac app can own the real process lifecycle. The route enforces local-only/loopback/no-paid-fallback invariants through Pydantic models; tests use fake process/health clients, with no downloads, no real server launch, and no cloud path. OpenAPI/client inputs were regenerated and guardrail baselines explicitly record the deferred Mac/SwiftUI wiring. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4908 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `mlx-internal-endpoint-1814` worktree/branch removed.
+
+### SHIPPED (loop tick 4a, all gated ALL PASS + pushed, never red) — 0.0.2 @ 7fc59a68
+- **#2122** (7fc59a68) reconciled `bind_host.py` with `remote_backend.py` in favor of Daniel's loopback-only + `tailscale serve` / SSH-forwarding decision. `FICHERO_BIND_HOST` now rejects non-loopback values by default; `0.0.0.0` and `::` are always refused; the only non-loopback escape hatch is the explicit owner risk acknowledgement `FICHERO_ALLOW_NON_LOOPBACK_BIND=I_UNDERSTAND_SHARED_SECRET_RISK`, which emits a runtime warning because the shared bootstrap token is not an internet-facing auth boundary. CLI help and developer security docs now point to `tailscale serve` / SSH forwarding rather than binding a tailnet IP. Tests cover loopback variants, non-loopback refusal/ack, wildcard rejection, and remote-backend tailnet bind rejection. Manager gate passed: `bash scripts/verify_all.sh --standard` → `verify_all (standard): ALL PASS` (`4912 passed, 28 skipped, 21 xfailed, 1 xpassed`). Issue closed; `bind-host-2122` worktree/branch removed.
 
 ### In flight (poll on wake) — tick 3
 - None currently active. **AI Infrastructure milestone #83 is drained and epic #2056 is closed.** Remaining referenced follow-ups moved to owning lanes/milestones: #2058/#2063/#2064 (Settings & Providers), #2060 (Importers), #2061 (Image Editing), #2067/#2071 (Researcher). Next autonomous scope: backend-only security, efficiency, and comparison follow-ups. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
