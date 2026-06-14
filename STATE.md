@@ -27,11 +27,31 @@ Work backend milestones via Claude workers in external worktrees (`~/code/ficher
   CORRECTED diagnosis (cloud path per-page, not "vision never runs").
 - Uncommitted OpenAPI surface regen on `0.0.2` (5 files) committed at this session-end.
 
+## Opus reviews COMPLETE — milestones populated
+- **AI Backend Hardening**: #2224 (per-page cache), #2225 (lancedb model-stamp migration),
+  #2226–#2234 (E5 role mismatch, quota misclassification, vision-path missing timeout/telemetry,
+  fire-and-forget embeds, silent batch-embed except, sync-ONNX-blocks-loop, drift-guard-32-row,
+  RAM-OOM embeds, remote-embed gating), #2248 (deps upgrade).
+- **Workflows & Catalogue Hardening**: #2222 (one-page-at-a-time), #2223 (startup re-run),
+  #2235 (msgpack checkpoint), #2236–#2247 + #2249–#2252. KEY VERDICT: one-page-at-a-time is
+  honored BY CONSTRUCTION in the default "Transcribe" preset + Catalogue (direct files-source→
+  transcribe edge, Send fan-out), but BREAKS silently in Auto-Detect (#2236), folder/collection
+  sources (#2239/#2240/#2242), and the whole-PDF fallback (#2249). Highest-leverage: #2236,
+  #2243 (Apple not in vision fallback), #2244/#2245 (empty success reported as OK), #2250 (the
+  missing per-page regression test).
+
+## Active worker lanes (persistent tmux — feed next batch, don't respawn)
+- `f_importer_fixes` (ms/importer-fixes) — #2222 + workflow bugs.
+- `f_ai_backend` (ms/ai-backend-harden) — AI Backend Hardening batch.
+- `f_deps` (ms/deps-update, opus) — #2248 in ISOLATED .venv-deps; gate/integrate separately.
+
 ## Next Session — Start Here
-1. `git status`, `git worktree list`, `tmux ls`. Confirm NOT on :8765; don't touch ICANH libs.
-2. Drive the overnight loop: `/choose-next` → `/dispatch-worker` (Claude sonnet default, opus
-   for hard like #2222), 3–10 issues/batch, gate with full unit suite only after a risky/DB/
-   god-node batch (focused checks fine for docs/small slices), cherry-pick to 0.0.2, push if green.
-3. #2222 fix is gateable via unit test (per-page page_content) — do NOT run live transcribe.
-4. Read MEMORY.md "Live transcription gotchas": transcribe ~420s/page, restart backend after
-   merges (reload unreliable), tmux multi-line needs a 2nd Enter, verify DB yourself.
+1. `git status`, `git worktree list`, `tmux ls`. You OWN :8765 now (Daniel freed it) — use it to
+   verify ICANH live after #2222 lands (restart clean backend on importers-worktree source;
+   transcribe ~440s/doc is NOT a hang). Don't destroy ICANH library data.
+2. Run the 30-min overnight loop (see the ScheduleWakeup prompt): integrate the 3 lanes, gate,
+   cherry-pick to 0.0.2, push green, feed next batch. Drain Workflows & Catalogue Hardening →
+   AI Backend Hardening → Observable Data Layer (4) → AI Infra (4) → Remote/DevEx → Mac (code-only).
+3. f_deps changes pyproject — gate ALONE in its own venv, integrate carefully, never the shared .venv.
+4. Read MEMORY.md "Live transcription gotchas": ~440s/doc, restart backend after merges (reload
+   unreliable), tmux multi-line needs a 2nd Enter, verify DB/commits yourself (workers over-report).
