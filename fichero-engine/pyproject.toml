@@ -56,6 +56,7 @@ requires = [
     "aiohttp",
     "httpx",
     "defusedxml",
+    "zeroconf",
     # Data Layer
     "pydantic",
     "pydantic-settings",
@@ -143,6 +144,7 @@ dependencies = [
     "aiohttp",
     "httpx",
     "defusedxml",
+    "zeroconf",
     "fastapi",
     "uvicorn[standard]",
     # Keep aligned with Briefcase deps to avoid runtime deprecation warnings.

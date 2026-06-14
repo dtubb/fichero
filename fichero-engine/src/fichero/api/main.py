@@ -61,6 +61,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from fichero.db import Database, db_manager
+from fichero.discovery import start_bonjour_advertiser
 from fichero.models import (
     EmbeddingStatsResponse,
     HealthResponse,
@@ -605,10 +606,14 @@ async def lifespan(app: FastAPI):
     # become an orphan holding port 8765.
     parent_watcher = asyncio.create_task(_watch_parent_process())
     periodic_snapshot_task = start_periodic_snapshot_task()
+    bonjour_advertiser = start_bonjour_advertiser(log=logger)
+    app.state.bonjour_advertiser = bonjour_advertiser
 
     yield
     parent_watcher.cancel()
     await stop_periodic_snapshot_task(periodic_snapshot_task)
+    if bonjour_advertiser is not None:
+        bonjour_advertiser.stop()
     # Shutdown: close all database connections
     logger.info("Fichero API shutting down...")
     db_manager.close_all()
