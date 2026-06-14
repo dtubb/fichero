@@ -1,38 +1,37 @@
-# STATE — backend handoff 2026-06-14
+# STATE — overnight handoff 2026-06-14 (late)
 
-Branch `0.0.2` @ `0c2f27c8`, pushed clean. Keep `0.0.2 == origin`.
+Branch `0.0.2`, tracking `origin/0.0.2`. Keep `0.0.2 == origin` (gate before every push).
 
-## Current Focus
+## ⛔ Do NOT touch overnight
+- **Port `:8765` and the ICANH libraries** — Daniel is running his OWN backend and testing
+  `ICANH-Clean.fichero` himself. No CLI transcribe/import/export, no backend on 8765.
+- Mac / SwiftUI / Xcode (no-xcodebuild-on-Daniel's-machine rule — launches GUI windows).
+- Held worktrees `entitytable-2020` (#2020), `lan-tls-2157` (#2157); `.claude/worktrees/agent-aaf4fec2eced9c821`.
 
-Backend-only autonomous work remains allowed; do **not** proceed to Mac/SwiftUI without Daniel. AI Infrastructure #83 / #2056 is drained and closed; remaining work is backend-safe follow-up: guardrails, comparison/evaluation, OCR geometry, observable/change-stream, API contract cleanup, and efficiency.
+## Current Focus — overnight autonomous BACKEND milestone work
+Work backend milestones via Claude workers in external worktrees (`~/code/fichero-worktrees/`),
+3–10 issues per batch, gate+merge in batches (don't over-verify — it's slow). Priority order:
+1. **#2222 (TOP)** — Transcribe *cloud* path saves combined transcript to the PARENT PDF, not
+   page children. Fix: cloud/Gemini transcribe must OCR each page image separately and write
+   each page's text to its page child (build `per_page_texts` for the single-call path, like
+   #2215 did for the Apple/LLM path). Add a unit test asserting per-page page_content. No live
+   backend needed to gate (mock vision). Daniel re-tests live in the morning.
+2. **Observable Data Layer** (4 open, 77% done) — nearly complete, backend-safe.
+3. **AI Infrastructure** (4 open, 82% done) — nearly complete.
+4. **Remote & Self-Hosting** (16 open) — engine-remote / storage-HTTP / configurable host (backend).
+5. **Developer Experience** (27 open) — docs + tooling (verify_all, sync_openapi, gates, CI).
 
-## Completed This Session
-
-- **#2061** shipped image-editing backend strategy doc: local-first Pillow/PyMuPDF, optional Quartz/Core Image, narrow OpenCV helper, no-cloud posture.
-- **#2205** shipped backend Pydantic persistence guardrail; full `verify_all --standard` passed (`4992 passed, 22 skipped, 21 xfailed`).
-- **#1644** shipped Apple Vision OCR line/word geometry with text API compatibility; focused backend tests passed.
-- **#2206** filed for provider-agnostic OCR/transcription geometry across Apple Vision, VLM JSON, Google, AWS, optional Azure, and local OCR/layout APIs.
-- **#2001** shipped observable non-route save guardrail; focused checks passed and issue closed.
-- GitHub issue review released stale `status:in-progress` from **#2008**; held lanes left untouched.
-
-## In Progress / Held
-
-- No active autonomous backend worker lanes.
-- Held worktrees: `~/code/fichero-worktrees/entitytable-2020` (#2020) and `~/code/fichero-worktrees/lan-tls-2157` (#2157). Do not touch unless Daniel explicitly resumes them.
-- `.claude/worktrees/agent-aaf4fec2eced9c821` still exists; leave alone.
+## In Progress
+- tmux lanes `f_importer_fixes` (worktree `importer-fixes`, branch `ms/importer-fixes`) and
+  `f_icanh_cli` (stood down). importer-fixes was told to fix #2222 — verify it has the
+  CORRECTED diagnosis (cloud path per-page, not "vision never runs").
+- Uncommitted OpenAPI surface regen on `0.0.2` (5 files) committed at this session-end.
 
 ## Next Session — Start Here
-
-1. Check `git status`, `git worktree list`, and `tmux list-windows -t fichero-workers`; expect only main + held lanes.
-2. If continuing backend, pick one focused issue: **#2206** OCR geometry contract, **#2008** hermeneutics `interpretation.*` emits, **#1715** library-header OpenAPI cleanup, or **#1863** uniform change-stream architecture.
-3. Use external codex worktrees under `~/code/fichero-worktrees/`; workers must claim issues, write focused tests, commit, and stop.
-4. Batch full `verify_all --standard` after risky/API/DB/god-node batches; focused checks are acceptable for small guardrail/docs slices.
-5. Do not touch Mac/SwiftUI, #2157, #2020, or Swift client wiring without Daniel.
-
-## Hard Rules
-
-- Backend edits happen in worker worktrees, then manager cherry-picks atomic commits.
-- Push only after verification; never push red.
-- New backend API changes require OpenAPI/client sync.
-- Pydantic/OpenAPI fields must be declared and typed; no silent `additionalProperties` or dynamic `extra="allow"` persistence.
-- Cloud providers, including Google/AWS/Azure OCR, require explicit consent and must be blocked in local-only mode.
+1. `git status`, `git worktree list`, `tmux ls`. Confirm NOT on :8765; don't touch ICANH libs.
+2. Drive the overnight loop: `/choose-next` → `/dispatch-worker` (Claude sonnet default, opus
+   for hard like #2222), 3–10 issues/batch, gate with full unit suite only after a risky/DB/
+   god-node batch (focused checks fine for docs/small slices), cherry-pick to 0.0.2, push if green.
+3. #2222 fix is gateable via unit test (per-page page_content) — do NOT run live transcribe.
+4. Read MEMORY.md "Live transcription gotchas": transcribe ~420s/page, restart backend after
+   merges (reload unreliable), tmux multi-line needs a 2nd Enter, verify DB yourself.

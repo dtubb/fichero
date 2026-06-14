@@ -2555,3 +2555,9 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - Filed #2206 for provider-agnostic OCR/transcription geometry across Apple Vision, VLM JSON, Google, AWS, optional Azure, and local OCR/layout APIs with privacy gates.
 - Shipped #2001 observable-save guardrail (`67498731`): `check_emit_change_coverage.py` now derives route domains from a central map and flags API-adjacent non-route observable saves without nearby `emit_change()` or explicit allow; focused tests passed.
 - GitHub issue review: removed stale `status:in-progress` from #2008; confirmed held lanes #2157/#2020 remain untouched.
+
+## 2026-06-14 — Session Summary (ICANH transcription + overnight setup)
+
+- Shipped 8 backend fixes to origin/0.0.2: #2215 (per-page transcribe, Apple/LLM whole-PDF path), #1657 (SVO date+page), #2219 (parent marked completed), #2216/#2217/#2218 (thumbnail+display artifacts for parents+page children), #2220 (graceful empty-file-list / stale-ID, reconciled with #1060 fail-fast), #2221 (semaphore-bounded vision fan-out = the OOM crash / 2GB fix). Each full-suite gated (5021–5031 passed).
+- Filed #2222 (Transcribe cloud path saves combined transcript to PARENT, not page children — per-page propagation gap in the Gemini single-call path). Confirmed live by Daniel in-app. Distinct code path from #2215.
+- Built fresh ICANH-Clean.fichero; staged 15 ICANH PDFs by date at agent-work/icanh-clean/source/. Daniel running his own backend on :8765 to test.
