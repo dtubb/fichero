@@ -107,6 +107,12 @@ hard no-cloud boundary, and build the future in-app agent on the existing action
 registry + audit + SSE/change-stream seams instead of inventing a parallel tool
 system.
 
+See also: [Apple Skills vs AI Skills](./apple_vs_ai_skills.md), which defines how
+Apple on-device capabilities, local AI providers, and remote AI providers should
+coexist as implementations of the same logical capability contract. App Intents
+remain an invocation layer over typed backend actions/workflows, not a second
+mutation system.
+
 ## 2. Reuse / batching / concurrency
 
 **BUILT:** model reuse is solid — `_get_shared_embedder` pools the embedder
