@@ -42,6 +42,17 @@ run_check "Xcode tests" xcodebuild test -project fichero/fichero.xcodeproj -sche
 run_check "Pylint (errors only)" env PYTHONPATH=fichero-engine/src "$PYTHON_BIN" -m pylint --rcfile=fichero-engine/.pylintrc --errors-only fichero-engine/src/fichero fichero-engine/src/engine
 run_check "Pytest unit" env PYTHONPATH=fichero-engine/src "$PYTHON_BIN" -m pytest fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived -q
 
+echo
+echo "=== Architecture and tooling guardrails ==="
+for GUARDRAIL in scripts/check_*.py; do
+  GUARDRAIL_NAME="$(basename "$GUARDRAIL")"
+  if [ "$GUARDRAIL_NAME" = "check_unmerged_work.py" ] || [ "$GUARDRAIL_NAME" = "check_emit_change_coverage.py" ]; then
+    continue
+  fi
+  run_check "$GUARDRAIL_NAME" "$PYTHON_BIN" "$GUARDRAIL"
+done
+run_check "check_emit_change_coverage.py" "$PYTHON_BIN" scripts/check_emit_change_coverage.py
+
 run_check "OpenAPI sync script" ./fichero-engine/scripts/sync_openapi_schema.sh
 run_check "OpenAPI parity check" cmp -s \
   fichero-engine/tests/contracts/openapi.json \
