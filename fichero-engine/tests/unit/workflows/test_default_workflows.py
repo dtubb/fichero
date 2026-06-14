@@ -373,6 +373,12 @@ class TestLoadPresetFiles:
                 "transcribe_review",
                 "reference-search",
             ),
+            (
+                "Transcribe Spanish Script (19th-20th C., Multi-Pass)",
+                "transcribe-draft",
+                "transcribe-review-small",
+                "reference-search",
+            ),
             ("Transcribe (Auto-Detect)", "transcribe-htr", "review-htr", "reference-search-htr"),
             (
                 "Transcribe (Auto-Detect)",
@@ -402,6 +408,95 @@ class TestLoadPresetFiles:
             )
             assert search_to_review["source_port"] == "documents"
             assert search_to_review["target_port"] == "metadata"
+
+    def test_spanish_script_multipass_preset_ships_in_transcribe_folder(self):
+        presets = {p["name"]: p for p in _load_preset_files()}
+        preset = presets["Transcribe Spanish Script (19th-20th C., Multi-Pass)"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Transcribe"
+        assert preset.get("config", {}).get("preset_version") == 1
+
+    def test_spanish_script_multipass_has_three_pass_graph(self):
+        presets = {p["name"]: p for p in _load_preset_files()}
+        preset = presets["Transcribe Spanish Script (19th-20th C., Multi-Pass)"]
+
+        node_by_id = {node["id"]: node for node in preset["nodes"]}
+        assert set(node_by_id) == {
+            "files-source",
+            "transcribe-draft",
+            "reference-search",
+            "transcribe-review-small",
+            "transcribe-final-large",
+        }
+        assert node_by_id["transcribe-draft"]["tool"] == "transcribe"
+        assert node_by_id["reference-search"]["tool"] == "search"
+        assert node_by_id["transcribe-review-small"]["tool"] == "transcribe_review"
+        assert node_by_id["transcribe-final-large"]["tool"] == "transcribe_review"
+
+        required_edges = {
+            ("files-source", "transcribe-draft", "files", "files"),
+            ("transcribe-draft", "reference-search", "text", "query"),
+            ("files-source", "transcribe-review-small", "files", "files"),
+            ("transcribe-draft", "transcribe-review-small", "text", "context"),
+            ("reference-search", "transcribe-review-small", "documents", "metadata"),
+            ("files-source", "transcribe-final-large", "files", "files"),
+            ("transcribe-review-small", "transcribe-final-large", "text", "context"),
+            ("reference-search", "transcribe-final-large", "documents", "metadata"),
+        }
+        actual_edges = {
+            (
+                edge["source"],
+                edge["target"],
+                edge["source_port"],
+                edge["target_port"],
+            )
+            for edge in preset["edges"]
+        }
+        assert required_edges <= actual_edges
+
+    def test_spanish_script_multipass_uses_vision_defaults_without_hard_coding_models(self):
+        """All three passes are vision-category tools and should defer to the
+        user's configured vision defaults + fallback policy rather than pin
+        provider aliases inside the preset."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        preset = presets["Transcribe Spanish Script (19th-20th C., Multi-Pass)"]
+
+        node_by_id = {node["id"]: node for node in preset["nodes"]}
+        draft_config = node_by_id["transcribe-draft"]["config"]
+        small_config = node_by_id["transcribe-review-small"]["config"]
+        final_config = node_by_id["transcribe-final-large"]["config"]
+
+        assert "provider_name" not in draft_config
+        for config in (draft_config, small_config, final_config):
+            assert "provider_name" not in config
+            assert "model" not in config
+
+        assert final_config.get("update_page_content") is True
+        assert small_config.get("update_page_content") is False
+
+    def test_spanish_script_multipass_prompt_mentions_required_constraints(self):
+        presets = {p["name"]: p for p in _load_preset_files()}
+        preset = presets["Transcribe Spanish Script (19th-20th C., Multi-Pass)"]
+        node_by_id = {node["id"]: node for node in preset["nodes"]}
+
+        draft_prompt = node_by_id["transcribe-draft"]["config"]["prompt"]
+        final_prompt = node_by_id["transcribe-final-large"]["config"]["prompt"]
+
+        for needle in (
+            "Spanish Script (19th-20th c.)",
+            "notarial or secretarial cursive",
+            "Preserve original orthography",
+            "Preserve names, place names, dates, money",
+            "line breaks",
+            "Do not hallucinate",
+            "[UNCERTAIN]",
+            "[ILLEGIBLE]",
+        ):
+            assert needle in draft_prompt or needle in final_prompt, (
+                f"missing required prompt guidance: {needle!r}"
+            )
 
 
     def test_catalogue_inputs_route_via_transcribe_not_user_aggregate(self):

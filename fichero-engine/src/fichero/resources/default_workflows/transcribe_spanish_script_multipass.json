@@ -1,0 +1,145 @@
+{
+  "name": "Transcribe Spanish Script (19th-20th C., Multi-Pass)",
+  "description": "Three-step transcription preset for 19th-20th century Spanish notarial and secretarial handwriting. Pass 1 drafts from the page image, Pass 2 performs a lightweight review against the image plus reference hits, and Pass 3 performs a stronger final reconciliation that updates page content. All three vision passes intentionally defer to the user's configured vision defaults and paid-fallback policy instead of pinning provider aliases inside the preset.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Transcribe",
+  "tags": [
+    "preset",
+    "transcribe",
+    "spanish",
+    "script",
+    "notarial",
+    "multi-pass"
+  ],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 260,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "transcribe-draft",
+      "tool": "transcribe",
+      "label": "Spanish Script Draft",
+      "position_x": 300,
+      "position_y": 260,
+      "inputs": {},
+      "config": {
+        "vision_mode": "llm",
+        "language": "es",
+        "update_page_content": false,
+        "prompt": "You are transcribing Spanish Script (19th-20th c.) from a manuscript image. This page is from Spanish notarial or secretarial cursive, not early-modern paleography. Produce a draft transcription for later review.\n\nContext:\n- Expect 19th-20th century Spanish script, including notarial and administrative formulas.\n- Treat unusual spellings, abbreviations, names, dates, and money amounts as documentary evidence, not mistakes.\n- The goal is faithful capture, not modernisation.\n\nRules:\n- Output ONLY the transcription. No commentary, no summary, no preamble, no script analysis.\n- Preserve original orthography exactly as written, including i/j/y usage, accenting, punctuation, abbreviations, honorifics, and formulaic legal phrasing.\n- Preserve names, place names, dates, money, folio markers, and line breaks exactly as visible.\n- Include all visible text elements: headings, body text, marginalia, stamps, signatures, and inserted words.\n- Keep crossed-out text as [deleted: <text>].\n- Keep uncertain readings inline as [UNCERTAIN]. Use [ILLEGIBLE] only when text is truly unreadable.\n- Do not hallucinate or silently complete unreadable text.\n- If a line or word is unreadable, leave the uncertainty marker at that exact position.\n- If the image has no legible text, output [sin texto]."
+      }
+    },
+    {
+      "id": "reference-search",
+      "tool": "search",
+      "label": "Reference Corpus Search",
+      "position_x": 500,
+      "position_y": 260,
+      "inputs": {},
+      "config": {
+        "search_type": "hybrid",
+        "status_filter": "completed",
+        "limit": 5
+      }
+    },
+    {
+      "id": "transcribe-review-small",
+      "tool": "transcribe_review",
+      "label": "Review Pass",
+      "position_x": 720,
+      "position_y": 180,
+      "inputs": {},
+      "config": {
+        "vision_mode": "llm",
+        "language": "es",
+        "update_page_content": false,
+        "thinking_mode": "low",
+        "prompt": "You are reviewing a draft transcription against the original image for Spanish Script (19th-20th c.), especially Spanish notarial and secretarial cursive.\n\nThe draft appears in the Context section above. Compare it directly against the image and against any reference snippets provided in metadata.\n\nReview priorities:\n- Preserve original orthography exactly as written; do not modernise spelling or punctuation.\n- Verify names, dates, money amounts, abbreviations, and honorific formulas character by character.\n- Keep original line breaks and paragraph breaks.\n- Check for skipped marginalia, stamps, signatures, inserted words, and crossed-out text.\n- Use [UNCERTAIN] for plausible low-confidence readings and [ILLEGIBLE] for truly unreadable text.\n- Do not hallucinate or silently expand unreadable spans.\n\nRules:\n- Output ONLY the corrected transcription. No commentary, no diff, no preamble.\n- If the draft is already correct, return it verbatim.\n- Preserve [deleted: ...] markers where applicable."
+      }
+    },
+    {
+      "id": "transcribe-final-large",
+      "tool": "transcribe_review",
+      "label": "Final Reconcile",
+      "position_x": 940,
+      "position_y": 340,
+      "inputs": {},
+      "config": {
+        "vision_mode": "llm",
+        "language": "es",
+        "update_page_content": true,
+        "thinking_mode": "medium",
+        "prompt": "You are performing the final reconciliation pass for a Spanish Script (19th-20th c.) transcription from a manuscript image. The prior reviewed draft appears in the Context section above.\n\nThis is the final pass before saving page content. Re-check the image carefully and produce the best faithful transcription you can without inventing text.\n\nFinal-pass priorities:\n- Preserve original orthography exactly as written. Do not modernise spellings, grammar, abbreviations, or punctuation.\n- Preserve names, place names, dates, money amounts, legal formulas, signatures, stamps, and line breaks exactly as visible.\n- Resolve draft mistakes where the image is clear, but keep [UNCERTAIN] or [ILLEGIBLE] when the page does not support a confident reading.\n- Never hallucinate missing text, even if the formula seems predictable.\n- Keep crossed-out text as [deleted: <text>] and retain inserted words at their visual insertion point.\n\nRules:\n- Output ONLY the corrected final transcription. No commentary, no rationale, no preamble.\n- If the prior review is already correct, return it verbatim.\n- Update only from what is visibly present in the image and supplied context."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-files-draft",
+      "source": "files-source",
+      "target": "transcribe-draft",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-draft-reference-search",
+      "source": "transcribe-draft",
+      "target": "reference-search",
+      "source_port": "text",
+      "target_port": "query"
+    },
+    {
+      "id": "edge-files-review-small",
+      "source": "files-source",
+      "target": "transcribe-review-small",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-draft-review-small",
+      "source": "transcribe-draft",
+      "target": "transcribe-review-small",
+      "source_port": "text",
+      "target_port": "context"
+    },
+    {
+      "id": "edge-reference-search-review-small",
+      "source": "reference-search",
+      "target": "transcribe-review-small",
+      "source_port": "documents",
+      "target_port": "metadata"
+    },
+    {
+      "id": "edge-files-final-large",
+      "source": "files-source",
+      "target": "transcribe-final-large",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-review-small-final-large",
+      "source": "transcribe-review-small",
+      "target": "transcribe-final-large",
+      "source_port": "text",
+      "target_port": "context"
+    },
+    {
+      "id": "edge-reference-search-final-large",
+      "source": "reference-search",
+      "target": "transcribe-final-large",
+      "source_port": "documents",
+      "target_port": "metadata"
+    }
+  ]
+}
