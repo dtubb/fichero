@@ -37,8 +37,6 @@ final class MindPalaceService: ObservableObject {
 
     private static let encoder = JSONEncoder()
 
-    private var libraryHeader: String { client.currentLibraryPath ?? "" }
-
     /// Decode a single untyped envelope item into a view-model. Returns nil
     /// for any item that fails to decode so one malformed row can't drop the
     /// whole scene.
@@ -57,7 +55,6 @@ final class MindPalaceService: ObservableObject {
     func listRooms() async throws -> [MindPalaceRoom] {
         let response = try await client.api.listRoomsApiMindPalaceRoomsGet(
             query: .init(),
-            headers: .init(xFicheroLibraryPath: libraryHeader)
         )
         switch response {
         case .ok(let okResponse):
@@ -76,7 +73,6 @@ final class MindPalaceService: ObservableObject {
     func listNodes(roomId: String) async throws -> [MindPalaceNode] {
         let response = try await client.api.listNodesApiMindPalaceNodesGet(
             query: .init(roomId: roomId),
-            headers: .init(xFicheroLibraryPath: libraryHeader)
         )
         switch response {
         case .ok(let okResponse):
@@ -106,7 +102,6 @@ final class MindPalaceService: ObservableObject {
         )
         let response = try await client.api.moveNodeApiMindPalaceNodesNodeIdPatch(
             path: .init(nodeId: nodeId),
-            headers: .init(xFicheroLibraryPath: libraryHeader),
             body: .json(body)
         )
         switch response {
@@ -128,7 +123,6 @@ final class MindPalaceService: ObservableObject {
     func listConnections(roomId: String) async throws -> [MindPalaceConnection] {
         let response = try await client.api.listConnectionsApiMindPalaceConnectionsGet(
             query: .init(roomId: roomId),
-            headers: .init(xFicheroLibraryPath: libraryHeader)
         )
         switch response {
         case .ok(let okResponse):
@@ -148,7 +142,6 @@ final class MindPalaceService: ObservableObject {
     func getViewport(roomId: String, userId: String = "user") async throws -> MindPalaceViewport? {
         let response = try await client.api.getViewportApiMindPalaceRoomsRoomIdViewportUserIdGet(
             path: .init(roomId: roomId, userId: userId),
-            headers: .init(xFicheroLibraryPath: libraryHeader)
         )
         switch response {
         case .ok(let okResponse):
@@ -190,7 +183,6 @@ final class MindPalaceService: ObservableObject {
         )
         let response = try await client.api.saveViewportApiMindPalaceRoomsRoomIdViewportUserIdPost(
             path: .init(roomId: roomId, userId: userId),
-            headers: .init(xFicheroLibraryPath: libraryHeader),
             body: .json(body)
         )
         switch response {
@@ -212,7 +204,6 @@ final class MindPalaceService: ObservableObject {
     @discardableResult
     func createRoom(name: String) async throws -> MindPalaceRoom? {
         let response = try await client.api.createRoomApiMindPalaceRoomsPost(
-            headers: .init(xFicheroLibraryPath: libraryHeader),
             body: .json(.init(name: name))
         )
         switch response {
@@ -232,7 +223,6 @@ final class MindPalaceService: ObservableObject {
     func deleteRoom(roomId: String) async throws {
         let response = try await client.api.deleteRoomApiMindPalaceRoomsRoomIdDelete(
             path: .init(roomId: roomId),
-            headers: .init(xFicheroLibraryPath: libraryHeader)
         )
         switch response {
         case .ok:
@@ -251,7 +241,6 @@ final class MindPalaceService: ObservableObject {
     func listStacks(roomId: String) async throws -> [MindPalaceStack] {
         let response = try await client.api.listStacksApiMindPalaceStacksGet(
             query: .init(roomId: roomId),
-            headers: .init(xFicheroLibraryPath: libraryHeader)
         )
         switch response {
         case .ok(let okResponse):
@@ -286,7 +275,6 @@ final class MindPalaceService: ObservableObject {
             label: label
         )
         let response = try await client.api.placeNodeApiMindPalaceNodesPost(
-            headers: .init(xFicheroLibraryPath: libraryHeader),
             body: .json(body)
         )
         switch response {
@@ -311,7 +299,6 @@ final class MindPalaceService: ObservableObject {
     ) async throws {
         let response = try await client.api.suggestArrangementApiMindPalaceRoomsRoomIdSuggestArrangementPost(
             path: .init(roomId: roomId),
-            headers: .init(xFicheroLibraryPath: libraryHeader),
             body: .json(.init(nodeIds: nodeIds, arrangementType: arrangementType))
         )
         switch response {
@@ -354,7 +341,6 @@ extension MindPalaceService {
     private func listLibraryDocuments(limit: Int) async throws -> [Components.Schemas.Document] {
         let response = try await client.api.listDocumentsApiDocumentsGet(
             query: .init(limit: limit),
-            headers: .init(xFicheroLibraryPath: libraryHeader)
         )
         switch response {
         case .ok(let okResponse):
@@ -370,7 +356,6 @@ extension MindPalaceService {
     private func listLibraryEntities(limit: Int) async throws -> [Components.Schemas.KnowledgeEntity] {
         let response = try await client.api.listEntitiesApiEntitiesGet(
             query: .init(limit: limit),
-            headers: .init(xFicheroLibraryPath: libraryHeader)
         )
         switch response {
         case .ok(let okResponse):
@@ -386,7 +371,6 @@ extension MindPalaceService {
     private func listLibraryClaims(limit: Int) async throws -> [Components.Schemas.KnowledgeClaim] {
         let response = try await client.api.listClaimsApiClaimsGet(
             query: .init(limit: limit),
-            headers: .init(xFicheroLibraryPath: libraryHeader)
         )
         switch response {
         case .ok(let okResponse):

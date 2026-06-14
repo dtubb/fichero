@@ -139,7 +139,6 @@ class ImportServiceGenerated: ObservableObject {
         }
 
         let response = try await client.api.ingestFileApiIngestFilePost(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(.init(
                 path: url.path,
                 parentId: parentId,
@@ -185,7 +184,6 @@ class ImportServiceGenerated: ObservableObject {
         }
 
         let response = try await client.api.ingestFolderApiIngestFolderPost(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(.init(
                 path: url.path,
                 parentId: parentId,

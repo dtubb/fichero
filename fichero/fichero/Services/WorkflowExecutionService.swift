@@ -35,9 +35,6 @@ class WorkflowExecutionService: ObservableObject {
         client.currentLibraryPath = path
     }
 
-    /// Library header for the library-scoped workflow-execution endpoints.
-    private var libraryHeaders: String { client.currentLibraryPath ?? "" }
-
     /// Map a generated execution-status payload onto the app model (1:1 fields).
     private func mapThread(_ response: Components.Schemas.ExecutionStatusResponse) -> ExecutionThread {
         ExecutionThread(
@@ -90,7 +87,6 @@ class WorkflowExecutionService: ObservableObject {
         defer { isExecuting = false }
 
         let response = try await client.api.executeWorkflowApiWorkflowExecutionExecutePost(
-            headers: .init(xFicheroLibraryPath: libraryHeaders),
             body: .json(request)
         )
 
@@ -138,7 +134,6 @@ class WorkflowExecutionService: ObservableObject {
 
         let response = try await client.api.resumeWorkflowApiWorkflowExecutionThreadsThreadIdResumePost(
             path: .init(threadId: threadId),
-            headers: .init(xFicheroLibraryPath: libraryHeaders),
             body: body
         )
 
@@ -163,7 +158,6 @@ class WorkflowExecutionService: ObservableObject {
     func getThreadStatus(threadId: String) async throws -> ExecutionThread {
         let response = try await client.api.getThreadStatusApiWorkflowExecutionThreadsThreadIdStatusGet(
             path: .init(threadId: threadId),
-            headers: .init(xFicheroLibraryPath: libraryHeaders)
         )
 
         switch response {
@@ -186,7 +180,6 @@ class WorkflowExecutionService: ObservableObject {
     func listThreads(limit: Int = 100) async throws -> [ExecutionThread] {
         let response = try await client.api.listThreadsApiWorkflowExecutionThreadsGet(
             query: .init(limit: limit),
-            headers: .init(xFicheroLibraryPath: libraryHeaders)
         )
 
         switch response {
@@ -210,7 +203,6 @@ class WorkflowExecutionService: ObservableObject {
     func deleteThread(threadId: String) async throws {
         let response = try await client.api.deleteThreadApiWorkflowExecutionThreadsThreadIdDelete(
             path: .init(threadId: threadId),
-            headers: .init(xFicheroLibraryPath: libraryHeaders)
         )
 
         switch response {
@@ -235,8 +227,7 @@ class WorkflowExecutionService: ObservableObject {
         // pause/cancel are app-wide (operate on a thread by id, no library
         // header in their OpenAPI signature) — unlike the other thread ops.
         let response = try await client.api.pauseWorkflowApiWorkflowExecutionThreadsThreadIdPausePost(
-            path: .init(threadId: threadId),
-            headers: .init()
+            path: .init(threadId: threadId)
         )
 
         switch response {
@@ -251,8 +242,7 @@ class WorkflowExecutionService: ObservableObject {
 
     func cancelWorkflow(threadId: String) async throws {
         let response = try await client.api.cancelWorkflowApiWorkflowExecutionThreadsThreadIdCancelPost(
-            path: .init(threadId: threadId),
-            headers: .init()
+            path: .init(threadId: threadId)
         )
 
         switch response {

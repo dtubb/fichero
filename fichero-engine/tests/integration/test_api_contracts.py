@@ -142,13 +142,13 @@ class TestCriticalEndpoints:
     def test_workflows_list_endpoint(self, client):
         """Workflows list endpoint must exist."""
         response = client.get("/api/workflows")
-        # 200 or 422 (missing library header) are both valid
-        assert response.status_code in [200, 422]
+        # 200 or 400 (missing schema-hidden library header) are both valid.
+        assert response.status_code in [200, 400]
 
     def test_documents_list_endpoint(self, client):
         """Documents list endpoint must exist."""
         response = client.get("/api/documents")
-        assert response.status_code in [200, 422]
+        assert response.status_code in [200, 400]
 
     def test_search_endpoint(self, client):
         """Search endpoint must accept POST."""

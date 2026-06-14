@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from fichero.api.library_header import optional_library_path, require_library_path
 from fichero.api.change_stream import emit_change
 from fichero.api.auth import request_actor
 from fichero.api.main import (
@@ -146,9 +147,7 @@ class EntityAuditResponse(BaseModel):
 # =============================================================================
 async def _digest_library_database(
     request: Request,
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> Database:
     """Resolve the digest database and translate missing headers to 400."""
     if not x_fichero_library_path:
@@ -316,7 +315,7 @@ def _build_alias_to_entity_id_map(db: Database) -> dict[str, str]:
 async def upsert_entity(
     request: EntityUpsertRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -728,7 +727,7 @@ async def patch_entity(
     entity_id: str,
     request: EntityPatchRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -836,7 +835,7 @@ async def delete_entity(
         ),
     ),
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -1114,7 +1113,7 @@ async def add_entity_aliases(
     entity_id: str,
     request: EntityAliasRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),

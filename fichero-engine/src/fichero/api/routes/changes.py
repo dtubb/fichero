@@ -14,9 +14,10 @@ import asyncio
 import logging
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import StreamingResponse
 
+from fichero.api.library_header import require_library_path
 from fichero.api.change_stream import _change_hub, format_change_sse
 from fichero.api.main import assert_library_read_authorized
 
@@ -31,7 +32,7 @@ _KEEPALIVE_TIMEOUT = 30.0
 @router.get("/changes/stream")
 async def stream_library_changes(
     request: Request,
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
 ) -> StreamingResponse:
     """Subscribe to the per-library change-event stream.

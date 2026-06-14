@@ -275,9 +275,7 @@ class StorageServiceGenerated: ObservableObject {
     func getStats() async throws -> StorageStats {
         logger.info("Fetching storage stats")
 
-        let response = try await client.api.storageStatsApiStorageStatsGet(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        )
+        let response = try await client.api.storageStatsApiStorageStatsGet()
 
         switch response {
         case .ok(let okResponse):

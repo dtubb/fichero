@@ -28,10 +28,11 @@ import secrets
 import stat
 from pathlib import Path
 
-from fastapi import FastAPI, Header, Request
+from fastapi import Depends, FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 
 from fichero import accounts
+from fichero.api.library_header import require_library_path
 from fichero.actions import ActionContext
 from fichero.app_db import get_app_db
 
@@ -227,7 +228,7 @@ def request_actor(request: Request) -> str:
 
 def action_context(
     request: Request,
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),

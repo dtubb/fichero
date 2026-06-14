@@ -42,7 +42,6 @@ class ChatServiceGenerated: ObservableObject {
         )
 
         let response = try await client.api.chatApiChatPost(.init(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(request)
         ))
 
@@ -82,7 +81,6 @@ class ChatServiceGenerated: ObservableObject {
         )
 
         let response = try await client.api.extractTextApiChatExtractTextPost(.init(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(request)
         ))
 

@@ -115,7 +115,6 @@ class WorkflowServiceGenerated: ObservableObject {
         let response = try await client.api.createNodeApiWorkflowsToolsToolNameCreateNodePost(.init(
             path: .init(toolName: toolName),
             query: .init(positionX: positionX, positionY: positionY),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
         switch response {
         case .ok(let okResponse):
@@ -133,7 +132,6 @@ class WorkflowServiceGenerated: ObservableObject {
         logger.info("createWorkflow: libraryPath=\(libraryPath), name=\(workflow.name)")
         let request = try convertToGeneratedWorkflowDef(workflow)
         let response = try await client.api.createWorkflowApiWorkflowsPost(.init(
-            headers: .init(xFicheroLibraryPath: libraryPath),
             body: .json(request)
         ))
         switch response {
@@ -155,7 +153,6 @@ class WorkflowServiceGenerated: ObservableObject {
         logger.info("listWorkflows called with libraryPath: \(libraryPath)")
         let response = try await client.api.listWorkflowsApiWorkflowsGet(.init(
             query: .init(folderPath: folderPath),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
         switch response {
         case .ok(let okResponse):
@@ -175,7 +172,6 @@ class WorkflowServiceGenerated: ObservableObject {
     func getWorkflow(_ id: String) async throws -> WorkflowDefinition {
         let response = try await client.api.getWorkflowApiWorkflowsWorkflowIdGet(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
         switch response {
         case .ok(let okResponse):
@@ -191,7 +187,6 @@ class WorkflowServiceGenerated: ObservableObject {
         let request = try convertToGeneratedWorkflowDef(workflow)
         let response = try await client.api.updateWorkflowApiWorkflowsWorkflowIdPut(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(request)
         ))
         switch response {
@@ -208,7 +203,6 @@ class WorkflowServiceGenerated: ObservableObject {
         logger.info("deleteWorkflow: id=\(id), libraryPath=\(libraryPath)")
         let response = try await client.api.deleteWorkflowApiWorkflowsWorkflowIdDelete(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: libraryPath)
         ))
         switch response {
         case .ok:
@@ -224,7 +218,6 @@ class WorkflowServiceGenerated: ObservableObject {
     func duplicateWorkflow(_ id: String) async throws -> WorkflowResponse {
         let response = try await client.api.duplicateWorkflowApiWorkflowsWorkflowIdDuplicatePost(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
         switch response {
         case .ok(let okResponse):
@@ -243,7 +236,6 @@ class WorkflowServiceGenerated: ObservableObject {
         let body = Components.Schemas.WorkflowPatchRequest(name: newName)
         let response = try await client.api.patchWorkflowApiWorkflowsWorkflowIdPatch(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: libraryPath),
             body: .json(body)
         ))
         switch response {
@@ -273,7 +265,6 @@ class WorkflowServiceGenerated: ObservableObject {
         )
         let response = try await client.api.patchWorkflowApiWorkflowsWorkflowIdPatch(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(body)
         ))
         switch response {
@@ -293,7 +284,6 @@ class WorkflowServiceGenerated: ObservableObject {
     func reorderWorkflows(_ workflowIds: [String], folderPath: String = "/") async throws {
         let response = try await client.api.reorderWorkflowsApiWorkflowsReorderPost(.init(
             query: .init(folderPath: folderPath),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(workflowIds)
         ))
         switch response {
@@ -308,7 +298,6 @@ class WorkflowServiceGenerated: ObservableObject {
     func exportWorkflow(_ id: String) async throws -> [String: AnyCodable] {
         let response = try await client.api.exportWorkflowApiWorkflowsWorkflowIdExportGet(.init(
             path: .init(workflowId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
         switch response {
         case .ok(let okResponse):
@@ -343,7 +332,6 @@ class WorkflowServiceGenerated: ObservableObject {
 
         let response = try await client.api.importWorkflowApiWorkflowsImportPost(.init(
             query: .init(name: name.isEmpty ? nil : name, description: description.isEmpty ? nil : description),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(bodyPayload)
         ))
 
@@ -385,9 +373,7 @@ class WorkflowServiceGenerated: ObservableObject {
     /// Deletes existing presets and re-seeds so updated JSON reaches the library.
     func reinstallDefaults() async throws {
         // Library-scoped op (#1714): the header is required by the generated signature.
-        let response = try await client.api.reinstallDefaultWorkflowsApiWorkflowsReinstallDefaultsPost(.init(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        ))
+        let response = try await client.api.reinstallDefaultWorkflowsApiWorkflowsReinstallDefaultsPost(.init())
         switch response {
         case .ok:
             return

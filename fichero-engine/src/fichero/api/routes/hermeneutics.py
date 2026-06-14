@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.api.library_header import optional_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
@@ -187,9 +188,7 @@ def create_framework_impl(
 async def create_framework(
     request: FrameworkCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -257,9 +256,7 @@ async def update_framework(
     framework_id: str,
     request: FrameworkUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -299,9 +296,7 @@ def delete_framework_impl(db: Database, framework_id: str) -> InterpretiveFramew
 async def delete_framework(
     framework_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -379,9 +374,7 @@ def create_interpretation_impl(
 async def create_interpretation(
     request: InterpretationCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -466,9 +459,7 @@ async def update_interpretation(
     interpretation_id: str,
     request: InterpretationUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -519,9 +510,7 @@ def create_pattern_impl(db: Database, request: PatternCreateRequest) -> PatternI
 async def create_pattern(
     request: PatternCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -588,9 +577,7 @@ async def update_pattern(
     pattern_id: str,
     request: PatternUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -633,9 +620,7 @@ async def add_claim_to_pattern(
     pattern_id: str,
     claim_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -664,9 +649,7 @@ async def add_claim_to_pattern(
 async def create_circle_state(
     request: CircleStateCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -727,9 +710,7 @@ async def navigate_circle(
     state_id: str,
     request: CircleStateNavigateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -777,9 +758,7 @@ async def navigate_circle(
 async def backtrack_circle(
     state_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),

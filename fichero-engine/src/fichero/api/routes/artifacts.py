@@ -8,6 +8,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fichero.api.library_header import optional_library_path
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from pydantic import BaseModel
@@ -91,9 +92,7 @@ def _artifact_response(artifact: Artifact) -> ArtifactResponse:
 async def create_artifact(
     request: ArtifactCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None,
         alias="X-Fichero-Origin-Window",
@@ -284,9 +283,7 @@ async def update_artifact(
     artifact_id: str,
     update: ArtifactUpdate,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None,
         alias="X-Fichero-Origin-Window",
@@ -329,9 +326,7 @@ async def update_artifact(
 async def delete_artifact(
     artifact_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None,
         alias="X-Fichero-Origin-Window",

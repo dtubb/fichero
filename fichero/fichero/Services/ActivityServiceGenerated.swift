@@ -29,7 +29,6 @@ class ActivityServiceGenerated {
     func getRecentActivities(limit: Int = 50) async throws -> [ActivityItem] {
         let response = try await client.api.getRecentActivitiesApiActivityRecentGet(
             query: .init(limit: limit),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -70,7 +69,6 @@ class ActivityServiceGenerated {
                 limit: limit,
                 offset: offset
             ),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -94,7 +92,6 @@ class ActivityServiceGenerated {
     func getActivityStats(hours: Int = 24) async throws -> ActivityStats {
         let response = try await client.api.getActivityStatsApiActivityStatsGet(
             query: .init(hours: hours),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -114,7 +111,6 @@ class ActivityServiceGenerated {
         let response = try await client.api.getWorkflowActivityApiActivityWorkflowWorkflowIdGet(
             path: .init(workflowId: workflowId),
             query: .init(limit: limit),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -134,7 +130,6 @@ class ActivityServiceGenerated {
         let response = try await client.api.getBatchActivityApiActivityBatchBatchIdGet(
             path: .init(batchId: batchId),
             query: .init(limit: limit),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -156,7 +151,6 @@ class ActivityServiceGenerated {
         let response = try await client.api.getThreadHistoryApiWorkflowExecutionThreadsThreadIdHistoryGet(
             path: .init(threadId: threadId),
             query: .init(limit: limit),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -175,7 +169,6 @@ class ActivityServiceGenerated {
     func getWorkflowRun(threadId: String) async throws -> WorkflowRunResponse {
         let response = try await client.api.getWorkflowRunApiWorkflowExecutionThreadsThreadIdRunGet(
             path: .init(threadId: threadId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -196,7 +189,6 @@ class ActivityServiceGenerated {
     func cleanupOldActivities(days: Int = 30) async throws -> Int {
         let response = try await client.api.cleanupOldActivitiesApiActivityCleanupDelete(
             query: .init(days: days),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {

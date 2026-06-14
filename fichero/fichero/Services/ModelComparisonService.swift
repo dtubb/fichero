@@ -203,7 +203,6 @@ extension ModelComparisonService {
         // unlike the other app-wide comparison endpoints — pass the current
         // library path, matching SavedSearch/Chat/Note services.
         let response = try await client.api.compareWorkflowNodeApiModelComparisonCompareNodePost(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(.init(
                 workflowId: workflowId,
                 nodeId: nodeId,

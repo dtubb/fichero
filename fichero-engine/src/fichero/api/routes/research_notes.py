@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.api.library_header import require_library_path
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
@@ -44,7 +45,7 @@ class SearchSourceCreateRequest(BaseModel):
 async def create_search_source(
     request: SearchSourceCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -113,7 +114,7 @@ class NoteUpdateRequest(BaseModel):
 async def create_note(
     request: NoteCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -171,7 +172,7 @@ async def update_note(
     note_id: str,
     request: NoteUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -228,7 +229,7 @@ class ChecklistItemToggleRequest(BaseModel):
 async def create_checklist(
     request: ChecklistCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -274,7 +275,7 @@ async def toggle_checklist_item(
     item_id: str,
     request: ChecklistItemToggleRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),

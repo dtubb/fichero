@@ -45,7 +45,6 @@ class DocumentServiceGenerated: ObservableObject {
         )
 
         let response = try await client.api.createDocumentApiDocumentsPost(.init(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(request)
         ))
 
@@ -93,7 +92,6 @@ class DocumentServiceGenerated: ObservableObject {
         )
 
         let response = try await client.api.createDocumentApiDocumentsPost(.init(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(request)
         ))
 
@@ -120,7 +118,6 @@ class DocumentServiceGenerated: ObservableObject {
 
         let response = try await client.api.getDocumentApiDocumentsDocIdGet(.init(
             path: .init(docId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
 
         switch response {
@@ -143,7 +140,6 @@ class DocumentServiceGenerated: ObservableObject {
 
         let response = try await client.api.getChildrenApiDocumentsDocIdChildrenGet(.init(
             path: .init(docId: parentId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
 
         switch response {
@@ -167,7 +163,6 @@ class DocumentServiceGenerated: ObservableObject {
 
         let response = try await client.api.getAncestorsApiDocumentsDocIdAncestorsGet(.init(
             path: .init(docId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
 
         switch response {
@@ -188,18 +183,13 @@ class DocumentServiceGenerated: ObservableObject {
     func getRoots() async throws -> [Document] {
         logger.info("Fetching root documents")
 
-        let response = try await client.api.listRootsApiDocumentsRootsGet(.init(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        ))
+        let response = try await client.api.listRootsApiDocumentsRootsGet(.init())
 
         switch response {
         case .ok(let ok):
             let docs = try ok.body.json
             logger.info("Found \(docs.count) root documents")
             return try docs.items.map { try convertToDocument($0) }
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
         default:
             throw DocumentServiceError.unexpectedResponse
         }
@@ -210,18 +200,13 @@ class DocumentServiceGenerated: ObservableObject {
     func getCollections() async throws -> [Document] {
         logger.info("Fetching all collections")
 
-        let response = try await client.api.listCollectionsApiDocumentsCollectionsGet(.init(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        ))
+        let response = try await client.api.listCollectionsApiDocumentsCollectionsGet(.init())
 
         switch response {
         case .ok(let ok):
             let docs = try ok.body.json
             logger.info("Found \(docs.count) collections")
             return try docs.items.map { try convertToDocument($0) }
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
         default:
             throw DocumentServiceError.unexpectedResponse
         }
@@ -232,9 +217,7 @@ class DocumentServiceGenerated: ObservableObject {
     func getWorkspaces() async throws -> [Document] {
         logger.info("Fetching all workspaces")
 
-        let response = try await client.api.listWorkspacesApiDocumentsWorkspacesGet(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
-        )
+        let response = try await client.api.listWorkspacesApiDocumentsWorkspacesGet()
 
         switch response {
         case .ok(let ok):
@@ -245,9 +228,6 @@ class DocumentServiceGenerated: ObservableObject {
                 document.isWorkspace = generated.isWorkspace ?? true
                 return document
             }
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
         default:
             throw DocumentServiceError.unexpectedResponse
         }
@@ -266,7 +246,6 @@ class DocumentServiceGenerated: ObservableObject {
 
         let response = try await client.api.patchWorkspaceItemsApiDocumentsDocIdWorkspacePatch(
             path: .init(docId: folderId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(.init(add: itemsToAdd))
         )
 
@@ -289,7 +268,6 @@ class DocumentServiceGenerated: ObservableObject {
 
         let response = try await client.api.getWorkspaceItemsApiDocumentsDocIdWorkspaceItemsGet(
             path: .init(docId: folderId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -353,7 +331,6 @@ class DocumentServiceGenerated: ObservableObject {
 
         let response = try await client.api.updateDocumentApiDocumentsDocIdPut(.init(
             path: .init(docId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(request)
         ))
 
@@ -385,7 +362,6 @@ class DocumentServiceGenerated: ObservableObject {
         let response = try await client.api.moveDocumentApiDocumentsDocIdMovePut(
             path: .init(docId: id),
             query: .init(parentId: newParentId),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         )
 
         switch response {
@@ -410,7 +386,6 @@ class DocumentServiceGenerated: ObservableObject {
         logger.info("Reordering \(ids.count) documents")
 
         let response = try await client.api.reorderDocumentsApiDocumentsReorderPost(.init(
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
             body: .json(ids)
         ))
 
@@ -444,7 +419,6 @@ class DocumentServiceGenerated: ObservableObject {
 
         let response = try await client.api.batchExcludeDocumentsApiDocumentsBatchExcludePatch(
             .init(
-                headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? ""),
                 body: .json(request)
             )
         )
@@ -477,7 +451,6 @@ class DocumentServiceGenerated: ObservableObject {
 
         let response = try await client.api.deleteDocumentApiDocumentsDocIdDelete(.init(
             path: .init(docId: id),
-            headers: .init(xFicheroLibraryPath: client.currentLibraryPath ?? "")
         ))
 
         switch response {

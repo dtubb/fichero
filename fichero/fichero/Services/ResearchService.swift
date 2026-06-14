@@ -63,8 +63,6 @@ final class ResearchService: ObservableObject {
 
     private static let encoder = JSONEncoder()
 
-    private var libraryHeader: String { client.currentLibraryPath ?? "" }
-
     private func decodeModel<T: Decodable>(from value: some Encodable, as _: T.Type = T.self) throws -> T {
         let data = try Self.encoder.encode(value)
         return try Self.decoder.decode(T.self, from: data)
@@ -116,7 +114,7 @@ final class ResearchService: ObservableObject {
         error = nil
         do {
             let response = try await client.api.listProjectsApiResearchProjectsGet(
-                .init(headers: .init(xFicheroLibraryPath: libraryHeader))
+                .init()
             )
             switch response {
             case .ok(let okResponse):
@@ -143,7 +141,6 @@ final class ResearchService: ObservableObject {
         )
         let response = try await client.api.createProjectApiResearchProjectsPost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )
@@ -167,7 +164,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.updateProjectApiResearchProjectsProjectIdPatch(
             .init(
                 path: .init(projectId: project.id),
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )
@@ -186,7 +182,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.deleteProjectApiResearchProjectsProjectIdDelete(
             .init(
                 path: .init(projectId: id),
-                headers: .init(xFicheroLibraryPath: libraryHeader)
             )
         )
         switch response {
@@ -203,7 +198,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.listPlansApiResearchProjectsProjectIdPlansGet(
             .init(
                 path: .init(projectId: projectId),
-                headers: .init(xFicheroLibraryPath: libraryHeader)
             )
         )
         switch response {
@@ -222,7 +216,6 @@ final class ResearchService: ObservableObject {
         )
         let response = try await client.api.createPlanApiResearchPlansPost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )
@@ -238,7 +231,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.getPlanApiResearchPlansPlanIdGet(
             .init(
                 path: .init(planId: id),
-                headers: .init(xFicheroLibraryPath: libraryHeader)
             )
         )
         switch response {
@@ -263,7 +255,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.updatePlanApiResearchPlansPlanIdPatch(
             .init(
                 path: .init(planId: id),
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )
@@ -281,7 +272,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.listProjectTasksApiResearchProjectsProjectIdTasksGet(
             .init(
                 path: .init(projectId: projectId),
-                headers: .init(xFicheroLibraryPath: libraryHeader)
             )
         )
         switch response {
@@ -296,7 +286,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.listTasksApiResearchPlansPlanIdTasksGet(
             .init(
                 path: .init(planId: planId),
-                headers: .init(xFicheroLibraryPath: libraryHeader)
             )
         )
         switch response {
@@ -321,7 +310,6 @@ final class ResearchService: ObservableObject {
         )
         let response = try await client.api.createTaskApiResearchTasksPost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )
@@ -337,7 +325,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.getTaskApiResearchTasksTaskIdGet(
             .init(
                 path: .init(taskId: id),
-                headers: .init(xFicheroLibraryPath: libraryHeader)
             )
         )
         switch response {
@@ -364,7 +351,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.updateTaskApiResearchTasksTaskIdPatch(
             .init(
                 path: .init(taskId: id),
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )
@@ -382,7 +368,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.listStepsApiResearchTasksTaskIdStepsGet(
             .init(
                 path: .init(taskId: taskId),
-                headers: .init(xFicheroLibraryPath: libraryHeader)
             )
         )
         switch response {
@@ -409,7 +394,6 @@ final class ResearchService: ObservableObject {
         )
         let response = try await client.api.createStepApiResearchStepsPost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )
@@ -437,7 +421,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.updateStepApiResearchStepsStepIdPatch(
             .init(
                 path: .init(stepId: id),
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )
@@ -455,7 +438,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.listChecklistsApiResearchProjectsProjectIdChecklistsGet(
             .init(
                 path: .init(projectId: projectId),
-                headers: .init(xFicheroLibraryPath: libraryHeader)
             )
         )
         switch response {
@@ -480,7 +462,6 @@ final class ResearchService: ObservableObject {
         )
         let response = try await client.api.createChecklistApiResearchChecklistsPost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )
@@ -502,7 +483,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.toggleChecklistItemApiResearchChecklistsChecklistIdItemsItemIdPatch(
             .init(
                 path: .init(checklistId: checklistId, itemId: itemId),
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )
@@ -520,7 +500,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.listNotesApiResearchProjectsProjectIdNotesGet(
             .init(
                 path: .init(projectId: projectId),
-                headers: .init(xFicheroLibraryPath: libraryHeader)
             )
         )
         switch response {
@@ -547,7 +526,6 @@ final class ResearchService: ObservableObject {
         )
         let response = try await client.api.createNoteApiResearchNotesPost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )
@@ -563,7 +541,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.getNoteApiResearchNotesNoteIdGet(
             .init(
                 path: .init(noteId: id),
-                headers: .init(xFicheroLibraryPath: libraryHeader)
             )
         )
         switch response {
@@ -588,7 +565,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.updateNoteApiResearchNotesNoteIdPatch(
             .init(
                 path: .init(noteId: id),
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )
@@ -606,7 +582,6 @@ final class ResearchService: ObservableObject {
         let response = try await client.api.listSearchSourcesApiResearchProjectsProjectIdSourcesGet(
             .init(
                 path: .init(projectId: projectId),
-                headers: .init(xFicheroLibraryPath: libraryHeader)
             )
         )
         switch response {
@@ -633,7 +608,6 @@ final class ResearchService: ObservableObject {
         )
         let response = try await client.api.createSearchSourceApiResearchSourcesPost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )
@@ -681,7 +655,6 @@ final class ResearchService: ObservableObject {
         )
         let response = try await client.api.browserSaveApiResearchToolsBrowserSavePost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryHeader),
                 body: .json(body)
             )
         )

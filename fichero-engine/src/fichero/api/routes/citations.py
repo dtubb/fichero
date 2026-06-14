@@ -13,9 +13,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
+from fichero.api.library_header import optional_library_path
+from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database
 from fichero.knowledge_models import DocumentCitation
 from fichero.models import CitationListResponse, Document
@@ -44,10 +45,7 @@ class CitationCreateRequest(BaseModel):
 async def create_citation(
     request: CitationCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None,
-        alias="X-Fichero-Library-Path",
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None,
         alias="X-Fichero-Origin-Window",
@@ -150,10 +148,7 @@ async def patch_citation(
     citation_id: str,
     request: CitationPatchRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None,
-        alias="X-Fichero-Library-Path",
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None,
         alias="X-Fichero-Origin-Window",
@@ -182,10 +177,7 @@ async def patch_citation(
 async def delete_citation(
     citation_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(
-        default=None,
-        alias="X-Fichero-Library-Path",
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None,
         alias="X-Fichero-Origin-Window",

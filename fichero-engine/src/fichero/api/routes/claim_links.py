@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from fichero.api.library_header import require_library_path
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
@@ -158,7 +159,7 @@ async def create_claim_link(
     claim_id: str,
     request: ClaimLinkCreateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -219,7 +220,7 @@ async def update_claim_link(
     link_id: str,
     request: ClaimLinkUpdateRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -245,7 +246,7 @@ async def update_claim_link(
 async def delete_claim_link(
     link_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),

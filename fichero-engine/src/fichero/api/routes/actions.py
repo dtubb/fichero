@@ -13,6 +13,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from fichero.api.library_header import require_library_path
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database
@@ -302,7 +303,7 @@ async def get_action(action_id: str, store: ActionStore = Depends(get_action_sto
 async def create_action(
     request: CreateActionRequest,
     store: ActionStore = Depends(get_action_store),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -326,7 +327,7 @@ async def update_action(
     action_id: str,
     request: UpdateActionRequest,
     store: ActionStore = Depends(get_action_store),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -374,7 +375,7 @@ async def update_action(
 async def delete_action(
     action_id: str,
     store: ActionStore = Depends(get_action_store),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -402,7 +403,7 @@ async def delete_action(
 async def record_action_use(
     action_id: str,
     store: ActionStore = Depends(get_action_store),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -446,7 +447,7 @@ async def export_action(
 async def import_action(
     request: ImportActionRequest,
     store: ActionStore = Depends(get_action_store),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -477,7 +478,7 @@ async def import_action(
 async def create_action_from_node(
     request: CreateFromNodeRequest,
     store: ActionStore = Depends(get_action_store),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -506,7 +507,7 @@ async def create_action_from_node(
 async def create_composite_action(
     request: CreateCompositeRequest,
     store: ActionStore = Depends(get_action_store),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),

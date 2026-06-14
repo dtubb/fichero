@@ -2,9 +2,10 @@
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from fichero.api.library_header import optional_library_path
 from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
 from fichero.export_service import (
@@ -96,7 +97,7 @@ class ExcelExportResponse(BaseModel):
 async def export_markdown_folder_route(
     request: MarkdownFolderExportRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(None, alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> MarkdownFolderExportResponse:
     """Export a library, folder, or document as a Markdown folder."""
     try:
@@ -128,7 +129,7 @@ async def export_markdown_folder_route(
 async def export_word_route(
     request: WordExportRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str | None = Header(None, alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> WordExportResponse:
     """Export a library, folder, or document as a Word .docx file."""
     try:

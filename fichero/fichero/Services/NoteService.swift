@@ -93,10 +93,6 @@ final class NoteService: ObservableObject {
         }
     }
 
-    private var headers: Operations.ListNotesApiNotesGet.Input.Headers {
-        .init(xFicheroLibraryPath: libraryPath ?? "")
-    }
-
     private func note(from value: OpenAPIValueContainer) throws -> NoteItem {
         guard let object = value.value else { throw NoteServiceError.emptyContainer }
         let data = try JSONSerialization.data(withJSONObject: object)
@@ -119,7 +115,7 @@ final class NoteService: ObservableObject {
         error = nil
         defer { isLoading = false }
         do {
-            let response = try await client.api.listNotesApiNotesGet(.init(query: query, headers: headers))
+            let response = try await client.api.listNotesApiNotesGet(.init(query: query))
             guard case .ok(let okResponse) = response else {
                 notes = []
                 self.error = "Notes unavailable"
@@ -236,7 +232,6 @@ final class NoteService: ObservableObject {
             folderId: folderId
         )
         let response = try await client.api.createNoteApiNotesPost(.init(
-            headers: .init(xFicheroLibraryPath: libraryPath ?? ""),
             body: .json(payload)
         ))
         guard case .ok(let okResponse) = response else { throw NoteServiceError.unexpectedResponse }
@@ -247,7 +242,6 @@ final class NoteService: ObservableObject {
         syncLibraryPath()
         let response = try await client.api.patchNoteApiNotesNoteIdPatch(.init(
             path: .init(noteId: noteId),
-            headers: .init(xFicheroLibraryPath: libraryPath ?? ""),
             body: .json(.init(body: body))
         ))
         guard case .ok(let okResponse) = response else { throw NoteServiceError.unexpectedResponse }
@@ -262,7 +256,6 @@ final class NoteService: ObservableObject {
         syncLibraryPath()
         let response = try await client.api.deleteNoteApiNotesNoteIdDelete(.init(
             path: .init(noteId: noteId),
-            headers: .init(xFicheroLibraryPath: libraryPath ?? "")
         ))
         guard case .noContent = response else { throw NoteServiceError.unexpectedResponse }
         notes.removeAll { $0.id == noteId }

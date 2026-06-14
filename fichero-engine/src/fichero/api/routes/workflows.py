@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from fichero.app_db import get_app_db
 from fichero.db import Database
+from fichero.api.library_header import require_library_path
 from fichero.api.auth import request_actor
 from fichero.api.change_stream import emit_change
 from fichero.api.main import get_library_database, get_library_database_for_write
@@ -443,7 +444,7 @@ async def create_node(
     tool_name: str,
     position_x: float = 0,
     position_y: float = 0,
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -510,7 +511,7 @@ def create_workflow_impl(db: Database, workflow: WorkflowDef) -> "Workflow":  # 
 async def create_workflow(
     workflow: WorkflowDef,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -584,7 +585,7 @@ async def import_workflow(
     description: str = "",
     workflow_data: dict = {},
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -662,7 +663,7 @@ async def export_workflow(
 )
 async def reinstall_default_workflows(
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -854,7 +855,7 @@ async def update_workflow(
     workflow_id: str,
     workflow: WorkflowDef,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -956,7 +957,7 @@ async def patch_workflow(
     workflow_id: str,
     patch: WorkflowPatchRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -1014,7 +1015,7 @@ def delete_workflow_impl(db: Database, workflow_id: str) -> "Workflow":  # noqa:
 async def delete_workflow(
     workflow_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -1075,7 +1076,7 @@ def duplicate_workflow_impl(db: Database, workflow_id: str) -> "Workflow":  # no
 async def duplicate_workflow(
     workflow_id: str,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
@@ -1140,7 +1141,7 @@ async def reorder_workflows(
     workflow_ids: list[str],
     folder_path: str = "/",
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),

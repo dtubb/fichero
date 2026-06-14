@@ -94,3 +94,21 @@ def test_openapi_export_is_deterministic_and_split():
     assert schemas["NodeDef-Input"] == schemas["NodeDef-Output"], (
         "NodeDef-Input and NodeDef-Output should have identical content"
     )
+
+
+def test_library_path_header_is_not_an_operation_parameter():
+    """The library path is a transport header, not a generated client argument."""
+    exporter = _load_exporter()
+    schema = exporter.build_openapi_schema()
+
+    offenders: list[str] = []
+    forbidden_names = {"x-fichero-library-path", "x_fichero_library_path"}
+    for path, methods in schema.get("paths", {}).items():
+        for method, operation in methods.items():
+            if not isinstance(operation, dict):
+                continue
+            for parameter in operation.get("parameters", []) or []:
+                if str(parameter.get("name", "")).lower() in forbidden_names:
+                    offenders.append(f"{method.upper()} {path}")
+
+    assert offenders == []

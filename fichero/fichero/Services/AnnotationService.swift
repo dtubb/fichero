@@ -230,10 +230,6 @@ final class AnnotationService: ObservableObject {
         }
     }
 
-    private var headers: Operations.ListAnnotationsApiAnnotationsGet.Input.Headers {
-        .init(xFicheroLibraryPath: libraryPath ?? "")
-    }
-
     private func annotation(from value: OpenAPIValueContainer) throws -> DocumentAnnotation {
         guard let object = value.value else { throw AnnotationServiceError.emptyContainer }
         let data = try JSONSerialization.data(withJSONObject: object)
@@ -319,8 +315,7 @@ final class AnnotationService: ObservableObject {
 
         do {
             let response = try await client.api.listAnnotationsApiAnnotationsGet(.init(
-                query: query,
-                headers: headers
+                query: query
             ))
             guard case .ok(let okResponse) = response else {
                 logger.warning("List annotations returned non-OK response")
@@ -351,7 +346,6 @@ final class AnnotationService: ObservableObject {
         do {
             let response = try await client.api.getAnnotationApiAnnotationsAnnotationIdGet(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: libraryPath ?? "")
             ))
             guard case .ok(let okResponse) = response,
                   let annotation = annotation(from: try okResponse.body.json) else {
@@ -419,7 +413,6 @@ final class AnnotationService: ObservableObject {
                 linkedClaimIds: linkedClaimIds.isEmpty ? nil : linkedClaimIds
             )
             let response = try await client.api.createAnnotationApiAnnotationsPost(.init(
-                headers: .init(xFicheroLibraryPath: libraryPath ?? ""),
                 body: .json(request)
             ))
             guard case .ok(let okResponse) = response,
@@ -459,7 +452,6 @@ final class AnnotationService: ObservableObject {
         do {
             let response = try await client.api.patchAnnotationApiAnnotationsAnnotationIdPatch(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: libraryPath ?? ""),
                 body: .json(.init(text: text))
             ))
             guard case .ok(let okResponse) = response,
@@ -488,7 +480,6 @@ final class AnnotationService: ObservableObject {
         do {
             let response = try await client.api.getCropApiAnnotationsAnnotationIdCropGet(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: libraryPath ?? "")
             ))
             guard case .ok(let okResponse) = response else {
                 error = "Could not crop annotation"
@@ -519,7 +510,6 @@ final class AnnotationService: ObservableObject {
         do {
             let response = try await client.api.promoteToClaimApiAnnotationsAnnotationIdPromoteToClaimPost(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: libraryPath ?? "")
             ))
             guard case .ok = response else {
                 error = "Could not promote annotation"
@@ -543,7 +533,6 @@ final class AnnotationService: ObservableObject {
         do {
             let response = try await client.api.deleteAnnotationApiAnnotationsAnnotationIdDelete(.init(
                 path: .init(annotationId: id),
-                headers: .init(xFicheroLibraryPath: libraryPath ?? "")
             ))
             guard case .noContent = response else {
                 error = "Could not delete annotation"

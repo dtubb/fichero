@@ -10,10 +10,11 @@ Provides REST endpoints for:
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from fichero.db import db_manager
+from fichero.api.library_header import require_library_path
 from fichero.api.main import assert_library_read_authorized
 from fichero.knowledge_models import KnowledgeEntity, KnowledgeClaim
 from fichero.multilingual import (
@@ -153,7 +154,7 @@ class LanguageFilterResponse(BaseModel):
 )
 async def detect_language_endpoint(
     request: DetectLanguageRequest,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> DetectLanguageResponse:
     """Detect language of text."""
     result = detect_language(request.text)
@@ -199,7 +200,7 @@ async def detect_language_endpoint(
 )
 async def transliterate_endpoint(
     request: TransliterationRequest,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> TransliterationResponse:
     """Get transliteration variants."""
     variants = get_transliteration_variants(request.text, request.language)
@@ -220,7 +221,7 @@ async def transliterate_endpoint(
 async def cross_language_entity_search(
     request: CrossLanguageSearchRequest,
     http_request: Request,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> CrossLanguageSearchResponse:
     """Search entities across languages."""
     assert_library_read_authorized(http_request, x_fichero_library_path)
@@ -293,7 +294,7 @@ async def get_claims_by_language(
     source_language: str = Query(..., description="ISO 639-1 language code"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> ClaimsPageResponse:
     """Get claims filtered by source language."""
     assert_library_read_authorized(request, x_fichero_library_path)
@@ -337,7 +338,7 @@ async def get_entities_by_language(
     entity_type: Optional[str] = Query(None, description="Filter by entity type"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> EntitiesPageResponse:
     """Get entities filtered by language."""
     assert_library_read_authorized(request, x_fichero_library_path)
@@ -379,7 +380,7 @@ async def get_entities_by_language(
 )
 async def normalize_endpoint(
     request: NormalizeRequest,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> NormalizeResponse:
     """Normalize text for a language."""
     normalized = normalize_text(request.text, request.language)

@@ -118,7 +118,6 @@ final class WorkflowStore: ChangeEventConsumer {
     func fetchWorkflowPythonCode(_ workflowId: String) async throws -> String? {
         let response = try await ficheroClient.api.getWorkflowCodeApiWorkflowExecutionWorkflowsWorkflowIdCodeGet(.init(
             path: .init(workflowId: workflowId),
-            headers: .init(xFicheroLibraryPath: ficheroClient.currentLibraryPath ?? "")
         ))
         switch response {
         case .ok(let okResponse):

@@ -28,6 +28,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field, ValidationError
 
+from fichero.api.library_header import optional_library_path, require_library_path
 from fichero import authz
 from fichero.actions import ActionContext, ActionNotFoundError, ChangeSpec, action, registry
 from fichero.api.auth import action_context
@@ -164,7 +165,7 @@ def _audit_is_reversible(audit: ActionAudit) -> bool:
 async def list_audit_log(
     limit: int = 50,
     db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> AuditLogResponse:
     """Recent action-audit rows, newest first — the UI's undo-stack history.
 
@@ -195,9 +196,7 @@ async def undo_action(
     audit_id: str,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
-    x_fichero_library_path: str | None = Header(
-        default=None, alias="X-Fichero-Library-Path"
-    ),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),

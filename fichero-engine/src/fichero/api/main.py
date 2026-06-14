@@ -60,6 +60,7 @@ from typing import Sequence
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from fichero.api.library_header import optional_library_path, require_library_path
 from fichero.db import Database, db_manager
 from fichero.discovery import start_bonjour_advertiser
 from fichero.models import (
@@ -791,7 +792,7 @@ def _is_allowed_library_path(library_path: str) -> bool:
 
 async def get_library_database(
     request: Request,
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> Database:
     """FastAPI dependency to get the database for the current library package.
 
@@ -816,7 +817,7 @@ async def get_library_database(
 
 async def get_library_database_for_write(
     request: Request,
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> Database:
     """FastAPI dependency to get the database for mutating library routes."""
     # TODO(security-audit): non-registry mutating routes are now AUTHZ-gated,
@@ -906,7 +907,7 @@ def assert_library_write_authorized(
 @app.get("/api/health", response_model=HealthResponse)
 async def health_check(
     request: Request,
-    x_fichero_library_path: str | None = Header(None, alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
     x_fichero_client_nonce: str | None = Header(
         None, alias="X-Fichero-Client-Nonce"
     ),

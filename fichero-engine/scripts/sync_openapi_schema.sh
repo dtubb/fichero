@@ -26,6 +26,7 @@ PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" "$API_ROOT/scripts/generate_openapi_cli
 
 NEW_SCHEMA="$API_ROOT/tests/contracts/openapi.json"
 DEST_SCHEMA="$REPO_ROOT/fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json"
+LEGACY_SCHEMA="$REPO_ROOT/fichero/fichero-api-client/Sources/openapi.json"
 
 # Fast path: if the freshly-exported schema is byte-identical to what the
 # Swift package already has, the OpenAPIGenerator output is current too —
@@ -35,13 +36,35 @@ DEST_SCHEMA="$REPO_ROOT/fichero/fichero-api-client/Sources/FicheroAPIClient/open
 # This makes the sync safe to run on EVERY build (no --skip-openapi-sync
 # flag needed), eliminating the silent-stale-bindings class of bug that
 # 31fc4141 and the page_content decode bug (today) both stemmed from.
-if [ -f "$DEST_SCHEMA" ] && cmp -s "$NEW_SCHEMA" "$DEST_SCHEMA"; then
+dest_changed=0
+legacy_changed=0
+if [ ! -f "$DEST_SCHEMA" ] || ! cmp -s "$NEW_SCHEMA" "$DEST_SCHEMA"; then
+  dest_changed=1
+fi
+if [ -f "$LEGACY_SCHEMA" ] && ! cmp -s "$NEW_SCHEMA" "$LEGACY_SCHEMA"; then
+  legacy_changed=1
+fi
+
+if [ "$dest_changed" -eq 0 ] && [ "$legacy_changed" -eq 0 ]; then
   echo "✅ OpenAPI schema unchanged — Swift bindings already current (fast path)"
   exit 0
 fi
 
-echo "↻ OpenAPI schema changed — regenerating Swift + Python bindings"
-cp "$NEW_SCHEMA" "$DEST_SCHEMA"
+if [ "$dest_changed" -eq 1 ]; then
+  echo "↻ OpenAPI schema changed — regenerating Swift + Python bindings"
+  cp "$NEW_SCHEMA" "$DEST_SCHEMA"
+else
+  echo "↻ Legacy OpenAPI schema copy changed — syncing without Swift rebuild"
+fi
+
+if [ "$legacy_changed" -eq 1 ]; then
+  cp "$NEW_SCHEMA" "$LEGACY_SCHEMA"
+fi
+
+if [ "$dest_changed" -eq 0 ]; then
+  echo "✅ Synced legacy OpenAPI schema copy"
+  exit 0
+fi
 
 cd "$REPO_ROOT/fichero/fichero-api-client"
 # Keep output compact while surfacing generation/build signal lines.

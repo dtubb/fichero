@@ -20,7 +20,6 @@ from typing import Any, Optional
 from fastapi import (
     APIRouter,
     Depends,
-    Header,
     HTTPException,
     Query,
     WebSocket,
@@ -29,6 +28,7 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from fichero.api.library_header import require_library_path
 from fichero.api.main import get_library_database, get_library_database_for_write
 from fichero.db import Database, db_manager
 from fichero.workflows.activity import (
@@ -308,7 +308,7 @@ async def stream_activities(
 @router.websocket("/ws")
 async def websocket_activity_stream(
     websocket: WebSocket,
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ):
     """
     WebSocket endpoint for real-time activity streaming.

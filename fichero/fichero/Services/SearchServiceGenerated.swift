@@ -77,7 +77,6 @@ class SearchServiceGenerated: ObservableObject {
 
         let response = try await client.api.enhancedSearchApiSearchPost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryPath),
                 body: .json(searchRequest)
             )
         )
@@ -96,9 +95,7 @@ class SearchServiceGenerated: ObservableObject {
     /// Get search/embedding statistics
     func stats() async throws -> EmbeddingStatsResponse {
         let response = try await client.api.searchStatsApiSearchStatsGet(
-            .init(
-                headers: .init(xFicheroLibraryPath: libraryPath)
-            )
+            .init()
         )
 
         switch response {
@@ -108,9 +105,6 @@ class SearchServiceGenerated: ObservableObject {
                 indexedCount: payload.indexedCount,
                 tableExists: payload.tableExists
             )
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
             throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
         }
@@ -119,18 +113,13 @@ class SearchServiceGenerated: ObservableObject {
     /// Reindex all documents.  POST /api/search/reindex
     func reindexAll() async throws -> ReindexStatus {
         let response = try await client.api.reindexAllApiSearchReindexPost(
-            .init(
-                headers: .init(xFicheroLibraryPath: libraryPath)
-            )
+            .init()
         )
 
         switch response {
         case .ok(let okResponse):
             let result = try okResponse.body.json
             return ReindexStatus(status: result.status, message: result.message)
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
             throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
         }
@@ -141,7 +130,6 @@ class SearchServiceGenerated: ObservableObject {
         let response = try await client.api.embedDocumentApiSearchEmbedDocIdPost(
             .init(
                 path: .init(docId: documentId),
-                headers: .init(xFicheroLibraryPath: libraryPath)
             )
         )
 
@@ -162,17 +150,12 @@ class SearchServiceGenerated: ObservableObject {
     /// List all saved searches.  GET /api/search/saved
     func listSavedSearches() async throws -> [Components.Schemas.SavedSearchResponse] {
         let response = try await client.api.listSavedSearchesApiSearchSavedGet(
-            .init(
-                headers: .init(xFicheroLibraryPath: libraryPath)
-            )
+            .init()
         )
 
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json.items
-        case .unprocessableContent(let error):
-            let detail = try? error.body.json
-            throw SearchServiceGeneratedError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
             throw SearchServiceGeneratedError.unexpectedResponse(statusCode)
         }
@@ -207,7 +190,6 @@ class SearchServiceGenerated: ObservableObject {
 
         let response = try await client.api.saveSearchApiSearchSavedPost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryPath),
                 body: .json(createRequest)
             )
         )
@@ -252,7 +234,6 @@ class SearchServiceGenerated: ObservableObject {
         let response = try await client.api.updateSavedSearchApiSearchSavedSearchIdPut(
             .init(
                 path: .init(searchId: searchId),
-                headers: .init(xFicheroLibraryPath: libraryPath),
                 body: .json(updateRequest)
             )
         )
@@ -273,7 +254,6 @@ class SearchServiceGenerated: ObservableObject {
         let response = try await client.api.deleteSavedSearchApiSearchSavedSearchIdDelete(
             .init(
                 path: .init(searchId: searchId),
-                headers: .init(xFicheroLibraryPath: libraryPath)
             )
         )
 
@@ -293,7 +273,6 @@ class SearchServiceGenerated: ObservableObject {
         let response = try await client.api.duplicateSavedSearchApiSearchSavedSearchIdDuplicatePost(
             .init(
                 path: .init(searchId: searchId),
-                headers: .init(xFicheroLibraryPath: libraryPath)
             )
         )
 
@@ -313,7 +292,6 @@ class SearchServiceGenerated: ObservableObject {
     func reorderSavedSearches(ids: [String]) async throws -> [Components.Schemas.SavedSearchResponse] {
         let response = try await client.api.reorderSavedSearchesApiSearchSavedReorderPost(
             .init(
-                headers: .init(xFicheroLibraryPath: libraryPath),
                 body: .json(ids)
             )
         )
@@ -338,7 +316,6 @@ class SearchServiceGenerated: ObservableObject {
         let response = try await client.api.keywordCloudApiSearchKeywordsGet(
             .init(
                 query: .init(limit: limit),
-                headers: .init(xFicheroLibraryPath: libraryPath)
             )
         )
 

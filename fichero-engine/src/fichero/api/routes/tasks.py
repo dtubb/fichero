@@ -11,7 +11,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fichero.api.library_header import require_library_path
 from pydantic import BaseModel, Field
 
 from fichero.workflows.tasks import (
@@ -150,7 +151,7 @@ def _task_to_response(task: BackgroundTask) -> TaskResponse:
 )
 async def create_reindex_task(
     request: CreateTaskRequest = None,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskResponse:
     """Create a reindex task."""
     queue = get_task_queue()
@@ -182,7 +183,7 @@ async def create_reindex_task(
 )
 async def create_metrics_task(
     request: CreateTaskRequest = None,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskResponse:
     """Create a metrics recomputation task."""
     queue = get_task_queue()
@@ -222,7 +223,7 @@ async def list_tasks(
     ),
     limit: int = Query(50, ge=1, le=500, description="Maximum items to return"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskListResponse:
     """List background tasks."""
     queue = get_task_queue()
@@ -277,7 +278,7 @@ async def list_tasks(
 )
 async def get_task(
     task_id: str,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskResponse:
     """Get task by ID."""
     queue = get_task_queue()
@@ -305,7 +306,7 @@ async def get_task(
 )
 async def cancel_task(
     task_id: str,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskResponse:
     """Cancel a pending task."""
     queue = get_task_queue()
@@ -340,7 +341,7 @@ async def cancel_task(
 )
 async def delete_task(
     task_id: str,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> None:
     """Delete a task."""
     queue = get_task_queue()
@@ -373,7 +374,7 @@ async def delete_task(
 )
 async def get_task_result(
     task_id: str,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> Optional[TaskResultResponse]:
     """Get task result."""
     queue = get_task_queue()
@@ -409,7 +410,7 @@ async def get_task_result(
 )
 async def get_reindex_progress(
     task_id: str,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> ReindexResponse:
     """Get reindex task progress."""
     queue = get_task_queue()
@@ -449,7 +450,7 @@ async def get_reindex_progress(
 )
 async def get_metrics_data(
     task_id: str,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> MetricsResponse:
     """Get metrics task result data."""
     queue = get_task_queue()
@@ -538,7 +539,7 @@ class TaskSystemHealthResponse(BaseModel):
 )
 async def create_vector_repair_task(
     request: CreateTaskRequest = None,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskResponse:
     """Create a vector repair task."""
     queue = get_task_queue()
@@ -570,7 +571,7 @@ async def create_vector_repair_task(
 )
 async def create_kg_metrics_task(
     request: CreateTaskRequest = None,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskResponse:
     """Create a knowledge graph metrics task."""
     queue = get_task_queue()
@@ -602,7 +603,7 @@ async def create_kg_metrics_task(
 )
 async def get_vector_repair_progress(
     task_id: str,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> VectorRepairResponse:
     """Get vector repair task progress."""
     queue = get_task_queue()
@@ -643,7 +644,7 @@ async def get_vector_repair_progress(
 )
 async def get_kg_metrics_data(
     task_id: str,
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> KGMetricsResponse:
     """Get knowledge graph metrics task result data."""
     queue = get_task_queue()
@@ -692,7 +693,7 @@ async def get_kg_metrics_data(
     description="Get health status and statistics for the background task system.",
 )
 async def get_task_system_health(
-    x_fichero_library_path: str = Header(..., description="Library path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> TaskSystemHealthResponse:
     """Get health status of the task system."""
     queue = get_task_queue()

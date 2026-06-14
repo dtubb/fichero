@@ -10,7 +10,7 @@ import logging
 import uuid
 from typing import Any, Callable
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Header, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from fichero.workflows.chaining import (
@@ -27,6 +27,7 @@ from fichero.workflows.chaining import (
 from fichero.workflows.types import WorkflowDef
 from fichero.workflows.workflow_store import WorkflowStore
 from fichero.db import db_manager
+from fichero.api.library_header import require_library_path
 from fichero.api.main import assert_library_read_authorized
 
 logger = logging.getLogger(__name__)
@@ -464,7 +465,7 @@ async def delete_chain(chain_id: str) -> ChainDeletedResponse:
 @router.get("/presets/paleography", response_model=PaleographyPresetResponse)
 async def paleography_preset_preview(
     request: Request,
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> PaleographyPresetResponse:
     """Draft a stageable A/B/C paleography chain from current workflows."""
     assert_library_read_authorized(request, x_fichero_library_path)
@@ -480,7 +481,7 @@ async def paleography_preset_preview(
 @router.post("/presets/paleography", response_model=PaleographyPresetResponse)
 async def paleography_preset_create(
     request: Request,
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> PaleographyPresetResponse:
     """Create and save the A/B/C paleography chain preset."""
     assert_library_read_authorized(request, x_fichero_library_path)
@@ -505,7 +506,7 @@ async def execute_chain(
     request: ExecuteChainRequest,
     http_request: Request,
     background_tasks: BackgroundTasks,
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> ChainExecutionResponse:
     """Execute a workflow chain.
 

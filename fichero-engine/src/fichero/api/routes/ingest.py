@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Header
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from pydantic import BaseModel
 
+from fichero.api.library_header import require_library_path
 from fichero.api.main import get_library_database_for_write, db_manager
 from fichero.db import Database
 from fichero.models import Document
@@ -158,7 +159,7 @@ def import_folder_impl(
 async def ingest_file(
     request: IngestFileRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> Document:
     """
     Ingest a single file into the library.
@@ -175,7 +176,7 @@ async def ingest_folder(
     request: IngestFolderRequest,
     background_tasks: BackgroundTasks,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> IngestTaskResponse:
     """
     Ingest a folder into the library.
@@ -337,7 +338,7 @@ def import_xlsx_impl(db: Database, request: XlsxIngestRequest) -> XlsxIngestResp
 async def ingest_xlsx(
     request: XlsxIngestRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> XlsxIngestResponse:
     """
     Read an .xlsx spreadsheet and return its rows as structured records.

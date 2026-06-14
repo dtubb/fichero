@@ -44,10 +44,6 @@ class WorkflowStreamService: ObservableObject {
         streamTask?.cancel()
     }
 
-    /// Library header for the library-scoped execution endpoints. Sourced from the
-    /// `APIClient` so it tracks the same per-window library path the SSE path uses.
-    private var libraryHeader: String { api.currentLibraryPath ?? "" }
-
     /// Build the OpenAPI free-form object container from a JSON-compatible dict,
     /// round-tripping through JSONSerialization to match the previous encoding.
     private func objectContainer(fromJSON dict: [String: Any]) throws -> OpenAPIRuntime.OpenAPIObjectContainer {
@@ -96,7 +92,6 @@ class WorkflowStreamService: ObservableObject {
         logger.info("Starting workflow execution: \(workflowId)")
 
         let executeResponse = try await client.api.executeWorkflowApiWorkflowExecutionExecutePost(.init(
-            headers: .init(xFicheroLibraryPath: libraryHeader),
             body: .json(request)
         ))
 
@@ -241,7 +236,6 @@ class WorkflowStreamService: ObservableObject {
         // Then delete the thread on the backend (generated client, #1714).
         let response = try await client.api.deleteThreadApiWorkflowExecutionThreadsThreadIdDelete(.init(
             path: .init(threadId: threadId),
-            headers: .init(xFicheroLibraryPath: libraryHeader)
         ))
 
         // 200 = deleted, 404 = already gone (both OK). 404 arrives as `.undocumented`
@@ -269,7 +263,6 @@ class WorkflowStreamService: ObservableObject {
         // the previous empty-body POST. The SSE resubscribe below stays raw URLSession.
         let response = try await client.api.resumeWorkflowApiWorkflowExecutionThreadsThreadIdResumePost(.init(
             path: .init(threadId: threadId),
-            headers: .init(xFicheroLibraryPath: libraryHeader)
         ))
 
         switch response {

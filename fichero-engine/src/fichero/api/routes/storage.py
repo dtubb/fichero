@@ -10,11 +10,12 @@ import os
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException, Depends, Header, Query
+from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from fichero.db import Database
+from fichero.api.library_header import require_library_path
 from fichero.api.main import get_library_database
 from fichero.models import Document, LibrarySnapshot, SnapshotInitiatorType
 from fichero.perf import perf_span
@@ -70,7 +71,7 @@ def _inline_content_disposition(filename: str) -> str:
 async def get_thumbnail(
     doc_id: str,
     db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ):
     """
     Get thumbnail image for a document.
@@ -111,7 +112,7 @@ async def get_thumbnail(
 async def get_display_image(
     doc_id: str,
     db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ):
     """
     Get display-size image for a document.
@@ -146,7 +147,7 @@ async def get_display_image(
 async def get_source_file(
     doc_id: str,
     db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ):
     """
     Get the original source file for a document.
@@ -227,7 +228,7 @@ async def get_source_file(
 
 @router.get("/stats")
 async def storage_stats(
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ):
     """Get storage statistics for a library."""
     from fichero.storage import stats
@@ -240,7 +241,7 @@ async def storage_stats(
 async def debug_document_paths(
     doc_id: str,
     db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> DocumentDebugResponse:
     """Debug endpoint to check document paths and file access."""
     from fichero.storage import resolve_source, _thumb_path
