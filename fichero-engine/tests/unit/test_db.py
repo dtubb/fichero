@@ -26,6 +26,7 @@ from fichero.models import (
     DocType, FileType, Status, RunStatus
 )
 from fichero.db import Database
+from fichero.knowledge_models import EntityType, KnowledgeEntity
 
 
 @pytest.fixture
@@ -270,6 +271,32 @@ class TestDocumentCRUD:
         assert len(all_docs) == 2
         names = {d.name for d in all_docs}
         assert names == {"First", "Second"}
+
+    def test_query_skips_null_primary_key_ghost_rows(self, temp_db):
+        """Malformed NULL-id rows must not poison typed table scans (#2012)."""
+        doc = Document(name="Real", path="/real")
+        entity = KnowledgeEntity(
+            canonical_name="Ada Mock",
+            entity_type=EntityType.person,
+        )
+        temp_db.save(doc)
+        temp_db.save(entity)
+
+        assert [d.id for d in temp_db.all(Document)] == [doc.id]
+        assert [d.id for d in temp_db.query(Document)] == [doc.id]
+        assert temp_db.query(Document, parent_id=None) == [doc]
+        assert [e.id for e in temp_db.all(KnowledgeEntity)] == [entity.id]
+        assert [e.id for e in temp_db.query(KnowledgeEntity)] == [entity.id]
+        assert temp_db._hydrate_row(
+            Document,
+            ["id", "name", "created_at", "updated_at"],
+            [None, None, None, None],
+        ) is None
+        assert temp_db._hydrate_row(
+            KnowledgeEntity,
+            ["id", "canonical_name", "created_at", "updated_at"],
+            [None, None, None, None],
+        ) is None
 
     def test_count(self, temp_db):
         """Test counting documents."""

@@ -9,9 +9,11 @@ artifacts, UI) with ZERO paid LLM calls and zero network.
 from __future__ import annotations
 
 import logging
+from uuid import uuid4
 
 import pytest
 
+from fichero.db import db_manager
 from fichero.llm import LLMConfig, _is_local_or_builtin_provider, chat, chat_structured
 from fichero.models import Artifact, DocType, Document
 from fichero.providers import ProviderType, get_provider_info
@@ -118,65 +120,78 @@ async def test_extract_all_mock_writes_claims_and_artifacts(db, test_package, ca
     assert "incurs cost" not in text
 
 
-@pytest.mark.xfail(
-    reason="flaky #2012 — intermittent KnowledgeEntity validation under extract_all "
-    "(nondeterministic even in isolation); quarantined so it can't fail the gate, "
-    "still runs (XPASS when #2012 is fixed → remove this marker)",
-    strict=False,
-)
 @pytest.mark.asyncio
 async def test_extract_all_mock_emits_workflow_change_events(
-    db,
-    test_package,
+    app_db,
     monkeypatch,
+    tmp_path,
 ):
     from fichero.knowledge_models import KnowledgeClaim, KnowledgeEntity
 
-    folder = Document(name="Folder", path="/tmp/folder", doc_type=DocType.folder)
-    page1 = Document(name="p1", path="/tmp/folder/p1.png", doc_type=DocType.page)
-    page2 = Document(name="p2", path="/tmp/folder/p2.png", doc_type=DocType.page)
-    db.save(folder)
-    db.save(page1)
-    db.save(page2)
-
-    events: list[tuple[str, dict]] = []
-
-    def _spy_emit(library_path: str, **kwargs) -> None:
-        events.append((library_path, kwargs))
-
     monkeypatch.setattr(
-        "fichero.workflows.tools._workflow_change_emit.emit_change",
-        _spy_emit,
+        "fichero.workflows.tools.extractors._build_alias_index",
+        lambda _db: [],
+    )
+    monkeypatch.setattr(
+        "fichero.kg.entity_vectors.index_entity",
+        lambda **_kwargs: None,
+        raising=False,
     )
 
-    result = await extract_all_module.extract_all(
-        {
-            "text": "Ada signed the ledger in Mockton.",
-            "records": [
-                {"doc_id": page1.id, "text": "Ada signed the ledger in Mockton."},
-                {"doc_id": page2.id, "text": "Ada signed the ledger in Mockton again."},
-            ],
-            "persist_kg": True,
-        },
-        {"library_path": str(test_package), "selected_doc_ids": [folder.id]},
-        LLMConfig(provider="mock", model="mock"),
-    )
+    package = tmp_path / f"extract-events-{uuid4().hex}.fichero"
+    package.mkdir()
+    for child in ("lance", "storage", "files"):
+        (package / child).mkdir()
+    db = db_manager.get_database(package)
 
-    assert not result.get("error")
-    # Extraction now fans out per-document change events: entity/claim/document
-    # (the KG writer) plus artifact.created (the per-page artifact writer). Assert
-    # by type rather than by fixed order/length so adding a domain doesn't break it.
-    emitted_types = {event[1]["type"] for event in events}
-    assert {"entity.updated", "claim.updated"}.issubset(emitted_types)
-    assert all(event[0] == str(test_package) for event in events)
-    assert all(event[1]["actor"] == "workflow" for event in events)
+    try:
+        folder = Document(name="Folder", path="/tmp/folder", doc_type=DocType.folder)
+        page1 = Document(name="p1", path="/tmp/folder/p1.png", doc_type=DocType.page)
+        page2 = Document(name="p2", path="/tmp/folder/p2.png", doc_type=DocType.page)
+        db.save(folder)
+        db.save(page1)
+        db.save(page2)
 
-    entity_event = next(e[1] for e in events if e[1]["type"] == "entity.updated")
-    claim_event = next(e[1] for e in events if e[1]["type"] == "claim.updated")
-    assert entity_event["entity_ids"]
-    assert claim_event["claim_ids"]
+        events: list[tuple[str, dict]] = []
 
-    entity_ids = {entity.id for entity in db.query(KnowledgeEntity)}
-    claim_ids = {claim.id for claim in db.query(KnowledgeClaim)}
-    assert set(entity_event["entity_ids"]).issubset(entity_ids)
-    assert set(claim_event["claim_ids"]).issubset(claim_ids)
+        def _spy_emit(library_path: str, **kwargs) -> None:
+            events.append((library_path, kwargs))
+
+        monkeypatch.setattr(
+            "fichero.workflows.tools._workflow_change_emit.emit_change",
+            _spy_emit,
+        )
+
+        result = await extract_all_module.extract_all(
+            {
+                "text": "Ada signed the ledger in Mockton.",
+                "records": [
+                    {"doc_id": page1.id, "text": "Ada signed the ledger in Mockton."},
+                    {"doc_id": page2.id, "text": "Ada signed the ledger in Mockton again."},
+                ],
+                "persist_kg": True,
+            },
+            {"library_path": str(package), "selected_doc_ids": [folder.id]},
+            LLMConfig(provider="mock", model="mock"),
+        )
+
+        assert not result.get("error")
+        # Extraction now fans out per-document change events: entity/claim/document
+        # (the KG writer) plus artifact.created (the per-page artifact writer). Assert
+        # by type rather than by fixed order/length so adding a domain doesn't break it.
+        emitted_types = {event[1]["type"] for event in events}
+        assert {"entity.updated", "claim.updated"}.issubset(emitted_types)
+        assert all(event[0] == str(package) for event in events)
+        assert all(event[1]["actor"] == "workflow" for event in events)
+
+        entity_event = next(e[1] for e in events if e[1]["type"] == "entity.updated")
+        claim_event = next(e[1] for e in events if e[1]["type"] == "claim.updated")
+        assert entity_event["entity_ids"]
+        assert claim_event["claim_ids"]
+
+        entity_ids = {entity.id for entity in db.query(KnowledgeEntity)}
+        claim_ids = {claim.id for claim in db.query(KnowledgeClaim)}
+        assert set(entity_event["entity_ids"]).issubset(entity_ids)
+        assert set(claim_event["claim_ids"]).issubset(claim_ids)
+    finally:
+        db_manager.close_database(package)

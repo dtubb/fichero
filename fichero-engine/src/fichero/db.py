@@ -605,31 +605,33 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
-        result = self._execute(
-            f"SELECT * FROM {sql_table} WHERE id = $id", {"id": id}
-        ).fetchone()
+        with self._lock:
+            result = self._execute(
+                f"SELECT * FROM {sql_table} WHERE id = $id", {"id": id}
+            ).fetchone()
+            columns = [desc[0] for desc in self.conn.description]
 
         if result is None:
             return None
 
-        columns = [desc[0] for desc in self.conn.description]
-        row_dict = self._parse_json_fields(model, dict(zip(columns, result)))
-        return model(**row_dict)
+        return self._hydrate_row(model, columns, result)
 
     def all(self, model: Type[T]) -> list[T]:
         """Get all objects of a type."""
         sql_table = self._sql_table_name(model)
         self._ensure_table(model)
 
-        rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+        with self._lock:
+            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            columns = [desc[0] for desc in self.conn.description]
 
         if not rows:
             return []
 
-        columns = [desc[0] for desc in self.conn.description]
         return [
-            model(**self._parse_json_fields(model, dict(zip(columns, row))))
+            hydrated
             for row in rows
+            if (hydrated := self._hydrate_row(model, columns, row)) is not None
         ]
 
     def query(self, model: Type[T], **filters) -> list[T]:
@@ -662,17 +664,19 @@ class Database(DatabaseEmbeddingMixin):
                 where_clauses.append(f"{k} = ${k}")
 
         where = " AND ".join(where_clauses)
-        rows = self._execute(
-            f"SELECT * FROM {sql_table} WHERE {where}", query_filters
-        ).fetchall()
+        with self._lock:
+            rows = self._execute(
+                f"SELECT * FROM {sql_table} WHERE {where}", query_filters
+            ).fetchall()
+            columns = [desc[0] for desc in self.conn.description]
 
         if not rows:
             return []
 
-        columns = [desc[0] for desc in self.conn.description]
         return [
-            model(**self._parse_json_fields(model, dict(zip(columns, row))))
+            hydrated
             for row in rows
+            if (hydrated := self._hydrate_row(model, columns, row)) is not None
         ]
 
     def query_in(self, model: Type[T], column: str, values) -> list[T]:
@@ -714,16 +718,18 @@ class Database(DatabaseEmbeddingMixin):
             chunk = normalized[start : start + 500]
             placeholders = ",".join(f"$v{i}" for i in range(len(chunk)))
             params = {f"v{i}": val for i, val in enumerate(chunk)}
-            rows = self._execute(
-                f"SELECT * FROM {sql_table} WHERE {column} IN ({placeholders})",
-                params,
-            ).fetchall()
+            with self._lock:
+                rows = self._execute(
+                    f"SELECT * FROM {sql_table} WHERE {column} IN ({placeholders})",
+                    params,
+                ).fetchall()
+                columns = [desc[0] for desc in self.conn.description]
             if not rows:
                 continue
-            columns = [desc[0] for desc in self.conn.description]
             out.extend(
-                model(**self._parse_json_fields(model, dict(zip(columns, row))))
+                hydrated
                 for row in rows
+                if (hydrated := self._hydrate_row(model, columns, row)) is not None
             )
         return out
 
@@ -2068,6 +2074,28 @@ class Database(DatabaseEmbeddingMixin):
                 result[name] = value
 
         return result
+
+    def _hydrate_row(
+        self,
+        model: Type[T],
+        columns: Sequence[str],
+        row: Sequence[Any],
+    ) -> T | None:
+        """Convert a raw DuckDB row to a typed model, skipping null-PK ghosts.
+
+        DuckDB can surface legacy/corrupt rows with every field NULL even when
+        the table declares ``PRIMARY KEY (id)``. Those rows are not addressable
+        by the typed API and should not make ordinary table scans fail.
+        """
+        raw = dict(zip(columns, row))
+        if "id" in model.model_fields and raw.get("id") is None:
+            logger.warning(
+                "Skipping invalid %s row with NULL id in %s",
+                model.__name__,
+                self.path,
+            )
+            return None
+        return model(**self._parse_json_fields(model, raw))
 
     def _table_name(self, obj_or_model) -> str:
         """Get table name from model class (lowercase + 's')."""
