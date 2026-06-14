@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -70,6 +70,7 @@ def _inline_content_disposition(filename: str) -> str:
 @router.get("/thumbnail/{doc_id}")
 async def get_thumbnail(
     doc_id: str,
+    background_tasks: BackgroundTasks,
     db: Database = Depends(get_library_database),
     x_fichero_library_path: str = Depends(require_library_path),
 ):
@@ -77,6 +78,8 @@ async def get_thumbnail(
     Get thumbnail image for a document.
 
     Returns 404 if document not found or no thumbnail available.
+    On a cache miss, also schedules generation of the companion display image
+    so both formats exist after the first access (#2217).
     """
     with perf_span(
         "library.thumbnail.endpoint",
@@ -86,7 +89,7 @@ async def get_thumbnail(
         package_path = Path(x_fichero_library_path)
         doc = _document_or_404(db, doc_id)
 
-        from fichero.storage import get_thumbnail, ensure_thumbnail
+        from fichero.storage import get_thumbnail, ensure_thumbnail, get_display, ensure_display
 
         thumb_path = get_thumbnail(doc, package_path=package_path, db=db)
         perf["cache_state"] = "hit" if thumb_path else "miss"
@@ -96,6 +99,14 @@ async def get_thumbnail(
                 ensure_thumbnail, doc, package_path=package_path, db=db
             )
             perf["cache_state"] = "generated" if thumb_path else "unavailable"
+            # Warm the companion display image so both formats exist after the
+            # first access — avoids the asymmetry where only the requested format
+            # is created lazily (#2216/#2217).
+            if thumb_path and not get_display(doc, package_path):
+                background_tasks.add_task(
+                    asyncio.to_thread, ensure_display, doc,
+                    package_path=package_path, db=db,
+                )
 
         if not thumb_path or not thumb_path.exists():
             raise HTTPException(status_code=404, detail="Thumbnail not available")
@@ -111,6 +122,7 @@ async def get_thumbnail(
 @router.get("/display/{doc_id}")
 async def get_display_image(
     doc_id: str,
+    background_tasks: BackgroundTasks,
     db: Database = Depends(get_library_database),
     x_fichero_library_path: str = Depends(require_library_path),
 ):
@@ -118,11 +130,13 @@ async def get_display_image(
     Get display-size image for a document.
 
     Larger than thumbnail, suitable for preview display.
+    On a cache miss, also schedules generation of the companion thumbnail
+    so both formats exist after the first access (#2216).
     """
     package_path = Path(x_fichero_library_path)
     doc = _document_or_404(db, doc_id)
 
-    from fichero.storage import get_display, ensure_display
+    from fichero.storage import get_display, ensure_display, get_thumbnail, ensure_thumbnail
 
     # Try to get existing display image (with package path for library isolation)
     display_path = get_display(doc, package_path)
@@ -132,6 +146,14 @@ async def get_display_image(
         display_path = await asyncio.to_thread(
             ensure_display, doc, package_path=package_path, db=db
         )
+        # Warm the companion thumbnail so both formats exist after the first
+        # access — avoids the asymmetry where only the requested format is
+        # created lazily (#2216/#2217).
+        if display_path and not get_thumbnail(doc, package_path=package_path, db=db):
+            background_tasks.add_task(
+                asyncio.to_thread, ensure_thumbnail, doc,
+                package_path=package_path, db=db,
+            )
 
     if not display_path or not display_path.exists():
         raise HTTPException(status_code=404, detail="Display image not available")
@@ -235,6 +257,58 @@ async def storage_stats(
 
     package_path = Path(x_fichero_library_path)
     return stats(package_path)
+
+
+class RegenerateMissingResponse(BaseModel):
+    generated: int
+    skipped: int
+    failed: int
+    doc_ids: list[str]
+
+
+@router.post("/regenerate-missing", response_model=RegenerateMissingResponse)
+async def regenerate_missing_thumbnails(
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> RegenerateMissingResponse:
+    """Regenerate thumbnails for all documents that are missing one.
+
+    Scans the library for docs without a cached thumbnail and renders each
+    one synchronously. Idempotent — already-cached thumbs are skipped.
+    Returns counts of generated / skipped / failed docs (#2218).
+    """
+    from fichero.storage import get_thumbnail, ensure_thumbnail
+    from fichero.models import Document
+
+    package_path = Path(x_fichero_library_path)
+    docs: list[Document] = db.all(Document)
+
+    generated_ids: list[str] = []
+    skipped = 0
+    failed = 0
+
+    for doc in docs:
+        if get_thumbnail(doc, package_path=package_path, db=db):
+            skipped += 1
+            continue
+        try:
+            result = await asyncio.to_thread(
+                ensure_thumbnail, doc, package_path=package_path, db=db
+            )
+            if result:
+                generated_ids.append(doc.id)
+            else:
+                skipped += 1
+        except Exception:
+            logger.exception("regenerate-missing: failed for doc %s", doc.id)
+            failed += 1
+
+    return RegenerateMissingResponse(
+        generated=len(generated_ids),
+        skipped=skipped,
+        failed=failed,
+        doc_ids=generated_ids,
+    )
 
 
 @router.get("/debug/{doc_id}")

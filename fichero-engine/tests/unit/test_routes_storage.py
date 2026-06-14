@@ -11,6 +11,7 @@ from io import BytesIO
 from pathlib import Path
 
 import pytest
+from fastapi import BackgroundTasks
 from PIL import Image
 from unittest.mock import AsyncMock, patch
 
@@ -65,16 +66,20 @@ class TestThumbnailRoute:
         to_thread = AsyncMock(return_value=generated_path)
 
         monkeypatch.setattr(storage_module, "get_thumbnail", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(storage_module, "get_display", lambda *_args, **_kwargs: None)
         monkeypatch.setattr(storage_routes.asyncio, "to_thread", to_thread)
 
         response = asyncio.run(
             storage_routes.get_thumbnail(
                 doc.id,
+                background_tasks=BackgroundTasks(),
                 db=db,
                 x_fichero_library_path=str(tmp_path),
             )
         )
 
+        # Only the main thumbnail generation is awaited; the companion display
+        # generation is added as a background task (not awaited in this call).
         to_thread.assert_awaited_once()
         assert to_thread.await_args.args == (storage_module.ensure_thumbnail, doc)
         assert to_thread.await_args.kwargs == {"package_path": tmp_path, "db": db}
@@ -96,16 +101,20 @@ class TestThumbnailRoute:
         to_thread = AsyncMock(return_value=generated_path)
 
         monkeypatch.setattr(storage_module, "get_display", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(storage_module, "get_thumbnail", lambda *_args, **_kwargs: None)
         monkeypatch.setattr(storage_routes.asyncio, "to_thread", to_thread)
 
         response = asyncio.run(
             storage_routes.get_display_image(
                 doc.id,
+                background_tasks=BackgroundTasks(),
                 db=db,
                 x_fichero_library_path=str(tmp_path),
             )
         )
 
+        # Only the main display generation is awaited; the companion thumbnail
+        # generation is added as a background task (not awaited in this call).
         to_thread.assert_awaited_once()
         assert to_thread.await_args.args == (storage_module.ensure_display, doc)
         assert to_thread.await_args.kwargs == {"package_path": tmp_path, "db": db}
@@ -382,6 +391,53 @@ class TestSourceRouteConfinement:
 # ---------------------------------------------------------------------------
 # GET /api/storage/snapshots
 # ---------------------------------------------------------------------------
+
+
+class TestRegenerateMissingThumbnails:
+    def test_generates_thumbnails_for_docs_missing_them(
+        self, client, db, test_package
+    ):
+        pdf_path = _write_test_pdf(test_package / "files" / "rg" / "regen.pdf")
+        doc = Document(
+            id="regen-missing",
+            name="regen.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            path=str(pdf_path.relative_to(test_package)),
+            status=Status.completed,
+            metadata={},
+        )
+        db.save(doc)
+
+        response = client.post("/api/storage/regenerate-missing")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["generated"] >= 1
+        assert "regen-missing" in data["doc_ids"]
+
+    def test_skips_docs_that_already_have_thumbnails(
+        self, client, db, test_package
+    ):
+        pdf_path = _write_test_pdf(test_package / "files" / "sk" / "skip.pdf")
+        doc = Document(
+            id="regen-skip",
+            name="skip.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            path=str(pdf_path.relative_to(test_package)),
+            status=Status.completed,
+            metadata={},
+        )
+        db.save(doc)
+        # Generate thumbnail first so the doc is already cached
+        client.get(f"/api/storage/thumbnail/{doc.id}")
+
+        response = client.post("/api/storage/regenerate-missing")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "regen-skip" not in data["doc_ids"]
 
 
 class TestListSnapshots:
