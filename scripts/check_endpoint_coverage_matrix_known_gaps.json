@@ -162,6 +162,7 @@
   "GET /api/mind-palace/stacks/{stack_id}": "store missing",
   "GET /api/model-comparison/comparison/{comparison_id}": "store missing",
   "GET /api/model-comparison/history": "store missing",
+  "GET /api/model-comparison/language-fit": "store missing - #1820 backend LOOVE language-fit API; Settings/model-picker UI wiring tracked by #2116",
   "GET /api/model-comparison/models": "store missing",
   "GET /api/model-comparison/models-by-tier": "store missing",
   "GET /api/model-comparison/presets": "store missing",
