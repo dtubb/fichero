@@ -1,6 +1,6 @@
 # STATE — handoff 2026-06-13 ~15:30 ADT (AUTONOMOUS BACKEND — Daniel out, Mac work deferred to tomorrow WITH him)
 
-Branch `0.0.2` @ `1cfd93b3`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
+Branch `0.0.2` @ `3e42b9e1`, pushed clean. Engine running on main tree with `--reload --reload-dir fichero-engine/src` → backend edits in WORKTREES only; integrate via cherry-pick of atomic commits; gate; never push red.
 
 ## ▶▶ NEW DIRECTION (Daniel, 2026-06-13 PM) — this supersedes the four-lane order below
 **Daniel's lane = backend, autonomous, looped. Mac App Shell is DEFERRED to tomorrow when Daniel drives it — do NOT touch Mac/SwiftUI autonomously.**
@@ -136,15 +136,17 @@ My scope: **AI Infrastructure (milestone #83) + security + speed/efficiency + th
 - **#2061** (1cfd93b3) shipped the image-editing backend strategy decision doc. New `docs/architecture/image_editing_backend_strategy.md` decides: keep Pillow/PyMuPDF as the portable canonical path; add Quartz/Core Image only as an optional Apple-native acceleration path for preview/render/high-throughput transforms; keep OpenCV as a narrow helper for segmentation/background extraction, not the general image engine; keep image editing local/no-cloud; and require typed Pydantic/OpenAPI contracts plus future tests for operation semantics, fallback behavior, scale, and contract round-trips. Linked from docs README, architecture overview, AI infrastructure, and roadmap. Docs-only verification passed (`git show --check`, link/path sanity, targeted reference grep). Issue closed; `image-backend-strategy-2061` worktree/window removed.
 - **#2205 filed** for the remaining backend-side Pydantic persistence guardrail: catch dynamic writes to undeclared Pydantic fields (`extra="allow"` + `setattr`/new field assignment) that appear to work but disappear on `model_dump()`. This complements the already-shipped Swift `additionalProperties` guardrail.
 
+### SHIPPED (loop tick 5j, all gated ALL PASS + pushed) — 0.0.2 @ 3e42b9e1
+- **#2205** (3e42b9e1) shipped the backend-side Pydantic persistence guardrail. New `scripts/check_pydantic_persistence_writes.py` AST-scans backend route update code for high-signal dynamic writes that can disappear on `model_dump()`: direct undeclared-field writes on inferred Pydantic model instances and `setattr(...)` loops fed by `extra="allow"` request `model_dump()` payloads. It supports explicit `# pydantic-persistence-guardrail: allow` suppressions and a keyed allowlist baseline, but current tree needs no baseline. Unit tests prove undeclared direct writes and extra-allow `setattr` loops are caught while declared fields and explicit suppressions pass. Because it is a `scripts/check_*.py` guardrail, `verify_all` runs it in the standard sweep. Focused checks passed (`ruff`; direct script smoke: 0 offenders; script tests: `4 passed`). Manager gate passed `verify_all (standard): ALL PASS` (`4992 passed, 22 skipped, 21 xfailed`). Issue closed; `pydantic-persistence-guardrail-2205` worktree/window removed.
+
 ### In flight (poll on wake) — tick 6
-- None currently active. **AI Infrastructure milestone #83 is drained and epic #2056 is closed.** Remaining referenced follow-ups moved to owning lanes/milestones: #2063/#2064 (Settings & Providers), #2060 (Importers), #2067 (Researcher), #2116 (Settings & Providers model-picker education/UI), and #2205 (Developer Experience backend guardrail). Current autonomous scope: backend-only security, efficiency, comparison, and guardrail follow-ups. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
+- None currently active. **AI Infrastructure milestone #83 is drained and epic #2056 is closed.** Remaining referenced follow-ups moved to owning lanes/milestones: #2063/#2064 (Settings & Providers), #2060 (Importers), #2067 (Researcher), and #2116 (Settings & Providers model-picker education/UI). Current autonomous scope: backend-only security, efficiency, comparison, and guardrail follow-ups. Keep worker file-sets disjoint and leave Mac/SwiftUI for Daniel.
 
 ### Next waves (dispatch as lanes free up — all codex workers, disjoint file-sets)
 1. **Batch/eval polish**: use the now-shipped compare CLI/API and #2057 batching to evaluate good-and-cheap model choices without network leaks; keep tests/fakes network-free.
-2. **Backend Pydantic guardrail**: #2205 is a narrow Developer Experience follow-up to make the `extra="allow"` / undeclared-field `model_dump()` failure mode programmatic.
-3. **MLX on-device implementation**: #2199 and #1814 backend slices are done; #2067/#2071 remain agent/product/runtime follow-ups.
-4. **Embedding roadmap cleanup**: #2203 shipped the explicit migration primitive. Any actual default flip / production re-embed remains a Daniel-controlled operational step, never implicit.
-5. **Deferred/held**: Mac/SwiftUI, `entitytable-2020`, `lan-tls-2157`, and auth/security design calls stay untouched.
+2. **MLX on-device implementation**: #2199 and #1814 backend slices are done; #2067/#2071 remain agent/product/runtime follow-ups.
+3. **Embedding roadmap cleanup**: #2203 shipped the explicit migration primitive. Any actual default flip / production re-embed remains a Daniel-controlled operational step, never implicit.
+4. **Deferred/held**: Mac/SwiftUI, `entitytable-2020`, `lan-tls-2157`, and auth/security design calls stay untouched.
 
 ### ICANH ground truth (my vision, for scoring bake-offs)
 Doc `18590129.pdf` (`files/fi/aa82ab20_fichero_upload_ouazq1uq.pdf`), an 1859 Nóvita (Chocó) notarial deed: opening is **"En la ciudad de Nóvita a veintiuno de Enero del año de mil ochocientos cincuenta i nueve"**, notary **Adolfo Hurtado**, parties **Juan Catarino Ayrilla** + **Eduvijes Ibárgüen**, creditor **Pompeyo Guzmán**, sum **400 pesos fuertes = 250 castellanos de oro en polvo**. gpt-4o-mini HALLUCINATES the opening ("Con la utilidad de Xrito") + garbles all numbers → weak baseline. Score candidates vs this.
