@@ -4,6 +4,7 @@ Search Routes
 Semantic search using LanceDB vector embeddings.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from enum import Enum
@@ -330,6 +331,28 @@ def _project_pdf_file_hits_to_pages(
             seen_doc_ids.add(replacement.document_id)
 
     return projected
+
+
+def _run_content_search_sync(
+    db: Database,
+    request: Any,
+    retrieval_query: str,
+) -> tuple[list[SearchResult], int, dict[str, Any]]:
+    """Run synchronous content retrieval work off the FastAPI event loop."""
+    results, _total_count, search_stats = db.search(
+        query=retrieval_query,
+        limit=request.limit,
+        min_score=request.min_score,
+        search_type=request.search_type,
+        filters=request.filters,
+        sort_by=request.sort_by,
+        sort_order=request.sort_direction,  # db.search uses sort_order param for direction
+        offset=request.offset,
+        use_fuzzy_match=request.use_fuzzy_match,
+        highlight_results=request.highlight_results,
+    )
+    results = _project_pdf_file_hits_to_pages(db, results, retrieval_query)
+    return results, len(results), search_stats
 
 
 _ALL_ENTITY_TYPES: tuple[str, ...] = (
@@ -659,20 +682,12 @@ async def enhanced_search(
             {"search_type": request.search_type, "execution_time_ms": 0.0, "filters_applied": {}},
         )
     else:
-        results, total_count, search_stats = db.search(
-            query=retrieval_query,
-            limit=request.limit,
-            min_score=request.min_score,
-            search_type=request.search_type,
-            filters=request.filters,
-            sort_by=request.sort_by,
-            sort_order=request.sort_direction,  # db.search uses sort_order param for direction
-            offset=request.offset,
-            use_fuzzy_match=request.use_fuzzy_match,
-            highlight_results=request.highlight_results,
+        results, total_count, search_stats = await asyncio.to_thread(
+            _run_content_search_sync,
+            db,
+            request,
+            retrieval_query,
         )
-        results = _project_pdf_file_hits_to_pages(db, results, retrieval_query)
-        total_count = len(results)
 
     # Apply NOT exclusions and required phrases. Both operate on the
     # post-retrieval result set — cheaper than rebuilding the index for

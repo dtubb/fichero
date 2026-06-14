@@ -8,6 +8,9 @@ so tests can exercise it without a seeded vector store.
 
 from __future__ import annotations
 
+import asyncio
+from unittest.mock import AsyncMock
+
 from fastapi import HTTPException
 
 from fichero.api.routes import search as search_routes
@@ -117,6 +120,46 @@ class TestEnhancedSearch:
     def test_whitespace_query_returns_recent(self, client):
         r = client.post("/api/search", json={"query": "   "})
         assert r.status_code == 200
+
+    def test_content_search_offloads_sync_retriever_work_to_thread(self, monkeypatch):
+        class FakeDB:
+            def search(self, **_kwargs):
+                raise AssertionError("db.search must run inside asyncio.to_thread")
+
+        hit = SearchResult(
+            document_id="doc-1",
+            score=1.0,
+            content_preview="Camilo appears in the ledger.",
+            metadata={"name": "ledger.txt", "doc_type": "file"},
+            highlights=[],
+        )
+        to_thread = AsyncMock(
+            return_value=(
+                [hit],
+                1,
+                {
+                    "search_type": "hybrid",
+                    "execution_time_ms": 1.0,
+                    "has_more": False,
+                },
+            )
+        )
+        monkeypatch.setattr(search_routes.asyncio, "to_thread", to_thread)
+
+        response = asyncio.run(
+            search_routes.enhanced_search(
+                search_routes.SearchRequest(
+                    query="Camilo",
+                    include=[search_routes.SearchInclude.content],
+                ),
+                db=FakeDB(),
+            )
+        )
+
+        to_thread.assert_awaited_once()
+        assert to_thread.await_args.args[:1] == (search_routes._run_content_search_sync,)
+        assert response.results == [hit]
+        assert response.total_results == 1
 
     def test_recent_search_excludes_soft_deleted_documents(self, client, db):
         doc = Document(
