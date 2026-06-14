@@ -1,5 +1,13 @@
 # Durable Lessons Learned / Decisions
 
+## OCR geometry must be provider-normalized, not Apple-specific — 2026-06-14
+
+Apple Vision now has deterministic OCR line/word geometry, but VLMs and cloud/local OCR APIs should feed the same typed contract rather than each inventing bbox shapes. Future OCR/transcription geometry work should define one Pydantic result model for page/line/word boxes, then write adapters for Apple Vision, prompted VLM JSON (Qwen/Gemini/GPT/Claude), Google Vision/Document AI, AWS Textract, optional Azure, and local Python OCR/layout tools. Cloud OCR adapters must be blocked by local-only/no-cloud policy unless explicit consent allows upload; tests should use fixtures only.
+
+## Guardrails should scan synthetic architecture failure modes directly — 2026-06-14
+
+For recurring backend data-loss or reactivity bugs, prefer small AST guardrails plus synthetic unit fixtures over one-time manual review. Recent examples: Pydantic persistence writes that vanish on `model_dump()`, Swift `additionalProperties` misuse for OpenAPI-typed fields, and non-route observable `save()` calls without nearby `emit_change()`. Keep scanners high-signal with explicit allow comments/baselines and run them through `verify_all` via `scripts/check_*.py`.
+
 ## Codex worker model ladder for manager lanes — 2026-06-10
 
 For Fichero manager dispatch, use tmux-based Codex workers in external worktrees under `~/code/fichero-worktrees/<name>` and prefer `gpt-5.3-codex-spark` for most issue-scoped workers. Escalate only when needed: `gpt-5.4-mini` if Spark struggles, `gpt-5.4` for complex keystones, and `gpt-5.5` only for truly hard/high-blast work. Prompts should tell workers to use jcodemunch first, claim issues before coding, continue within the same milestone until context fills only when file sets remain disjoint, and report verification/commit SHA before manager integration.

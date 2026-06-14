@@ -2546,3 +2546,12 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - Filed future feature #1972 for image keywords, ratings, and thumbs up/down curation.
 - Final standard gardener gate passed: `verify_all (standard): ALL PASS`; backend unit suite `3979 passed, 21 skipped, 21 xfailed` in 10:31. Guardrails surfaced stale baseline cleanup opportunities (no-emoji, observer, UI-wiring, endpoint-usage).
 - Cleaned temporary external worktrees using `git worktree remove --force`. No active worker lanes left.
+
+## 2026-06-14 — Session Summary
+
+- Shipped #2061 image-editing backend strategy (`1cfd93b3`): local-first Pillow/PyMuPDF baseline, optional Quartz/Core Image acceleration, narrow OpenCV helper role, and typed/no-cloud future contracts.
+- Shipped #2205 Pydantic persistence guardrail (`3e42b9e1`): `scripts/check_pydantic_persistence_writes.py` catches undeclared/dynamic writes that vanish on `model_dump()`; full `verify_all --standard` passed with `4992 passed, 22 skipped, 21 xfailed`.
+- Shipped #1644 Apple Vision OCR geometry (`15ba7d58`): typed `VisionOCRBox`/`VisionOCRResult`, line/word boxes, confidence, page indexes, and compatibility with existing text-only API; focused tests passed.
+- Filed #2206 for provider-agnostic OCR/transcription geometry across Apple Vision, VLM JSON, Google, AWS, optional Azure, and local OCR/layout APIs with privacy gates.
+- Shipped #2001 observable-save guardrail (`67498731`): `check_emit_change_coverage.py` now derives route domains from a central map and flags API-adjacent non-route observable saves without nearby `emit_change()` or explicit allow; focused tests passed.
+- GitHub issue review: removed stale `status:in-progress` from #2008; confirmed held lanes #2157/#2020 remain untouched.
