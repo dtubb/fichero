@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sys
 import importlib.util
-import pytest
 from pathlib import Path
 
 
@@ -27,7 +26,6 @@ def test_top_module_returns_top_package_or_root():
     assert scan_test_coverage_gaps._top_module("routes.py") == "<root>"
 
 
-@pytest.mark.skip(reason="deferred: needs path-injectable scripts — see #2007")
 def test_build_issue_body_applies_cap():
     symbols = [
         scan_test_coverage_gaps.SymbolEntry(
@@ -41,10 +39,10 @@ def test_build_issue_body_applies_cap():
 
     body = scan_test_coverage_gaps._build_issue_body("python/core", symbols)
     assert (
-        "... and 1 more" in body
+        "… and 1 more" in body
         and "run `python3 scripts/scan_test_coverage_gaps.py` for the full list)." in body
     )
-    assert body.count("\n- ") == 201
+    assert body.count("\n- ") == 200
 
 
 def test_coverage_predicate_matches_term():
@@ -52,29 +50,28 @@ def test_coverage_predicate_matches_term():
     assert not scan_test_coverage_gaps._is_covered("missing", {"covered", "other"})
 
 
-def test_collect_gaps_excludes_covered_symbols(monkeypatch):
-    monkeypatch.setattr(
-        scan_test_coverage_gaps,
-        "_scan_python_symbols",
-        lambda: [
-            scan_test_coverage_gaps.SymbolEntry(
-                module="python/core",
-                file="core/covered.py",
-                kind="func",
-                name="covered_symbol",
-            ),
-            scan_test_coverage_gaps.SymbolEntry(
-                module="python/core",
-                file="core/missing.py",
-                kind="func",
-                name="missing_symbol",
-            ),
-        ],
-    )
-    monkeypatch.setattr(scan_test_coverage_gaps, "_scan_swift_symbols", lambda: [])
-    monkeypatch.setattr(scan_test_coverage_gaps, "_test_terms", lambda: {"covered_symbol"})
+def test_collect_gaps_excludes_covered_symbols(tmp_path):
+    source_file = tmp_path / "fichero-engine" / "src" / "fichero" / "core" / "sample.py"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text(
+        """
+def covered_symbol():
+    pass
 
-    gaps = scan_test_coverage_gaps._collect_gaps()
-    assert "python/core" in gaps
-    assert len(gaps["python/core"]) == 1
-    assert gaps["python/core"][0].name == "missing_symbol"
+def missing_symbol():
+    pass
+""",
+        encoding="utf-8",
+    )
+
+    test_file = tmp_path / "fichero-engine" / "tests" / "test_sample.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text("def test_covered_symbol():\n    covered_symbol()\n", encoding="utf-8")
+
+    gaps = scan_test_coverage_gaps._collect_gaps(
+        root=tmp_path,
+        test_paths=[test_file],
+        python_symbol_paths=[source_file],
+        swift_symbol_paths=[],
+    )
+    assert [symbol.name for symbol in gaps["python/core"]] == ["missing_symbol"]

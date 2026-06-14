@@ -38,9 +38,6 @@ MILESTONE_NUMBER = 82
 MILESTONE_TITLE = "Test Coverage"
 ISSUE_LABEL = "type:test"
 
-PY_TEST_FILES = sorted(PY_TEST_ROOT.rglob("*.py"))
-CLI_TEST_FILES = sorted((CLI_ROOT / "tests").rglob("*.py")) if (CLI_ROOT / "tests").exists() else []
-SWIFT_TEST_FILES = sorted(SWIFT_ROOT.glob("**/*Tests/**/*.swift"))
 PY_SYMBOL_RE = re.compile(r"^\s*(def|class)\s+([A-Za-z_][A-Za-z0-9_]*)")
 SWIFT_SYMBOL_RE = re.compile(
     r"^\s*(?:(?:public|internal|fileprivate|private|open)\s+)?"
@@ -67,16 +64,38 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore")
 
 
-def _python_tests() -> list[Path]:
-    tests = PY_TEST_FILES[:]
-    cli_tests = CLI_TEST_FILES[:] if CLI_TEST_FILES else []
+def _python_tests(
+    *,
+    root: Path | None = None,
+    py_test_root: Path | None = None,
+    cli_root: Path | None = None,
+) -> list[Path]:
+    base_root = root or ROOT
+    tests_root = py_test_root or base_root / "fichero-engine" / "tests"
+    cli_tests_root = cli_root or base_root / "fichero" / "fichero-cli"
+    tests = sorted(tests_root.rglob("*.py"))
+    cli_tests = (
+        sorted((cli_tests_root / "tests").rglob("*.py"))
+        if (cli_tests_root / "tests").exists()
+        else []
+    )
     tests.extend(p for p in cli_tests if p not in tests)
     return tests
 
 
-def _test_terms() -> set[str]:
+def _swift_tests(*, root: Path | None = None, swift_root: Path | None = None) -> list[Path]:
+    base_root = root or ROOT
+    tests_root = swift_root or base_root / "fichero" / "fichero"
+    if not tests_root.exists():
+        return []
+    return sorted(tests_root.glob("**/*Tests/**/*.swift"))
+
+
+def _test_terms(*, root: Path | None = None, paths: list[Path] | None = None) -> set[str]:
+    base_root = root or ROOT
+    test_paths = paths if paths is not None else _python_tests(root=base_root) + _swift_tests(root=base_root)
     terms: set[str] = set()
-    for path in _python_tests() + SWIFT_TEST_FILES:
+    for path in test_paths:
         try:
             terms.update(TOKEN_RE.findall(_read_text(path)))
         except OSError:
@@ -101,12 +120,22 @@ def _top_module(rel: str) -> str:
     return rel.split("/", 1)[0] if "/" in rel else "<root>"
 
 
-def _scan_python_symbols() -> list[SymbolEntry]:
+def _scan_python_symbols(
+    *,
+    root: Path | None = None,
+    py_root: Path | None = None,
+    paths: list[Path] | None = None,
+) -> list[SymbolEntry]:
+    base_root = root or ROOT
+    source_root = py_root or base_root / "fichero-engine" / "src" / "fichero"
     entries: list[SymbolEntry] = []
-    for path in sorted(PY_ROOT.rglob("*.py")):
+    for path in paths if paths is not None else sorted(source_root.rglob("*.py")):
         if path.name.startswith("_"):
             continue
-        rel = path.relative_to(PY_ROOT).as_posix()
+        try:
+            rel = path.relative_to(source_root).as_posix()
+        except ValueError:
+            rel = path.as_posix()
         if _is_excluded(rel, path.name):
             continue
         module = _top_module(rel)
@@ -127,13 +156,23 @@ def _scan_python_symbols() -> list[SymbolEntry]:
     return entries
 
 
-def _scan_swift_symbols() -> list[SymbolEntry]:
+def _scan_swift_symbols(
+    *,
+    root: Path | None = None,
+    swift_root: Path | None = None,
+    paths: list[Path] | None = None,
+) -> list[SymbolEntry]:
+    base_root = root or ROOT
+    source_root = swift_root or base_root / "fichero" / "fichero"
     entries: list[SymbolEntry] = []
-    if not SWIFT_ROOT.exists():
+    if paths is None and not source_root.exists():
         return entries
 
-    for path in sorted(SWIFT_ROOT.rglob("*.swift")):
-        rel = path.relative_to(SWIFT_ROOT).as_posix()
+    for path in paths if paths is not None else sorted(source_root.rglob("*.swift")):
+        try:
+            rel = path.relative_to(source_root).as_posix()
+        except ValueError:
+            rel = path.as_posix()
         if rel.startswith(".") or _is_excluded(rel, path.name):
             continue
         module = _top_module(rel)
@@ -159,10 +198,20 @@ def _is_covered(name: str, test_terms: set[str]) -> bool:
     return name in test_terms
 
 
-def _collect_gaps() -> dict[str, list[SymbolEntry]]:
-    terms = _test_terms()
+def _collect_gaps(
+    *,
+    root: Path | None = None,
+    test_paths: list[Path] | None = None,
+    python_symbol_paths: list[Path] | None = None,
+    swift_symbol_paths: list[Path] | None = None,
+) -> dict[str, list[SymbolEntry]]:
+    base_root = root or ROOT
+    terms = _test_terms(root=base_root, paths=test_paths)
     by_module: dict[str, list[SymbolEntry]] = {}
-    entries = _scan_python_symbols() + _scan_swift_symbols()
+    entries = _scan_python_symbols(root=base_root, paths=python_symbol_paths) + _scan_swift_symbols(
+        root=base_root,
+        paths=swift_symbol_paths,
+    )
     for entry in entries:
         if _is_covered(entry.name, terms):
             continue

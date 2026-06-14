@@ -56,7 +56,10 @@ BACKEND_FIRST_DOMAINS: set[str] = {"interpretation"}
 # Match BOTH — otherwise the 8 stores migrated onto ObservableDomainStore drop
 # out of observed_domains and the scanner silently stops checking their route
 # modules (false "0 gaps" over a narrower set).
-CHANGE_DOMAINS_RE = re.compile(r"changeDomains:\s*Set<String>\s*\{\s*\[(.*?)\]\s*\}", re.S)
+CHANGE_DOMAINS_RE = re.compile(
+    r"changeDomains:\s*Set<String>\s*(?:=\s*)?(?:\{\s*)?\[(.*?)\]",
+    re.S,
+)
 CHANGE_DOMAIN_RE = re.compile(r'changeDomain:\s*String\s*\{\s*"([^"]+)"\s*\}')
 STRING_RE = re.compile(r'\"([^\"]+)\"')
 
@@ -98,9 +101,11 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore")
 
 
-def _observed_domains() -> set[str]:
+def _observed_domains(*, root: Path | None = None, models_dir: Path | None = None) -> set[str]:
+    base_root = root or ROOT
+    store_dir = models_dir or base_root / "fichero" / "fichero" / "Models"
     observed: set[str] = set()
-    for path in sorted(MODELS_DIR.glob("*Store.swift")):
+    for path in sorted(store_dir.glob("*Store.swift")):
         text = _read_text(path)
         legacy = CHANGE_DOMAINS_RE.search(text)
         if legacy:
@@ -134,11 +139,18 @@ def _has_emit_change(function_node: ast.AST) -> bool:
     return False
 
 
-def scan() -> list[Row]:
-    observed_domains = _observed_domains()
+def scan(
+    *,
+    root: Path | None = None,
+    models_dir: Path | None = None,
+    routes_dir: Path | None = None,
+) -> list[Row]:
+    base_root = root or ROOT
+    route_root = routes_dir or base_root / "fichero-engine" / "src" / "fichero" / "api" / "routes"
+    observed_domains = _observed_domains(root=base_root, models_dir=models_dir)
     rows: list[Row] = []
 
-    for path in sorted(ROUTES_DIR.glob("*.py")):
+    for path in sorted(route_root.glob("*.py")):
         if path.name == "__init__.py":
             continue
         domain = ROUTE_DOMAIN_MAP.get(path.stem)
@@ -152,7 +164,10 @@ def scan() -> list[Row]:
         except SyntaxError:
             continue
 
-        rel_path = path.relative_to(ROOT).as_posix()
+        try:
+            rel_path = path.relative_to(base_root).as_posix()
+        except ValueError:
+            rel_path = path.as_posix()
         for statement in module.body:
             if not isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue

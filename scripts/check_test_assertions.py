@@ -97,18 +97,28 @@ class TestEntry:
     has_assertion: bool
 
 
-def _swift_test_files() -> list[Path]:
-    if not SWIFT_ROOT.exists():
+def _swift_test_files(*, root: Path | None = None, swift_root: Path | None = None) -> list[Path]:
+    base_root = root or ROOT
+    tests_root = swift_root or base_root / "fichero" / "fichero"
+    if not tests_root.exists():
         return []
-    return sorted(SWIFT_ROOT.glob("**/*Tests/**/*.swift"))
+    return sorted(tests_root.glob("**/*Tests/**/*.swift"))
 
 
-def _python_test_files() -> list[Path]:
-    tests = sorted(PY_TEST_ROOT.rglob("*.py"))
-    if not CLI_ROOT.exists():
+def _python_test_files(
+    *,
+    root: Path | None = None,
+    py_test_root: Path | None = None,
+    cli_root: Path | None = None,
+) -> list[Path]:
+    base_root = root or ROOT
+    tests_root = py_test_root or base_root / "fichero-engine" / "tests"
+    cli_tests_root = cli_root or base_root / "fichero" / "fichero-cli"
+    tests = sorted(tests_root.rglob("*.py"))
+    if not cli_tests_root.exists():
         return tests
     cli_tests = []
-    for path in CLI_ROOT.rglob("*"):
+    for path in cli_tests_root.rglob("*"):
         if not path.is_dir():
             continue
         if path.name == "tests":
@@ -153,15 +163,23 @@ def _python_asserts(function: ast.AST) -> bool:
     return False
 
 
-def _scan_python() -> list[TestEntry]:
+def _relative_key(path: Path, root: Path) -> str:
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _scan_python(*, root: Path | None = None, paths: list[Path] | None = None) -> list[TestEntry]:
+    base_root = root or ROOT
     entries: list[TestEntry] = []
-    for path in _python_test_files():
+    for path in paths if paths is not None else _python_test_files(root=base_root):
         try:
             tree = ast.parse(_py_text(path))
         except (SyntaxError, OSError):
             continue
 
-        rel = path.relative_to(ROOT).as_posix()
+        rel = _relative_key(path, base_root)
         for node in tree.body:
             if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
                 entries.append(TestEntry(f"{rel}::{node.name}", _python_asserts(node)))
@@ -179,10 +197,11 @@ def _strip_swift_comments(text: str) -> str:
     return "\n".join(re.sub(r"(?<!:)//.*", "", line) for line in block.splitlines())
 
 
-def _scan_swift() -> list[TestEntry]:
+def _scan_swift(*, root: Path | None = None, paths: list[Path] | None = None) -> list[TestEntry]:
+    base_root = root or ROOT
     entries: list[TestEntry] = []
-    for path in _swift_test_files():
-        rel = path.relative_to(ROOT).as_posix()
+    for path in paths if paths is not None else _swift_test_files(root=base_root):
+        rel = _relative_key(path, base_root)
         try:
             lines = _strip_swift_comments(path.read_text(encoding="utf-8", errors="ignore")).splitlines()
         except OSError:
@@ -253,8 +272,17 @@ def _scan_swift() -> list[TestEntry]:
     return entries
 
 
-def scan() -> list[TestEntry]:
-    return _scan_python() + _scan_swift()
+def scan(
+    *,
+    root: Path | None = None,
+    python_paths: list[Path] | None = None,
+    swift_paths: list[Path] | None = None,
+) -> list[TestEntry]:
+    base_root = root or ROOT
+    return _scan_python(root=base_root, paths=python_paths) + _scan_swift(
+        root=base_root,
+        paths=swift_paths,
+    )
 
 
 def main() -> int:

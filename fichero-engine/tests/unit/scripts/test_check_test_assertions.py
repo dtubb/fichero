@@ -4,7 +4,6 @@ import ast
 import sys
 import importlib.util
 
-import pytest
 from pathlib import Path
 
 
@@ -18,9 +17,10 @@ _SPEC.loader.exec_module(check_test_assertions)  # type: ignore[attr-defined]
 
 def _as_function(source: str) -> ast.FunctionDef:
     tree = ast.parse(source)
-    node = tree.body[0]
-    assert isinstance(node, ast.FunctionDef)
-    return node
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+            return node
+    raise AssertionError("source did not contain a test function")
 
 
 def test_python_assertion_detects_assert_and_pytest_raises():
@@ -44,7 +44,6 @@ def test_has_pytest_raises():
     )
 
 
-@pytest.mark.skip(reason="deferred: needs path-injectable scripts — see #2007")
 def test_python_assertion_detects_self_assert_methods():
     assert check_test_assertions._python_asserts(
         _as_function(
@@ -69,7 +68,7 @@ def test_vacuous():
     )
 
 
-def test_swift_assertions_and_expect_count_as_assertions(monkeypatch, tmp_path):
+def test_swift_assertions_and_expect_count_as_assertions(tmp_path):
     source = """
 func test_with_xctassert() {
     XCTAssertEqual(1, 1)
@@ -88,14 +87,7 @@ func test_without_assertion() {
     test_file = swift_root / "GuardrailTests.swift"
     test_file.write_text(source, encoding="utf-8")
 
-    monkeypatch.setattr(check_test_assertions, "ROOT", tmp_path)
-    monkeypatch.setattr(
-        check_test_assertions,
-        "_swift_test_files",
-        lambda: [test_file],
-    )
-
-    entries = check_test_assertions._scan_swift()
+    entries = check_test_assertions._scan_swift(root=tmp_path, paths=[test_file])
     by_name = {entry.key.split("::")[-1]: entry.has_assertion for entry in entries}
 
     assert by_name["test_with_xctassert"] is True
