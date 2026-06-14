@@ -107,6 +107,11 @@ hard no-cloud boundary, and build the future in-app agent on the existing action
 registry + audit + SSE/change-stream seams instead of inventing a parallel tool
 system.
 
+See also: [Pi Agent Harness Architecture](./pi_agent_harness.md), which makes Pi
+the in-app agent loop/package harness while keeping Fichero's backend as the
+authority for model profiles, local-only enforcement, action-registry tools,
+agent principals, audit, event streaming, and grouped undo.
+
 See also: [Apple Skills vs AI Skills](./apple_vs_ai_skills.md), which defines how
 Apple on-device capabilities, local AI providers, and remote AI providers should
 coexist as implementations of the same logical capability contract. App Intents

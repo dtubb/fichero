@@ -231,6 +231,11 @@ The important constraint is not the exact field names but the contract:
 
 The in-app agent for #2067 should be built as a **manager-with-workers** system on top of the audited backend primitives already being established elsewhere in the repo.
 
+See [Pi Agent Harness Architecture](./pi_agent_harness.md) for the #2071
+decision that Pi supplies this agent loop/package harness. The local MLX service
+and profile boundary described here remain underneath Pi; Pi does not replace
+the local-only provider resolver, action registry, audit, or undo path.
+
 ### 6.1 Core shape
 
 - One manager loop owns the user-facing run.
