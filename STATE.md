@@ -1,6 +1,6 @@
 # STATE — backend handoff 2026-06-14
 
-Branch `0.0.2` @ `67498731`, pushed clean. Local status is clean except persistent untracked `project.yaml` (ignore). Keep `0.0.2 == origin`.
+Branch `0.0.2` @ `0c2f27c8`, pushed clean. Keep `0.0.2 == origin`.
 
 ## Current Focus
 
