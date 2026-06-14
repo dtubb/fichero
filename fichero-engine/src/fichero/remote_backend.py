@@ -1,8 +1,9 @@
 """Remote backend configuration helpers.
 
-Fichero's supported remote-backend model is SSH loopback forwarding: the
-engine still binds to 127.0.0.1 on the remote host, and the client reaches it
-through a local tunnel. This module keeps that contract explicit and testable.
+Fichero's supported remote-backend model is loopback binding plus a private
+transport such as SSH forwarding or ``tailscale serve``: the engine still binds
+to 127.0.0.1 on the host, and the client reaches it through that private
+transport. This module keeps that contract explicit and testable.
 """
 
 from __future__ import annotations
@@ -50,8 +51,9 @@ def build_remote_backend_status(
     """Validate and summarize the configured remote-backend mode.
 
     ``FICHERO_REMOTE_BACKEND=1`` opts into remote mode. Remote mode supports
-    only SSH loopback forwarding; a public bind host is rejected because auth is
-    designed as a local shared-secret, not an internet-facing API boundary.
+    only loopback binding behind SSH forwarding or tailscale serve; a public
+    bind host is rejected because auth is designed as a local shared-secret,
+    not an internet-facing API boundary.
     """
 
     source = env if env is not None else environ
@@ -83,7 +85,8 @@ def build_remote_backend_status(
     if bind_host and bind_host not in _LOOPBACK_HOSTS:
         raise ValueError(
             "Remote backend mode requires loopback binding. "
-            "Start the engine on 127.0.0.1 and use SSH -L forwarding; "
+            "Start the engine on 127.0.0.1 and use tailscale serve or SSH -L "
+            "forwarding; "
             f"got FICHERO_REMOTE_BACKEND_BIND_HOST={bind_host!r}."
         )
 
@@ -91,7 +94,8 @@ def build_remote_backend_status(
     if api_host and api_host not in _LOOPBACK_HOSTS:
         warnings.append(
             "FICHERO_API_URL is not loopback. Prefer an SSH tunnel such as "
-            "http://127.0.0.1:18765 rather than exposing the backend host."
+            "http://127.0.0.1:18765, or a tailscale serve URL that proxies to "
+            "loopback, rather than exposing the backend host."
         )
     if not token:
         warnings.append("FICHERO_API_KEY is not set; protected endpoints will return 401.")

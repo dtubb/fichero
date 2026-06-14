@@ -1,16 +1,30 @@
 """Bind-host resolution for the Fichero engine.
 
-The engine may bind to a specific tailnet interface address via
-``FICHERO_BIND_HOST``. A blanket ``0.0.0.0`` bind is refused because it would
-expose the engine on all interfaces instead of only the intended private one.
+The supported remote-access model is loopback binding plus a private transport
+such as ``tailscale serve`` or SSH forwarding. The shared bootstrap token is not
+an internet-facing auth boundary, so non-loopback binding must be an explicit
+risk-acknowledged escape hatch rather than the default path.
 """
 
 from __future__ import annotations
 
+import ipaddress
+import warnings
 from collections.abc import Mapping
 from os import environ
 
 DEFAULT_BIND_HOST = "127.0.0.1"
+NON_LOOPBACK_BIND_ACK_ENV = "FICHERO_ALLOW_NON_LOOPBACK_BIND"
+NON_LOOPBACK_BIND_ACK_VALUE = "I_UNDERSTAND_SHARED_SECRET_RISK"
+
+
+def _is_loopback_host(host: str) -> bool:
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def resolve_bind_host(
@@ -30,8 +44,30 @@ def resolve_bind_host(
     if resolved == "0.0.0.0":
         raise ValueError(
             "FICHERO_BIND_HOST=0.0.0.0 is not allowed. "
-            "Bind the engine to a specific tailnet address or leave "
-            "FICHERO_BIND_HOST unset to stay on 127.0.0.1."
+            "Keep the engine on 127.0.0.1 and use tailscale serve or SSH "
+            "loopback forwarding for remote access."
+        )
+
+    if resolved == "::":
+        raise ValueError(
+            "FICHERO_BIND_HOST=:: is not allowed. Keep the engine on ::1 or "
+            "127.0.0.1 and use tailscale serve or SSH loopback forwarding."
+        )
+
+    if not _is_loopback_host(resolved):
+        if source.get(NON_LOOPBACK_BIND_ACK_ENV) != NON_LOOPBACK_BIND_ACK_VALUE:
+            raise ValueError(
+                f"FICHERO_BIND_HOST={resolved!r} is non-loopback. "
+                "The supported remote model is 127.0.0.1 plus tailscale serve "
+                "or SSH loopback forwarding. To override deliberately, set "
+                f"{NON_LOOPBACK_BIND_ACK_ENV}={NON_LOOPBACK_BIND_ACK_VALUE}."
+            )
+        warnings.warn(
+            "WARNING: binding Fichero to a non-loopback host. The shared "
+            "bootstrap token is not an internet-facing auth boundary; prefer "
+            "127.0.0.1 plus tailscale serve or SSH loopback forwarding.",
+            RuntimeWarning,
+            stacklevel=2,
         )
 
     return resolved

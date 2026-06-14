@@ -67,6 +67,12 @@ Do not use `tailscale funnel`. Funnel exposes the service to the public internet
 
 Tailscale is transport. It provides network-level access control (tailnet vs. internet). It is not user-vs-user authorization — that is the `FICHERO_MULTIUSER` / `authz.py` layer. The two concerns are independent.
 
+`FICHERO_BIND_HOST` is loopback-only by default. Binding the engine directly to
+a non-loopback address requires the explicit escape hatch
+`FICHERO_ALLOW_NON_LOOPBACK_BIND=I_UNDERSTAND_SHARED_SECRET_RISK` and emits a
+runtime warning. That mode is for owner-debugging only; it is not the supported
+remote-access path.
+
 Summary of what each layer does:
 
 | Layer | What it controls |

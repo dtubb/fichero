@@ -3469,8 +3469,8 @@ def engine_start(
         "--host",
         help=(
             "Bind host for the engine. Defaults to FICHERO_BIND_HOST or "
-            "127.0.0.1. A blanket 0.0.0.0 bind is refused; use a specific "
-            "tailnet address instead."
+            "127.0.0.1. Non-loopback binds are refused by default; use "
+            "tailscale serve or SSH loopback forwarding for remote access."
         ),
     ),
     workers: int = typer.Option(
@@ -3511,8 +3511,8 @@ def engine_restart(
         "--host",
         help=(
             "Bind host for the engine. Defaults to FICHERO_BIND_HOST or "
-            "127.0.0.1. A blanket 0.0.0.0 bind is refused; use a specific "
-            "tailnet address instead."
+            "127.0.0.1. Non-loopback binds are refused by default; use "
+            "tailscale serve or SSH loopback forwarding for remote access."
         ),
     ),
     workers: int = typer.Option(

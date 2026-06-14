@@ -4,7 +4,12 @@ import types
 
 import pytest
 
-from fichero.bind_host import DEFAULT_BIND_HOST, resolve_bind_host
+from fichero.bind_host import (
+    DEFAULT_BIND_HOST,
+    NON_LOOPBACK_BIND_ACK_ENV,
+    NON_LOOPBACK_BIND_ACK_VALUE,
+    resolve_bind_host,
+)
 from fichero.cli import engine_manager
 
 
@@ -12,13 +17,37 @@ def test_resolve_bind_host_defaults_to_loopback() -> None:
     assert resolve_bind_host({}) == DEFAULT_BIND_HOST
 
 
-def test_resolve_bind_host_uses_specific_env_address() -> None:
-    assert resolve_bind_host({"FICHERO_BIND_HOST": "100.64.12.34"}) == "100.64.12.34"
+def test_resolve_bind_host_accepts_loopback_variants() -> None:
+    assert resolve_bind_host({"FICHERO_BIND_HOST": "localhost"}) == "localhost"
+    assert resolve_bind_host({"FICHERO_BIND_HOST": "::1"}) == "::1"
+
+
+def test_resolve_bind_host_rejects_non_loopback_without_ack() -> None:
+    with pytest.raises(ValueError, match="non-loopback"):
+        resolve_bind_host({"FICHERO_BIND_HOST": "100.64.12.34"})
+
+
+def test_resolve_bind_host_accepts_non_loopback_with_explicit_ack() -> None:
+    with pytest.warns(RuntimeWarning, match="non-loopback host"):
+        assert (
+            resolve_bind_host(
+                {
+                    "FICHERO_BIND_HOST": "100.64.12.34",
+                    NON_LOOPBACK_BIND_ACK_ENV: NON_LOOPBACK_BIND_ACK_VALUE,
+                }
+            )
+            == "100.64.12.34"
+        )
 
 
 def test_resolve_bind_host_refuses_blanket_wildcard() -> None:
     with pytest.raises(ValueError, match="0\\.0\\.0\\.0 is not allowed"):
         resolve_bind_host({"FICHERO_BIND_HOST": "0.0.0.0"})
+
+
+def test_resolve_bind_host_refuses_ipv6_blanket_wildcard() -> None:
+    with pytest.raises(ValueError, match="FICHERO_BIND_HOST=:: is not allowed"):
+        resolve_bind_host({"FICHERO_BIND_HOST": "::"})
 
 
 def test_start_uses_resolved_bind_host_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -31,7 +60,7 @@ def test_start_uses_resolved_bind_host_from_env(monkeypatch: pytest.MonkeyPatch)
         captured["cmd"] = list(cmd)
         return _FakeProc()
 
-    monkeypatch.setenv("FICHERO_BIND_HOST", "100.64.12.34")
+    monkeypatch.setenv("FICHERO_BIND_HOST", "127.0.0.1")
     monkeypatch.setattr(engine_manager, "_read_pid", lambda: None)
     monkeypatch.setattr(engine_manager, "_write_pid", lambda _pid: None)
     monkeypatch.setattr(engine_manager, "_remove_pid", lambda: None)
@@ -46,4 +75,4 @@ def test_start_uses_resolved_bind_host_from_env(monkeypatch: pytest.MonkeyPatch)
 
     cmd = captured["cmd"]
     host_index = cmd.index("--host")
-    assert cmd[host_index + 1] == "100.64.12.34"
+    assert cmd[host_index + 1] == "127.0.0.1"

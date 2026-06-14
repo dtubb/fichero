@@ -60,6 +60,16 @@ def test_remote_backend_status_rejects_public_bind_host() -> None:
         )
 
 
+def test_remote_backend_status_rejects_tailnet_bind_host() -> None:
+    with pytest.raises(ValueError, match="tailscale serve or SSH -L"):
+        build_remote_backend_status(
+            {
+                "FICHERO_REMOTE_BACKEND": "1",
+                "FICHERO_REMOTE_BACKEND_BIND_HOST": "100.64.12.34",
+            }
+        )
+
+
 def test_health_reports_remote_backend_status(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FICHERO_REMOTE_BACKEND", "1")
     monkeypatch.setenv("FICHERO_API_URL", "http://127.0.0.1:18765")
