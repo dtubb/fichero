@@ -7,6 +7,8 @@ Tests the simple Pythonic interface for:
 - Parquet export/import
 """
 
+import asyncio
+
 import pytest
 import tempfile
 import shutil
@@ -107,6 +109,51 @@ class TestDatabaseConcurrencySafety:
         }
         assert fake_conn.calls == 3
         assert sleeps == [0.01, 0.02]
+
+    def test_async_route_offload_keeps_write_conflict_backoff_off_event_loop(
+        self, temp_db, monkeypatch
+    ):
+        """Route-level to_thread offload keeps DuckDB retry sleeps off the loop."""
+
+        class ConflictThenSuccess:
+            def __init__(self):
+                self.calls = 0
+
+            def execute(self, sql, params=None):
+                self.calls += 1
+                if self.calls < 2:
+                    raise duckdb.TransactionException(
+                        "TransactionContext Error: Conflict on update!"
+                    )
+                return {"sql": sql, "params": params}
+
+        fake_conn = ConflictThenSuccess()
+        sleeps: list[tuple[float, int]] = []
+        monkeypatch.setattr(temp_db, "conn", fake_conn)
+
+        async def run_write():
+            event_loop_thread_id = threading.get_ident()
+
+            def fake_sleep(delay: float) -> None:
+                sleeps.append((delay, threading.get_ident()))
+
+            monkeypatch.setattr(db_module.time, "sleep", fake_sleep)
+            result = await asyncio.to_thread(
+                temp_db._execute,
+                "UPDATE documents SET name = ? WHERE id = ?",
+                ["b", "a"],
+            )
+            return event_loop_thread_id, result
+
+        event_loop_thread_id, result = asyncio.run(run_write())
+
+        assert result == {
+            "sql": "UPDATE documents SET name = ? WHERE id = ?",
+            "params": ["b", "a"],
+        }
+        assert fake_conn.calls == 2
+        assert sleeps == [(0.01, sleeps[0][1])]
+        assert sleeps[0][1] != event_loop_thread_id
 
     def test_execute_raises_clear_error_after_retry_bound(self, temp_db, monkeypatch):
         """Unresolved write conflicts fail with an actionable message."""

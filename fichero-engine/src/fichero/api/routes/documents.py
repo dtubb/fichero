@@ -47,6 +47,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+async def _run_document_write(func: Any, *args: Any, **kwargs: Any) -> Any:
+    """Run synchronous document DB mutations off the FastAPI event loop."""
+    return await asyncio.to_thread(func, *args, **kwargs)
+
+
 # Request/Response models
 
 
@@ -558,18 +563,10 @@ async def get_document_note(
     return notes[0]
 
 
-@router.put("/{doc_id}/notes")
-async def put_document_note(
-    doc_id: str,
-    request: DocumentNoteUpsert,
-    db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+def put_document_note_impl(
+    db: Database, doc_id: str, request: "DocumentNoteUpsert"
 ) -> DocumentNote:
-    """Create or replace a document's user note."""
+    """Create or replace a document note using the synchronous DB layer."""
     normalized_id = _normalize_document_id(doc_id)
     _document_or_404(db, normalized_id)
 
@@ -582,16 +579,46 @@ async def put_document_note(
         note = DocumentNote(document_id=normalized_id, content=request.content)
 
     db.save(note)
+    return note
+
+
+@router.put("/{doc_id}/notes")
+async def put_document_note(
+    doc_id: str,
+    request: DocumentNoteUpsert,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
+) -> DocumentNote:
+    """Create or replace a document's user note."""
+    note = await _run_document_write(put_document_note_impl, db, doc_id, request)
 
     emit_change(
         x_fichero_library_path,
         type="document.updated",
-        document_ids=[normalized_id],
+        document_ids=[note.document_id],
         actor=actor,
         origin_window=x_fichero_origin_window,
         origin_user=actor,
     )
     return note
+
+
+def delete_document_note_impl(db: Database, doc_id: str) -> str:
+    """Delete a document note and return the normalized document id."""
+    normalized_id = _normalize_document_id(doc_id)
+    _document_or_404(db, normalized_id)
+
+    notes = list(db.query(DocumentNote, document_id=normalized_id))
+    if not notes:
+        raise HTTPException(
+            status_code=404, detail=f"Document note not found: {doc_id}"
+        )
+    db.delete(notes[0])
+    return normalized_id
 
 
 @router.delete("/{doc_id}/notes", status_code=204)
@@ -605,15 +632,7 @@ async def delete_document_note(
     actor: str = Depends(request_actor),
 ) -> None:
     """Delete the user note for a document."""
-    normalized_id = _normalize_document_id(doc_id)
-    _document_or_404(db, normalized_id)
-
-    notes = list(db.query(DocumentNote, document_id=normalized_id))
-    if not notes:
-        raise HTTPException(
-            status_code=404, detail=f"Document note not found: {doc_id}"
-        )
-    db.delete(notes[0])
+    normalized_id = await _run_document_write(delete_document_note_impl, db, doc_id)
 
     emit_change(
         x_fichero_library_path,
@@ -637,7 +656,9 @@ async def patch_workspace_items(
     actor: str = Depends(request_actor),
 ) -> WorkspaceItemsResponse:
     """Atomically add/remove/reorder workspace curated items."""
-    doc, _before = patch_workspace_items_impl(db, doc_id, request)
+    doc, _before = await _run_document_write(
+        patch_workspace_items_impl, db, doc_id, request
+    )
 
     emit_change(
         x_fichero_library_path,
@@ -774,7 +795,7 @@ async def create_document(
     actor: str = Depends(request_actor),
 ) -> Document:
     """Create a new document."""
-    new_doc = create_document_impl(db, doc)
+    new_doc = await _run_document_write(create_document_impl, db, doc)
     logger.info(f"Created document: {new_doc.id} ({new_doc.name})")
 
     emit_change(
@@ -800,7 +821,9 @@ async def update_document(
     actor: str = Depends(request_actor),
 ) -> Document:
     """Update an existing document."""
-    doc, _before, _changed = update_document_impl(db, doc_id, update)
+    doc, _before, _changed = await _run_document_write(
+        update_document_impl, db, doc_id, update
+    )
     logger.info(f"Updated document: {doc_id}")
 
     # Observable data layer (#1863): broadcast the rename/edit so every window's
@@ -827,7 +850,9 @@ async def batch_exclude_documents(
     actor: str = Depends(request_actor),
 ) -> DocumentBatchExcludeResponse:
     """Toggle exclude-from-processing on multiple documents with audit logging."""
-    updated_ids, _before_snapshots = batch_exclude_documents_impl(db, request)
+    updated_ids, _before_snapshots = await _run_document_write(
+        batch_exclude_documents_impl, db, request
+    )
 
     if updated_ids:
         emit_change(
@@ -845,17 +870,10 @@ async def batch_exclude_documents(
     )
 
 
-@router.put("/{doc_id}/prototype", response_model=PrototypeAssignResponse)
-async def assign_document_prototype(
-    doc_id: str,
-    request: PrototypeAssignRequest,
-    db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
-) -> PrototypeAssignResponse:
+def assign_document_prototype_impl(
+    db: Database, doc_id: str, request: "PrototypeAssignRequest"
+) -> tuple[PrototypeAssignResponse, list[str]]:
+    """Assign a prototype key to a document scope using the synchronous DB layer."""
     _document_or_404(db, doc_id)
     if (
         request.page_start is not None
@@ -908,21 +926,42 @@ async def assign_document_prototype(
         db.save(candidate)
         updated += 1
 
-    if updated > 0:
+    return (
+        PrototypeAssignResponse(
+            source_document_id=doc_id,
+            prototype_key=request.prototype_key,
+            updated_count=updated,
+        ),
+        sorted(scoped_ids),
+    )
+
+
+@router.put("/{doc_id}/prototype", response_model=PrototypeAssignResponse)
+async def assign_document_prototype(
+    doc_id: str,
+    request: PrototypeAssignRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
+) -> PrototypeAssignResponse:
+    response, scoped_ids = await _run_document_write(
+        assign_document_prototype_impl, db, doc_id, request
+    )
+
+    if response.updated_count > 0:
         emit_change(
             x_fichero_library_path,
             type="document.updated",
-            document_ids=sorted(scoped_ids),
+            document_ids=scoped_ids,
             actor=actor,
             origin_window=x_fichero_origin_window,
             origin_user=actor,
         )
 
-    return PrototypeAssignResponse(
-        source_document_id=doc_id,
-        prototype_key=request.prototype_key,
-        updated_count=updated,
-    )
+    return response
 
 
 @router.get("/{doc_id}/page-ranges", response_model=PageRangeListResponse)
@@ -934,17 +973,10 @@ async def list_page_ranges(
     return PageRangeListResponse(items=ranges, count=len(ranges))
 
 
-@router.put("/{doc_id}/page-ranges", response_model=PageRangeListResponse)
-async def upsert_page_ranges(
-    doc_id: str,
-    request: PageRangeUpsertRequest,
-    db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
+def upsert_page_ranges_impl(
+    db: Database, doc_id: str, request: "PageRangeUpsertRequest"
 ) -> PageRangeListResponse:
+    """Persist document page ranges using the synchronous DB layer."""
     doc = _document_or_404(db, doc_id)
     normalized: list[dict[str, Any]] = []
     for idx, item in enumerate(request.items):
@@ -958,6 +990,24 @@ async def upsert_page_ranges(
     doc.structure = normalized
     doc.updated_at = datetime.now()
     db.save(doc)
+    return PageRangeListResponse(
+        items=[PageRangeItem(**row) for row in normalized],
+        count=len(normalized),
+    )
+
+
+@router.put("/{doc_id}/page-ranges", response_model=PageRangeListResponse)
+async def upsert_page_ranges(
+    doc_id: str,
+    request: PageRangeUpsertRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
+) -> PageRangeListResponse:
+    response = await _run_document_write(upsert_page_ranges_impl, db, doc_id, request)
 
     emit_change(
         x_fichero_library_path,
@@ -967,10 +1017,7 @@ async def upsert_page_ranges(
         origin_window=x_fichero_origin_window,
         origin_user=actor,
     )
-    return PageRangeListResponse(
-        items=[PageRangeItem(**row) for row in normalized],
-        count=len(normalized),
-    )
+    return response
 
 
 @router.get("/{doc_id}/page-ranges/at/{page}", response_model=PageRangeItem)
@@ -1065,6 +1112,13 @@ def _cascade_delete_kg_rows(db: Database, doc_ids: set[str]) -> tuple[int, int]:
     return (len(orphaned), entities_pruned)
 
 
+def restore_document_subtree_impl(db: Database, doc_id: str) -> list[str]:
+    """Restore a soft-deleted document subtree using the synchronous DB layer."""
+    target = _document_or_404(db, doc_id, include_deleted=True)
+    to_restore_ids = _descendant_document_ids(db, target.id, include_deleted=True)
+    return restore_documents_impl(db, doc_ids=to_restore_ids)
+
+
 @router.delete("/{doc_id}", status_code=204)
 async def delete_document(
     doc_id: str,
@@ -1076,7 +1130,9 @@ async def delete_document(
     actor: str = Depends(request_actor),
 ):
     """Soft-delete a document and all descendants."""
-    to_delete_ids, _before = delete_document_impl(db, doc_id, actor=actor)
+    to_delete_ids, _before = await _run_document_write(
+        delete_document_impl, db, doc_id, actor=actor
+    )
 
     logger.info(
         "Soft-deleted document subtree: root=%s total=%s actor=%s",
@@ -1108,9 +1164,7 @@ async def restore_document(
     actor: str = Depends(request_actor),
 ):
     """Restore a soft-deleted document subtree."""
-    target = _document_or_404(db, doc_id, include_deleted=True)
-    to_restore_ids = _descendant_document_ids(db, target.id, include_deleted=True)
-    restored_ids = restore_documents_impl(db, doc_ids=to_restore_ids)
+    restored_ids = await _run_document_write(restore_document_subtree_impl, db, doc_id)
     if restored_ids:
         emit_change(
             x_fichero_library_path,
@@ -1133,8 +1187,10 @@ async def purge_document(
     actor: str = Depends(request_actor),
 ):
     """Permanently delete a document subtree."""
-    to_delete_ids, claims_deleted, entities_pruned, _docs, _arts = purge_document_impl(
-        db, doc_id, library_path=x_fichero_library_path
+    to_delete_ids, claims_deleted, entities_pruned, _docs, _arts = (
+        await _run_document_write(
+            purge_document_impl, db, doc_id, library_path=x_fichero_library_path
+        )
     )
     logger.info(
         "Purged document subtree: root=%s total=%s kg_claims_deleted=%s kg_entities_pruned=%s",
@@ -1264,26 +1320,8 @@ async def related_documents(
     return RelatedDocumentListResponse(items=out, count=len(out))
 
 
-@router.post("/pdfs/backfill-pages")
-async def backfill_pdf_pages(
-    db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
-) -> PdfBackfillResponse:
-    """Find PDFs without page children and create the page Documents.
-
-    Daniel hit this on PDFs ingested before _create_pdf_page_children
-    landed (or where Kreuzberg silently failed at ingest time): the
-    sidebar shows the PDF as a leaf with no expandable child pages.
-
-    For each PDF in the library, check whether it already has child
-    documents with doc_type=page. If not, run the same _create_pdf_page_children
-    helper that ingest uses now. Idempotent — re-running on a fully
-    backfilled library is a no-op.
-    """
+def backfill_pdf_pages_impl(db: Database) -> tuple[PdfBackfillResponse, list[str]]:
+    """Create missing PDF page documents using the synchronous ingest helpers."""
     from fichero.ingest import _create_pdf_page_children
 
     pdfs = _list_documents(db, file_type=FileType.pdf)
@@ -1317,6 +1355,39 @@ async def backfill_pdf_pages(
             logger.warning("PDF backfill failed for %s: %s", pdf.id, exc)
             skipped += 1
 
+    return (
+        PdfBackfillResponse(
+            pdfs_scanned=pdfs_scanned,
+            pdfs_backfilled=pdfs_backfilled,
+            pages_created=pages_created,
+            skipped=skipped,
+        ),
+        created_page_ids,
+    )
+
+
+@router.post("/pdfs/backfill-pages")
+async def backfill_pdf_pages(
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
+) -> PdfBackfillResponse:
+    """Find PDFs without page children and create the page Documents.
+
+    Daniel hit this on PDFs ingested before _create_pdf_page_children
+    landed (or where Kreuzberg silently failed at ingest time): the
+    sidebar shows the PDF as a leaf with no expandable child pages.
+
+    For each PDF in the library, check whether it already has child
+    documents with doc_type=page. If not, run the same _create_pdf_page_children
+    helper that ingest uses now. Idempotent — re-running on a fully
+    backfilled library is a no-op.
+    """
+    response, created_page_ids = await _run_document_write(backfill_pdf_pages_impl, db)
+
     if created_page_ids:
         emit_change(
             x_fichero_library_path,
@@ -1327,12 +1398,7 @@ async def backfill_pdf_pages(
             origin_user=actor,
         )
 
-    return PdfBackfillResponse(
-        pdfs_scanned=pdfs_scanned,
-        pdfs_backfilled=pdfs_backfilled,
-        pages_created=pages_created,
-        skipped=skipped,
-    )
+    return response
 
 
 @router.post("/reorder")
@@ -1347,7 +1413,7 @@ async def reorder_documents(
     actor: str = Depends(request_actor),
 ) -> ReorderResponse:
     """Reorder documents within a folder."""
-    reorder_documents_impl(db, doc_ids, folder_path)
+    await _run_document_write(reorder_documents_impl, db, doc_ids, folder_path)
 
     if doc_ids:
         emit_change(
@@ -1488,7 +1554,7 @@ async def move_document(
 
     Accepts parent_id as either a query parameter or in the request body for flexibility.
     """
-    doc, _before = move_document_impl(db, doc_id, parent_id)
+    doc, _before = await _run_document_write(move_document_impl, db, doc_id, parent_id)
     logger.info(f"Moved document: {doc_id} to parent: {parent_id}")
 
     emit_change(
@@ -1503,24 +1569,13 @@ async def move_document(
     return doc
 
 
-@router.post("/cleanup-orphans")
-async def cleanup_orphan_documents(
-    db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-    actor: str = Depends(request_actor),
-) -> OrphanCleanupResponse:
-    """Remove unreachable/orphan document rows.
-
-    A document is considered orphaned when it is not reachable from any root
-    document (parent_id is None). This catches records left behind by past
-    non-cascading deletes and malformed parent chains.
-    """
+def cleanup_orphan_documents_impl(
+    db: Database, *, library_path: str
+) -> tuple[OrphanCleanupResponse, list[str]]:
+    """Remove unreachable document rows using the synchronous DB layer."""
     all_docs = _list_documents(db)
     if not all_docs:
-        return OrphanCleanupResponse(orphaned_documents_deleted=0, artifacts_deleted=0)
+        return OrphanCleanupResponse(orphaned_documents_deleted=0, artifacts_deleted=0), []
 
     docs_by_parent: dict[str | None, list[Document]] = {}
     for item in all_docs:
@@ -1542,7 +1597,7 @@ async def cleanup_orphan_documents(
 
     if orphaned:
         auto_snapshot_before_risky_operation(
-            x_fichero_library_path,
+            library_path,
             reason=f"Before cleanup of {len(orphaned)} orphan document(s)",
         )
 
@@ -1561,20 +1616,45 @@ async def cleanup_orphan_documents(
             artifacts_deleted,
         )
 
-    if orphaned:
+    return (
+        OrphanCleanupResponse(
+            orphaned_documents_deleted=len(orphaned),
+            artifacts_deleted=artifacts_deleted,
+        ),
+        [item.id for item in orphaned],
+    )
+
+
+@router.post("/cleanup-orphans")
+async def cleanup_orphan_documents(
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Header(..., alias="X-Fichero-Library-Path"),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
+) -> OrphanCleanupResponse:
+    """Remove unreachable/orphan document rows.
+
+    A document is considered orphaned when it is not reachable from any root
+    document (parent_id is None). This catches records left behind by past
+    non-cascading deletes and malformed parent chains.
+    """
+    response, orphaned_ids = await _run_document_write(
+        cleanup_orphan_documents_impl, db, library_path=x_fichero_library_path
+    )
+
+    if orphaned_ids:
         emit_change(
             x_fichero_library_path,
             type="document.deleted",
-            document_ids=[item.id for item in orphaned],
+            document_ids=orphaned_ids,
             actor=actor,
             origin_window=x_fichero_origin_window,
             origin_user=actor,
         )
 
-    return OrphanCleanupResponse(
-        orphaned_documents_deleted=len(orphaned),
-        artifacts_deleted=artifacts_deleted,
-    )
+    return response
 
 
 # =============================================================================
