@@ -1,13 +1,13 @@
 {
   "name": "Transcribe Manuscript",
-  "description": "Transcription profile for modern handwriting (20th–21st century). Uses cloud LLM vision with a prompt tuned for contemporary cursive and print handwriting.",
+  "description": "Use this when: you have modern handwriting (20th–21st century) — letters, notes, diaries, forms, signatures. For historical handwriting (pre-20th C.) use Transcribe HTR; for archaic scripts use Transcribe Paleography.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
   "folder_path": "/Transcribe",
   "tags": ["preset", "transcribe", "manuscript", "handwriting", "modern"],
   "config": {
-    "preset_version": 2
+    "preset_version": 3
   },
   "nodes": [
     {
@@ -27,8 +27,8 @@
       "position_y": 200,
       "inputs": {},
       "config": {
-        "vision_mode": "llm",
-        "language": "en",
+        "vision_mode": "auto",
+        "language": "auto",
         "update_page_content": true,
         "prompt": "Transcribe the handwritten text visible on this image. The document contains modern handwriting (20th–21st century).\n\nRules:\n- Output ONLY the transcription. No headings, preamble, commentary, or summary.\n- Preserve original layout, line breaks, and paragraph structure.\n- Preserve original spelling, capitalisation, and punctuation as written — do not correct errors.\n- Include every visible text element — headers, body, dates, signatures, annotations, marginalia.\n- Transcribe signatures as written (the full signed name if legible).\n- For text you cannot confidently read, write [ILLEGIBLE] inline at that position. Do not guess.\n- Do NOT invent or normalise content. What is on the page is the source of truth.\n- If the image contains no legible text, output [no text]."
       }

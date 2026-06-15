@@ -28,7 +28,7 @@
       "inputs": {},
       "config": {
         "vision_mode": "auto",
-        "language": "en",
+        "language": "auto",
         "update_page_content": true
       }
     },

@@ -1299,3 +1299,136 @@ class TestSeedDefaultWorkflows:
         # copy still exists — seeding would create a duplicate name.
         saved_names = [call.args[0].name for call in db.save.call_args_list]
         assert "Catalogue" not in saved_names
+
+
+class TestTranscriptionPresetConvention:
+    """Contract tests for the vision_mode / language / description convention
+    across all shipped transcription presets (#2252).
+
+    Convention:
+      - Every draft `transcribe` node must set vision_mode="auto" and
+        language="auto" so the user's configured vision backend (Apple Vision
+        or LLM) is used, and the model detects the document language.
+      - `transcribe_review` nodes always use vision_mode="llm" (structured
+        LLM reasoning required for review) — exempt from this check.
+      - Documented exceptions (see EXCEPTIONS below) may deviate for a
+        specific technical reason stated in the JSON description.
+      - Every preset description must start with "Use this when:" to help
+        users pick the right preset.
+    """
+
+    # (preset_name, node_id) pairs that are intentional exceptions to the
+    # vision_mode="auto" / language="auto" convention, with their reason.
+    EXCEPTIONS: dict[tuple[str, str], str] = {
+        # Archaic scripts (cortesana, procesal, visigótica, etc.) use letterforms
+        # that Apple Vision cannot decode. LLM vision is required for the draft pass.
+        ("Transcribe Paleography", "transcribe"): "archaic scripts require LLM vision",
+        # Spanish Script child: vision tier aliases ($vision_small/$vision_medium/
+        # $vision_large) already select the model explicitly; language="es" narrows
+        # the model's orthography conventions to 19th-20th C. Spanish notarial script.
+        (
+            "Spanish Script v2 Child Passes (19th-20th C.)",
+            "transcribe-draft",
+        ): "language-specific ES preset with explicit tier aliases",
+    }
+
+    def _all_preset_dicts(self) -> list[dict]:
+        return _load_preset_files()
+
+    def test_all_transcription_preset_descriptions_start_with_use_this_when(self):
+        """Presets in /Transcribe that are primarily transcription presets (i.e.
+        contain a transcribe or transcribe_review node) must start their
+        description with 'Use this when' so users can pick the right preset.
+        Non-transcription utility presets in /Transcribe (e.g. Prepare Images
+        for OCR) and presets in other folders that incidentally contain a
+        transcribe node (Catalogue, Translate, etc.) are exempt."""
+        bad = []
+        for preset in self._all_preset_dicts():
+            if not preset.get("folder_path", "").startswith("/Transcribe"):
+                continue
+            has_transcribe_node = any(
+                n.get("tool") in ("transcribe", "transcribe_review")
+                for n in preset.get("nodes", [])
+            )
+            if not has_transcribe_node:
+                continue
+            desc = preset.get("description", "")
+            if not desc.startswith("Use this when"):
+                bad.append((preset["name"], repr(desc[:60])))
+        assert not bad, (
+            "Transcription presets in /Transcribe must have descriptions starting "
+            f"with 'Use this when'. Violations: {bad}"
+        )
+
+    def test_draft_transcribe_nodes_use_auto_vision_mode_and_language(self):
+        """All draft `transcribe` (not `transcribe_review`) nodes must set
+        vision_mode='auto' and language='auto', unless listed in EXCEPTIONS."""
+        violations = []
+        for preset in self._all_preset_dicts():
+            preset_name = preset["name"]
+            for node in preset.get("nodes", []):
+                if node.get("tool") != "transcribe":
+                    continue
+                node_id = node.get("id", "")
+                cfg = node.get("config", {})
+                vm = cfg.get("vision_mode")
+                lang = cfg.get("language")
+
+                # vision_mode is optional (defaults to "auto" at runtime), but
+                # when it IS set it must be "auto" unless excepted.
+                key = (preset_name, node_id)
+                if key in self.EXCEPTIONS:
+                    continue
+
+                if vm is not None and vm != "auto":
+                    violations.append(
+                        f"{preset_name}[{node_id}]: vision_mode={vm!r} "
+                        f"(expected 'auto'; add to EXCEPTIONS if intentional)"
+                    )
+                if lang is not None and lang != "auto":
+                    violations.append(
+                        f"{preset_name}[{node_id}]: language={lang!r} "
+                        f"(expected 'auto'; add to EXCEPTIONS if intentional)"
+                    )
+
+        assert not violations, (
+            "Draft transcribe nodes must use vision_mode='auto' and "
+            f"language='auto'. Violations:\n" + "\n".join(violations)
+        )
+
+    def test_exceptions_are_still_present_in_shipped_presets(self):
+        """Guard: if an exception entry is removed from the JSON presets the
+        allowlist becomes stale.  Fail so the entry is cleaned up."""
+        all_nodes_by_key: set[tuple[str, str]] = set()
+        for preset in self._all_preset_dicts():
+            preset_name = preset["name"]
+            for node in preset.get("nodes", []):
+                if node.get("tool") == "transcribe":
+                    all_nodes_by_key.add((preset_name, node.get("id", "")))
+
+        stale = [k for k in self.EXCEPTIONS if k not in all_nodes_by_key]
+        assert not stale, (
+            "These EXCEPTIONS entries no longer match any shipped transcribe "
+            f"node — remove them from TestTranscriptionPresetConvention.EXCEPTIONS: "
+            f"{stale}"
+        )
+
+    def test_transcribe_review_nodes_always_use_llm_vision_mode(self):
+        """Review nodes (tool='transcribe_review') must always use
+        vision_mode='llm' — structured review reasoning requires LLM."""
+        violations = []
+        for preset in self._all_preset_dicts():
+            for node in preset.get("nodes", []):
+                if node.get("tool") != "transcribe_review":
+                    continue
+                cfg = node.get("config", {})
+                vm = cfg.get("vision_mode")
+                if vm is not None and vm != "llm":
+                    violations.append(
+                        f"{preset['name']}[{node.get('id')}]: "
+                        f"transcribe_review vision_mode={vm!r} (must be 'llm')"
+                    )
+        assert not violations, (
+            "transcribe_review nodes must set vision_mode='llm'. "
+            f"Violations: {violations}"
+        )
