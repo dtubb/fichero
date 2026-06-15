@@ -8185,6 +8185,16 @@
         "response_model": null
       },
       {
+        "method": "POST",
+        "path": "/storage/regenerate-missing",
+        "operation_id": "regenerate_missing_thumbnails_api_storage_regenerate_missing_post",
+        "summary": "Regenerate Missing Thumbnails",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RegenerateMissingResponse"
+      },
+      {
         "method": "GET",
         "path": "/storage/snapshots",
         "operation_id": "get_snapshots_api_storage_snapshots_get",

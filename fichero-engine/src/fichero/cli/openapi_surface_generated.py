@@ -8228,6 +8228,17 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("regenerate-missing-thumbnails")
+    def storage_regenerate_missing_thumbnails_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Regenerate Missing Thumbnails (POST /api/storage/regenerate-missing)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = "/api/storage/regenerate-missing"
+            params = None
+            return client.request("POST", path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-snapshots")
     def storage_get_snapshots_get(
         ctx: typer.Context,

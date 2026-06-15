@@ -15012,7 +15012,7 @@
           "storage"
         ],
         "summary": "Get Thumbnail",
-        "description": "Get thumbnail image for a document.\n\nReturns 404 if document not found or no thumbnail available.",
+        "description": "Get thumbnail image for a document.\n\nReturns 404 if document not found or no thumbnail available.\nOn a cache miss, also schedules generation of the companion display image\nso both formats exist after the first access (#2217).",
         "operationId": "get_thumbnail_api_storage_thumbnail__doc_id__get",
         "parameters": [
           {
@@ -15053,7 +15053,7 @@
           "storage"
         ],
         "summary": "Get Display Image",
-        "description": "Get display-size image for a document.\n\nLarger than thumbnail, suitable for preview display.",
+        "description": "Get display-size image for a document.\n\nLarger than thumbnail, suitable for preview display.\nOn a cache miss, also schedules generation of the companion thumbnail\nso both formats exist after the first access (#2216).",
         "operationId": "get_display_image_api_storage_display__doc_id__get",
         "parameters": [
           {
@@ -15143,6 +15143,28 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/storage/regenerate-missing": {
+      "post": {
+        "tags": [
+          "storage"
+        ],
+        "summary": "Regenerate Missing Thumbnails",
+        "description": "Regenerate thumbnails for all documents that are missing one.\n\nScans the library for docs without a cached thumbnail and renders each\none synchronously. Idempotent \u2014 already-cached thumbs are skipped.\nReturns counts of generated / skipped / failed docs (#2218).",
+        "operationId": "regenerate_missing_thumbnails_api_storage_regenerate_missing_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegenerateMissingResponse"
+                }
               }
             }
           }
@@ -50150,6 +50172,37 @@
         ],
         "title": "ReferenceWithProvenanceResponse",
         "description": "Response from GET /api/references/{id}."
+      },
+      "RegenerateMissingResponse": {
+        "properties": {
+          "generated": {
+            "type": "integer",
+            "title": "Generated"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "doc_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Doc Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "generated",
+          "skipped",
+          "failed",
+          "doc_ids"
+        ],
+        "title": "RegenerateMissingResponse"
       },
       "RegisteredActionInfo": {
         "properties": {
