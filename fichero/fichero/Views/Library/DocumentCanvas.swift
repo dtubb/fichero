@@ -19,8 +19,8 @@ struct DocumentCanvas: View {
     enum Content {
         /// A backend storage display image, resolved by document id.
         case imageStorageDisplay(documentId: String)
-        /// A backend-rendered NSImage (editor mode — may be nil while loading).
-        case imageRendered(image: NSImage?, documentId: String)
+        /// A backend-rendered PlatformImage (editor mode — may be nil while loading).
+        case imageRendered(image: PlatformImage?, documentId: String)
         /// A PDF document at a given page index.
         case pdf(documentId: String, pageIndex: Int)
     }
@@ -48,7 +48,7 @@ private struct StorageDisplayImageCanvas: View {
     let documentId: String
 
     @EnvironmentObject private var storageService: StorageServiceGenerated
-    @State private var image: NSImage?
+    @State private var image: PlatformImage?
     @State private var loadError: Error?
 
     var body: some View {
@@ -71,7 +71,7 @@ private struct StorageDisplayImageCanvas: View {
             image = nil
             loadError = nil
             do {
-                image = try await storageService.getDisplayNSImage(documentId)
+                image = try await storageService.getDisplayPlatformImage(documentId)
             } catch {
                 loadError = error
             }

@@ -34,6 +34,11 @@ extension Color {
     init(platformColor color: NSColor) { self.init(nsColor: color) }
 }
 
+extension Image {
+    /// Cross-platform bridge: `Image(nsImage:)` on macOS, `Image(uiImage:)` on iOS.
+    init(platformImage image: NSImage) { self.init(nsImage: image) }
+}
+
 #elseif canImport(UIKit)
 import SwiftUI
 import UIKit
@@ -50,6 +55,11 @@ typealias PlatformFont = UIFont
 extension Color {
     /// Cross-platform bridge: `Color(nsColor:)` on macOS, `Color(uiColor:)` on iOS.
     init(platformColor color: UIColor) { self.init(uiColor: color) }
+}
+
+extension Image {
+    /// Cross-platform bridge: `Image(nsImage:)` on macOS, `Image(uiImage:)` on iOS.
+    init(platformImage image: UIImage) { self.init(uiImage: image) }
 }
 
 // macOS-named semantic color aliases so call sites can write

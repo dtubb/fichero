@@ -28,7 +28,7 @@ struct WorkflowEditor: View {
 
     // Diagram preview state
     @State var showDiagramPreview: Bool = false
-    @State var diagramImage: NSImage?
+    @State var diagramImage: PlatformImage?
     @State var diagramLoading: Bool = false
     @State var diagramError: String?
 

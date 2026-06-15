@@ -32,7 +32,7 @@ struct NavigatorMiniMap: View {
 
     // MARK: - Properties
 
-    let image: NSImage
+    let image: PlatformImage
     let visibleRect: CGRect  // Normalized 0-1 coordinates
     let onRectangleDragged: ((CGPoint) -> Void)?
 
@@ -48,7 +48,7 @@ struct NavigatorMiniMap: View {
     // MARK: - Body
 
     var body: some View {
-        Image(nsImage: image)
+        Image(platformImage: image)
             .resizable()
             .aspectRatio(contentMode: .fit)
             .background(Color.black.opacity(Layout.backgroundOpacity))

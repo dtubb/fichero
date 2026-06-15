@@ -1,4 +1,3 @@
-import AppKit
 import FicheroAPIClient
 import Foundation
 import ImageIO
@@ -32,7 +31,7 @@ class StorageServiceGenerated: ObservableObject {
     /// switching libraries naturally resets.
     private var thumbnailCache: [String: Image] = [:]
     private var displayCache: [String: Image] = [:]
-    private var displayNSImageCache: [String: NSImage] = [:]
+    private var displayPlatformImageCache: [String: PlatformImage] = [:]
     private var sourceDataCache: [String: Data] = [:]
 
     /// Upper bound on the thumbnail cache so opening a folder with thousands
@@ -114,19 +113,19 @@ class StorageServiceGenerated: ObservableObject {
         return image
     }
 
-    /// Get display-quality image for zoomable AppKit-backed canvases.
+    /// Get display-quality image for zoomable canvases.
     /// Uses the same generated storage endpoint as `getDisplayImage`, not the
     /// image-edit preview endpoint.
-    func getDisplayNSImage(_ docId: String) async throws -> NSImage {
-        if let cached = displayNSImageCache[docId] {
+    func getDisplayPlatformImage(_ docId: String) async throws -> PlatformImage {
+        if let cached = displayPlatformImageCache[docId] {
             return cached
         }
-        logger.info("Loading display NSImage for document: \(docId)")
+        logger.info("Loading display image for document: \(docId)")
         let data = try await fetchImageData(from: displayURL(for: docId))
-        guard let image = NSImage(data: data) else {
+        guard let image = PlatformImage(data: data) else {
             throw StorageServiceError.invalidImageData
         }
-        displayNSImageCache[docId] = image
+        displayPlatformImageCache[docId] = image
         return image
     }
 
@@ -169,7 +168,7 @@ class StorageServiceGenerated: ObservableObject {
     func invalidateImageCache(for docId: String) {
         thumbnailCache.removeValue(forKey: docId)
         displayCache.removeValue(forKey: docId)
-        displayNSImageCache.removeValue(forKey: docId)
+        displayPlatformImageCache.removeValue(forKey: docId)
         sourceDataCache.removeValue(forKey: docId)
         thumbnailCacheOrder.removeAll { $0 == docId }
     }

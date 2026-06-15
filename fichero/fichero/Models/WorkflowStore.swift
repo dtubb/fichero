@@ -1,4 +1,3 @@
-import AppKit
 import FicheroAPIClient
 import Foundation
 import Observation
@@ -111,7 +110,7 @@ final class WorkflowStore: ChangeEventConsumer {
         isLoading = false
     }
 
-    func fetchWorkflowDiagramImage(_ workflowId: String) async throws -> NSImage? {
+    func fetchWorkflowDiagramImage(_ workflowId: String) async throws -> PlatformImage? {
         try await workflowService.fetchDiagramImage(workflowId: workflowId)
     }
 

@@ -8,7 +8,7 @@ struct WorkflowDiagramPreview: View {
 
     @Environment(WorkflowStore.self) var workflowStore
 
-    @State private var diagramImage: NSImage?
+    @State private var diagramImage: PlatformImage?
     @State private var pythonCode: String?
     @State private var isLoading: Bool = true
     @State private var error: String?
@@ -72,7 +72,7 @@ struct WorkflowDiagramPreview: View {
 
                         if let image = diagramImage {
                             ScrollView([.horizontal, .vertical]) {
-                                Image(nsImage: image)
+                                Image(platformImage: image)
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
                                     .padding()

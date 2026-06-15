@@ -1,9 +1,8 @@
-import AppKit
-import Foundation
 import Combine
-import OSLog
 import FicheroAPIClient
+import Foundation
 import OpenAPIRuntime
+import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowService")
 
@@ -345,7 +344,7 @@ class WorkflowServiceGenerated: ObservableObject {
         }
     }
 
-    /// Fetch the rendered LangGraph diagram for a workflow as an `NSImage`.
+    /// Fetch the rendered LangGraph diagram for a workflow as a `PlatformImage`.
     ///
     /// The backend's `visualization.png` route returns raw PNG bytes, but the
     /// OpenAPI schema mis-declares the 200 body as `application/json`, so the
@@ -353,7 +352,7 @@ class WorkflowServiceGenerated: ObservableObject {
     /// GET itself (same `addEngineAuth` + `URLSession` pattern as
     /// `StorageServiceGenerated`), keeping the diagram view free of hand-built
     /// URLs and raw `URLSession` (#1893). Returns `nil` on any non-200.
-    func fetchDiagramImage(workflowId: String) async throws -> NSImage? {
+    func fetchDiagramImage(workflowId: String) async throws -> PlatformImage? {
         let url = client.baseURL
             .appendingPathComponent("api/workflow-execution/workflows")
             .appendingPathComponent(workflowId)
@@ -366,7 +365,7 @@ class WorkflowServiceGenerated: ObservableObject {
             logger.warning("fetchDiagramImage: non-200 for workflow \(workflowId)")
             return nil
         }
-        return NSImage(data: data)
+        return PlatformImage(data: data)
     }
 
     /// Reinstall default workflows from backend presets (Transcribe, Catalogue).
