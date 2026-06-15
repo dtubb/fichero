@@ -17,8 +17,12 @@ Branch `0.0.2`, tracking `origin/0.0.2`. Keep `0.0.2 == origin` (gate before eve
   #2231 `1387fefc` — ONNX off event loop; #2233 `5b7f6490` — batch-embed RAM; #2234 `0f82e51f` — remote-embed gating.
   (These 5 first went RED — worker repaired in ea911ad1; re-gated 5096 passed.)
 - #2250 `6ee1e3b1` per-page regression test; #2241 `805aeebb` blank-page crash; #2232 `78e32104` drift-guard full scan.
-- **HEAD = 78e32104, 0.0.2 == origin. 18 issues closed.**
-- **AI Backend Hardening: DONE except #2248 (deps, held).**
+- #2239/#2240/#2242 `fd6a5e9b` source-tool fan-out; #2249 `0c80697e` whole-PDF→page children.
+- #1587 `63b477d5` multi-window observer inject (Swift — swiftlint+Xcode BuildProject verified); #1935 `9d5b7e83` renderer guardrail script.
+- **HEAD = 9d5b7e83, 0.0.2 == origin. 24 issues closed tonight.**
+- **AI Backend Hardening: DONE except #2248 (deps, held).** Per-page principle now holds across ALL source paths.
+- Open: Workflows & Catalogue 8 (#2223 #2235 #2237 #2238 #2246 #2247 #2251 #2252), Observable Data Layer 2, AI Infrastructure 4.
+- **Swift commits from backend workers are NOT compile-checked by them — always swiftlint + Xcode BuildProject (tab windowtab1) before shipping; pytest doesn't cover Swift.**
 
 ## ⚠️ HELD-BROKEN (bounced to f_importer_fixes — do NOT cherry-pick until re-gated green)
 - #2239/#2240/#2242 fix `9911f183` broke EXISTING test_workflow_tools.py::TestFolderTool::test_folder_with_subfolders
