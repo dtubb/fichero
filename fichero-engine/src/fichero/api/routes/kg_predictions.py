@@ -143,7 +143,7 @@ async def generate_heuristic_predictions(
     out: list[dict[str, Any]] = []
     for claim in all_claims:
         try:
-            qv = db._embed_text(claim.text, role="passage")  # type: ignore[attr-defined]
+            qv = await db._embed_text_async(claim.text, role="passage")  # type: ignore[attr-defined]
         except Exception:
             continue
         similar = db.search_vectors(

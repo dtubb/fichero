@@ -142,7 +142,7 @@ async def find_similar_claims(
         raise HTTPException(status_code=503, detail="Claims not embedded yet.")
 
     try:
-        query_vector = db._embed_text(claim.text, role="passage")  # type: ignore[attr-defined]
+        query_vector = await db._embed_text_async(claim.text, role="passage")  # type: ignore[attr-defined]
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Embedding failed: {exc}") from exc
 

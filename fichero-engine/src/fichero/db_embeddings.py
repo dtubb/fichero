@@ -736,6 +736,21 @@ class DatabaseEmbeddingMixin:
         embeddings = list(self._embedder.embed(formatted))
         return [_l2_normalize(_vector_to_list(e)) for e in embeddings]
 
+    async def _embed_text_async(
+        self, text: str, *, role: EmbeddingRole = "query"
+    ) -> list[float]:
+        """Async wrapper: offloads synchronous ONNX embed to a thread (#2231).
+
+        Use this in async route handlers to avoid blocking the event loop.
+        """
+        return await asyncio.to_thread(self._embed_text, text, role=role)
+
+    async def _embed_texts_async(
+        self, texts: list[str], *, role: EmbeddingRole = "passage"
+    ) -> list[list[float]]:
+        """Async wrapper: offloads synchronous batch ONNX embed to a thread (#2231)."""
+        return await asyncio.to_thread(self._embed_texts, texts, role=role)
+
     def _vector_model_metadata(self) -> dict[str, str]:
         """Metadata stamped onto every newly written vector row."""
         return {EMBEDDING_MODEL_ID_FIELD: self._get_embedding_model_id()}
