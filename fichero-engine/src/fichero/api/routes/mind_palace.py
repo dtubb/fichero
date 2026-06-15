@@ -11,6 +11,7 @@ from fichero.api.main import get_library_database, get_library_database_for_writ
 from fichero.db import Database
 from fichero.spatial_models import (
     ArrangementType,
+    CanvasLayout,
     CaptureRegion,
     ConnectionType,
     NativeNote,
@@ -809,3 +810,76 @@ async def import_from_tinderbox(
     Requires Tinderbox integration — returns a placeholder.
     """
     return []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Canvas layout (FOLDER-scoped spatial positions — NOT room-scoped)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class CanvasLayoutItem(BaseModel):
+    """One item's position within a folder's spatial canvas (upsert payload).
+
+    ``folder_id`` is taken from the path, never the body, so a batch can only
+    write rows for the folder it is addressed to.
+    """
+
+    item_id: str
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+    w: float | None = None
+    h: float | None = None
+    d: float | None = None
+    angle: float = 0.0
+    z_index: int = 0
+    style: str | None = None
+
+
+class CanvasLayoutSaveRequest(BaseModel):
+    """Batch of item positions to upsert for a folder (one drag → one save)."""
+
+    items: list[CanvasLayoutItem]
+
+
+@router.get("/folders/{folder_id}/canvas-layout")
+async def get_canvas_layout(
+    folder_id: str,
+    db: Database = Depends(get_library_database),
+) -> list[CanvasLayout]:
+    """Load all persisted item positions for a folder's spatial canvas."""
+    return db.query(CanvasLayout, folder_id=folder_id)
+
+
+@router.put("/folders/{folder_id}/canvas-layout")
+async def save_canvas_layout(
+    folder_id: str,
+    request: CanvasLayoutSaveRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> list[CanvasLayout]:
+    """Upsert a batch of item positions for a folder's spatial canvas.
+
+    Each row is keyed by the deterministic ``(folder_id, item_id)`` composite,
+    so re-saving the same item overwrites its prior position rather than
+    creating a duplicate. Returns the persisted rows.
+    """
+    saved: list[CanvasLayout] = []
+    for item in request.items:
+        row = CanvasLayout(
+            id=CanvasLayout.make_id(folder_id, item.item_id),
+            folder_id=folder_id,
+            item_id=item.item_id,
+            x=item.x,
+            y=item.y,
+            z=item.z,
+            w=item.w,
+            h=item.h,
+            d=item.d,
+            angle=item.angle,
+            z_index=item.z_index,
+            style=item.style,
+            updated_at=datetime.now(),
+        )
+        db.save(row)
+        saved.append(row)
+    return saved

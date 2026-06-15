@@ -5527,6 +5527,33 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-canvas-layout")
+    def mind_palace_get_canvas_layout_get(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+    ) -> None:
+        """Get Canvas Layout (GET /api/mind-palace/folders/{folder_id}/canvas-layout)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/mind-palace/folders/{folder_id}/canvas-layout"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("save-canvas-layout")
+    def mind_palace_save_canvas_layout_put(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Save Canvas Layout (PUT /api/mind-palace/folders/{folder_id}/canvas-layout)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/mind-palace/folders/{folder_id}/canvas-layout"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PUT", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("import-from-tinderbox")
     def mind_palace_import_from_tinderbox_post(
         ctx: typer.Context,

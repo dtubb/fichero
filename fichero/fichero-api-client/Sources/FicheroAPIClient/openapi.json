@@ -25218,6 +25218,108 @@
         }
       }
     },
+    "/api/mind-palace/folders/{folder_id}/canvas-layout": {
+      "get": {
+        "tags": [
+          "mind-palace"
+        ],
+        "summary": "Get Canvas Layout",
+        "description": "Load all persisted item positions for a folder's spatial canvas.",
+        "operationId": "get_canvas_layout_api_mind_palace_folders__folder_id__canvas_layout_get",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CanvasLayout"
+                  },
+                  "title": "Response Get Canvas Layout Api Mind Palace Folders  Folder Id  Canvas Layout Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "mind-palace"
+        ],
+        "summary": "Save Canvas Layout",
+        "description": "Upsert a batch of item positions for a folder's spatial canvas.\n\nEach row is keyed by the deterministic ``(folder_id, item_id)`` composite,\nso re-saving the same item overwrites its prior position rather than\ncreating a duplicate. Returns the persisted rows.",
+        "operationId": "save_canvas_layout_api_mind_palace_folders__folder_id__canvas_layout_put",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CanvasLayoutSaveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CanvasLayout"
+                  },
+                  "title": "Response Save Canvas Layout Api Mind Palace Folders  Folder Id  Canvas Layout Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/mindpalace/render": {
       "post": {
         "tags": [
@@ -33801,6 +33903,156 @@
         ],
         "title": "CancelResponse",
         "description": "Response from POST /threads/{thread_id}/cancel (#1127).\n\n``partial_results_preserved`` is always True for now \u2014 the issue's\ninvariant is that artifacts and entities written before the cancel\nstay in place. Future work could add a soft-rollback option that\ndeletes per-thread writes; for now we surface the contract clearly\nin the response shape."
+      },
+      "CanvasLayout": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "folder_id": {
+            "type": "string",
+            "title": "Folder Id"
+          },
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "x": {
+            "type": "number",
+            "title": "X",
+            "default": 0.0
+          },
+          "y": {
+            "type": "number",
+            "title": "Y",
+            "default": 0.0
+          },
+          "z": {
+            "type": "number",
+            "title": "Z",
+            "default": 0.0
+          },
+          "w": {
+            "type": "number",
+            "nullable": true,
+            "title": "W"
+          },
+          "h": {
+            "type": "number",
+            "nullable": true,
+            "title": "H"
+          },
+          "d": {
+            "type": "number",
+            "nullable": true,
+            "title": "D"
+          },
+          "angle": {
+            "type": "number",
+            "title": "Angle",
+            "default": 0.0
+          },
+          "z_index": {
+            "type": "integer",
+            "title": "Z Index",
+            "default": 0
+          },
+          "style": {
+            "type": "string",
+            "nullable": true,
+            "title": "Style"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "folder_id",
+          "item_id"
+        ],
+        "title": "CanvasLayout",
+        "description": "Persisted per-item position on the spatial 2D/3D library canvas.\n\nFOLDER-scoped (not room-scoped): keyed by (folder_id, item_id) so that\nswitching Library view modes preserves where each item was placed. The\nstored ``id`` is the deterministic ``\"{folder_id}::{item_id}\"`` composite,\nwhich makes ``Database.save`` an idempotent upsert on that pair \u2014 saving a\ndrag of the same item overwrites its previous row rather than duplicating."
+      },
+      "CanvasLayoutItem": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "x": {
+            "type": "number",
+            "title": "X",
+            "default": 0.0
+          },
+          "y": {
+            "type": "number",
+            "title": "Y",
+            "default": 0.0
+          },
+          "z": {
+            "type": "number",
+            "title": "Z",
+            "default": 0.0
+          },
+          "w": {
+            "type": "number",
+            "nullable": true,
+            "title": "W"
+          },
+          "h": {
+            "type": "number",
+            "nullable": true,
+            "title": "H"
+          },
+          "d": {
+            "type": "number",
+            "nullable": true,
+            "title": "D"
+          },
+          "angle": {
+            "type": "number",
+            "title": "Angle",
+            "default": 0.0
+          },
+          "z_index": {
+            "type": "integer",
+            "title": "Z Index",
+            "default": 0
+          },
+          "style": {
+            "type": "string",
+            "nullable": true,
+            "title": "Style"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_id"
+        ],
+        "title": "CanvasLayoutItem",
+        "description": "One item's position within a folder's spatial canvas (upsert payload).\n\n``folder_id`` is taken from the path, never the body, so a batch can only\nwrite rows for the folder it is addressed to."
+      },
+      "CanvasLayoutSaveRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasLayoutItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "CanvasLayoutSaveRequest",
+        "description": "Batch of item positions to upsert for a folder (one drag \u2192 one save)."
       },
       "CaptureRegion": {
         "type": "string",

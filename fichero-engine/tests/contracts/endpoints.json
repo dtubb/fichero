@@ -5598,6 +5598,30 @@
         "response_model": "TinderboxExportResponse"
       },
       {
+        "method": "GET",
+        "path": "/mind-palace/folders/{folder_id}/canvas-layout",
+        "operation_id": "get_canvas_layout_api_mind_palace_folders__folder_id__canvas_layout_get",
+        "summary": "Get Canvas Layout",
+        "path_params": [
+          "folder_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[CanvasLayout]"
+      },
+      {
+        "method": "PUT",
+        "path": "/mind-palace/folders/{folder_id}/canvas-layout",
+        "operation_id": "save_canvas_layout_api_mind_palace_folders__folder_id__canvas_layout_put",
+        "summary": "Save Canvas Layout",
+        "path_params": [
+          "folder_id"
+        ],
+        "query_params": [],
+        "request_model": "CanvasLayoutSaveRequest",
+        "response_model": "[CanvasLayout]"
+      },
+      {
         "method": "POST",
         "path": "/mind-palace/import/tinderbox",
         "operation_id": "import_from_tinderbox_api_mind_palace_import_tinderbox_post",
