@@ -55,7 +55,18 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     /// Reads the token file from disk. Returns nil if the file isn't there
     /// yet (e.g., engine hasn't started). Callers should retry; the engine
     /// writes this on startup before binding the port.
+    ///
+    /// **Env override:** if `FICHERO_AUTH_TOKEN` is set, its value is returned
+    /// directly without touching the file. This lets the XCTest harness inject
+    /// the engine's real token when the sandbox redirects
+    /// `applicationSupportDirectory` to a container path different from where
+    /// the engine wrote the file. See `EngineHarness.live()`.
     public static func readTokenFromDisk() -> String? {
+        // Env override — used by the test harness to bridge the sandbox gap.
+        if let envToken = ProcessInfo.processInfo.environment["FICHERO_AUTH_TOKEN"] {
+            let trimmed = envToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
         guard let path = tokenFileURL() else { return nil }
         guard let data = try? Data(contentsOf: path) else { return nil }
         guard let rawToken = String(data: data, encoding: .utf8) else { return nil }

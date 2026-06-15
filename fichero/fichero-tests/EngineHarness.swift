@@ -97,6 +97,18 @@ enum EngineHarness {
             }
         }
 
+        // When reusing a running engine, the XCTest host sandbox may redirect
+        // applicationSupportDirectory to a container path that differs from where
+        // the engine wrote its token. Read the token via homeDirectoryForCurrentUser
+        // (which bypasses sandbox path translation, matching Python's Path.home())
+        // and export it as FICHERO_AUTH_TOKEN so AuthTokenMiddleware picks it up.
+        // Only inject when not already set (respects CI overrides) and not spawned
+        // (spawned engines run with FICHERO_DISABLE_AUTH=1, no token needed).
+        if !spawned, ProcessInfo.processInfo.environment["FICHERO_AUTH_TOKEN"] == nil,
+           let token = readEngineToken() {
+            setenv("FICHERO_AUTH_TOKEN", token, 1)
+        }
+
         let client = FicheroClient(baseURL: baseURL, libraryPath: libURL.path)
         let engine = LiveEngine(
             client: client, libraryPath: libURL.path,
@@ -195,6 +207,20 @@ enum EngineHarness {
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
         return false
+    }
+
+    /// Reads the engine's shared-secret token from its canonical on-disk path.
+    /// Mirrors `_token_file_path()` in `fichero-engine/src/fichero/api/auth.py`:
+    ///   `Path.home() / "Library" / "Application Support" / "Fichero" / ".api-key"`
+    /// Uses `homeDirectoryForCurrentUser` because `url(for: .applicationSupportDirectory)`
+    /// resolves to the sandbox container path in the XCTest host, not the real `~`.
+    private static func readEngineToken() -> String? {
+        let tokenURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Fichero/.api-key")
+        guard let data = try? Data(contentsOf: tokenURL),
+              let raw = String(data: data, encoding: .utf8) else { return nil }
+        let token = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return token.isEmpty ? nil : token
     }
 
     // MARK: - Repo root
