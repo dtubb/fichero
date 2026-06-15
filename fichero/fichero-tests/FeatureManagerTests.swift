@@ -14,8 +14,6 @@ final class FeatureManagerTests: XCTestCase {
         XCTAssertTrue(featureManager.isWorkflowEditorAdvancedViewsEnabled)
         XCTAssertTrue(featureManager.isActivityEnabled)
         XCTAssertTrue(featureManager.isSettingsGeneralTabEnabled)
-        // Mind Palace ships ON during dev (Daniel-facing); revisit before release.
-        XCTAssertTrue(featureManager.isMindPalaceEnabled)
         // Workflow execution surfaces promoted to release defaults (#252).
         XCTAssertTrue(featureManager.isWorkflowImportExportEnabled)
         XCTAssertTrue(featureManager.isWorkflowLangGraphPreviewEnabled)
