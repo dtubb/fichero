@@ -90,12 +90,6 @@ enum MindPalaceTheme {
     }
 }
 
-/// Cross-platform colour alias the renderer leans on. RealityKit defines
-/// `Material.Color` the same way, but the renderer also passes plain
-/// `PlatformColor`s around (texture tinting, hover tweaks) so naming this
-/// once keeps the call sites flat.
-#if canImport(AppKit)
-typealias PlatformColor = NSColor
-#elseif canImport(UIKit)
-typealias PlatformColor = UIColor
-#endif
+// `PlatformColor` (NSColor / UIColor) is defined in
+// `Models/Platform/PlatformAliases.swift` — the canonical home for all
+// cross-platform type aliases in Fichero.
