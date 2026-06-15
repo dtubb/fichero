@@ -1960,9 +1960,30 @@ async def vision(
     # Create multimodal message
     message = HumanMessage(content=content)
 
-    # Call model
-    async with _remote_llm_call_slot(config):
-        response = await model.ainvoke([message])
+    # Hard wall-clock timeout (#2228, mirrors chat() #844 robustness). Some
+    # vision providers ignore the LangChain `timeout` kwarg under keepalive.
+    budget = _compute_timeout(config, "langchain")
+    try:
+        async with _remote_llm_call_slot(config):
+            response = await asyncio.wait_for(
+                model.ainvoke([message]), timeout=budget,
+            )
+    except asyncio.TimeoutError as exc:
+        raise RuntimeError(
+            f"LangChain {config.provider}/{config.model} vision exceeded "
+            f"{budget}s — provider hang"
+        ) from exc
+    except Exception as exc:
+        _raise_provider_quota_error(config, exc)
+        raise
+    usage = getattr(response, "usage_metadata", None)
+    if isinstance(usage, dict) and usage:
+        _record_usage(
+            config.provider, config.model, "vision",
+            input_tokens=usage.get("input_tokens"),
+            output_tokens=usage.get("output_tokens"),
+            total_tokens=usage.get("total_tokens"),
+        )
     result = _strip_outer_code_fences(response.content)
 
     with _LLM_RESULT_CACHE_LOCK:
