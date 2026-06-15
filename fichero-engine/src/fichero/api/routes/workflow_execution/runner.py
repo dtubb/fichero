@@ -134,6 +134,37 @@ def _missing_exit_nodes(
     return set(exit_node_ids) - set(completed_exit_nodes)
 
 
+def _detect_empty_text_output(final_state: dict) -> tuple[bool, str]:
+    """Return (is_empty, reason) when a workflow ran files but produced no text.
+
+    Only fires when files were actually processed — a no-input workflow
+    legitimately produces nothing and must not be flagged (#2244/#2245).
+    """
+    if not isinstance(final_state, dict):
+        return False, ""
+    files = final_state.get("files", [])
+    if not files:
+        return False, ""
+    outputs = final_state.get("outputs", {})
+    if not outputs:
+        return True, f"Workflow processed {len(files)} file(s) but produced no output"
+    for node_output in outputs.values():
+        if not isinstance(node_output, dict):
+            continue
+        if (node_output.get("text") or "").strip():
+            return False, ""
+        if node_output.get("artifacts"):
+            return False, ""
+        if node_output.get("page_records"):
+            return False, ""
+        if node_output.get("results"):
+            return False, ""
+    return (
+        True,
+        f"Workflow processed {len(files)} file(s) but produced no text output",
+    )
+
+
 # =============================================================================
 # Python Code Generation
 # =============================================================================
@@ -994,6 +1025,13 @@ async def _run_workflow_in_background(
                 if isinstance(results, list):
                     completion_metadata["total_results"] = len(results)
 
+        # #2244/#2245: detect runs that processed files but produced no text output
+        _empty, _empty_reason = _detect_empty_text_output(final_state or {})
+        if _empty:
+            completion_metadata["empty_output"] = True
+            completion_metadata["empty_output_reason"] = _empty_reason
+            await log_execution(f"Warning: {_empty_reason}")
+
         # Now that the WHOLE workflow has finished, flip the documents this run
         # processed (and their page children) from processing → completed. Tool
         # nodes leave docs in `processing` mid-pipeline so the per-page green
@@ -1059,18 +1097,24 @@ async def _run_workflow_in_background(
         )
 
         # Send complete event
+        complete_data: dict = {
+            "checkpoint_id": checkpoint_tuple.checkpoint["id"]
+            if checkpoint_tuple
+            else None,
+            "final_state": final_state,
+            "duration_ms": total_duration_ms,
+        }
+        if completion_metadata.get("empty_output"):
+            complete_data["empty_output"] = True
+            complete_data["empty_output_reason"] = completion_metadata.get(
+                "empty_output_reason", ""
+            )
         event_queue.put(
             SSEEvent(
                 event="complete",
                 thread_id=thread_id,
                 workflow_id=workflow_id,
-                data={
-                    "checkpoint_id": checkpoint_tuple.checkpoint["id"]
-                    if checkpoint_tuple
-                    else None,
-                    "final_state": final_state,
-                    "duration_ms": total_duration_ms,
-                },
+                data=complete_data,
             )
         )
 

@@ -451,3 +451,96 @@ class TestClassifyProviderError:
         from fichero.api.routes.workflow_execution.runner import _classify_provider_error
         out = _classify_provider_error("upstream returned 500 Internal Server Error")
         assert out["category"] == "server"
+
+
+class TestDetectEmptyTextOutput:
+    """#2244/#2245: _detect_empty_text_output flags runs that processed files but
+    produced no text, without false-positives on no-input or rich-output workflows."""
+
+    def _fn(self, state):
+        from fichero.api.routes.workflow_execution.runner import _detect_empty_text_output
+        return _detect_empty_text_output(state)
+
+    def test_no_files_not_empty(self):
+        """Workflow with no input files must never be flagged."""
+        is_empty, _ = self._fn({"outputs": {"node": {"text": ""}}})
+        assert not is_empty
+
+    def test_text_output_not_empty(self):
+        """Non-whitespace text in any node output → not empty."""
+        state = {
+            "files": ["/tmp/page-1.jpg"],
+            "outputs": {"transcribe": {"text": "El alcalde firmó el acta."}},
+        }
+        is_empty, _ = self._fn(state)
+        assert not is_empty
+
+    def test_whitespace_only_text_is_empty(self):
+        """Whitespace-only text must not count as output."""
+        state = {
+            "files": ["/tmp/page-1.jpg"],
+            "outputs": {"transcribe": {"text": "   \n  "}},
+        }
+        is_empty, reason = self._fn(state)
+        assert is_empty
+        assert "page-1.jpg" not in reason  # reason contains file count, not paths
+        assert "1 file" in reason
+
+    def test_artifacts_count_as_output(self):
+        """Non-empty artifacts list means the run produced output."""
+        state = {
+            "files": ["/tmp/scan.pdf"],
+            "outputs": {"transcribe": {"text": "", "artifacts": ["artifact-1"]}},
+        }
+        is_empty, _ = self._fn(state)
+        assert not is_empty
+
+    def test_page_records_count_as_output(self):
+        """Non-empty page_records list means the run produced output."""
+        state = {
+            "files": ["/tmp/page-1.jpg"],
+            "outputs": {
+                "transcribe": {
+                    "text": "",
+                    "page_records": [{"doc_id": "doc-1", "text": "Transcribed"}],
+                }
+            },
+        }
+        is_empty, _ = self._fn(state)
+        assert not is_empty
+
+    def test_all_empty_outputs_flagged(self):
+        """Multiple nodes all with empty text/no artifacts → flagged as empty."""
+        state = {
+            "files": ["/tmp/a.jpg", "/tmp/b.jpg"],
+            "outputs": {
+                "transcribe-ts": {"text": ""},
+                "transcribe-ms": {"text": None},
+            },
+        }
+        is_empty, reason = self._fn(state)
+        assert is_empty
+        assert "2 file" in reason
+
+    def test_non_dict_final_state_not_empty(self):
+        """Non-dict final state (shouldn't happen) must not raise."""
+        is_empty, _ = self._fn(None)
+        assert not is_empty
+
+    def test_empty_outputs_dict_with_files_flagged(self):
+        """Files present but empty outputs dict → flagged."""
+        state = {"files": ["/tmp/x.jpg"], "outputs": {}}
+        is_empty, reason = self._fn(state)
+        assert is_empty
+        assert "1 file" in reason
+
+    def test_results_count_as_output(self):
+        """Non-empty results list counts as output (e.g. entity extraction)."""
+        state = {
+            "files": ["/tmp/doc.txt"],
+            "outputs": {
+                "extract_all": {"text": "", "results": [{"entity": "García"}]},
+            },
+        }
+        is_empty, _ = self._fn(state)
+        assert not is_empty
