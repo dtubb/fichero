@@ -231,7 +231,8 @@ final class ClaimSummaryCardTests: XCTestCase {
             .provenanceBadges(for: claim)
             .map(\.label)
 
-        XCTAssertTrue(labels.contains("✏️ Human"))
+        // No emoji per #1864 — plain "Human" badge.
+        XCTAssertTrue(labels.contains("Human"))
     }
 
     func testProvenanceBadgesIncludesAIBadgeForExtractor() throws {

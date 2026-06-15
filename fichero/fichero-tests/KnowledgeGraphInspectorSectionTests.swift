@@ -58,9 +58,14 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         let source = try Self.appSource(
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
         )
+        // After the EntityStore migration, the view calls the store; the store calls the endpoint.
+        let storeSource = try Self.appSource("Models/EntityStore.swift")
 
-        XCTAssertTrue(source.contains("listInspectorEntitiesForDocument"))
+        XCTAssertTrue(source.contains("entityStore.loadEntities(forDocument: documentId)"))
         XCTAssertFalse(source.contains("listEntitiesForDocument(documentId: documentId)"))
+        XCTAssertFalse(source.contains("listInspectorEntitiesForDocument"))
+        XCTAssertTrue(storeSource.contains("listInspectorEntitiesForDocument"))
+        XCTAssertFalse(storeSource.contains("listEntitiesForDocument(documentId: documentId)"))
     }
 
     func testInspectorEntitiesTabDistinguishesLoadedButHiddenEntities() throws {
@@ -68,8 +73,8 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
         )
 
-        XCTAssertTrue(source.contains("Loaded \\(entities.count) entities, but the current filter hides every kind."))
-        XCTAssertTrue(source.contains("Loaded \\(entities.count) entities, but none mapped into a visible section."))
+        XCTAssertTrue(source.contains("Loaded \\(entityStore.entities.count) entities, but the current filter hides every kind."))
+        XCTAssertTrue(source.contains("Loaded \\(entityStore.entities.count) entities, but none mapped into a visible section."))
     }
 
     func testInspectorEntitySelectionReducerPlainClickReplacesSelection() {
@@ -207,9 +212,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift"
         )
         let serviceSource = try Self.appSource("Services/ArtifactServiceGenerated.swift")
+        // After the EntityStore migration, bulk curation calls live in EntityStore, not the view.
+        let storeSource = try Self.appSource("Models/EntityStore.swift")
 
-        XCTAssertTrue(source.contains("batchSetEntityCurationState"))
-        XCTAssertTrue(source.contains("batchCreateEntityRules"))
+        XCTAssertTrue(storeSource.contains("batchSetEntityCurationState"))
+        XCTAssertTrue(storeSource.contains("batchCreateEntityRules"))
         XCTAssertFalse(source.contains("URLSession"))
         XCTAssertFalse(source.contains("URLRequest"))
         XCTAssertFalse(source.contains("URL(string:"))
@@ -228,9 +235,11 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         )
         let serviceSource = try Self.appSource("Services/ArtifactServiceGenerated.swift")
 
+        // deleteEntity now goes through EntityStore; the view still owns the delete button UI.
+        let storeSource = try Self.appSource("Models/EntityStore.swift")
         XCTAssertTrue(entitiesSource.contains("deleteActionButton(targetEntities: selectedEntities)"))
         XCTAssertTrue(entitiesSource.contains("Button(\"Delete…\", role: .destructive)"))
-        XCTAssertTrue(entitiesSource.contains("try await entityService.deleteEntity(entityId)"))
+        XCTAssertTrue(storeSource.contains("try await entityService.deleteEntity(entityId)"))
         XCTAssertTrue(claimsSource.contains("deleteActionButton(targetClaims: selectedClaims)"))
         XCTAssertTrue(claimsSource.contains("requestClaimDeleteAction: requestDeleteAction(for:)"))
         XCTAssertTrue(claimsSource.contains("try await entityService.deleteClaim(claimId)"))

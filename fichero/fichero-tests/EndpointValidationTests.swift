@@ -163,8 +163,11 @@ struct HTTPMethodValidationTests {
     func deleteOperationsUseDelete() throws {
         let pythonEndpoints = try loadAllEndpoints()
 
+        // Use word-boundary split to avoid matching "delete" within "deleted"
+        // (e.g. list_deleted_documents_api_documents_trash_get is a GET endpoint).
         let deleteEndpoints = pythonEndpoints.filter {
-            $0.operationId?.contains("delete") == true
+            guard let id = $0.operationId else { return false }
+            return id.split(separator: "_").contains(Substring("delete"))
         }
 
         for endpoint in deleteEndpoints {

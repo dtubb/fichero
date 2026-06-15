@@ -18,7 +18,8 @@ struct SidebarSelectionTests {
     func openInNewTabCapturesHostWindowBeforeOpen() throws {
         let source = try appSource("Views/OpenAffordances.swift")
         let hostCapture = try #require(source.range(of: "let hostWindow = NSApp.keyWindow ?? NSApp.mainWindow"))
-        let openCall = try #require(source.range(of: "openWindow(id: \"main\")"))
+        // Prefix with indentation to skip the docstring comment at line 34 and match the code call.
+        let openCall = try #require(source.range(of: "\n            openWindow(id: \"main\")"))
 
         #expect(hostCapture.lowerBound < openCall.lowerBound)
         #expect(source.contains("hostWindow.addTabbedWindow(newWindow, ordered: .above)"))

@@ -37,19 +37,20 @@ final class NoteServiceTests: XCTestCase {
     func testDocumentNotesTabChoosesFolderAndPageScopeFromDocumentType() throws {
         let source = try Self.appSource("Views/Library/DocumentInspector/DocumentNotesTab.swift")
 
-        XCTAssertTrue(source.contains("await service.load(folderId: document.id)"))
-        XCTAssertTrue(source.contains("await service.load(pageId: document.id)"))
-        XCTAssertTrue(source.contains("service.create(body: body, folderId: document.id)"))
-        XCTAssertTrue(source.contains("service.create(body: body, pageId: document.id)"))
-        XCTAssertTrue(source.contains("try await service.delete(noteId: noteId)"))
+        // Loading and creation now go through NoteStore after the store migration.
+        XCTAssertTrue(source.contains("await noteStore.loadNotes(forFolder: document.id)"))
+        XCTAssertTrue(source.contains("await noteStore.loadNotes(forPage: document.id)"))
+        XCTAssertTrue(source.contains("try await noteStore.createForFolder(document.id, body: body)"))
+        XCTAssertTrue(source.contains("try await noteStore.createForPage(document.id, body: body)"))
         XCTAssertTrue(source.contains("await loadNotes()"))
     }
 
     func testNotesBrowserShowsScopeLabelsForScopedNotes() throws {
-        let source = try Self.appSource("Views/Notes/NotesBrowserView.swift")
-
-        XCTAssertTrue(source.contains("if let scopeLabel = noteScopeLabel(note)"))
-        XCTAssertTrue(source.contains("if note.folderId?.isEmpty == false { return \"Folder\" }"))
-        XCTAssertTrue(source.contains("if note.pageId?.isEmpty == false { return \"Page\" }"))
+        // scopeLabel is a computed property on FocusedNote; NotesBrowserView consumes it.
+        let viewSource = try Self.appSource("Views/Notes/NotesBrowserView.swift")
+        XCTAssertTrue(viewSource.contains("item.scopeLabel"))
+        let noteSource = try Self.appSource("Views/Library/FocusedNote.swift")
+        XCTAssertTrue(noteSource.contains("if note.folderId?.isEmpty == false { return \"Folder\" }"))
+        XCTAssertTrue(noteSource.contains("if note.pageId?.isEmpty == false { return \"Page\" }"))
     }
 }

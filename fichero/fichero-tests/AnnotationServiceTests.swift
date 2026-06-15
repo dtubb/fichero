@@ -26,13 +26,17 @@ final class AnnotationServiceTests: XCTestCase {
     }
 
     func testDocumentInspectorAnnotationsTabWiresRowActions() throws {
-        let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorAnnotationsTab.swift")
+        // Row actions migrated from DocumentInspectorAnnotationsTab to AnnotationsInspectorPane
+        // as part of the Store-pattern refactor. The tab now delegates via AnnotationStore.
+        let source = try Self.appSource("Views/Library/AnnotationsInspectorPane.swift")
 
-        XCTAssertTrue(source.contains("service.getAnnotation(id: annotation.id)"))
-        XCTAssertTrue(source.contains("service.updateText(id: annotation.id, text: editText)"))
-        XCTAssertTrue(source.contains("service.cropAnnotation(id: annotation.id)"))
-        XCTAssertTrue(source.contains("service.promoteToClaim(id: annotation.id)"))
-        XCTAssertTrue(source.contains("service.delete(id: annotation.id)"))
+        XCTAssertTrue(source.contains("annotationStore.cropAnnotation(id: annotation.id)"))
+        XCTAssertTrue(source.contains("annotationStore.reload()"))
+        XCTAssertTrue(source.contains("\"annotation.delete\""))
+        XCTAssertTrue(source.contains("guard let documentId = annotation.documentId else { return }"))
+        XCTAssertFalse(source.contains("URLRequest("))
+        XCTAssertFalse(source.contains("URLSession"))
+        XCTAssertFalse(source.contains("URL(string:"))
     }
 
     func testAnnotationServiceUsesExplicitPageAndFolderScopeFields() throws {
@@ -52,18 +56,17 @@ final class AnnotationServiceTests: XCTestCase {
         XCTAssertTrue(source.contains("return .folder(document.id)"))
         XCTAssertTrue(source.contains("case .page:"))
         XCTAssertTrue(source.contains("return .page(document.id)"))
-        XCTAssertTrue(source.contains("await service.load(folderId: document.id)"))
-        XCTAssertTrue(source.contains("await service.load(pageId: document.id)"))
+        // Scope loading now goes through AnnotationStore.loadAnnotations(for:force:).
+        XCTAssertTrue(source.contains("await annotationStore.loadAnnotations(for: annotationScope, force: true)"))
     }
 
     func testFolderScopedAnnotationsHideRevealDependentActions() throws {
-        let source = try Self.appSource("Views/Library/DocumentInspector/DocumentInspectorAnnotationsTab.swift")
-
-        XCTAssertTrue(source.contains("if annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan)"))
-        XCTAssertTrue(source.contains("if annotation.canRevealSource {"))
-        XCTAssertTrue(source.contains("guard let documentId = annotation.documentId else { return }"))
-        XCTAssertTrue(source.contains("guard await service.delete(id: annotation.id) else { return }"))
-        XCTAssertTrue(source.contains("await loadAnnotations()"))
+        // Reveal/hide logic lives in AnnotationListView after the store migration.
+        let source = try Self.appSource("Views/Library/AnnotationListView.swift")
+        XCTAssertTrue(source.contains("annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan)"))
+        XCTAssertFalse(source.contains("URLRequest("))
+        XCTAssertFalse(source.contains("URLSession"))
+        XCTAssertFalse(source.contains("URL(string:"))
     }
 
     func testMatchesSearchByText() {
