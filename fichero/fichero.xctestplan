@@ -13,7 +13,7 @@
   },
   "testTargets" : [
     {
-      "parallelizable" : true,
+      "parallelizable" : false,
       "target" : {
         "containerPath" : "container:fichero.xcodeproj",
         "identifier" : "A10521A82EFDC92400B28C3E",
