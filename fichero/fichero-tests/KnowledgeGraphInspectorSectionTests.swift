@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import XCTest
 
 // swiftlint:disable file_length type_body_length

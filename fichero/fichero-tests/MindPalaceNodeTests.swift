@@ -15,7 +15,7 @@ final class MindPalaceNodeTests: XCTestCase {
     }
 
     func testThumbnailURLRejectsEmptySourceId() {
-        let url = MindPalaceNode.thumbnailURL(forSourceId: "")
+        let url = MindPalaceNode.thumbnailURL(forSourceId: "", baseURL: nil)
 
         XCTAssertNil(url)
     }

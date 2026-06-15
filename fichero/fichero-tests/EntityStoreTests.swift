@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import XCTest
 
@@ -12,8 +13,8 @@ final class EntityStoreTests: XCTestCase {
 
     private final class MockFicheroURLProtocol: URLProtocol {
         private static let lock = NSLock()
-        private static var responseQueue: [MockResponse] = []
-        private static var requests: [URLRequest] = []
+        nonisolated(unsafe) private static var responseQueue: [MockResponse] = []
+        nonisolated(unsafe) private static var requests: [URLRequest] = []
 
         static func configure(responses: [MockResponse]) {
             lock.lock()
