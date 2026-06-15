@@ -38,6 +38,13 @@ struct FicheroApp: App {
     // Library manager - singleton managing all open libraries
     @StateObject private var libraryManager = LibraryManager.shared
 
+    // App-level fallback observer injected into secondary scenes (artifact-detail,
+    // citation-detail, etc.) that don't go through LibraryWindow. Prevents
+    // @Environment(WorkflowExecutionObserver.self) crashes if workflow-aware views
+    // are ever embedded in those scenes (#1587). LibraryWindow's own per-window
+    // observer overrides this for the main window tree.
+    @State private var appExecutionObserver = WorkflowExecutionObserver()
+
     init() {
         // Xcode Previews / Playgrounds host the app to render a single view —
         // skip everything that blocks (modal "Move to Applications?" prompt,
@@ -277,6 +284,7 @@ struct FicheroApp: App {
         // so it needs no library-service environment plumbing.
         WindowGroup("Artifact", id: "artifact-detail") {
             ArtifactDetailWindow()
+                .environment(appExecutionObserver)
         }
         .defaultSize(width: 480, height: 620)
 
@@ -286,11 +294,13 @@ struct FicheroApp: App {
         // so they need no library-service environment plumbing.
         WindowGroup("Citation", id: "citation-detail") {
             CitationDetailWindow()
+                .environment(appExecutionObserver)
         }
         .defaultSize(width: 480, height: 560)
 
         WindowGroup("Reference", id: "reference-detail") {
             ReferenceDetailWindow()
+                .environment(appExecutionObserver)
         }
         .defaultSize(width: 480, height: 560)
 
@@ -300,11 +310,13 @@ struct FicheroApp: App {
         // need no library-service environment plumbing.
         WindowGroup("Annotation", id: "annotation-detail") {
             AnnotationDetailWindow()
+                .environment(appExecutionObserver)
         }
         .defaultSize(width: 480, height: 620)
 
         WindowGroup("Note", id: "note-detail") {
             NoteDetailWindow()
+                .environment(appExecutionObserver)
         }
         .defaultSize(width: 480, height: 620)
 
