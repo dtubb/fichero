@@ -770,20 +770,34 @@ class DatabaseEmbeddingMixin:
         self._warned_legacy_embedding_tables = warned
 
     def assert_vector_table_model_compatible(self, table_name: str) -> None:
-        """Refuse semantic search when stored vectors use a different known model-id."""
+        """Refuse semantic search when stored vectors use a different known model-id.
+
+        Scans the full embedding_model_id column (no vector data loaded) so a
+        partial migration — first N rows stamped with one model, tail rows with
+        another — is always detected (#2232).
+        """
         if table_name not in self._lance_tables():
             return
 
         table = self.lance.open_table(table_name)
-        rows = table.search().limit(32).to_list()
-        if not rows:
+
+        # Legacy tables don't have the column at all; detect via schema, not data.
+        schema_fields = {field.name for field in table.schema}
+        if EMBEDDING_MODEL_ID_FIELD not in schema_fields:
+            self._warn_legacy_vector_table(table_name)
             return
 
-        known_ids = {
-            row.get(EMBEDDING_MODEL_ID_FIELD)
-            for row in rows
-            if row.get(EMBEDDING_MODEL_ID_FIELD)
-        }
+        # Scan ALL rows but project only the model-id column (no vector data loaded).
+        # count_rows() + select([col]).limit(n) avoids the pylance Rust extension.
+        total = table.count_rows()
+        if total == 0:
+            return
+        rows = table.search().select([EMBEDDING_MODEL_ID_FIELD]).limit(total).to_list()
+        values = [row.get(EMBEDDING_MODEL_ID_FIELD) for row in rows]
+        if not values:
+            return
+
+        known_ids = {v for v in values if v is not None}
         if not known_ids:
             self._warn_legacy_vector_table(table_name)
             return
