@@ -8,6 +8,23 @@ Branch `0.0.2`, tracking `origin/0.0.2`. Keep `0.0.2 == origin` (gate before eve
 - Mac / SwiftUI / Xcode (no-xcodebuild-on-Daniel's-machine rule — launches GUI windows).
 - Held worktrees `entitytable-2020` (#2020), `lan-tls-2157` (#2157); `.claude/worktrees/agent-aaf4fec2eced9c821`.
 
+## ✅ SHIPPED to origin/0.0.2 tonight (each FULL-suite gated, issues closed) — as of 22:25
+- #2222 `0dd7e2a6` — vision_base.py `vision_mode != "llm"` text-layer fix. **Daniel: hard-restart backend to load it before live ICANH test.**
+- #2226/#2227/#2229/#2230 `d312d625` — quota classification, E5 roles, embed error handling, bg-task tracking.
+- #2236 `320d32c9` — Auto-Detect per-page fan-out; #2243 `8a7af1bd` — Apple in vision fallback.
+- #2225 `97d5f0e9` — lancedb stamp embedding_model_id on append; #2244/#2245 `72a7f28f` — empty-output detection.
+- **HEAD = 72a7f28f, 0.0.2 == origin.** 10 issues closed.
+
+## ⚠️ HELD-BROKEN (bounced to f_ai_backend — do NOT cherry-pick until re-gated green)
+- #2224 `6406d84a` vision/LLM cache — its own test_vision_cache.py fails (await-on-MagicMock, MagicMock>float).
+- #2231 `190d3600` ONNX→thread offload — made `_embed_text` async, broke test_kg_embedding_roles sync mocks (kg_claim_search.py:145). A sync→async change must sweep ALL caller tests.
+- #2228 `b114e8f9` vision timeout — authored on top of #2224 (llm.py), rides with it.
+LESSON: workers over-report self-testing — ALWAYS full-gate before push; the gate caught all 5.
+
+## 🔴 HELD for Daniel's morning go (do NOT auto-merge)
+- #2248 deps upgrade — committed `946217e2` on ms/deps-update, worker-gated in ISOLATED `.venv-deps`.
+  Merging means upgrading the SHARED `.venv` his live :8765 backend runs on. Deliberate morning merge only.
+
 ## Current Focus — overnight autonomous BACKEND milestone work
 Work backend milestones via Claude workers in external worktrees (`~/code/fichero-worktrees/`),
 3–10 issues per batch, gate+merge in batches (don't over-verify — it's slow). Priority order:
