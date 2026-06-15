@@ -151,7 +151,7 @@ def find_similar(
             aliases=[],
             description=description,
         )
-        query_vector = db._embed_text(db.entity_embedding_text(probe))  # type: ignore[attr-defined]
+        query_vector = db._embed_text(db.entity_embedding_text(probe), role="passage")  # type: ignore[attr-defined]
         results = db.search_vectors(TABLE, query_vector, limit=max(top_k * 5, top_k))
 
         hits: list[tuple[str, float, str]] = []

@@ -530,7 +530,7 @@ class DatabaseEmbeddingMixin:
                 self._delete_embedding_rows("document_id", doc_id)
             self.save_vectors(EMBEDDINGS_TABLE, records)
             return set(units_by_doc_id)
-        except Exception as exc:  # noqa: BLE001
+        except (RuntimeError, ValueError, OSError, MemoryError) as exc:
             logger.warning("Failed to batch-embed %d document(s): %s", len(docs), exc)
             embedded_ids: set[str] = set()
             for doc, _text in docs_with_text:
@@ -980,10 +980,23 @@ class DatabaseEmbeddingMixin:
                 logger.warning("Failed to auto-embed %s synchronously: %s", label, exc)
             return
 
-        async def _runner() -> None:
-            try:
-                await asyncio.to_thread(_run)
-            except Exception as exc:
-                logger.warning("Failed to auto-embed %s in background: %s", label, exc)
+        # Lazily initialise a task-tracking set (prevents GC of in-flight tasks)
+        # and a semaphore to bound concurrent background DB connections.
+        if not hasattr(self, "_bg_embedding_tasks"):
+            self._bg_embedding_tasks: set = set()
+        if not hasattr(self, "_bg_embedding_semaphore"):
+            self._bg_embedding_semaphore = asyncio.Semaphore(2)
 
-        loop.create_task(_runner())
+        bg_tasks: set = self._bg_embedding_tasks
+        sem: asyncio.Semaphore = self._bg_embedding_semaphore
+
+        async def _runner() -> None:
+            async with sem:
+                try:
+                    await asyncio.to_thread(_run)
+                except Exception as exc:
+                    logger.warning("Failed to auto-embed %s in background: %s", label, exc)
+
+        task = loop.create_task(_runner())
+        bg_tasks.add(task)
+        task.add_done_callback(bg_tasks.discard)

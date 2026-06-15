@@ -509,6 +509,23 @@ def _is_provider_quota_error(exc: BaseException) -> tuple[bool, int | None, str]
     message = _extract_exc_message(exc)
     lower = message.lower()
 
+    # Context-length errors can match broad quota phrases (e.g. "limit exceeded")
+    # but are NOT billing failures — the caller should retry with a shorter prompt
+    # or a model with a bigger context window, not skip the provider entirely.
+    context_length_keywords = (
+        "context length",
+        "context_length",
+        "maximum context",
+        "context window",
+        "token limit",
+        "maximum length",
+        "tokens in the input",
+        "too long for",
+        "max_tokens",
+    )
+    if any(token in lower for token in context_length_keywords):
+        return False, status_code, message
+
     quota_keywords = (
         "insufficient_quota",
         "insufficient quota",
