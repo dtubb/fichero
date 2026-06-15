@@ -119,7 +119,6 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertEqual(AppViewMode.schedule(nil).category, .workflow)
         XCTAssertEqual(AppViewMode.trigger(nil).category, .workflow)
         XCTAssertEqual(AppViewMode.activity(nil).category, .workflow)
-        XCTAssertEqual(AppViewMode.mindPalace.category, .folder)
     }
 
     func testEntitiesSidebarEntryPointRoutesToLibraryList() throws {
@@ -165,18 +164,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(source.contains("tag: \"comparison-browser\""))
         XCTAssertTrue(source.contains("tag: \"chat-with-docs-browser\""))
         XCTAssertTrue(source.contains("tag: \"research-browser\""))
-        XCTAssertTrue(source.contains("tag: \"mind-palace-browser\""))
         XCTAssertTrue(source.contains("FeatureManager.shared.isResearchEnabled"))
-        XCTAssertTrue(source.contains("FeatureManager.shared.isMindPalaceEnabled"))
-    }
-
-    func testSidebarModeBarExposesMindPalaceIconWhenFeatureEnabled() throws {
-        let source = try Self.appSource("Views/Sidebar/SidebarModeBar.swift")
-
-        XCTAssertTrue(source.contains("if featureManager.isMindPalaceEnabled"))
-        XCTAssertTrue(source.contains("mode: .mindPalace"))
-        XCTAssertTrue(source.contains("selectedMode == .mindPalace"))
-        XCTAssertTrue(source.contains("selectMode(.mindPalace)"))
     }
 
     func testPinnedSidebarEntryPointsRouteToExpectedSurfaces() throws {
@@ -186,8 +174,6 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(source.contains("viewMode = .comparison(nil)"))
         XCTAssertTrue(source.contains("id == \"chat-with-docs-browser\""))
         XCTAssertTrue(source.contains("onOpenChatWithCurrentScope?()"))
-        XCTAssertTrue(source.contains("id == \"mind-palace-browser\""))
-        XCTAssertTrue(source.contains("viewMode = .mindPalace"))
         XCTAssertTrue(source.contains("id == \"research-browser\""))
         XCTAssertTrue(source.contains("sidebarMode = .research"))
     }
