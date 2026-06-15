@@ -372,6 +372,73 @@ class TestModelComparisonEngine:
         result = engine.get_comparison("nonexistent")
         assert result is None
 
+    # ------------------------------------------------------------------
+    # #2212: empty / failed vision calls must NOT count as successful
+    # ------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_compare_vision_empty_response_is_error(self):
+        """vision() returning '' must produce an error result, not a success.
+
+        Before #2212 the empty string passed the len() check and the result had
+        error=None, making it a "successful" comparison despite no useful output.
+        """
+        async_vision = AsyncMock(return_value="")
+
+        with patch("fichero.workflows.model_comparison.vision", async_vision):
+            engine = ModelComparisonEngine()
+            result = await engine.compare_vision(
+                images=["data:image/png;base64,AAAA"],
+                prompt="Describe",
+                models=[ModelSpec(provider="openai", model="gpt-4o")],
+            )
+
+        assert len(result.results) == 1
+        r = result.results[0]
+        assert r.error is not None, "Empty vision response must surface as an error"
+        assert "empty" in r.error.lower()
+        # An empty-response failure must not appear in successful_results,
+        # so fastest/cheapest model should be None.
+        assert result.fastest_model is None
+        assert result.cheapest_model is None
+
+    @pytest.mark.asyncio
+    async def test_compare_vision_none_response_is_error(self):
+        """vision() returning None must also produce an error result (#2212)."""
+        async_vision = AsyncMock(return_value=None)
+
+        with patch("fichero.workflows.model_comparison.vision", async_vision):
+            engine = ModelComparisonEngine()
+            result = await engine.compare_vision(
+                images=["data:image/png;base64,AAAA"],
+                prompt="Describe",
+                models=[ModelSpec(provider="openai", model="gpt-4o")],
+            )
+
+        assert len(result.results) == 1
+        r = result.results[0]
+        assert r.error is not None, "None vision response must surface as an error"
+        assert result.fastest_model is None
+
+    @pytest.mark.asyncio
+    async def test_compare_vision_successful_result_not_affected(self):
+        """A real non-empty response must still be counted as successful (#2212)."""
+        async_vision = AsyncMock(return_value="The image shows a cathedral facade.")
+
+        with patch("fichero.workflows.model_comparison.vision", async_vision):
+            engine = ModelComparisonEngine()
+            result = await engine.compare_vision(
+                images=["data:image/png;base64,AAAA"],
+                prompt="Describe",
+                models=[ModelSpec(provider="openai", model="gpt-4o")],
+            )
+
+        assert len(result.results) == 1
+        r = result.results[0]
+        assert r.error is None
+        assert r.response == "The image shows a cathedral facade."
+        assert result.fastest_model == "openai/gpt-4o"
+
 
 class TestModelComparisonTool:
     """Tests for model_comparison workflow tool."""

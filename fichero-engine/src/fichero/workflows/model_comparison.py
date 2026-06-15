@@ -642,6 +642,15 @@ class ModelComparisonEngine:
 
             latency_ms = (time.time() - start_time) * 1000
 
+            if not response:
+                return ModelResult(
+                    provider=spec.provider,
+                    model=spec.model,
+                    response="",
+                    latency_ms=latency_ms,
+                    error="empty response from vision model (#2212)",
+                )
+
             # Estimate tokens (vision is typically more expensive)
             input_tokens = len(prompt) // 4 + (
                 len(images) * 1000
