@@ -187,3 +187,35 @@ class RoomSceneSummary(BaseModel):
     stack_count: int = 0
     note_count: int = 0
     node_types: dict[str, int] = Field(default_factory=dict)  # node_type → count
+
+
+class CanvasLayout(BaseModel):
+    """Persisted per-item position on the spatial 2D/3D library canvas.
+
+    FOLDER-scoped (not room-scoped): keyed by (folder_id, item_id) so that
+    switching Library view modes preserves where each item was placed. The
+    stored ``id`` is the deterministic ``"{folder_id}::{item_id}"`` composite,
+    which makes ``Database.save`` an idempotent upsert on that pair — saving a
+    drag of the same item overwrites its previous row rather than duplicating.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    folder_id: str
+    item_id: str
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+    w: float | None = None
+    h: float | None = None
+    d: float | None = None
+    angle: float = 0.0
+    z_index: int = 0
+    style: str | None = None  # opaque JSON text (color, shape, …)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+    @staticmethod
+    def make_id(folder_id: str, item_id: str) -> str:
+        """Deterministic primary key for the (folder_id, item_id) pair."""
+        return f"{folder_id}::{item_id}"
