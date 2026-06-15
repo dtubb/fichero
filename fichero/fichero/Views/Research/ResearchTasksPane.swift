@@ -226,7 +226,7 @@ extension ResearchTasksPane {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(Color(platformColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
@@ -291,7 +291,7 @@ extension ResearchTasksPane {
                 }
             }
             .padding(8)
-            .background(Color(NSColor.controlBackgroundColor))
+            .background(Color(platformColor: .controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 6))
         } else {
             VStack(alignment: .leading, spacing: 4) {
@@ -303,7 +303,7 @@ extension ResearchTasksPane {
             }
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(NSColor.controlBackgroundColor))
+            .background(Color(platformColor: .controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .onTapGesture { beginEditing(note) }
         }

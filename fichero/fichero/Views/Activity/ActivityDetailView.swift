@@ -188,7 +188,7 @@ struct ActivityDetailView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(platformColor: .windowBackgroundColor))
     }
 
     private func sectionButton(_ id: String, label: String, icon: String) -> some View {

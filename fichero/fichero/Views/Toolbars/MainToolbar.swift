@@ -45,7 +45,7 @@ struct MainToolbar: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color(nsColor: .controlBackgroundColor))
+            .background(Color(platformColor: .controlBackgroundColor))
             .cornerRadius(6)
 
             Spacer()

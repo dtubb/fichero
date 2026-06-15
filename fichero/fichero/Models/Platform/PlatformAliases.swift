@@ -16,6 +16,7 @@
 
 #if canImport(AppKit)
 import AppKit
+import SwiftUI
 
 /// `NSColor` on macOS (and Catalyst). Used by the RealityKit renderer and any
 /// code path that must round-trip through AppKit colour APIs.
@@ -28,7 +29,13 @@ typealias PlatformImage = NSImage
 /// work purely in SwiftUI wherever possible.
 typealias PlatformFont = NSFont
 
+extension Color {
+    /// Cross-platform bridge: `Color(nsColor:)` on macOS, `Color(uiColor:)` on iOS.
+    init(platformColor color: NSColor) { self.init(nsColor: color) }
+}
+
 #elseif canImport(UIKit)
+import SwiftUI
 import UIKit
 
 /// `UIColor` on iOS / iPadOS / visionOS.
@@ -39,5 +46,19 @@ typealias PlatformImage = UIImage
 
 /// `UIFont` on iOS / iPadOS / visionOS.
 typealias PlatformFont = UIFont
+
+extension Color {
+    /// Cross-platform bridge: `Color(nsColor:)` on macOS, `Color(uiColor:)` on iOS.
+    init(platformColor color: UIColor) { self.init(uiColor: color) }
+}
+
+// macOS-named semantic color aliases so call sites can write
+// `Color(platformColor: .controlBackgroundColor)` cross-platform.
+extension UIColor {
+    static var controlBackgroundColor: UIColor { .secondarySystemBackground }
+    static var textBackgroundColor: UIColor { .systemBackground }
+    static var windowBackgroundColor: UIColor { .systemBackground }
+    static var separatorColor: UIColor { .separator }
+}
 
 #endif

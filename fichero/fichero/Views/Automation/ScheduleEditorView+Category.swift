@@ -152,7 +152,7 @@ extension ScheduleEditorView {
             }
             .padding()
         }
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(platformColor: .controlBackgroundColor))
     }
 
     @ViewBuilder

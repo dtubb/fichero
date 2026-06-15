@@ -145,7 +145,7 @@ struct DropTargetModifiers: ViewModifier {
                             }
                         }
                         .padding(20)
-                        .background(Color(nsColor: .controlBackgroundColor))
+                        .background(Color(platformColor: .controlBackgroundColor))
                         .cornerRadius(8)
                     }
                     .allowsHitTesting(false)

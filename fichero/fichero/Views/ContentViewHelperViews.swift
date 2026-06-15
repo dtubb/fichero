@@ -21,7 +21,7 @@ struct ResizableDivider: View {
             .frame(width: 8)
             .overlay(
                 Rectangle()
-                    .fill(Color(nsColor: .separatorColor))
+                    .fill(Color(platformColor: .separatorColor))
                     .frame(width: 1)
             )
             .contentShape(Rectangle())

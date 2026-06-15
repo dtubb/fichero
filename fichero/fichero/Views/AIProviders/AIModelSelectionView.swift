@@ -128,7 +128,7 @@ struct AIModelSelectionView: View {
                         .textFieldStyle(.plain)
                 }
                 .padding(8)
-                .background(Color(nsColor: .controlBackgroundColor))
+                .background(Color(platformColor: .controlBackgroundColor))
                 .cornerRadius(6)
 
                 // Sort picker
@@ -153,7 +153,7 @@ struct AIModelSelectionView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
-                    .background(Color(nsColor: .controlBackgroundColor))
+                    .background(Color(platformColor: .controlBackgroundColor))
                     .cornerRadius(6)
                 }
                 .menuStyle(.borderlessButton)
@@ -201,7 +201,7 @@ struct AIModelSelectionView: View {
                     .background(
                         hasActiveFilters
                             ? Color.accentColor.opacity(0.1)
-                            : Color(nsColor: .controlBackgroundColor)
+                            : Color(platformColor: .controlBackgroundColor)
                     )
                     .cornerRadius(6)
                 }

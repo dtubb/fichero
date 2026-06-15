@@ -120,7 +120,7 @@ struct MagnifierPanelView: View {
                 .padding(8)
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(platformColor: .windowBackgroundColor))
         .overlay(
             // Blue border when locked
             RoundedRectangle(cornerRadius: 0)
@@ -190,6 +190,7 @@ struct MagnifierPanelContent: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = MagnifierPanelNSView()
         view.wantsLayer = true
+        // TODO(#2098): NSColor.cgColor — gate entire NSViewRepresentable with #if os(macOS)
         view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         view.minMagnification = minMagnification
         view.maxMagnification = maxMagnification

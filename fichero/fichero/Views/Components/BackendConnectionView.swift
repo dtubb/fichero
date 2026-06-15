@@ -182,7 +182,7 @@ struct BackendConnectionView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(platformColor: .windowBackgroundColor))
         .task(id: restartCount) {
             // Poll health every 5 s while the engine is booting. After
             // maxPollAttempts failures we give up and flip status to

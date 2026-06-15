@@ -46,7 +46,7 @@ struct ActivityConsoleView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(Color(platformColor: .textBackgroundColor))
     }
 
     @ViewBuilder

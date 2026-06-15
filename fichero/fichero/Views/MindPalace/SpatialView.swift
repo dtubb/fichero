@@ -49,7 +49,7 @@ struct Spatial2DCanvas: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(nsColor: .textBackgroundColor))
+            .background(Color(platformColor: .textBackgroundColor))
         }
     }
 

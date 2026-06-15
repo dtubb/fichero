@@ -78,7 +78,7 @@ struct SpeakerGroupView: View {
             }
         }
         .padding(12)
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(Color(platformColor: .controlBackgroundColor))
         .cornerRadius(8)
     }
 }

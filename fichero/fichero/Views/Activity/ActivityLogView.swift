@@ -117,7 +117,7 @@ struct ActivityLogView: View {
                         }
                     }
                 }
-                .background(Color(nsColor: .textBackgroundColor))
+                .background(Color(platformColor: .textBackgroundColor))
             } else {
                 VStack(spacing: 12) {
                     Spacer()
@@ -128,7 +128,7 @@ struct ActivityLogView: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(nsColor: .textBackgroundColor))
+                .background(Color(platformColor: .textBackgroundColor))
             }
         }
     }
@@ -233,7 +233,7 @@ struct ActivityLogView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
             }
-            .background(Color(nsColor: .textBackgroundColor))
+            .background(Color(platformColor: .textBackgroundColor))
         }
     }
 

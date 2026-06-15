@@ -58,7 +58,7 @@ struct FirstRunWindow: View {
         }
         .padding(20)
         .frame(width: 220)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(platformColor: .controlBackgroundColor))
     }
 
     @ViewBuilder
@@ -276,7 +276,7 @@ struct FirstRunWindow: View {
         }
         .padding(22)
         .frame(maxWidth: .infinity, minHeight: 280, alignment: .leading)
-        .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(platformColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
         .overlay {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)

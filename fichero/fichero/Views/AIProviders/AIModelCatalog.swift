@@ -74,7 +74,7 @@ struct AIModelCatalog: View {
                 }
             }
             .padding(8)
-            .background(Color(nsColor: .controlBackgroundColor))
+            .background(Color(platformColor: .controlBackgroundColor))
             .cornerRadius(8)
 
             // Sort picker
@@ -121,7 +121,7 @@ struct AIModelCatalog: View {
                 .font(.subheadline)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(isSelected ? Color.accentColor : Color(nsColor: .controlBackgroundColor))
+                .background(isSelected ? Color.accentColor : Color(platformColor: .controlBackgroundColor))
                 .foregroundColor(isSelected ? .white : .primary)
                 .cornerRadius(16)
         }

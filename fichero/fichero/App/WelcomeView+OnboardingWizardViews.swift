@@ -127,7 +127,7 @@ extension OnboardingWizardView {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
+                    .fill(isSelected ? Color.accentColor.opacity(0.08) : Color(platformColor: .controlBackgroundColor))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
@@ -267,7 +267,7 @@ extension OnboardingWizardView {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(isSelected ? Color.accentColor.opacity(0.08) : Color(nsColor: .controlBackgroundColor))
+                    .fill(isSelected ? Color.accentColor.opacity(0.08) : Color(platformColor: .controlBackgroundColor))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8)

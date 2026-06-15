@@ -27,7 +27,7 @@ struct TriggerEditorPreviewPanel: View {
             }
             .padding()
         }
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(platformColor: .controlBackgroundColor))
     }
 
     // MARK: - Trigger Preview

@@ -77,7 +77,7 @@ struct WorkflowDiagramPreview: View {
                                     .aspectRatio(contentMode: .fit)
                                     .padding()
                             }
-                            .background(Color(nsColor: .textBackgroundColor))
+                            .background(Color(platformColor: .textBackgroundColor))
                         } else {
                             VStack {
                                 Image(systemName: "flowchart")
@@ -124,7 +124,7 @@ struct WorkflowDiagramPreview: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(8)
                             }
-                            .background(Color(nsColor: .textBackgroundColor))
+                            .background(Color(platformColor: .textBackgroundColor))
                         } else {
                             VStack {
                                 Image(systemName: "chevron.left.forwardslash.chevron.right")

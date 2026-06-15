@@ -186,7 +186,7 @@ struct WorkflowPlaceholderView: View {
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(platformColor: .windowBackgroundColor))
     }
 }
 
@@ -205,7 +205,7 @@ struct ChatPlaceholderView: View {
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(platformColor: .windowBackgroundColor))
     }
 }
 
@@ -224,6 +224,6 @@ struct SearchPlaceholderView: View {
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(platformColor: .windowBackgroundColor))
     }
 }

@@ -80,7 +80,7 @@ struct SpatialScene3D: View {
                 description: Text("No source pages or spatial nodes are available in this scope yet.")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(nsColor: .textBackgroundColor))
+            .background(Color(platformColor: .textBackgroundColor))
         } else {
         #if canImport(RealityKit)
         RealityView(

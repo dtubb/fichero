@@ -66,7 +66,7 @@ struct RoomListView: View {
             Divider()
             renderModeToggle
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(Color(platformColor: .windowBackgroundColor))
         .task { await loadRooms() }
         .onChange(of: state.selectedRoomId) { _, _ in
             Task { await loadStacks() }

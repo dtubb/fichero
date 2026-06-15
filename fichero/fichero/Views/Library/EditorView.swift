@@ -220,7 +220,7 @@ struct EditorView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Color(nsColor: NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)))
+        .background(Color(red: 253/255, green: 253/255, blue: 253/255, opacity: 1))
     }
 
     // MARK: - Generic Preview
@@ -253,7 +253,7 @@ struct EditorView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 200)
-                .background(Color(nsColor: NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)))
+                .background(Color(red: 253/255, green: 253/255, blue: 253/255, opacity: 1))
                 .cornerRadius(8)
                 .padding(.horizontal)
             }

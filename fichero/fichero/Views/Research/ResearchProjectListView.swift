@@ -96,7 +96,7 @@ struct ResearchProjectListView: View {
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
-            .background(Color(NSColor.windowBackgroundColor))
+            .background(Color(platformColor: .windowBackgroundColor))
         }
     }
 

@@ -72,7 +72,7 @@ extension SidebarView {
         // pane. scrollContentBackground(.hidden) alone wasn't enough on
         // macOS — the NavigationSplitView's sidebar column has its own
         // material layer underneath. .background here paints over that.
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(Color(platformColor: .windowBackgroundColor))
         .onDeleteCommand {
             deleteSelectedActivityRuns()
         }

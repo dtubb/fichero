@@ -113,7 +113,7 @@ struct ArtifactsBrowserView: View {
                 }
             }
             .padding(6)
-            .background(Color(nsColor: .textBackgroundColor))
+            .background(Color(platformColor: .textBackgroundColor))
             .cornerRadius(6)
 
             // Type filter
@@ -268,7 +268,7 @@ struct ArtifactsBrowserView: View {
         }
         .padding(12)
         .frame(minHeight: 120)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color(platformColor: .controlBackgroundColor))
         .cornerRadius(8)
     }
 

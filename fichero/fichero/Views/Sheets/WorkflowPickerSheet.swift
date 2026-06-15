@@ -59,7 +59,7 @@ struct WorkflowPickerSheet: View {
                 }
             }
             .padding()
-            .background(Color(nsColor: .controlBackgroundColor))
+            .background(Color(platformColor: .controlBackgroundColor))
 
             Divider()
 
