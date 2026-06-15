@@ -111,22 +111,19 @@ async def test_propagate_blank_single_page_skips_save():
             library_path="/lib",
         )
 
-    # Blank text → is_blank=True → page_content="" IS saved but NOT embedded (#2214)
-    assert db.saved, "#2214: blank page must be saved so page_content='' marks it as processed"
+    # Blank text → is_blank=True → no save, no embed, page_content untouched
+    assert not db.saved, "#2249: blank page must not trigger a DB save"
     assert not db.embedded, "#2249: blank page must not be re-embedded"
-    assert page.page_content == "", (
-        "#2214: blank page_content must be empty string (not None) after propagation"
-    )
 
 
 @pytest.mark.asyncio
-async def test_propagate_writes_page_content_for_all_pages_including_blank():
-    """#2214: _propagate_to_page_children must write page_content for EVERY page.
+async def test_propagate_non_blank_written_blank_skipped():
+    """#2214: non-blank pages get page_content; blank pages are skipped entirely.
 
-    Before the fix, blank pages received an artifact row (per #1082) but
-    page_content remained None — indistinguishable from "OCR hasn't run."
-    After the fix, blank pages get page_content="" and non-blank pages get
-    the actual text.  Both states are now observable without an artifact query.
+    Verifies the core semantics: real transcribed text propagates to the page
+    child, but empty/blank OCR output does not overwrite the page with an
+    empty string (which would be indistinguishable from "never transcribed" to
+    some callers, and incorrectly marks the page as processed).
     """
     parent = Document(
         id="par", name="mixed.pdf", doc_type=DocType.file, path="/lib/mixed.pdf"
@@ -143,31 +140,23 @@ async def test_propagate_writes_page_content_for_all_pages_including_blank():
 
     with patch("fichero.db.db_manager") as mock_db_mgr:
         mock_db_mgr.get_database.return_value = db
-        n = await _propagate_to_page_children(
+        await _propagate_to_page_children(
             parent_id="par",
             page_texts=["Real OCR text", ""],
             library_path="/lib",
         )
 
-    assert n == 2, "#2214: must return count of ALL page children processed"
-
-    # Non-blank page: page_content set AND embedded
+    # Non-blank page: page_content set AND embedded AND saved
     assert page_text.page_content == "Real OCR text", (
         "#2214: non-blank page must have page_content set"
     )
-    assert any(d.id == "pg-text" for d in db.embedded), (
-        "#2214: non-blank page must be embedded"
-    )
+    assert any(d.id == "pg-text" for d in db.saved), "#2214: non-blank page must be saved"
+    assert any(d.id == "pg-text" for d in db.embedded), "#2214: non-blank page must be embedded"
 
-    # Blank page: page_content="" (not None) but NOT embedded
-    assert page_blank.page_content == "", (
-        "#2214: blank page_content must be empty string, not None"
+    # Blank page: no save, no embed, page_content untouched (None)
+    assert not any(d.id == "pg-blank" for d in db.saved), (
+        "#2214: blank page must NOT be saved"
     )
     assert not any(d.id == "pg-blank" for d in db.embedded), (
-        "#2214: blank page must not be embedded"
+        "#2214: blank page must NOT be embedded"
     )
-
-    # Both must be saved
-    saved_ids = {d.id for d in db.saved}
-    assert "pg-text" in saved_ids, "#2214: non-blank page must be saved"
-    assert "pg-blank" in saved_ids, "#2214: blank page must be saved"
