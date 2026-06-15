@@ -16,10 +16,18 @@ Branch `0.0.2`, tracking `origin/0.0.2`. Keep `0.0.2 == origin` (gate before eve
 - #2224 `e0f23367` — vision/LLM result cache (Daniel's caching ask); #2228 `2dba9169` — vision timeout+telemetry;
   #2231 `1387fefc` — ONNX off event loop; #2233 `5b7f6490` — batch-embed RAM; #2234 `0f82e51f` — remote-embed gating.
   (These 5 first went RED — worker repaired in ea911ad1; re-gated 5096 passed.)
-- **HEAD = ea911ad1, 0.0.2 == origin. 15 issues closed.**
-- **AI Backend Hardening: only #2232 (drift-guard) + #2248 (deps, held) left.** f_ai_backend on #2232, then Observable Data Layer.
+- #2250 `6ee1e3b1` per-page regression test; #2241 `805aeebb` blank-page crash; #2232 `78e32104` drift-guard full scan.
+- **HEAD = 78e32104, 0.0.2 == origin. 18 issues closed.**
+- **AI Backend Hardening: DONE except #2248 (deps, held).**
 
-LESSON (kept): a sync→async change must sweep ALL caller tests; workers over-report self-testing — ALWAYS full-gate before push (it caught a 5-failure batch that the worker called green).
+## ⚠️ HELD-BROKEN (bounced to f_importer_fixes — do NOT cherry-pick until re-gated green)
+- #2239/#2240/#2242 fix `9911f183` broke EXISTING test_workflow_tools.py::TestFolderTool::test_folder_with_subfolders
+  (sources.py:688 folder_tool returns 0 subfolders). Worker re-fixing + sweeping existing folder tests.
+- #2249 (whole-PDF→PARENT) NOT done — worker's commit was test-only (single-page); multi-page whole-PDF still needs the real fix. Left OPEN.
+
+## Remaining Workflows & Catalogue Hardening (~8): #2223 #2235 #2237 #2238 #2246 #2247 #2249 #2251 #2252
+
+LESSON (kept): a behavior change must sweep ALL existing caller tests (sync→async mocks; folder_tool subfolders); workers over-report self-testing — ALWAYS full-gate before push (it caught a 5-failure async batch AND a 1-failure folder_tool batch the workers called green).
 
 ## 🔴 HELD for Daniel's morning go (do NOT auto-merge)
 - #2248 deps upgrade — committed `946217e2` on ms/deps-update, worker-gated in ISOLATED `.venv-deps`.
