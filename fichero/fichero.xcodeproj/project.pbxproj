@@ -59,7 +59,6 @@
 		154 /* ScheduleCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152 /* ScheduleCreationSheet.swift */; };
 		155 /* TriggerCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153 /* TriggerCreationSheet.swift */; };
 		15785F4FC901A743D5DE7D09 /* DocumentInspectorInfoTab+Prototype.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715408B079BD7610A53FA99C /* DocumentInspectorInfoTab+Prototype.swift */; };
-		181AAEF2B076C486F42AC6B3 /* PlatformViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF7E2C536F680E447404E78 /* PlatformViewRepresentable.swift */; };
 		186AB9CF6F951F8878BC81AF /* EntityKindChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 986AE09BC3B5DC9ECD5820A5 /* EntityKindChartView.swift */; };
 		1AA8D13CBE8E1D392BDDD4CF /* DocumentCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E4C1042F69F06267FA6CCD /* DocumentCanvas.swift */; };
 		1ACCE61BCF118B415F1E457E /* OntologyBrowser+Toolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 849CA4F172401769E6140F13 /* OntologyBrowser+Toolbar.swift */; };
@@ -472,7 +471,6 @@
 		DCFC0B2C370966F9B57072A2 /* EntityMergeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB5DE35F2956544D2771C85 /* EntityMergeSheet.swift */; };
 		DDE8A1E95DE61B0723A40BC9 /* DynamicConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04DA25B2C1FBB75B0B1CC643 /* DynamicConfigView.swift */; };
 		E03D3AB8185C98A43134F6EF /* DocumentInspectorInfoTab+Header.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35793BBA8A74DAA0982CCFA4 /* DocumentInspectorInfoTab+Header.swift */; };
-		E0443F19EF9115D3EC3042C1 /* PlatformFilePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DCF7D5173AEEA9B504CD1E0 /* PlatformFilePicker.swift */; };
 		E096F5149317970F438FE9B9 /* ReferencesInspectorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = A952F048E802EBA2D1F0846D /* ReferencesInspectorPane.swift */; };
 		E10820FD91D6CB9A12EC7EF0 /* CitationListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACE504DAF1BA303DE7043D34 /* CitationListView.swift */; };
 		E16CECCFD4B4BCE53B2FEC36 /* KGTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF77122ADD78F941D7F1968D /* KGTimelineView.swift */; };
@@ -596,7 +594,6 @@
 		1C4E4291B8C33D501F176BF5 /* AIDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AIDefaults.swift; path = fichero/Views/Settings/AIDefaults.swift; sourceTree = SOURCE_ROOT; };
 		1C527476477074D83F628468 /* ClaimStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClaimStore.swift; sourceTree = "<group>"; };
 		1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Helpers.swift"; sourceTree = "<group>"; };
-		1DCF7D5173AEEA9B504CD1E0 /* PlatformFilePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlatformFilePicker.swift; sourceTree = "<group>"; };
 		1DE62C7312D0E473288483C9 /* ForceDirectedGraphView+Render.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ForceDirectedGraphView+Render.swift"; sourceTree = "<group>"; };
 		1DEAE79F9381616EC474F4ED /* HeuristicReviewSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeuristicReviewSheet.swift; sourceTree = "<group>"; };
 		1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LocalModelsSettingsView.swift; path = fichero/Views/Settings/LocalModelsSettingsView.swift; sourceTree = SOURCE_ROOT; };
@@ -1019,7 +1016,6 @@
 		E7B146AE8AC4CEEC3775CB94 /* DocumentInspectorMetadataTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DocumentInspectorMetadataTab.swift; path = fichero/Views/Library/DocumentInspector/DocumentInspectorMetadataTab.swift; sourceTree = SOURCE_ROOT; };
 		E80DDED3870C2457BFD97D1E /* DocumentKGWebPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocumentKGWebPane.swift; sourceTree = "<group>"; };
 		E9506E8C3C8030EE3075E9A0 /* EntityDetailView+Metadata.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Metadata.swift"; sourceTree = "<group>"; };
-		EAF7E2C536F680E447404E78 /* PlatformViewRepresentable.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlatformViewRepresentable.swift; sourceTree = "<group>"; };
 		EBFA9C3247C03BDCE9BE6092 /* LibraryManager+Operations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryManager+Operations.swift"; sourceTree = "<group>"; };
 		EE2ECCF57DC8B6308FCAE62F /* MindPalaceState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindPalaceState.swift; sourceTree = "<group>"; };
 		EE609F48196839FAA6981CFF /* SearchStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchStore.swift; sourceTree = "<group>"; };
@@ -1586,9 +1582,7 @@
 			isa = PBXGroup;
 			children = (
 				68BDC2DC273F8F91B9CA1B3C /* PlatformAliases.swift */,
-				EAF7E2C536F680E447404E78 /* PlatformViewRepresentable.swift */,
 				772A6A57C4986C2765A174EE /* PlatformPasteboard.swift */,
-				1DCF7D5173AEEA9B504CD1E0 /* PlatformFilePicker.swift */,
 			);
 			name = Platform;
 			path = Platform;
@@ -2664,9 +2658,7 @@
 				FBC6479F61CDE8E911D6BDBB /* NoteDetailView.swift in Sources */,
 				8C55B492C37B1BBED91F2B9B /* NotesInspectorPane.swift in Sources */,
 				9A321613F87806CF952668A1 /* PlatformAliases.swift in Sources */,
-				181AAEF2B076C486F42AC6B3 /* PlatformViewRepresentable.swift in Sources */,
 				CC357CD884EE29BAE8A64F4B /* PlatformPasteboard.swift in Sources */,
-				E0443F19EF9115D3EC3042C1 /* PlatformFilePicker.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
