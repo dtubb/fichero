@@ -184,11 +184,6 @@ struct SidebarView: View {
                         onOpenChatWithCurrentScope?()
                         return
                     }
-                    if id == "mind-palace-browser" {
-                        sidebarMode = .mindPalace
-                        viewMode = .mindPalace
-                        return
-                    }
                     if id == "research-browser" {
                         sidebarMode = .research
                         return
