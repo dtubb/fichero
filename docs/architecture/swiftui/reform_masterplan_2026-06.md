@@ -115,6 +115,43 @@ Pyramid: (1) **unit-test the platform branch DECISIONS** (size class → Table v
 - **Rollup:** `GET /documents/{id}/rollup` (counts for the outline).
 - **Fix doc:** CLAUDE.md "dev tier off by default" is stale.
 
+## 6b. PROGRAMMATIC GUARDRAILS — machine-enforce the design brief (Daniel's #1 theme)
+
+Turn every principle in §0 into a CI guardrail (model on shipped `scripts/check_*.py`
++ the endpoint walker #1147 + comment-hygiene/tooltip guardrails). Each is a script +
+a test that fails the suite (with a content-hash `KNOWN_VIOLATIONS` allowlist so the
+backlog is explicit, not a wall). Buildable NOW unless marked [design].
+
+1. **No hand-rolled URLs / endpoints** — scan Swift for raw `URLSession`/`URL(string:)`/
+   string-built API paths; require the generated client / `*Generated` wrappers. Extend #1147.
+2. **OpenAPI models only** — flag manual structs shadowing `Components.Schemas.*`; never guess shapes.
+3. **Observables everywhere** — views must not access endpoints/change-streams directly; only
+   the `@Observable` store does (Observable Data Layer #1863). Guardrail on view→service calls.
+4. **No AppKit/UIKit except sanctioned** — scan `import AppKit`/`import UIKit` against an
+   allowlist (PDFKit, magnifier, QL, rich-text, web). New `import` → fail unless allowlisted.
+5. **No custom UI** [design] — heuristic flag for hand-rolled controls where a standard SwiftUI
+   element exists; if genuinely custom, prefer a **WebKit view**. Needs a definition of "custom."
+6. **Completeness matrix** [design] (#1925) — every "thing" (entity/claim/note/annotation/doc/
+   workflow/...) must have CRUD + context menu + menu-bar item + keyboard shortcut. Build a
+   registry of things + presence checks across action-registry + menus + context menus + shortcuts.
+7. **Endpoints enabled** — assert the release tier registers everything the UI calls (extends #1147).
+8. **Swift logic AND UI tested** — coverage guardrail: every store/decision has a unit test;
+   every view has a `#Preview`; key flows have an XCUITest. Report gaps (non-blocking debt).
+9. **Import-everything / render-everything** (#6/#N) — test that every importable type imports and
+   every imported type renders in ≥1 representation.
+
+## 6c. Additional feature items (captured 2026-06-15 PM)
+
+- **Folder = workspace/room**: any folder can become a workspace / spatial room (drop the
+  separate Mind-Palace room model into the folder; folders host the 2D/3D map). Ties to §B retirement.
+- **Folder-tied notes/annotations on the 2D/3D map** — add regular notes/annotations anchored to
+  the folder (not just a doc), visible on the spatial view.
+- **Aliases** — a node can be an alias to another (Tinderbox/Finder alias); the node model (#2081).
+- **Sidebar shows children** — expandable sidebar (folders → docs → PDF pages) like the outline (§I).
+- **Sidebar is inspectable** — selecting a sidebar item drives the shared inspector.
+- **Table/List row stripes** — alternating-row styling like DEVONthink/Scrivener (standard `.alternatingRowBackgrounds` on Mac; custom on iOS).
+- **Export preview in WebKit** — preview the export (Tinderbox-style) rendered in the web view (§5 custom→WebKit).
+
 ## 7. Open decisions for Daniel (the genuine forks — answer when back)
 
 1. **iOS target now or after the Mac shell?** (Affects whether to stand up the target + shims now vs design-for-degradation.) Min iOS floor (18 or 26 — 26 unlocks `RecognizeDocumentsRequest` paragraph/table structure)?
