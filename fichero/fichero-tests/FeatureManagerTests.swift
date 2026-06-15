@@ -22,9 +22,11 @@ final class FeatureManagerTests: XCTestCase {
         XCTAssertTrue(featureManager.isWorkflowFilesToolbarButtonEnabled)
         XCTAssertTrue(featureManager.isWorkflowRunOnSelectionEnabled)
 
+        // Batches promoted to v0.0.1 defaults alongside workflows.
+        XCTAssertTrue(featureManager.isBatchesEnabled)
+
         // Disabled in v0.0.1
         XCTAssertFalse(featureManager.isChatEnabled)
-        XCTAssertFalse(featureManager.isBatchesEnabled)
         XCTAssertFalse(featureManager.isAutomationEnabled)
     }
 }

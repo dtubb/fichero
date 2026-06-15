@@ -8,9 +8,9 @@ import Testing
 
 struct InspectorTabTests {
 
-    @Test("InspectorTab includes content/annotations/notes/entities/kg/artifacts/edits/info")
+    @Test("InspectorTab includes content/annotations/notes/entities/kg/artifacts/citations/references/edits/info")
     func allCases() {
-        #expect(InspectorTab.allCases.count == 9)
+        #expect(InspectorTab.allCases.count == 11)
         #expect(InspectorTab.allCases.contains(.content))
         #expect(InspectorTab.allCases.contains(.outline))
         #expect(InspectorTab.allCases.contains(.annotations))
@@ -18,15 +18,17 @@ struct InspectorTabTests {
         #expect(InspectorTab.allCases.contains(.entities))
         #expect(InspectorTab.allCases.contains(.knowledgeGraph))
         #expect(InspectorTab.allCases.contains(.artifacts))
+        #expect(InspectorTab.allCases.contains(.citations))
+        #expect(InspectorTab.allCases.contains(.references))
         #expect(InspectorTab.allCases.contains(.edits))
         #expect(InspectorTab.allCases.contains(.info))
     }
 
-    @Test("InspectorTab order: content, outline, annotations, notes, entities, kg, artifacts, edits, info")
+    @Test("InspectorTab order: content, outline, annotations, notes, entities, kg, artifacts, citations, references, edits, info")
     func ordering() {
         let expected: [InspectorTab] = [
             .content, .outline, .annotations, .notes, .entities, .knowledgeGraph,
-            .artifacts, .edits, .info
+            .artifacts, .citations, .references, .edits, .info
         ]
         #expect(InspectorTab.allCases == expected)
     }
