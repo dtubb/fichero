@@ -157,13 +157,13 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testInspectorEntityMergePlanPrefersHighestCorroborationCount() {
-        var lowest = makeKnowledgeEntity(id: "entity-1", name: "Andagoya", type: .place)
+        var lowest = makeKnowledgeEntity(id: "entity-1", name: "Andagoya", type: .location)
         lowest.corroborationCount = 2
 
-        var highest = makeKnowledgeEntity(id: "entity-2", name: "Andagóya", type: .place)
+        var highest = makeKnowledgeEntity(id: "entity-2", name: "Andagóya", type: .location)
         highest.corroborationCount = 5
 
-        var middle = makeKnowledgeEntity(id: "entity-3", name: "the Andagoya district", type: .place)
+        var middle = makeKnowledgeEntity(id: "entity-3", name: "the Andagoya district", type: .location)
         middle.corroborationCount = 4
 
         let plan = InspectorEntityBulkSelection.mergePlan(for: [lowest, highest, middle])
@@ -175,19 +175,19 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testInspectorEntityMergePlanBreaksTiesByLongestNameThenLexical() {
-        var longest = makeKnowledgeEntity(id: "entity-1", name: "the Andagoya district", type: .place)
+        var longest = makeKnowledgeEntity(id: "entity-1", name: "the Andagoya district", type: .location)
         longest.corroborationCount = 3
 
-        var shorter = makeKnowledgeEntity(id: "entity-2", name: "Andagoya", type: .place)
+        var shorter = makeKnowledgeEntity(id: "entity-2", name: "Andagoya", type: .location)
         shorter.corroborationCount = 3
 
         let longestWinner = InspectorEntityBulkSelection.mergePlan(for: [shorter, longest])
         XCTAssertEqual(longestWinner?.survivorId, "entity-1")
 
-        var lexicalA = makeKnowledgeEntity(id: "entity-3", name: "Andagoya", type: .place)
+        var lexicalA = makeKnowledgeEntity(id: "entity-3", name: "Andagoya", type: .location)
         lexicalA.corroborationCount = 3
 
-        var lexicalB = makeKnowledgeEntity(id: "entity-4", name: "Andagóya", type: .place)
+        var lexicalB = makeKnowledgeEntity(id: "entity-4", name: "Andagóya", type: .location)
         lexicalB.corroborationCount = 3
 
         let lexicalWinner = InspectorEntityBulkSelection.mergePlan(for: [lexicalB, lexicalA])
@@ -197,7 +197,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     func testInspectorEntityMergePlanRejectsMixedKinds() {
         let person = makeKnowledgeEntity(id: "entity-1", name: "Andagoya", type: .person)
-        let place = makeKnowledgeEntity(id: "entity-2", name: "Andagoya", type: .place)
+        let place = makeKnowledgeEntity(id: "entity-2", name: "Andagoya", type: .location)
 
         XCTAssertNil(InspectorEntityBulkSelection.mergePlan(for: [person, place]))
     }
