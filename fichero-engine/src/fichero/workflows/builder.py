@@ -1540,9 +1540,15 @@ def _make_route_function(
     """Create a routing function for multi-way conditional edges.
 
     Resolves route_key from state, looks up the result in route_map (value →
-    node ID), and returns the corresponding graph node name.  Falls back to the
-    first route_map entry when the resolved value is unknown so the workflow
-    never silently stalls.
+    node ID), and returns the corresponding graph node name.
+
+    Behaviour when the value is unknown or needs_human_selection=True:
+    - If the route_map has a "needs_human_selection" branch AND the source node
+      set needs_human_selection=True (or the value is not in the route_map),
+      the workflow is routed there so the condition is surfaced explicitly
+      rather than silently continuing down an arbitrary branch.
+    - If no such branch exists, falls back to the first route_map entry and
+      logs at ERROR level so the missing branch is discoverable. (#2238)
 
     NOTE: no return type annotation — add_conditional_edges calls
     get_type_hints() in the module namespace where local imports are not
@@ -1551,16 +1557,44 @@ def _make_route_function(
     from fichero.workflows.resolver import resolve_value  # noqa: PLC0415
 
     first_node_name = node_names.get(next(iter(route_map.values()), ""), "")
+    # Derive the needs_human_selection key from the same JSONPath namespace
+    # as route_key so we don't need to hard-code the source node name.
+    # e.g. "$.nodes.classify.script_type" → "$.nodes.classify.needs_human_selection"
+    parts = route_key.rsplit(".", 1)
+    needs_human_key = parts[0] + ".needs_human_selection" if len(parts) == 2 else ""
 
     def route(state: State):
         val = resolve_value(route_key, state, None)
         val_str = str(val) if val is not None else ""
+
+        # Honour the needs_human_selection signal from the source node (#2238).
+        # Prefer a dedicated "needs_human_selection" branch when available.
+        needs_human = bool(
+            needs_human_key and resolve_value(needs_human_key, state, False)
+        )
+        if needs_human and "needs_human_selection" in route_map:
+            human_target = route_map["needs_human_selection"]
+            if human_target in node_names:
+                logger.info(
+                    "route_map: %r → needs_human_selection=True; routing to %s",
+                    route_key,
+                    node_names[human_target],
+                )
+                return node_names[human_target]
+
         target_id = route_map.get(val_str)
         if target_id and target_id in node_names:
             return node_names[target_id]
-        logger.warning(
-            "route_map: key %r resolved to unknown value %r; falling back to %s",
-            route_key, val_str, first_node_name,
+
+        logger.error(
+            "route_map: key %r resolved to unknown value %r "
+            "(needs_human_selection=%r); falling back to %s. "
+            "Add a '%s' or 'needs_human_selection' branch to the workflow route_map.",
+            route_key,
+            val_str,
+            needs_human,
+            first_node_name,
+            val_str,
         )
         return first_node_name
 
