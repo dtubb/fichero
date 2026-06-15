@@ -27,6 +27,9 @@ os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
 # does not include the production default BAAI/bge-m3 yet. Real-model tests use
 # the prior supported model unless a verifier explicitly overrides it.
 os.environ.setdefault("FICHERO_EMBED_MODEL", "intfloat/multilingual-e5-large")
+# #2235: fail loudly if any unregistered type crosses the LangGraph msgpack
+# boundary (today just warns; future versions will hard-block).
+os.environ.setdefault("LANGGRAPH_STRICT_MSGPACK", "true")
 
 # Tests that create bare TestClient(app) (e.g. test_api_providers.py:16,
 # test_providers.py's per-class fixtures) bypass the conftest `client` /

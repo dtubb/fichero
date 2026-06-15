@@ -267,7 +267,7 @@ async def files_tool(
                     )
 
             files = [path for path, _ in pairs]
-            documents = [d.model_dump() for _, d in pairs]
+            documents = [d.model_dump(mode="json") for _, d in pairs]
             logger.info(
                 f"Files source tool: {len(files)} entries from selected_doc_ids "
                 f"({len(seen_ids)} unique docs)"
@@ -460,7 +460,7 @@ async def collection_tool(
                             (_resolve_abs_path(resolved_parent, library_path), doc)
                         )
             files = [path for path, _ in resolved_pairs]
-            documents = [d.model_dump() for _, d in resolved_pairs]
+            documents = [d.model_dump(mode="json") for _, d in resolved_pairs]
             logger.info(
                 f"collection_tool: {len(files)} files from selected_doc_ids "
                 f"(overriding collection {collection_id})"
@@ -498,7 +498,7 @@ async def collection_tool(
         # Keep file_paths and doc_data index-aligned: filter both by doc.path (#2240)
         aligned = [(doc, _resolve_abs_path(doc, library_path)) for doc in files if doc.path]
         file_paths = [path for _, path in aligned]
-        doc_data = [doc.model_dump() for doc, _ in aligned]
+        doc_data = [doc.model_dump(mode="json") for doc, _ in aligned]
 
         logger.info(f"Collection {collection_id}: found {len(files)} files")
 
@@ -671,7 +671,7 @@ async def folder_tool(
             aligned_paths.append(abs_path)
             aligned_docs.append(doc)
         file_paths = aligned_paths
-        doc_data = [d.model_dump() for d in aligned_docs]
+        doc_data = [d.model_dump(mode="json") for d in aligned_docs]
 
         logger.info(
             f"Folder {folder_id}: found {len(files)} files, {len(subfolder_ids)} subfolders"
@@ -839,7 +839,7 @@ async def search_tool(
                     continue
                 if doc.path:
                     files.append(_resolve_abs_path(doc, library_path))
-                doc_dict = doc.model_dump()
+                doc_dict = doc.model_dump(mode="json")
                 doc_dict["search_score"] = item.get("search_score")
                 doc_dict["highlights"] = None
                 doc_data.append(doc_dict)
