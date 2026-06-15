@@ -153,10 +153,10 @@ final class EntityStoreTests: XCTestCase {
         let store = makeStore()
         await store.loadEntities(forDocument: "doc-1")
 
-        try await store.setCuration(entityIds: ["entity-1", "entity-3"], to: .approved)
+        try await store.setCuration(entityIds: ["entity-1", "entity-3"], to: .verified)
 
         XCTAssertEqual(store.entities.compactMap(\.id), ["entity-1", "entity-2", "entity-3"])
-        XCTAssertEqual(store.entities.map(\.curationState), [.approved, nil, .approved])
+        XCTAssertEqual(store.entities.map(\.curationState), [.verified, nil, .verified])
 
         let requests = MockFicheroURLProtocol.recordedRequests()
         XCTAssertEqual(requests.count, 2)
