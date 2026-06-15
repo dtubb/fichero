@@ -945,7 +945,7 @@ async def _propagate_to_page_children(
     library_path: str,
     artifact_type: str | None = None,
     llm_config: LLMConfig | None = None,
-) -> None:
+) -> int:
     """Write per-page OCR text to page child documents and re-embed each one.
 
     Call this after saving the combined transcript to the parent PDF document
@@ -967,7 +967,7 @@ async def _propagate_to_page_children(
             key=lambda d: d.sequence or 0,
         )
         if not page_docs:
-            return
+            return 0
 
         for page_doc in page_docs:
             # sequence is 1-based; page_texts is 0-indexed
@@ -1035,8 +1035,10 @@ async def _propagate_to_page_children(
         logger.info(
             f"Propagated OCR to {len(page_docs)} page children of {parent_id}"
         )
+        return len(page_docs)
     except Exception as e:
         logger.warning(f"Failed to propagate OCR to page children of {parent_id}: {e}")
+        return 0
 
 
 # =============================================================================
@@ -1903,39 +1905,59 @@ async def process_vision(
 
                     save_config = LLMConfig(provider="apple", model="apple-vision")
 
-                artifact_id = await save_artifact(
-                    file_path=file_path,
-                    content=text,
-                    document_id=doc_id_for_file,
-                    library_path=library_path,
-                    llm_config=save_config,
-                    task_id=task_id,
-                    tool_config=tool_config,
-                    metadata_field=metadata_field,
-                    custom_metadata=custom_metadata,
+                # #2249: when per_page_texts is populated (whole-PDF path) and
+                # the current doc is the parent (path_to_doc has its path, so
+                # page children haven't been expanded yet by sources.py), route
+                # per-page texts directly to page-child artifacts and skip
+                # writing the concatenated transcript to the parent artifact.
+                # Falls back to the parent artifact when no page children exist
+                # (PDFs not yet ingested with per-page expansion).
+                _whole_pdf_parent = (
+                    resolve_path_to_doc(path_to_doc, file_path) if per_page_texts else None
                 )
-                if artifact_id:
-                    result["artifact_id"] = artifact_id
-                    artifact_ids.append(artifact_id)
-
-                    # Propagate per-page OCR to page child documents so semantic
-                    # search can surface individual pages, not only the parent PDF.
-                    # Only runs when the parent doc is in the files list (not
-                    # per-page fan-out): path_to_doc has the parent_id then.
-                    # When sources.py already expanded to page docs, parent_id
-                    # is None here and propagation is correctly skipped (#1077).
-                    if per_page_texts:
-                        parent_id = resolve_path_to_doc(path_to_doc, file_path)
-                        if parent_id:
-                            await _propagate_to_page_children(
-                                parent_id,
-                                per_page_texts,
-                                library_path,
-                                artifact_type=tool_config.artifact_type,
-                                llm_config=save_config,
-                            )
+                if _whole_pdf_parent:
+                    n_children = await _propagate_to_page_children(
+                        _whole_pdf_parent,
+                        per_page_texts,
+                        library_path,
+                        artifact_type=tool_config.artifact_type,
+                        llm_config=save_config,
+                    )
+                    if n_children == 0:
+                        # No page children — save combined text to parent as fallback
+                        artifact_id = await save_artifact(
+                            file_path=file_path,
+                            content=text,
+                            document_id=doc_id_for_file,
+                            library_path=library_path,
+                            llm_config=save_config,
+                            task_id=task_id,
+                            tool_config=tool_config,
+                            metadata_field=metadata_field,
+                            custom_metadata=custom_metadata,
+                        )
+                        if artifact_id:
+                            result["artifact_id"] = artifact_id
+                            artifact_ids.append(artifact_id)
+                        else:
+                            logger.warning(f"save_artifact returned None for {file_path}")
                 else:
-                    logger.warning(f"save_artifact returned None for {file_path}")
+                    artifact_id = await save_artifact(
+                        file_path=file_path,
+                        content=text,
+                        document_id=doc_id_for_file,
+                        library_path=library_path,
+                        llm_config=save_config,
+                        task_id=task_id,
+                        tool_config=tool_config,
+                        metadata_field=metadata_field,
+                        custom_metadata=custom_metadata,
+                    )
+                    if artifact_id:
+                        result["artifact_id"] = artifact_id
+                        artifact_ids.append(artifact_id)
+                    else:
+                        logger.warning(f"save_artifact returned None for {file_path}")
 
             # Save to file
             if save_to_file_flag and library_path:

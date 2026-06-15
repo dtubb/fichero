@@ -167,8 +167,17 @@ class TestFolderTool:
         )
 
         mock_db = MagicMock()
-        # First call returns files, second call returns subfolders
-        mock_db.query.side_effect = [mock_documents, [subfolder]]
+        # Use callable side_effect so the query dispatcher is robust to the
+        # extra db.query(…, doc_type=DocType.page) call added by fan-out logic
+        # (#2239) — a list-based side_effect would be consumed in the wrong order.
+        def _query(model, **kwargs):
+            dt = kwargs.get("doc_type")
+            if dt == DocType.folder:
+                return [subfolder]
+            if dt == DocType.page:
+                return []  # no page children for any file
+            return mock_documents
+        mock_db.query.side_effect = _query
 
         with patch('fichero.workflows.tools.sources.db_manager') as mock_manager:
             mock_manager.get_database.return_value = mock_db
@@ -1317,7 +1326,9 @@ class TestProcessVisionSave:
             new=AsyncMock(return_value="artifact_123"),
         ) as mock_save_artifact, patch(
             'fichero.workflows.tools.vision_base._propagate_to_page_children',
-            new=AsyncMock(),
+            # Return 2 children so the #2249 fallback path (n_children == 0
+            # → save to parent) is NOT taken.
+            new=AsyncMock(return_value=2),
         ) as mock_propagate, patch(
             'fichero.db.db_manager',
         ) as mock_manager:
@@ -1335,8 +1346,16 @@ class TestProcessVisionSave:
                 save_to_db=True,
             )
 
-            assert result["artifacts"] == ["artifact_123"]
-            mock_save_artifact.assert_awaited_once()
+            # #2249: whole-PDF path now routes per-page texts to page-child
+            # artifacts directly (via _propagate_to_page_children) instead of
+            # saving the combined transcript to the parent doc artifact.
+            # When page children are found (n_children > 0), save_artifact is
+            # NOT called for the parent — so artifacts list is empty here.
+            assert result["artifacts"] == [], (
+                "#2249: combined transcript must not be saved on the parent doc "
+                "when page children are available"
+            )
+            mock_save_artifact.assert_not_awaited()
             mock_propagate.assert_awaited_once_with(
                 "parent_doc",
                 ["Page one", "Page two"],
