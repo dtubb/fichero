@@ -154,6 +154,48 @@ backlog is explicit, not a wall). Buildable NOW unless marked [design].
 - **Providers/Models in Settings** — models/providers belong in the **Settings window** (or surface defaults + the **model location** there). Defaults configurable from Settings.
 - **Guardrail: models download to the SHARED models folder** — a test asserting every model download lands in the shared models folder (not per-library/scattered). Add to §6b guardrail suite.
 
+## 6d. Capture round 2 (2026-06-15 PM/late) — more requirements
+
+**Platform/OS target:** design for **Tahoe + macOS Golden Gate** (latest macOS/iPadOS/iOS,
+~2026–27). Ship **September 2026**. Adopt the newest SwiftUI freely; no back-deployment.
+(Updates the old "macOS 26 only" note — now macOS-latest + iPad/iOS-latest, one codebase.)
+
+**Selection / DnD (standard Mac controls EVERYWHERE):**
+- Multiple selection + **non-contiguous** selection everywhere (List/Table/grid/sidebar).
+- Multi-select **delete / copy / cut / paste** where logical; standard menu + shortcuts.
+- **Drag & drop everywhere**, including **between libraries** (cross-window/library DnD).
+
+**Window / state:**
+- **Multiple windows + tabs**, **remembered across app quit/relaunch** (state restoration —
+  preserve current behavior). Ties to duplicate-window (#2262) + `@SceneStorage`/`Restoration`.
+
+**Chat / Agent surface (ABOVE the sidebar):**
+- A **chat interface above the sidebar folders/files** — chat, chat-with-search-results,
+  chat-with-an-agent; an **agent can move things around in the UI** (agent-driven actions via
+  the action registry #1848). Resolves the chat-placement conflict toward the left/top.
+- **Researcher** (tied to a folder or the chat) can **open a web browser** — needs a research
+  surface with **tabs / its own window / WebKit tabs** as it drives **MCP web tools**. A
+  **manager agent with N worker agents**, each running its **own web browser**, with its
+  **to-do + milestones list** — make all of it **visible** (observable agent activity).
+
+**Splittable / re-organizable panes:**
+- **Split the WebKit view** (horizontal top/bottom AND vertical); **same for library + image**.
+  User can organize these around (library, image, webkit — NOT the workflow inspector).
+- **Workflow activity columns belong in the ACTIVITY view**, not the workflow node editor.
+- **Workflow inspector step → click → jump to the comparison of that step** (#8 comparison link).
+
+**Observability (hard, everywhere):**
+- **Everything observable** — including **positions in the 2D spatial / 3D RealityKit views**,
+  and the **workflow inspector** state. No non-observed state.
+- **Backend activity must surface to the frontend:** if the backend (e.g. via CLI) opens a
+  library or does work, **the frontend must know** (observable backend/library-activity stream).
+- **Consistent toolbar items at the top that don't jump around** (stable placement #2032).
+
+**Quality gates (programmatic — add to §6b guardrail suite + testing):**
+- **Accessibility + screen-reader (VoiceOver)**, **AppleScript support**, **Localization** —
+  designed in AND **programmatically tested** (every control labeled; AppleScript dictionary
+  coverage; no hard-coded user-facing strings). One guardrail/test each.
+
 ## 7. Open decisions for Daniel (the genuine forks — answer when back)
 
 1. **iOS target now or after the Mac shell?** (Affects whether to stand up the target + shims now vs design-for-degradation.) Min iOS floor (18 or 26 — 26 unlocks `RecognizeDocumentsRequest` paragraph/table structure)?
