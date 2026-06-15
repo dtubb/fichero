@@ -1,4 +1,3 @@
-import AppKit
 import FicheroAPIClient
 import SwiftUI
 
@@ -133,8 +132,7 @@ struct AnnotationsInspectorPane: View {
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        PlatformPasteboard.writeString(text)
     }
 
     private func reveal(_ annotation: DocumentAnnotation) {

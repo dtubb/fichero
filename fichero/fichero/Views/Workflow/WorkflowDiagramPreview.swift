@@ -103,8 +103,7 @@ struct WorkflowDiagramPreview: View {
                             if pythonCode != nil {
                                 Button {
                                     if let code = pythonCode {
-                                        NSPasteboard.general.clearContents()
-                                        NSPasteboard.general.setString(code, forType: .string)
+                                        PlatformPasteboard.writeString(code)
                                     }
                                 } label: {
                                     Image(systemName: "doc.on.doc")

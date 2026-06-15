@@ -38,8 +38,7 @@ struct ActivityLogView: View {
 
                 if let log = workflowRun?.executionLog, !log.isEmpty {
                     Button {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(log, forType: .string)
+                        PlatformPasteboard.writeString(log)
                     } label: {
                         Label("Copy", systemImage: "doc.on.doc")
                     }

@@ -55,8 +55,7 @@ struct ReferenceDetailView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(bibtex, forType: .string)
+                        PlatformPasteboard.writeString(bibtex)
                         copied = true
                     } label: {
                         Label(copied ? "Copied!" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")

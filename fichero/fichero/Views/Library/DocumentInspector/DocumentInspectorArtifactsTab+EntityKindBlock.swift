@@ -91,10 +91,8 @@ struct EntityKindBlock: View {
                     .padding(.top, 4)
                     .contextMenu {
                         Button("Copy all keywords") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(
-                                items.map(\.displayName).joined(separator: "; "),
-                                forType: .string
+                            PlatformPasteboard.writeString(
+                                items.map(\.displayName).joined(separator: "; ")
                             )
                         }
                     }

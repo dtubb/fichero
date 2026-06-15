@@ -304,8 +304,7 @@ struct DocumentInspector: View {
     // MARK: - Helpers
 
     private func copyToClipboard(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        PlatformPasteboard.writeString(text)
     }
 }
 

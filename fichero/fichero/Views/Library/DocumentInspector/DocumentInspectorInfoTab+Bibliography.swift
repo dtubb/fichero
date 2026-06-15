@@ -55,8 +55,7 @@ struct DocumentBibliographyPanel: View {
                     HStack {
                         Spacer()
                         Button {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(allBibtex, forType: .string)
+                            PlatformPasteboard.writeString(allBibtex)
                             copiedAll = true
                         } label: {
                             Label(
@@ -121,8 +120,7 @@ private struct ReferenceRowView: View {
                 if let bibtex = ref.bibtex, !bibtex.isEmpty {
                     Button {
                         if isExpanded {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(bibtex, forType: .string)
+                            PlatformPasteboard.writeString(bibtex)
                             copied = true
                         } else {
                             isExpanded = true

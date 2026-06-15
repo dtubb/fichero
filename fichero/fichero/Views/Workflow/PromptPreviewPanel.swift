@@ -70,8 +70,7 @@ struct PromptPreviewPanel: View {
                     .textCase(.uppercase)
                 Spacer()
                 Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(prompt, forType: .string)
+                    PlatformPasteboard.writeString(prompt)
                 } label: {
                     Image(systemName: "doc.on.doc")
                         .font(.caption2)

@@ -64,8 +64,7 @@ struct ErrorStatusCell: View {
                 Spacer()
                 Button("Copy") {
                     if let error = error {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(error, forType: .string)
+                        PlatformPasteboard.writeString(error)
                     }
                 }
                 .buttonStyle(.bordered)

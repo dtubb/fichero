@@ -354,8 +354,7 @@ struct ArtifactsBrowserView: View {
     }
 
     private func copyToClipboard(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        PlatformPasteboard.writeString(text)
     }
 
     private func iconForType(_ type: String) -> String {
