@@ -26,9 +26,12 @@ Branch `0.0.2`, tracking `origin/0.0.2`. Keep `0.0.2 == origin` (gate before eve
 - Open: Workflows & Catalogue ~6 (#2223 #2235 #2237 #2238 #2246 #2247 #2251 #2252), Observable 2 (#2009 #1973), AI Infra ~2 (#2211 #2214).
 - **Swift commits from backend workers are NOT compile-checked — always swiftlint + Xcode BuildProject (tab windowtab1) before shipping; pytest doesn't cover Swift.**
 
-## ⚠️ HELD-BROKEN (bounced — do NOT cherry-pick until re-gated green)
-- #2214 `74c0ec3f` (f_importer_fixes): propagated blank page text → broke test_skips_empty_page_text. Must propagate REAL page_content but skip empty/None.
-- #2213 `0d95f5ed` (f_ai_backend): broke test_vector_schema_stamp x2 + test_embedding_passages — `string` vs `varchar` dialect + double-save call_count. Reconcile dialect + single effective save.
+## Progress update ~01:40
+- **29 issues shipped. AI Infrastructure DONE** (#2211/#2212/#2213/#2214 all shipped; only #2248 deps held).
+- #2214 `c8abf5fd`+`0c427fc6` (re-fixed after a skipped bounce); #2237 `0a69b71a`; #2213 `cbaee3f9`; #2211 `c2b6688e`; #2212 `9b7fcc68`.
+
+## ⚠️ HELD-BROKEN (bounced — do NOT cherry-pick until verified)
+- #1973 Swift fix `c7a679a6` (f_ai_backend): moves change-stream apply() off @MainActor across all 13 stores, but BUILD FAILS — LibraryChangeStream.swift:245 Swift-6 'sending'/data-race. swiftlint passed; backend worker can't compile Swift. Worker reworking with off-main compute + MainActor.run for the @Published publish. Its emit() test (Python) was harmless but dropped with it. ALWAYS Xcode BuildProject before shipping ANY Swift.
 
 LESSON (kept): a behavior change must sweep ALL existing caller tests (sync→async mocks; folder_tool subfolders; skip-empty guards; SQL-dialect assertions); workers over-report self-testing — ALWAYS full-gate before push. Tonight the gate caught 4 separate red batches the workers called green (5-fail async, 1-fail folder_tool, 4-fail #2214+#2213) — branch never went red.
 
