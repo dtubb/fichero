@@ -16,6 +16,10 @@
 6. **Consistent code, no parallel paths** — one code path per concern; no per-lens private duplicates. (Where are Automations/Integrations? do we test that we can import + render everything we import?)
 7. **Speed by design** — profiling, async image load, prefetch/cache "what's coming," all observable.
 8. **Comparison UI must work** — compare workflows AND their outputs.
+9. **SwiftUI SHOWS; logic is BACKEND** — the Swift app is a thin presentation layer. All
+   business logic, persistence, AI, and computation live in the Python engine; views render
+   observable state + call the typed action layer. Keep Swift logic-light (this is what makes the
+   iPad/iOS client a cheap thin remote view). Guardrail: flag non-trivial business logic in Swift.
 
 ## 1. Current-state inventory (ground truth — what we have)
 
