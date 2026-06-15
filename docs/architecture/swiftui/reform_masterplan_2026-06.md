@@ -151,6 +151,8 @@ backlog is explicit, not a wall). Buildable NOW unless marked [design].
 - **Sidebar is inspectable** — selecting a sidebar item drives the shared inspector.
 - **Table/List row stripes** — alternating-row styling like DEVONthink/Scrivener (standard `.alternatingRowBackgrounds` on Mac; custom on iOS).
 - **Export preview in WebKit** — preview the export (Tinderbox-style) rendered in the web view (§5 custom→WebKit).
+- **Providers/Models in Settings** — models/providers belong in the **Settings window** (or surface defaults + the **model location** there). Defaults configurable from Settings.
+- **Guardrail: models download to the SHARED models folder** — a test asserting every model download lands in the shared models folder (not per-library/scattered). Add to §6b guardrail suite.
 
 ## 7. Open decisions for Daniel (the genuine forks — answer when back)
 
