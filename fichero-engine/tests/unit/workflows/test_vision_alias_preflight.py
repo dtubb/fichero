@@ -282,7 +282,13 @@ def test_private_model_profile_rejects_cloud_provider_in_preflight(monkeypatch):
     assert "Private Cloud" in errors[0]
 
 
-def test_spanish_script_multipass_preset_stays_valid_and_vision_unaliased(monkeypatch):
+def test_spanish_script_subworkflow_parent_is_valid_and_passes_preflight(monkeypatch):
+    # The flat multipass preset was retired in #2251 and merged into the
+    # subworkflow + child pair.  This test now validates the user-facing parent
+    # preset ("Transcribe Spanish Script (19th-20th C.)") which delegates
+    # transcription to the child via a sub_workflow node.  Vision-tier alias
+    # resolution is tested separately in
+    # test_spanish_script_v2_child_resolves_distinct_vision_tiers.
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
     monkeypatch.setattr(
         "fichero.app_db.get_app_db",
@@ -293,23 +299,19 @@ def test_spanish_script_multipass_preset_stays_valid_and_vision_unaliased(monkey
     )
     path = (
         Path(__file__).parents[3]
-        / "src/fichero/resources/default_workflows/transcribe_spanish_script_multipass.json"
+        / "src/fichero/resources/default_workflows/transcribe_spanish_script_v2_subworkflow.json"
     )
     data = json.loads(path.read_text())
     workflow = WorkflowDef(**data)
-    vision_nodes = [
-        node
-        for node in workflow.nodes
-        if node.tool in {"transcribe", "transcribe_review"}
-    ]
 
-    assert vision_nodes
-    assert all(not node.provider_name for node in vision_nodes)
-    assert all(not node.config.get("provider_name") for node in vision_nodes)
-    assert all(
-        not str(node.config.get("provider_name", "")).startswith("$")
-        for node in vision_nodes
-    )
+    # The parent delegates via a sub_workflow node — no direct transcribe nodes.
+    sub_nodes = [node for node in workflow.nodes if node.tool == "sub_workflow"]
+    assert sub_nodes, "parent preset must have at least one sub_workflow node"
+    assert any(
+        "Spanish Script" in node.config.get("workflow_ref", "")
+        for node in sub_nodes
+    ), "sub_workflow node must reference the Spanish Script child"
+
     assert validate_workflow_preflight(
         workflow,
         LLMConfig(provider="", model=""),
