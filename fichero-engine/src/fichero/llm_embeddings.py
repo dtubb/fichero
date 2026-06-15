@@ -19,10 +19,18 @@ def _embedding_provider(model: str) -> str:
 
 
 def _enforce_embedding_call_allowed(model: str) -> None:
+    """Gate explicit remote embedding calls on local-only mode (#2234).
+
+    Previously gated on _paid_remote_fallbacks_enabled() in addition to
+    is_local_only(), which made EXPLICIT remote embedding configs behave
+    differently from explicit remote chat/vision configs (both of which only
+    check local-only mode). This asymmetry was a bug: a user who deliberately
+    sets an OpenAI embedding model should not be blocked by the fallback flag.
+    The paid-fallback flag is for automatic provider escalation, not user intent.
+    """
     from fichero.llm import (
         LocalOnlyViolationError,
         _is_local_or_builtin_provider,
-        _paid_remote_fallbacks_enabled,
         is_local_only,
     )
 
@@ -31,11 +39,6 @@ def _enforce_embedding_call_allowed(model: str) -> None:
         return
     if is_local_only():
         raise LocalOnlyViolationError(provider, model=model, kind="embedding")
-    if not _paid_remote_fallbacks_enabled():
-        raise RuntimeError(
-            "Paid remote AI fallbacks are disabled; refusing embedding call to "
-            f"remote provider {provider}/{model}."
-        )
 
 
 # =============================================================================
