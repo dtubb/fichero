@@ -1,0 +1,212 @@
+"""Self-test for release pipeline scripts (#1358).
+
+Verifies:
+- scripts/build-release.sh, scripts/notarize.sh, scripts/create-github-release.sh
+  all pass `bash -n` (syntax check)
+- Each script contains the expected step markers in order
+- --help exits 0 on scripts that support it
+- --dry-run exits 0 without any real credentials or build tools
+
+These are pure filesystem + subprocess tests — no Python imports required.
+"""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+import pytest
+
+# Root of the repo (two levels up from fichero-engine/tests/unit/)
+REPO_ROOT = Path(__file__).parent.parent.parent.parent
+SCRIPTS_DIR = REPO_ROOT / "scripts"
+
+BUILD_RELEASE = SCRIPTS_DIR / "build-release.sh"
+NOTARIZE = SCRIPTS_DIR / "notarize.sh"
+CREATE_RELEASE = SCRIPTS_DIR / "create-github-release.sh"
+
+ALL_SCRIPTS = [BUILD_RELEASE, NOTARIZE, CREATE_RELEASE]
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _script_text(path: Path) -> str:
+    return path.read_text()
+
+
+# ---------------------------------------------------------------------------
+# Existence
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("script", ALL_SCRIPTS, ids=[s.name for s in ALL_SCRIPTS])
+def test_script_exists(script: Path) -> None:
+    assert script.exists(), f"{script.name} not found at {script}"
+
+
+# ---------------------------------------------------------------------------
+# Syntax (bash -n)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("script", ALL_SCRIPTS, ids=[s.name for s in ALL_SCRIPTS])
+def test_bash_syntax(script: Path) -> None:
+    result = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
+    assert result.returncode == 0, (
+        f"bash -n {script.name} failed:\n{result.stderr}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Expected step markers
+# ---------------------------------------------------------------------------
+
+
+def test_build_release_steps() -> None:
+    text = _script_text(BUILD_RELEASE)
+    for marker in ("[0/4]", "[1/4]", "[2/4]", "[3/4]"):
+        assert marker in text, f"build-release.sh missing step {marker!r}"
+
+
+def test_notarize_steps() -> None:
+    text = _script_text(NOTARIZE)
+    for marker in ("[1/3]", "[2/3]", "[3/3]"):
+        assert marker in text, f"notarize.sh missing step {marker!r}"
+
+
+def test_create_github_release_steps() -> None:
+    text = _script_text(CREATE_RELEASE)
+    for marker in ("[1/5]", "[2/5]", "[3/5]", "[4/5]", "[5/5]"):
+        assert marker in text, f"create-github-release.sh missing step {marker!r}"
+
+
+# ---------------------------------------------------------------------------
+# Key features present
+# ---------------------------------------------------------------------------
+
+
+def test_build_release_has_dry_run_flag() -> None:
+    text = _script_text(BUILD_RELEASE)
+    assert "--dry-run" in text
+    assert "run_or_dry" in text
+
+
+def test_notarize_has_dry_run_flag() -> None:
+    text = _script_text(NOTARIZE)
+    assert "--dry-run" in text
+    assert "run_or_dry" in text
+
+
+def test_create_release_has_dry_run_flag() -> None:
+    text = _script_text(CREATE_RELEASE)
+    assert "--dry-run" in text
+    assert "run_or_dry" in text
+
+
+def test_build_release_guards_openapi_skip() -> None:
+    text = _script_text(BUILD_RELEASE)
+    assert "--skip-openapi-sync" in text, (
+        "build-release.sh must reject --skip-openapi-sync with a helpful error"
+    )
+
+
+def test_notarize_references_keychain_profile() -> None:
+    text = _script_text(NOTARIZE)
+    assert "FICHERO_NOTARIZE_PROFILE" in text
+
+
+def test_create_release_references_sparkle_tools() -> None:
+    text = _script_text(CREATE_RELEASE)
+    assert "sign_update" in text
+    assert "SPARKLE_BIN" in text
+
+
+def test_create_release_updates_appcast() -> None:
+    text = _script_text(CREATE_RELEASE)
+    assert "appcast.xml" in text
+
+
+# ---------------------------------------------------------------------------
+# --help exits 0
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("script", ALL_SCRIPTS, ids=[s.name for s in ALL_SCRIPTS])
+def test_help_exits_zero(script: Path) -> None:
+    result = subprocess.run(
+        ["bash", str(script), "--help"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"{script.name} --help returned {result.returncode}:\n{result.stderr}"
+    )
+    assert "Usage" in result.stdout, (
+        f"{script.name} --help output missing 'Usage':\n{result.stdout}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# --dry-run exits 0 (no real credentials / build tools needed)
+# ---------------------------------------------------------------------------
+
+
+def test_build_release_dry_run() -> None:
+    result = subprocess.run(
+        ["bash", str(BUILD_RELEASE), "--dry-run"],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+    )
+    assert result.returncode == 0, (
+        f"build-release.sh --dry-run failed (rc={result.returncode}):\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+    assert "[DRY RUN]" in result.stdout
+
+
+def test_notarize_dry_run() -> None:
+    result = subprocess.run(
+        ["bash", str(NOTARIZE), "--dry-run"],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+    )
+    assert result.returncode == 0, (
+        f"notarize.sh --dry-run failed (rc={result.returncode}):\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+    assert "[DRY RUN]" in result.stdout
+
+
+def test_create_release_dry_run() -> None:
+    result = subprocess.run(
+        ["bash", str(CREATE_RELEASE), "--dry-run"],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+    )
+    assert result.returncode == 0, (
+        f"create-github-release.sh --dry-run failed (rc={result.returncode}):\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+    assert "[DRY RUN]" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# -n alias works the same as --dry-run
+# ---------------------------------------------------------------------------
+
+
+def test_notarize_short_flag_n() -> None:
+    result = subprocess.run(
+        ["bash", str(NOTARIZE), "-n"],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+    )
+    assert result.returncode == 0
+    assert "[DRY RUN]" in result.stdout
