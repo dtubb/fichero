@@ -1,6 +1,34 @@
-# STATE — overnight handoff 2026-06-14→15
+# STATE — UI REFORM handoff 2026-06-15
 
-Branch `0.0.2`, tracking `origin/0.0.2`. Keep `0.0.2 == origin` (gate before every push).
+Branch `0.0.2`, tracking `origin/0.0.2`. Keep `0.0.2 == origin` (gate before every push). HEAD `84aaa0df`.
+
+## ☀️ START HERE — the UI reform is planned; BEGIN Phase 1
+**Master plan:** `docs/architecture/swiftui/reform_masterplan_2026-06.md` (the whole vision + §0 design
+brief + §8 RESOLVED decisions + principle 9 "SwiftUI shows, logic is backend"). **Tracking EPIC #2253**
+(phased breakdown in its comments). ~36 reform issues, all **phase-labelled** (`gh issue list --label phase:1`…`phase:5`,`phase:continuous`). Worktrees cleaned.
+
+**Role: you are MANAGER — you do NOT implement.** Dispatch workers; gate + integrate. Model policy
+(Daniel): **haiku** for minor (3–5 issues), **sonnet** for bigger (5–10), **opus** for complex.
+
+**Swift gating (critical):** Swift workers CANNOT build. For EVERY Swift change YOU gate:
+`swiftlint` + Xcode **BuildProject** (tab `windowtab1`) — push only on a clean build. Register every
+new `.swift` with `ruby scripts/add-swift-file.rb <path>` (rule #10) or the compiler can't see it.
+Backend: full pytest gate (`PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=…_archived`), push only if 0 failed. RunAllTests serial OK (Daniel may not be on the machine — confirm). Keep SwiftUI **folders/files logically organized** (no dumping grounds).
+
+**Target:** latest OS — Tahoe / macOS Golden Gate + iPadOS/iOS latest, **one codebase**, ship **Sept 2026**, newest SwiftUI, no back-deployment.
+
+**PHASE 1 (start here — `gh issue list --label phase:1`, oldest-first):**
+- **#2097** platform abstraction shims (`PlatformImage`/`PlatformViewRepresentable`/`PlatformPasteboard`/file-picker) — mirror `Models/MindPalaceTheme.swift`'s `#if canImport` pattern. Additive, foundational.
+- **#2098** gate macOS-only code behind `#if os(macOS)` (EmbeddedBackendService engine-spawn, NSWorkspace/NSWindow). Engine is REMOTE-only on iOS.
+- **#1455 / #1569** retire Mind Palace → library 2D map (SceneKit/Spatial2DCanvas) + 3D map (RealityKit/SpatialScene3D) view modes; delete the standalone window + `SidebarMode.mindPalace` (compiler-guided ~14 files); KEEP the projector/scene/theme.
+- Per Daniel's decision: **build BOTH Mac + iPad/iOS now** (stand up the iOS target) to surface design failures early — this is the riskiest Phase-1 piece (Xcode project change; never hand-edit project.pbxproj — use the ruby script / careful target setup).
+Then Phase 2 = shell #2031 + zoned toolbar #2032; Phase 3 inspector/attributes(#2081 full prototypes)/annotation; Phase 4 representations/PDF/maps; Phase 5 table/window/chrome/agents; Continuous = guardrails(#92)/perf/observability/tests/a11y.
+
+**Held (do not touch):** worktrees `entitytable-2020` (#2020), `lan-tls-2157` (#2157), `importers`. #1973
+Swift change-stream fix HELD for Daniel (2 build fails; WIP on `ms/ai-backend-harden` branch). Deps #2248 shipped. ICANH libraries are Daniel's.
+
+---
+## (historical) overnight backend handoff
 
 ## ☀️ MORNING HANDOFF (read first) — as of ~03:20, 2026-06-15
 **36 issues shipped to origin/0.0.2 overnight, every one full-suite gated, branch NEVER went red.**
