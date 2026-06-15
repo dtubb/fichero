@@ -493,7 +493,13 @@ async def _recover_stale_runs_on_startup(
             db_path = package_path / "fichero.duckdb"
             if not db_path.exists():
                 continue
-            recovered = await ActivityStore(str(db_path)).recover_stale_runs()
+            # At startup there are zero live workers (the process just
+            # started), so ALL 'running' rows are stale — use max_age_hours=0
+            # to catch even recently-started threads that were interrupted by
+            # the restart. (#2223)
+            recovered = await ActivityStore(str(db_path)).recover_stale_runs(
+                max_age_hours=0
+            )
             recovered_total += recovered
             if recovered:
                 logger.info(
