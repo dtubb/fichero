@@ -1581,6 +1581,7 @@ async def process_vision(
             # `force_ocr` overrides it for a PDF whose own text layer is garbage.
             pdf_layer_used = False
             _llm_multipage = False  # set True when LLM path processes all PDF pages
+            image_uri: str | None = None  # set in LLM single-page path; guard retry (#2241)
             if (
                 not force_ocr
                 and tool_config.supports_apple_vision
@@ -1854,7 +1855,7 @@ async def process_vision(
             # is a real result — don't retry that one.
             # Skip for _llm_multipage: per-page failures were logged individually;
             # re-sending only page 0 would not help a multi-page failure.
-            if not (text or "").strip() and vision_mode != "apple" and not _llm_multipage:
+            if not (text or "").strip() and vision_mode != "apple" and not _llm_multipage and image_uri is not None:
                 logger.warning(
                     f"Vision LLM returned empty for {Path(file_path).name}; "
                     f"retrying once before declaring failure"
@@ -1923,7 +1924,7 @@ async def process_vision(
                     # per-page fan-out): path_to_doc has the parent_id then.
                     # When sources.py already expanded to page docs, parent_id
                     # is None here and propagation is correctly skipped (#1077).
-                    if per_page_texts and len(per_page_texts) > 1:
+                    if per_page_texts:
                         parent_id = resolve_path_to_doc(path_to_doc, file_path)
                         if parent_id:
                             await _propagate_to_page_children(
