@@ -146,9 +146,10 @@ def _resolve_node_llm_config(
             return LLMConfig(provider=generic_default[0], model=generic_default[1])
 
         # Apple is registered as a provider for Vision/Speech but llm.chat()
-        # doesn't support it yet (no Foundation Models adapter). Skip it when
-        # picking an LLM fallback so the resulting config actually works.
-        llm_unsupported = {"apple"}
+        # doesn't support it yet (no Foundation Models adapter). Skip Apple
+        # for LLM (text) fallback, but keep it for vision nodes (#2243) where
+        # Apple Intelligence IS the intended out-of-the-box provider.
+        llm_unsupported = {"apple"} if required_capability != "vision" else set()
         for provider in app_db.list_providers():
             if not provider.enabled:
                 continue
