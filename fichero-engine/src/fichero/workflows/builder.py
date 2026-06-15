@@ -22,7 +22,13 @@ from typing import Any
 from fichero.workflows.types import State, WorkflowDef, NodeDef
 from fichero.workflows.registry import get_tool, get_tool_def
 from fichero.workflows.resolver import resolve_inputs, evaluate_condition
-from fichero.workflows.cache import get_node_cache, compute_cache_key, CACHEABLE_TOOLS
+from fichero.workflows.cache import (
+    get_node_cache,
+    compute_cache_key,
+    compute_batch_cache_key,
+    is_sequentially_cacheable,
+    CACHEABLE_TOOLS,
+)
 from fichero.workflows.tools.output_quality import (
     assess_result_quality,
     detect_page_contamination_warnings,
@@ -636,6 +642,11 @@ def _make_node_function(
     """
     node_llm_config = _resolve_node_llm_config(node_def, llm_config)
 
+    # Pre-compute caching eligibility once (closure over node_def + workflow_config).
+    workflow_id = workflow_config.get("workflow_id", "") if workflow_config else ""
+    skip_cache = workflow_config.get("skip_cache", False) if workflow_config else False
+    _is_seq_cacheable = is_sequentially_cacheable(node_def.tool)
+
     async def node_function(state: State) -> dict:
         """Execute the tool and update state."""
         node_id = node_def.id
@@ -721,6 +732,60 @@ def _make_node_function(
 
                 tool_kwargs["__progress_callback"] = emit_tool_progress
 
+            # --- Sequential-node batch cache check (#2246) ---
+            # Mirrors the per-file parallel cache but keys on the whole
+            # input-files batch so catalogue/extract_all/cleanup re-runs
+            # against unchanged files skip the LLM call entirely.
+            seq_cache = None
+            seq_cache_key = None
+            if _is_seq_cacheable and not skip_cache:
+                library_path = state.get("library_path", "")
+                if library_path:
+                    try:
+                        db_path = Path(library_path) / "fichero.duckdb"
+                        if db_path.exists():
+                            seq_cache = get_node_cache(db_path)
+                            file_paths = list(state.get("files") or [])
+                            seq_cache_key = compute_batch_cache_key(
+                                workflow_id=workflow_id,
+                                node_id=node_id,
+                                tool=node_def.tool,
+                                config=node_def.config,
+                                provider=node_llm_config.provider,
+                                model=node_llm_config.model,
+                                file_paths=file_paths,
+                            )
+                            cached_result = seq_cache.get(seq_cache_key)
+                            if cached_result is not None and not _result_worth_caching(
+                                cached_result
+                            ):
+                                logger.info(
+                                    "Stale empty sequential cache entry for %s; ignoring",
+                                    node_label,
+                                )
+                                cached_result = None
+                            if cached_result is not None:
+                                logger.info(
+                                    "Sequential cache HIT: %s (%d files)",
+                                    node_label,
+                                    len(file_paths),
+                                )
+                                outputs = dict(state.get("outputs", {}))
+                                outputs[node_id] = cached_result.result
+                                completed = list(state.get("completed_nodes", []))
+                                completed.append(node_id)
+                                return {
+                                    "outputs": outputs,
+                                    "completed_nodes": completed,
+                                    "current_node": node_id,
+                                }
+                    except Exception as cache_err:
+                        logger.warning(
+                            "Sequential cache check failed for %s: %s",
+                            node_label,
+                            cache_err,
+                        )
+
             # Call the tool with resolved inputs
             result = await tool_fn(
                 inputs=tool_kwargs,
@@ -804,6 +869,30 @@ def _make_node_function(
                         ]
                     else:
                         result["quality_warnings"] = contamination
+
+            # --- Sequential-node batch cache write (#2246) ---
+            if (
+                seq_cache is not None
+                and seq_cache_key is not None
+                and isinstance(result, dict)
+                and _result_worth_caching(result)
+            ):
+                try:
+                    seq_cache.set(
+                        cache_key=seq_cache_key,
+                        result=result,
+                        workflow_id=workflow_id,
+                        node_id=node_id,
+                        tool=node_def.tool,
+                        file_path=None,
+                    )
+                    logger.debug(
+                        "Sequential cache SET: %s (%s)", node_label, seq_cache_key[:16]
+                    )
+                except Exception as cache_err:
+                    logger.warning(
+                        "Sequential cache write failed for %s: %s", node_label, cache_err
+                    )
 
             # Update outputs
             outputs = dict(state.get("outputs", {}))
