@@ -803,22 +803,90 @@ async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
     return await loop.run_in_executor(None, apple_vision_ocr, image_path, language)
 
 
+def _batch_render_pdf_pages_to_cgimages(pdf_path: str, dpi: int = 300):
+    """Open a PDF document ONCE and render all pages to CGImages. (#2247)
+
+    Returns (cgimages, num_pages). Individual page entries may be None if a
+    page failed to render; callers should handle those gracefully.
+
+    Compared to calling _render_pdf_page_to_cgimage per page, this avoids
+    O(N) CGPDFDocumentCreateWithURL calls for an N-page document.
+    """
+    from Quartz import (  # noqa: PLC0415
+        CGPDFDocumentCreateWithURL,
+        CGPDFDocumentGetPage,
+        CGPDFDocumentGetNumberOfPages,
+        CGPDFPageGetBoxRect,
+        kCGPDFMediaBox,
+        CGBitmapContextCreate,
+        CGBitmapContextCreateImage,
+        CGContextDrawPDFPage,
+        CGContextScaleCTM,
+        kCGColorSpaceGenericRGB,
+        CGColorSpaceCreateWithName,
+        kCGImageAlphaPremultipliedLast,
+        CGContextSetRGBFillColor,
+        CGContextFillRect,
+        CGRectMake,
+    )
+    from Foundation import NSURL  # noqa: PLC0415
+
+    url = NSURL.fileURLWithPath_(pdf_path)
+    pdf_doc = CGPDFDocumentCreateWithURL(url)
+    if not pdf_doc:
+        raise ValueError(f"Could not open PDF: {pdf_path}")
+
+    num_pages = CGPDFDocumentGetNumberOfPages(pdf_doc)
+    cg_images = []
+    scale = dpi / 72.0
+
+    for page_index in range(num_pages):
+        page = CGPDFDocumentGetPage(pdf_doc, page_index + 1)
+        if not page:
+            cg_images.append(None)
+            continue
+        media_box = CGPDFPageGetBoxRect(page, kCGPDFMediaBox)
+        width = int(media_box.size.width * scale)
+        height = int(media_box.size.height * scale)
+        color_space = CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB)
+        ctx = CGBitmapContextCreate(
+            None, width, height, 8, width * 4, color_space,
+            kCGImageAlphaPremultipliedLast,
+        )
+        if not ctx:
+            cg_images.append(None)
+            continue
+        CGContextSetRGBFillColor(ctx, 1.0, 1.0, 1.0, 1.0)
+        CGContextFillRect(ctx, CGRectMake(0, 0, width, height))
+        CGContextScaleCTM(ctx, scale, scale)
+        CGContextDrawPDFPage(ctx, page)
+        cg_image = CGBitmapContextCreateImage(ctx)
+        cg_images.append(cg_image if cg_image else None)
+
+    return cg_images, num_pages
+
+
 def _apple_ocr_pdf_pages(pdf_path: str, language: str = "en") -> list[str]:
     """OCR a PDF page by page, returning one text string per page (0-indexed).
 
     Used to propagate per-page content to page child documents after
     transcribing a PDF at the file level.
+
+    Opens the PDF document exactly once via _batch_render_pdf_pages_to_cgimages
+    to avoid O(N) parses for an N-page document. (#2247)
     """
     try:
-        first_image, num_pages = _render_pdf_page_to_cgimage(pdf_path, 0)
+        cg_images, num_pages = _batch_render_pdf_pages_to_cgimages(pdf_path)
     except Exception as e:
         logger.error(f"PDF page OCR failed: {e}")
         return []
 
     pages: list[str] = []
-    for page_idx in range(num_pages):
+    for page_idx, cg_image in enumerate(cg_images):
         try:
-            cg_image = first_image if page_idx == 0 else _render_pdf_page_to_cgimage(pdf_path, page_idx)[0]
+            if cg_image is None:
+                pages.append("")
+                continue
             pages.append(_vision_ocr_cgimage(cg_image, language) or "")
         except Exception as e:
             msg = f"Page {page_idx} OCR failed: {e}"
