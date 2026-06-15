@@ -1055,7 +1055,7 @@ class Database(DatabaseEmbeddingMixin):
                 (row[field_name] for row in data if row.get(field_name) is not None),
                 None,
             )
-            sql = "cast(null as varchar)" if sample is None or isinstance(sample, str) else "cast(null as double)"
+            sql = "cast(null as string)" if sample is None or isinstance(sample, str) else "cast(null as double)"
             try:
                 table.add_columns({field_name: sql})
                 logger.info(
