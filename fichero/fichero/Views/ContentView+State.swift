@@ -52,8 +52,6 @@ extension ContentView {
             } else {
                 viewName = "Activity"
             }
-        case .mindPalace:
-            viewName = "Mind Palace"
         }
 
         return viewName
@@ -83,8 +81,6 @@ extension ContentView {
             return "calendar"
         case .trigger:
             return "bolt.circle"
-        case .mindPalace:
-            return "cube.transparent"
         }
     }
 
@@ -148,7 +144,7 @@ extension ContentView {
         switch viewMode {
         case .library, .search, .chat, .comparison, .workflow, .chain:
             return true
-        case .batches, .batch, .automation, .schedule, .trigger, .activity, .mindPalace:
+        case .batches, .batch, .automation, .schedule, .trigger, .activity:
             return false
         }
     }
@@ -166,7 +162,7 @@ extension ContentView {
         switch sidebarMode {
         case .library, .search, .workflows:
             return true
-        case .chat, .automation, .activity, .mindPalace, .research, .knowledgeGraph:
+        case .chat, .automation, .activity, .research, .knowledgeGraph:
             return false
         }
     }
@@ -219,7 +215,7 @@ extension ContentView {
                 return [.icon, .list]
             }
             return [.icon, .list, .table]
-        case .chat, .automation, .activity, .mindPalace, .research, .knowledgeGraph:
+        case .chat, .automation, .activity, .research, .knowledgeGraph:
             return [.icon]
         }
     }
@@ -342,7 +338,7 @@ extension ContentView {
             return [.none, .standard, .widescreen]
         case .chat:
             return [.none, .standard, .widescreen]
-        case .workflows, .automation, .activity, .mindPalace, .research, .knowledgeGraph:
+        case .workflows, .automation, .activity, .research, .knowledgeGraph:
             return []
         }
     }

@@ -6,13 +6,7 @@ import SwiftUI
 extension SidebarView {
     @ViewBuilder
     var sidebarContent: some View {
-        if sidebarMode == .mindPalace {
-            // Mind Palace mode shows its rooms list here; the canvas + node
-            // inspector render in the main content area (MindPalaceContainer).
-            RoomListView()
-        } else {
-            standardSidebarContent
-        }
+        standardSidebarContent
     }
 
     @ViewBuilder

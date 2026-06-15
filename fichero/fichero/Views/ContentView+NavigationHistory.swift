@@ -76,8 +76,6 @@ extension ContentView {
             return .automation
         case "activity", "batch", "batches":
             return .activity
-        case "mindPalace":
-            return .mindPalace
         default:
             return .library
         }

@@ -448,7 +448,6 @@
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = C10000310000000000000001 /* Sparkle */; };
 		C1C484907B28189E223436BE /* LibraryManager+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */; };
 		C340001000000000PROMPT01 /* PromptPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C340001100000000PROMPT01 /* PromptPreviewPanel.swift */; };
-		C5477C82B7FC56CD91C51A2F /* CollectionSpatialStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 590D898A14DB00E53533319D /* CollectionSpatialStub.swift */; };
 		C5B7DEB948261159D439C454 /* DocumentNotesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00A8552DEACF83751D617C6 /* DocumentNotesTab.swift */; };
 		C652E907D8361BEB723E47B7 /* WelcomeView+OnboardingWizardActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BBD7A26D80540CE2DF068D /* WelcomeView+OnboardingWizardActions.swift */; };
 		C835851846598745D40790B6 /* EntityDetailView+FilterChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = D18BA434B3CB3A8C31139293 /* EntityDetailView+FilterChips.swift */; };
@@ -456,7 +455,6 @@
 		C96A47B8A003AF3A6FC98CF8 /* AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C07B489C8F89204C43BD6E46 /* AISettingsView.swift */; };
 		C994E1D675749951376E8FEA /* FocusedAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5004AD7FDB9A8BE0953643C5 /* FocusedAnnotation.swift */; };
 		CC357CD884EE29BAE8A64F4B /* PlatformPasteboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 772A6A57C4986C2765A174EE /* PlatformPasteboard.swift */; };
-		CDC0C10EEA6E46633D2868A4 /* RoomListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C08ADDE88D8E020CAB9AB9E /* RoomListView.swift */; };
 		D0D540A3F924325236C1E440 /* DocumentInspectorArtifactsTab+Shared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FDDBCA3101A6E468A3105D2 /* DocumentInspectorArtifactsTab+Shared.swift */; };
 		D1F421AC1139C4286776FEDA /* MindPalaceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DFDA42FD3B68F90E0E4D426 /* MindPalaceService.swift */; };
 		D2A64087B8C786EE95E842A5 /* LocalModelsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */; };
@@ -545,7 +543,6 @@
 		08C74251DECC247DF8B5A816 /* DocumentInspectorInfoTab+Citations.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorInfoTab+Citations.swift"; sourceTree = "<group>"; };
 		0B118FE1DE4F78C0EE238539 /* EntityStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EntityStore.swift; sourceTree = "<group>"; };
 		0BE6CF3DE02E1F999AE8F1A9 /* SidebarItemRow+Presentation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Presentation.swift"; sourceTree = "<group>"; };
-		0C08ADDE88D8E020CAB9AB9E /* RoomListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RoomListView.swift; sourceTree = "<group>"; };
 		0D19CBC29C9F35A0B770C01D /* SpatialNodeInspector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialNodeInspector.swift; sourceTree = "<group>"; };
 		0EBBA30F68AE440FAF4DC1E4 /* SpatialView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialView.swift; sourceTree = "<group>"; };
 		0F11A721FF01A4F5A66A4568 /* EntityRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntityRowView.swift; sourceTree = "<group>"; };
@@ -743,7 +740,6 @@
 		54F6D53AD0FD306FE58CF26D /* DocumentInspectorArtifactsTab+EntitiesTab.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorArtifactsTab+EntitiesTab.swift"; sourceTree = "<group>"; };
 		55DF06231EA1679E067896E3 /* MindPalaceTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindPalaceTheme.swift; sourceTree = "<group>"; };
 		588D0F19667B99B2AA69A1A3 /* SidebarItemRow+Drop.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Drop.swift"; sourceTree = "<group>"; };
-		590D898A14DB00E53533319D /* CollectionSpatialStub.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CollectionSpatialStub.swift; sourceTree = "<group>"; };
 		5923B00FD0A382F8BBF21D58 /* PageContentPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PageContentPane.swift; sourceTree = "<group>"; };
 		599CF5FBD9D2B619B9353BC7 /* SpeakerComparisonView+Preview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SpeakerComparisonView+Preview.swift"; sourceTree = "<group>"; };
 		5B0DFC89B8C073DBEE0A743F /* SidebarView+PinnedNavigationRows.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarView+PinnedNavigationRows.swift"; sourceTree = "<group>"; };
@@ -1572,7 +1568,6 @@
 				AF58A5BD463C321239653840 /* MindPalaceWindow.swift */,
 				5E980A75F8C3912DD4B196DA /* SpatialScene3D.swift */,
 				0D19CBC29C9F35A0B770C01D /* SpatialNodeInspector.swift */,
-				0C08ADDE88D8E020CAB9AB9E /* RoomListView.swift */,
 				F92B0E47A1378F8B2AE6EFB3 /* AddToRoomPicker.swift */,
 			);
 			path = MindPalace;
@@ -1823,7 +1818,6 @@
 				A1E5C6B2FBD2462E90B5F43D /* DisplayAttributesStrip.swift */,
 				333AB0EA136CA6252E5C93EE /* ArtifactPanel.swift */,
 				62708E3F674B9F832BF8DB9F /* DocumentInspectorContentV2.swift */,
-				590D898A14DB00E53533319D /* CollectionSpatialStub.swift */,
 				92961C0FFD09035FB62FB7AF /* CollectionWorkspaceStub.swift */,
 				8C1ED3D9748EE974A6992EE0 /* FocusedArtifact.swift */,
 				25FA072769256EDC235A5BD6 /* ArtifactDetailView.swift */,
@@ -2537,7 +2531,6 @@
 				3948516BF091406F1A855001 /* MindPalaceState.swift in Sources */,
 				736FAF5895C96ECCAFDAC35D /* SpatialScene3D.swift in Sources */,
 				639627BEE7CCC2963F10FA1B /* SpatialNodeInspector.swift in Sources */,
-				CDC0C10EEA6E46633D2868A4 /* RoomListView.swift in Sources */,
 				46A484C19A075EC0120FAF69 /* AddToRoomPicker.swift in Sources */,
 				67FA5A93E29E64305C9D74CE /* ResearchModels.swift in Sources */,
 				4AFAA394C8AB364CB2425517 /* ResearchService.swift in Sources */,
@@ -2615,7 +2608,6 @@
 				1DB87289F50626AC3C840F28 /* DocumentInspectorInfoTab+Workflow.swift in Sources */,
 				15785F4FC901A743D5DE7D09 /* DocumentInspectorInfoTab+Prototype.swift in Sources */,
 				0A798A14E8BC54C9115FBAF7 /* FileMenuCommands.swift in Sources */,
-				C5477C82B7FC56CD91C51A2F /* CollectionSpatialStub.swift in Sources */,
 				D8480D2BEC0E080EB4E2ECCE /* CollectionWorkspaceStub.swift in Sources */,
 				5FBCA4ACC1D0F229DA5E85AC /* EntityDetailView+Metadata.swift in Sources */,
 				B82F169352D7D0876DE0FCF9 /* EntityDetailView+Sections.swift in Sources */,

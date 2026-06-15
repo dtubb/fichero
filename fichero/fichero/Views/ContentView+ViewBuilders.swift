@@ -473,7 +473,7 @@ extension ContentView {
         case .workflow, .chain:
             EmptyView()
 
-        case .batches, .batch, .automation, .schedule, .trigger, .activity, .mindPalace:
+        case .batches, .batch, .automation, .schedule, .trigger, .activity:
             EmptyView()
         }
     }
@@ -513,7 +513,7 @@ extension ContentView {
                 }
             )
 
-        case .batches, .batch, .automation, .schedule, .trigger, .activity, .mindPalace:
+        case .batches, .batch, .automation, .schedule, .trigger, .activity:
             VStack(alignment: .leading, spacing: 8) {
                 Text("Inspector")
                     .font(.headline)

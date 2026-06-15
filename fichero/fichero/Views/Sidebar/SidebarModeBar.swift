@@ -56,16 +56,6 @@ struct SidebarModeBar: View {
                     }
                 }
 
-                if featureManager.isMindPalaceEnabled {
-                    SidebarModeIcon(
-                        mode: .mindPalace,
-                        isSelected: selectedMode == .mindPalace,
-                        badgeCount: 0
-                    ) {
-                        selectMode(.mindPalace)
-                    }
-                }
-
                 if featureManager.isResearchEnabled {
                     SidebarModeIcon(
                         mode: .research,

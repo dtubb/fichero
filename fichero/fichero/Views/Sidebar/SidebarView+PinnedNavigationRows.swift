@@ -95,15 +95,6 @@ extension SidebarView {
         )
     }
 
-    private func mindPalaceNavigationRow() -> some View {
-        pinnedNavigationRow(
-            "Mind Palace",
-            systemImage: SidebarMode.mindPalace.icon,
-            tag: "mind-palace-browser",
-            help: "Open the Mind Palace workspace"
-        )
-    }
-
     private func entitiesNavigationRow() -> some View {
         pinnedNavigationRow(
             "Entities",
@@ -123,7 +114,6 @@ extension SidebarView {
             || FeatureManager.shared.isBatchesEnabled
             || FeatureManager.shared.isChatEnabled
             || FeatureManager.shared.isResearchEnabled
-            || FeatureManager.shared.isMindPalaceEnabled
             || FeatureManager.shared.isKnowledgeGraphEnabled
             || FeatureManager.shared.isActivityEnabled {
             Divider()
@@ -148,8 +138,6 @@ extension SidebarView {
         if FeatureManager.shared.isResearchEnabled {
             researchNavigationRow()
         }
-
-        // Mind Palace hidden — folded into library folders, not a separate workspace (Daniel, 2026-06-08).
 
         if FeatureManager.shared.isKnowledgeGraphEnabled {
             entitiesNavigationRow()

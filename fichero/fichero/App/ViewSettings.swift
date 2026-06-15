@@ -23,7 +23,6 @@ enum SidebarMode: String, CaseIterable {
     case workflows    // 4: Workflow definitions
     case automation   // 5: Schedules + triggers
     case activity       // 6: All workflow runs (running + completed + failed) with logs/errors
-    case mindPalace     // 7: Spatial 3D-2D space — rooms of archival material
     case research       // 8: Research projects + workspace
     case knowledgeGraph // 9: Entity / ontology browser (#498)
 
@@ -37,7 +36,6 @@ enum SidebarMode: String, CaseIterable {
         case .research: "flask"
         case .automation: "gearshape.2"
         case .activity: "clock"
-        case .mindPalace: "cube.transparent"
         case .knowledgeGraph: "point.3.connected.trianglepath.dotted"
         }
     }
@@ -52,7 +50,6 @@ enum SidebarMode: String, CaseIterable {
         case .research: "Research"
         case .automation: "Automation"
         case .activity: "Activity"
-        case .mindPalace: "Mind Palace"
         case .knowledgeGraph: "Knowledge Graph"
         }
     }
@@ -66,7 +63,6 @@ enum SidebarMode: String, CaseIterable {
         case .workflows: "4"
         case .automation: "5"
         case .activity: "6"
-        case .mindPalace: "7"
         case .research: "8"
         case .knowledgeGraph: "9"
         }
@@ -90,8 +86,6 @@ enum SidebarMode: String, CaseIterable {
             body = "Automation — schedules and triggers that run workflows automatically"
         case .activity:
             body = "Activity — monitor running and recent background jobs"
-        case .mindPalace:
-            body = "Mind Palace — a spatial 3D view of your documents"
         case .knowledgeGraph:
             body = "Knowledge Graph — explore entities and how they connect"
         }

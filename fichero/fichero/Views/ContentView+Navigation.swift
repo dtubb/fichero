@@ -72,10 +72,6 @@ extension ContentView {
                       featureManager.isWorkspaceModeEnabled,
                       let doc = libraryViewDocument {
                 CollectionWorkspaceStub(collectionId: doc.id)
-            } else if viewDisplayMode == .spatial,
-                      featureManager.isSpatialModeEnabled,
-                      let doc = libraryViewDocument {
-                CollectionSpatialStub(collectionId: doc.id)
             } else {
                 LibraryView(
                     documents: selectedDocuments,
@@ -225,11 +221,6 @@ extension ContentView {
                 }
             }
 
-        case .mindPalace:
-            // Spatial 3D-2D space. Rooms live in the sidebar (RoomListView);
-            // this is the canvas + node inspector. State is shared via
-            // MindPalaceState.
-            MindPalaceContainer()
         }
         }
     }

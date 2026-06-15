@@ -129,6 +129,26 @@ struct LibraryView: View {
     // Map view positions
     @State var mapPositions: [String: CGPoint] = [:]
     @State var entities: [Components.Schemas.KnowledgeEntity] = []
+    @State private var spatialSelectedNodeId: String?
+
+    private var libraryProjection: MindPalaceLibraryProjection {
+        MindPalaceLibraryProjector.project(
+            MindPalaceLibraryInput(
+                documents: documents.map {
+                    MindPalaceLibraryInput.Document(id: $0.id, name: $0.name, parentId: $0.parentId)
+                },
+                entities: entities.compactMap { entity in
+                    guard let id = entity.id else { return nil }
+                    return MindPalaceLibraryInput.Entity(
+                        id: id,
+                        canonicalName: entity.canonicalName,
+                        entityType: entity.entityType?.rawValue
+                    )
+                },
+                claims: []
+            )
+        )
+    }
     @State var isLoadingEntities = false
     @State var entityLoadErrorMessage: String?
 
@@ -206,7 +226,20 @@ struct LibraryView: View {
                         listView
                     case .table:
                         tableView
-                    case .map, .realitykit, .spatial, .workspace:
+                    case .realitykit:
+                        SpatialScene3D(
+                            nodes: libraryProjection.nodes,
+                            connections: [],
+                            links: libraryProjection.links,
+                            selectedNodeId: $spatialSelectedNodeId
+                        )
+                    case .spatial:
+                        Spatial2DCanvas(
+                            nodes: libraryProjection.nodes,
+                            connections: [],
+                            selectedNodeId: $spatialSelectedNodeId
+                        )
+                    case .map, .workspace:
                         mapView
                     }
                 }

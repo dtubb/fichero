@@ -65,9 +65,6 @@ extension ContentView {
             // For now, return nil and let the view populate it
             return .activity(nil)
 
-        case "mindPalace":
-            return .mindPalace
-
         default:
             return .library(nil)
         }
@@ -98,8 +95,6 @@ extension ContentView {
             return ("trigger", trigger.map { $0.triggerId })
         case .activity(let run):
             return ("activity", run?.id)
-        case .mindPalace:
-            return ("mindPalace", nil)
         }
     }
 

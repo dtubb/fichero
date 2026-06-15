@@ -300,8 +300,6 @@ struct MainContentModifiers: ViewModifier {
             viewMode = .automation
         case .activity:
             viewMode = .activity(nil)
-        case .mindPalace:
-            viewMode = .mindPalace
         case .research, .knowledgeGraph:
             // Research and Knowledge Graph have no ViewMode case; contentView
             // intercepts on sidebarMode == .research / .knowledgeGraph, so leave
