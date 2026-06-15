@@ -435,6 +435,7 @@ extension LibraryView {
 
         // Only available when the engine is local — a remote engine means
         // document.path is a server-side path, not a path on this Mac (#1861).
+        #if os(macOS)
         if EngineConfig.engineIsLocal, let path = document.path, !path.isEmpty {
             Button {
                 let url = URL(fileURLWithPath: path)
@@ -443,6 +444,7 @@ extension LibraryView {
                 Label("Reveal in Finder", systemImage: "folder")
             }
         }
+        #endif
 
         // Add-to-Workspace bridge (#1494): alias this document into a
         // workspace folder. Never moves the source (#1487).

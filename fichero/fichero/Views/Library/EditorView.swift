@@ -19,6 +19,7 @@ struct EditorView: View {
     /// until the user opts into editing (#1453). Reset whenever the document
     /// changes so a new selection always opens in view mode.
     @State private var isEditing = false
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         Group {
@@ -64,6 +65,7 @@ struct EditorView: View {
             // Actions — "Reveal in Finder" only makes sense when the engine
             // is on this Mac; hide it entirely for remote engines (#1881).
             HStack(spacing: 12) {
+                #if os(macOS)
                 if EngineConfig.engineIsLocal {
                     Button(
                         action: { openInFinder(doc) },
@@ -74,6 +76,7 @@ struct EditorView: View {
                     .buttonStyle(.plain)
                     .help("Reveal in Finder")
                 }
+                #endif
 
                 Button(
                     action: { openWithDefault(doc) },
@@ -279,16 +282,18 @@ struct EditorView: View {
 
     // MARK: - Actions
 
+    #if os(macOS)
     private func openInFinder(_ doc: Document) {
         guard let path = doc.path else { return }
         let url = URL(fileURLWithPath: path)
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
+    #endif
 
     private func openWithDefault(_ doc: Document) {
         guard let path = doc.path else { return }
         let url = URL(fileURLWithPath: path)
-        NSWorkspace.shared.open(url)
+        openURL(url)
     }
 }
 

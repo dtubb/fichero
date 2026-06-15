@@ -14,6 +14,7 @@ struct FirstRunWindow: View {
     @State private var openRouterKey = ""
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         HStack(spacing: 0) {
@@ -321,7 +322,7 @@ struct FirstRunWindow: View {
 
     private func openSettingsPane(_ rawURL: String) {
         guard let url = URL(string: rawURL) else { return }
-        NSWorkspace.shared.open(url)
+        openURL(url)
     }
 
     private func saveAndFinish() async {
