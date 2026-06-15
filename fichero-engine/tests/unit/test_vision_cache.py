@@ -99,6 +99,7 @@ async def test_vision_cache_miss_calls_model() -> None:
         patch.object(llm_module, "_enforce_local_only_provider"),
         patch.object(llm_module, "get_langchain_model") as mock_get_model,
         patch.object(llm_module, "_remote_llm_call_slot") as mock_slot,
+        patch.object(llm_module, "_compute_timeout", return_value=60.0),
     ):
         mock_model = AsyncMock()
         mock_model.ainvoke.return_value = fake_response
@@ -130,6 +131,7 @@ async def test_vision_cache_hit_skips_model() -> None:
         patch.object(llm_module, "_enforce_local_only_provider"),
         patch.object(llm_module, "get_langchain_model") as mock_get_model,
         patch.object(llm_module, "_remote_llm_call_slot") as mock_slot,
+        patch.object(llm_module, "_compute_timeout", return_value=60.0),
     ):
         mock_model = AsyncMock()
         mock_model.ainvoke.return_value = fake_response
@@ -158,6 +160,7 @@ async def test_vision_cache_empty_images() -> None:
         patch.object(llm_module, "_enforce_local_only_provider"),
         patch.object(llm_module, "get_langchain_model") as mock_get_model,
         patch.object(llm_module, "_remote_llm_call_slot") as mock_slot,
+        patch.object(llm_module, "_compute_timeout", return_value=60.0),
     ):
         mock_model = AsyncMock()
         mock_model.ainvoke.return_value = fake_response

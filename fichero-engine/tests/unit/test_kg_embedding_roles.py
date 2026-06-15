@@ -7,7 +7,7 @@ stored passage vectors.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -79,6 +79,12 @@ async def test_find_similar_claims_uses_passage_role() -> None:
         return [0.0] * 4
 
     db._embed_text = fake_embed
+    # Route now calls the async offload variant (#2231); wire it to the same capture fn
+    async def fake_embed_async(text, *, role="query"):
+        captured.append(role)
+        return [0.0] * 4
+
+    db._embed_text_async = fake_embed_async
 
     # Pass limit explicitly — Query() default doesn't resolve outside FastAPI
     await find_similar_claims("c1", limit=10, db=db)
@@ -125,6 +131,12 @@ async def test_heuristic_predictions_uses_passage_role() -> None:
         return [0.0] * 4
 
     db._embed_text = fake_embed
+    # Route now calls the async offload variant (#2231); wire it to the same capture fn
+    async def fake_embed_async(text, *, role="query"):
+        captured.append(role)
+        return [0.0] * 4
+
+    db._embed_text_async = fake_embed_async
 
     req = HeuristicRequest(top_k=5)
     await generate_heuristic_predictions(req, db=db)
