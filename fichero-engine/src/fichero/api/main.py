@@ -447,6 +447,8 @@ def _prewarm_embeddings() -> None:
         except Exception:  # noqa: BLE001 — never let the guard block pre-warm
             pass
 
+        from fichero.db_embeddings import _get_shared_embedder
+
         cache_dir = MODELS_BASE / "embeddings"
         cache_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Pre-warming embeddings model: %s", model_name)
@@ -456,10 +458,76 @@ def _prewarm_embeddings() -> None:
             warnings.filterwarnings(
                 "ignore", message=".*multilingual-e5-large.*pooling.*"
             )
-            TextEmbedding(model_name=model_name, cache_dir=str(cache_dir))
+            # Route through _get_shared_embedder so the model lands in
+            # _EMBEDDER_CACHE — not a discarded local instance. Any
+            # subsequent _ensure_embedder() call on a Database is then a
+            # dict lookup rather than a 500 MB reload (#1918).
+            _get_shared_embedder(model_name, str(cache_dir))
         logger.info("Embeddings model ready")
     except Exception as exc:
         logger.warning("Embeddings pre-warm failed (will retry on first use): %s", exc)
+
+
+def prefetch_library_caches(package_path: Path) -> dict:
+    """Warm per-library caches so the first user request is fast (#1918).
+
+    Specifically:
+    - Calls ``db._ensure_embedder()`` — which is now a near-zero-cost
+      dict lookup when ``_prewarm_embeddings`` already ran.
+    - Opens each LanceDB vector table via ``count_rows()`` to pull its
+      memory-mapped pages into the OS page cache before a user issues the
+      first semantic search.
+
+    Never raises — all failures are logged as warnings so startup is not
+    blocked by a missing or empty library.
+    """
+    from fichero.db_embeddings import (
+        EMBEDDINGS_TABLE,
+        KG_CLAIM_EMBEDDINGS_TABLE,
+        KG_ENTITY_EMBEDDINGS_TABLE,
+    )
+
+    stats: dict = {
+        "package_path": str(package_path),
+        "embedder_warmed": False,
+        "lance_tables_opened": 0,
+    }
+
+    try:
+        db = db_manager.get_database(package_path)
+    except Exception as exc:
+        logger.warning(
+            "prefetch_library_caches: could not open db for %s: %s",
+            package_path,
+            exc,
+        )
+        return stats
+
+    # Warm embedder (no-op when _prewarm_embeddings already populated cache).
+    try:
+        db._ensure_embedder()
+        stats["embedder_warmed"] = True
+    except Exception as exc:
+        logger.warning(
+            "prefetch_library_caches: embedder warm failed for %s: %s",
+            package_path,
+            exc,
+        )
+
+    # Pull LanceDB vector-table metadata into the OS page cache.
+    for table_name in (
+        EMBEDDINGS_TABLE,
+        KG_ENTITY_EMBEDDINGS_TABLE,
+        KG_CLAIM_EMBEDDINGS_TABLE,
+    ):
+        try:
+            if table_name in db._lance_tables():
+                db.lance.open_table(table_name).count_rows()
+                stats["lance_tables_opened"] += 1
+        except Exception:
+            pass
+
+    return stats
 
 
 def _discover_known_library_paths() -> list[str]:
@@ -603,9 +671,29 @@ async def lifespan(app: FastAPI):
     # Recover stale workflow runs left in 'running' by prior crashes/restarts (#1350).
     await _recover_stale_runs_on_startup()
 
-    # Pre-warm embeddings model in background — avoids 2+ GB download on first search
+    # Pre-warm embeddings model and per-library caches in background (#1918).
+    # _prewarm_embeddings now populates _EMBEDDER_CACHE (not a discarded instance)
+    # so the subsequent prefetch_library_caches calls are near-zero-cost embedder
+    # warm + cheap LanceDB count_rows() per known library.
     loop = asyncio.get_event_loop()
-    loop.run_in_executor(None, _prewarm_embeddings)
+
+    def _prewarm_and_prefetch() -> None:
+        _prewarm_embeddings()
+        for lib_path in _discover_known_library_paths():
+            try:
+                stats = prefetch_library_caches(Path(lib_path))
+                logger.info(
+                    "prefetch_library_caches: %s — embedder_warmed=%s lance_tables=%d",
+                    lib_path,
+                    stats["embedder_warmed"],
+                    stats["lance_tables_opened"],
+                )
+            except Exception as exc:
+                logger.warning(
+                    "prefetch_library_caches failed for %s: %s", lib_path, exc
+                )
+
+    loop.run_in_executor(None, _prewarm_and_prefetch)
 
     # Watch FICHERO_PARENT_PID (set by EmbeddedBackendService on spawn).
     # If the Swift app dies without a chance to call .stop() (e.g. SIGKILL,
