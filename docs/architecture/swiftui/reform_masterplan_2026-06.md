@@ -221,3 +221,29 @@ assert every action is reachable from UI + chat + App Intents + MCP.
 8. **3D globe engine:** SceneKit textured sphere (lighter) or RealityKit (consistent with spatial)?
 9. **Comparison UI:** confirm scope = compare workflow runs + outputs side by side.
 10. **Chat placement:** confirm left-sidebar chat toggle (#2034), shelve #1846 right-rail.
+
+## 8. RESOLVED decisions (Daniel, 2026-06-15) — these supersede §7's open forks
+
+1. **iOS/iPad target: build on BOTH platforms NOW** (Mac + iPad/iOS together) so we learn the
+   real cross-platform shape and surface design failures early — not Mac-first-then-port. Stand
+   up the iOS target alongside the shell work. (Floor = latest / Tahoe + Golden Gate.)
+2. **Tabs = DOCUMENT-tabs across the top of the CENTER column** (multiple open docs, Xcode/Safari
+   style). The content area under the tabs can show **library / image / document(content)**; the
+   **WebKit pane + document inspector relate to the active tab**. (i.e. the "both" model with this
+   layout: `sidebar | [doc-tabs → content(library|image|document)] | inspector(+webkit)`.)
+3. **Floating inspector: BOTH** — one follow-focus palette (Tinderbox) AND pin-per-document.
+4. **Prototypes: FULL container-prototype model now** — folders, workspaces, entities are all
+   prototypes with inherited attributes (the full #2081), not documents-only.
+5. **Comparison UI: BOTH** — (a) diff two workflows, AND (b) run the **same node across N providers**
+   (the model bake-off); clicking a workflow-inspector step jumps to that step's comparison.
+6. **Representations: PER-PAGE**, produced by a **default workflow** with an explicit **Generate
+   button** — a user can batch-generate across all, or generate on click; cached once made.
+7. **Geo: primarily one pin per doc (choosable multiple)**, PLUS a **heat map** and a
+   **georeferenced overlay** (drop extracted points onto a real/historical map image — ties to the
+   "highlight part of a map and tie locations" idea). Geocode named places.
+8. **Highlight is PER-REPRESENTATION** — you highlight on whatever you're viewing: the **PDF/image**
+   (region/bbox) AND the **text / HTML** views (span). Not paragraph-checkmark-only; the annotation
+   model already supports both anchors.
+9. **Handwriting OCR: user-choosable (workflows exist); smart default** — on-device for printed,
+   online (Qwen) for handwriting.
+10. **Chat: LEFT / over-the-sidebar** (Xcode-navigator style); **shelve #1846** right-rail.
