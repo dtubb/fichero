@@ -310,12 +310,18 @@ extension ContentView {
                             // whole width instead of staying a fixed column with a
                             // blank grey area beside it (#1516). list-only is a valid
                             // state — the library list is the always-present spine.
+                            // list-only is full-width. `width: .infinity` is an invalid
+                            // frame dimension (SwiftUI logs "Invalid frame dimension
+                            // (negative or non-finite)" #2006) — flex with maxWidth
+                            // instead, and pin a fixed width only when a reading pane
+                            // shares the row.
+                            let widescreenContentFixedWidth: CGFloat? =
+                                (panePlan.showsCanvasPane || panePlan.showsReadingPane)
+                                    ? clampedWidescreenContentPaneWidth : nil
                             contentWithOptionalModeRail
                                 .overlay { paneFocusIndicator(for: .content) }
-                                .frame(
-                                    width: (panePlan.showsCanvasPane || panePlan.showsReadingPane)
-                                        ? clampedWidescreenContentPaneWidth : .infinity
-                                )
+                                .frame(width: widescreenContentFixedWidth)
+                                .frame(maxWidth: widescreenContentFixedWidth == nil ? .infinity : nil)
                         }
 
                         if panePlan.showsLibraryDivider {
