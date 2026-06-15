@@ -132,15 +132,15 @@ def _is_icon_only_button(snippet: str) -> bool:
     return bool(re.search(r"\bImage\s*\(", snippet))
 
 
-def _snippet_key(path: Path, snippet: str) -> str:
+def _snippet_key(path: Path, snippet: str, base_dir: Path = VIEWS_DIR) -> str:
     normalized = re.sub(r"\s+", " ", snippet.strip())
     digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:10]
-    return f"{path.relative_to(VIEWS_DIR).as_posix()}#{digest}"
+    return f"{path.relative_to(base_dir).as_posix()}#{digest}"
 
 
-def scan() -> dict[str, str]:
+def scan(views_dir: Path = VIEWS_DIR) -> dict[str, str]:
     found: dict[str, str] = {}
-    for path in sorted(VIEWS_DIR.rglob("*.swift")):
+    for path in sorted(views_dir.rglob("*.swift")):
         try:
             source = path.read_text(errors="ignore")
         except OSError:
@@ -155,7 +155,7 @@ def scan() -> dict[str, str]:
             end, snippet = _collect_button_chain(lines, idx)
             if not _is_icon_only_button(snippet):
                 continue
-            found[_snippet_key(path, snippet)] = (
+            found[_snippet_key(path, snippet, views_dir)] = (
                 f"missing .help(...) on icon-only toolbar button (lines {idx + 1}-{end + 1})"
             )
     return found
