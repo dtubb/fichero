@@ -1,6 +1,20 @@
-# STATE — overnight handoff 2026-06-14 (late)
+# STATE — overnight handoff 2026-06-14→15
 
 Branch `0.0.2`, tracking `origin/0.0.2`. Keep `0.0.2 == origin` (gate before every push).
+
+## ☀️ MORNING HANDOFF (read first) — as of ~03:20, 2026-06-15
+**36 issues shipped to origin/0.0.2 overnight, every one full-suite gated, branch NEVER went red.**
+- ✅ **AI Backend Hardening** — DONE (bar #2248 deps, held for you).
+- ✅ **AI Infrastructure** — DONE (#2211/#2212/#2213/#2214 — incl the ICANH page-doc page_content fix).
+- ✅ **Workflows & Catalogue Hardening** — DONE (per-page across ALL source paths; Auto-Detect/folder/collection/whole-PDF; preset rationalization #2251 + standardization #2252; route_map/classify_script/empty-success; PDF single-open perf #2247; result caches #2224/#2246).
+- The gate caught **7 broken "done" claims** (5 pytest reds + 2 Swift build fails) — all bounced, none reached the branch. Workers consistently forget to sweep sibling tests on behavior changes — the full-suite gate is non-negotiable.
+
+**DO IN THE MORNING (your calls, not auto-merged):**
+1. **Hard-restart your :8765 backend**, then re-run live ICANH — #2214 + #2247 should make per-page transcription correct AND fast (page children fill in).
+2. **#2248 deps upgrade** — committed on `ms/deps-update`, gated in isolated `.venv-deps`. Merge deliberately (upgrades the shared `.venv` your live backend uses).
+3. **#1973** (change-stream beachball) — Swift, HELD. 2 blind worker builds failed (Swift-6 actor isolation across 13 stores). Needs a compiler-in-loop pass; both build errors on the issue; WIP on `ms/ai-backend-harden`.
+
+**Next milestones are mostly SwiftUI/iOS** (Remote & Self-Hosting #2096-2101 iOS client; Mac/iOS shell) — backend workers can't build Swift, so those need a manager-gated Swift lane (or you). Overnight the workers are on backend-shaped Developer Experience tooling (#1815 perf benchmarks, #1918 prefetch, #1915/#1953 guardrail scripts). Observable Data Layer: 2 left (#2009 InterpretationStore, #1973-held).
 
 ## ⛔ Do NOT touch overnight
 - **Port `:8765` and the ICANH libraries** — Daniel is running his OWN backend and testing
