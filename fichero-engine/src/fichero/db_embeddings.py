@@ -902,63 +902,79 @@ class DatabaseEmbeddingMixin:
             ]
         )
 
-    def embed_entities(self, entities) -> int:
-        """Write entity embeddings into the canonical LanceDB table."""
+    def embed_entities(self, entities, *, batch_size: int = 256) -> int:
+        """Write entity embeddings into the canonical LanceDB table.
+
+        Processes entities in batches of ``batch_size`` (#2233) to bound
+        peak RAM usage when indexing large corpora.
+        """
         entities = [entity for entity in entities if entity is not None]
         if not entities:
             return 0
 
-        texts = [self.entity_embedding_text(entity) for entity in entities]
-        vectors = self._embed_texts(texts)
-        records = [
-            {
-                "id": entity.id,
-                "text": text,
-                "canonical_name": entity.canonical_name,
-                "aliases_text": ", ".join(entity.aliases or []),
-                "description": entity.description or "",
-                "entity_type": entity.entity_type.value if entity.entity_type else None,
-                "vector": vector,
-                **self._vector_model_metadata(),
-            }
-            for entity, text, vector in zip(entities, texts, vectors)
-        ]
-        self.save_vectors(KG_ENTITY_EMBEDDINGS_TABLE, records, replace=True)
-        return len(records)
+        total = 0
+        for batch_start in range(0, len(entities), batch_size):
+            batch = entities[batch_start : batch_start + batch_size]
+            texts = [self.entity_embedding_text(entity) for entity in batch]
+            vectors = self._embed_texts(texts)
+            records = [
+                {
+                    "id": entity.id,
+                    "text": text,
+                    "canonical_name": entity.canonical_name,
+                    "aliases_text": ", ".join(entity.aliases or []),
+                    "description": entity.description or "",
+                    "entity_type": entity.entity_type.value if entity.entity_type else None,
+                    "vector": vector,
+                    **self._vector_model_metadata(),
+                }
+                for entity, text, vector in zip(batch, texts, vectors)
+            ]
+            self.save_vectors(KG_ENTITY_EMBEDDINGS_TABLE, records, replace=True)
+            total += len(records)
+        return total
 
-    def embed_claims(self, claims) -> int:
-        """Write claim embeddings into the canonical LanceDB table."""
+    def embed_claims(self, claims, *, batch_size: int = 256) -> int:
+        """Write claim embeddings into the canonical LanceDB table.
+
+        Processes claims in batches of ``batch_size`` (#2233) to bound
+        peak RAM usage when indexing large corpora.
+        """
         claims = [claim for claim in claims if claim is not None]
         if not claims:
             return 0
 
-        texts = [self.claim_embedding_text(claim) for claim in claims]
-        vectors = self._embed_texts(texts)
-        records = [
-            {
-                "id": claim.id,
-                "text": text,
-                "source_text": claim.source_excerpt or claim.text,
-                "claim_text": claim.text,
-                "subject": claim.subject_canonical or claim.svo_subject or "",
-                "predicate": (
-                    claim.predicate_verb
-                    or claim.svo_verb
-                    or claim.predicate_canonical
-                    or ""
-                ),
-                "object": claim.object_phrase or claim.svo_object or "",
-                "claim_type": claim.claim_type.value if claim.claim_type else "",
-                "curation_state": (
-                    claim.curation_state.value if claim.curation_state else ""
-                ),
-                "vector": vector,
-                **self._vector_model_metadata(),
-            }
-            for claim, text, vector in zip(claims, texts, vectors)
-        ]
-        self.save_vectors(KG_CLAIM_EMBEDDINGS_TABLE, records, replace=True)
-        return len(records)
+        total = 0
+        for batch_start in range(0, len(claims), batch_size):
+            batch = claims[batch_start : batch_start + batch_size]
+            texts = [self.claim_embedding_text(claim) for claim in batch]
+            vectors = self._embed_texts(texts)
+            records = [
+                {
+                    "id": claim.id,
+                    "text": text,
+                    "source_text": claim.source_excerpt or claim.text,
+                    "claim_text": claim.text,
+                    "subject": claim.subject_canonical or claim.svo_subject or "",
+                    "predicate": (
+                        claim.predicate_verb
+                        or claim.svo_verb
+                        or claim.predicate_canonical
+                        or ""
+                    ),
+                    "object": claim.object_phrase or claim.svo_object or "",
+                    "claim_type": claim.claim_type.value if claim.claim_type else "",
+                    "curation_state": (
+                        claim.curation_state.value if claim.curation_state else ""
+                    ),
+                    "vector": vector,
+                    **self._vector_model_metadata(),
+                }
+                for claim, text, vector in zip(batch, texts, vectors)
+            ]
+            self.save_vectors(KG_CLAIM_EMBEDDINGS_TABLE, records, replace=True)
+            total += len(records)
+        return total
 
     def schedule_entity_embedding(self, entity) -> None:
         """Best-effort background embed for a just-written entity."""
