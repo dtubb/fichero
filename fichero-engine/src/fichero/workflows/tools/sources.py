@@ -442,18 +442,25 @@ async def collection_tool(
             db = db_manager.get_database(library_path)
             docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
             docs = [d for d in docs if d is not None]
-            resolved: dict[str, Document] = {}
+            # Use list-of-pairs so multiple pages of the same PDF are kept
+            # as separate entries (dict keyed by path collapses them, #2242).
+            resolved_pairs: list[tuple[str, Document]] = []
+            seen_ids: set[str] = set()
             for doc in docs:
+                if doc.id in seen_ids:
+                    continue
                 if doc.path:
-                    resolved[_resolve_abs_path(doc, library_path)] = doc
+                    seen_ids.add(doc.id)
+                    resolved_pairs.append((_resolve_abs_path(doc, library_path), doc))
                 elif doc.parent_id:
                     resolved_parent = _resolve_page_to_parent(doc, db)
                     if resolved_parent is not None and resolved_parent.path:
-                        resolved[_resolve_abs_path(resolved_parent, library_path)] = (
-                            resolved_parent
+                        seen_ids.add(doc.id)
+                        resolved_pairs.append(
+                            (_resolve_abs_path(resolved_parent, library_path), doc)
                         )
-            files = list(resolved.keys())
-            documents = [d.model_dump() for d in resolved.values()]
+            files = [path for path, _ in resolved_pairs]
+            documents = [d.model_dump() for _, d in resolved_pairs]
             logger.info(
                 f"collection_tool: {len(files)} files from selected_doc_ids "
                 f"(overriding collection {collection_id})"
@@ -488,11 +495,10 @@ async def collection_tool(
             limit=limit,
         )
 
-        # Extract file paths and document data (resolve library-relative → absolute)
-        file_paths = [
-            _resolve_abs_path(doc, library_path) for doc in files if doc.path
-        ]
-        doc_data = [doc.model_dump() for doc in files]
+        # Keep file_paths and doc_data index-aligned: filter both by doc.path (#2240)
+        aligned = [(doc, _resolve_abs_path(doc, library_path)) for doc in files if doc.path]
+        file_paths = [path for _, path in aligned]
+        doc_data = [doc.model_dump() for doc, _ in aligned]
 
         logger.info(f"Collection {collection_id}: found {len(files)} files")
 
@@ -647,8 +653,25 @@ async def folder_tool(
         subfolders = db.query(Document, parent_id=folder_id, doc_type=DocType.folder)
         subfolder_ids = [sf.id for sf in subfolders]
 
-        file_paths = [doc.path for doc in files if doc.path]
-        doc_data = [doc.model_dump() for doc in files]
+        # Resolve abs paths, keep file_paths/doc_data index-aligned, and
+        # expand PDFs that already have per-page children (#2239/#2240).
+        aligned_paths: list[str] = []
+        aligned_docs: list[Document] = []
+        for doc in files:
+            if not doc.path:
+                continue
+            abs_path = _resolve_abs_path(doc, library_path)
+            if doc.file_type == FileType.pdf:
+                page_children = db.query(Document, parent_id=doc.id, doc_type=DocType.page)
+                if page_children:
+                    for page in sorted(page_children, key=lambda p: p.sequence or 0):
+                        aligned_paths.append(abs_path)
+                        aligned_docs.append(page)
+                    continue
+            aligned_paths.append(abs_path)
+            aligned_docs.append(doc)
+        file_paths = aligned_paths
+        doc_data = [d.model_dump() for d in aligned_docs]
 
         logger.info(
             f"Folder {folder_id}: found {len(files)} files, {len(subfolder_ids)} subfolders"
