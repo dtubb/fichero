@@ -1,4 +1,3 @@
-import AppKit
 import FicheroAPIClient
 import Foundation
 import OSLog
@@ -115,15 +114,22 @@ final class EmbeddedBackendService: ObservableObject {
         }
         #endif
 
-        // Launch embedded backend (DEBUG fallback or RELEASE always).
+        // Launch embedded backend (macOS only; DEBUG fallback or RELEASE always).
         // Briefcase-bundled engine cold-starts in ~25s on Apple Silicon
         // (heavy ML imports + DB init); 90s gives margin on slower I/O,
         // first-launch caches, and contended startup.
+        // iOS cannot spawn a local engine — a configured remote host is required.
+        #if os(macOS)
         try launchEmbeddedBackend()
         try await waitForBackend(timeout: 90)
         _ = await AuthTokenMiddleware.waitForToken(timeout: 10)
         status = .running
         logger.info("Embedded backend started successfully")
+        #else
+        status = .failed
+        errorMessage = "No remote engine host configured. Set a custom host in Settings."
+        throw BackendError.notRunning
+        #endif
     }
 
     /// Stop the embedded backend
@@ -190,6 +196,7 @@ final class EmbeddedBackendService: ObservableObject {
 
     // MARK: - Private Helpers
 
+    #if os(macOS)
     private func launchEmbeddedBackend() throws {
         guard let resourcePath = Bundle.main.resourcePath else {
             throw BackendError.bundleNotFound
@@ -271,6 +278,7 @@ final class EmbeddedBackendService: ObservableObject {
         isExternalBackend = false
         logger.info("Tracking embedded backend PID: \(pid)")
     }
+    #endif
 
     private func waitForBackend(timeout: TimeInterval) async throws {
         let startTime = Date()
@@ -343,6 +351,7 @@ final class EmbeddedBackendService: ObservableObject {
 
     // MARK: - Orphan-engine cleanup
 
+    #if os(macOS)
     /// SIGTERM a "Fichero Engine" subprocess left over from a previous run of
     /// **this** app that didn't get a chance to call .stop() (e.g. SIGKILL,
     /// crash, or force-quit). Called before spawning a new engine so the new
@@ -449,6 +458,7 @@ final class EmbeddedBackendService: ObservableObject {
         let data = (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
         return !data.isEmpty
     }
+    #endif
 }
 
 // MARK: - Errors
