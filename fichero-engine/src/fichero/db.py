@@ -1030,13 +1030,15 @@ class Database(DatabaseEmbeddingMixin):
     def _coerce_vectors_to_existing_schema(
         self, table_name: str, table, data: list[dict]
     ) -> list[dict]:
-        """Drop fields a legacy LanceDB table cannot accept on append.
+        """Evolve a legacy LanceDB table schema before append, then coerce.
 
-        LanceDB tables created before newer vector metadata fields (notably
-        ``embedding_model_id``) reject appends that include those fields. Do not
-        rebuild or re-embed existing user data implicitly; append a row shaped
-        like the legacy table and let explicit embedding migration handle
-        stamping later.
+        For each field present in the data but absent from the table:
+        1. Attempt ``table.add_columns()`` to add the column in-place (#2225).
+           ``embedding_model_id`` is the common case — legacy tables lack it so
+           every append silently discards the model stamp.
+        2. If the column add fails (e.g. older LanceDB or concurrent writer),
+           fall through to stripping the field from the rows so the append
+           succeeds rather than crashing.
         """
         fields = self._lance_table_field_names(table)
         if not fields:
@@ -1046,13 +1048,32 @@ class Database(DatabaseEmbeddingMixin):
         if not extra_fields:
             return data
 
-        logger.warning(
-            "LanceDB table %s has legacy schema; omitting unsupported vector "
-            "field(s) on append: %s",
-            table_name,
-            ", ".join(sorted(extra_fields)),
-        )
-        return [{key: value for key, value in row.items() if key in fields} for row in data]
+        still_extra: set[str] = set()
+        for field_name in extra_fields:
+            # Infer SQL expression: nullable varchar for string fields, else cast null.
+            sample = next(
+                (row[field_name] for row in data if row.get(field_name) is not None),
+                None,
+            )
+            sql = "cast(null as varchar)" if sample is None or isinstance(sample, str) else "cast(null as double)"
+            try:
+                table.add_columns({field_name: sql})
+                logger.info(
+                    "LanceDB table %s: migrated legacy schema — added column %r",
+                    table_name, field_name,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "LanceDB table %s: could not add column %r (%s); "
+                    "omitting field from append",
+                    table_name, field_name, exc,
+                )
+                still_extra.add(field_name)
+
+        if not still_extra:
+            return data
+
+        return [{key: value for key, value in row.items() if key not in still_extra} for row in data]
 
     def save_vectors(
         self,
