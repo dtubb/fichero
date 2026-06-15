@@ -2,9 +2,9 @@ import SwiftUI
 
 // MARK: - Phase 3: typed inter-content links (#1297 follow-up)
 
-/// Reserved room ID for the "Whole Library" pseudo-room (Phase 3). When
-/// `MindPalaceState.selectedRoomId` equals this, the container loads the
-/// projection (`MindPalaceLibraryProjector`) instead of a real room's nodes.
+/// Reserved room ID for the "Whole Library" pseudo-room. When the selected
+/// room is this sentinel, the view loads the library projection
+/// (`MindPalaceLibraryProjector`) instead of a real room's nodes.
 let wholeLibraryRoomId = "__library__"
 
 /// Typed link between two content items (a document, page, entity, claim, or

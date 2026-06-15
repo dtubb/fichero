@@ -6,13 +6,11 @@ import SwiftUI
 // `SpatialConnection`, `SpatialViewport`, `SpatialRoom`, `RoomSceneSummary`).
 //
 // We decode our own value types rather than the generated
-// `Components.Schemas.SpatialNode` because the list endpoints
-// (`/api/mind-palace/{rooms,nodes,connections}`) return the generic
-// `MindPalaceListResponse` envelope whose `items` carry an *empty* item
-// schema — swift-openapi-generator surfaces those as untyped
-// `OpenAPIValueContainer` values, not typed nodes. `MindPalaceService`
-// decodes each container into these models via a JSON round-trip using
-// `.convertFromSnakeCase` (so `position_x` → `positionX`).
+// `Components.Schemas.SpatialNode` because the list endpoints return an
+// untyped envelope — swift-openapi-generator surfaces items as untyped
+// `OpenAPIValueContainer` values. Callers decode each container into these
+// models via a JSON round-trip using `.convertFromSnakeCase`
+// (so `position_x` → `positionX`).
 //
 // Per `feedback_kg_logic_in_backend`: positions/arrangement are backend
 // state. These models only carry what the backend provides — the views
