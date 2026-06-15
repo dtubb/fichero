@@ -1010,9 +1010,20 @@ class ModelComparisonEngine:
         library_path: str,
         timeout_seconds: int,
     ) -> dict[str, Any]:
+        # library_path is the .fichero bundle directory (e.g. MyLib.fichero/).
+        # create_compiled_app → AsyncDuckDBCheckpointer.from_db_path expects the
+        # .duckdb FILE, not the directory — passing the directory raises
+        # IOException: Is a directory (#2211).
+        from pathlib import Path as _Path  # noqa: PLC0415
+
+        db_path: str | _Path = library_path
+        if library_path:
+            p = _Path(library_path)
+            if p.is_dir():
+                db_path = p / "fichero.duckdb"
         app, _ = create_compiled_app(
             workflow_variant,
-            db_path=library_path,
+            db_path=db_path,
             enable_parallel=False,
             skip_cache=True,
         )

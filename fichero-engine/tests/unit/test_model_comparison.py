@@ -373,6 +373,92 @@ class TestModelComparisonEngine:
         assert result is None
 
     # ------------------------------------------------------------------
+    # #2211: _execute_workflow_variant must resolve .fichero dir → .duckdb file
+    # ------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_execute_workflow_variant_resolves_fichero_dir_to_duckdb(self, tmp_path):
+        """Passing a .fichero DIRECTORY as library_path must NOT reach create_compiled_app
+        as-is — it must be resolved to the fichero.duckdb file inside the bundle (#2211).
+
+        Before the fix: db_path=library_path (a directory) was passed directly, which
+        caused duckdb.connect() to raise "IOException: Is a directory" and every
+        compare-workflow variant returned error=str(exc) instead of running.
+        """
+        import pathlib
+
+        bundle = tmp_path / "MyLib.fichero"
+        bundle.mkdir()
+
+        captured_db_paths = []
+
+        mock_app = MagicMock()
+        mock_app.ainvoke = AsyncMock(return_value={"outputs": {}, "completed_nodes": []})
+        mock_checkpointer = MagicMock()
+
+        def fake_create_compiled_app(workflow_def, *, db_path, **_kwargs):
+            captured_db_paths.append(pathlib.Path(str(db_path)))
+            return mock_app, mock_checkpointer
+
+        engine = ModelComparisonEngine()
+        workflow_variant = MagicMock()
+        workflow_variant.id = "wf-test"
+
+        with patch(
+            "fichero.workflows.model_comparison.create_compiled_app",
+            side_effect=fake_create_compiled_app,
+        ):
+            await engine._execute_workflow_variant(
+                workflow_variant=workflow_variant,
+                inputs={"selected_doc_ids": []},
+                library_path=str(bundle),
+                timeout_seconds=10,
+            )
+
+        assert len(captured_db_paths) == 1, "create_compiled_app should be called once"
+        resolved = captured_db_paths[0]
+        assert not resolved.is_dir(), "db_path must not be a directory"
+        assert resolved.name == "fichero.duckdb", (
+            f"Expected fichero.duckdb, got {resolved.name}"
+        )
+        assert resolved.parent == bundle, "db_path must be inside the .fichero bundle"
+
+    @pytest.mark.asyncio
+    async def test_execute_workflow_variant_plain_file_path_unchanged(self, tmp_path):
+        """When library_path is already a .duckdb file (not a bundle dir), it passes through
+        unchanged — the fix must not affect non-bundle paths (#2211 guard)."""
+        import pathlib
+
+        db_file = tmp_path / "fichero.duckdb"
+        db_file.touch()
+
+        captured_db_paths = []
+
+        mock_app = MagicMock()
+        mock_app.ainvoke = AsyncMock(return_value={"outputs": {}, "completed_nodes": []})
+
+        def fake_create_compiled_app(workflow_def, *, db_path, **_kwargs):
+            captured_db_paths.append(pathlib.Path(str(db_path)))
+            return mock_app, MagicMock()
+
+        engine = ModelComparisonEngine()
+        workflow_variant = MagicMock()
+        workflow_variant.id = "wf-test-2"
+
+        with patch(
+            "fichero.workflows.model_comparison.create_compiled_app",
+            side_effect=fake_create_compiled_app,
+        ):
+            await engine._execute_workflow_variant(
+                workflow_variant=workflow_variant,
+                inputs={"selected_doc_ids": []},
+                library_path=str(db_file),
+                timeout_seconds=10,
+            )
+
+        assert captured_db_paths[0] == pathlib.Path(str(db_file))
+
+    # ------------------------------------------------------------------
     # #2212: empty / failed vision calls must NOT count as successful
     # ------------------------------------------------------------------
 
