@@ -39,7 +39,9 @@ import asyncio
 import base64
 import contextlib
 import contextvars
+import hashlib
 import inspect
+import json
 import logging
 import os
 import re
@@ -105,6 +107,34 @@ _LANGCHAIN_MODEL_CACHE: weakref.WeakKeyDictionary[
 ] = weakref.WeakKeyDictionary()
 _LANGCHAIN_MODEL_CACHE_NO_LOOP: OrderedDict[_ModelCacheKey, Any] = OrderedDict()
 _LANGCHAIN_MODEL_CACHE_LOCK = threading.Lock()
+
+# Content-addressed result cache for vision (and future LLM) calls (#2224).
+# Keyed by SHA-256 of (provider, model, prompt, per-image content hashes).
+# Caps at 1 000 entries with FIFO eviction. Thread-safe via a lock.
+_LLM_RESULT_CACHE: dict[str, str] = {}
+_LLM_RESULT_CACHE_LOCK = threading.Lock()
+_LLM_RESULT_CACHE_MAX = 1000
+
+
+def _vision_cache_key(config: "LLMConfig", prompt: str, images: list[str]) -> str:
+    """Return a stable SHA-256 cache key for a vision call.
+
+    Base64 data URIs are digested by payload only so the key stays short
+    regardless of image size; URLs are used verbatim (already compact).
+    """
+    def _img_digest(img: str) -> str:
+        if img.startswith("data:"):
+            payload = img.split(",", 1)[-1]
+            return hashlib.sha256(payload.encode()).hexdigest()[:16]
+        return img
+
+    key_obj = {
+        "provider": config.provider,
+        "model": config.model,
+        "prompt": prompt,
+        "images": [_img_digest(img) for img in images],
+    }
+    return hashlib.sha256(json.dumps(key_obj, sort_keys=True).encode()).hexdigest()
 
 
 @contextlib.contextmanager
@@ -1913,6 +1943,12 @@ async def vision(
     if config.provider == "apple":
         return await _apple_vision_dispatch(images, prompt, config)
 
+    # Content-addressed cache (#2224) — skip remote call for identical inputs.
+    _cache_key = _vision_cache_key(config, prompt, images)
+    with _LLM_RESULT_CACHE_LOCK:
+        if _cache_key in _LLM_RESULT_CACHE:
+            return _LLM_RESULT_CACHE[_cache_key]
+
     # Get LangChain model
     model = get_langchain_model(config)
 
@@ -1927,7 +1963,14 @@ async def vision(
     # Call model
     async with _remote_llm_call_slot(config):
         response = await model.ainvoke([message])
-    return _strip_outer_code_fences(response.content)
+    result = _strip_outer_code_fences(response.content)
+
+    with _LLM_RESULT_CACHE_LOCK:
+        if len(_LLM_RESULT_CACHE) >= _LLM_RESULT_CACHE_MAX:
+            oldest = next(iter(_LLM_RESULT_CACHE))
+            del _LLM_RESULT_CACHE[oldest]
+        _LLM_RESULT_CACHE[_cache_key] = result
+    return result
 
 
 async def vision_batch(
