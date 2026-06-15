@@ -196,6 +196,19 @@ backlog is explicit, not a wall). Buildable NOW unless marked [design].
   designed in AND **programmatically tested** (every control labeled; AppleScript dictionary
   coverage; no hard-coded user-facing strings). One guardrail/test each.
 
+## 6e. Agentic chat as a FIRST-CLASS control surface (2026-06-15)
+
+The chat/agent is a **primary way to drive the whole app**, not a side panel. Three entry
+points, ONE backing surface = the audited **action registry (#1848)**:
+1. **MCP from outside** — external agents call app capabilities via MCP (the action registry exposed as MCP tools).
+2. **Siri / App Intents** — every registry action also an App Intent (system-wide, voice, Shortcuts).
+3. **In-app sidebar chat** — the chat-above-the-sidebar (§6d) drives the same actions.
+Daniel builds **most workflows via chat** → chat must reach workflow creation/editing + every
+CRUD action. This is the in-app **Agent** (#2067): manager-with-workers, web browsers, to-do +
+milestones, all observable (§6d). Everything the chat/agent can do must go through the one
+audited action layer (no bespoke chat-only paths) — and the completeness matrix (§6b.6) should
+assert every action is reachable from UI + chat + App Intents + MCP.
+
 ## 7. Open decisions for Daniel (the genuine forks — answer when back)
 
 1. **iOS target now or after the Mac shell?** (Affects whether to stand up the target + shims now vs design-for-degradation.) Min iOS floor (18 or 26 — 26 unlocks `RecognizeDocumentsRequest` paragraph/table structure)?
