@@ -389,7 +389,15 @@ def test_embedding_append_accepts_legacy_unstamped_lancedb_schema(tmp_path) -> N
 
     rows = db.lance.open_table(EMBEDDINGS_TABLE).search().limit(10).to_list()
     assert {row["document_id"] for row in rows} == {legacy_doc.id, new_doc.id}
-    assert all(EMBEDDING_MODEL_ID_FIELD not in row for row in rows)
+    # After the fix, add_columns("cast(null as string)") succeeds: column is migrated
+    # in-place, legacy rows get null, new rows carry the model stamp (#2213).
+    rows_by_doc = {r["document_id"]: r for r in rows}
+    assert rows_by_doc[legacy_doc.id][EMBEDDING_MODEL_ID_FIELD] is None, (
+        "Legacy row gets null stamp after schema migration"
+    )
+    assert rows_by_doc[new_doc.id][EMBEDDING_MODEL_ID_FIELD] is not None, (
+        "New row carries the model stamp"
+    )
     db.close()
 
 

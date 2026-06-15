@@ -55,7 +55,8 @@ def test_extra_field_add_columns_succeeds() -> None:
     data = [{"id": "e1", "vector": [0.1], "embedding_model_id": "intfloat/e5-small-v2"}]
     result = db._coerce_vectors_to_existing_schema("kg_entity_embeddings", table, data)
     assert result == data, "Data should be unchanged when column add succeeds"
-    table.add_columns.assert_called_once_with({"embedding_model_id": "cast(null as varchar)"})
+    # DataFusion (LanceDB's SQL engine) rejects 'varchar'; 'string' is the correct dialect.
+    table.add_columns.assert_called_once_with({"embedding_model_id": "cast(null as string)"})
 
 
 def test_extra_field_add_columns_fails_strips_field() -> None:
@@ -95,10 +96,10 @@ def test_empty_data_returns_empty() -> None:
     table.add_columns.assert_not_called()
 
 
-def test_null_field_value_uses_varchar_expression() -> None:
-    """A field with all-None values gets cast(null as varchar) SQL expression."""
+def test_null_field_value_uses_string_expression() -> None:
+    """A field with all-None values gets cast(null as string) — DataFusion rejects varchar."""
     db = _make_db()
     table = _make_table("id")
     data = [{"id": "e1", "mystery_col": None}]
     db._coerce_vectors_to_existing_schema("t", table, data)
-    table.add_columns.assert_called_once_with({"mystery_col": "cast(null as varchar)"})
+    table.add_columns.assert_called_once_with({"mystery_col": "cast(null as string)"})
