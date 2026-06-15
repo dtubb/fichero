@@ -19,19 +19,18 @@ Branch `0.0.2`, tracking `origin/0.0.2`. Keep `0.0.2 == origin` (gate before eve
 - #2250 `6ee1e3b1` per-page regression test; #2241 `805aeebb` blank-page crash; #2232 `78e32104` drift-guard full scan.
 - #2239/#2240/#2242 `fd6a5e9b` source-tool fan-out; #2249 `0c80697e` whole-PDF→page children.
 - #1587 `63b477d5` multi-window observer inject (Swift — swiftlint+Xcode BuildProject verified); #1935 `9d5b7e83` renderer guardrail script.
-- **HEAD = 9d5b7e83, 0.0.2 == origin. 24 issues closed tonight.**
-- **AI Backend Hardening: DONE except #2248 (deps, held).** Per-page principle now holds across ALL source paths.
-- Open: Workflows & Catalogue 8 (#2223 #2235 #2237 #2238 #2246 #2247 #2251 #2252), Observable Data Layer 2, AI Infrastructure 4.
-- **Swift commits from backend workers are NOT compile-checked by them — always swiftlint + Xcode BuildProject (tab windowtab1) before shipping; pytest doesn't cover Swift.**
+- #2239/#2240/#2242 `fd6a5e9b` + #2249 `0c80697e` source-tool fan-out + whole-PDF→page children (re-fixed after a bounce).
+- #2212 `9b7fcc68` compare-vision empty/None response = error.
+- **HEAD = 9b7fcc68, 0.0.2 == origin. 25 issues closed tonight.**
+- **AI Backend Hardening: DONE except #2248 (deps, held).** Per-page principle holds across ALL source paths.
+- Open: Workflows & Catalogue ~6 (#2223 #2235 #2237 #2238 #2246 #2247 #2251 #2252), Observable 2 (#2009 #1973), AI Infra ~2 (#2211 #2214).
+- **Swift commits from backend workers are NOT compile-checked — always swiftlint + Xcode BuildProject (tab windowtab1) before shipping; pytest doesn't cover Swift.**
 
-## ⚠️ HELD-BROKEN (bounced to f_importer_fixes — do NOT cherry-pick until re-gated green)
-- #2239/#2240/#2242 fix `9911f183` broke EXISTING test_workflow_tools.py::TestFolderTool::test_folder_with_subfolders
-  (sources.py:688 folder_tool returns 0 subfolders). Worker re-fixing + sweeping existing folder tests.
-- #2249 (whole-PDF→PARENT) NOT done — worker's commit was test-only (single-page); multi-page whole-PDF still needs the real fix. Left OPEN.
+## ⚠️ HELD-BROKEN (bounced — do NOT cherry-pick until re-gated green)
+- #2214 `74c0ec3f` (f_importer_fixes): propagated blank page text → broke test_skips_empty_page_text. Must propagate REAL page_content but skip empty/None.
+- #2213 `0d95f5ed` (f_ai_backend): broke test_vector_schema_stamp x2 + test_embedding_passages — `string` vs `varchar` dialect + double-save call_count. Reconcile dialect + single effective save.
 
-## Remaining Workflows & Catalogue Hardening (~8): #2223 #2235 #2237 #2238 #2246 #2247 #2249 #2251 #2252
-
-LESSON (kept): a behavior change must sweep ALL existing caller tests (sync→async mocks; folder_tool subfolders); workers over-report self-testing — ALWAYS full-gate before push (it caught a 5-failure async batch AND a 1-failure folder_tool batch the workers called green).
+LESSON (kept): a behavior change must sweep ALL existing caller tests (sync→async mocks; folder_tool subfolders; skip-empty guards; SQL-dialect assertions); workers over-report self-testing — ALWAYS full-gate before push. Tonight the gate caught 4 separate red batches the workers called green (5-fail async, 1-fail folder_tool, 4-fail #2214+#2213) — branch never went red.
 
 ## 🔴 HELD for Daniel's morning go (do NOT auto-merge)
 - #2248 deps upgrade — committed `946217e2` on ms/deps-update, worker-gated in ISOLATED `.venv-deps`.
