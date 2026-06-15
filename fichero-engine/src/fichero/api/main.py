@@ -914,8 +914,8 @@ async def get_library_database_for_write(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> Database:
     """FastAPI dependency to get the database for mutating library routes."""
-    # TODO(security-audit): non-registry mutating routes are now AUTHZ-gated,
-    # but most still do not write ActionAudit rows; track that separately.
+    # TODO(#1848): non-registry mutating routes are now AUTHZ-gated, but most
+    # still do not write ActionAudit rows; track under the audited-action-layer epic.
     return _get_library_database_for_access(
         request,
         x_fichero_library_path,
