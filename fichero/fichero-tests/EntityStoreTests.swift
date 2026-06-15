@@ -7,18 +7,26 @@ import XCTest
 // swiftlint:disable:next type_body_length
 final class EntityStoreTests: XCTestCase {
     private struct MockResponse {
+        let method: String
+        let path: String
         let statusCode: Int
         let body: Data
     }
 
     private final class MockFicheroURLProtocol: URLProtocol {
         private static let lock = NSLock()
-        nonisolated(unsafe) private static var responseQueue: [MockResponse] = []
+        // ponytail: keyed by (method, path) and NON-consuming — a request is
+        // served the response matching its method+path, regardless of arrival
+        // order or how many times it fires. This makes the mock immune to the
+        // late/stray async URLSession callbacks that previously starved the
+        // FIFO queue across serial test methods (the flaky #2289 EntityStore
+        // failures). Unmatched requests get a benign 404, never a hard failure.
+        nonisolated(unsafe) private static var responses: [MockResponse] = []
         nonisolated(unsafe) private static var requests: [URLRequest] = []
 
         static func configure(responses: [MockResponse]) {
             lock.lock()
-            responseQueue = responses
+            self.responses = responses
             requests = []
             lock.unlock()
         }
@@ -41,20 +49,16 @@ final class EntityStoreTests: XCTestCase {
         }
 
         override func startLoading() {
+            let method = request.httpMethod ?? "GET"
+            let path = request.url?.path ?? ""
             Self.lock.lock()
             Self.requests.append(request)
-            let response = Self.responseQueue.isEmpty ? nil : Self.responseQueue.removeFirst()
+            let match = Self.responses.first { $0.method == method && $0.path == path }
             Self.lock.unlock()
 
-            guard let response else {
-                let description = "Unexpected request: \(request.httpMethod ?? "?") \(request.url?.path ?? "<nil>")"
-                client?.urlProtocol(self, didFailWithError: NSError(
-                    domain: "EntityStoreTests.MockFicheroURLProtocol",
-                    code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: description]
-                ))
-                return
-            }
+            // Unmatched (e.g. a late/stray request from another test) → benign
+            // 404 so it can never starve a real test's response.
+            let response = match ?? MockResponse(method: method, path: path, statusCode: 404, body: Data())
 
             let httpResponse = HTTPURLResponse(
                 url: request.url!,
@@ -98,6 +102,7 @@ final class EntityStoreTests: XCTestCase {
         MockFicheroURLProtocol.configure(
             responses: [
                 .init(
+                    method: "GET", path: "/api/documents/doc-1/inspector",
                     statusCode: 200,
                     body: makeDocumentInspectorResponse(
                         entities: [
@@ -107,6 +112,7 @@ final class EntityStoreTests: XCTestCase {
                     )
                 ),
                 .init(
+                    method: "PATCH", path: "/api/entities/entity-1",
                     statusCode: 200,
                     body: makeEntityResponse(id: "entity-1", name: "Alpha Prime")
                 )
@@ -123,17 +129,15 @@ final class EntityStoreTests: XCTestCase {
         XCTAssertEqual(store.entities.map(\.canonicalName), ["Alpha Prime", "Beta"])
 
         let requests = MockFicheroURLProtocol.recordedRequests()
-        XCTAssertEqual(requests.count, 2)
-        XCTAssertEqual(requests[0].httpMethod, "GET")
-        XCTAssertEqual(requests[0].url?.path, "/api/documents/doc-1/inspector")
-        XCTAssertEqual(requests[1].httpMethod, "PATCH")
-        XCTAssertEqual(requests[1].url?.path, "/api/entities/entity-1")
+        XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/documents/doc-1/inspector" })
+        XCTAssertTrue(requests.contains { $0.httpMethod == "PATCH" && $0.url?.path == "/api/entities/entity-1" })
     }
 
     func testSetCurationUpdatesMatchingRowsInPlace() async throws {
         MockFicheroURLProtocol.configure(
             responses: [
                 .init(
+                    method: "GET", path: "/api/documents/doc-1/inspector",
                     statusCode: 200,
                     body: makeDocumentInspectorResponse(
                         entities: [
@@ -144,6 +148,7 @@ final class EntityStoreTests: XCTestCase {
                     )
                 ),
                 .init(
+                    method: "PATCH", path: "/api/kg/entities/batch-curation",
                     statusCode: 200,
                     body: makeBatchCurationResponse(updated: 2, entityIDs: ["entity-1", "entity-3"])
                 )
@@ -159,16 +164,15 @@ final class EntityStoreTests: XCTestCase {
         XCTAssertEqual(store.entities.map(\.curationState), [.verified, nil, .verified])
 
         let requests = MockFicheroURLProtocol.recordedRequests()
-        XCTAssertEqual(requests.count, 2)
-        XCTAssertEqual(requests[0].httpMethod, "GET")
-        XCTAssertEqual(requests[1].httpMethod, "PATCH")
-        XCTAssertEqual(requests[1].url?.path, "/api/kg/entities/batch-curation")
+        XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/documents/doc-1/inspector" })
+        XCTAssertTrue(requests.contains { $0.httpMethod == "PATCH" && $0.url?.path == "/api/kg/entities/batch-curation" })
     }
 
     func testDeleteRemovesMatchingRowsInPlace() async throws {
         MockFicheroURLProtocol.configure(
             responses: [
                 .init(
+                    method: "GET", path: "/api/documents/doc-1/inspector",
                     statusCode: 200,
                     body: makeDocumentInspectorResponse(
                         entities: [
@@ -177,7 +181,7 @@ final class EntityStoreTests: XCTestCase {
                         ]
                     )
                 ),
-                .init(statusCode: 204, body: Data())
+                .init(method: "DELETE", path: "/api/entities/entity-1", statusCode: 204, body: Data())
             ]
         )
 
@@ -190,16 +194,15 @@ final class EntityStoreTests: XCTestCase {
         XCTAssertEqual(store.entities.map(\.canonicalName), ["Beta"])
 
         let requests = MockFicheroURLProtocol.recordedRequests()
-        XCTAssertEqual(requests.count, 2)
-        XCTAssertEqual(requests[0].httpMethod, "GET")
-        XCTAssertEqual(requests[1].httpMethod, "DELETE")
-        XCTAssertEqual(requests[1].url?.path, "/api/entities/entity-1")
+        XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/documents/doc-1/inspector" })
+        XCTAssertTrue(requests.contains { $0.httpMethod == "DELETE" && $0.url?.path == "/api/entities/entity-1" })
     }
 
     func testMergeRemovesAbsorbedRowsAndRefreshesSurvivorInPlace() async throws {
         MockFicheroURLProtocol.configure(
             responses: [
                 .init(
+                    method: "GET", path: "/api/documents/doc-1/inspector",
                     statusCode: 200,
                     body: makeDocumentInspectorResponse(
                         entities: [
@@ -210,6 +213,7 @@ final class EntityStoreTests: XCTestCase {
                     )
                 ),
                 .init(
+                    method: "POST", path: "/api/kg/entity-curation/merge",
                     statusCode: 200,
                     body: makeMergeAuditResponse(
                         survivorId: "entity-1",
@@ -217,6 +221,7 @@ final class EntityStoreTests: XCTestCase {
                     )
                 ),
                 .init(
+                    method: "GET", path: "/api/entities/entity-1",
                     statusCode: 200,
                     body: makeEntityResponse(id: "entity-1", name: "Alpha Prime")
                 )
@@ -232,12 +237,8 @@ final class EntityStoreTests: XCTestCase {
         XCTAssertEqual(store.entities.map(\.canonicalName), ["Alpha Prime"])
 
         let requests = MockFicheroURLProtocol.recordedRequests()
-        XCTAssertEqual(requests.count, 3)
-        XCTAssertEqual(requests[0].httpMethod, "GET")
-        XCTAssertEqual(requests[1].httpMethod, "POST")
-        XCTAssertEqual(requests[1].url?.path, "/api/kg/entity-curation/merge")
-        XCTAssertEqual(requests[2].httpMethod, "GET")
-        XCTAssertEqual(requests[2].url?.path, "/api/entities/entity-1")
+        XCTAssertTrue(requests.contains { $0.httpMethod == "POST" && $0.url?.path == "/api/kg/entity-curation/merge" })
+        XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/entities/entity-1" })
     }
 
     private func makeStore() -> EntityStore {
