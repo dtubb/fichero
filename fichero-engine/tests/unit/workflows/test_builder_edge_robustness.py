@@ -355,3 +355,88 @@ async def test_quality_gate_abort_raises_and_blocks_downstream(monkeypatch):
         )
 
     assert downstream_calls == []
+
+
+@pytest.mark.asyncio
+async def test_route_map_targets_parallel_tool_fan_out(monkeypatch):
+    """#2250/#2236 regression gate: classify → route_map → transcribe-* must fan
+    out to one Send per file, not batch all files into a single call.
+
+    Before #2236, fan-out detection only examined direct source→target edges and
+    skipped route_map edges (target="").  Auto-Detect transcribe nodes therefore
+    ran as regular batch nodes — the whole PDF batch in one call, no per-page
+    attribution.  This test goes RED on pre-fix code, GREEN after the fix.
+    """
+    transcribe_calls: list[list[str]] = []
+
+    async def files_tool(inputs, state, llm_config):
+        return {
+            "files": ["/tmp/page-1.jpg", "/tmp/page-2.jpg"],
+            "documents": [
+                {"id": "page-1", "path": "/tmp/page-1.jpg"},
+                {"id": "page-2", "path": "/tmp/page-2.jpg"},
+            ],
+            "count": 2,
+        }
+
+    async def classify_tool(inputs, state, llm_config):
+        return {
+            "script_type": "typescript",
+            "files": inputs.get("files", []),
+            "documents": inputs.get("documents", []),
+        }
+
+    async def transcribe_tool(inputs, state, llm_config):
+        transcribe_calls.append(list(inputs.get("files", [])))
+        return {"text": "transcribed text", "results": []}
+
+    tools = {
+        "files": files_tool,
+        "classify_script": classify_tool,
+        "transcribe": transcribe_tool,
+    }
+    monkeypatch.setattr(
+        "fichero.workflows.builder.get_tool",
+        lambda tool_name: tools.get(tool_name),
+    )
+
+    workflow = WorkflowDef(
+        name="RouteMapFanOutTest",
+        nodes=[
+            NodeDef(id="files-source", tool="files", config={}),
+            NodeDef(id="classify", tool="classify_script", config={}),
+            NodeDef(id="transcribe-ts", tool="transcribe", config={}),
+            NodeDef(id="transcribe-ms", tool="transcribe", config={}),
+        ],
+        edges=[
+            EdgeDef(
+                source="files-source",
+                target="classify",
+                source_port="files",
+                target_port="files",
+            ),
+            EdgeDef(
+                source="classify",
+                target="",
+                route_key="$.nodes.classify.script_type",
+                route_map={"typescript": "transcribe-ts", "manuscript": "transcribe-ms"},
+            ),
+        ],
+    )
+
+    app = build_graph(workflow, enable_parallel=True)
+    await app.ainvoke({
+        "workflow_id": "test-route-fan-out",
+        "library_path": "",
+        "selected_doc_ids": ["page-1", "page-2"],
+    })
+
+    # Must be called once per file (2 calls), NOT once for the whole batch (1 call)
+    assert len(transcribe_calls) == 2, (
+        f"#2236: route_map → PARALLEL_TOOL must fan out one Send per file. "
+        f"Got {len(transcribe_calls)} transcribe calls: {transcribe_calls}"
+    )
+    for call_files in transcribe_calls:
+        assert len(call_files) == 1, (
+            f"#2236: each Send must carry exactly 1 file, got: {call_files}"
+        )

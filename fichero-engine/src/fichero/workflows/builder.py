@@ -422,6 +422,32 @@ def build_graph(
                         f"Parallel edge detected: {edge.source} -> {edge.target}"
                     )
 
+    # Identify route_map edges whose targets are PARALLEL_TOOLS (#2236).
+    # Example: classify → route_map → {typescript: transcribe-ts, ...}
+    # These need the same per-file Send fan-out as direct SOURCE→PARALLEL edges.
+    # Maps routed_target_id → files_source_id (the SOURCE_TOOL one hop upstream).
+    route_map_parallel: dict[str, str] = {}
+    if enable_parallel:
+        for edge in workflow.edges:
+            if not edge.route_map:
+                continue
+            for target_id in edge.route_map.values():
+                target_node = workflow.get_node(target_id)
+                if not (target_node and target_node.tool in PARALLEL_TOOLS):
+                    continue
+                # Walk one hop upstream to find the SOURCE_TOOL providing files
+                for upstream in workflow.edges:
+                    if upstream.target != edge.source:
+                        continue
+                    up_node = workflow.get_node(upstream.source)
+                    if up_node and up_node.tool in SOURCE_TOOLS:
+                        route_map_parallel[target_id] = upstream.source
+                        logger.info(
+                            "Route-map fan-out detected: %s → %s (files from %s)",
+                            edge.source, target_id, upstream.source,
+                        )
+                        break
+
     # Add nodes using human-readable names
     for node_def in workflow.nodes:
         tool_fn = get_tool(node_def.tool)
@@ -431,9 +457,10 @@ def build_graph(
         incoming_edges = edges_by_target.get(node_def.id, [])
         node_name = node_names[node_def.id]  # Human-readable name
 
-        # Check if this node receives parallel fan-out
-        is_parallel_target = any(
-            (e["source"], node_def.id) in parallel_edges for e in incoming_edges
+        # Check if this node receives parallel fan-out (direct edge OR route_map)
+        is_parallel_target = (
+            any((e["source"], node_def.id) in parallel_edges for e in incoming_edges)
+            or node_def.id in route_map_parallel
         )
 
         if is_parallel_target:
@@ -479,9 +506,12 @@ def build_graph(
 
     def _source_graph_name(source_id: str) -> str:
         source_name = node_names[source_id]
-        source_is_parallel = any(
-            (e.source, e.target) in parallel_edges and e.target == source_id
-            for e in workflow.edges
+        source_is_parallel = (
+            any(
+                (e.source, e.target) in parallel_edges and e.target == source_id
+                for e in workflow.edges
+            )
+            or source_id in route_map_parallel
         )
         if source_is_parallel:
             return f"{source_name}_aggregate"
@@ -507,10 +537,25 @@ def build_graph(
         source_name = node_names[edge.source]
 
         if edge.route_map:
-            # Multi-way routing: one conditional edge maps string values to node names
-            route_fn = _make_route_function(edge.route_key, edge.route_map, node_names)
-            path_map = {node_names[tid]: node_names[tid] for tid in edge.route_map.values()}
-            graph.add_conditional_edges(source_name, route_fn, path_map)
+            # Route_map targets that are PARALLEL_TOOLS need combined route+fan-out.
+            has_parallel_targets = any(
+                tid in route_map_parallel for tid in edge.route_map.values()
+            )
+            if has_parallel_targets and enable_parallel:
+                fan_out_fn = _make_route_map_fan_out_function(
+                    edge.route_key, edge.route_map, node_names, route_map_parallel,
+                )
+                path_map = {}
+                for tid in edge.route_map.values():
+                    if tid in route_map_parallel:
+                        path_map[f"{node_names[tid]}_process"] = f"{node_names[tid]}_process"
+                    else:
+                        path_map[node_names[tid]] = node_names[tid]
+                graph.add_conditional_edges(source_name, fan_out_fn, path_map)
+            else:
+                route_fn = _make_route_function(edge.route_key, edge.route_map, node_names)
+                path_map = {node_names[tid]: node_names[tid] for tid in edge.route_map.values()}
+                graph.add_conditional_edges(source_name, route_fn, path_map)
             continue
 
         target_name = node_names[edge.target]
@@ -546,10 +591,13 @@ def build_graph(
     exit_nodes = workflow.get_exit_nodes()
     for exit_id in exit_nodes:
         exit_name = node_names[exit_id]
-        # Check if this exit node was parallelized
-        is_parallel = any(
-            (e.source, e.target) in parallel_edges and e.target == exit_id
-            for e in workflow.edges
+        # Check if this exit node was parallelized (direct edge OR route_map fan-out)
+        is_parallel = (
+            any(
+                (e.source, e.target) in parallel_edges and e.target == exit_id
+                for e in workflow.edges
+            )
+            or exit_id in route_map_parallel
         )
         if is_parallel:
             graph.add_edge(f"{exit_name}_aggregate", END)
@@ -894,6 +942,94 @@ def _make_fan_out_function(
         return sends
 
     return fan_out
+
+
+def _make_route_map_fan_out_function(
+    route_key: str,
+    route_map: dict[str, str],
+    node_names: dict[str, str],
+    route_map_parallel: dict[str, str],
+):
+    """Create a combined route + fan-out conditional edge function (#2236).
+
+    When the route_key resolves to a PARALLEL_TOOL target, returns Send() objects
+    (one per file from the upstream SOURCE_TOOL) instead of a string node name.
+    For non-parallel targets, returns the target node name (standard routing).
+
+    NOTE: no return type annotation — add_conditional_edges calls get_type_hints()
+    in the module namespace where local Send import is not defined.
+    """
+    from langgraph.types import Send  # noqa: PLC0415
+
+    first_target_id = next(iter(route_map.values()), "")
+    first_is_parallel = first_target_id in route_map_parallel
+    first_fallback = (
+        f"{node_names[first_target_id]}_process"
+        if first_is_parallel and first_target_id in node_names
+        else node_names.get(first_target_id, "")
+    )
+
+    def route_and_fan_out(state: State):
+        from fichero.workflows.resolver import resolve_value  # noqa: PLC0415
+
+        val = resolve_value(route_key, state, None)
+        val_str = str(val) if val is not None else ""
+        target_id = route_map.get(val_str)
+
+        if not target_id or target_id not in node_names:
+            logger.warning(
+                "route_map_fan_out: key %r resolved to unknown value %r; "
+                "falling back to %s", route_key, val_str, first_fallback,
+            )
+            return first_fallback
+
+        target_name = node_names[target_id]
+
+        if target_id not in route_map_parallel:
+            return target_name
+
+        # Fan out: one Send per file from the upstream SOURCE_TOOL
+        files_source_id = route_map_parallel[target_id]
+        source_output = state.get("outputs", {}).get(files_source_id, {})
+        files = source_output.get("files", [])
+        documents = source_output.get("documents", [])
+
+        if not files:
+            logger.warning(
+                "route_map_fan_out: no files from %s to fan out to %s",
+                files_source_id, target_id,
+            )
+            return f"{target_name}_process"
+
+        total = len(files)
+        sends = []
+        for i, file_path in enumerate(files):
+            doc = None
+            if i < len(documents):
+                doc = documents[i]
+            elif documents:
+                for d in documents:
+                    if isinstance(d, dict) and d.get("path") == file_path:
+                        doc = d
+                        break
+            sends.append(
+                Send(
+                    f"{target_name}_process",
+                    {
+                        "parallel_file": file_path,
+                        "parallel_document": doc,
+                        "parallel_index": i,
+                        "parallel_total": total,
+                        "task_id": state.get("task_id", ""),
+                        "workflow_id": state.get("workflow_id", ""),
+                        "library_path": state.get("library_path", ""),
+                        "outputs": state.get("outputs", {}),
+                    },
+                )
+            )
+        return sends
+
+    return route_and_fan_out
 
 
 def _make_parallel_node_function(
