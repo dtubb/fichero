@@ -1,6 +1,6 @@
 {
   "name": "Spanish Script v2 Child Passes (19th-20th C.)",
-  "description": "Reusable child workflow for Spanish Script (19th-20th c.) transcription. It performs draft, reference-search, review, and final reconciliation passes using capability-scoped vision aliases so cost/quality tiers are explicit.",
+  "description": "Use this when: composing sub_workflow nodes that need Spanish Script (19th-20th c.) transcription passes. Internal component — draft → reference-search → review → final reconcile. Uses capability-scoped vision tier aliases ($vision_small/$vision_medium/$vision_large) for explicit cost/quality control. Not user-facing directly; invoked by 'Transcribe Spanish Script (19th-20th C.)' (#2251).",
   "format": "nodes",
   "is_template": true,
   "is_system": true,

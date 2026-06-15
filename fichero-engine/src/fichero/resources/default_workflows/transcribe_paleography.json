@@ -1,6 +1,6 @@
 {
   "name": "Transcribe Paleography",
-  "description": "Two-pass paleography workflow for archaic scripts (pre-18th C. or specialist). Pass 1 drafts the transcription with period conventions; Pass 2 reviews against the image using comparison-method error correction. Uses extended thinking on both passes.",
+  "description": "Use this when: you have archaic, specialist, or any pre-18th C. script (cortesana, procesal, albalaes, visigótica, carolingia, etc.) in any language — the preset auto-detects language from the image. Two-pass: Pass 1 drafts with period conventions; Pass 2 reviews using the comparison method and extended thinking. Replaces the former 'Spanish Paleography (18th–19th C.)' preset (#2251).",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -14,7 +14,7 @@
     "two-pass"
   ],
   "config": {
-    "preset_version": 3
+    "preset_version": 4
   },
   "nodes": [
     {
@@ -35,7 +35,7 @@
       "inputs": {},
       "config": {
         "vision_mode": "llm",
-        "language": "en",
+        "language": "auto",
         "update_page_content": false,
         "thinking_mode": "medium",
         "prompt": "You are a paleographer producing a DRAFT transcription of a historical manuscript image. This is Pass 1 of 2 — focus on coverage over perfection; a reviewer will correct you in Pass 2.\n\n**Before transcribing, note in a single bracketed line:**\n[Script: <family e.g. cortesana / procesal / itálica / carolingia / visigótica / redonda / albalaes>; hand size: <small/medium/large>; slant: <left/upright/right>; language: <Latin/Spanish/other>]\n\nThen output ONLY the transcription. No headings, preamble, or commentary after that first line.\n\n**Transcription rules (Haggard 1941, Ch. V):**\n- Preserve original spelling, capitalisation, and punctuation exactly as written. Never modernise.\n- Preserve original layout and line breaks.\n- Archaic letterforms: render as modern equivalents (long-s → s, thorn → th, yogh → y/g).\n- Abbreviations: expand only when unambiguous. Expanded letters in [brackets]. Uncertain: keep abbreviated form as written.\n- Superscript letters above an abbreviation: include them superscript inline (e.g. Sr., V.S., dho).\n- Two-tier uncertainty: use [UNCERTAIN] when you have a plausible reading; use [ILLEGIBLE] only when truly unreadable.\n- Crossed-out text: [deleted: <text>].\n- Inserted text above the line: include at the insertion point.\n- Marginalia: include at the margin position, prefixed with [M.N.].\n- Rubrics/flourishes: mark as [Rúbrica] or [Párrafo] at the relevant position.\n- Seals and stamps: [Sello] or [Estampilla] in brackets.\n- If the page contains no legible text: output [sin texto].\n\n**Period-specific guidance:**\n- Procesal/cortesana (16th-17th C.): expect heavy abbreviation at line-ends, baseline-stretched letters, entangled knotty connections. Common confusions: rn/m, c/e, u/n, long-s/f, t/l.\n- Albalaes/privilegios (12th-15th C.): abbreviation by suspension and contraction; ligatured letters.\n- Earlier scripts (carolingia, visigótica): each letter isolated; heavy abbreviation by superscript.\n\nNote: if you recognise the language, apply its paleographic conventions."

@@ -37,6 +37,11 @@ _DEPRECATED_PRESET_NAMES: set[str] = {
     "Catalogue Stage 2 - Extract Entities + KG",
     "Catalogue Stage 3 - Catalogue Artifacts",
     "Transcribe (Apple Vision)",
+    # Merged into "Transcribe Spanish Script (19th-20th C.)" (#2251)
+    "Transcribe Spanish Script (19th-20th C., Multi-Pass)",
+    "Transcribe Spanish Script v2 (19th-20th C., Sub-Workflow)",
+    # Merged into "Transcribe Paleography" (language=auto) (#2251)
+    "Spanish Paleography (18th–19th C.)",
 }
 
 

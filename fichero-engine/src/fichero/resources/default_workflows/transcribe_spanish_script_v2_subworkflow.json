@@ -1,6 +1,6 @@
 {
-  "name": "Transcribe Spanish Script v2 (19th-20th C., Sub-Workflow)",
-  "description": "Parent Spanish Script preset that composes the reusable v2 child workflow through a typed sub_workflow node. The child owns draft, review, and final vision-tier passes; this parent exposes a simple files-in, text-out workflow for the Run menu.",
+  "name": "Transcribe Spanish Script (19th-20th C.)",
+  "description": "Use this when: you have 19th-20th century Spanish notarial, administrative, or secretarial cursive script. Three-pass (draft → review → final reconcile) with capability-scoped vision tiers for cost/quality control. Replaces 'Transcribe Spanish Script v2 (19th-20th C., Sub-Workflow)' and 'Transcribe Spanish Script (19th-20th C., Multi-Pass)' (#2251).",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -12,11 +12,10 @@
     "script",
     "notarial",
     "multi-pass",
-    "sub-workflow",
-    "v2"
+    "sub-workflow"
   ],
   "config": {
-    "preset_version": 1
+    "preset_version": 2
   },
   "nodes": [
     {
