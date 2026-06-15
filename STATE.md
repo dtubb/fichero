@@ -30,8 +30,11 @@ Branch `0.0.2`, tracking `origin/0.0.2`. Keep `0.0.2 == origin` (gate before eve
 - **29 issues shipped. AI Infrastructure DONE** (#2211/#2212/#2213/#2214 all shipped; only #2248 deps held).
 - #2214 `c8abf5fd`+`0c427fc6` (re-fixed after a skipped bounce); #2237 `0a69b71a`; #2213 `cbaee3f9`; #2211 `c2b6688e`; #2212 `9b7fcc68`.
 
-## ⚠️ HELD-BROKEN (bounced — do NOT cherry-pick until verified)
-- #1973 Swift fix `c7a679a6` (f_ai_backend): moves change-stream apply() off @MainActor across all 13 stores, but BUILD FAILS — LibraryChangeStream.swift:245 Swift-6 'sending'/data-race. swiftlint passed; backend worker can't compile Swift. Worker reworking with off-main compute + MainActor.run for the @Published publish. Its emit() test (Python) was harmless but dropped with it. ALWAYS Xcode BuildProject before shipping ANY Swift.
+## 🔴 HELD for Daniel — #1973 (Swift, needs a compiler-in-loop pass)
+Two autonomous backend-worker Swift-6 attempts failed to COMPILE (worker has no Xcode):
+- c7a679a6 (Task.detached): LibraryChangeStream.swift:245 sending/data-race.
+- ac0fa7ee (nonisolated apply): DocumentStore+ChangeStream.swift:35-38 — apply() nonisolated but calls main-actor removeDocuments/pendingPatchIds/schedule synchronously.
+Correct fix = compute diff OFF main, do ALL @Published/store mutations ON @MainActor — a threading-contract change across all 13 stores. WIP on ms/ai-backend-harden (c7a679a6, ac0fa7ee). Commented on #1973 with both build errors. ai-backend redirected off it. ALWAYS Xcode BuildProject before shipping ANY Swift — caught both blind failures.
 
 LESSON (kept): a behavior change must sweep ALL existing caller tests (sync→async mocks; folder_tool subfolders; skip-empty guards; SQL-dialect assertions); workers over-report self-testing — ALWAYS full-gate before push. Tonight the gate caught 4 separate red batches the workers called green (5-fail async, 1-fail folder_tool, 4-fail #2214+#2213) — branch never went red.
 
