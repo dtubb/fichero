@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 /// 2D projection of a Mind Palace room — the `.twoD` render mode and the
@@ -25,6 +26,9 @@ struct Spatial2DCanvas: View {
     /// Observable layout store. When non-nil (together with `folderScopeId`)
     /// the canvas becomes interactive and persists positions through it.
     var layoutStore: CanvasLayoutStore?
+    /// Observable item store. When non-nil the canvas also renders the folder's
+    /// standalone heterogeneous canvas items (notes / quotes / text / links).
+    var itemStore: CanvasItemStore?
     /// The scope these positions belong to — a real folder id, or the synthetic
     /// `wholeLibraryRoomId` ("__library__") for the unscoped whole-library view.
     var folderScopeId: String?
@@ -50,7 +54,9 @@ struct Spatial2DCanvas: View {
     @State private var marqueeSelection: Set<String> = []
 
     private let nodeDiameter: CGFloat = 14
-    private let padding: CGFloat = 48
+    /// Non-private so the position-projection extension (in
+    /// `Spatial2DCanvasItems.swift`) can read it.
+    let padding: CGFloat = 48
     private let minZoom: CGFloat = 0.25
     private let maxZoom: CGFloat = 4.0
 
@@ -87,10 +93,16 @@ struct Spatial2DCanvas: View {
             .contentShape(Rectangle())
             .gesture(backgroundGesture(layout: layout, in: geo.size))
             .simultaneousGesture(magnifyGesture)
-            .overlay(alignment: .topTrailing) { modeToggle }
+            .overlay(alignment: .topTrailing) {
+                HStack(spacing: 4) {
+                    addItemMenu
+                    modeToggle
+                }
+            }
             .task(id: folderScopeId) {
-                guard let store = layoutStore, let folderId = folderScopeId else { return }
-                await store.loadLayout(folderId: folderId)
+                guard let folderId = folderScopeId else { return }
+                await layoutStore?.loadLayout(folderId: folderId)
+                await itemStore?.loadItems(folderId: folderId)
             }
         }
     }
@@ -98,24 +110,12 @@ struct Spatial2DCanvas: View {
     /// Edges + node chips. Extracted so the camera transform applies as a unit.
     @ViewBuilder
     private func canvasContent(layout: [String: CGPoint], in size: CGSize) -> some View {
+        let itemPoints = itemPositions(in: size)
+        // Combined endpoint lookup: link items can join nodes and/or items.
+        let combined = layout.merging(itemPoints) { _, item in item }
         ZStack {
-            // Edges drawn beneath nodes.
-            Canvas { context, _ in
-                for connection in connections {
-                    guard
-                        let fromPoint = layout[connection.sourceNodeId],
-                        let toPoint = layout[connection.targetNodeId]
-                    else { continue }
-                    var path = Path()
-                    path.move(to: fromPoint)
-                    path.addLine(to: toPoint)
-                    context.stroke(
-                        path,
-                        with: .color(connection.connectionType.color.opacity(0.5)),
-                        lineWidth: 1.5
-                    )
-                }
-            }
+            // Edges + link connectors drawn beneath chips.
+            edgeLayer(layout: layout, combined: combined)
 
             // Node chips at resolved positions (saved layout overrides the
             // projector default per item where a row exists).
@@ -126,6 +126,18 @@ struct Spatial2DCanvas: View {
                                   y: base.y + dragTranslation.height)
                         : base
                     chip(for: node, at: point, base: base, in: size)
+                }
+            }
+
+            // Standalone heterogeneous canvas items (notes / quotes / text)
+            // rendered through the single `CanvasItemView`. Links draw above.
+            ForEach(itemStore?.items ?? []) { item in
+                if item.kind != .link, let base = itemPoints[item.id] {
+                    let point = (dragItemId == item.id)
+                        ? CGPoint(x: base.x + dragTranslation.width,
+                                  y: base.y + dragTranslation.height)
+                        : base
+                    itemChip(for: item, at: point, base: base)
                 }
             }
         }
@@ -186,78 +198,64 @@ struct Spatial2DCanvas: View {
         .help("\(node.nodeType.label): \(node.displayLabel)")
     }
 
-    /// Map backend (x, y) coordinates into view space with a uniform
-    /// fit-to-view transform. Y is flipped so positive-y reads as "up".
-    private func projectedPositions(in size: CGSize) -> [String: CGPoint] {
-        guard !nodes.isEmpty else { return [:] }
-
-        let xValues = nodes.map(\.positionX)
-        let yValues = nodes.map(\.positionY)
-        let minX = xValues.min() ?? 0
-        let maxX = xValues.max() ?? 0
-        let minY = yValues.min() ?? 0
-        let maxY = yValues.max() ?? 0
-
-        let spanX = maxX - minX
-        let spanY = maxY - minY
-
-        let availableW = Double(size.width) - Double(padding) * 2
-        let availableH = Double(size.height) - Double(padding) * 2
-
-        let scaleX = spanX > 0 ? availableW / spanX : 1
-        let scaleY = spanY > 0 ? availableH / spanY : 1
-        let scale = min(scaleX, scaleY)
-
-        let contentW = spanX * scale
-        let contentH = spanY * scale
-        let offsetX = (Double(size.width) - contentW) / 2
-        let offsetY = (Double(size.height) - contentH) / 2
-
-        var result: [String: CGPoint] = [:]
-        for node in nodes {
-            let pointX = offsetX + (node.positionX - minX) * scale
-            // Flip Y: larger backend y → higher on screen (smaller view y).
-            let pointY = offsetY + (maxY - node.positionY) * scale
-            result[node.id] = CGPoint(x: pointX, y: pointY)
+    /// One standalone canvas-item card, draggable when the canvas is
+    /// interactive. Mirrors `chip(for:)` — same drag state and persistence
+    /// plumbing — but persists through `persistItemPosition` (single row) since
+    /// items have no projector default to pin.
+    @ViewBuilder
+    private func itemChip(for item: CanvasItemDisplay, at point: CGPoint, base: CGPoint) -> some View {
+        let card = CanvasItemView(item: item, isSelected: item.id == selectedNodeId)
+            .position(point)
+            .zIndex(dragItemId == item.id ? 2 : 1)
+            .onTapGesture { selectedNodeId = item.id }
+        if isInteractive {
+            card.gesture(itemDragGesture(for: item, base: base))
+        } else {
+            card
         }
-        return result
     }
 
-    /// The positions actually rendered: the projector default per node, with a
-    /// saved `CanvasItemLayout` (screen-space x/y) overriding it **only** where
-    /// a row exists. Items with no saved row keep the projector default.
-    private func resolvedPositions(in size: CGSize) -> [String: CGPoint] {
-        let projected = projectedPositions(in: size)
-        guard let store = layoutStore else { return projected }
-        var result = projected
-        for item in store.layout where result[item.itemId] != nil {
-            result[item.itemId] = CGPoint(x: item.x, y: item.y)
-        }
-        return result
+    private func itemDragGesture(for item: CanvasItemDisplay, base: CGPoint) -> some Gesture {
+        DragGesture(minimumDistance: 3)
+            .onChanged { value in
+                dragItemId = item.id
+                dragTranslation = value.translation
+            }
+            .onEnded { value in
+                let dropped = CGPoint(
+                    x: base.x + value.translation.width,
+                    y: base.y + value.translation.height
+                )
+                dragItemId = nil
+                dragTranslation = .zero
+                persistItemPosition(itemId: item.id, droppedAt: dropped)
+            }
     }
 
-    /// Persist the current screen positions of every displayed node through the
-    /// store (the moved node at its drop point). Pinning all visible nodes on
-    /// the first drag keeps the layout stable on reload regardless of which
-    /// rows existed before. No-op unless the canvas is interactive.
-    private func persistLayout(movedId: String, droppedAt: CGPoint, in size: CGSize) {
-        guard let store = layoutStore, let folderId = folderScopeId else { return }
-        let projected = projectedPositions(in: size)
-        var rows: [String: CanvasItemLayout] = Dictionary(
-            store.layout.map { ($0.itemId, $0) },
-            uniquingKeysWith: { _, latest in latest }
-        )
-        // Seed any visible node missing from the store at its projector
-        // default (pinning the whole layout so it's stable on reload), then
-        // patch the moved node to its drop point.
-        for node in nodes where rows[node.id] == nil {
-            let point = projected[node.id] ?? .zero
-            rows[node.id] = CanvasItemLayout(itemId: node.id, x: point.x, y: point.y)
+    /// Native "+" menu to add a standalone item to the canvas. Shown only when
+    /// the canvas is interactive (a real item store + folder scope). The new
+    /// item appears at its arranged fallback position until dragged.
+    @ViewBuilder
+    private var addItemMenu: some View {
+        if let store = itemStore, let folderId = folderScopeId {
+            Menu {
+                Button("Add Note") {
+                    Task { await store.createItem(folderId: folderId, kind: .note, text: "New note") }
+                }
+                Button("Add Quote") {
+                    Task { await store.createItem(folderId: folderId, kind: .quote, text: "New quote") }
+                }
+                Button("Add Text") {
+                    Task { await store.createItem(folderId: folderId, kind: .text, text: "New text") }
+                }
+            } label: {
+                Image(systemName: "plus")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .padding(8)
+            .help("Add a note, quote, or text card to the canvas")
         }
-        rows[movedId]?.x = droppedAt.x
-        rows[movedId]?.y = droppedAt.y
-        let items = Array(rows.values)
-        Task { await store.saveLayout(folderId: folderId, items: items) }
     }
 }
 

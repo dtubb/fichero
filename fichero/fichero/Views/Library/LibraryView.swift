@@ -137,6 +137,10 @@ struct LibraryView: View {
     /// arranged layout survives switching away from `.spatial` and back.
     @State private var canvasLayoutStore: CanvasLayoutStore?
 
+    /// Observable store backing standalone 2D-canvas item CONTENT (#2294).
+    /// Lazily created alongside `canvasLayoutStore`; the 2D canvas observes both.
+    @State private var canvasItemStore: CanvasItemStore?
+
     @State var isLoadingEntities = false
     @State var entityLoadErrorMessage: String?
 
@@ -229,6 +233,7 @@ struct LibraryView: View {
                             connections: [],
                             selectedNodeId: $spatialSelectedNodeId,
                             layoutStore: canvasLayoutStore,
+                            itemStore: canvasItemStore,
                             folderScopeId: folderId ?? wholeLibraryRoomId
                         )
                     case .map, .workspace:
@@ -272,9 +277,10 @@ struct LibraryView: View {
                 } : nil
             )
             .onAppear {
-                if canvasLayoutStore == nil {
+                if canvasLayoutStore == nil || canvasItemStore == nil {
                     let client = libraryManager.globalLibrary?.ficheroClient ?? FicheroClient.localhost
-                    canvasLayoutStore = CanvasLayoutStore(client: client)
+                    canvasLayoutStore = canvasLayoutStore ?? CanvasLayoutStore(client: client)
+                    canvasItemStore = canvasItemStore ?? CanvasItemStore(client: client)
                 }
                 loadSortSettings(for: folderId)
                 syncSortOrder()
