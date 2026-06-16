@@ -108,7 +108,6 @@ final class CanvasLayoutStore {
     private(set) var isLoading = false
     private(set) var isSaving = false
     private(set) var loadError: String?
-    private(set) var loadedFolderId: String?
 
     // ─── Transport: the EXISTING generated client, unchanged ───
     private let client: FicheroClient
@@ -117,8 +116,6 @@ final class CanvasLayoutStore {
     init(client: FicheroClient) {
         self.client = client
     }
-
-    private var libraryHeader: String { client.currentLibraryPath ?? "" }
 
     /// JSON decoder mapping backend snake_case keys onto the camelCase
     /// `CanvasItemLayout` properties.
@@ -140,14 +137,12 @@ final class CanvasLayoutStore {
         do {
             let response = try await client.api
                 .getCanvasLayoutApiMindPalaceFoldersFolderIdCanvasLayoutGet(
-                    path: .init(folderId: folderId),
-                    headers: .init(xFicheroLibraryPath: libraryHeader)
+                    path: .init(folderId: folderId)
                 )
             switch response {
             case .ok(let okResponse):
                 let items = try okResponse.body.json.items
                 layout = items.compactMap(Self.decode)
-                loadedFolderId = folderId
                 log.info("Loaded \(self.layout.count, privacy: .public) canvas items")
             case .unprocessableContent(let error):
                 let detail = try? error.body.json
@@ -176,13 +171,11 @@ final class CanvasLayoutStore {
             let response = try await client.api
                 .saveCanvasLayoutApiMindPalaceFoldersFolderIdCanvasLayoutPut(
                     path: .init(folderId: folderId),
-                    headers: .init(xFicheroLibraryPath: libraryHeader),
                     body: .json(body)
                 )
             switch response {
             case .ok(let okResponse):
                 layout = try okResponse.body.json.map(CanvasItemLayout.init(schema:))
-                loadedFolderId = folderId
                 log.info("Saved \(self.layout.count, privacy: .public) canvas items")
                 return true
             case .unprocessableContent(let error):
