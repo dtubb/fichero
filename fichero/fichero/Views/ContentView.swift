@@ -307,7 +307,17 @@ struct ContentView: View {
             sidebarContent
         } detail: {
             centerContent
-                .frame(minWidth: CGFloat(paneAwareDetailMinWidth), maxWidth: .infinity)
+                // The detail column carries only a MODEST hard floor — the
+                // always-present library-list spine width — NOT the full
+                // per-layout `paneAwareDetailMinWidth`. The full content
+                // reservation lives on the window-min frame in `mainContentView`
+                // (sidebar + detail). Pinning the FULL detail min here made
+                // NavigationSplitView sacrifice the SIDEBAR (whose column min
+                // yields first under pressure) whenever the window narrowed below
+                // sidebar+detail — the sidebar collapsed/disappeared. With a small
+                // floor the sidebar always keeps its `.navigationSplitViewColumnWidth`
+                // min and the CONTENT shrinks/scrolls instead (frame ① bug-fix).
+                .frame(minWidth: CGFloat(ContentView.contentListMinWidth), maxWidth: .infinity)
                 // Publish the per-window inspector binding from the detail
                 // column (always present) rather than the sidebar, which leaves
                 // the hierarchy when collapsed and made ⌘⌥I no-op (#1513/#1451).
@@ -645,13 +655,25 @@ extension ContentView {
             }
         }
 
-        // Search entry point lives in the system .searchable modifier
-        // applied to mainContentView (below). On macOS that renders as
-        // a Finder-style magnifying-glass that expands to a search
-        // field — placed by the system to the right of the trailing
-        // toolbar items. We keep it system-rendered (one consistent
-        // bar) instead of having a custom .principal field competing
-        // with SearchView's own .searchable.
+        // Search entry point is the system `.searchable(placement: .toolbar)`
+        // owned PER-MODE by the content view inside the NavigationSplitView
+        // detail (LibraryView/SearchView, each with its own `$toolbarQuery`
+        // and `onToolbarSearchSubmit` wiring — one per mode, to avoid the
+        // NSToolbar duplicate-identifier crash). It is therefore already
+        // attached CONTENT-SIDE in the view tree, before the window-level
+        // `.inspector()` is applied in `mainContentView`.
+        //
+        // KNOWN LIMITATION (frame ① / zoned-toolbar follow-up): macOS has one
+        // unified NSToolbar per window, and AppKit renders the system search
+        // field at that toolbar's far TRAILING edge — which, with the native
+        // `.inspector()` column also sharing that toolbar, paints the field
+        // ABOVE the inspector rather than content-side. Moving the `.searchable`
+        // higher up the tree does NOT change this (same single toolbar) and
+        // would break the per-mode state wiring + risk the duplicate-identifier
+        // crash, so it is intentionally left where it is. Pinning search to the
+        // content zone requires a custom content-zone toolbar item (a `.principal`
+        // / zoned `ToolbarItem` holding a search field) — folded into the
+        // zoned-toolbar work, not hacked here.
 
         // Library pane toggle — hides/shows the icon-grid/list middle column.
         // In widescreen this does not change the canvas/reading pane set.
