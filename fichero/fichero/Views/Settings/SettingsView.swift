@@ -34,6 +34,11 @@ struct SettingsView: View {
                         Label("Models", systemImage: "arrow.down.circle")
                     }
             }
+
+            AuditHistorySettingsTab()
+                .tabItem {
+                    Label("History", systemImage: "clock.arrow.circlepath")
+                }
         }
         .frame(width: 680, height: 520)
     }

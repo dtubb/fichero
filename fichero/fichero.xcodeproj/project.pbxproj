@@ -191,6 +191,7 @@
 		4D873A751876E0F56C149319 /* SidebarView+UnifiedLibrarySections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 052B352354B208CBDD7F8A1F /* SidebarView+UnifiedLibrarySections.swift */; };
 		4DD61218DD8818B2488E3AC1 /* DocumentKGSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C119BA4657FD54B0F01D6C /* DocumentKGSurface.swift */; };
 		4EBA402FBE51F9F56366C3A5 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3CD4902A47A5787D61C6D72 /* FlowLayout.swift */; };
+		5435A98021D72C073130730B /* AuditHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67E28651A4F5835C8AD6A06B /* AuditHistoryView.swift */; };
 		544F0C27E64420694C462156 /* ResearchBrowserPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A2290E008AD4F8ACF613B8C /* ResearchBrowserPane.swift */; };
 		54A07EFB77CACCF2E0ADDD84 /* ImageEditingServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AA2442EE35411B543D0868B /* ImageEditingServiceGenerated.swift */; };
 		560311302E8DCC126BD757E2 /* LibraryToolbarState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99857D7C99E753A3405778FC /* LibraryToolbarState.swift */; };
@@ -221,6 +222,7 @@
 		7233BDB6DCB842F75D52EA15 /* ReferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBCBCC9A6B923D6A560F7277 /* ReferenceStore.swift */; };
 		72ED6850A4BC42C9A695741F /* ArtifactsInspectorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36F6CF6F489DE8CEE80661D3 /* ArtifactsInspectorPane.swift */; };
 		736FAF5895C96ECCAFDAC35D /* SpatialScene3D.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E980A75F8C3912DD4B196DA /* SpatialScene3D.swift */; };
+		75FF7AE84AC04F85A9A728AA /* AuditStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD8F8D42618D304271F81962 /* AuditStore.swift */; };
 		76C7BC71C747DBF9E6BD678D /* SpatialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EBBA30F68AE440FAF4DC1E4 /* SpatialView.swift */; };
 		76EEEC44E89E3A5F714F989C /* SidebarItemRow+Presentation+Body.swift in Sources */ = {isa = PBXBuildFile; fileRef = 872F7ADB0C1953F67D681C24 /* SidebarItemRow+Presentation+Body.swift */; };
 		7800350961E1C38A10D02D54 /* ImageEditChainPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95706A3222B50B478F15D83D /* ImageEditChainPanel.swift */; };
@@ -747,6 +749,7 @@
 		6538828411C92CBA8CD33DC9 /* AnnotationListView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationListView.swift; sourceTree = "<group>"; };
 		6650E28284D750D9076B0612 /* ContentView+ReadingLayout.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+ReadingLayout.swift"; sourceTree = "<group>"; };
 		675E69DE1A8C941ABBEBB0E0 /* NewEntitySheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NewEntitySheet.swift; sourceTree = "<group>"; };
+		67E28651A4F5835C8AD6A06B /* AuditHistoryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AuditHistoryView.swift; sourceTree = "<group>"; };
 		688ECE0FC82045A06149A5FA /* SidebarView+UnifiedRows.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarView+UnifiedRows.swift"; sourceTree = "<group>"; };
 		68BDC2DC273F8F91B9CA1B3C /* PlatformAliases.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlatformAliases.swift; sourceTree = "<group>"; };
 		68C8C5672F78A996924D42D1 /* FicheroShortcuts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroShortcuts.swift; sourceTree = "<group>"; };
@@ -1016,6 +1019,7 @@
 		F42C41E0F485064FDA5EAEB9 /* InterpretationStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InterpretationStore.swift; sourceTree = "<group>"; };
 		FBCBCC9A6B923D6A560F7277 /* ReferenceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReferenceStore.swift; sourceTree = "<group>"; };
 		FCC476DF64934CB63FF15560 /* InspectorTab.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InspectorTab.swift; sourceTree = "<group>"; };
+		FD8F8D42618D304271F81962 /* AuditStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AuditStore.swift; sourceTree = "<group>"; };
 		FF58B21F339179A8162AD6C5 /* NoteService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NoteService.swift; sourceTree = "<group>"; };
 		GTE1 /* GeneratedTypeExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedTypeExtensions.swift; sourceTree = "<group>"; };
 		IMP00022F27F36000EC9EE1 /* ImportServiceGenerated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportServiceGenerated.swift; sourceTree = "<group>"; };
@@ -1448,6 +1452,7 @@
 				9CD011DB2E5A714A716944F3 /* Platform */,
 				4887C223276D2F5E2C498065 /* CanvasLayoutStore.swift */,
 				5921F26A97AF84B80B4DCD29 /* CanvasItemStore.swift */,
+				FD8F8D42618D304271F81962 /* AuditStore.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -1708,6 +1713,7 @@
 				A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */,
 				F4189C51250E0B39E05CD87B /* AISettingsView+Tabs.swift */,
 				9195539F44B4ADCA2A3C9974 /* AISettingsView+Helpers.swift */,
+				67E28651A4F5835C8AD6A06B /* AuditHistoryView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -2623,6 +2629,8 @@
 				CC357CD884EE29BAE8A64F4B /* PlatformPasteboard.swift in Sources */,
 				92F3AFC896A444D7D060547E /* CanvasLayoutStore.swift in Sources */,
 				441627D26C9932352CE1FDF1 /* CanvasItemStore.swift in Sources */,
+				75FF7AE84AC04F85A9A728AA /* AuditStore.swift in Sources */,
+				5435A98021D72C073130730B /* AuditHistoryView.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

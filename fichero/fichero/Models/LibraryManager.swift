@@ -114,6 +114,11 @@ class LibraryManager: ObservableObject {
         /// action list + categories, and reacts to `action.*` change events.
         lazy var actionStore: ActionStore = ActionStore(service: actionsService)
 
+        /// Per-library audit store (#2085). Reads the global "who changed what"
+        /// action-registry log (`GET /api/actions/audit`) and undoes rows
+        /// (`POST /api/actions/audit/{id}/undo`) through the generated client.
+        lazy var auditStore: AuditStore = AuditStore(client: ficheroClient)
+
         /// Per-library research store (#1904). Wraps `researchService`, owns the
         /// per-project data (plans, tasks, checklists, sources, notes), and
         /// reacts to `research.*` change events.
