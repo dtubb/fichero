@@ -8,18 +8,39 @@ import SwiftUI
 /// tap-to-select (writes `selectedNodeId`). The only client-side transform is
 /// a fit-to-view camera (uniform translate + scale of the whole scene so it's
 /// on-screen) — relative node geometry is never recomputed
-/// (`feedback_kg_logic_in_backend`). View-only: dragging is Phase 2.
+/// (`feedback_kg_logic_in_backend`).
+///
+/// Slice 3 (#2293) adds **optional** position persistence: when both
+/// `layoutStore` and `folderScopeId` are supplied the canvas loads the saved
+/// layout on appear, lets the user drag chips, and persists screen positions on
+/// drag-end — so a hand-arranged layout survives a view-mode switch (the #1
+/// bug). When either is nil (Mind Palace room, RealityKit fallback) the canvas
+/// is view-only, exactly as before. The store is the only thing that touches
+/// the network; this view never calls the generated client directly.
 struct Spatial2DCanvas: View {
     let nodes: [MindPalaceNode]
     let connections: [MindPalaceConnection]
     @Binding var selectedNodeId: String?
 
+    /// Observable layout store. When non-nil (together with `folderScopeId`)
+    /// the canvas becomes interactive and persists positions through it.
+    var layoutStore: CanvasLayoutStore?
+    /// The scope these positions belong to — a real folder id, or the synthetic
+    /// `wholeLibraryRoomId` ("__library__") for the unscoped whole-library view.
+    var folderScopeId: String?
+
+    // Live drag state for the chip currently being moved.
+    @State private var dragItemId: String?
+    @State private var dragTranslation: CGSize = .zero
+
     private let nodeDiameter: CGFloat = 14
     private let padding: CGFloat = 48
 
+    private var isInteractive: Bool { layoutStore != nil && folderScopeId != nil }
+
     var body: some View {
         GeometryReader { geo in
-            let layout = projectedPositions(in: geo.size)
+            let layout = resolvedPositions(in: geo.size)
             ZStack {
                 // Edges drawn beneath nodes.
                 Canvas { context, _ in
@@ -39,18 +60,55 @@ struct Spatial2DCanvas: View {
                     }
                 }
 
-                // Node chips at projected positions.
+                // Node chips at resolved positions (saved layout overrides the
+                // projector default per item where a row exists).
                 ForEach(nodes) { node in
-                    if let point = layout[node.id] {
-                        nodeChip(node)
-                            .position(point)
-                            .onTapGesture { selectedNodeId = node.id }
+                    if let base = layout[node.id] {
+                        let point = (dragItemId == node.id)
+                            ? CGPoint(x: base.x + dragTranslation.width,
+                                      y: base.y + dragTranslation.height)
+                            : base
+                        chip(for: node, at: point, base: base, in: geo.size)
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(platformColor: .textBackgroundColor))
+            .task(id: folderScopeId) {
+                guard let store = layoutStore, let folderId = folderScopeId else { return }
+                await store.loadLayout(folderId: folderId)
+            }
         }
+    }
+
+    @ViewBuilder
+    private func chip(for node: MindPalaceNode, at point: CGPoint, base: CGPoint, in size: CGSize) -> some View {
+        let chipView = nodeChip(node)
+            .position(point)
+            .zIndex(dragItemId == node.id ? 1 : 0)
+            .onTapGesture { selectedNodeId = node.id }
+        if isInteractive {
+            chipView.gesture(dragGesture(for: node, base: base, in: size))
+        } else {
+            chipView
+        }
+    }
+
+    private func dragGesture(for node: MindPalaceNode, base: CGPoint, in size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 3)
+            .onChanged { value in
+                dragItemId = node.id
+                dragTranslation = value.translation
+            }
+            .onEnded { value in
+                let dropped = CGPoint(
+                    x: base.x + value.translation.width,
+                    y: base.y + value.translation.height
+                )
+                dragItemId = nil
+                dragTranslation = .zero
+                persistLayout(movedId: node.id, droppedAt: dropped, in: size)
+            }
     }
 
     private func nodeChip(_ node: MindPalaceNode) -> some View {
@@ -113,5 +171,47 @@ struct Spatial2DCanvas: View {
             result[node.id] = CGPoint(x: pointX, y: pointY)
         }
         return result
+    }
+
+    /// The positions actually rendered: the projector default per node, with a
+    /// saved `CanvasItemLayout` (screen-space x/y) overriding it **only** where
+    /// a row exists. Items with no saved row keep the projector default.
+    private func resolvedPositions(in size: CGSize) -> [String: CGPoint] {
+        let projected = projectedPositions(in: size)
+        guard let store = layoutStore else { return projected }
+        var result = projected
+        for item in store.layout where result[item.itemId] != nil {
+            result[item.itemId] = CGPoint(x: item.x, y: item.y)
+        }
+        return result
+    }
+
+    /// Persist the current screen positions of every displayed node through the
+    /// store (the moved node at its drop point). Pinning all visible nodes on
+    /// the first drag keeps the layout stable on reload regardless of which
+    /// rows existed before. No-op unless the canvas is interactive.
+    private func persistLayout(movedId: String, droppedAt: CGPoint, in size: CGSize) {
+        guard let store = layoutStore, let folderId = folderScopeId else { return }
+        let projected = projectedPositions(in: size)
+        var rows: [String: CanvasItemLayout] = Dictionary(
+            store.layout.map { ($0.itemId, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        for node in nodes {
+            let point: CGPoint
+            if node.id == movedId {
+                point = droppedAt
+            } else if let existing = rows[node.id] {
+                point = CGPoint(x: existing.x, y: existing.y)
+            } else {
+                point = projected[node.id] ?? .zero
+            }
+            var row = rows[node.id] ?? CanvasItemLayout(itemId: node.id)
+            row.x = point.x
+            row.y = point.y
+            rows[node.id] = row
+        }
+        let items = Array(rows.values)
+        Task { await store.saveLayout(folderId: folderId, items: items) }
     }
 }

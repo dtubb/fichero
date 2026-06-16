@@ -131,24 +131,12 @@ struct LibraryView: View {
     @State var entities: [Components.Schemas.KnowledgeEntity] = []
     @State private var spatialSelectedNodeId: String?
 
-    private var libraryProjection: MindPalaceLibraryProjection {
-        MindPalaceLibraryProjector.project(
-            MindPalaceLibraryInput(
-                documents: documents.map {
-                    MindPalaceLibraryInput.Document(id: $0.id, name: $0.name, parentId: $0.parentId)
-                },
-                entities: entities.compactMap { entity in
-                    guard let id = entity.id else { return nil }
-                    return MindPalaceLibraryInput.Entity(
-                        id: id,
-                        canonicalName: entity.canonicalName,
-                        entityType: entity.entityType?.rawValue
-                    )
-                },
-                claims: []
-            )
-        )
-    }
+    /// Observable store backing 2D-canvas item-position persistence (#2293).
+    /// Lazily created on first appear (needs the library's client from the
+    /// environment); shared across this view's display-mode switches so an
+    /// arranged layout survives switching away from `.spatial` and back.
+    @State private var canvasLayoutStore: CanvasLayoutStore?
+
     @State var isLoadingEntities = false
     @State var entityLoadErrorMessage: String?
 
@@ -237,7 +225,9 @@ struct LibraryView: View {
                         Spatial2DCanvas(
                             nodes: libraryProjection.nodes,
                             connections: [],
-                            selectedNodeId: $spatialSelectedNodeId
+                            selectedNodeId: $spatialSelectedNodeId,
+                            layoutStore: canvasLayoutStore,
+                            folderScopeId: folderId ?? wholeLibraryRoomId
                         )
                     case .map, .workspace:
                         mapView
@@ -280,6 +270,10 @@ struct LibraryView: View {
                 } : nil
             )
             .onAppear {
+                if canvasLayoutStore == nil {
+                    let client = libraryManager.globalLibrary?.ficheroClient ?? FicheroClient.localhost
+                    canvasLayoutStore = CanvasLayoutStore(client: client)
+                }
                 loadSortSettings(for: folderId)
                 syncSortOrder()
                 consumePendingOpen()
@@ -374,6 +368,33 @@ struct LibraryView: View {
             .keyboardShortcut("r", modifiers: .command)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Spatial projection
+
+extension LibraryView {
+    /// Projects the current documents + entities into spatial nodes/links for
+    /// the `.realitykit` / `.spatial` views. Item positions are persisted
+    /// separately via `CanvasLayoutStore` (#2293); this only supplies the
+    /// projector's computed defaults.
+    var libraryProjection: MindPalaceLibraryProjection {
+        MindPalaceLibraryProjector.project(
+            MindPalaceLibraryInput(
+                documents: documents.map {
+                    MindPalaceLibraryInput.Document(id: $0.id, name: $0.name, parentId: $0.parentId)
+                },
+                entities: entities.compactMap { entity in
+                    guard let id = entity.id else { return nil }
+                    return MindPalaceLibraryInput.Entity(
+                        id: id,
+                        canonicalName: entity.canonicalName,
+                        entityType: entity.entityType?.rawValue
+                    )
+                },
+                claims: []
+            )
+        )
     }
 }
 
