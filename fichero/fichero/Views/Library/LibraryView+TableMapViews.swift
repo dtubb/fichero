@@ -96,6 +96,7 @@ extension LibraryView {
             .defaultVisibility(.hidden)
         }
         .tableStyle(.inset)
+        .alternatingRowBackgrounds()
         .contextMenu(forSelectionType: String.self) { items in
             if let firstId = items.first,
                let doc = filteredDocuments.first(where: { $0.id == firstId }) {
