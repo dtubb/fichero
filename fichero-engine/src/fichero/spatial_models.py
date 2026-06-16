@@ -219,3 +219,45 @@ class CanvasLayout(BaseModel):
     def make_id(folder_id: str, item_id: str) -> str:
         """Deterministic primary key for the (folder_id, item_id) pair."""
         return f"{folder_id}::{item_id}"
+
+
+class CanvasItemKind(str, Enum):
+    """What a standalone (non-document) canvas item IS."""
+
+    note = "note"
+    quote = "quote"
+    work_note = "work_note"
+    link = "link"  # a connector between two other item_ids
+    text = "text"
+
+
+class CanvasItem(BaseModel):
+    """Standalone, placeable CONTENT on a folder's spatial canvas (#2294).
+
+    The non-document placeables — notes, quotes, work-notes, links/connectors,
+    free text. Documents/pages/entities/claims already exist elsewhere and get
+    their POSITION via :class:`CanvasLayout` (#2293); this model adds the payload
+    for items that have no other home.
+
+    Placement is NOT duplicated here: a CanvasItem's x/y/z still live in a
+    ``canvas_layout`` row keyed by this item's ``id`` (CanvasItem = *what*,
+    CanvasLayout = *where*). FOLDER-scoped, like the layout.
+
+    A ``link`` connects two other items via ``source_item_id`` /
+    ``target_item_id`` (which may reference documents, entities, claims, or other
+    CanvasItems — any id the layout can place). ``payload`` carries small
+    kind-specific bits so we keep ONE model with a ``kind`` field, not a model
+    per kind.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    folder_id: str
+    kind: CanvasItemKind = CanvasItemKind.note
+    text: str = ""
+    source_item_id: str | None = None  # kind=link: the connection's start
+    target_item_id: str | None = None  # kind=link: the connection's end
+    payload: dict = Field(default_factory=dict)  # opaque kind-specific bits
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)

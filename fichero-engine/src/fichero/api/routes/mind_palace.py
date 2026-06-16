@@ -11,6 +11,8 @@ from fichero.api.main import get_library_database, get_library_database_for_writ
 from fichero.db import Database
 from fichero.spatial_models import (
     ArrangementType,
+    CanvasItem,
+    CanvasItemKind,
     CanvasLayout,
     CaptureRegion,
     ConnectionType,
@@ -1010,3 +1012,233 @@ def _action_arrange_canvas(
         emit_type="canvas.arranged",
     )
     return after, spec
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Canvas items — STANDALONE placeable CONTENT (#2294): notes, quotes,
+# work-notes, links/connectors, free text. The non-document placeables. Their
+# POSITION lives in canvas_layout (#2293), keyed by the same id; this is the
+# payload. FOLDER-scoped via the path. One model, a ``kind`` field — not a
+# model per kind.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class CanvasItemCreateRequest(BaseModel):
+    """Create one standalone canvas item in a folder (``folder_id`` from path).
+
+    For ``kind="link"`` set ``source_item_id``/``target_item_id`` to the two
+    item ids the connector joins. ``payload`` carries small kind-specific bits.
+    """
+
+    kind: CanvasItemKind = CanvasItemKind.note
+    text: str = ""
+    source_item_id: str | None = None
+    target_item_id: str | None = None
+    payload: dict = Field(default_factory=dict)
+
+
+class CanvasItemUpdateRequest(BaseModel):
+    """Patch a canvas item — every field optional; only provided ones change."""
+
+    kind: CanvasItemKind | None = None
+    text: str | None = None
+    source_item_id: str | None = None
+    target_item_id: str | None = None
+    payload: dict | None = None
+
+
+def create_canvas_item_impl(
+    db: Database, folder_id: str, req: CanvasItemCreateRequest
+) -> CanvasItem:
+    """Persist a new canvas item for ``folder_id``. Shared by route + action."""
+    now = datetime.now()
+    item = CanvasItem(
+        folder_id=folder_id,
+        kind=req.kind,
+        text=req.text,
+        source_item_id=req.source_item_id,
+        target_item_id=req.target_item_id,
+        payload=req.payload,
+        created_at=now,
+        updated_at=now,
+    )
+    db.save(item)
+    return item
+
+
+def update_canvas_item_impl(
+    db: Database, folder_id: str, item_id: str, req: CanvasItemUpdateRequest
+) -> CanvasItem:
+    """Apply a partial edit to a canvas item. Shared by route + action.
+
+    Raises ``KeyError`` if the item is absent or belongs to another folder, for
+    the caller to map to a 404.
+    """
+    item = db.get(CanvasItem, item_id)
+    if item is None or item.folder_id != folder_id:
+        raise KeyError(item_id)
+    fields = req.model_dump(exclude_unset=True)
+    for name, value in fields.items():
+        setattr(item, name, value)
+    item.updated_at = datetime.now()
+    db.save(item)
+    return item
+
+
+def delete_canvas_item_impl(db: Database, folder_id: str, item_id: str) -> CanvasItem:
+    """Delete a canvas item, returning the removed row. Shared by route + action.
+
+    Raises ``KeyError`` if absent / cross-folder, for the caller to map to 404.
+    The item's ``canvas_layout`` placement row (if any) is left for the layout
+    surface to reap — content and placement are separate concerns (#2293).
+    """
+    item = db.get(CanvasItem, item_id)
+    if item is None or item.folder_id != folder_id:
+        raise KeyError(item_id)
+    db.delete(item)
+    return item
+
+
+@router.get(
+    "/folders/{folder_id}/canvas-items", response_model=MindPalaceListResponse
+)
+async def list_canvas_items(
+    folder_id: str,
+    kind: CanvasItemKind | None = None,
+    db: Database = Depends(get_library_database),
+) -> MindPalaceListResponse:
+    """List a folder's standalone canvas items in the ``{items, count}`` envelope."""
+    filters: dict[str, Any] = {"folder_id": folder_id}
+    if kind is not None:
+        filters["kind"] = kind
+    rows = db.query(CanvasItem, **filters)
+    return MindPalaceListResponse(items=rows, count=len(rows))
+
+
+@router.post("/folders/{folder_id}/canvas-items", response_model=CanvasItem)
+async def create_canvas_item(
+    folder_id: str,
+    request: CanvasItemCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> CanvasItem:
+    """Create one standalone canvas item (note / quote / work_note / link / text)."""
+    return create_canvas_item_impl(db, folder_id, request)
+
+
+@router.patch(
+    "/folders/{folder_id}/canvas-items/{item_id}", response_model=CanvasItem
+)
+async def update_canvas_item(
+    folder_id: str,
+    item_id: str,
+    request: CanvasItemUpdateRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> CanvasItem:
+    """Patch a canvas item's text / payload / kind / link endpoints."""
+    try:
+        return update_canvas_item_impl(db, folder_id, item_id, request)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="canvas item not found") from exc
+
+
+@router.delete(
+    "/folders/{folder_id}/canvas-items/{item_id}",
+    response_model=MindPalaceDeletedResponse,
+)
+async def delete_canvas_item(
+    folder_id: str,
+    item_id: str,
+    db: Database = Depends(get_library_database_for_write),
+) -> MindPalaceDeletedResponse:
+    """Delete a standalone canvas item from a folder."""
+    try:
+        delete_canvas_item_impl(db, folder_id, item_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="canvas item not found") from exc
+    return MindPalaceDeletedResponse(status="deleted")
+
+
+# Action-layer registration (EPIC #1848) — agent/chat/App-Intents callable.
+# Each wraps the same ``*_impl`` the HTTP routes use (iterate-not-replace), so
+# every agent invocation routes through ``registry.invoke`` → ActionAudit + emit.
+class CanvasItemCreateParams(CanvasItemCreateRequest):
+    """Params for ``canvas.item.create`` (folder_id carried in the body)."""
+
+    folder_id: str
+
+
+class CanvasItemUpdateParams(CanvasItemUpdateRequest):
+    """Params for ``canvas.item.update`` (folder_id + item_id in the body)."""
+
+    folder_id: str
+    item_id: str
+
+
+class CanvasItemDeleteParams(BaseModel):
+    """Params for ``canvas.item.delete`` (folder_id + item_id in the body)."""
+
+    folder_id: str
+    item_id: str
+
+
+@action("canvas.item.create", CanvasItemCreateParams, domains=["canvas"])
+def _action_create_canvas_item(
+    db: Database, params: CanvasItemCreateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    item = create_canvas_item_impl(
+        db,
+        params.folder_id,
+        CanvasItemCreateRequest(**params.model_dump(exclude={"folder_id"})),
+    )
+    after = item.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["canvas"],
+        target_ids=[item.id],
+        before=None,
+        after={"item": after},
+        emit_type="canvas.item.created",
+    )
+    return after, spec
+
+
+@action("canvas.item.update", CanvasItemUpdateParams, domains=["canvas"])
+def _action_update_canvas_item(
+    db: Database, params: CanvasItemUpdateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    existing = db.get(CanvasItem, params.item_id)
+    if existing is None or existing.folder_id != params.folder_id:
+        raise KeyError(params.item_id)
+    before = existing.model_dump(mode="json")
+    item = update_canvas_item_impl(
+        db,
+        params.folder_id,
+        params.item_id,
+        CanvasItemUpdateRequest(
+            **params.model_dump(exclude={"folder_id", "item_id"}, exclude_unset=True)
+        ),
+    )
+    after = item.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["canvas"],
+        target_ids=[item.id],
+        before={"item": before},
+        after={"item": after},
+        emit_type="canvas.item.updated",
+    )
+    return after, spec
+
+
+@action("canvas.item.delete", CanvasItemDeleteParams, domains=["canvas"])
+def _action_delete_canvas_item(
+    db: Database, params: CanvasItemDeleteParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    item = delete_canvas_item_impl(db, params.folder_id, params.item_id)
+    before = item.model_dump(mode="json")
+    spec = ChangeSpec(
+        domains=["canvas"],
+        target_ids=[item.id],
+        before={"item": before},
+        after=None,
+        emit_type="canvas.item.deleted",
+    )
+    return before, spec
