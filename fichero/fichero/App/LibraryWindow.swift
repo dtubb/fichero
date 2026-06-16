@@ -206,8 +206,12 @@ struct LibraryWindow: View {
             guard let id = newId,
                   libraryManager.getLibrary(id: id) != nil else { return }
 
-            // Switch this window to the new library
-            windowState.libraryId = id
+            // Switch this window to the new library. Route through assignLibrary
+            // so the scene's @SceneStorage("libraryWindow.libraryId") stays in
+            // sync — otherwise a window that switched library via Finder open /
+            // Open Recent would restore the STALE library on relaunch (#2273).
+            guard windowState.libraryId != id else { return }
+            assignLibrary(id: id)
             libraryWindowLogger.info("Switched to library: \(id)")
         }
         .onChange(of: windowState.libraryId) { _, _ in
