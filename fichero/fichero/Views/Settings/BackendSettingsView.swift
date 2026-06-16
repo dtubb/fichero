@@ -5,7 +5,10 @@ import SwiftUI
 /// Backend connection settings
 struct BackendSettingsView: View {
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var storageService: StorageServiceGenerated
+    // storageService is per-LIBRARY, not in the Settings scene environment — reach it
+    // optionally via libraryManager (which IS injected here). A required @EnvironmentObject
+    // would trap "No ObservableObject of type StorageServiceGenerated" and crash this tab.
+    @EnvironmentObject var libraryManager: LibraryManager
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
 
     @State private var storageStats: StorageStats?
@@ -90,6 +93,11 @@ struct BackendSettingsView: View {
         isLoadingStats = true
         statsError = nil
         defer { isLoadingStats = false }
+        guard let storageService = libraryManager.globalLibrary?.storageService else {
+            // No library open → no per-library storage stats to show.
+            storageStats = nil
+            return
+        }
         do {
             storageStats = try await storageService.getStats()
         } catch {
