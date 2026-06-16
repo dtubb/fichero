@@ -5611,6 +5611,62 @@
       },
       {
         "method": "GET",
+        "path": "/mind-palace/folders/{folder_id}/canvas-items",
+        "operation_id": "list_canvas_items_api_mind_palace_folders__folder_id__canvas_items_get",
+        "summary": "List Canvas Items",
+        "path_params": [
+          "folder_id"
+        ],
+        "query_params": [
+          {
+            "name": "kind",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "MindPalaceListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/mind-palace/folders/{folder_id}/canvas-items",
+        "operation_id": "create_canvas_item_api_mind_palace_folders__folder_id__canvas_items_post",
+        "summary": "Create Canvas Item",
+        "path_params": [
+          "folder_id"
+        ],
+        "query_params": [],
+        "request_model": "CanvasItemCreateRequest",
+        "response_model": "CanvasItem"
+      },
+      {
+        "method": "DELETE",
+        "path": "/mind-palace/folders/{folder_id}/canvas-items/{item_id}",
+        "operation_id": "delete_canvas_item_api_mind_palace_folders__folder_id__canvas_items__item_id__delete",
+        "summary": "Delete Canvas Item",
+        "path_params": [
+          "folder_id",
+          "item_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "MindPalaceDeletedResponse"
+      },
+      {
+        "method": "PATCH",
+        "path": "/mind-palace/folders/{folder_id}/canvas-items/{item_id}",
+        "operation_id": "update_canvas_item_api_mind_palace_folders__folder_id__canvas_items__item_id__patch",
+        "summary": "Update Canvas Item",
+        "path_params": [
+          "folder_id",
+          "item_id"
+        ],
+        "query_params": [],
+        "request_model": "CanvasItemUpdateRequest",
+        "response_model": "CanvasItem"
+      },
+      {
+        "method": "GET",
         "path": "/mind-palace/folders/{folder_id}/canvas-layout",
         "operation_id": "get_canvas_layout_api_mind_palace_folders__folder_id__canvas_layout_get",
         "summary": "Get Canvas Layout",

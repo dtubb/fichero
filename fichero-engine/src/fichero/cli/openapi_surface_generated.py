@@ -5542,6 +5542,65 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("list-canvas-items")
+    def mind_palace_list_canvas_items_get(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        kind: Optional[str] = typer.Option(None, "--kind", help="Query parameter: kind."),
+    ) -> None:
+        """List Canvas Items (GET /api/mind-palace/folders/{folder_id}/canvas-items)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/mind-palace/folders/{folder_id}/canvas-items"
+            params = {
+                "kind": kind,
+            }
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-canvas-item")
+    def mind_palace_create_canvas_item_post(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Create Canvas Item (POST /api/mind-palace/folders/{folder_id}/canvas-items)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/mind-palace/folders/{folder_id}/canvas-items"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("delete-canvas-item")
+    def mind_palace_delete_canvas_item_delete(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        item_id: str = typer.Argument(..., help="Path parameter: item_id."),
+    ) -> None:
+        """Delete Canvas Item (DELETE /api/mind-palace/folders/{folder_id}/canvas-items/{item_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/mind-palace/folders/{folder_id}/canvas-items/{item_id}"
+            params = None
+            return client.request("DELETE", path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("update-canvas-item")
+    def mind_palace_update_canvas_item_patch(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        item_id: str = typer.Argument(..., help="Path parameter: item_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Update Canvas Item (PATCH /api/mind-palace/folders/{folder_id}/canvas-items/{item_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/mind-palace/folders/{folder_id}/canvas-items/{item_id}"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("PATCH", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("get-canvas-layout")
     def mind_palace_get_canvas_layout_get(
         ctx: typer.Context,

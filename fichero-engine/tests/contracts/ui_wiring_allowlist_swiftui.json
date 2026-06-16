@@ -79,6 +79,8 @@
     "/api/mind-palace/connections/{connection_id}": "baseline: not yet wired",
     "/api/mind-palace/export/tinderbox": "baseline: not yet wired",
     "/api/mind-palace/folders/{folder_id}/arrange": "baseline: not yet wired",
+    "/api/mind-palace/folders/{folder_id}/canvas-items": "#2294 canvas items — backend-first; SwiftUI canvas UI lands in Slice 2",
+    "/api/mind-palace/folders/{folder_id}/canvas-items/{item_id}": "#2294 canvas items — backend-first; SwiftUI canvas UI lands in Slice 2",
     "/api/mind-palace/import/tinderbox": "baseline: not yet wired",
     "/api/mind-palace/nodes": "baseline: not yet wired",
     "/api/mind-palace/nodes/{node_id}": "baseline: not yet wired",

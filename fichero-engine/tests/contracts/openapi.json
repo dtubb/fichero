@@ -25369,6 +25369,222 @@
         }
       }
     },
+    "/api/mind-palace/folders/{folder_id}/canvas-items": {
+      "get": {
+        "tags": [
+          "mind-palace"
+        ],
+        "summary": "List Canvas Items",
+        "description": "List a folder's standalone canvas items in the ``{items, count}`` envelope.",
+        "operationId": "list_canvas_items_api_mind_palace_folders__folder_id__canvas_items_get",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CanvasItemKind",
+              "nullable": true,
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MindPalaceListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "mind-palace"
+        ],
+        "summary": "Create Canvas Item",
+        "description": "Create one standalone canvas item (note / quote / work_note / link / text).",
+        "operationId": "create_canvas_item_api_mind_palace_folders__folder_id__canvas_items_post",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CanvasItemCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mind-palace/folders/{folder_id}/canvas-items/{item_id}": {
+      "patch": {
+        "tags": [
+          "mind-palace"
+        ],
+        "summary": "Update Canvas Item",
+        "description": "Patch a canvas item's text / payload / kind / link endpoints.",
+        "operationId": "update_canvas_item_api_mind_palace_folders__folder_id__canvas_items__item_id__patch",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CanvasItemUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "mind-palace"
+        ],
+        "summary": "Delete Canvas Item",
+        "description": "Delete a standalone canvas item from a folder.",
+        "operationId": "delete_canvas_item_api_mind_palace_folders__folder_id__canvas_items__item_id__delete",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MindPalaceDeletedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/mindpalace/render": {
       "post": {
         "tags": [
@@ -34000,6 +34216,134 @@
         ],
         "title": "CancelResponse",
         "description": "Response from POST /threads/{thread_id}/cancel (#1127).\n\n``partial_results_preserved`` is always True for now \u2014 the issue's\ninvariant is that artifacts and entities written before the cancel\nstay in place. Future work could add a soft-rollback option that\ndeletes per-thread writes; for now we surface the contract clearly\nin the response shape."
+      },
+      "CanvasItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "folder_id": {
+            "type": "string",
+            "title": "Folder Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CanvasItemKind",
+            "default": "note"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          },
+          "source_item_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Item Id"
+          },
+          "target_item_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Item Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "folder_id"
+        ],
+        "title": "CanvasItem",
+        "description": "Standalone, placeable CONTENT on a folder's spatial canvas (#2294).\n\nThe non-document placeables \u2014 notes, quotes, work-notes, links/connectors,\nfree text. Documents/pages/entities/claims already exist elsewhere and get\ntheir POSITION via :class:`CanvasLayout` (#2293); this model adds the payload\nfor items that have no other home.\n\nPlacement is NOT duplicated here: a CanvasItem's x/y/z still live in a\n``canvas_layout`` row keyed by this item's ``id`` (CanvasItem = *what*,\nCanvasLayout = *where*). FOLDER-scoped, like the layout.\n\nA ``link`` connects two other items via ``source_item_id`` /\n``target_item_id`` (which may reference documents, entities, claims, or other\nCanvasItems \u2014 any id the layout can place). ``payload`` carries small\nkind-specific bits so we keep ONE model with a ``kind`` field, not a model\nper kind."
+      },
+      "CanvasItemCreateRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/CanvasItemKind",
+            "default": "note"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          },
+          "source_item_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Item Id"
+          },
+          "target_item_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Item Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "type": "object",
+        "title": "CanvasItemCreateRequest",
+        "description": "Create one standalone canvas item in a folder (``folder_id`` from path).\n\nFor ``kind=\"link\"`` set ``source_item_id``/``target_item_id`` to the two\nitem ids the connector joins. ``payload`` carries small kind-specific bits."
+      },
+      "CanvasItemKind": {
+        "type": "string",
+        "enum": [
+          "note",
+          "quote",
+          "work_note",
+          "link",
+          "text"
+        ],
+        "title": "CanvasItemKind",
+        "description": "What a standalone (non-document) canvas item IS."
+      },
+      "CanvasItemUpdateRequest": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/CanvasItemKind",
+            "nullable": true
+          },
+          "text": {
+            "type": "string",
+            "nullable": true,
+            "title": "Text"
+          },
+          "source_item_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Source Item Id"
+          },
+          "target_item_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Item Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Payload"
+          }
+        },
+        "type": "object",
+        "title": "CanvasItemUpdateRequest",
+        "description": "Patch a canvas item \u2014 every field optional; only provided ones change."
       },
       "CanvasLayout": {
         "properties": {
