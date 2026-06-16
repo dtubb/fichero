@@ -268,10 +268,13 @@ struct Spatial2DCanvas: View {
     /// default sticky-note size. View-space (pre-camera-scale) units.
     private func persistedItemSize(for item: CanvasItemDisplay) -> CGSize {
         let row = layoutStore?.layout.first { $0.itemId == item.id }
-        return CGSize(
-            width: row?.w.map(CGFloat.init) ?? CanvasItemView.defaultWidth,
-            height: row?.h.map(CGFloat.init) ?? CanvasItemView.defaultHeight
-        )
+        // Flatten the double-optional (row? + w?) before mapping, else the
+        // type-checker chokes ("failed to produce diagnostic") inside CGSize.
+        let savedW: Double? = row?.w ?? nil
+        let savedH: Double? = row?.h ?? nil
+        let width = savedW.map { CGFloat($0) } ?? CanvasItemView.defaultWidth
+        let height = savedH.map { CGFloat($0) } ?? CanvasItemView.defaultHeight
+        return CGSize(width: width, height: height)
     }
 
     /// Size used to render the card: the live drag size while resizing, else the
