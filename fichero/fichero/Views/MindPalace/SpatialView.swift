@@ -37,6 +37,15 @@ struct Spatial2DCanvas: View {
     @State private var dragItemId: String?
     @State private var dragTranslation: CGSize = .zero
 
+    // Live resize state for the standalone item currently being resized via its
+    // corner grab handle (#1748). `resizeItemId` is the item being sized;
+    // `resizeSize` is the in-flight card size (committed to w/h on release).
+    @State private var resizeItemId: String?
+    @State private var resizeSize: CGSize = .zero
+    /// Card size captured when a resize drag begins, so the cumulative gesture
+    /// translation isn't compounded against the live (growing) frame.
+    @State private var resizeOrigin: CGSize?
+
     // Camera (pure view state — never persisted). Zoom is committed; pinchScale
     // is the live in-flight magnification. Pan is committed offset + live drag.
     @State private var zoom: CGFloat = 1
@@ -215,10 +224,20 @@ struct Spatial2DCanvas: View {
     /// items have no projector default to pin.
     @ViewBuilder
     private func itemChip(for item: CanvasItemDisplay, at point: CGPoint, base: CGPoint) -> some View {
-        let card = CanvasItemView(item: item, isSelected: item.id == selectedNodeId)
-            .position(point)
-            .zIndex(dragItemId == item.id ? 2 : 1)
-            .onTapGesture { selectedNodeId = item.id }
+        let size = itemSize(for: item)
+        let showHandle = isInteractive && item.id == selectedNodeId && item.kind != .link
+        let card = CanvasItemView(
+            item: item,
+            isSelected: item.id == selectedNodeId,
+            width: size.width,
+            height: size.height
+        )
+        .overlay(alignment: .bottomTrailing) {
+            if showHandle { resizeHandle(for: item) }
+        }
+        .position(point)
+        .zIndex(dragItemId == item.id ? 2 : 1)
+        .onTapGesture { selectedNodeId = item.id }
         if isInteractive {
             card.gesture(itemDragGesture(for: item, base: base))
         } else {
@@ -240,6 +259,59 @@ struct Spatial2DCanvas: View {
                 dragItemId = nil
                 dragTranslation = .zero
                 persistItemPosition(itemId: item.id, droppedAt: dropped)
+            }
+    }
+
+    // MARK: - Resize (#1748)
+
+    /// The card's persisted size — the `CanvasItemLayout` w/h if present, else the
+    /// default sticky-note size. View-space (pre-camera-scale) units.
+    private func persistedItemSize(for item: CanvasItemDisplay) -> CGSize {
+        let row = layoutStore?.layout.first { $0.itemId == item.id }
+        return CGSize(
+            width: row?.w.map(CGFloat.init) ?? CanvasItemView.defaultWidth,
+            height: row?.h.map(CGFloat.init) ?? CanvasItemView.defaultHeight
+        )
+    }
+
+    /// Size used to render the card: the live drag size while resizing, else the
+    /// persisted size.
+    private func itemSize(for item: CanvasItemDisplay) -> CGSize {
+        resizeItemId == item.id ? resizeSize : persistedItemSize(for: item)
+    }
+
+    /// Native corner grab handle shown on a selected item; drag to resize.
+    private func resizeHandle(for item: CanvasItemDisplay) -> some View {
+        Circle()
+            .fill(Color.accentColor)
+            .overlay(Circle().stroke(.white, lineWidth: 1.5))
+            .frame(width: 12, height: 12)
+            .offset(x: 6, y: 6)
+            .gesture(resizeGesture(for: item))
+            .help("Drag to resize")
+    }
+
+    private func resizeGesture(for item: CanvasItemDisplay) -> some Gesture {
+        DragGesture(minimumDistance: 1)
+            .onChanged { value in
+                if resizeOrigin == nil {
+                    resizeOrigin = persistedItemSize(for: item)
+                    resizeItemId = item.id
+                    selectedNodeId = item.id
+                }
+                guard let origin = resizeOrigin else { return }
+                let scale = effectiveZoom
+                resizeSize = CGSize(
+                    width: min(max(origin.width + value.translation.width / scale, 100), 480),
+                    height: min(max(origin.height + value.translation.height / scale, 64), 480)
+                )
+            }
+            .onEnded { _ in
+                let final = resizeSize
+                resizeOrigin = nil
+                resizeItemId = nil
+                resizeSize = .zero
+                if final != .zero { persistItemSize(itemId: item.id, size: final) }
             }
     }
 
@@ -407,6 +479,14 @@ extension Components.Schemas.CanvasItemKind {
 struct CanvasItemView: View {
     let item: CanvasItemDisplay
     let isSelected: Bool
+    /// Rendered card size. Driven by the persisted `CanvasItemLayout` w/h (or the
+    /// default sticky-note size) and updated live while a resize handle is dragged
+    /// (#1748).
+    var width: CGFloat = CanvasItemView.defaultWidth
+    var height: CGFloat = CanvasItemView.defaultHeight
+
+    static let defaultWidth: CGFloat = 160
+    static let defaultHeight: CGFloat = 92
 
     var body: some View {
         switch item.kind {
@@ -435,7 +515,7 @@ struct CanvasItemView: View {
                 .multilineTextAlignment(.leading)
         }
         .padding(8)
-        .frame(width: 160, alignment: .leading)
+        .frame(width: width, height: height, alignment: .topLeading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8).stroke(
@@ -611,6 +691,26 @@ extension Spatial2DCanvas {
             rows[itemId]?.y = droppedAt.y
         } else {
             rows[itemId] = CanvasItemLayout(itemId: itemId, x: droppedAt.x, y: droppedAt.y)
+        }
+        let items = Array(rows.values)
+        Task { await store.saveLayout(folderId: folderId, items: items) }
+    }
+
+    /// Persist a resized item's new card size into its `canvas_layout` w/h,
+    /// preserving every other row. No-op unless the canvas is interactive (#1748).
+    func persistItemSize(itemId: String, size: CGSize) {
+        guard let store = layoutStore, let folderId = folderScopeId else { return }
+        var rows: [String: CanvasItemLayout] = Dictionary(
+            store.layout.map { ($0.itemId, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        if rows[itemId] != nil {
+            rows[itemId]?.w = Double(size.width)
+            rows[itemId]?.h = Double(size.height)
+        } else {
+            rows[itemId] = CanvasItemLayout(
+                itemId: itemId, w: Double(size.width), h: Double(size.height)
+            )
         }
         let items = Array(rows.values)
         Task { await store.saveLayout(folderId: folderId, items: items) }
