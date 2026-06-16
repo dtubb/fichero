@@ -20,6 +20,7 @@ struct ArtifactsInspectorPane: View {
     @EnvironmentObject private var documentService: DocumentServiceGenerated
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
 
     /// Shared selection — the same instance the detached window observes.
     @State private var focused = FocusedArtifact.shared
@@ -58,13 +59,12 @@ struct ArtifactsInspectorPane: View {
         }
         .toolbar {
             ToolbarItem(placement: .automatic) {
-                Button {
+                // #2254 §E: the gated, reusable detach affordance. Absent where a
+                // second window can't exist (iPhone), so the floating placement is
+                // a true macOS / multi-scene opt-in.
+                DetachInspectorButton(isEnabled: focused.id != nil) {
                     openDetailWindow()
-                } label: {
-                    Label("Open in Window", systemImage: "macwindow.badge.plus")
                 }
-                .help("Open the selected artifact in a separate window")
-                .disabled(focused.id == nil)
             }
         }
         .task(id: document.id) {
@@ -76,6 +76,10 @@ struct ArtifactsInspectorPane: View {
     }
 
     private func openDetailWindow() {
+        // #2254: gate every `openWindow` on multi-window support so the floating
+        // placement degrades safely (the detail stays docked) on platforms that
+        // can't open a second window.
+        guard supportsMultipleWindows else { return }
         // Make sure the snapshot is current before the window reads it.
         focused.resolve(in: store.items)
         openWindow(id: "artifact-detail")
