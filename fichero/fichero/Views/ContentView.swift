@@ -148,12 +148,14 @@ struct ContentView: View {
     // Pane focus state for Tab cycling
     @FocusState var focusedPane: PaneFocus?
 
-    // Contextual Delete action published by the focused LibraryView
-    // (`\.libraryDeleteSelection`). It is non-nil only when a deletable
-    // selection exists, so the zoned-toolbar Delete button reflects selection
-    // for free (disabled when nil) — reusing the existing delete action +
-    // confirmation rather than reimplementing it (#2032).
-    @FocusedValue(\.libraryDeleteSelection) var libraryDeleteSelection
+    // NOTE: the toolbar's contextual Delete button was removed. Reading
+    // `@FocusedValue(\.libraryDeleteSelection)` HERE (ContentView hosts
+    // LibraryView in its detail column) closed an infinite invalidation loop:
+    // LibraryView re-allocates that NON-Equatable closure every body pass →
+    // republishes the focused value → invalidates this reader → re-renders the
+    // detail column → LibraryView body again → ~97% CPU at idle. Re-add Delete
+    // to the toolbar only via a STABLE/Equatable focused value (Binding<Bool> or
+    // an Equatable action wrapper), never a fresh closure. (#2032 / frame ①)
 
     // Drag and drop state
     @State var isDropTargeted = false
@@ -523,18 +525,9 @@ extension ContentView {
                 AddItemMenu(registry: itemRegistry, style: .button)
                     .help("Add new item (⌘N)")
 
-                // Delete — contextual. Reuses the existing delete action +
-                // confirmation published by the focused LibraryView
-                // (`\.libraryDeleteSelection`); the focused value is non-nil only
-                // when a deletable selection exists, so the button disables itself
-                // when there is nothing to delete (#2032).
-                Button(role: .destructive) {
-                    libraryDeleteSelection?()
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .help("Delete Selection")
-                .disabled(libraryDeleteSelection == nil)
+                // (Contextual Delete button removed — it caused an idle-CPU
+                //  focused-value loop; see the note on the property above.
+                //  Delete remains available via the Edit menu / ⌫.)
 
                 if featureManager.isWorkflowsEnabled && featureManager.isWorkflowRunOnSelectionEnabled {
                     // Snapshot selection at Menu-render time so Button actions use
