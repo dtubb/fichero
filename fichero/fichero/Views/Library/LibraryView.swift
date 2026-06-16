@@ -225,6 +225,7 @@ struct LibraryView: View {
                             links: libraryProjection.links,
                             selectedNodeId: $spatialSelectedNodeId,
                             layoutStore: canvasLayoutStore,
+                            itemStore: canvasItemStore,
                             folderScopeId: folderId ?? wholeLibraryRoomId
                         )
                     case .spatial:

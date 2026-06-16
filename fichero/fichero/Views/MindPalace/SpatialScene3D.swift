@@ -43,6 +43,15 @@ struct SpatialScene3D: View {
     /// this view never calls the generated client. When nil (Mind Palace room,
     /// RealityKit fallback) the scene is view-only, exactly as before.
     var layoutStore: CanvasLayoutStore?
+    /// Observable canvas-item store (#2294) — the SAME instance the 2D canvas
+    /// uses. When non-nil together with `folderScopeId`, the 3D scene renders the
+    /// folder's standalone heterogeneous items (note / quote / work_note / text
+    /// as cards, `link` as connectors) as a second renderer on the shared model,
+    /// loaded on appear and reflected on every `store.items` change. The store is
+    /// the only thing that touches the network; this view never calls the
+    /// generated client. Nil → no canvas items (Mind Palace room), exactly as
+    /// before.
+    var itemStore: CanvasItemStore?
     /// The scope these positions belong to — a real folder id, or the synthetic
     /// `wholeLibraryRoomId` ("__library__") for the unscoped whole-library view.
     var folderScopeId: String?
@@ -105,7 +114,7 @@ struct SpatialScene3D: View {
     #endif
 
     var body: some View {
-        if nodes.isEmpty {
+        if nodes.isEmpty && (itemStore?.items.isEmpty ?? true) {
             ContentUnavailableView(
                 "Empty Space",
                 systemImage: "cube.transparent",
@@ -145,6 +154,14 @@ struct SpatialScene3D: View {
                             .position = position(for: node, scale: scale, center: center)
                     }
                 }
+                // Reflect `itemStore.items` (load or agent change) onto the live
+                // canvas-item entities: add new cards, reposition existing ones,
+                // drop removed ones, and rebuild link connectors. Reading
+                // `itemStore?.items` here ties this pass to the observable store.
+                if itemStore?.items != nil,
+                    let root = content.entities.first(where: { $0.name == "spatial-root" }) {
+                    reconcileCanvasItems(in: root)
+                }
             }
         )
         .gesture(
@@ -174,13 +191,20 @@ struct SpatialScene3D: View {
         // Load the shared store's persisted layout for this scope; the entities
         // then reflect `store.layout` via the `update` pass below.
         .task(id: folderScopeId) {
-            guard let store = layoutStore, let folderId = folderScopeId else { return }
-            await store.loadLayout(folderId: folderId)
+            guard let folderId = folderScopeId else { return }
+            if let store = layoutStore { await store.loadLayout(folderId: folderId) }
+            if let items = itemStore { await items.loadItems(folderId: folderId) }
         }
         // Reading `layoutStore?.layout` here ties the body to the observable
         // store: a load or agent move re-renders the view, re-runs `update`, and
         // repositions the live entities to the new persisted positions.
         .onChange(of: layoutStore?.layout) { _, _ in
+            layoutRevision += 1
+        }
+        // Canvas items changed (load / add / delete / agent edit) — bump the
+        // revision so the RealityView `update` pass re-runs and reconciles the
+        // live item entities against `store.items`.
+        .onChange(of: itemStore?.items) { _, _ in
             layoutRevision += 1
         }
         .background(MindPalaceTheme.canvasBackground)
@@ -496,6 +520,11 @@ struct SpatialScene3D: View {
             root.addChild(makeEdgeEntity(from: from, to: toEnd, linkType: link.linkType, weight: link.weight))
         }
 
+        // Standalone heterogeneous canvas items (#2294) — cards + link
+        // connectors. Built here for items already loaded, and kept live by the
+        // `update` pass which re-runs `reconcileCanvasItems` on store change.
+        reconcileCanvasItems(in: root)
+
         return root
     }
 
@@ -583,6 +612,135 @@ struct SpatialScene3D: View {
     }
     #endif
 }
+
+// MARK: - Canvas items (#2294)
+
+#if canImport(RealityKit)
+/// Heterogeneous standalone canvas items (note / quote / work_note / text /
+/// link) rendered in the 3D scene, bound to the SAME observable
+/// `CanvasItemStore` the 2D canvas uses. Kept in a same-file extension (a
+/// cross-file split breaks symbol resolution — see #2294) so the struct body
+/// stays under the length limit.
+private extension SpatialScene3D {
+
+    /// Backend-space positions for the non-`link` canvas items: the persisted
+    /// `CanvasItemLayout` row where one exists (the SAME rows the 2D canvas and
+    /// node layout use), else a cascading arranged spot so a freshly-added item
+    /// is visible until dragged. Mirrors the 2D canvas's `itemPositions`.
+    private func itemRawPositions() -> [String: SIMD3<Double>] {
+        guard let store = itemStore else { return [:] }
+        let rows = Dictionary(
+            (layoutStore?.layout ?? []).map { ($0.itemId, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        var result: [String: SIMD3<Double>] = [:]
+        var fallback = 0
+        for item in store.items where item.kind != .link {
+            if let row = rows[item.id] {
+                result[item.id] = SIMD3<Double>(row.x, row.y, row.z)
+            } else {
+                let column = fallback % 3
+                let line = fallback / 3
+                result[item.id] = SIMD3<Double>(Double(column) * 0.6, Double(-line) * 0.6, 0)
+                fallback += 1
+            }
+        }
+        return result
+    }
+
+    /// Apply the same normalize transform used for nodes to a raw backend point.
+    private func scenePosition(_ raw: SIMD3<Double>, scale: Float, center: SIMD3<Float>) -> SIMD3<Float> {
+        let point = SIMD3<Float>(Float(raw.x), Float(raw.y), Float(raw.z))
+        return (point - center) * scale
+    }
+
+    /// Find or create a named container child under `root` (idempotent), so the
+    /// reconcile pass groups item cards / connectors without re-creating them.
+    private func childEntity(named name: String, in root: Entity) -> Entity {
+        if let existing = root.children.first(where: { $0.name == name }) { return existing }
+        let entity = Entity()
+        entity.name = name
+        root.addChild(entity)
+        return entity
+    }
+
+    /// Reflect `itemStore.items` onto the live scene: one card entity per
+    /// non-`link` item (added / repositioned / removed to match the store) and a
+    /// rebuilt connector per `link` item between its source/target endpoints. The
+    /// `combined` map carries node AND item scene positions so a link can join a
+    /// node and/or an item — the same endpoint model the 2D edge layer uses.
+    private func reconcileCanvasItems(in root: Entity) {
+        guard let store = itemStore else { return }
+        let (scale, center) = normalize()
+
+        var combined: [String: SIMD3<Float>] = [:]
+        for node in renderedNodes {
+            combined[node.id] = position(for: node, scale: scale, center: center)
+        }
+        let rawItems = itemRawPositions()
+        for (id, raw) in rawItems {
+            combined[id] = scenePosition(raw, scale: scale, center: center)
+        }
+
+        // Cards: find-or-create per item, drop entities whose item is gone.
+        let itemsRoot = childEntity(named: "spatial-items", in: root)
+        let liveIds = Set(rawItems.keys)
+        for child in itemsRoot.children where !liveIds.contains(child.name) {
+            child.removeFromParent()
+        }
+        for item in store.items where item.kind != .link {
+            guard let pos = combined[item.id] else { continue }
+            if let existing = itemsRoot.findEntity(named: item.id) {
+                existing.position = pos
+            } else {
+                itemsRoot.addChild(makeItemEntity(item, at: pos))
+            }
+        }
+
+        // Link connectors: few and cheap, rebuilt wholesale from endpoints.
+        let linksRoot = childEntity(named: "spatial-item-links", in: root)
+        linksRoot.children.forEach { $0.removeFromParent() }
+        for link in store.items where link.kind == .link {
+            guard
+                let from = link.sourceItemId.flatMap({ combined[$0] }),
+                let toEnd = link.targetItemId.flatMap({ combined[$0] })
+            else { continue }
+            linksRoot.addChild(makeEdgeEntity(from: from, to: toEnd, linkType: .userDrawn, weight: 1.0))
+        }
+    }
+
+    /// One card entity for a non-`link` canvas item — a small rounded box tinted
+    /// by kind. ONE builder switching on kind via the colour map; tap-selectable
+    /// like a node (entity name = item id → `selectedNodeId`).
+    private func makeItemEntity(_ item: CanvasItemDisplay, at position: SIMD3<Float>) -> ModelEntity {
+        let cardWidth: Float = 0.6
+        let cardHeight: Float = 0.42
+        let depth: Float = cardWidth * 0.12
+        let size = SIMD3<Float>(cardWidth, cardHeight, depth)
+        let mesh = MeshResource.generateBox(size: size, cornerRadius: min(cardWidth, cardHeight, depth) * 0.18)
+        let color = itemMaterialColor(for: item.kind)
+        let entity = ModelEntity(mesh: mesh, materials: [SimpleMaterial(color: color, isMetallic: false)])
+        entity.position = position
+        entity.name = item.id
+        entity.components.set(InputTargetComponent())
+        entity.components.set(CollisionComponent(shapes: [ShapeResource.generateBox(size: size)]))
+        entity.components.set(HoverEffectComponent())
+        return entity
+    }
+
+    /// Renderer colour per canvas-item kind — the RealityKit twin of the 2D
+    /// `kind.accent` palette (note=orange, quote=purple, work_note=blue, …).
+    private func itemMaterialColor(for kind: Components.Schemas.CanvasItemKind) -> PlatformColor {
+        switch kind {
+        case .note:     return .systemOrange
+        case .quote:    return .systemPurple
+        case .workNote: return .systemBlue
+        case .text:     return .systemGray
+        case .link:     return .systemGray
+        }
+    }
+}
+#endif
 
 #if canImport(RealityKit)
 /// Caches RealityKit textures for Mind Palace source-page nodes, keyed by the
