@@ -209,11 +209,6 @@ struct LibraryView: View {
     var body: some View {
         withKeyboardShortcuts(
             VStack(spacing: 0) {
-                // Inline filter bar (Cmd+F)
-                if featureManager.isLibraryFilterToolbarEnabled && showFilterBar {
-                    filterBarView
-                }
-
                 // Main content
                 if !isConnected {
                     connectionErrorState
@@ -253,6 +248,17 @@ struct LibraryView: View {
                     case .map, .workspace:
                         mapView
                     }
+                }
+            }
+            // Xcode-navigator-style quick filter, pinned to the BOTTOM of the
+            // library list pane. Narrows the rows currently shown client-side
+            // (binds `searchText`, which drives `filteredDocuments`) — distinct
+            // from the toolbar `.searchable`, which fires a *global* search.
+            // Revealed on demand by ⌘F / the toolbar filter toggle, matching
+            // Xcode's navigator filter field.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if featureManager.isLibraryFilterToolbarEnabled && showFilterBar {
+                    filterBarView
                 }
             }
             .background(

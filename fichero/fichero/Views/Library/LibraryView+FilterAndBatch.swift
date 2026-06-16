@@ -76,16 +76,25 @@ extension LibraryView {
 
     // MARK: - Filter Bar
 
+    /// Xcode-navigator-style filter bar pinned to the BOTTOM of the library
+    /// list pane (mounted via `.safeAreaInset(edge: .bottom)` in `LibraryView`).
+    /// Thin, subtle `.bar` material with a top divider; binds `searchText`,
+    /// which drives `filteredDocuments`, so it quick-narrows the visible rows
+    /// client-side. The toolbar filter toggle / ⌘F controls visibility;
+    /// Escape hides the bar (and clears the filter so no rows stay hidden).
     var filterBarView: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
+            Divider()
+
+            HStack(spacing: 6) {
+                Image(systemName: "line.3.horizontal.decrease.circle")
                     .foregroundStyle(.secondary)
-                    .font(.system(size: 12))
+                    .font(.body)
+                    .imageScale(.small)
 
                 TextField("Filter", text: $searchText)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 13))
+                    .font(.callout)
                     .focused($filterFieldFocused)
 
                 if !searchText.isEmpty {
@@ -98,21 +107,22 @@ extension LibraryView {
                     .buttonStyle(.plain)
                     .help("Clear filter")
                 }
-
-                Button("Done") {
-                    searchText = ""
-                    showFilterBar = false
-                }
-                .buttonStyle(.borderless)
-                .font(.system(size: 12))
-                .keyboardShortcut(.escape, modifiers: [])
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .frame(height: 30)
             .background(.bar)
-
-            Divider()
         }
+        // Escape hides the bottom filter bar and clears the filter so no rows
+        // are left silently hidden once the bar disappears.
+        .background(
+            Button("") {
+                searchText = ""
+                showFilterBar = false
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.escape, modifiers: [])
+            .hidden()
+        )
     }
 
     // MARK: - Empty State
