@@ -215,6 +215,7 @@
 		699D8A080D56300C542DEE87 /* ContradictionTriageSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53458DC3387BC4C694EE3452 /* ContradictionTriageSheet.swift */; };
 		6C6FAD423790DA7599271F79 /* FocusedReference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 018575A1DB6F3554E5AE1009 /* FocusedReference.swift */; };
 		6CBF2E328348510A4B781B7C /* SidebarView+PinnedNavigationRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0DFC89B8C073DBEE0A743F /* SidebarView+PinnedNavigationRows.swift */; };
+		6DE1543A04C175D3E1AD10C9 /* SidebarChatSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BE31956AE1F2AE56CD3C4DB /* SidebarChatSurface.swift */; };
 		6E510CF3B973014339F75D31 /* InspectorTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCC476DF64934CB63FF15560 /* InspectorTab.swift */; };
 		6EF56175D31C5732E5A0D119 /* OntologyBrowserGraphModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18ABABDD0527530DA73B5C7 /* OntologyBrowserGraphModel.swift */; };
 		6FE4896A20BB18BC70193BB7 /* BackupStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70C062A29951726302108FD2 /* BackupStore.swift */; };
@@ -773,6 +774,7 @@
 		772A6A57C4986C2765A174EE /* PlatformPasteboard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlatformPasteboard.swift; sourceTree = "<group>"; };
 		7AA64CFDF3C633C03CCE24A6 /* FicheroWebView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroWebView.swift; sourceTree = "<group>"; };
 		7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleEditorView.swift; sourceTree = "<group>"; };
+		7BE31956AE1F2AE56CD3C4DB /* SidebarChatSurface.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SidebarChatSurface.swift; sourceTree = "<group>"; };
 		7D040114E6D969FD49C8317E /* DocumentStore+ChangeStream.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentStore+ChangeStream.swift"; sourceTree = "<group>"; };
 		7F3FE2F360EADE051A3D2D51 /* EntitySplitSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EntitySplitSheet.swift; sourceTree = "<group>"; };
 		7FDDBCA3101A6E468A3105D2 /* DocumentInspectorArtifactsTab+Shared.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorArtifactsTab+Shared.swift"; sourceTree = "<group>"; };
@@ -1392,6 +1394,7 @@
 				202674E32F489742008EAB5D /* ChatMapGrid.swift */,
 				202674E52F489757008EAB5D /* ChatMessagesList.swift */,
 				202674E72F48976C008EAB5D /* ChatView+Extensions.swift */,
+				7BE31956AE1F2AE56CD3C4DB /* SidebarChatSurface.swift */,
 			);
 			path = Chat;
 			sourceTree = "<group>";
@@ -2651,6 +2654,7 @@
 				C37B1043409A6ED500E30F29 /* BackupsView.swift in Sources */,
 				A6400FE26A8158543B1FD124 /* SplittablePane.swift in Sources */,
 				35B42F6B063872E635AD5362 /* WindowSeed.swift in Sources */,
+				6DE1543A04C175D3E1AD10C9 /* SidebarChatSurface.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

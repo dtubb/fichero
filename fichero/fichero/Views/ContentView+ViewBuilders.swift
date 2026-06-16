@@ -29,31 +29,39 @@ extension ContentView {
 
     @ViewBuilder
     var sidebarContent: some View {
-        SidebarView(
-            sidebarMode: $sidebarMode,
-            viewMode: $viewMode,
-            selectedItemId: $selectedSidebarItemId,
-            libraryManager: LibraryManager.shared,
-            itemRegistry: itemRegistry,
-            apiClient: apiClient,
-            windowPersistenceId: sidebarWindowPersistenceId,
-            onCreateChatWithDocuments: { documentIds in
-                chatSelectedDocuments = Set(documentIds)
-            },
-            onOpenChatWithCurrentScope: {
-                openChatWithCurrentScope()
-            }
-        )
-        .environmentObject(savedSearchService)
-        .environmentObject(conversationService)
-        .environmentObject(ErrorService.shared)
-        .environmentObject(performanceService)
-        .overlay { paneFocusIndicator(for: .sidebar) }
-        // Make the sidebar focusable so arrow keys navigate the List.
-        // (Removing this broke arrow-key navigation — see #560.)
-        .focusable()
-        .focused($focusedPane, equals: .sidebar)
-        .focusEffectDisabled()
+        // #2274: chat surface ABOVE the folder/file sidebar in the LEFT column
+        // (reform master plan §6d / §7.10). It reuses the existing ChatView, so
+        // send/stream flow through the same ChatServiceGenerated path —
+        // no second networking surface. The file tree stays the column's spine.
+        VStack(spacing: 0) {
+            SidebarChatSurface(selectedDocuments: $chatSelectedDocuments)
+
+            SidebarView(
+                sidebarMode: $sidebarMode,
+                viewMode: $viewMode,
+                selectedItemId: $selectedSidebarItemId,
+                libraryManager: LibraryManager.shared,
+                itemRegistry: itemRegistry,
+                apiClient: apiClient,
+                windowPersistenceId: sidebarWindowPersistenceId,
+                onCreateChatWithDocuments: { documentIds in
+                    chatSelectedDocuments = Set(documentIds)
+                },
+                onOpenChatWithCurrentScope: {
+                    openChatWithCurrentScope()
+                }
+            )
+            .environmentObject(savedSearchService)
+            .environmentObject(conversationService)
+            .environmentObject(ErrorService.shared)
+            .environmentObject(performanceService)
+            .overlay { paneFocusIndicator(for: .sidebar) }
+            // Make the sidebar focusable so arrow keys navigate the List.
+            // (Removing this broke arrow-key navigation — see #560.)
+            .focusable()
+            .focused($focusedPane, equals: .sidebar)
+            .focusEffectDisabled()
+        }
         // min: 180 lets the sidebar collapse tight enough that the mode
         // icons dominate the column with minimal wasted space (#615).
         // Was 250 — felt bloated on small screens.
