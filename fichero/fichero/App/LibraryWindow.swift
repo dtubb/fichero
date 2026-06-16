@@ -50,7 +50,12 @@ struct LibraryWindow: View {
         _windowState = StateObject(wrappedValue: WindowState(libraryId: UUID()))
     }
 
-    var body: some View {
+    // Extracted from `body` so the ~40-modifier per-library environment chain
+    // type-checks as its own expression — keeping it inline with the window's
+    // sheet/onChange/focusedSceneValue chain overran the Swift type-checker's
+    // budget once the #2262 Duplicate-Window plumbing was added.
+    @ViewBuilder
+    private var libraryWindowContent: some View {
         Group {
             if let library = windowState.library {
                 DocumentTabView(
@@ -109,6 +114,12 @@ struct LibraryWindow: View {
                 noLibraryView
             }
         }
+    }
+
+    // Window chrome (accessor, file importer, scene-value command wiring, titles)
+    // split out so neither this nor the sheet chain below overruns the type-checker.
+    private var libraryWindowChrome: some View {
+        libraryWindowContent
         .background(WindowAccessor { window in
             hostWindow = window
             syncHostWindowMetadata()
@@ -134,6 +145,11 @@ struct LibraryWindow: View {
         // Keep titlebar chrome minimal; ContentView manages in-window context.
         .navigationTitle("")
         .navigationSubtitle("")
+    }
+
+    // App-level sheet presenters, split out from the onChange chain in `body`.
+    private var libraryWindowSheets: some View {
+        libraryWindowChrome
         // App-level sheets (providers, MCP servers) - must be here to work when no library is open
         .sheet(isPresented: Binding(
             get: { appState.showProvidersSettings },
@@ -218,6 +234,10 @@ struct LibraryWindow: View {
             FirstRunWindow()
                 .environmentObject(appState)
         }
+    }
+
+    var body: some View {
+        libraryWindowSheets
         // React to currentLibraryId changes (from Finder open, etc.)
         // Safari model: switch current window to the new library
         .onChange(of: libraryManager.currentLibraryId) { _, newId in
