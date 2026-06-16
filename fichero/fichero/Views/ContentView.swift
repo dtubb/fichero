@@ -240,15 +240,6 @@ struct ContentView: View {
             }
             return .ignored
         }
-        .sheet(isPresented: Binding(
-            get: { appState.isBackendRunning && !featureManager.firstRunCompleted },
-            set: { if !$0 { featureManager.firstRunCompleted = true } }
-        )) {
-            FirstRunWindow()
-                .environmentObject(appState)
-                .environmentObject(apiClient)
-                .environment(executionObserver)
-        }
         .alert(item: $errorService.currentAlert) { errorModel in
             let message = errorModel.recoverySuggestion != nil ?
                 "\(errorModel.message)\n\n\(errorModel.recoverySuggestion!)" :

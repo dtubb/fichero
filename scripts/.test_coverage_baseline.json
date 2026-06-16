@@ -993,24 +993,7 @@
       "App/ViewSettings.swift::LibraryLayout",
       "App/ViewSettings.swift::PreviewMode",
       "App/ViewSettings.swift::SidebarMode",
-      "App/ViewSettings.swift::ViewSettings",
-      "App/WelcomeView+OnboardingWizardActions.swift::applyDefaultsForChosenProvider",
-      "App/WelcomeView+OnboardingWizardActions.swift::loadCatalog",
-      "App/WelcomeView+OnboardingWizardActions.swift::probeAppleIntelligence",
-      "App/WelcomeView+OnboardingWizardActions.swift::probeModelCount",
-      "App/WelcomeView+OnboardingWizardActions.swift::skipAndDismiss",
-      "App/WelcomeView+OnboardingWizardActions.swift::testLocalConnection",
-      "App/WelcomeView+OnboardingWizardCore.swift::AppleProbeState",
-      "App/WelcomeView+OnboardingWizardCore.swift::LocalTestState",
-      "App/WelcomeView+OnboardingWizardCore.swift::OnboardingChoice",
-      "App/WelcomeView+OnboardingWizardCore.swift::OnboardingWizardView",
-      "App/WelcomeView+OnboardingWizardCore.swift::defaultServerURL",
-      "App/WelcomeView+OnboardingWizardCore.swift::installURL",
-      "App/WelcomeView+OnboardingWizardViews.swift::catalogRow",
-      "App/WelcomeView+OnboardingWizardViews.swift::choiceCard",
-      "App/WelcomeView+OnboardingWizardViews.swift::importModeCard",
-      "App/WelcomeView+OnboardingWizardViews.swift::providerHeader",
-      "App/WelcomeView.swift::WelcomeView"
+      "App/ViewSettings.swift::ViewSettings"
     ]
   },
   "swift/Models": {

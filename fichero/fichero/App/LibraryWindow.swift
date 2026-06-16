@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import AppKit
 import OSLog
 import SwiftUI
@@ -15,6 +16,9 @@ struct LibraryWindow: View {
 
     // App-wide workflow execution observer (uses @Observable, not ObservableObject)
     @State private var executionObserver = WorkflowExecutionObserver()
+
+    // Observed so the first-run sheet binding is reactive to completion.
+    @ObservedObject private var featureManager = FeatureManager.shared
 
     @State private var hasInitialized = false
     @State private var showingFileImporter = false
@@ -82,8 +86,9 @@ struct LibraryWindow: View {
                 .environment(library.changeStream)
                 .task(id: library.id) { library.changeStream.start() }
             } else {
-                // Welcome screen - no library open yet
-                WelcomeView(onCreateLibrary: createNewLibrary, onOpenLibrary: { showingFileImporter = true })
+                // No library open yet — returning users see a simple create/open prompt.
+                // First-run users are handled by the FirstRunWindow sheet below.
+                noLibraryView
             }
         }
         .background(WindowAccessor { window in
@@ -181,6 +186,18 @@ struct LibraryWindow: View {
                 description: "Create rules to automatically organize and process documents.",
                 icon: "gearshape.2"
             )
+        }
+        // First-run onboarding (#1947 — sole first-run path, replaces ContentView sheet).
+        // Triggers as soon as the backend is reachable; stays until the user
+        // clicks Finish (which sets featureManager.firstRunCompleted = true).
+        // The sheet persists while the user progresses through Library / Permissions /
+        // Cloud steps even after a library is assigned (windowState.library != nil).
+        .sheet(isPresented: Binding(
+            get: { appState.isBackendRunning && !featureManager.firstRunCompleted },
+            set: { if !$0 { featureManager.firstRunCompleted = true } }
+        )) {
+            FirstRunWindow()
+                .environmentObject(appState)
         }
         // React to currentLibraryId changes (from Finder open, etc.)
         // Safari model: switch current window to the new library
@@ -357,6 +374,44 @@ struct LibraryWindow: View {
     }
 }
 // swiftlint:enable type_body_length
+
+// MARK: - Empty state (no library open, first-run already completed)
+
+private extension LibraryWindow {
+    /// Returning-user empty state: shown when no library is open and the
+    /// first-run wizard has already been completed.  First-time users see
+    /// the FirstRunWindow sheet instead (which handles library creation).
+    var noLibraryView: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "doc.richtext")
+                .font(.system(size: 64))
+                .foregroundColor(.accentColor)
+
+            Text("Fichero")
+                .font(.largeTitle)
+                .fontWeight(.semibold)
+
+            Text("Create a new library or open an existing one to get started.")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+
+            HStack(spacing: 16) {
+                Button(action: createNewLibrary) {
+                    Label("New Library", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button { showingFileImporter = true } label: {
+                    Label("Open Library", systemImage: "folder")
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(40)
+    }
+}
 
 private struct WindowAccessor: NSViewRepresentable {
     let onResolve: (NSWindow?) -> Void
