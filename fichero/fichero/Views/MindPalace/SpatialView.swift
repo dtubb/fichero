@@ -197,20 +197,15 @@ struct Spatial2DCanvas: View {
             store.layout.map { ($0.itemId, $0) },
             uniquingKeysWith: { _, latest in latest }
         )
-        for node in nodes {
-            let point: CGPoint
-            if node.id == movedId {
-                point = droppedAt
-            } else if let existing = rows[node.id] {
-                point = CGPoint(x: existing.x, y: existing.y)
-            } else {
-                point = projected[node.id] ?? .zero
-            }
-            var row = rows[node.id] ?? CanvasItemLayout(itemId: node.id)
-            row.x = point.x
-            row.y = point.y
-            rows[node.id] = row
+        // Seed any visible node missing from the store at its projector
+        // default (pinning the whole layout so it's stable on reload), then
+        // patch the moved node to its drop point.
+        for node in nodes where rows[node.id] == nil {
+            let point = projected[node.id] ?? .zero
+            rows[node.id] = CanvasItemLayout(itemId: node.id, x: point.x, y: point.y)
         }
+        rows[movedId]?.x = droppedAt.x
+        rows[movedId]?.y = droppedAt.y
         let items = Array(rows.values)
         Task { await store.saveLayout(folderId: folderId, items: items) }
     }
