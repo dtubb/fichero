@@ -136,4 +136,12 @@ extension FocusedValues {
     @Entry var showDocumentCanvas: Binding<Bool>?
     /// The WebKit/reading content pane (transcript surface).
     @Entry var showReadingPane: Binding<Bool>?
+
+    /// The active representation shown in the document content/WebKit surface
+    /// (Transcript/Digest/Graph/Claims/Timeline/Map), published by the focused
+    /// `DocumentKGSurface`. Drives the View-menu "Add View" items so the
+    /// representation switcher lives in the menu instead of a floating icon bar
+    /// over the content (#2032 / reform §G). Nil when no document surface is
+    /// focused, so the menu items disable.
+    @Entry var documentRepresentation: Binding<KGSurfaceTab>?
 }

@@ -90,6 +90,20 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Number key for the View-menu "Add View" shortcut (⌃⌥⌘N). Mirrors the
+    /// menu order; chosen to avoid the ⌘N library-layout and ⌃⌘N sidebar-mode
+    /// shortcuts. (#2032)
+    var representationShortcut: Character {
+        switch self {
+        case .transcript: return "1"
+        case .digest: return "2"
+        case .graph: return "3"
+        case .claims: return "4"
+        case .timeline: return "5"
+        case .map: return "6"
+        }
+    }
+
     /// True for tabs rendered inside the shared WKWebView (#1346).
     var usesWebKit: Bool {
         switch self {
@@ -99,8 +113,10 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
     }
 }
 
-/// Hosts the WebKit document KG plus the native document-scoped claims view
-/// under one fixed toolbar.
+/// Hosts the WebKit document KG plus the native document-scoped claims view.
+/// The representation switcher (Transcript/Digest/Graph/Claims/Timeline/Map)
+/// lives in the View menu ("Add View"), driven via FocusedValues — not a
+/// floating icon bar over the content (#2032 / reform §G).
 struct DocumentKGSurface: View {
     let documentId: String
     let documentScope: InspectorClaimDocumentScope
@@ -119,20 +135,14 @@ struct DocumentKGSurface: View {
     @EnvironmentObject private var kgCurationService: KGCurationServiceGenerated
 
     var body: some View {
-        VStack(spacing: 0) {
-            MiniToolbar {
-                Spacer(minLength: 0)
-                ForEach(KGSurfaceTab.allCases) { tab in
-                    tabButton(tab)
-                }
-                Spacer(minLength: 0)
-            }
-            .accessibilityIdentifier("knowledgeSurfaceTabs")
-
-            Divider()
-
-            content
-        }
+        // The representation switcher (Transcript/Digest/Graph/Claims/Timeline/
+        // Map) lives in the View menu as "Add View" items, not as a floating
+        // icon bar over the content (#2032 / reform §G). Publishing `activeTab`
+        // as a focused scene value lets the menu drive the selection for the
+        // focused document surface.
+        content
+            .accessibilityIdentifier("knowledgeSurfaceContent")
+            .focusedSceneValue(\.documentRepresentation, $activeTab)
     }
 
     @ViewBuilder
@@ -187,27 +197,6 @@ struct DocumentKGSurface: View {
         }
     }
 
-    @ViewBuilder
-    private func tabButton(_ tab: KGSurfaceTab) -> some View {
-        let isSelected = activeTab == tab
-        Button {
-            activeTab = tab
-        } label: {
-            Image(systemName: tab.icon)
-                .font(.system(size: 16, weight: .regular))
-                .frame(width: 40)
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-        )
-        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-        .help(tab.helpText)
-        .accessibilityIdentifier("kgSurfaceTab-\(tab.rawValue)")
-    }
 }
 
 struct FolderRealityKitSurface: View {

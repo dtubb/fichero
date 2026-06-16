@@ -23,6 +23,10 @@ struct ViewMenuCommands: View {
 
         Divider()
 
+        RepresentationSection()
+
+        Divider()
+
         ImagePreviewMenuCommands()
 
         Divider()
@@ -461,6 +465,43 @@ struct PreviewModeButton: View {
             KeyEquivalent(Character(shortcut)),
             modifiers: [.command]
         )
+    }
+}
+
+// MARK: - Representation Section ("Add View")
+
+/// Document content-area representation switcher, surfaced as View-menu items
+/// instead of a floating icon bar over the WebKit content (#2032 / reform §G).
+/// Daniel: "the stuff shown in the WebKit/content view are really views that can
+/// be ADDED — so the switcher should be MENU ITEMS, not icons." Reads/writes the
+/// focused `DocumentKGSurface`'s active representation via FocusedValues, so it's
+/// per-window and disables when no document surface is focused (same rationale as
+/// `InspectorButton` / `PaneVisibilitySection`).
+struct RepresentationSection: View {
+    @FocusedValue(\.documentRepresentation) private var representation
+
+    private var current: KGSurfaceTab? {
+        representation?.wrappedValue
+    }
+
+    var body: some View {
+        Section("Add View") {
+            ForEach(KGSurfaceTab.allCases) { tab in
+                Button {
+                    representation?.wrappedValue = tab
+                } label: {
+                    Label(tab.title, systemImage: tab.icon)
+                    if current == tab {
+                        Image(systemName: "checkmark")
+                    }
+                }
+                .keyboardShortcut(
+                    KeyEquivalent(tab.representationShortcut),
+                    modifiers: [.control, .option, .command]
+                )
+                .disabled(representation == nil)
+            }
+        }
     }
 }
 
