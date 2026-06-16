@@ -186,15 +186,15 @@ struct DeleteDocumentIntent: AppIntent {
     )
     static let openAppWhenRun = true
 
-    @Parameter(title: "Document ID")
-    var documentId: String
+    @Parameter(title: "Document")
+    var document: DocumentAppEntity
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Delete document \(\.$documentId)")
+        Summary("Delete document \(\.$document)")
     }
 
     func perform() async throws -> some IntentResult {
-        let payload = DocumentDeleteActionPayload(docId: documentId)
+        let payload = DocumentDeleteActionPayload(docId: document.id)
         _ = try await invokeAuditedAction("document.delete", params: payload)
         return .result(dialog: "Deleted document.")
     }
