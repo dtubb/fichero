@@ -119,6 +119,11 @@ class LibraryManager: ObservableObject {
         /// (`POST /api/actions/audit/{id}/undo`) through the generated client.
         lazy var auditStore: AuditStore = AuditStore(client: ficheroClient)
 
+        /// Per-library backup store (#2087). Lists / creates / restores / deletes
+        /// point-in-time snapshots (`/api/storage/snapshots`) through the
+        /// generated client.
+        lazy var backupStore: BackupStore = BackupStore(client: ficheroClient)
+
         /// Per-library research store (#1904). Wraps `researchService`, owns the
         /// per-project data (plans, tasks, checklists, sources, notes), and
         /// reacts to `research.*` change events.

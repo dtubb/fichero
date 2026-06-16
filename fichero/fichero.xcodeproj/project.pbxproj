@@ -216,6 +216,7 @@
 		6CBF2E328348510A4B781B7C /* SidebarView+PinnedNavigationRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B0DFC89B8C073DBEE0A743F /* SidebarView+PinnedNavigationRows.swift */; };
 		6E510CF3B973014339F75D31 /* InspectorTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCC476DF64934CB63FF15560 /* InspectorTab.swift */; };
 		6EF56175D31C5732E5A0D119 /* OntologyBrowserGraphModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18ABABDD0527530DA73B5C7 /* OntologyBrowserGraphModel.swift */; };
+		6FE4896A20BB18BC70193BB7 /* BackupStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70C062A29951726302108FD2 /* BackupStore.swift */; };
 		71122FD51EB1B189E7501699 /* AnnotationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51C57A5E813205FDBACA48B4 /* AnnotationDetailView.swift */; };
 		71B9A55B210E4DE0AA4B4A2A /* ScheduleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B5ACEA3F5BC4462B7B18AA7 /* ScheduleEditorView.swift */; };
 		722AE751D8B74C9F0707ABEC /* ArtifactPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 333AB0EA136CA6252E5C93EE /* ArtifactPanel.swift */; };
@@ -447,6 +448,7 @@
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = C10000310000000000000001 /* Sparkle */; };
 		C1C484907B28189E223436BE /* LibraryManager+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */; };
 		C340001000000000PROMPT01 /* PromptPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C340001100000000PROMPT01 /* PromptPreviewPanel.swift */; };
+		C37B1043409A6ED500E30F29 /* BackupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91100495C9D776E200E2F9C0 /* BackupsView.swift */; };
 		C38F232612EE4EEB87E62A76 /* FicheroAppEntities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48FFFFE4A294ADC2F1299E2D /* FicheroAppEntities.swift */; };
 		C5B7DEB948261159D439C454 /* DocumentNotesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00A8552DEACF83751D617C6 /* DocumentNotesTab.swift */; };
 		C835851846598745D40790B6 /* EntityDetailView+FilterChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = D18BA434B3CB3A8C31139293 /* EntityDetailView+FilterChips.swift */; };
@@ -758,6 +760,7 @@
 		6931274044832BD7EFE8A4D3 /* SidebarView+LibraryHeaderHelpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarView+LibraryHeaderHelpers.swift"; sourceTree = "<group>"; };
 		6C0044833E201FFB8B8A5B37 /* EntityDetailView+Sections.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EntityDetailView+Sections.swift"; sourceTree = "<group>"; };
 		6FC331F7BFE50CEECD3B4414 /* ArtifactStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactStore.swift; sourceTree = "<group>"; };
+		70C062A29951726302108FD2 /* BackupStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BackupStore.swift; sourceTree = "<group>"; };
 		715408B079BD7610A53FA99C /* DocumentInspectorInfoTab+Prototype.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorInfoTab+Prototype.swift"; sourceTree = "<group>"; };
 		72D05E0BE3C8D1AEA1AA3A8D /* ImageMarqueeOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageMarqueeOverlay.swift; sourceTree = "<group>"; };
 		73BB27716102361159F020CD /* DocumentInspectorArtifactsTab+Previews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorArtifactsTab+Previews.swift"; sourceTree = "<group>"; };
@@ -786,6 +789,7 @@
 		8EFD6D9476092F3519615C59 /* CitationsInspectorPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CitationsInspectorPane.swift; sourceTree = "<group>"; };
 		8F105B00D61F64579C7762E9 /* PDFLoupeOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFLoupeOverlay.swift; sourceTree = "<group>"; };
 		9037096857E2AE5F3339A8DC /* DocumentInspectorInfoTab+Workflow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorInfoTab+Workflow.swift"; sourceTree = "<group>"; };
+		91100495C9D776E200E2F9C0 /* BackupsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BackupsView.swift; sourceTree = "<group>"; };
 		9195539F44B4ADCA2A3C9974 /* AISettingsView+Helpers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AISettingsView+Helpers.swift"; sourceTree = "<group>"; };
 		923BD592D3257176C51CAC1C /* ContentView+WorkflowActions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+WorkflowActions.swift"; sourceTree = "<group>"; };
 		92773EAEE52587BBA8DEDC9F /* LibraryView+TableMapViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "LibraryView+TableMapViews.swift"; sourceTree = "<group>"; };
@@ -1456,6 +1460,7 @@
 				4887C223276D2F5E2C498065 /* CanvasLayoutStore.swift */,
 				5921F26A97AF84B80B4DCD29 /* CanvasItemStore.swift */,
 				FD8F8D42618D304271F81962 /* AuditStore.swift */,
+				70C062A29951726302108FD2 /* BackupStore.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -1717,6 +1722,7 @@
 				F4189C51250E0B39E05CD87B /* AISettingsView+Tabs.swift */,
 				9195539F44B4ADCA2A3C9974 /* AISettingsView+Helpers.swift */,
 				67E28651A4F5835C8AD6A06B /* AuditHistoryView.swift */,
+				91100495C9D776E200E2F9C0 /* BackupsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -2635,6 +2641,8 @@
 				75FF7AE84AC04F85A9A728AA /* AuditStore.swift in Sources */,
 				5435A98021D72C073130730B /* AuditHistoryView.swift in Sources */,
 				C38F232612EE4EEB87E62A76 /* FicheroAppEntities.swift in Sources */,
+				6FE4896A20BB18BC70193BB7 /* BackupStore.swift in Sources */,
+				C37B1043409A6ED500E30F29 /* BackupsView.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {

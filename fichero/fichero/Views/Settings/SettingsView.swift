@@ -39,6 +39,11 @@ struct SettingsView: View {
                 .tabItem {
                     Label("History", systemImage: "clock.arrow.circlepath")
                 }
+
+            BackupsSettingsTab()
+                .tabItem {
+                    Label("Backups", systemImage: "externaldrive.badge.timemachine")
+                }
         }
         .frame(width: 680, height: 520)
     }
