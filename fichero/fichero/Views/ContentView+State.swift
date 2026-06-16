@@ -264,19 +264,12 @@ extension ContentView {
 
     var paneAwareWindowMinWidth: Double {
         let sidebarMinWidth = showSidebar ? ContentView.sidebarMinWidth : 0
-        // Reserve the inspector's *actual* (resizable) width, not just its
-        // minimum. The inspector is a fixed-width sibling of NavigationSplitView
-        // in the shell HStack (#1199); when the window-min only accounts for
-        // inspectorMinWidth while the inspector has been dragged wider, the
-        // NavigationSplitView gets squeezed below sidebarMin + detailMin and its
-        // macOS split view can no longer fit both columns side-by-side — it
-        // collapses the library *below* the sidebar instead of beside it
-        // (#2263). Reserving the live inspector width keeps the split columns
-        // horizontal at every window size.
-        let inspectorReservedWidth = showInspectorSidebar
-            ? max(inspectorWidth, ContentView.inspectorMinWidth)
-            : 0
-        return sidebarMinWidth + paneAwareDetailMinWidth + inspectorReservedWidth
+        // The inspector is now a native `.inspector()` column (#2033) which
+        // reserves its OWN width via `.inspectorColumnWidth`, so the window-min
+        // only needs to cover sidebar + content. (The old #2263 reserved-width
+        // term existed because the inspector was a fixed-width HStack sibling
+        // that squeezed the split view; native `.inspector()` no longer does.)
+        return sidebarMinWidth + paneAwareDetailMinWidth
     }
 
     /// Extracted from the view's `.onAppear` closure to keep `ContentView.body`

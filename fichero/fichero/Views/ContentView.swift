@@ -265,10 +265,12 @@ struct ContentView: View {
     /// Main app content (when backend is connected)
     @ViewBuilder
     private var mainContentView: some View {
-        // Inspector is a window-level sibling of NavigationSplitView so it
-        // persists across all view modes (#1199). The HStack wrapper keeps the
-        // inspector column stable while NavigationSplitView handles sidebar +
-        // content navigation entirely within its detail column.
+        // Inspector is a NATIVE SwiftUI `.inspector()` column attached to the
+        // NavigationSplitView, so it persists across all view modes (#1199) AND
+        // the unified window toolbar/title spans it correctly — trailing toolbar
+        // items sit above the inspector instead of the toolbar overrunning it
+        // (#2033). It replaced the former window-level HStack sibling, which
+        // macOS painted the toolbar across (the bug Daniel saw).
         //
         // The split-view column itself carries a very long chained-modifier
         // list (toolbar + ~16 .onChange/.onReceive handlers). To keep any single
@@ -276,20 +278,16 @@ struct ContentView: View {
         // budget, that chain is broken across two intermediate properties:
         // `navigationSplitColumn` (NavigationSplitView + first half of modifiers)
         // and `decoratedNavigationSplitColumn` (the remaining modifiers).
-        HStack(spacing: 0) {
-            decoratedNavigationSplitColumn
-
-            if showInspectorSidebar {
-                ResizableDivider(
-                    width: $inspectorWidth,
-                    minWidth: ContentView.inspectorMinWidth,
-                    maxWidth: ContentView.inspectorMaxWidth
-                )
+        decoratedNavigationSplitColumn
+            .inspector(isPresented: $showInspectorSidebar) {
                 detailView
-                    .frame(width: CGFloat(inspectorWidth))
+                    .inspectorColumnWidth(
+                        min: CGFloat(ContentView.inspectorMinWidth),
+                        ideal: 300,
+                        max: CGFloat(ContentView.inspectorMaxWidth)
+                    )
             }
-        } // end HStack — inspector is window-level, not inside NavigationSplitView (#1199)
-        .frame(minWidth: CGFloat(paneAwareWindowMinWidth), maxWidth: .infinity, maxHeight: .infinity)
+            .frame(minWidth: CGFloat(paneAwareWindowMinWidth), maxWidth: .infinity, maxHeight: .infinity)
 
         // Listen for claim selection from inspector and sync to other panes
         .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { notification in
@@ -744,11 +742,6 @@ extension ContentView {
         // The ⌘⌥I shortcut is owned by the View-menu command
         // (ViewMenuCommands.InspectorButton) — not re-bound here to
         // avoid a duplicate key binding.
-        // NOTE: a true window-corner placement (flush with the window's
-        // trailing edge, over the inspector pane) is deferred — the
-        // inspector is a window-level HStack sibling of
-        // NavigationSplitView (#1199), so the unified toolbar can't span
-        // it without the #1199 window-layout rework.
         if showInspectorToggle {
             ToolbarItem(placement: .automatic) {
                 Button {
