@@ -33,6 +33,20 @@ struct SpatialScene3D: View {
     var onViewportChanged: (SIMD3<Double>, Double) -> Void = { _, _ in }
     @Binding var selectedNodeId: String?
 
+    /// Observable layout store (#2293) — the SAME instance the 2D canvas uses.
+    /// When non-nil together with `folderScopeId`, the 3D scene becomes a second
+    /// renderer on the shared model: it loads persisted positions on appear,
+    /// overrides each node's backend default where a saved row exists, reflects
+    /// `store.layout` changes (load or agent move) on the live entities, and
+    /// writes positions back on drag-end — so a hand-arranged 3D layout survives
+    /// a view-mode switch. The store is the only thing that touches the network;
+    /// this view never calls the generated client. When nil (Mind Palace room,
+    /// RealityKit fallback) the scene is view-only, exactly as before.
+    var layoutStore: CanvasLayoutStore?
+    /// The scope these positions belong to — a real folder id, or the synthetic
+    /// `wholeLibraryRoomId` ("__library__") for the unscoped whole-library view.
+    var folderScopeId: String?
+
     /// Upper bound on entities the RealityKit scene will build at once (#1400).
     /// A folder projection (`FolderRealityKitSurface`) can scope hundreds of
     /// documents; each rendered node also spawns a concurrent texture
@@ -70,6 +84,9 @@ struct SpatialScene3D: View {
     @State private var magnificationStart = 1.0
     @State private var nodeDragOrigins: [String: SIMD3<Double>] = [:]
     @State private var nodeDragPositions: [String: SIMD3<Double>] = [:]
+    /// Bumped whenever `layoutStore.layout` changes so the RealityView `update`
+    /// pass re-runs and repositions entities to the new persisted positions.
+    @State private var layoutRevision = 0
     #endif
 
     var body: some View {
@@ -101,6 +118,18 @@ struct SpatialScene3D: View {
                     .first(where: { $0.name == "spatial-camera" }) {
                     updateCamera(camera)
                 }
+                // Drive the live entities from `store.layout`: re-place each
+                // (non-dragging) node at its effective position so a load or
+                // agent move is reflected without rebuilding the scene. Nodes
+                // mid-drag are skipped so the gesture's transform isn't fought.
+                if layoutStore != nil,
+                    let root = content.entities.first(where: { $0.name == "spatial-root" }) {
+                    let (scale, center) = normalize()
+                    for node in renderedNodes where nodeDragOrigins[node.id] == nil {
+                        root.findEntity(named: node.id)?
+                            .position = position(for: node, scale: scale, center: center)
+                    }
+                }
             }
         )
         .gesture(
@@ -123,6 +152,18 @@ struct SpatialScene3D: View {
         }
         .onChange(of: selectedNodeId) { _, newValue in
             focusCamera(onNodeId: newValue)
+        }
+        // Load the shared store's persisted layout for this scope; the entities
+        // then reflect `store.layout` via the `update` pass below.
+        .task(id: folderScopeId) {
+            guard let store = layoutStore, let folderId = folderScopeId else { return }
+            await store.loadLayout(folderId: folderId)
+        }
+        // Reading `layoutStore?.layout` here ties the body to the observable
+        // store: a load or agent move re-renders the view, re-runs `update`, and
+        // repositions the live entities to the new persisted positions.
+        .onChange(of: layoutStore?.layout) { _, _ in
+            layoutRevision += 1
         }
         .background(MindPalaceTheme.canvasBackground)
         .overlay(alignment: .top) {
@@ -172,7 +213,10 @@ struct SpatialScene3D: View {
                 let nodeId = value.entity.name
                 guard let node = nodes.first(where: { $0.id == nodeId }) else { return }
                 if nodeDragOrigins[nodeId] == nil {
-                    nodeDragOrigins[nodeId] = SIMD3<Double>(node.positionX, node.positionY, node.positionZ)
+                    // Start the drag from the node's *effective* spot (persisted
+                    // row if any, else backend default) so a saved position
+                    // isn't lost on the first grab.
+                    nodeDragOrigins[nodeId] = effectivePosition(for: node)
                     selectedNodeId = nodeId
                 }
                 guard let origin = nodeDragOrigins[nodeId] else { return }
@@ -197,6 +241,7 @@ struct SpatialScene3D: View {
                     nodes: nodes
                 ) {
                     onNodeMoveEnded(nodeId, position)
+                    persistLayout(movedId: nodeId, to: position)
                 }
                 nodeDragOrigins.removeValue(forKey: nodeId)
                 nodeDragPositions.removeValue(forKey: nodeId)
@@ -296,9 +341,10 @@ struct SpatialScene3D: View {
     private func normalize() -> (scale: Float, center: SIMD3<Float>) {
         let scope = renderedNodes
         guard !scope.isEmpty else { return (1, .zero) }
-        let xValues = scope.map { Float($0.positionX) }
-        let yValues = scope.map { Float($0.positionY) }
-        let zValues = scope.map { Float($0.positionZ) }
+        let effective = scope.map { effectivePosition(for: $0) }
+        let xValues = effective.map { Float($0.x) }
+        let yValues = effective.map { Float($0.y) }
+        let zValues = effective.map { Float($0.z) }
         let center = SIMD3<Float>(
             (xValues.min()! + xValues.max()!) / 2,
             (yValues.min()! + yValues.max()!) / 2,
@@ -314,8 +360,44 @@ struct SpatialScene3D: View {
     }
 
     private func position(for node: MindPalaceNode, scale: Float, center: SIMD3<Float>) -> SIMD3<Float> {
-        let raw = SIMD3<Float>(Float(node.positionX), Float(node.positionY), Float(node.positionZ))
+        let effective = effectivePosition(for: node)
+        let raw = SIMD3<Float>(Float(effective.x), Float(effective.y), Float(effective.z))
         return (raw - center) * scale
+    }
+
+    /// The node's effective position: the persisted `CanvasItemLayout` row from
+    /// the shared store where one exists, else the node's backend default. This
+    /// is the single override point that makes the 3D scene a second renderer on
+    /// the observable model (#2293) rather than a separate island.
+    private func effectivePosition(for node: MindPalaceNode) -> SIMD3<Double> {
+        if let row = layoutStore?.layout.first(where: { $0.itemId == node.id }) {
+            return SIMD3<Double>(row.x, row.y, row.z)
+        }
+        return SIMD3<Double>(node.positionX, node.positionY, node.positionZ)
+    }
+
+    /// Persist the moved node's position through the shared store (#2293). All
+    /// visible nodes missing a row are seeded at their current effective spot so
+    /// the layout is stable on reload; the moved node is then patched to its
+    /// drop point. x/y/z are written; angle and any extents on existing rows are
+    /// preserved (the 3D drag changes neither). No-op without store + scope.
+    private func persistLayout(movedId: String, to position: SIMD3<Double>) {
+        guard let store = layoutStore, let folderId = folderScopeId else { return }
+        var rows: [String: CanvasItemLayout] = Dictionary(
+            store.layout.map { ($0.itemId, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        for node in renderedNodes where rows[node.id] == nil {
+            let effective = effectivePosition(for: node)
+            rows[node.id] = CanvasItemLayout(
+                itemId: node.id, x: effective.x, y: effective.y, z: effective.z
+            )
+        }
+        rows[movedId]?.x = position.x
+        rows[movedId]?.y = position.y
+        rows[movedId]?.z = position.z
+        let items = Array(rows.values)
+        Task { await store.saveLayout(folderId: folderId, items: items) }
     }
 
     private func buildScene() -> Entity {
