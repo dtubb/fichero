@@ -5598,6 +5598,18 @@
         "response_model": "TinderboxExportResponse"
       },
       {
+        "method": "POST",
+        "path": "/mind-palace/folders/{folder_id}/arrange",
+        "operation_id": "arrange_folder_canvas_api_mind_palace_folders__folder_id__arrange_post",
+        "summary": "Arrange Folder Canvas",
+        "path_params": [
+          "folder_id"
+        ],
+        "query_params": [],
+        "request_model": "ArrangeNodesRequest",
+        "response_model": "MindPalaceListResponse"
+      },
+      {
         "method": "GET",
         "path": "/mind-palace/folders/{folder_id}/canvas-layout",
         "operation_id": "get_canvas_layout_api_mind_palace_folders__folder_id__canvas_layout_get",

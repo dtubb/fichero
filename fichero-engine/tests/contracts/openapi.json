@@ -25316,6 +25316,59 @@
         }
       }
     },
+    "/api/mind-palace/folders/{folder_id}/arrange": {
+      "post": {
+        "tags": [
+          "mind-palace"
+        ],
+        "summary": "Arrange Folder Canvas",
+        "description": "Lay out a folder's nodes by ``strategy`` and persist the transforms.\n\nComputes positions (grid/row/column/circle/stack) and upserts one\n``canvas_layout`` row per node, then returns the persisted rows in the\nstandard ``{items, count}`` envelope.",
+        "operationId": "arrange_folder_canvas_api_mind_palace_folders__folder_id__arrange_post",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArrangeNodesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MindPalaceListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/mindpalace/render": {
       "post": {
         "tags": [
@@ -32776,6 +32829,42 @@
         "title": "ApprovalState",
         "description": "State of an approval request."
       },
+      "ArrangeNodesRequest": {
+        "properties": {
+          "node_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Node Ids"
+          },
+          "strategy": {
+            "$ref": "#/components/schemas/ArrangeStrategy",
+            "default": "grid"
+          },
+          "spacing": {
+            "type": "number",
+            "title": "Spacing",
+            "default": 160.0
+          },
+          "columns": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Columns"
+          },
+          "radius": {
+            "type": "number",
+            "nullable": true,
+            "title": "Radius"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_ids"
+        ],
+        "title": "ArrangeNodesRequest",
+        "description": "Arrange a set of folder nodes by a geometric strategy and persist them.\n\n``folder_id`` comes from the path, never the body \u2014 the computed rows can\nonly be written for the folder the request is addressed to. An unknown\n``strategy`` is rejected by Pydantic with a 422 (it is an enum field)."
+      },
       "ArrangeRequest": {
         "properties": {
           "node_ids": {
@@ -32795,6 +32884,18 @@
           "node_ids"
         ],
         "title": "ArrangeRequest"
+      },
+      "ArrangeStrategy": {
+        "type": "string",
+        "enum": [
+          "grid",
+          "row",
+          "column",
+          "circle",
+          "stack"
+        ],
+        "title": "ArrangeStrategy",
+        "description": "The geometric arrangement strategies supported by ``compute_arrangement``."
       },
       "ArrangementType": {
         "type": "string",

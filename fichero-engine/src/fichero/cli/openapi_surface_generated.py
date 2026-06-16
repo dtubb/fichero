@@ -5527,6 +5527,21 @@ def register_generated_openapi_commands(
             return client.request("POST", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("arrange-folder-canvas")
+    def mind_palace_arrange_folder_canvas_post(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help="Path parameter: folder_id."),
+        body: Optional[str] = typer.Option(None, "--body", help="Inline JSON request body."),
+        body_file: Optional[Path] = typer.Option(None, "--body-file", exists=True, dir_okay=False, readable=True, help="Path to a JSON request body file."),
+    ) -> None:
+        """Arrange Folder Canvas (POST /api/mind-palace/folders/{folder_id}/arrange)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/mind-palace/folders/{folder_id}/arrange"
+            params = None
+            payload = _load_json_payload(body, body_file, required=True)
+            return client.request("POST", path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("get-canvas-layout")
     def mind_palace_get_canvas_layout_get(
         ctx: typer.Context,
