@@ -176,11 +176,22 @@ struct Spatial2DCanvas: View {
     private func nodeChip(_ node: MindPalaceNode) -> some View {
         let isSelected = node.id == selectedNodeId || marqueeSelection.contains(node.id)
         return HStack(spacing: 5) {
-            Image(systemName: node.nodeType.icon)
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: nodeDiameter, height: nodeDiameter)
-                .background(node.nodeType.color, in: Circle())
+            // Image / PDF-page nodes render their actual thumbnail (#1744);
+            // non-source nodes keep the kind-coloured icon glyph.
+            if let sourceId = node.sourceId, !sourceId.isEmpty {
+                MindPalaceNodeThumbnail(
+                    sourceId: sourceId,
+                    fallbackIcon: node.nodeType.icon,
+                    tint: node.nodeType.color,
+                    side: nodeDiameter + 6
+                )
+            } else {
+                Image(systemName: node.nodeType.icon)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: nodeDiameter, height: nodeDiameter)
+                    .background(node.nodeType.color, in: Circle())
+            }
             Text(node.displayLabel)
                 .font(.caption)
                 .lineLimit(1)
@@ -603,5 +614,44 @@ extension Spatial2DCanvas {
         }
         let items = Array(rows.values)
         Task { await store.saveLayout(folderId: folderId, items: items) }
+    }
+}
+
+// MARK: - Source-page thumbnail for an image/PDF node (#1744)
+
+/// Renders the actual page thumbnail for a source-backed node, loaded through
+/// the storage service (so it works against a remote engine and respects auth —
+/// never a local file path). Falls back to the kind icon while loading or if no
+/// thumbnail is available. Mirrors the 3D scene's texture path
+/// (`storageService.thumbnailData(for:)`).
+struct MindPalaceNodeThumbnail: View {
+    let sourceId: String
+    let fallbackIcon: String
+    let tint: Color
+    let side: CGFloat
+
+    @State private var thumbnail: Image?
+
+    var body: some View {
+        Group {
+            if let thumbnail {
+                thumbnail
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                Image(systemName: fallbackIcon)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: side, height: side)
+                    .background(tint, in: RoundedRectangle(cornerRadius: 3))
+            }
+        }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: 3))
+        .task(id: sourceId) {
+            guard thumbnail == nil else { return }
+            thumbnail = (try? await LibraryManager.shared.globalLibrary?
+                .storageService.getThumbnail(sourceId)) ?? nil
+        }
     }
 }
