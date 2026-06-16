@@ -1068,21 +1068,24 @@ def create_canvas_item_impl(
 
 def update_canvas_item_impl(
     db: Database, folder_id: str, item_id: str, req: CanvasItemUpdateRequest
-) -> CanvasItem:
+) -> tuple[dict, CanvasItem]:
     """Apply a partial edit to a canvas item. Shared by route + action.
 
-    Raises ``KeyError`` if the item is absent or belongs to another folder, for
-    the caller to map to a 404.
+    Returns ``(before, item)`` — the pre-edit snapshot (for the action's audit)
+    and the saved row — so the action need not re-read the row. Raises
+    ``KeyError`` if the item is absent or belongs to another folder, for the
+    caller to map to a 404.
     """
     item = db.get(CanvasItem, item_id)
     if item is None or item.folder_id != folder_id:
         raise KeyError(item_id)
+    before = item.model_dump(mode="json")
     fields = req.model_dump(exclude_unset=True)
     for name, value in fields.items():
         setattr(item, name, value)
     item.updated_at = datetime.now()
     db.save(item)
-    return item
+    return before, item
 
 
 def delete_canvas_item_impl(db: Database, folder_id: str, item_id: str) -> CanvasItem:
@@ -1136,9 +1139,10 @@ async def update_canvas_item(
 ) -> CanvasItem:
     """Patch a canvas item's text / payload / kind / link endpoints."""
     try:
-        return update_canvas_item_impl(db, folder_id, item_id, request)
+        _, item = update_canvas_item_impl(db, folder_id, item_id, request)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="canvas item not found") from exc
+    return item
 
 
 @router.delete(
@@ -1185,11 +1189,8 @@ class CanvasItemDeleteParams(BaseModel):
 def _action_create_canvas_item(
     db: Database, params: CanvasItemCreateParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    item = create_canvas_item_impl(
-        db,
-        params.folder_id,
-        CanvasItemCreateRequest(**params.model_dump(exclude={"folder_id"})),
-    )
+    # params IS-A CanvasItemCreateRequest (plus folder_id) — pass it straight in.
+    item = create_canvas_item_impl(db, params.folder_id, params)
     after = item.model_dump(mode="json")
     spec = ChangeSpec(
         domains=["canvas"],
@@ -1205,11 +1206,7 @@ def _action_create_canvas_item(
 def _action_update_canvas_item(
     db: Database, params: CanvasItemUpdateParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    existing = db.get(CanvasItem, params.item_id)
-    if existing is None or existing.folder_id != params.folder_id:
-        raise KeyError(params.item_id)
-    before = existing.model_dump(mode="json")
-    item = update_canvas_item_impl(
+    before, item = update_canvas_item_impl(
         db,
         params.folder_id,
         params.item_id,
