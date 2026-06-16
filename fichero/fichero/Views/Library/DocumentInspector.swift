@@ -121,26 +121,40 @@ struct DocumentInspector: View {
         }
     }
 
-    /// Xcode-style icon-only tab bar
+    /// Xcode-style icon-only facet selector, grouped into a single segmented
+    /// control: one rounded capsule with hairline dividers between segments and
+    /// a selected-segment fill, so the row reads as ONE control rather than a
+    /// loose row of N buttons (#1228). Stays icon-only buttons (not a native
+    /// `.segmented` Picker) so the per-tab `.help` tooltips and `.accessibility
+    /// Identifier` XCUITest hooks (#1230) attach to individual segments — a
+    /// `.segmented` Picker swallows those per-segment modifiers.
     @ViewBuilder
     private var tabBar: some View {
         let tabs = availableTabs(for: document)
-        HStack(spacing: 2) {
-            ForEach(tabs) { tab in
+        HStack(spacing: 0) {
+            ForEach(Array(tabs.enumerated()), id: \.element) { index, tab in
+                if index > 0 {
+                    // Hairline divider between segments — hidden adjacent to the
+                    // selected segment so its fill reads as one continuous pill.
+                    Divider()
+                        .frame(height: 14)
+                        .opacity(selectedTab == tab || selectedTab == tabs[index - 1] ? 0 : 1)
+                }
                 Button {
                     selectedTab = tab
                 } label: {
                     Image(systemName: tab.icon)
-                        .font(.system(size: 16, weight: .regular))
+                        .font(.system(size: 15, weight: .regular))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .background(
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: 5)
                         .fill(selectedTab == tab
-                                ? Color.accentColor.opacity(0.15)
+                                ? Color.accentColor.opacity(0.18)
                                 : Color.clear)
+                        .padding(2)
                 )
                 .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
                 .help(tab.helpText)
@@ -148,7 +162,20 @@ struct DocumentInspector: View {
                 .accessibilityIdentifier("inspectorTab-\(tab.rawValue)")
             }
         }
+        .frame(maxWidth: .infinity)
+        // Single grouped capsule: subtle fill + hairline border, like Xcode's
+        // inspector facet selector.
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.5))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 7))
         .padding(.horizontal, 8)
+        .padding(.vertical, 6)
         .frame(height: MiniToolbar<EmptyView>.standardHeight)
         // XCUITest hook for the inspector tab bar (#1230).
         .accessibilityIdentifier("inspectorTabBar")
