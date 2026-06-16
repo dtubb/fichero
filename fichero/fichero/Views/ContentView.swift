@@ -148,6 +148,13 @@ struct ContentView: View {
     // Pane focus state for Tab cycling
     @FocusState var focusedPane: PaneFocus?
 
+    // Contextual Delete action published by the focused LibraryView
+    // (`\.libraryDeleteSelection`). It is non-nil only when a deletable
+    // selection exists, so the zoned-toolbar Delete button reflects selection
+    // for free (disabled when nil) — reusing the existing delete action +
+    // confirmation rather than reimplementing it (#2032).
+    @FocusedValue(\.libraryDeleteSelection) var libraryDeleteSelection
+
     // Drag and drop state
     @State var isDropTargeted = false
     @State var isImporting = false
@@ -435,6 +442,18 @@ extension ContentView {
             .symbolVariant(isActive ? .fill : .none)
     }
 
+    // MARK: Zoned toolbar (Mail-style)
+    //
+    // The window toolbar is organised into ACTION zones separated by flexible
+    // spacers, modelled on Apple Mail (#2032). Presentation controls ("how it's
+    // shown" — layout/view-mode pickers, library/canvas/reading pane toggles)
+    // do NOT live here; they are in the View menu (ViewMenuCommands:
+    // LibraryLayoutSection / PreviewModeSection / PaneVisibilitySection). The
+    // main toolbar is verbs only.
+    //
+    // `mainToolbarContent` is a thin dispatcher to three bounded
+    // `@ToolbarContentBuilder` sub-properties so no single builder grows large
+    // enough to risk a type-check timeout.
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
         // Mode icon + title in toolbar center — updates on every sidebar/view-mode change (#323).
@@ -445,6 +464,24 @@ extension ContentView {
                 .font(.headline)
         }
 
+        // LEADING zone — panel toggles (Xcode/Finder convention): sidebar + history.
+        leadingToolbarContent
+
+        ToolbarSpacer(.flexible)
+
+        // CONTENT zone — the action verbs: New/Import, Delete, Run Workflow.
+        contentToolbarContent
+
+        ToolbarSpacer(.flexible)
+
+        // TRAILING zone — inspector toggle.
+        trailingToolbarContent
+    }
+
+    /// LEADING zone: sidebar toggle + back/forward history. Panel toggles grouped
+    /// at the window's leading edge (Xcode-style).
+    @ToolbarContentBuilder
+    private var leadingToolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -473,63 +510,31 @@ extension ContentView {
             .keyboardShortcut("]", modifiers: [.command])
             .disabled(!navigationHistory.canGoForward)
         }
+    }
 
-        // Left side: Layout picker, View mode picker, Plus button
-        // Conditional based on sidebar mode
+    /// CONTENT zone: the ACTION verbs. New/Import (＋ Add menu), Delete (contextual,
+    /// reflects selection), Run Workflow. Presentation pickers/pane-toggles that
+    /// used to sit here have moved to the View menu (#2032).
+    @ToolbarContentBuilder
+    private var contentToolbarContent: some ToolbarContent {
         if showNavigationToolbar {
-            ToolbarItemGroup(placement: .navigation) {
-                // Layout mode picker (None/Standard/Widescreen) - only for modes with preview.
-                // Disabled when a folder is the active detail: centerContent forces layout
-                // to .none for folders (per #749), so any picker change is a silent no-op.
-                // Greyed out makes the dead-state obvious to the user (#787).
-                if showLayoutPicker {
-                    Picker("Layout", selection: $currentLayoutMode) {
-                        ForEach(availableLayoutModes) { mode in
-                            Label(mode.rawValue, systemImage: mode.icon)
-                                .labelStyle(.iconOnly)
-                                .tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .help("Layout: \(currentLayoutMode.rawValue)")
-                    .onChange(of: currentLayoutMode) { _, newMode in
-                        withAnimation {
-                            // Sync toolbar with View menu previewMode
-                            let requestedMode: PreviewMode = switch newMode {
-                            case .none: .none
-                            case .standard: .standard
-                            case .widescreen: .widescreen
-                            }
-                            viewSettings.previewMode = normalizedPreviewMode(requestedMode)
-                        }
-                    }
-                }
-
-                // View display mode picker (icon/list/table/map) — only when the
-                // current mode supports multiple presentations and more than one
-                // option is available. Syncs with viewSettings.libraryLayout so
-                // the View menu checkmark stays in sync (#1215).
-                //
-                // De-duplicated (#1446): in Library/Search the same control is
-                // already rendered as the in-content mode rail (horizontalModeStrip),
-                // so suppress the toolbar copy there. The toolbar picker remains the
-                // sole view-mode control for modes that have no mode rail (e.g.
-                // Workflows), where `showModeRail` is false.
-                if showViewModePicker && availableViewDisplayModes.count > 1 && !showModeRail {
-                    Picker("View", selection: $viewDisplayMode) {
-                        ForEach(availableViewDisplayModes) { mode in
-                            Label(mode.label, systemImage: mode.icon)
-                                .labelStyle(.iconOnly)
-                                .tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .help("View: \(viewDisplayMode.label)")
-                }
-
-                // Add menu (Plus button)
+            ToolbarItemGroup(placement: .primaryAction) {
+                // Add menu (Plus button) — New / Import.
                 AddItemMenu(registry: itemRegistry, style: .button)
                     .help("Add new item (⌘N)")
+
+                // Delete — contextual. Reuses the existing delete action +
+                // confirmation published by the focused LibraryView
+                // (`\.libraryDeleteSelection`); the focused value is non-nil only
+                // when a deletable selection exists, so the button disables itself
+                // when there is nothing to delete (#2032).
+                Button(role: .destructive) {
+                    libraryDeleteSelection?()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .help("Delete Selection")
+                .disabled(libraryDeleteSelection == nil)
 
                 if featureManager.isWorkflowsEnabled && featureManager.isWorkflowRunOnSelectionEnabled {
                     // Snapshot selection at Menu-render time so Button actions use
@@ -654,116 +659,24 @@ extension ContentView {
                 }
             }
         }
+    }
 
-        // Search entry point is the system `.searchable(placement: .toolbar)`
-        // owned PER-MODE by the content view inside the NavigationSplitView
-        // detail (LibraryView/SearchView, each with its own `$toolbarQuery`
-        // and `onToolbarSearchSubmit` wiring — one per mode, to avoid the
-        // NSToolbar duplicate-identifier crash). It is therefore already
-        // attached CONTENT-SIDE in the view tree, before the window-level
-        // `.inspector()` is applied in `mainContentView`.
-        //
-        // KNOWN LIMITATION (frame ① / zoned-toolbar follow-up): macOS has one
-        // unified NSToolbar per window, and AppKit renders the system search
-        // field at that toolbar's far TRAILING edge — which, with the native
-        // `.inspector()` column also sharing that toolbar, paints the field
-        // ABOVE the inspector rather than content-side. Moving the `.searchable`
-        // higher up the tree does NOT change this (same single toolbar) and
-        // would break the per-mode state wiring + risk the duplicate-identifier
-        // crash, so it is intentionally left where it is. Pinning search to the
-        // content zone requires a custom content-zone toolbar item (a `.principal`
-        // / zoned `ToolbarItem` holding a search field) — folded into the
-        // zoned-toolbar work, not hacked here.
-
-        // Library pane toggle — hides/shows the icon-grid/list middle column.
-        // In widescreen this does not change the canvas/reading pane set.
-        ToolbarItem(placement: .automatic) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showDocumentGrid.toggle()
-                }
-            } label: {
-                toolbarToggleIcon("books.vertical", isActive: showDocumentGrid)
-            }
-            .help(showDocumentGrid ? "Hide Library Browser (⌘⇧G)" : "Show Library Browser (⌘⇧G)")
-            .accessibilityLabel(showDocumentGrid ? "Hide Library Browser" : "Show Library Browser")
-            .keyboardShortcut("g", modifiers: [.command, .shift])
-        }
-
-        // Per-window show/hide for the document canvas and the reading/WebKit
-        // pane (#1448). Keep these controls present throughout Library/Search,
-        // even when the current layout is None/Standard, so panes are a stable
-        // user choice rather than selection/layout side effects.
-        if supportsReadingWorkspace {
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        let next = ReadingWorkspacePaneTogglePolicy.toggledPane(
-                            layoutMode: currentLayoutMode,
-                            paneFlag: showDocumentCanvas
-                        )
-                        currentLayoutMode = next.layoutMode
-                        showDocumentCanvas = next.paneVisible
-                        viewSettings.previewMode = normalizedPreviewMode(.widescreen)
-                    }
-                } label: {
-                    toolbarToggleIcon(
-                        "doc.richtext",
-                        isActive: ReadingWorkspacePaneTogglePolicy.isPaneVisible(
-                            layoutMode: currentLayoutMode,
-                            paneFlag: showDocumentCanvas
-                        )
-                    )
-                }
-                .help(
-                    ReadingWorkspacePaneTogglePolicy.isPaneVisible(
-                        layoutMode: currentLayoutMode,
-                        paneFlag: showDocumentCanvas
-                    )
-                        ? "Hide Document Canvas"
-                        : "Show Document Canvas"
-                )
-            }
-
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        let next = ReadingWorkspacePaneTogglePolicy.toggledPane(
-                            layoutMode: currentLayoutMode,
-                            paneFlag: showReadingPane
-                        )
-                        currentLayoutMode = next.layoutMode
-                        showReadingPane = next.paneVisible
-                        viewSettings.previewMode = normalizedPreviewMode(.widescreen)
-                    }
-                } label: {
-                    toolbarToggleIcon(
-                        "text.book.closed",
-                        isActive: ReadingWorkspacePaneTogglePolicy.isPaneVisible(
-                            layoutMode: currentLayoutMode,
-                            paneFlag: showReadingPane
-                        )
-                    )
-                }
-                .help(
-                    ReadingWorkspacePaneTogglePolicy.isPaneVisible(
-                        layoutMode: currentLayoutMode,
-                        paneFlag: showReadingPane
-                    )
-                        ? "Hide Reading Pane"
-                        : "Show Reading Pane"
-                )
-            }
-        }
-
-        // Inspector toggle at the trailing edge of the toolbar — the
-        // Finder/Notes/Xcode convention (#1229 part 1). Uses
-        // `sidebar.right` to match the View-menu InspectorButton; the
-        // old `info.circle` collided with the inspector's own Info-tab
-        // icon and read as "info" rather than "inspector".
+    /// TRAILING zone: inspector toggle. Finder/Notes/Xcode convention (#1229 part 1).
+    ///
+    /// The presentation pane toggles (Library Browser / Document Canvas / Reading
+    /// Pane) and the layout / view-mode pickers that previously lived in the
+    /// toolbar have moved OUT of the action toolbar — they are "how it's shown",
+    /// not verbs. Their controls already exist in the View menu
+    /// (ViewMenuCommands.PaneVisibilitySection — ⌘⇧G for the browser; and
+    /// LibraryLayoutSection / PreviewModeSection for the pickers), so removing
+    /// the toolbar duplicates loses nothing (#2032 / #1215).
+    @ToolbarContentBuilder
+    private var trailingToolbarContent: some ToolbarContent {
+        // Uses `sidebar.right` to match the View-menu InspectorButton; the
+        // old `info.circle` collided with the inspector's own Info-tab icon.
         // The ⌘⌥I shortcut is owned by the View-menu command
-        // (ViewMenuCommands.InspectorButton) — not re-bound here to
-        // avoid a duplicate key binding.
+        // (ViewMenuCommands.InspectorButton) — not re-bound here to avoid a
+        // duplicate key binding.
         if showInspectorToggle {
             ToolbarItem(placement: .automatic) {
                 Button {
@@ -778,6 +691,17 @@ extension ContentView {
         }
     }
 }
+
+// NOTE — content-side SEARCH (deferred). Search stays on the per-mode system
+// `.searchable(placement: .toolbar)` owned by LibraryView/SearchView inside the
+// NavigationSplitView detail (each with its own `$toolbarQuery` +
+// `onToolbarSearchSubmit` wiring — one per mode, to avoid the NSToolbar
+// duplicate-identifier crash). macOS renders one unified NSToolbar per window
+// and paints the system search field at the far trailing edge (above the
+// `.inspector()` column). Replacing `.searchable` with a custom content-zone
+// `ToolbarItem` holding a search field bound to `$toolbarQuery` would risk the
+// documented duplicate-identifier crash and break the per-mode submit wiring,
+// so content-side search is intentionally deferred (smallest correct change).
 
 // MARK: - Preview
 #Preview("Library Mode") {
