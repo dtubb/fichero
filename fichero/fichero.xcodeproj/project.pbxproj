@@ -246,6 +246,7 @@
 		8C55B492C37B1BBED91F2B9B /* NotesInspectorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15F1C6302A9E0863FB1E6775 /* NotesInspectorPane.swift */; };
 		913F07667F8EF62FE204D1E7 /* SidebarView+ActivityRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0E93BA60F99453057135B99 /* SidebarView+ActivityRows.swift */; };
 		9155478503635D556FECE3D4 /* EngineConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C31EBD6243D124565257708 /* EngineConfig.swift */; };
+		92F3AFC896A444D7D060547E /* CanvasLayoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4887C223276D2F5E2C498065 /* CanvasLayoutStore.swift */; };
 		9366577BEB84A06792568C3F /* DocumentInspectorArtifactsTab+EntityKindRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D62D87E6614928970950D52 /* DocumentInspectorArtifactsTab+EntityKindRow.swift */; };
 		950B161A37D121AFE9E26CB3 /* PDFPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DDD2864E374789E10D5B169 /* PDFPageView.swift */; };
 		98F8518B04D4313542B237D7 /* PDFPageWithToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC15CD58C235F143320E172 /* PDFPageWithToolbar.swift */; };
@@ -721,6 +722,7 @@
 		43EAB861267206E7A929830F /* KGTemporalSpatial.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KGTemporalSpatial.swift; sourceTree = "<group>"; };
 		462 /* Workflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workflow.swift; sourceTree = "<group>"; };
 		47244E304896B65E6F12976C /* SidebarItemRow+Preview.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarItemRow+Preview.swift"; sourceTree = "<group>"; };
+		4887C223276D2F5E2C498065 /* CanvasLayoutStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasLayoutStore.swift; sourceTree = "<group>"; };
 		489A0FBA854FF9A1158996D6 /* WorkspaceItemPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkspaceItemPicker.swift; sourceTree = "<group>"; };
 		4A697CECBDA1A7EF050BF765 /* DocumentInspectorArtifactsTab+EntityKindBlock.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentInspectorArtifactsTab+EntityKindBlock.swift"; sourceTree = "<group>"; };
 		4BB488A4AF6BAB72C33902C4 /* EntityDigestView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EntityDigestView.swift; sourceTree = "<group>"; };
@@ -1450,6 +1452,7 @@
 				FBCBCC9A6B923D6A560F7277 /* ReferenceStore.swift */,
 				F42C41E0F485064FDA5EAEB9 /* InterpretationStore.swift */,
 				9CD011DB2E5A714A716944F3 /* Platform */,
+				4887C223276D2F5E2C498065 /* CanvasLayoutStore.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -2631,6 +2634,7 @@
 				8C55B492C37B1BBED91F2B9B /* NotesInspectorPane.swift in Sources */,
 				9A321613F87806CF952668A1 /* PlatformAliases.swift in Sources */,
 				CC357CD884EE29BAE8A64F4B /* PlatformPasteboard.swift in Sources */,
+				92F3AFC896A444D7D060547E /* CanvasLayoutStore.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
