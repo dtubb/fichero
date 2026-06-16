@@ -33,50 +33,100 @@ struct Spatial2DCanvas: View {
     @State private var dragItemId: String?
     @State private var dragTranslation: CGSize = .zero
 
+    // Camera (pure view state — never persisted). Zoom is committed; pinchScale
+    // is the live in-flight magnification. Pan is committed offset + live drag.
+    @State private var zoom: CGFloat = 1
+    @GestureState private var pinchScale: CGFloat = 1
+    @State private var panOffset: CGSize = .zero
+    @GestureState private var livePan: CGSize = .zero
+
+    /// Background-drag intent: pan the camera, or rubber-band a marquee.
+    private enum CanvasMode { case pan, marquee }
+    @State private var canvasMode: CanvasMode = .pan
+    /// Live marquee rectangle in screen space (nil when not marqueeing).
+    @State private var marqueeRect: CGRect?
+    /// Multi-selection accumulated by the marquee (in addition to the single
+    /// `selectedNodeId` tap-selection binding).
+    @State private var marqueeSelection: Set<String> = []
+
     private let nodeDiameter: CGFloat = 14
     private let padding: CGFloat = 48
+    private let minZoom: CGFloat = 0.25
+    private let maxZoom: CGFloat = 4.0
 
     private var isInteractive: Bool { layoutStore != nil && folderScopeId != nil }
+
+    /// Clamped live zoom: committed zoom × in-flight pinch, bounded to range.
+    private var effectiveZoom: CGFloat {
+        min(max(zoom * pinchScale, minZoom), maxZoom)
+    }
+
+    /// Committed pan plus the live drag translation.
+    private var effectiveOffset: CGSize {
+        CGSize(width: panOffset.width + livePan.width,
+               height: panOffset.height + livePan.height)
+    }
 
     var body: some View {
         GeometryReader { geo in
             let layout = resolvedPositions(in: geo.size)
             ZStack {
-                // Edges drawn beneath nodes.
-                Canvas { context, _ in
-                    for connection in connections {
-                        guard
-                            let fromPoint = layout[connection.sourceNodeId],
-                            let toPoint = layout[connection.targetNodeId]
-                        else { continue }
-                        var path = Path()
-                        path.move(to: fromPoint)
-                        path.addLine(to: toPoint)
-                        context.stroke(
-                            path,
-                            with: .color(connection.connectionType.color.opacity(0.5)),
-                            lineWidth: 1.5
-                        )
-                    }
-                }
+                // Scene content rides the camera transform (scale about centre,
+                // then pan). Pure view-space — node positions are untouched.
+                canvasContent(layout: layout, in: geo.size)
+                    .scaleEffect(effectiveZoom)
+                    .offset(effectiveOffset)
 
-                // Node chips at resolved positions (saved layout overrides the
-                // projector default per item where a row exists).
-                ForEach(nodes) { node in
-                    if let base = layout[node.id] {
-                        let point = (dragItemId == node.id)
-                            ? CGPoint(x: base.x + dragTranslation.width,
-                                      y: base.y + dragTranslation.height)
-                            : base
-                        chip(for: node, at: point, base: base, in: geo.size)
-                    }
+                // Rubber-band marquee, drawn in unscaled screen space.
+                if let rect = marqueeRect {
+                    marqueeShape(rect)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(platformColor: .textBackgroundColor))
+            .contentShape(Rectangle())
+            .gesture(backgroundGesture(layout: layout, in: geo.size))
+            .simultaneousGesture(magnifyGesture)
+            .overlay(alignment: .topTrailing) { modeToggle }
             .task(id: folderScopeId) {
                 guard let store = layoutStore, let folderId = folderScopeId else { return }
                 await store.loadLayout(folderId: folderId)
+            }
+        }
+    }
+
+    /// Edges + node chips. Extracted so the camera transform applies as a unit.
+    @ViewBuilder
+    private func canvasContent(layout: [String: CGPoint], in size: CGSize) -> some View {
+        ZStack {
+            // Edges drawn beneath nodes.
+            Canvas { context, _ in
+                for connection in connections {
+                    guard
+                        let fromPoint = layout[connection.sourceNodeId],
+                        let toPoint = layout[connection.targetNodeId]
+                    else { continue }
+                    var path = Path()
+                    path.move(to: fromPoint)
+                    path.addLine(to: toPoint)
+                    context.stroke(
+                        path,
+                        with: .color(connection.connectionType.color.opacity(0.5)),
+                        lineWidth: 1.5
+                    )
+                }
+            }
+
+            // Node chips at resolved positions (saved layout overrides the
+            // projector default per item where a row exists).
+            ForEach(nodes) { node in
+                if let base = layout[node.id] {
+                    let point = (dragItemId == node.id)
+                        ? CGPoint(x: base.x + dragTranslation.width,
+                                  y: base.y + dragTranslation.height)
+                        : base
+                    chip(for: node, at: point, base: base, in: size)
+                }
             }
         }
     }
@@ -112,7 +162,7 @@ struct Spatial2DCanvas: View {
     }
 
     private func nodeChip(_ node: MindPalaceNode) -> some View {
-        let isSelected = node.id == selectedNodeId
+        let isSelected = node.id == selectedNodeId || marqueeSelection.contains(node.id)
         return HStack(spacing: 5) {
             Image(systemName: node.nodeType.icon)
                 .font(.system(size: 9, weight: .semibold))
@@ -208,5 +258,94 @@ struct Spatial2DCanvas: View {
         rows[movedId]?.y = droppedAt.y
         let items = Array(rows.values)
         Task { await store.saveLayout(folderId: folderId, items: items) }
+    }
+}
+
+// MARK: - Camera & marquee gestures
+
+extension Spatial2DCanvas {
+    /// Background drag: pans the camera in `.pan` mode, draws a selection
+    /// marquee in `.marquee` mode. A drag that starts on a node is intercepted
+    /// by that chip's own gesture (child wins), so this only fires on empty
+    /// canvas — that's how pan/node-drag/marquee are disambiguated.
+    func backgroundGesture(layout: [String: CGPoint], in size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 1)
+            .updating($livePan) { value, state, _ in
+                if canvasMode == .pan { state = value.translation }
+            }
+            .onChanged { value in
+                if canvasMode == .marquee {
+                    marqueeRect = rect(from: value.startLocation, to: value.location)
+                }
+            }
+            .onEnded { value in
+                switch canvasMode {
+                case .pan:
+                    panOffset = CGSize(
+                        width: panOffset.width + value.translation.width,
+                        height: panOffset.height + value.translation.height
+                    )
+                case .marquee:
+                    let box = rect(from: value.startLocation, to: value.location)
+                    marqueeSelection = nodesIntersecting(box, layout: layout, in: size)
+                    selectedNodeId = marqueeSelection.first
+                    marqueeRect = nil
+                }
+            }
+    }
+
+    /// Trackpad pinch-to-zoom, clamped to `minZoom...maxZoom` on commit.
+    var magnifyGesture: some Gesture {
+        MagnifyGesture()
+            .updating($pinchScale) { value, state, _ in state = value.magnification }
+            .onEnded { value in
+                zoom = min(max(zoom * value.magnification, minZoom), maxZoom)
+            }
+    }
+
+    /// Build an axis-aligned rect from two drag corners.
+    func rect(from start: CGPoint, to end: CGPoint) -> CGRect {
+        CGRect(x: min(start.x, end.x), y: min(start.y, end.y),
+               width: abs(start.x - end.x), height: abs(start.y - end.y))
+    }
+
+    /// Nodes whose transformed centre falls inside the marquee. Centre points
+    /// are mapped through the same camera transform SwiftUI applies (scale
+    /// about the canvas centre, then pan).
+    func nodesIntersecting(_ box: CGRect, layout: [String: CGPoint], in size: CGSize) -> Set<String> {
+        let centre = CGPoint(x: size.width / 2, y: size.height / 2)
+        let scale = effectiveZoom
+        let offset = effectiveOffset
+        var hits: Set<String> = []
+        for node in nodes {
+            guard let base = layout[node.id] else { continue }
+            let screen = CGPoint(
+                x: centre.x + (base.x - centre.x) * scale + offset.width,
+                y: centre.y + (base.y - centre.y) * scale + offset.height
+            )
+            if box.contains(screen) { hits.insert(node.id) }
+        }
+        return hits
+    }
+
+    func marqueeShape(_ box: CGRect) -> some View {
+        Rectangle()
+            .fill(Color.accentColor.opacity(0.12))
+            .overlay(Rectangle().stroke(Color.accentColor, lineWidth: 1))
+            .frame(width: box.width, height: box.height)
+            .position(x: box.midX, y: box.midY)
+            .allowsHitTesting(false)
+    }
+
+    var modeToggle: some View {
+        Picker("Canvas tool", selection: $canvasMode) {
+            Image(systemName: "hand.draw").tag(CanvasMode.pan)
+            Image(systemName: "rectangle.dashed").tag(CanvasMode.marquee)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 96)
+        .padding(8)
+        .help("Drag empty space to pan, or marquee-select nodes")
     }
 }
