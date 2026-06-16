@@ -69,6 +69,26 @@ struct Spatial2DCanvas: View {
     private let minZoom: CGFloat = 0.25
     private let maxZoom: CGFloat = 4.0
 
+    // MARK: - Level of detail (#2298)
+    //
+    // ponytail: pragmatic LOD = cull by visible rect + skip thumbnail fetches
+    // when zoomed out. This is the smallest diff that keeps the canvas smooth
+    // toward ~30k items: SwiftUI still walks `nodes`/`items` to build the
+    // `ForEach`, but offscreen chips emit no subview and zoomed-out chips never
+    // touch the network. A full texture-streaming engine (tiled atlases,
+    // mip levels, async eviction) is a FUTURE pass — only if profiling at
+    // 30k+ shows the per-frame `ForEach` walk itself is the bottleneck.
+
+    /// Below this effective zoom, nodes render as cheap kind glyphs and skip
+    /// the thumbnail fetch (#1744 path); at/above it the real page thumbnail
+    /// loads. Picked so a chip's thumbnail is only fetched once it's large
+    /// enough on screen to actually read.
+    private let thumbnailZoomThreshold: CGFloat = 0.6
+
+    /// Canvas-space margin added around the visible rect so chips just past the
+    /// edge still render — avoids pop-in while panning at the current zoom.
+    private let cullMargin: CGFloat = 240
+
     private var isInteractive: Bool { layoutStore != nil && folderScopeId != nil }
 
     /// Clamped live zoom: committed zoom × in-flight pinch, bounded to range.
@@ -80,6 +100,30 @@ struct Spatial2DCanvas: View {
     private var effectiveOffset: CGSize {
         CGSize(width: panOffset.width + livePan.width,
                height: panOffset.height + livePan.height)
+    }
+
+    /// The slice of pre-transform canvas space currently on screen (#2298).
+    ///
+    /// `canvasContent` is laid out untransformed, then the body applies
+    /// `.scaleEffect(effectiveZoom, anchor: .center).offset(effectiveOffset)`.
+    /// Inverting that maps the on-screen viewport `[0, size]` back into canvas
+    /// coordinates, so we can cull chips whose base point falls outside it.
+    /// Reads `effectiveZoom`/`effectiveOffset`, so the cull updates live as the
+    /// camera pans/zooms.
+    private func visibleCanvasRect(in size: CGSize) -> CGRect {
+        let scale = effectiveZoom
+        let offset = effectiveOffset
+        let centre = CGPoint(x: size.width / 2, y: size.height / 2)
+        // screen = centre + (canvas - centre) * scale + offset  ⇒  invert:
+        func canvasX(_ screenX: CGFloat) -> CGFloat { centre.x + (screenX - centre.x - offset.width) / scale }
+        func canvasY(_ screenY: CGFloat) -> CGFloat { centre.y + (screenY - centre.y - offset.height) / scale }
+        return CGRect(
+            x: canvasX(0),
+            y: canvasY(0),
+            width: canvasX(size.width) - canvasX(0),
+            height: canvasY(size.height) - canvasY(0)
+        )
+        .insetBy(dx: -cullMargin, dy: -cullMargin)
     }
 
     var body: some View {
@@ -122,26 +166,34 @@ struct Spatial2DCanvas: View {
         let itemPoints = itemPositions(in: size)
         // Combined endpoint lookup: link items can join nodes and/or items.
         let combined = layout.merging(itemPoints) { _, item in item }
+        // LOD (#2298): only emit chips inside the visible rect, and only fetch
+        // page thumbnails once zoomed in enough to read them.
+        let visible = visibleCanvasRect(in: size)
+        let loadThumbnails = effectiveZoom >= thumbnailZoomThreshold
         ZStack {
             // Edges + link connectors drawn beneath chips.
+            // ponytail: edges still draw as a single Path over all connections;
+            // at 30k+ this Path build can dominate — split it by `visible` only
+            // if profiling flags it. Node/thumbnail cost is the first-order win.
             edgeLayer(layout: layout, combined: combined)
 
             // Node chips at resolved positions (saved layout overrides the
-            // projector default per item where a row exists).
+            // projector default per item where a row exists). Offscreen chips
+            // are culled so a 30k-node room only materializes what's in view.
             ForEach(nodes) { node in
-                if let base = layout[node.id] {
+                if let base = layout[node.id], visible.contains(base) {
                     let point = (dragItemId == node.id)
                         ? CGPoint(x: base.x + dragTranslation.width,
                                   y: base.y + dragTranslation.height)
                         : base
-                    chip(for: node, at: point, base: base, in: size)
+                    chip(for: node, at: point, base: base, in: size, loadThumbnail: loadThumbnails)
                 }
             }
 
             // Standalone heterogeneous canvas items (notes / quotes / text)
             // rendered through the single `CanvasItemView`. Links draw above.
             ForEach(itemStore?.items ?? []) { item in
-                if item.kind != .link, let base = itemPoints[item.id] {
+                if item.kind != .link, let base = itemPoints[item.id], visible.contains(base) {
                     let point = (dragItemId == item.id)
                         ? CGPoint(x: base.x + dragTranslation.width,
                                   y: base.y + dragTranslation.height)
@@ -153,8 +205,8 @@ struct Spatial2DCanvas: View {
     }
 
     @ViewBuilder
-    private func chip(for node: MindPalaceNode, at point: CGPoint, base: CGPoint, in size: CGSize) -> some View {
-        let chipView = nodeChip(node)
+    private func chip(for node: MindPalaceNode, at point: CGPoint, base: CGPoint, in size: CGSize, loadThumbnail: Bool) -> some View {
+        let chipView = nodeChip(node, loadThumbnail: loadThumbnail)
             .position(point)
             .zIndex(dragItemId == node.id ? 1 : 0)
             .onTapGesture { selectedNodeId = node.id }
@@ -182,17 +234,20 @@ struct Spatial2DCanvas: View {
             }
     }
 
-    private func nodeChip(_ node: MindPalaceNode) -> some View {
+    private func nodeChip(_ node: MindPalaceNode, loadThumbnail: Bool) -> some View {
         let isSelected = node.id == selectedNodeId || marqueeSelection.contains(node.id)
         return HStack(spacing: 5) {
             // Image / PDF-page nodes render their actual thumbnail (#1744);
-            // non-source nodes keep the kind-coloured icon glyph.
+            // non-source nodes keep the kind-coloured icon glyph. When zoomed
+            // out (`loadThumbnail == false`) the thumbnail view draws the cheap
+            // glyph placeholder and skips the network fetch — LOD (#2298).
             if let sourceId = node.sourceId, !sourceId.isEmpty {
                 MindPalaceNodeThumbnail(
                     sourceId: sourceId,
                     fallbackIcon: node.nodeType.icon,
                     tint: node.nodeType.color,
-                    side: nodeDiameter + 6
+                    side: nodeDiameter + 6,
+                    enabled: loadThumbnail
                 )
             } else {
                 Image(systemName: node.nodeType.icon)
@@ -433,7 +488,6 @@ extension Spatial2DCanvas {
         .help("Drag empty space to pan, or marquee-select nodes")
     }
 }
-
 
 // MARK: - Kind display helpers
 
@@ -732,6 +786,11 @@ struct MindPalaceNodeThumbnail: View {
     let fallbackIcon: String
     let tint: Color
     let side: CGFloat
+    /// LOD gate (#2298): when false (canvas zoomed out) the page thumbnail is
+    /// not fetched — the cheap kind glyph is shown instead, so a zoomed-out
+    /// overview of thousands of nodes issues zero thumbnail requests. An
+    /// already-loaded thumbnail is kept (no flicker) until the view is recycled.
+    var enabled: Bool = true
 
     @State private var thumbnail: Image?
 
@@ -751,8 +810,10 @@ struct MindPalaceNodeThumbnail: View {
         }
         .frame(width: side, height: side)
         .clipShape(RoundedRectangle(cornerRadius: 3))
-        .task(id: sourceId) {
-            guard thumbnail == nil else { return }
+        // Re-run when zoom crosses the LOD threshold (`enabled` flips), so
+        // thumbnails load on zoom-in without a separate refresh path.
+        .task(id: "\(sourceId)|\(enabled)") {
+            guard enabled, thumbnail == nil else { return }
             thumbnail = (try? await LibraryManager.shared.globalLibrary?
                 .storageService.getThumbnail(sourceId)) ?? nil
         }
