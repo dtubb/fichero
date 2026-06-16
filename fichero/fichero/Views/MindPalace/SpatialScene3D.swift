@@ -212,6 +212,11 @@ struct SpatialScene3D: View {
         .overlay(alignment: .top) {
             if isTruncated { truncationBanner }
         }
+        .overlay(alignment: .topTrailing) {
+            if layoutStore != nil, folderScopeId != nil, !renderedNodes.isEmpty {
+                gridArrangeButton
+            }
+        }
         #else
         Spatial2DCanvas(nodes: nodes, connections: connections, selectedNodeId: $selectedNodeId)
         #endif
@@ -486,6 +491,51 @@ struct SpatialScene3D: View {
         rows[movedId]?.x = position.x
         rows[movedId]?.y = position.y
         rows[movedId]?.z = position.z
+        let items = Array(rows.values)
+        Task { await store.saveLayout(folderId: folderId, items: items) }
+    }
+
+    /// Native control to lay the source pages out in a grid by page order
+    /// (#1726). Aspect ratio is already preserved per-card in `makeNodeEntity`.
+    private var gridArrangeButton: some View {
+        Button {
+            arrangeInGrid()
+        } label: {
+            Image(systemName: "square.grid.3x3")
+        }
+        .buttonStyle(.borderless)
+        .padding(8)
+        .help("Arrange pages in a grid by page order")
+    }
+
+    /// Lay every rendered node out on a regular grid, ordered by the page order
+    /// in which the backend delivered them, and persist through the shared
+    /// layout store (#1726). Mirrors the backend `grid` strategy
+    /// (`spatial_arrange._grid`): `cols = ceil(sqrt(n))`, evenly spaced. Existing
+    /// rows for these nodes are overwritten; rows for other items are preserved.
+    /// No-op without store + scope.
+    private func arrangeInGrid() {
+        guard let store = layoutStore, let folderId = folderScopeId else { return }
+        let ordered = renderedNodes
+        guard !ordered.isEmpty else { return }
+        var rows: [String: CanvasItemLayout] = Dictionary(
+            store.layout.map { ($0.itemId, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        let spacing = 1.0
+        let cols = max(1, Int(ceil(Double(ordered.count).squareRoot())))
+        for (index, node) in ordered.enumerated() {
+            let posX = Double(index % cols) * spacing
+            let posY = Double(index / cols) * spacing
+            if rows[node.id] != nil {
+                rows[node.id]?.x = posX
+                rows[node.id]?.y = posY
+                rows[node.id]?.z = 0
+                rows[node.id]?.zIndex = index
+            } else {
+                rows[node.id] = CanvasItemLayout(itemId: node.id, x: posX, y: posY, z: 0, zIndex: index)
+            }
+        }
         let items = Array(rows.values)
         Task { await store.saveLayout(folderId: folderId, items: items) }
     }
