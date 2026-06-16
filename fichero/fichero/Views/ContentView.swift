@@ -467,12 +467,12 @@ extension ContentView {
         // LEADING zone — panel toggles (Xcode/Finder convention): sidebar + history.
         leadingToolbarContent
 
-        ToolbarSpacer(.flexible)
-
         // CONTENT zone — the action verbs: New/Import, Delete, Run Workflow.
+        // NOTE: `ToolbarSpacer(.flexible)` for explicit zone gaps is macOS 26-only;
+        // the deployment target is macOS 15, so zoning relies on toolbar PLACEMENTS
+        // (.navigation leading / .primaryAction content / .automatic trailing).
+        // Re-add ToolbarSpacer behind `if #available(macOS 26, *)` when the target moves.
         contentToolbarContent
-
-        ToolbarSpacer(.flexible)
 
         // TRAILING zone — inspector toggle.
         trailingToolbarContent
