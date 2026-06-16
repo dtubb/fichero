@@ -114,17 +114,26 @@ struct FicheroApp: App {
         }
     }
 
+    /// The shared library-window root + its environment. Used by BOTH the
+    /// primary `id: "main"` window and the value-seeded Duplicate Window group
+    /// (#2262), so there is exactly one LibraryWindow scene definition — the
+    /// duplicate path reuses it rather than introducing a parallel one.
+    @ViewBuilder
+    private func libraryWindowRoot(seed: WindowSeed?) -> some View {
+        LibraryWindow(seed: seed)
+            .environmentObject(backendService)
+            .environmentObject(appState)
+            .environmentObject(viewSettings)
+            .environmentObject(libraryManager)
+            .environmentObject(claimFocusState)
+            .environment(kgFocusState)
+            .environmentObject(appState.mcpService)
+            .frame(minWidth: 640, minHeight: 700)
+    }
+
     var body: some Scene {
         WindowGroup("Fichero", id: "main") {
-            LibraryWindow()
-                .environmentObject(backendService)
-                .environmentObject(appState)
-                .environmentObject(viewSettings)
-                .environmentObject(libraryManager)
-                .environmentObject(claimFocusState)
-                .environment(kgFocusState)
-                .environmentObject(appState.mcpService)
-                .frame(minWidth: 640, minHeight: 700)
+            libraryWindowRoot(seed: nil)
                 .onOpenURL { url in
                     handleOpenURL(url)
                 }
@@ -276,6 +285,20 @@ struct FicheroApp: App {
                 }
             }
         }
+
+        // Duplicate Window (#2262, reform master plan §J): a value-seeded
+        // sibling of the primary "Fichero" window. `openWindow(value: WindowSeed)`
+        // lands here; LibraryWindow seeds the cloned window's library + selection
+        // + lens (the #2273 scene-storage keys) from the WindowSeed before its
+        // content mounts. Reuses the exact same LibraryWindow root + environment
+        // as the primary window — no parallel scene. Gated in the menu on
+        // `@Environment(\.supportsMultipleWindows)`.
+        WindowGroup("Fichero", for: WindowSeed.self) { $seed in
+            libraryWindowRoot(seed: seed)
+        }
+        .defaultSize(width: 1400, height: 900)
+        .windowStyle(.titleBar)
+        .windowToolbarStyle(.unified(showsTitle: false))
 
         // Track B (#2003): a detachable artifact-detail scene. Torn off from
         // the inspector's Artifacts tab, it follows the shared FocusedArtifact

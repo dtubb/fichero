@@ -91,8 +91,10 @@ struct FileMenuCommands: View {
     @FocusedValue(\.openLibraryAction) private var openLibraryAction
     @FocusedValue(\.newLibraryAction) private var newLibraryAction
     @FocusedValue(\.newWindowAction) private var newWindowAction
+    @FocusedValue(\.duplicateWindowAction) private var duplicateWindowAction
     @FocusedValue(\.saveLibraryAction) private var saveLibraryAction
     @FocusedValue(\.closeLibraryAction) private var closeLibraryAction
+    @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
     @ObservedObject private var registry = KnownLibraryRegistryStore.shared
 
     var body: some View {
@@ -143,6 +145,16 @@ struct FileMenuCommands: View {
             }
             .keyboardShortcut("t", modifiers: [.command])
             .disabled(newWindowAction == nil)
+
+            // Duplicate Window (#2262): clones the current window's library +
+            // selection + active lens into a new window via openWindow(value:).
+            // Gated on supportsMultipleWindows so it disables where multiple
+            // windows aren't available.
+            Button("Duplicate Window") {
+                duplicateWindowAction?()
+            }
+            .keyboardShortcut("t", modifiers: [.command, .shift])
+            .disabled(duplicateWindowAction == nil || !supportsMultipleWindows)
 
             Divider()
 

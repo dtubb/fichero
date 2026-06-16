@@ -25,11 +25,28 @@ struct LibraryWindow: View {
     @State private var hostWindow: NSWindow?
     @SceneStorage("libraryWindow.libraryId") private var persistedLibraryId: String?
 
+    // #2273 per-window state keys (sidebar selection + active lens). ContentView
+    // owns the canonical read/write; LibraryWindow mirrors them so it can
+    //   (a) SEED a freshly duplicated window from a WindowSeed *before* the
+    //       content mounts (ContentView.restorePersistedState reads them on
+    //       appear), and
+    //   (b) READ the live selection/lens when building a WindowSeed for the
+    //       Duplicate Window command (#2262).
+    @SceneStorage("selectedSidebarItem") private var sceneSelectedItemId: String?
+    @SceneStorage("viewModeType") private var sceneViewModeType: String = "library"
+    @SceneStorage("viewModeItemId") private var sceneViewModeItemId: String?
+
     @Environment(\.openWindow) private var openWindow
+
+    /// Seed handed to a window opened via `openWindow(value: WindowSeed)`
+    /// (Duplicate Window, #2262). `nil` for the primary / File ▸ New Window
+    /// path, which keeps its existing pending-library + restore behavior.
+    private let seed: WindowSeed?
 
     let libraryWindowLogger = Logger(subsystem: "app.fichero.fichero", category: "LibraryWindow")
 
-    init() {
+    init(seed: WindowSeed? = nil) {
+        self.seed = seed
         _windowState = StateObject(wrappedValue: WindowState(libraryId: UUID()))
     }
 
@@ -110,6 +127,7 @@ struct LibraryWindow: View {
         // app's menu plumbing (sidebarMode, showInspector, librarySelectAll…).
         .focusedSceneValue(\.openLibraryAction, { showingFileImporter = true })
         .focusedSceneValue(\.newWindowAction, { handleNewWindow() })
+        .focusedSceneValue(\.duplicateWindowAction, duplicateWindowAction)
         .focusedSceneValue(\.newLibraryAction, { handleNewLibrary() })
         .focusedSceneValue(\.saveLibraryAction, { handleSaveLibrary() })
         .focusedSceneValue(\.closeLibraryAction, closeLibraryAction)
@@ -236,6 +254,20 @@ struct LibraryWindow: View {
             currentLibraryId=\(libraryManager.currentLibraryId?.uuidString ?? "nil")
             """)
 
+        // Priority 0: a WindowSeed (Duplicate Window, #2262) clones an existing
+        // window's library + selection + active lens. Write the #2273
+        // scene-storage keys BEFORE the library mounts so ContentView restores
+        // into the cloned state, then assign the seeded library via the shared
+        // assignLibrary path (which also persists it for next launch).
+        if let seed, let resolvedId = resolveSeedLibrary(seed) {
+            sceneSelectedItemId = seed.selectedItemId
+            sceneViewModeType = seed.viewModeType ?? "library"
+            sceneViewModeItemId = seed.viewModeItemId
+            assignLibrary(id: resolvedId)
+            libraryWindowLogger.info("Seeded duplicated window from library: \(resolvedId)")
+            return
+        }
+
         if let pendingId = libraryManager.pendingWindowLibraryIds.first,
            libraryManager.getLibrary(id: pendingId) != nil {
             libraryWindowLogger.info("Consuming pendingWindowLibraryId: \(pendingId)")
@@ -301,6 +333,43 @@ struct LibraryWindow: View {
     private func handleNewWindow() {
         libraryManager.currentLibraryId = windowState.libraryId
         openWindow(id: "main")
+    }
+
+    /// Resolve the library a WindowSeed refers to: prefer the already-open
+    /// library by id (the Duplicate Window case — same process, same library),
+    /// falling back to re-opening it from its on-disk path if a restored seed
+    /// outlived the source library being closed.
+    private func resolveSeedLibrary(_ seed: WindowSeed) -> UUID? {
+        if let id = UUID(uuidString: seed.libraryId),
+           libraryManager.getLibrary(id: id) != nil {
+            return id
+        }
+        if let path = seed.libraryPath {
+            return libraryManager.openLibrary(at: URL(fileURLWithPath: path), makeCurrent: false).id
+        }
+        return nil
+    }
+
+    /// Duplicate Window (#2262): clone THIS window's library + selection + lens
+    /// into a brand-new window. Reads the live #2273 scene-storage state and
+    /// hands it to the value-seeded `WindowGroup(for: WindowSeed.self)` via
+    /// `openWindow(value:)`. `nil` when no library is open (menu item disabled).
+    private var duplicateWindowAction: (() -> Void)? {
+        guard windowState.library != nil else { return nil }
+        return { handleDuplicateWindow() }
+    }
+
+    private func handleDuplicateWindow() {
+        guard let library = windowState.library else { return }
+        let seed = WindowSeed(
+            libraryId: library.id.uuidString,
+            libraryPath: libraryManager.isTemporaryLibrary(library.url) ? nil : library.url.path,
+            selectedItemId: sceneSelectedItemId,
+            viewModeType: sceneViewModeType,
+            viewModeItemId: sceneViewModeItemId
+        )
+        openWindow(value: seed)
+        libraryWindowLogger.info("Duplicated window for library: \(library.id)")
     }
 
     private func handleNewLibrary() {

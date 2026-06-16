@@ -93,6 +93,12 @@ struct NewLibraryActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
+/// FocusedValue key for duplicating the current window — clones its library,
+/// selection, and active lens into a new window via `openWindow(value:)` (#2262).
+struct DuplicateWindowActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
 /// FocusedValue key for saving the current library (Save As for Untitled libraries)
 struct SaveLibraryActionKey: FocusedValueKey {
     typealias Value = () -> Void
@@ -143,6 +149,11 @@ extension FocusedValues {
     var newLibraryAction: NewLibraryActionKey.Value? {
         get { self[NewLibraryActionKey.self] }
         set { self[NewLibraryActionKey.self] = newValue }
+    }
+
+    var duplicateWindowAction: DuplicateWindowActionKey.Value? {
+        get { self[DuplicateWindowActionKey.self] }
+        set { self[DuplicateWindowActionKey.self] = newValue }
     }
 
     var saveLibraryAction: SaveLibraryActionKey.Value? {
