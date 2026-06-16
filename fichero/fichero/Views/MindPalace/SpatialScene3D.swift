@@ -80,7 +80,22 @@ struct SpatialScene3D: View {
     @State private var cameraDistance = 5.5
     @State private var orbitYaw = 0.0
     @State private var orbitPitch = 0.0
-    @State private var dragStart = CGSize.zero
+    /// The point the camera orbits around and looks at. Panning (option-drag)
+    /// translates this across the view plane; orbit/zoom keep it fixed. Pure
+    /// view state — not persisted (a saved pan offset is a FUTURE concern;
+    /// ponytail: viewport persistence still records only orbit/zoom).
+    @State private var lookAtTarget = SIMD3<Float>(0, 0, 0)
+    /// Orbit angles (x = yaw, y = pitch) + the drag translation captured at the
+    /// moment an orbit drag begins, so each frame is computed as an absolute
+    /// offset from that baseline (the first delta is zero — no snap on start).
+    @State private var orbitDragStart: (angles: SIMD2<Double>, translation: CGSize)?
+    /// Look-at target + drag translation captured when a pan drag begins, for
+    /// the same seed-from-current (no start-jump) reason as `orbitDragStart`.
+    @State private var panDragStart: (target: SIMD3<Float>, translation: CGSize)?
+    /// Whether the Option key is currently held — flips the background drag from
+    /// orbit to pan. Tracked via `onModifierKeysChanged` so one drag gesture
+    /// serves both without two conflicting simultaneous gestures.
+    @State private var optionHeld = false
     @State private var magnificationStart = 1.0
     @State private var nodeDragOrigins: [String: SIMD3<Double>] = [:]
     @State private var nodeDragPositions: [String: SIMD3<Double>] = [:]
@@ -144,6 +159,9 @@ struct SpatialScene3D: View {
         .simultaneousGesture(cameraDragGesture)
         .simultaneousGesture(cameraZoomGesture)
         .simultaneousGesture(nodeDragGesture)
+        .onModifierKeysChanged(mask: .option) { _, modifiers in
+            optionHeld = modifiers.contains(.option)
+        }
         .onAppear {
             applyInitialViewportIfNeeded()
         }
@@ -176,20 +194,52 @@ struct SpatialScene3D: View {
     }
 
     #if canImport(RealityKit)
+    /// Background drag = orbit, or pan when Option is held. Both seed from the
+    /// camera's current state at the gesture's first event and then compute an
+    /// absolute offset from that baseline, so there is never a snap when the
+    /// drag begins (the old code accumulated deltas from a zeroed `dragStart`,
+    /// which jumped by the whole first translation on every new drag).
     private var cameraDragGesture: some Gesture {
         DragGesture(minimumDistance: 2)
             .onChanged { value in
                 guard nodeDragOrigins.isEmpty else { return }
-                let deltaWidth = value.translation.width - dragStart.width
-                let deltaHeight = value.translation.height - dragStart.height
-                orbitYaw += Double(deltaWidth) * 0.008
-                orbitPitch = min(1.15, max(-1.15, orbitPitch + Double(deltaHeight) * 0.008))
-                dragStart = value.translation
+                if optionHeld {
+                    panCamera(with: value.translation)
+                } else {
+                    orbitCamera(with: value.translation)
+                }
             }
             .onEnded { _ in
-                dragStart = .zero
+                orbitDragStart = nil
+                panDragStart = nil
                 persistViewport()
             }
+    }
+
+    /// Orbit yaw/pitch as an absolute offset from the angles captured when the
+    /// drag started — continuous, clamped, no start-jump.
+    private func orbitCamera(with translation: CGSize) {
+        let start = orbitDragStart ?? (SIMD2<Double>(orbitYaw, orbitPitch), translation)
+        if orbitDragStart == nil { orbitDragStart = start }
+        let deltaX = Double(translation.width - start.translation.width)
+        let deltaY = Double(translation.height - start.translation.height)
+        orbitYaw = start.angles.x + deltaX * 0.008
+        orbitPitch = min(1.15, max(-1.15, start.angles.y + deltaY * 0.008))
+    }
+
+    /// Translate the look-at target across the camera's right/up plane (Option-
+    /// drag). Speed scales with distance so the pan feels constant at any zoom.
+    private func panCamera(with translation: CGSize) {
+        let start = panDragStart ?? (lookAtTarget, translation)
+        if panDragStart == nil { panDragStart = start }
+        let deltaX = Float(translation.width - start.translation.width)
+        let deltaY = Float(translation.height - start.translation.height)
+        let yaw = Float(orbitYaw)
+        let pitch = Float(orbitPitch)
+        let right = SIMD3<Float>(cos(yaw), 0, -sin(yaw))
+        let upVector = SIMD3<Float>(-sin(yaw) * sin(pitch), cos(pitch), -cos(yaw) * sin(pitch))
+        let speed = Float(cameraDistance) * 0.0022
+        lookAtTarget = start.target + (-right * deltaX + upVector * deltaY) * speed
     }
 
     private var cameraZoomGesture: some Gesture {
@@ -223,9 +273,14 @@ struct SpatialScene3D: View {
                 let normalized = normalize()
                 let rawDeltaX = Double(value.translation.width) * 0.01 / Double(normalized.scale)
                 let rawDeltaY = -Double(value.translation.height) * 0.01 / Double(normalized.scale)
+                // Track the drag *continuously* (no snap here): live-snapping
+                // made the node jump cell-to-cell across the 0.25 grid while
+                // dragging — the "jumpy grid". Snapping happens once on release
+                // via `persistedDragEndPosition`, so the rest position is still
+                // grid-aligned but the drag itself is smooth.
                 let next = SIMD3<Double>(
-                    MindPalaceNode.snap(origin.x + rawDeltaX),
-                    MindPalaceNode.snap(origin.y + rawDeltaY),
+                    origin.x + rawDeltaX,
+                    origin.y + rawDeltaY,
                     origin.z
                 )
                 nodeDragPositions[nodeId] = next
@@ -267,11 +322,13 @@ struct SpatialScene3D: View {
         let yaw = Float(orbitYaw)
         let pitch = Float(orbitPitch)
         let distance = Float(cameraDistance)
-        let xPosition = sin(yaw) * cos(pitch) * distance
-        let yPosition = sin(pitch) * distance
-        let zPosition = cos(yaw) * cos(pitch) * distance
-        camera.position = SIMD3<Float>(xPosition, yPosition, zPosition)
-        camera.look(at: .zero, from: camera.position, relativeTo: nil)
+        let offset = SIMD3<Float>(
+            sin(yaw) * cos(pitch) * distance,
+            sin(pitch) * distance,
+            cos(yaw) * cos(pitch) * distance
+        )
+        camera.position = lookAtTarget + offset
+        camera.look(at: lookAtTarget, from: camera.position, relativeTo: nil)
     }
 
     private var currentCameraPosition: SIMD3<Double> {
@@ -292,6 +349,10 @@ struct SpatialScene3D: View {
     /// Phase 3 follow-link behavior: on selection (tap), orbit camera toward
     /// the node and expose its first-degree neighbor set for future tinting.
     private func focusCamera(onNodeId nodeId: String?) {
+        // Don't yank the camera while a node is being dragged: the drag's first
+        // `onChanged` sets `selectedNodeId`, which would otherwise fire this and
+        // fight the grab. Deliberate tap-selection (no drag) still focuses.
+        guard nodeDragOrigins.isEmpty else { return }
         guard let nodeId, let node = nodes.first(where: { $0.id == nodeId }) else { return }
         let (scale, center) = normalize()
         let pos = position(for: node, scale: scale, center: center)
@@ -299,6 +360,9 @@ struct SpatialScene3D: View {
         let targetYaw = Double(atan2(pos.x, pos.z))
         let targetPitch = Double(atan2(pos.y, length))
         withAnimation(.easeInOut(duration: 0.45)) {
+            // Recenter the pan target so the focused node frames correctly even
+            // after an Option-drag pan moved the look-at point.
+            lookAtTarget = .zero
             orbitYaw = targetYaw
             orbitPitch = max(-1.15, min(1.15, targetPitch))
         }
@@ -332,6 +396,7 @@ struct SpatialScene3D: View {
         let distance = max(2.2, min(12.0, simd_length(position)))
         guard distance.isFinite, distance > 0 else { return }
         cameraDistance = distance
+        lookAtTarget = .zero
         orbitYaw = atan2(position.x, position.z)
         orbitPitch = asin(max(-1.0, min(1.0, position.y / distance)))
     }
