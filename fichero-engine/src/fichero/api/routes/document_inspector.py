@@ -65,6 +65,25 @@ class DocumentOutlineResponse(BaseModel):
     count: int
 
 
+class DocumentRollupResponse(BaseModel):
+    """Cheap per-type child counts for a document (#2258).
+
+    Populates a *collapsed* outline row in the library Table without
+    assembling the full child payload — the SwiftUI library shows these
+    counts on a collapsed document and only fetches the heavier per-type
+    children when the disclosure is expanded. Counts roll up the
+    document and every descendant page/chunk (mirroring the inspector
+    aggregation scope), but skip all entity resolution / dedup /
+    merge-chain walking so the query stays a handful of cheap COUNTs.
+    """
+    document_id: str
+    artifacts: int
+    entities: int
+    notes: int
+    claims: int
+    pages: int
+
+
 @router.get(
     "/{document_id}/inspector",
     response_model=DocumentInspectorResponse,
@@ -307,6 +326,75 @@ async def document_outline(
     )
 
     return DocumentOutlineResponse(document_id=document_id, rows=rows, count=len(rows))
+
+
+@router.get(
+    "/{document_id}/rollup",
+    response_model=DocumentRollupResponse,
+    summary="Cheap per-type child counts for a collapsed library outline row",
+    description=(
+        "Returns per-type child counts (artifacts, entities, notes, "
+        "claims, pages) for a document, rolled up over the document and "
+        "every descendant page/chunk. The library Table renders these on "
+        "a *collapsed* outline row so it can show 'N entities, M notes' "
+        "without fetching the children; the heavier per-type payloads are "
+        "loaded only when the disclosure is expanded (#2258).\n\n"
+        "This is intentionally cheap — plain counts with no entity "
+        "resolution, dedup, or merge-chain walking. The ``entities`` "
+        "count therefore mirrors the inspector's union (entities linked "
+        "by this document's claims plus entities whose per-page scope "
+        "intersects the document) and is NOT the deduped/merge-resolved "
+        "figure from /knowledge-graph. ``pages`` counts descendant page "
+        "documents only (not the document itself)."
+    ),
+)
+async def document_rollup(
+    document_id: str,
+    db: Database = Depends(get_library_database),
+) -> DocumentRollupResponse:
+    doc = db.get(Document, document_id)
+    if doc is None:
+        raise HTTPException(404, f"Document not found: {document_id}")
+
+    from fichero.api.routes.claims import _descendant_doc_ids
+
+    doc_ids = _descendant_doc_ids(db, document_id)
+
+    pages = sum(
+        1
+        for d in db.query(Document)
+        if d.id in doc_ids and d.id != document_id and d.doc_type == DocType.page
+    )
+    artifacts = sum(1 for a in db.query(Artifact) if a.document_id in doc_ids)
+    claims = [c for c in db.query(KnowledgeClaim) if c.source_document_id in doc_ids]
+    notes = sum(
+        1
+        for n in db.query(Note)
+        if doc_ids.intersection(n.linked_document_ids or [])
+    )
+
+    # Entities: union of (entities linked by this doc's claims) and
+    # (entities whose own per-page scope intersects this doc). Mirrors
+    # the inspector union (#1562) so the collapsed count matches what
+    # the expanded entity group will show, but counts ids only — no
+    # entity fetch, dedup, or merge resolution.
+    entity_ids: set[str] = set()
+    for claim in claims:
+        entity_ids.update(claim.entity_ids or [])
+    for entity in db.query(KnowledgeEntity):
+        if entity.id in entity_ids:
+            continue
+        if doc_ids.intersection(entity.source_document_ids or []):
+            entity_ids.add(entity.id)
+
+    return DocumentRollupResponse(
+        document_id=document_id,
+        artifacts=artifacts,
+        entities=len(entity_ids),
+        notes=notes,
+        claims=len(claims),
+        pages=pages,
+    )
 
 
 # =============================================================================

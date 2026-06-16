@@ -2574,6 +2574,18 @@
         "query_params": [],
         "request_model": null,
         "response_model": "DocumentOutlineResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{document_id}/rollup",
+        "operation_id": "document_rollup_api_documents__document_id__rollup_get",
+        "summary": "Cheap per-type child counts for a collapsed library outline row",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DocumentRollupResponse"
       }
     ],
     "entities": [

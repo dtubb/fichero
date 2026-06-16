@@ -7808,6 +7808,49 @@
         }
       }
     },
+    "/api/documents/{document_id}/rollup": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Cheap per-type child counts for a collapsed library outline row",
+        "description": "Returns per-type child counts (artifacts, entities, notes, claims, pages) for a document, rolled up over the document and every descendant page/chunk. The library Table renders these on a *collapsed* outline row so it can show 'N entities, M notes' without fetching the children; the heavier per-type payloads are loaded only when the disclosure is expanded (#2258).\n\nThis is intentionally cheap \u2014 plain counts with no entity resolution, dedup, or merge-chain walking. The ``entities`` count therefore mirrors the inspector's union (entities linked by this document's claims plus entities whose per-page scope intersects the document) and is NOT the deduped/merge-resolved figure from /knowledge-graph. ``pages`` counts descendant page documents only (not the document itself).",
+        "operationId": "document_rollup_api_documents__document_id__rollup_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentRollupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{document_id}/knowledge-graph": {
       "get": {
         "tags": [
@@ -39289,6 +39332,45 @@
           "count"
         ],
         "title": "DocumentOutlineRow"
+      },
+      "DocumentRollupResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "artifacts": {
+            "type": "integer",
+            "title": "Artifacts"
+          },
+          "entities": {
+            "type": "integer",
+            "title": "Entities"
+          },
+          "notes": {
+            "type": "integer",
+            "title": "Notes"
+          },
+          "claims": {
+            "type": "integer",
+            "title": "Claims"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "artifacts",
+          "entities",
+          "notes",
+          "claims",
+          "pages"
+        ],
+        "title": "DocumentRollupResponse",
+        "description": "Cheap per-type child counts for a document (#2258).\n\nPopulates a *collapsed* outline row in the library Table without\nassembling the full child payload \u2014 the SwiftUI library shows these\ncounts on a collapsed document and only fetches the heavier per-type\nchildren when the disclosure is expanded. Counts roll up the\ndocument and every descendant page/chunk (mirroring the inspector\naggregation scope), but skip all entity resolution / dedup /\nmerge-chain walking so the query stays a handful of cheap COUNTs."
       },
       "DocumentSource": {
         "properties": {

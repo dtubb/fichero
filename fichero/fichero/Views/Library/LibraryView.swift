@@ -126,6 +126,19 @@ struct LibraryView: View {
     /// follow-up. (#519)
     @State var tableColumnCustomization = TableColumnCustomization<Document>()
 
+    /// Drives the expandable outline Table (#2258). Lazily created on
+    /// first appear (needs the library's entity service from the
+    /// environment); caches per-document rollup counts so collapsed rows
+    /// can show "12 entities, 3 notes" without fetching the children.
+    @State var outlineModel: LibraryOutlineModel?
+    /// Disclosure expansion state for the outline Table, keyed by node id
+    /// (document id). Expanding a document triggers its rollup fetch.
+    @State var outlineExpanded: Set<String> = []
+    /// Compact width (iPhone) drops the macOS/iPadOS `DisclosureTableRow`
+    /// outline for a plain document list — `Table` disclosure is a
+    /// regular-width affordance.
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+
     // Map view positions
     @State var mapPositions: [String: CGPoint] = [:]
     @State var entities: [Components.Schemas.KnowledgeEntity] = []
@@ -282,6 +295,9 @@ struct LibraryView: View {
                     let client = libraryManager.globalLibrary?.ficheroClient ?? FicheroClient.localhost
                     canvasLayoutStore = canvasLayoutStore ?? CanvasLayoutStore(client: client)
                     canvasItemStore = canvasItemStore ?? CanvasItemStore(client: client)
+                }
+                if outlineModel == nil {
+                    outlineModel = LibraryOutlineModel(service: entityService)
                 }
                 loadSortSettings(for: folderId)
                 syncSortOrder()

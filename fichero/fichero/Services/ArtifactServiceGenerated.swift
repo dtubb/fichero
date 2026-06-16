@@ -495,6 +495,32 @@ final class EntityServiceGenerated: ObservableObject {
         }
     }
 
+    /// Cheap per-type child counts for a document (#2258).
+    ///
+    /// Backs a *collapsed* library outline row — returns artifact /
+    /// entity / note / claim / page counts rolled up over the document
+    /// and its descendant pages, without assembling the heavier child
+    /// payloads. The expandable Table shows these on a collapsed row and
+    /// only loads the per-type children when the disclosure is expanded.
+    /// GET /api/documents/{id}/rollup
+    func documentRollup(
+        documentId: String
+    ) async throws -> Components.Schemas.DocumentRollupResponse {
+        let response = try await client.api.documentRollupApiDocumentsDocumentIdRollupGet(
+            path: .init(documentId: documentId),
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     // MARK: - KG analytics (post 1587a1b6 namespace consolidation)
 
     /// Get contradiction evidence for a claim.

@@ -2507,6 +2507,18 @@ def register_generated_openapi_commands(
             return client.request("GET", path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("cheap-per-type-child-counts-for-a-collapsed-library-outline-row")
+    def documents_cheap_per_type_child_counts_for_a_collapsed_library_outline_row_get(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+    ) -> None:
+        """Cheap per-type child counts for a collapsed library outline row (GET /api/documents/{document_id}/rollup)."""
+        def op_call(client: FicheroClient) -> Any:
+            path = f"/api/documents/{document_id}/rollup"
+            params = None
+            return client.request("GET", path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('entities')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for entities endpoints.', no_args_is_help=True)

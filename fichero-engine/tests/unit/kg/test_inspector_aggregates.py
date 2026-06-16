@@ -559,3 +559,69 @@ class TestEntityInspector:
         db.save(many)
         result = asyncio.run(entity_inspector.inspector(many.id, db=db))
         assert result.summary == "Person · no claims yet · also known as Bob, Rob, Bobby…"
+
+
+# -----------------------------------------------------------------------------
+# Document rollup (#2258) — cheap per-type child counts for a collapsed row
+# -----------------------------------------------------------------------------
+
+
+class TestDocumentRollup:
+    def test_empty_document_returns_zero_counts(self, db):
+        from fichero.api.routes import document_inspector
+
+        doc = Document(name="empty.pdf", doc_type=DocType.file)
+        db.save(doc)
+        result = asyncio.run(document_inspector.document_rollup(doc.id, db=db))
+        assert result.document_id == doc.id
+        assert result.artifacts == 0
+        assert result.entities == 0
+        assert result.notes == 0
+        assert result.claims == 0
+        assert result.pages == 0
+
+    def test_nonexistent_document_404s(self, db):
+        import pytest
+        from fastapi import HTTPException
+
+        from fichero.api.routes import document_inspector
+
+        with pytest.raises(HTTPException) as excinfo:
+            asyncio.run(document_inspector.document_rollup("does-not-exist", db=db))
+        assert excinfo.value.status_code == 404
+
+    def test_rollup_counts_children_across_descendants(self, db):
+        """Counts roll up the document and its descendant pages (#2258)."""
+        from fichero.api.routes import document_inspector
+
+        parent = Document(name="Book.pdf", doc_type=DocType.file)
+        page1 = Document(name="page 1", doc_type=DocType.page, parent_id=parent.id, sequence=1)
+        page2 = Document(name="page 2", doc_type=DocType.page, parent_id=parent.id, sequence=2)
+        db.save(parent)
+        db.save(page1)
+        db.save(page2)
+
+        # Entity linked via a claim on a page child.
+        person = KnowledgeEntity(canonical_name="Livingstone", entity_type=EntityType.person)
+        db.save(person)
+        # Entity surfaced only by per-page scope (no claim) — must still count.
+        scoped = KnowledgeEntity(
+            canonical_name="Deloro",
+            entity_type=EntityType.location,
+            source_document_ids=[page2.id],
+        )
+        db.save(scoped)
+
+        db.save(KnowledgeClaim(text="Livingstone signed.", source_document_id=page1.id, entity_ids=[person.id]))
+        db.save(KnowledgeClaim(text="Another claim.", source_document_id=page2.id, entity_ids=[person.id]))
+        db.save(Artifact(document_id=page1.id, artifact_type="transcription", content="text"))
+        db.save(Note(title="a note", body="a note", linked_document_ids=[parent.id]))
+
+        result = asyncio.run(document_inspector.document_rollup(parent.id, db=db))
+        assert result.document_id == parent.id
+        assert result.pages == 2
+        assert result.claims == 2
+        assert result.artifacts == 1
+        assert result.notes == 1
+        # person (via claims) + scoped (via per-page source scope), deduped.
+        assert result.entities == 2
