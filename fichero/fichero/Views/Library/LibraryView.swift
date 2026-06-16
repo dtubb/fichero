@@ -124,7 +124,7 @@ struct LibraryView: View {
     /// SwiftUI's TableColumnCustomization API on macOS 14+. State lives
     /// for the window lifetime; deeper persistence to @SceneStorage is a
     /// follow-up. (#519)
-    @State var tableColumnCustomization = TableColumnCustomization<Document>()
+    @State var tableColumnCustomization = TableColumnCustomization<LibraryOutlineNode>()
 
     /// Drives the expandable outline Table (#2258). Lazily created on
     /// first appear (needs the library's entity service from the
