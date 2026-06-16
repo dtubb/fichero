@@ -5607,7 +5607,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "[CanvasLayout]"
+        "response_model": "MindPalaceListResponse"
       },
       {
         "method": "PUT",

@@ -28,7 +28,7 @@ def test_round_trip_upsert_then_load(client):
 
     load = client.get(f"{BASE}/{folder}/canvas-layout")
     assert load.status_code == 200
-    rows = {r["item_id"]: r for r in load.json()}
+    rows = {r["item_id"]: r for r in load.json()["items"]}
     assert rows["doc-1"]["x"] == 10.0
     assert rows["doc-1"]["y"] == 20.0
     assert rows["doc-1"]["z_index"] == 3
@@ -44,7 +44,7 @@ def test_defaults_for_omitted_fields(client):
         json={"items": [{"item_id": "only-id"}]},
     )
     assert resp.status_code == 200
-    row = client.get(f"{BASE}/{folder}/canvas-layout").json()[0]
+    row = client.get(f"{BASE}/{folder}/canvas-layout").json()["items"][0]
     assert row["x"] == 0.0
     assert row["y"] == 0.0
     assert row["z"] == 0.0
@@ -69,7 +69,7 @@ def test_upsert_is_idempotent_no_duplicate_rows(client):
         f"{BASE}/{folder}/canvas-layout",
         json={"items": [{"item_id": "node", "x": 99.0, "y": 88.0}]},
     )
-    rows = client.get(f"{BASE}/{folder}/canvas-layout").json()
+    rows = client.get(f"{BASE}/{folder}/canvas-layout").json()["items"]
     assert len(rows) == 1, "duplicate row created for same (folder_id, item_id)"
     assert rows[0]["x"] == 99.0
     assert rows[0]["y"] == 88.0
@@ -85,8 +85,8 @@ def test_layout_is_folder_scoped(client):
         f"{BASE}/folder-y/canvas-layout",
         json={"items": [{"item_id": "shared-id", "x": 2.0}]},
     )
-    x_rows = client.get(f"{BASE}/folder-x/canvas-layout").json()
-    y_rows = client.get(f"{BASE}/folder-y/canvas-layout").json()
+    x_rows = client.get(f"{BASE}/folder-x/canvas-layout").json()["items"]
+    y_rows = client.get(f"{BASE}/folder-y/canvas-layout").json()["items"]
     assert len(x_rows) == 1 and x_rows[0]["x"] == 1.0
     assert len(y_rows) == 1 and y_rows[0]["x"] == 2.0
 
@@ -95,7 +95,7 @@ def test_load_empty_folder_returns_empty_list(client):
     """A folder that was never arranged loads as [] (and creates the table)."""
     resp = client.get(f"{BASE}/never-touched/canvas-layout")
     assert resp.status_code == 200
-    assert resp.json() == []
+    assert resp.json()["items"] == []
 
 
 def test_table_creation_is_idempotent(db):

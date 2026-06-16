@@ -842,13 +842,14 @@ class CanvasLayoutSaveRequest(BaseModel):
     items: list[CanvasLayoutItem]
 
 
-@router.get("/folders/{folder_id}/canvas-layout")
+@router.get("/folders/{folder_id}/canvas-layout", response_model=MindPalaceListResponse)
 async def get_canvas_layout(
     folder_id: str,
     db: Database = Depends(get_library_database),
-) -> list[CanvasLayout]:
+) -> MindPalaceListResponse:
     """Load all persisted item positions for a folder's spatial canvas."""
-    return db.query(CanvasLayout, folder_id=folder_id)
+    rows = db.query(CanvasLayout, folder_id=folder_id)
+    return MindPalaceListResponse(items=rows, count=len(rows))
 
 
 @router.put("/folders/{folder_id}/canvas-layout")
@@ -868,17 +869,8 @@ async def save_canvas_layout(
         row = CanvasLayout(
             id=CanvasLayout.make_id(folder_id, item.item_id),
             folder_id=folder_id,
-            item_id=item.item_id,
-            x=item.x,
-            y=item.y,
-            z=item.z,
-            w=item.w,
-            h=item.h,
-            d=item.d,
-            angle=item.angle,
-            z_index=item.z_index,
-            style=item.style,
             updated_at=datetime.now(),
+            **item.model_dump(),
         )
         db.save(row)
         saved.append(row)

@@ -25243,11 +25243,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CanvasLayout"
-                  },
-                  "title": "Response Get Canvas Layout Api Mind Palace Folders  Folder Id  Canvas Layout Get"
+                  "$ref": "#/components/schemas/MindPalaceListResponse"
                 }
               }
             }
