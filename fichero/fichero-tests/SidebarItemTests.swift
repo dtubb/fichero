@@ -361,6 +361,7 @@ struct SidebarItemBuilderTests {
         fileType: FileType? = nil,
         parentId: String? = nil,
         sequence: Int? = nil,
+        structure: [DocumentStructureNode] = [],
         sortOrder: Int = 0
     ) -> Document {
         Document(
@@ -375,6 +376,7 @@ struct SidebarItemBuilderTests {
             status: .completed,
             metadata: [:],
             pageContent: nil,
+            structure: structure,
             sortOrder: sortOrder,
             createdAt: now,
             updatedAt: now,
@@ -433,8 +435,8 @@ struct SidebarItemBuilderTests {
         #expect(result[0].children == nil, "PDF without pages has no children")
     }
 
-    @Test("buildLibraryHierarchy: PDF pages do NOT appear in the sidebar (#581)")
-    func pagesNotInSidebar() {
+    @Test("buildLibraryHierarchy: PDF pages appear as ordered child rows (#2260, reverses #581)")
+    func pagesAppearAsChildren() {
         let pdf = makeDocument(id: "pdf-1", name: "paper.pdf", docType: .file, fileType: .pdf)
         let page1 = makeDocument(id: "p1", name: "paper.pdf - Page 1", docType: .page, parentId: "pdf-1", sequence: 1)
         let page2 = makeDocument(id: "p2", name: "paper.pdf - Page 2", docType: .page, parentId: "pdf-1", sequence: 2)
@@ -445,11 +447,49 @@ struct SidebarItemBuilderTests {
             libraryId: testLibraryId
         )
 
-        // PDF appears (it's navigable), pages don't (they render in the grid via
-        // loadChildren when the PDF is selected, not as sidebar sub-rows).
+        // The PDF appears once; its pages are now expandable child rows in page
+        // order (#2260). The PDF here has no programmatic structure outline, so
+        // the builder lists its pages. Each page row carries a `doc:` id so
+        // selecting it drives the shared inspector.
         #expect(result.count == 1)
         #expect(result[0].name == "paper.pdf")
-        #expect(result[0].children == nil, "PDF sidebar row must not expand pages as children")
+        #expect(result[0].children?.count == 3, "PDF sidebar row should expand its pages as children")
+        #expect(result[0].children?.map(\.name) == [
+            "paper.pdf - Page 1",
+            "paper.pdf - Page 2",
+            "paper.pdf - Page 3"
+        ])
+        #expect(result[0].children?.allSatisfy { $0.id.hasPrefix("doc:") } == true)
+    }
+
+    @Test("buildLibraryHierarchy: structured PDF shows its outline, not flat pages (#2260)")
+    func structuredPdfPrefersOutlineOverPages() {
+        let node = DocumentStructureNode(
+            id: "n1",
+            title: "Chapter 1",
+            kind: "chapter",
+            level: 0,
+            pageRange: .init(start: 1, end: 3),
+            basis: nil,
+            confidence: nil,
+            sourcePageLabel: nil,
+            children: []
+        )
+        let pdf = makeDocument(
+            id: "pdf-1", name: "paper.pdf", docType: .file, fileType: .pdf, structure: [node]
+        )
+        let page1 = makeDocument(id: "p1", name: "paper.pdf - Page 1", docType: .page, parentId: "pdf-1", sequence: 1)
+
+        let result = SidebarItemBuilder.buildLibraryHierarchy(
+            from: [pdf, page1],
+            libraryId: testLibraryId
+        )
+
+        // When a programmatic outline exists, the structure rows win and flat
+        // pages are NOT also listed (no double-listing).
+        #expect(result.count == 1)
+        #expect(result[0].children?.count == 1)
+        #expect(result[0].children?[0].id == "structure:pdf-1:n1")
     }
 
     @Test("buildLibraryHierarchy — PDF in a folder shows under its folder")
