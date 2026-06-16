@@ -318,10 +318,13 @@ extension ContentView {
                             let widescreenContentFixedWidth: CGFloat? =
                                 (panePlan.showsCanvasPane || panePlan.showsReadingPane)
                                     ? clampedWidescreenContentPaneWidth : nil
-                            contentWithOptionalModeRail
-                                .overlay { paneFocusIndicator(for: .content) }
-                                .frame(width: widescreenContentFixedWidth)
-                                .frame(maxWidth: widescreenContentFixedWidth == nil ? .infinity : nil)
+                            // Splittable (h/v) Library list pane — #2276.
+                            SplittablePane(storageKey: "library") {
+                                contentWithOptionalModeRail
+                            }
+                            .overlay { paneFocusIndicator(for: .content) }
+                            .frame(width: widescreenContentFixedWidth)
+                            .frame(maxWidth: widescreenContentFixedWidth == nil ? .infinity : nil)
                         }
 
                         if panePlan.showsLibraryDivider {
@@ -364,6 +367,14 @@ extension ContentView {
     /// Extracted so the canvas can be conditionally shown/hidden (#1448).
     @ViewBuilder
     var widescreenCanvasPane: some View {
+        // Splittable (h/v) image / canvas viewer — #2276.
+        SplittablePane(storageKey: "canvas") {
+            widescreenCanvasPaneContent
+        }
+    }
+
+    @ViewBuilder
+    private var widescreenCanvasPaneContent: some View {
         if let pdfDocumentId = detailPDFDocumentId {
             PDFPageWithToolbar(
                 documentId: pdfDocumentId,
@@ -402,15 +413,18 @@ extension ContentView {
     /// Extracted so it can be conditionally shown/hidden per-window (#1448).
     @ViewBuilder
     var widescreenReadingPane: some View {
-        knowledgeSurface(
-            for: detailDocument,
-            activePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
-            pageCount: pdfDocPages.isEmpty ? nil : pdfDocPages.count,
-            scrollSync: documentScrollSync,
-            onPageSelected: { index in
-                syncGridSelectionToPDFPage(index: index)
-            }
-        )
+        // Splittable (h/v) WebKit/Knowledge reading surface — #2276.
+        SplittablePane(storageKey: "reading") {
+            knowledgeSurface(
+                for: detailDocument,
+                activePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
+                pageCount: pdfDocPages.isEmpty ? nil : pdfDocPages.count,
+                scrollSync: documentScrollSync,
+                onPageSelected: { index in
+                    syncGridSelectionToPDFPage(index: index)
+                }
+            )
+        }
     }
 
     // MARK: - Preview View

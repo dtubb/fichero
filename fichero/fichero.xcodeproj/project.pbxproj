@@ -371,6 +371,7 @@
 		A35052BDBE9CC694D88D322A /* ResearchChatPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38E23447A5C31CE397D337CC /* ResearchChatPane.swift */; };
 		A3C1803DF6559D5BFCC9935E /* ComparisonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38753C6C4C3EECE670188B92 /* ComparisonDetailView.swift */; };
 		A48C3E366EB68F5DFBD38499 /* ThinkingModePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E8C3EFBCE91C295309468AB /* ThinkingModePicker.swift */; };
+		A6400FE26A8158543B1FD124 /* SplittablePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0B24DE95228CEA6B853324 /* SplittablePane.swift */; };
 		A98A6F971E62F9DA640BCA54 /* ResearchWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74B8B6B4FF52EDA955679CF0 /* ResearchWorkspaceView.swift */; };
 		AA112233001122AA /* LibraryView+Sorting.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122BB /* LibraryView+Sorting.swift */; };
 		AA112233001122CC /* LibraryView+ColumnConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA112233001122DD /* LibraryView+ColumnConfig.swift */; };
@@ -743,6 +744,7 @@
 		5B0DFC89B8C073DBEE0A743F /* SidebarView+PinnedNavigationRows.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "SidebarView+PinnedNavigationRows.swift"; sourceTree = "<group>"; };
 		5BAA47F1959AD79AA6C2E3EF /* TriggerEditorPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TriggerEditorPreviewPanel.swift; path = fichero/Views/Automation/TriggerEditorView/TriggerEditorPreviewPanel.swift; sourceTree = SOURCE_ROOT; };
 		5C8EFF7D9BC634BAE18E0F47 /* ImageEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ImageEditorView.swift; sourceTree = "<group>"; };
+		5D0B24DE95228CEA6B853324 /* SplittablePane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SplittablePane.swift; sourceTree = "<group>"; };
 		5E980A75F8C3912DD4B196DA /* SpatialScene3D.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialScene3D.swift; sourceTree = "<group>"; };
 		5ECF56D87D8211DDC932955B /* AnnotationsInspectorPane.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AnnotationsInspectorPane.swift; sourceTree = "<group>"; };
 		60A05B7F3C09F6A27BE55971 /* FicheroActionIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroActionIntents.swift; sourceTree = "<group>"; };
@@ -1694,6 +1696,7 @@
 				20D8ED502F48E2C4006950A3 /* WorkflowPreviewSheet.swift */,
 				20D8ED542F48E2CC006950A3 /* WorkflowExecutionRow+Helpers.swift */,
 				7AA64CFDF3C633C03CCE24A6 /* FicheroWebView.swift */,
+				5D0B24DE95228CEA6B853324 /* SplittablePane.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -2643,6 +2646,7 @@
 				C38F232612EE4EEB87E62A76 /* FicheroAppEntities.swift in Sources */,
 				6FE4896A20BB18BC70193BB7 /* BackupStore.swift in Sources */,
 				C37B1043409A6ED500E30F29 /* BackupsView.swift in Sources */,
+				A6400FE26A8158543B1FD124 /* SplittablePane.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
