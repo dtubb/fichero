@@ -976,25 +976,21 @@ async def arrange_folder_canvas(
 # Action-layer registration (EPIC #1848) — agent/chat/App-Intents callable.
 # Wraps the same ``arrange_impl`` the HTTP route uses (iterate-not-replace), so
 # every invocation routes through ``registry.invoke`` → ActionAudit + emit.
-class CanvasArrangeParams(BaseModel):
+class CanvasArrangeParams(ArrangeNodesRequest):
     """Params for the ``canvas.arrange`` action (folder_id carried in the body)."""
 
     folder_id: str
-    node_ids: list[str]
-    strategy: ArrangeStrategy = ArrangeStrategy.grid
-    spacing: float = DEFAULT_SPACING
-    columns: int | None = None
-    radius: float | None = None
 
 
 @action("canvas.arrange", CanvasArrangeParams, domains=["canvas"])
 def _action_arrange_canvas(
     db: Database, params: CanvasArrangeParams, ctx: ActionContext
 ) -> tuple[list[dict], ChangeSpec]:
+    node_id_set = set(params.node_ids)
     before = [
         r.model_dump(mode="json")
         for r in db.query(CanvasLayout, folder_id=params.folder_id)
-        if r.item_id in set(params.node_ids)
+        if r.item_id in node_id_set
     ]
     rows = arrange_impl(
         db,

@@ -109,11 +109,10 @@ def _circle(item_ids: list[str], spacing: float, radius: float | None) -> list[d
         return [_pos(item_ids[0], 0.0, 0.0, 0.0, 0)]
     # Default radius spaces items ~``spacing`` apart along the circumference.
     r = radius if radius and radius > 0 else (n * spacing) / (2 * math.pi)
-    out: list[dict] = []
-    for i, item_id in enumerate(item_ids):
-        angle = 2 * math.pi * i / n
-        out.append(_pos(item_id, r * math.cos(angle), r * math.sin(angle), 0.0, i))
-    return out
+    return [
+        _pos(item_id, r * math.cos(2 * math.pi * i / n), r * math.sin(2 * math.pi * i / n), 0.0, i)
+        for i, item_id in enumerate(item_ids)
+    ]
 
 
 def _stack(item_ids: list[str], spacing: float) -> list[dict]:
