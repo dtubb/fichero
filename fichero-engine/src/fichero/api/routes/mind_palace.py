@@ -27,6 +27,12 @@ from fichero.spatial_models import (
     SpatialRoom,
 )
 from fichero.models import MindPalaceListResponse
+from fichero.actions.registry import action, ActionContext, ChangeSpec
+from fichero.spatial_arrange import (
+    DEFAULT_SPACING,
+    ArrangeStrategy,
+    compute_arrangement,
+)
 
 
 router = APIRouter()
@@ -875,3 +881,136 @@ async def save_canvas_layout(
         db.save(row)
         saved.append(row)
     return saved
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Arrange — compute + PERSIST canvas transforms for a set of nodes by strategy
+# (#2297). One endpoint, agent-callable via the action registry (#1848).
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class ArrangeNodesRequest(BaseModel):
+    """Arrange a set of folder nodes by a geometric strategy and persist them.
+
+    ``folder_id`` comes from the path, never the body — the computed rows can
+    only be written for the folder the request is addressed to. An unknown
+    ``strategy`` is rejected by Pydantic with a 422 (it is an enum field).
+    """
+
+    node_ids: list[str]
+    strategy: ArrangeStrategy = ArrangeStrategy.grid
+    spacing: float = DEFAULT_SPACING
+    columns: int | None = None
+    radius: float | None = None
+
+
+def arrange_impl(
+    db: Database,
+    folder_id: str,
+    node_ids: list[str],
+    strategy: ArrangeStrategy | str,
+    *,
+    spacing: float = DEFAULT_SPACING,
+    columns: int | None = None,
+    radius: float | None = None,
+) -> list[CanvasLayout]:
+    """Compute transforms for ``node_ids`` and upsert them into ``canvas_layout``.
+
+    Shared by the HTTP route and the registered action so both drive the same
+    code (iterate-not-replace). Raises ``ValueError`` (empty / unknown strategy)
+    for the caller to map to a 4xx. Each row is keyed by the deterministic
+    ``(folder_id, item_id)`` composite, so re-arranging overwrites prior
+    positions rather than duplicating.
+    """
+    if not node_ids:
+        raise ValueError("node_ids must not be empty")
+
+    positions = compute_arrangement(
+        node_ids, strategy, spacing=spacing, columns=columns, radius=radius
+    )
+    saved: list[CanvasLayout] = []
+    now = datetime.now()
+    for pos in positions:
+        row = CanvasLayout(
+            id=CanvasLayout.make_id(folder_id, pos["item_id"]),
+            folder_id=folder_id,
+            item_id=pos["item_id"],
+            x=pos["x"],
+            y=pos["y"],
+            z=pos["z"],
+            z_index=pos["z_index"],
+            updated_at=now,
+        )
+        db.save(row)
+        saved.append(row)
+    return saved
+
+
+@router.post("/folders/{folder_id}/arrange", response_model=MindPalaceListResponse)
+async def arrange_folder_canvas(
+    folder_id: str,
+    request: ArrangeNodesRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> MindPalaceListResponse:
+    """Lay out a folder's nodes by ``strategy`` and persist the transforms.
+
+    Computes positions (grid/row/column/circle/stack) and upserts one
+    ``canvas_layout`` row per node, then returns the persisted rows in the
+    standard ``{items, count}`` envelope.
+    """
+    try:
+        rows = arrange_impl(
+            db,
+            folder_id,
+            request.node_ids,
+            request.strategy,
+            spacing=request.spacing,
+            columns=request.columns,
+            radius=request.radius,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return MindPalaceListResponse(items=rows, count=len(rows))
+
+
+# Action-layer registration (EPIC #1848) — agent/chat/App-Intents callable.
+# Wraps the same ``arrange_impl`` the HTTP route uses (iterate-not-replace), so
+# every invocation routes through ``registry.invoke`` → ActionAudit + emit.
+class CanvasArrangeParams(BaseModel):
+    """Params for the ``canvas.arrange`` action (folder_id carried in the body)."""
+
+    folder_id: str
+    node_ids: list[str]
+    strategy: ArrangeStrategy = ArrangeStrategy.grid
+    spacing: float = DEFAULT_SPACING
+    columns: int | None = None
+    radius: float | None = None
+
+
+@action("canvas.arrange", CanvasArrangeParams, domains=["canvas"])
+def _action_arrange_canvas(
+    db: Database, params: CanvasArrangeParams, ctx: ActionContext
+) -> tuple[list[dict], ChangeSpec]:
+    before = [
+        r.model_dump(mode="json")
+        for r in db.query(CanvasLayout, folder_id=params.folder_id)
+        if r.item_id in set(params.node_ids)
+    ]
+    rows = arrange_impl(
+        db,
+        params.folder_id,
+        params.node_ids,
+        params.strategy,
+        spacing=params.spacing,
+        columns=params.columns,
+        radius=params.radius,
+    )
+    after = [r.model_dump(mode="json") for r in rows]
+    spec = ChangeSpec(
+        domains=["canvas"],
+        target_ids=[r.id for r in rows],
+        before={"rows": before},
+        after={"rows": after},
+        emit_type="canvas.arranged",
+    )
+    return after, spec
