@@ -481,14 +481,14 @@ struct RepresentationSection: View {
     @FocusedValue(\.documentRepresentation) private var representation
 
     private var current: KGSurfaceTab? {
-        representation?.wrappedValue
+        representation?.current
     }
 
     var body: some View {
         Section("Add View") {
             ForEach(KGSurfaceTab.allCases) { tab in
                 Button {
-                    representation?.wrappedValue = tab
+                    representation?.select(tab)
                 } label: {
                     Label(tab.title, systemImage: tab.icon)
                     if current == tab {

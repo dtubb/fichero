@@ -113,6 +113,25 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
     }
 }
 
+/// Equatable focused-value wrapper for the active document representation.
+///
+/// Publishing a raw `Binding<KGSurfaceTab>` via `focusedSceneValue` is a perf
+/// footgun: a `Binding` is non-Equatable, so SwiftUI cannot dedupe it and every
+/// `body` pass republishes a "new" focused value, causing per-frame
+/// invalidation churn ("FocusedValue update tried to update multiple times per
+/// frame"). This wrapper keys equality on the *value* (`current`) so the
+/// focused value only changes when the active representation actually changes;
+/// the `select` closure is excluded from equality (closures are non-Equatable).
+/// (#2032)
+struct DocumentRepresentationFocus: Equatable {
+    let current: KGSurfaceTab
+    let select: (KGSurfaceTab) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.current == rhs.current
+    }
+}
+
 /// Hosts the WebKit document KG plus the native document-scoped claims view.
 /// The representation switcher (Transcript/Digest/Graph/Claims/Timeline/Map)
 /// lives in the View menu ("Add View"), driven via FocusedValues — not a
@@ -142,7 +161,13 @@ struct DocumentKGSurface: View {
         // focused document surface.
         content
             .accessibilityIdentifier("knowledgeSurfaceContent")
-            .focusedSceneValue(\.documentRepresentation, $activeTab)
+            .focusedSceneValue(
+                \.documentRepresentation,
+                DocumentRepresentationFocus(
+                    current: activeTab,
+                    select: { activeTab = $0 }
+                )
+            )
     }
 
     @ViewBuilder

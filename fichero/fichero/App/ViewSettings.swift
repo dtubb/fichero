@@ -143,5 +143,10 @@ extension FocusedValues {
     /// representation switcher lives in the menu instead of a floating icon bar
     /// over the content (#2032 / reform §G). Nil when no document surface is
     /// focused, so the menu items disable.
-    @Entry var documentRepresentation: Binding<KGSurfaceTab>?
+    ///
+    /// Uses the Equatable `DocumentRepresentationFocus` wrapper (not a raw
+    /// `Binding`, which is non-Equatable) so SwiftUI can dedupe it: a `body`
+    /// pass with the same active tab does NOT republish, avoiding per-frame
+    /// focused-value churn (#2032).
+    @Entry var documentRepresentation: DocumentRepresentationFocus?
 }
