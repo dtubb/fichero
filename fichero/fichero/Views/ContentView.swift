@@ -107,6 +107,11 @@ struct ContentView: View {
     @AppStorage("pageListWidth") var pageListWidth: Double = 120
     @AppStorage("pageContentPaneWidth") var pageContentPaneWidth: Double = 200
     @SceneStorage("showSidebar") var showSidebar: Bool = true
+    /// #2034 Xcode-style chat: the LEFT column swaps between the sidebar and a
+    /// full-height chat (reversible — a back button returns to the sidebar).
+    /// NOT stacked above the sidebar (that was #2274's SidebarChatSurface, now
+    /// folded into this swap). Persisted per-window.
+    @SceneStorage("sidebarShowsChat") var sidebarShowsChat: Bool = false
     @SceneStorage("showInspectorSidebar") var showInspectorSidebar: Bool = true
     @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool = true
     // Per-window visibility of the three middle panes (#1448). Each window
@@ -499,6 +504,19 @@ extension ContentView {
                 toolbarToggleIcon("sidebar.left", isActive: showSidebar)
             }
             .help(showSidebar ? "Hide Sidebar" : "Show Sidebar")
+
+            // #2034 Xcode-style chat: swap the LEFT column between the sidebar
+            // and a full-height chat (reversible). Lives beside the sidebar
+            // toggle in the leading zone.
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    sidebarShowsChat.toggle()
+                    if sidebarShowsChat { showSidebar = true }
+                }
+            } label: {
+                toolbarToggleIcon("bubble.left.and.bubble.right", isActive: sidebarShowsChat)
+            }
+            .help(sidebarShowsChat ? "Show Sidebar" : "Show Chat")
 
             Button {
                 navigateBack()

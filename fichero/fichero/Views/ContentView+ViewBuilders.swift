@@ -29,38 +29,45 @@ extension ContentView {
 
     @ViewBuilder
     var sidebarContent: some View {
-        // #2274: chat surface ABOVE the folder/file sidebar in the LEFT column
-        // (reform master plan §6d / §7.10). It reuses the existing ChatView, so
-        // send/stream flow through the same ChatServiceGenerated path —
-        // no second networking surface. The file tree stays the column's spine.
-        VStack(spacing: 0) {
-            SidebarChatSurface(selectedDocuments: $chatSelectedDocuments)
-
-            SidebarView(
-                sidebarMode: $sidebarMode,
-                viewMode: $viewMode,
-                selectedItemId: $selectedSidebarItemId,
-                libraryManager: LibraryManager.shared,
-                itemRegistry: itemRegistry,
-                apiClient: apiClient,
-                windowPersistenceId: sidebarWindowPersistenceId,
-                onCreateChatWithDocuments: { documentIds in
-                    chatSelectedDocuments = Set(documentIds)
-                },
-                onOpenChatWithCurrentScope: {
-                    openChatWithCurrentScope()
-                }
-            )
-            .environmentObject(savedSearchService)
-            .environmentObject(conversationService)
-            .environmentObject(ErrorService.shared)
-            .environmentObject(performanceService)
-            .overlay { paneFocusIndicator(for: .sidebar) }
-            // Make the sidebar focusable so arrow keys navigate the List.
-            // (Removing this broke arrow-key navigation — see #560.)
-            .focusable()
-            .focused($focusedPane, equals: .sidebar)
-            .focusEffectDisabled()
+        // #2034 Xcode-style chat: the LEFT column SWAPS between the file/folder
+        // sidebar and a full-height chat — a reversible toggle (a back button
+        // returns to the sidebar), like Xcode swapping navigators in the same
+        // column. NOT stacked above the sidebar (that was #2274's
+        // SidebarChatSurface, now folded into this swap). Chat reuses the
+        // existing ChatView → same ChatServiceGenerated path, no second
+        // networking surface.
+        Group {
+            if sidebarShowsChat {
+                sidebarChatColumn
+            } else {
+                SidebarView(
+                    sidebarMode: $sidebarMode,
+                    viewMode: $viewMode,
+                    selectedItemId: $selectedSidebarItemId,
+                    libraryManager: LibraryManager.shared,
+                    itemRegistry: itemRegistry,
+                    apiClient: apiClient,
+                    windowPersistenceId: sidebarWindowPersistenceId,
+                    onCreateChatWithDocuments: { documentIds in
+                        chatSelectedDocuments = Set(documentIds)
+                        withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = true }
+                    },
+                    onOpenChatWithCurrentScope: {
+                        openChatWithCurrentScope()
+                        withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = true }
+                    }
+                )
+                .environmentObject(savedSearchService)
+                .environmentObject(conversationService)
+                .environmentObject(ErrorService.shared)
+                .environmentObject(performanceService)
+                .overlay { paneFocusIndicator(for: .sidebar) }
+                // Make the sidebar focusable so arrow keys navigate the List.
+                // (Removing this broke arrow-key navigation — see #560.)
+                .focusable()
+                .focused($focusedPane, equals: .sidebar)
+                .focusEffectDisabled()
+            }
         }
         // min: 180 lets the sidebar collapse tight enough that the mode
         // icons dominate the column with minimal wasted space (#615).
@@ -72,6 +79,49 @@ extension ContentView {
         // sidebar leaves the hierarchy when collapsed, which disabled ⌘⌥I
         // and the View-menu toggle while the sidebar was hidden (#1513).
         .focusedSceneValue(\.navigateToParentAction, FocusedLibraryAction(isEnabled: true, run: navigateToParent))
+    }
+
+    // MARK: - Sidebar Chat Column (#2034)
+
+    /// Full-height chat that REPLACES the sidebar in the left column (Xcode
+    /// navigator-swap style). The back button returns to the sidebar. Reuses
+    /// the existing `ChatView` (same `ChatServiceGenerated` path) — this is a
+    /// placement change, not a new chat surface.
+    @ViewBuilder
+    var sidebarChatColumn: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = false }
+                } label: {
+                    Label("Sidebar", systemImage: "chevron.backward")
+                        .font(.callout)
+                }
+                .buttonStyle(.plain)
+                .help("Back to sidebar")
+                .accessibilityIdentifier("sidebarChatBack")
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .foregroundStyle(.secondary)
+                Text("Chat")
+                    .font(.headline)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+
+            Divider()
+
+            ChatView(
+                conversation: nil,
+                selectedDocuments: $chatSelectedDocuments,
+                onConversationUpdated: {},
+                displayMode: .list
+            )
+        }
+        .background(.bar)
+        .accessibilityIdentifier("sidebarChatColumn")
     }
 
     // MARK: - Center Content (with Layout Modes)
