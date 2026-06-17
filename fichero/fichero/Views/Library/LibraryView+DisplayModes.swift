@@ -190,7 +190,7 @@ extension LibraryView {
                 // contents arrive so fast-scrolling sees images not placeholders (#719).
                 // Imported IIIF/W3C pages are `docType == .page` + `fileType == .image`,
                 // so include page images as well as top-level image files.
-                .task(id: filteredDocuments.map(\.id).joined()) {
+                .task(id: thumbnailPrefetchKey) {
                     guard !Task.isCancelled, !isShowingEntitiesCollection else { return }
                     let imageIds = filteredDocuments
                         .filter { $0.fileType == .image && $0.docType != .folder }

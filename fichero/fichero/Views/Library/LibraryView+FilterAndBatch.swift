@@ -16,7 +16,11 @@ extension LibraryView {
 
     // MARK: - Filtered Documents
 
-    var filteredDocuments: [Document] {
+    // ponytail: recompute inputs — documents, entities, searchText, sortOrder, sortFieldRaw, sortAscending, folderId
+    // filteredDocuments and filteredEntities are @State vars on LibraryView; recomputeFiltered()
+    // is called from .onAppear and .onChange of every input so filter/sort never runs in body.
+    func recomputeFiltered() {
+        // Documents
         var docs = documents
         if !searchText.isEmpty {
             docs = docs.filter {
@@ -25,19 +29,10 @@ extension LibraryView {
                     $0.status.rawValue.localizedCaseInsensitiveContains(searchText)
             }
         }
-        return docs.sorted(using: sortOrder)
-    }
+        filteredDocuments = docs.sorted(using: sortOrder)
+        thumbnailPrefetchKey = filteredDocuments.map(\.id).joined()
 
-    var isShowingEntitiesCollection: Bool {
-        contentCollection == .entities
-    }
-
-    var entityCollectionTaskKey: String {
-        guard isShowingEntitiesCollection else { return "documents" }
-        return "entities:\(windowState.libraryId.uuidString)"
-    }
-
-    var filteredEntities: [Components.Schemas.KnowledgeEntity] {
+        // Entities
         var items = entities
         if !searchText.isEmpty {
             let query = searchText.localizedLowercase
@@ -47,7 +42,7 @@ extension LibraryView {
                     || (entity.aliases ?? []).contains { $0.localizedLowercase.contains(query) }
             }
         }
-        return items.sorted { lhs, rhs in
+        filteredEntities = items.sorted { lhs, rhs in
             let lhsName = lhs.canonicalName.localizedLowercase
             let rhsName = rhs.canonicalName.localizedLowercase
             if lhsName != rhsName {
@@ -60,6 +55,15 @@ extension LibraryView {
             }
             return entitySelectionId(for: lhs) < entitySelectionId(for: rhs)
         }
+    }
+
+    var isShowingEntitiesCollection: Bool {
+        contentCollection == .entities
+    }
+
+    var entityCollectionTaskKey: String {
+        guard isShowingEntitiesCollection else { return "documents" }
+        return "entities:\(windowState.libraryId.uuidString)"
     }
 
     var isCollectionLoading: Bool {
@@ -219,6 +223,8 @@ extension LibraryView {
             let fetched = try await entityService.listEntities(limit: 1000)
             guard !Task.isCancelled else { return }
             entities = fetched
+            // Eagerly recompute so syncSelectionToLoadedEntities reads the fresh filteredEntities.
+            recomputeFiltered()
             syncSelectionToLoadedEntities()
         } catch {
             guard !Task.isCancelled else { return }

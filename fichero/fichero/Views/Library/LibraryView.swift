@@ -157,6 +157,15 @@ struct LibraryView: View {
     @State var isLoadingEntities = false
     @State var entityLoadErrorMessage: String?
 
+    // ponytail: recompute inputs — documents, entities, searchText, sortOrder, sortFieldRaw, sortAscending, folderId
+    // Not `private`: recomputeFiltered() lives in the LibraryView+FilterAndBatch.swift
+    // extension (a different file), so these must be at least internal to be visible there.
+    @State var filteredDocuments: [Document] = []
+    @State var filteredEntities: [Components.Schemas.KnowledgeEntity] = []
+    /// Stable key for .task(id:) in iconsView — updated inside recomputeFiltered()
+    /// to avoid allocating a joined string on every render (#2307).
+    @State var thumbnailPrefetchKey: String = ""
+
     // Delete confirmation state
     @State var showDeleteConfirmation = false
     @State var documentsToDelete: [Document] = []
@@ -206,49 +215,57 @@ struct LibraryView: View {
         documents.contains { $0.status == .processing || $0.status == .pending }
     }
 
+    // Extracted from `body` to keep the body modifier chain within the Swift
+    // type-checker's budget — adding the #2307 onChange handlers tipped the
+    // single expression over "unable to type-check in reasonable time".
+    // See memory: librarywindow-body-typecheck-timeout.
+    @ViewBuilder
+    private var libraryContent: some View {
+        if !isConnected {
+            connectionErrorState
+        } else if isCollectionLoading {
+            loadingState
+        } else if let activeErrorMessage {
+            errorState(message: activeErrorMessage)
+        } else if isCollectionEmpty {
+            emptyState
+        } else {
+            switch displayMode {
+            case .icon:
+                iconsView
+            case .list:
+                listView
+            case .table:
+                tableView
+            case .realitykit:
+                SpatialScene3D(
+                    nodes: libraryProjection.nodes,
+                    connections: [],
+                    links: libraryProjection.links,
+                    selectedNodeId: $spatialSelectedNodeId,
+                    layoutStore: canvasLayoutStore,
+                    itemStore: canvasItemStore,
+                    folderScopeId: folderId ?? wholeLibraryRoomId
+                )
+            case .spatial:
+                Spatial2DCanvas(
+                    nodes: libraryProjection.nodes,
+                    connections: [],
+                    selectedNodeId: $spatialSelectedNodeId,
+                    layoutStore: canvasLayoutStore,
+                    itemStore: canvasItemStore,
+                    folderScopeId: folderId ?? wholeLibraryRoomId
+                )
+            case .map, .workspace:
+                mapView
+            }
+        }
+    }
+
     var body: some View {
         withKeyboardShortcuts(
             VStack(spacing: 0) {
-                // Main content
-                if !isConnected {
-                    connectionErrorState
-                } else if isCollectionLoading {
-                    loadingState
-                } else if let activeErrorMessage {
-                    errorState(message: activeErrorMessage)
-                } else if isCollectionEmpty {
-                    emptyState
-                } else {
-                    switch displayMode {
-                    case .icon:
-                        iconsView
-                    case .list:
-                        listView
-                    case .table:
-                        tableView
-                    case .realitykit:
-                        SpatialScene3D(
-                            nodes: libraryProjection.nodes,
-                            connections: [],
-                            links: libraryProjection.links,
-                            selectedNodeId: $spatialSelectedNodeId,
-                            layoutStore: canvasLayoutStore,
-                            itemStore: canvasItemStore,
-                            folderScopeId: folderId ?? wholeLibraryRoomId
-                        )
-                    case .spatial:
-                        Spatial2DCanvas(
-                            nodes: libraryProjection.nodes,
-                            connections: [],
-                            selectedNodeId: $spatialSelectedNodeId,
-                            layoutStore: canvasLayoutStore,
-                            itemStore: canvasItemStore,
-                            folderScopeId: folderId ?? wholeLibraryRoomId
-                        )
-                    case .map, .workspace:
-                        mapView
-                    }
-                }
+                libraryContent
             }
             // Xcode-navigator-style quick filter, pinned to the BOTTOM of the
             // library list pane. Narrows the rows currently shown client-side
@@ -307,28 +324,45 @@ struct LibraryView: View {
                 }
                 loadSortSettings(for: folderId)
                 syncSortOrder()
+                recomputeFiltered()
                 consumePendingOpen()
             }
-            .onChange(of: documents.count) { _, _ in
+            // Key on the whole array, not .count: a same-count mutation (a
+            // processing doc finishing → status badge, a rename, a reorder)
+            // must refresh the memoized filteredDocuments or the list goes
+            // stale. Document is Hashable ⇒ [Document] is Equatable, so the
+            // per-render == is cheap relative to the sort it guards. (#2307)
+            .onChange(of: documents) { _, _ in
                 // A window opened via "Open in New Tab/Window" may still be
                 // loading its documents when it first appears; retry the
                 // pending-open hand-off once rows arrive (#1685).
+                recomputeFiltered()
                 consumePendingOpen()
+            }
+            .onChange(of: entities) { _, _ in
+                recomputeFiltered()
+            }
+            .onChange(of: searchText) { _, _ in
+                recomputeFiltered()
             }
             .onChange(of: folderId) { _, newId in
                 loadSortSettings(for: newId)
                 syncSortOrder()
+                recomputeFiltered()
             }
             .onChange(of: sortFieldRaw) { _, _ in
                 syncSortOrder()
                 saveSortSettings(for: folderId)
+                recomputeFiltered()
             }
             .onChange(of: sortAscending) { _, _ in
                 syncSortOrder()
                 saveSortSettings(for: folderId)
+                recomputeFiltered()
             }
             .onChange(of: sortOrder) { _, newOrder in
                 handleSortOrderChange(newOrder)
+                recomputeFiltered()
             }
             .onReceive(processingPollTimer) { _ in
                 // Surgical refresh: only mutate rows whose status changed
