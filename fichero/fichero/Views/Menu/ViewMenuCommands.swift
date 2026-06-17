@@ -13,8 +13,6 @@ struct ViewMenuCommands: View {
 
         LibraryLayoutSection(viewSettings: viewSettings)
 
-        SpatialViewSection()
-
         Divider()
 
         SortSection()
@@ -212,6 +210,8 @@ struct LibraryLayoutSection: View {
     @ObservedObject var viewSettings: ViewSettings
     @ObservedObject var featureManager = FeatureManager.shared
     @FocusedValue(\.sidebarMode) var sidebarMode
+    @FocusedValue(\.libraryDisplayMode) private var displayMode
+    @FocusedValue(\.availableLibraryDisplayModes) private var availableModes
 
     /// Only show view options for modes that need them (Library, Search)
     private var shouldShowViewOptions: Bool {
@@ -222,6 +222,10 @@ struct LibraryLayoutSection: View {
         case .chat, .workflows, .automation, .activity, .research, .knowledgeGraph:
             return false
         }
+    }
+
+    private var availableSpatialModes: [ViewDisplayMode] {
+        availableModes ?? []
     }
 
     private var availableLayouts: [LibraryLayout] {
@@ -283,6 +287,33 @@ struct LibraryLayoutSection: View {
                         current: viewSettings.libraryLayout
                     ) {
                         viewSettings.libraryLayout = .map
+                    }
+                }
+
+                if availableSpatialModes.contains(.spatial) || availableSpatialModes.contains(.realitykit) {
+                    Divider()
+
+                    if availableSpatialModes.contains(.spatial) {
+                        SpatialViewButton(
+                            mode: .spatial,
+                            label: "as Spatial (2D)",
+                            icon: "square.3.layers.3d",
+                            // ⌘8 — ⌘1-4 are LibraryLayout, ⌘5-7 are Preview; ⌘8 is free.
+                            shortcut: "8",
+                            binding: displayMode
+                        )
+                    }
+
+                    if availableSpatialModes.contains(.realitykit) {
+                        SpatialViewButton(
+                            mode: .realitykit,
+                            label: "as 3D (RealityKit)",
+                            icon: "cube.transparent",
+                            // No shortcut: ⌘9 is "Zoom to Fit" in the image-preview
+                            // menu, so the 3D entry is menu-only to avoid collision.
+                            shortcut: nil,
+                            binding: displayMode
+                        )
                     }
                 }
             }
@@ -682,53 +713,7 @@ struct ShowFindBarButton: View {
     }
 }
 
-// MARK: - Spatial View Section
-
-/// View-menu section for the two spatial library views: 2D Spatial and 3D
-/// RealityKit. These use `ViewDisplayMode` (.spatial / .realitykit), which is
-/// a separate axis from `LibraryLayout` (.icons/.list/.table/.map, ⌘1-4).
-///
-/// The section is hidden entirely unless the focused window currently has at
-/// least one spatial mode available (folder/workspace context + feature flags).
-/// Restores the entry point that was lost when the in-content icon rail was
-/// removed in commit e3073f4f (#2032 regression).
-struct SpatialViewSection: View {
-    @FocusedValue(\.libraryDisplayMode) private var displayMode
-    @FocusedValue(\.availableLibraryDisplayModes) private var availableModes
-
-    private var available: [ViewDisplayMode] {
-        availableModes ?? []
-    }
-
-    var body: some View {
-        if available.contains(.spatial) || available.contains(.realitykit) {
-            Section("Spatial") {
-                if available.contains(.spatial) {
-                    SpatialViewButton(
-                        mode: .spatial,
-                        label: "as Spatial (2D)",
-                        icon: "square.3.layers.3d",
-                        // ⌘8 — ⌘1-4 are LibraryLayout, ⌘5-7 are Preview; ⌘8 is free.
-                        shortcut: "8",
-                        binding: displayMode
-                    )
-                }
-
-                if available.contains(.realitykit) {
-                    SpatialViewButton(
-                        mode: .realitykit,
-                        label: "as 3D (RealityKit)",
-                        icon: "cube.transparent",
-                        // No shortcut: ⌘9 is "Zoom to Fit" in the image-preview
-                        // menu, so the 3D entry is menu-only to avoid collision.
-                        shortcut: nil,
-                        binding: displayMode
-                    )
-                }
-            }
-        }
-    }
-}
+// MARK: - Spatial View Button
 
 /// Reusable button for switching `ViewDisplayMode` from the View menu.
 /// Shows a checkmark when the mode is currently active.
