@@ -529,21 +529,27 @@ extension ContentView {
     ///   .primaryAction → trailing side of the sidebar section
     @ToolbarContentBuilder
     var sidebarColumnToolbarContent: some ToolbarContent {
-        // Navigator selector — leading side
-        ToolbarItemGroup(placement: .automatic) {
-            Button {
-                sidebarShowsChat = false
-            } label: {
-                toolbarToggleIcon("list.bullet", isActive: !sidebarShowsChat)
-            }
-            .help("Show List")
+        // Navigator selector — only shown when the sidebar is open. When the
+        // sidebar is collapsed, macOS still renders toolbar items attached to
+        // that column in the unified toolbar (#2309), so we gate them on
+        // showSidebar to avoid orphaned buttons floating next to the system
+        // sidebar-toggle when the sidebar is hidden.
+        if showSidebar {
+            ToolbarItemGroup(placement: .automatic) {
+                Button {
+                    sidebarShowsChat = false
+                } label: {
+                    toolbarToggleIcon("list.bullet", isActive: !sidebarShowsChat)
+                }
+                .help("Show List")
 
-            Button {
-                sidebarShowsChat = true
-            } label: {
-                toolbarToggleIcon("bubbles.and.sparkles", isActive: sidebarShowsChat)
+                Button {
+                    sidebarShowsChat = true
+                } label: {
+                    toolbarToggleIcon("bubbles.and.sparkles", isActive: sidebarShowsChat)
+                }
+                .help("Show Chat")
             }
-            .help("Show Chat")
         }
         // Custom collapse button removed — the system's NavigationSplitView
         // sidebar toggle handles show/hide and is restored by removing
