@@ -1,6 +1,6 @@
 # STATE — Mac shell reform (interactive w/ Daniel) 2026-06-17
 
-Branch `0.0.2` == `origin/0.0.2`. Keep green: gate EVERY Swift change via **Xcode MCP BuildProject (tab `windowtab2`)** before push — NEVER CLI xcodebuild. HEAD `e4966ae3`.
+Branch `0.0.2` == `origin/0.0.2`. Keep green: gate EVERY Swift change via **Xcode MCP BuildProject (tab `windowtab2`)** before push — NEVER CLI xcodebuild. HEAD `b18b26ab` (31 green commits this session).
 
 ## ☀️ START HERE
 **Role: MANAGER — do NOT implement.** **WORKER POLICY (Daniel 2026-06-17, HARD):** ollama/codex tmux
@@ -15,10 +15,10 @@ This session shipped ~30 green commits (chat-swap #2034, toolbar chrome #2309, p
 spatial-persist #2312, dividers #2310, spatial-menu #2308). Daniel is TESTING live as we go.
 
 ## In Progress / pending gate
-- **#2313 library bottom bar (codex/kimi):** codex EDITED `~/code/fichero-worktrees/mac-shell`
-  `LibraryView.swift` (uncommitted `M`) but did NOT commit. Next: review its diff, commit, cherry-pick, gate.
-- **#2311 view-mode default (HELD):** library defaults to Canvas/2D-spatial; must follow user + persist
-  per window/tab. Touches ContentView `viewDisplayMode` / LibraryView — was held behind codex's LibraryView edit.
+- **#2313 library bottom bar — SHIPPED** (`b18b26ab`, codex/kimi, gated green). NOTE: 165-line diff (heavier
+  than expected for a 5-button bar) — eyeball it next session for over-engineering; trim if kimi bloated it.
+- **#2311 view-mode default (TODO, now unblocked):** library defaults to Canvas/2D-spatial; must follow user
+  + persist per window/tab. Touches ContentView `viewDisplayMode` / LibraryView (now free — codex done).
 
 ## Next Session — Start Here (Daniel's latest toolbar feedback, image #25 — do these)
 1. **Toolbar cleanup (#2309):** remove the redundant FIRST hide/close-sidebar button; the button LEFT of
