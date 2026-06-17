@@ -72,7 +72,18 @@ extension ContentView {
         // min: 180 lets the sidebar collapse tight enough that the mode
         // icons dominate the column with minimal wasted space (#615).
         // Was 250 — felt bloated on small screens.
-        .navigationSplitViewColumnWidth(min: ContentView.sidebarMinWidth, ideal: sidebarWidth, max: 360)
+        //
+        // Chat wants a roomier column than the file/folder sidebar, so the
+        // IDEAL width depends on the active navigator (#2309). max widens too so
+        // the chat ideal isn't clamped.
+        // ponytail: NavigationSplitView keeps ONE drag-resized column width per
+        // window — it can't persist a separate dragged width per navigator mode,
+        // so switching modes resets toward this `ideal`, not the last drag.
+        .navigationSplitViewColumnWidth(
+            min: ContentView.sidebarMinWidth,
+            ideal: sidebarShowsChat ? 360 : sidebarWidth,
+            max: sidebarShowsChat ? 460 : 360
+        )
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
         // NOTE: \.showInspector is published from the detail column in
         // ContentView.navigationSplitColumn (always present), NOT here — the
@@ -84,29 +95,20 @@ extension ContentView {
     // MARK: - Sidebar Chat Column (#2034)
 
     /// Full-height chat that REPLACES the sidebar in the left column (Xcode
-    /// navigator-swap style). The back button returns to the sidebar. Reuses
-    /// the existing `ChatView` (same `ChatServiceGenerated` path) — this is a
-    /// placement change, not a new chat surface.
+    /// navigator-swap style). Mode is switched by the toolbar's list|chat
+    /// SELECTOR (#2309) — there is no in-column back button. Reuses the existing
+    /// `ChatView` (same `ChatServiceGenerated` path) — a placement change, not a
+    /// new chat surface.
     @ViewBuilder
     var sidebarChatColumn: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = false }
-                } label: {
-                    Label("Sidebar", systemImage: "chevron.backward")
-                        .font(.callout)
-                }
-                .buttonStyle(.plain)
-                .help("Back to sidebar")
-                .accessibilityIdentifier("sidebarChatBack")
-
-                Spacer(minLength: 0)
-
                 Image(systemName: "bubble.left.and.bubble.right")
                     .foregroundStyle(.secondary)
                 Text("Chat")
                     .font(.headline)
+
+                Spacer(minLength: 0)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
