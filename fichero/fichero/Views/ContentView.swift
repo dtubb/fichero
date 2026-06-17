@@ -327,11 +327,6 @@ struct ContentView: View {
                     // Inspector toggle in the content section. .automatic on the detail
                     // column view lands in the content-column toolbar section (#2309).
                     trailingToolbarContent
-                    // Centred context label — Xcode-style .principal placement. When
-                    // attached to the detail column's toolbar, macOS positions this at
-                    // the visual centre of the full window toolbar, which lands in the
-                    // content area for typical sidebar widths (#2309).
-                    principalToolbarContent
                 }
                 // The detail column carries only a MODEST hard floor — the
                 // always-present library-list spine width — NOT the full
@@ -514,6 +509,12 @@ extension ContentView {
             }
         }
 
+        // PRINCIPAL zone — centred context label (full-window centre).
+        // Placed here (NavigationSplitView toolbar) rather than on the detail
+        // column so macOS centres it across the full window width, not just
+        // the content section (#2309).
+        principalToolbarContent
+
         // LEADING zone — back/forward history (content-column toolbar).
         leadingToolbarContent
     }
@@ -578,9 +579,9 @@ extension ContentView {
     }
 
     /// PRINCIPAL zone: centred context label, Xcode-style.
-    /// Attached to the detail column so macOS positions it at the visual centre
-    /// of the full unified toolbar, which lands in the content area at typical
-    /// sidebar widths. Shows the mode icon + title from toolbarIcon/toolbarTitle.
+    /// Attached to the NavigationSplitView toolbar (via mainToolbarContent) so
+    /// macOS centres it across the full window width — not just the content
+    /// section. Shows the mode icon + title from toolbarIcon/toolbarTitle.
     @ToolbarContentBuilder
     private var principalToolbarContent: some ToolbarContent {
         ToolbarItem(placement: .principal) {
