@@ -112,11 +112,14 @@ extension SidebarView {
             items: buckets.documentItems
         )
 
-        // Visual separator between document library and tools section
+        // Visual separator between document library and tools section.
+        // Non-interactive: must not be selectable or receive clicks (#2310).
         Divider()
             .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
+            .allowsHitTesting(false)
+            .selectionDisabled()
 
         // Workflows / Batches / Activity used to render here, once per
         // library. They are app-level destinations (fixed selection tags, no

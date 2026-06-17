@@ -120,6 +120,8 @@ extension SidebarView {
                 .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
+                .allowsHitTesting(false)
+                .selectionDisabled()
         }
 
         if FeatureManager.shared.isWorkflowsEnabled {
