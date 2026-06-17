@@ -464,7 +464,12 @@ extension ContentView {
     private func toolbarToggleIcon(_ systemName: String, isActive: Bool) -> some View {
         Image(systemName: systemName)
             .symbolVariant(isActive ? .fill : .none)
-            .foregroundStyle(isActive ? Color.accentColor : Color.primary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(isActive ? Color.primary.opacity(0.1) : Color.clear)
+            )
     }
 
     // MARK: Zoned toolbar (Mail-style)
@@ -548,7 +553,7 @@ extension ContentView {
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = true }
             } label: {
-                toolbarToggleIcon("wand.and.stars", isActive: sidebarShowsChat)
+                toolbarToggleIcon("bubbles.and.sparkles", isActive: sidebarShowsChat)
             }
             .help("Show Chat")
         }
