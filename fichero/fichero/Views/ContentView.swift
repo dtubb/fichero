@@ -354,9 +354,7 @@ struct ContentView: View {
                 .focusedSceneValue(\.showDocumentCanvas, $showDocumentCanvas)
                 .focusedSceneValue(\.showReadingPane, $showReadingPane)
         }
-        // Avoid duplicate generic per-column title pills in macOS split view.
         .navigationTitle(toolbarTitle)
-        .toolbar(removing: .sidebarToggle)
         .onAppear { handleOnAppear() }
         .onChange(of: documentStore.collections) { old, new in
             handleCollectionsChange(old: old, new: new)
@@ -494,16 +492,6 @@ extension ContentView {
 
         // LEADING zone — back/forward history (content-column toolbar).
         leadingToolbarContent
-
-        // CONTENT zone — the action verbs: New/Import, Delete, Run Workflow.
-        // NOTE: `ToolbarSpacer(.flexible)` for explicit zone gaps is macOS 26-only;
-        // the deployment target is macOS 15, so zoning relies on toolbar PLACEMENTS
-        // (.navigation leading / .primaryAction content / .automatic trailing).
-        // Re-add ToolbarSpacer behind `if #available(macOS 26, *)` when the target moves.
-        contentToolbarContent
-
-        // TRAILING zone: inspector toggle moved to the detail column's .toolbar
-        // so it appears in the content section, not the sidebar section (#2309).
     }
 
     /// LEADING zone: back/forward history navigation in the content-column toolbar.
@@ -553,43 +541,17 @@ extension ContentView {
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = true }
             } label: {
-                toolbarToggleIcon("bubbles.and.sparkles", isActive: sidebarShowsChat)
+                // Chat icon: opacity-only active state — no fill/background change.
+                Image(systemName: "bubbles.and.sparkles.fill")
+                    .opacity(sidebarShowsChat ? 1.0 : 0.4)
             }
             .help("Show Chat")
         }
-
-        // Collapse — trailing side
-        ToolbarItem(placement: .primaryAction) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) { showSidebar = false }
-            } label: {
-                toolbarToggleIcon("sidebar.left", isActive: true)
-            }
-            .help("Hide Sidebar")
-        }
+        // Custom collapse button removed — the system's NavigationSplitView
+        // sidebar toggle handles show/hide and is restored by removing
+        // .toolbar(removing: .sidebarToggle) from the NavigationSplitView (#2309).
     }
 
-    /// CONTENT zone: show-sidebar fallback only. Workflow menu and Add removed from
-    /// toolbar (#2309 / #2313); sidebar controls live on the sidebar column toolbar.
-    @ToolbarContentBuilder
-    private var contentToolbarContent: some ToolbarContent {
-        // Show-sidebar button — only visible when sidebar is hidden so the user
-        // can restore it without the View menu. .navigation keeps it in the content
-        // section, which stays visible even when the sidebar column collapses (#2309).
-        if !showSidebar {
-            ToolbarItem(placement: .navigation) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showSidebar = true
-                    }
-                } label: {
-                    toolbarToggleIcon("sidebar.left", isActive: false)
-                }
-                .help("Show Sidebar")
-            }
-        }
-
-    }
 
     /// TRAILING zone: inspector toggle. Finder/Notes/Xcode convention (#1229 part 1).
     ///
