@@ -506,9 +506,9 @@ extension ContentView {
                     sidebarShowsChat = false
                 }
             } label: {
-                toolbarToggleIcon("sidebar.left", isActive: showSidebar && !sidebarShowsChat)
+                toolbarToggleIcon("list.bullet", isActive: showSidebar && !sidebarShowsChat)
             }
-            .help("Show Sidebar")
+            .help("Show List")
 
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {
