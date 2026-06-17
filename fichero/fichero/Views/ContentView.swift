@@ -539,16 +539,24 @@ extension ContentView {
                 Button {
                     sidebarShowsChat = false
                 } label: {
-                    toolbarToggleIcon("list.bullet", isActive: !sidebarShowsChat)
+                    Label {
+                        Text("Navigator")
+                    } icon: {
+                        toolbarToggleIcon("list.bullet", isActive: !sidebarShowsChat)
+                    }
                 }
-                .help("Show List")
+                .help(sidebarShowsChat ? "Show Navigator" : "Navigator")
 
                 Button {
                     sidebarShowsChat = true
                 } label: {
-                    toolbarToggleIcon("bubbles.and.sparkles", isActive: sidebarShowsChat)
+                    Label {
+                        Text("Research Assistant")
+                    } icon: {
+                        toolbarToggleIcon("bubbles.and.sparkles", isActive: sidebarShowsChat)
+                    }
                 }
-                .help("Show Chat")
+                .help(sidebarShowsChat ? "Research Assistant" : "Show Research Assistant")
             }
         }
         // Custom collapse button removed — the system's NavigationSplitView
@@ -580,7 +588,11 @@ extension ContentView {
                         showInspectorSidebar.toggle()
                     }
                 } label: {
-                    toolbarToggleIcon("sidebar.right", isActive: showInspectorSidebar)
+                    Label {
+                        Text("Inspector")
+                    } icon: {
+                        toolbarToggleIcon("sidebar.right", isActive: showInspectorSidebar)
+                    }
                 }
                 .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
             }
