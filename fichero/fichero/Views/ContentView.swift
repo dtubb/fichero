@@ -320,6 +320,7 @@ struct ContentView: View {
     private var navigationSplitColumn: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarContent
+                .toolbar { sidebarColumnToolbarContent }
         } detail: {
             centerContent
                 // The detail column carries only a MODEST hard floor — the
@@ -477,7 +478,7 @@ extension ContentView {
                 .font(.headline)
         }
 
-        // LEADING zone — panel toggles (Xcode/Finder convention): sidebar + history.
+        // LEADING zone — back/forward history (content-column toolbar).
         leadingToolbarContent
 
         // CONTENT zone — the action verbs: New/Import, Delete, Run Workflow.
@@ -491,35 +492,11 @@ extension ContentView {
         trailingToolbarContent
     }
 
-    /// LEADING zone: sidebar toggle + back/forward history. Panel toggles grouped
-    /// at the window's leading edge (Xcode-style).
+    /// LEADING zone: back/forward history navigation in the content-column toolbar.
+    /// List|chat navigator selector moved to the sidebar column's own toolbar (#2309).
     @ToolbarContentBuilder
     private var leadingToolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
-            // #2034 / #2309 — Xcode navigator-style list|chat SELECTOR. These two
-            // buttons SWITCH which navigator the left column shows (they do not
-            // hide it). The Mail-style hide/show-sidebar control lives at the
-            // sidebar↔content boundary (content zone), not here.
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    showSidebar = true
-                    sidebarShowsChat = false
-                }
-            } label: {
-                toolbarToggleIcon("list.bullet", isActive: showSidebar && !sidebarShowsChat)
-            }
-            .help("Show List")
-
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    showSidebar = true
-                    sidebarShowsChat = true
-                }
-            } label: {
-                toolbarToggleIcon("bubble.left.and.bubble.right", isActive: showSidebar && sidebarShowsChat)
-            }
-            .help("Show Chat")
-
             Button {
                 navigateBack()
             } label: {
@@ -540,33 +517,66 @@ extension ContentView {
         }
     }
 
-    /// CONTENT zone: the ACTION verbs. New/Import (＋ Add menu), Delete (contextual,
-    /// reflects selection), Run Workflow. Presentation pickers/pane-toggles that
-    /// used to sit here have moved to the View menu (#2032).
+    /// SIDEBAR COLUMN toolbar: list|chat navigator selector (left-aligned) and
+    /// collapse button (right-aligned). Lives on the sidebar column view so these
+    /// items appear in the sidebar section of the unified toolbar (#2309).
     @ToolbarContentBuilder
-    private var contentToolbarContent: some ToolbarContent {
-        // Mail-style hide/show SIDEBAR at the sidebar↔content boundary (#2309).
-        // Placed at the START of the content zone so macOS renders it just to
-        // the right of the sidebar column (the Mail pattern). The leading-zone
-        // buttons are the list|chat navigator SELECTOR; THIS one collapses the
-        // whole left column.
+    var sidebarColumnToolbarContent: some ToolbarContent {
+        ToolbarItemGroup(placement: .navigation) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    showSidebar = true
+                    sidebarShowsChat = false
+                }
+            } label: {
+                toolbarToggleIcon("list.bullet", isActive: showSidebar && !sidebarShowsChat)
+            }
+            .help("Show List")
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    showSidebar = true
+                    sidebarShowsChat = true
+                }
+            } label: {
+                toolbarToggleIcon("wand.and.stars", isActive: showSidebar && sidebarShowsChat)
+            }
+            .help("Show Chat")
+        }
         ToolbarItem(placement: .primaryAction) {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
-                    showSidebar.toggle()
+                    showSidebar = false
                 }
             } label: {
-                toolbarToggleIcon("sidebar.left", isActive: showSidebar)
+                toolbarToggleIcon("sidebar.left", isActive: true)
             }
-            .help(showSidebar ? "Hide Sidebar" : "Show Sidebar")
+            .help("Hide Sidebar")
+        }
+    }
+
+    /// CONTENT zone: workflow action verb. Add (Plus) removed — duplicated in the
+    /// bottom action bar (#2313). Sidebar controls moved to the sidebar column toolbar (#2309).
+    @ToolbarContentBuilder
+    private var contentToolbarContent: some ToolbarContent {
+        // Show-sidebar button — only visible when sidebar is hidden so the user
+        // can restore it without the View menu. When shown, the sidebar column
+        // toolbar owns the collapse control (#2309).
+        if !showSidebar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showSidebar = true
+                    }
+                } label: {
+                    toolbarToggleIcon("sidebar.left", isActive: false)
+                }
+                .help("Show Sidebar")
+            }
         }
 
         if showNavigationToolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                // Add menu (Plus button) — New / Import.
-                AddItemMenu(registry: itemRegistry, style: .button)
-                    .help("Add new item (⌘N)")
-
                 // (Contextual Delete button removed — it caused an idle-CPU
                 //  focused-value loop; see the note on the property above.
                 //  Delete remains available via the Edit menu / ⌫.)
