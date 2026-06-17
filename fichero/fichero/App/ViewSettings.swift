@@ -117,6 +117,46 @@ enum PreviewMode: String, CaseIterable {
     case widescreen // Content and preview side-by-side
 }
 
+/// Mail-modeled vocabulary for WHERE the document preview sits relative to the
+/// library list (#2032/§6d). This is a thin facade over the canonical
+/// `PreviewMode` — it does NOT introduce a parallel stored value. The single
+/// source of truth remains `ViewSettings.previewMode` (and its per-window
+/// `@SceneStorage("currentLayoutMode")` mirror); `PreviewLayout` just renames
+/// the three existing cases into Apple-Mail terms:
+///
+///   .side   ⇆ .widescreen  — list and preview side-by-side (HStack)
+///   .bottom ⇆ .standard    — list above, preview below (VSplitView)
+///   .hidden ⇆ .none        — list only, no preview
+///
+/// Default `.side` preserves current behavior (`previewMode` defaults to
+/// `.widescreen`). Use `PreviewMode.layout` / `PreviewLayout.previewMode` to
+/// bridge; never store a `PreviewLayout` separately.
+enum PreviewLayout: String, CaseIterable {
+    case side    // = .widescreen
+    case bottom  // = .standard
+    case hidden  // = .none
+
+    /// The canonical preview mode this layout maps to.
+    var previewMode: PreviewMode {
+        switch self {
+        case .side: .widescreen
+        case .bottom: .standard
+        case .hidden: .none
+        }
+    }
+}
+
+extension PreviewMode {
+    /// The Mail-vocabulary layout this preview mode corresponds to.
+    var layout: PreviewLayout {
+        switch self {
+        case .widescreen: .side
+        case .standard: .bottom
+        case .none: .hidden
+        }
+    }
+}
+
 // MARK: - Focused Values
 
 /// Focused value for sidebar mode - allows menu commands to change per-window sidebar mode

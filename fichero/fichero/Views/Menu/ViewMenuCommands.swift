@@ -399,23 +399,30 @@ struct PreviewModeSection: View {
 
     var body: some View {
         if shouldShowPreviewOptions {
+            // Preview LAYOUT — where the document preview sits relative to the
+            // library list. Mail-modeled radio group (#2032/§6d):
+            //   .widescreen → list and preview side-by-side  → "Show Side Preview"
+            //   .standard   → list above, preview below       → "Show Bottom Preview"
+            //   .none       → list only, no preview           → "Hide Preview"
+            // (This is the PREVIEW position; the list's own column layout —
+            // Icons/List/Column/Map — is LibraryLayoutSection ⌘1-4, not here.)
             Section("Preview") {
-                if availablePreviewModes.contains(.none) {
+                if availablePreviewModes.contains(.widescreen) {
                     PreviewModeButton(
-                        mode: .none,
-                        label: "None",
-                        icon: "square",
+                        mode: .widescreen,
+                        label: "Show Side Preview",
+                        icon: "rectangle.split.2x1",
                         shortcut: "5",
                         current: viewSettings.previewMode
                     ) {
-                        viewSettings.previewMode = .none
+                        viewSettings.previewMode = .widescreen
                     }
                 }
 
                 if availablePreviewModes.contains(.standard) {
                     PreviewModeButton(
                         mode: .standard,
-                        label: "Standard",
+                        label: "Show Bottom Preview",
                         icon: "rectangle.split.1x2",
                         shortcut: "6",
                         current: viewSettings.previewMode
@@ -424,15 +431,15 @@ struct PreviewModeSection: View {
                     }
                 }
 
-                if availablePreviewModes.contains(.widescreen) {
+                if availablePreviewModes.contains(.none) {
                     PreviewModeButton(
-                        mode: .widescreen,
-                        label: "Widescreen",
-                        icon: "rectangle.split.2x1",
+                        mode: .none,
+                        label: "Hide Preview",
+                        icon: "square",
                         shortcut: "7",
                         current: viewSettings.previewMode
                     ) {
-                        viewSettings.previewMode = .widescreen
+                        viewSettings.previewMode = .none
                     }
                 }
             }
