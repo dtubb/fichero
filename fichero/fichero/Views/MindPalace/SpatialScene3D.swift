@@ -195,6 +195,14 @@ struct SpatialScene3D: View {
             guard let folderId = folderScopeId else { return }
             if let store = layoutStore { await store.loadLayout(folderId: folderId) }
             if let items = itemStore { await items.loadItems(folderId: folderId) }
+            // Always bump layoutRevision after load completes so the update:
+            // pass re-runs and repositions entities to the freshly-loaded
+            // positions — even if the layout array value didn't change (e.g.
+            // same positions as the store already held from a prior visit).
+            // This fixes the circle-reset: buildScene() in make: places nodes
+            // at phyllotaxis defaults; this bump forces the corrective
+            // reposition once the persisted layout is confirmed from the server.
+            layoutRevision += 1
         }
         // Reading `layoutStore?.layout` here ties the body to the observable
         // store: a load or agent move re-renders the view, re-runs `update`, and
@@ -207,6 +215,22 @@ struct SpatialScene3D: View {
         // live item entities against `store.items`.
         .onChange(of: itemStore?.items) { _, _ in
             layoutRevision += 1
+        }
+        // Flush any in-progress node drag so positions are not lost when the
+        // user navigates away mid-drag (gesture.onEnded never fires then).
+        .onDisappear {
+            guard !nodeDragOrigins.isEmpty else { return }
+            for (nodeId, _) in nodeDragOrigins {
+                if let position = Self.persistedDragEndPosition(
+                    nodeId: nodeId,
+                    dragPositions: nodeDragPositions,
+                    nodes: nodes
+                ) {
+                    persistLayout(movedId: nodeId, to: position)
+                }
+            }
+            nodeDragOrigins.removeAll()
+            nodeDragPositions.removeAll()
         }
         .background(MindPalaceTheme.canvasBackground)
         .overlay(alignment: .top) {

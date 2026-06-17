@@ -36,6 +36,9 @@ struct Spatial2DCanvas: View {
     // Live drag state for the chip currently being moved.
     @State private var dragItemId: String?
     @State private var dragTranslation: CGSize = .zero
+    /// Last-known canvas size, captured each frame so `.onDisappear` can flush
+    /// any in-progress drag without access to the `GeometryReader` closure.
+    @State private var lastCanvasSize: CGSize = .zero
 
     // Live resize state for the standalone item currently being resized via its
     // corner grab handle (#1748). `resizeItemId` is the item being sized;
@@ -152,10 +155,27 @@ struct Spatial2DCanvas: View {
                     modeToggle
                 }
             }
+            // Capture canvas size every frame so onDisappear can flush mid-drag.
+            .onChange(of: geo.size, initial: true) { _, size in
+                lastCanvasSize = size
+            }
             .task(id: folderScopeId) {
                 guard let folderId = folderScopeId else { return }
                 await layoutStore?.loadLayout(folderId: folderId)
                 await itemStore?.loadItems(folderId: folderId)
+            }
+            // Flush any in-progress node drag so positions are not lost when the
+            // user navigates away mid-drag (gesture.onEnded never fires then).
+            .onDisappear {
+                guard let itemId = dragItemId, lastCanvasSize != .zero else { return }
+                let base = resolvedPositions(in: lastCanvasSize)[itemId] ?? .zero
+                let dropped = CGPoint(
+                    x: base.x + dragTranslation.width,
+                    y: base.y + dragTranslation.height
+                )
+                dragItemId = nil
+                dragTranslation = .zero
+                persistLayout(movedId: itemId, droppedAt: dropped, in: lastCanvasSize)
             }
         }
     }
