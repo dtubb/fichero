@@ -311,21 +311,10 @@ struct DocumentInspector: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "sidebar.right")
-                .font(.system(size: 36))
-                .foregroundColor(.secondary)
-
-            Text("No Selection")
-                .font(.headline)
-
-            Text("Select a document to view details")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        Text("No selection")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Helpers
