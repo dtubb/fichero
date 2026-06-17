@@ -320,7 +320,6 @@ struct ContentView: View {
     private var navigationSplitColumn: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarContent
-                .toolbar { sidebarColumnToolbarContent }
         } detail: {
             centerContent
                 .toolbar {
@@ -484,58 +483,12 @@ extension ContentView {
     // enough to risk a type-check timeout.
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
-        // Navigator selector (list|chat) moved to sidebarColumnToolbarContent so
-        // all sidebar-section controls share a single toolbar attachment point.
-        // Splitting them across the NavigationSplitView toolbar AND the sidebar
-        // column toolbar caused macOS to merge both .primaryAction groups into the
-        // same visual cluster, producing two buttons side-by-side (#2309).
-
-        // LEADING zone — back/forward history (content-column toolbar).
-        leadingToolbarContent
-    }
-
-    /// LEADING zone: back/forward history navigation in the content-column toolbar.
-    /// List|chat navigator selector moved to the sidebar column's own toolbar (#2309).
-    @ToolbarContentBuilder
-    private var leadingToolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .navigation) {
-            Button {
-                navigateBack()
-            } label: {
-                Image(systemName: "chevron.backward")
-            }
-            .help("Back (⌘[)")
-            .keyboardShortcut("[", modifiers: [.command])
-            .disabled(!navigationHistory.canGoBack)
-
-            Button {
-                navigateForward()
-            } label: {
-                Image(systemName: "chevron.forward")
-            }
-            .help("Forward (⌘])")
-            .keyboardShortcut("]", modifiers: [.command])
-            .disabled(!navigationHistory.canGoForward)
-        }
-    }
-
-    /// SIDEBAR COLUMN toolbar: all three sidebar-section controls live here so
-    /// macOS treats them as a single toolbar attachment point and keeps them in
-    /// their declared order rather than merging with NavigationSplitView toolbar
-    /// .primaryAction groups (#2309).
-    ///
-    /// Layout: [list][chat]  ·····  [⊏ collapse]
-    ///   .automatic → leading side of the sidebar section
-    ///   .primaryAction → trailing side of the sidebar section
-    @ToolbarContentBuilder
-    var sidebarColumnToolbarContent: some ToolbarContent {
-        // Navigator selector — only shown when the sidebar is open. When the
-        // sidebar is collapsed, macOS still renders toolbar items attached to
-        // that column in the unified toolbar (#2309), so we gate them on
-        // showSidebar to avoid orphaned buttons floating next to the system
-        // sidebar-toggle when the sidebar is hidden.
+        // SIDEBAR zone — navigator selector (list|chat). .primaryAction on the
+        // NavigationSplitView toolbar lands at the sidebar-section LEFTMOST,
+        // right after the system sidebar toggle. Gated on showSidebar so buttons
+        // disappear when the sidebar is collapsed (#2309).
         if showSidebar {
-            ToolbarItemGroup(placement: .automatic) {
+            ToolbarItemGroup(placement: .primaryAction) {
                 Button {
                     sidebarShowsChat = false
                 } label: {
@@ -559,9 +512,33 @@ extension ContentView {
                 .help(sidebarShowsChat ? "Research Assistant" : "Show Research Assistant")
             }
         }
-        // Custom collapse button removed — the system's NavigationSplitView
-        // sidebar toggle handles show/hide and is restored by removing
-        // .toolbar(removing: .sidebarToggle) from the NavigationSplitView (#2309).
+
+        // LEADING zone — back/forward history (content-column toolbar).
+        leadingToolbarContent
+    }
+
+    /// LEADING zone: back/forward history navigation in the content-column toolbar.
+    @ToolbarContentBuilder
+    private var leadingToolbarContent: some ToolbarContent {
+        ToolbarItemGroup(placement: .navigation) {
+            Button {
+                navigateBack()
+            } label: {
+                Label("Back", systemImage: "chevron.backward")
+            }
+            .help("Back (⌘[)")
+            .keyboardShortcut("[", modifiers: [.command])
+            .disabled(!navigationHistory.canGoBack)
+
+            Button {
+                navigateForward()
+            } label: {
+                Label("Forward", systemImage: "chevron.forward")
+            }
+            .help("Forward (⌘])")
+            .keyboardShortcut("]", modifiers: [.command])
+            .disabled(!navigationHistory.canGoForward)
+        }
     }
 
 
