@@ -324,13 +324,15 @@ struct ContentView: View {
         } detail: {
             centerContent
                 .toolbar {
-                    // Title in the content section: .principal on the detail column view
-                    // lands in the content-column toolbar section on macOS NavigationSplitView (#2309).
+                    // Title and inspector in the content section. On macOS NavigationSplitView,
+                    // .toolbar on the detail column view lands items in the content-column
+                    // toolbar section, not the sidebar section (#2309).
                     ToolbarItem(placement: .principal) {
                         Label(toolbarTitle, systemImage: toolbarIcon)
                             .labelStyle(.titleAndIcon)
                             .font(.headline)
                     }
+                    trailingToolbarContent
                 }
                 // The detail column carries only a MODEST hard floor — the
                 // always-present library-list spine width — NOT the full
@@ -494,8 +496,8 @@ extension ContentView {
         // Re-add ToolbarSpacer behind `if #available(macOS 26, *)` when the target moves.
         contentToolbarContent
 
-        // TRAILING zone — inspector toggle.
-        trailingToolbarContent
+        // TRAILING zone: inspector toggle moved to the detail column's .toolbar
+        // so it appears in the content section, not the sidebar section (#2309).
     }
 
     /// LEADING zone: back/forward history navigation in the content-column toolbar.
@@ -562,16 +564,14 @@ extension ContentView {
         }
     }
 
-    /// CONTENT zone: workflow action verb. Add (Plus) removed — duplicated in the
-    /// bottom action bar (#2313). Sidebar controls moved to the sidebar column toolbar (#2309).
+    /// CONTENT zone: show-sidebar fallback only. Workflow menu and Add removed from
+    /// toolbar (#2309 / #2313); sidebar controls live on the sidebar column toolbar.
     @ToolbarContentBuilder
     private var contentToolbarContent: some ToolbarContent {
         // Show-sidebar button — only visible when sidebar is hidden so the user
-        // can restore it without the View menu. When shown, the sidebar column
-        // toolbar owns the collapse control (#2309).
+        // can restore it without the View menu. .navigation keeps it in the content
+        // section, which stays visible even when the sidebar column collapses (#2309).
         if !showSidebar {
-            // .navigation puts this in the content section (right side), which remains
-            // visible when the sidebar is hidden and the sidebar-column toolbar is gone.
             ToolbarItem(placement: .navigation) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -584,135 +584,6 @@ extension ContentView {
             }
         }
 
-        if showNavigationToolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                // (Contextual Delete button removed — it caused an idle-CPU
-                //  focused-value loop; see the note on the property above.
-                //  Delete remains available via the Edit menu / ⌫.)
-
-                if featureManager.isWorkflowsEnabled && featureManager.isWorkflowRunOnSelectionEnabled {
-                    // Snapshot selection at Menu-render time so Button actions use
-                    // these captured IDs even if focus shifts after the menu opens.
-                    // Exclude folder docs — passing a folder ID to the backend expands
-                    // it to all children, which is the "On Collection" path, not "On Selection".
-                    // In search mode, currentDocuments may be empty (search uses a
-                    // separate result set), so a raw browserSelection passes through
-                    // unchanged — search results are file docs by construction, not
-                    // folders, so the folder-exclusion guard is unnecessary there.
-                    let isSearchMode: Bool = {
-                        if case .search = viewMode { return true }
-                        return false
-                    }()
-                    let capturedSelectionIds: [String] = !browserSelection.isEmpty
-                        ? (isSearchMode
-                            ? Array(browserSelection)
-                            : browserSelection.filter { id in
-                                documentStore.currentDocuments.first { $0.id == id }?.docType != .folder
-                            })
-                        : (detailDocument.flatMap { $0.docType == .folder ? nil : [$0.id] } ?? [])
-                    let collectionFiles = documentStore.currentDocuments.filter { $0.docType == .file }
-                    let hasCollection = !collectionFiles.isEmpty
-                    let sortedWorkflows = workflowStore.workflows.sorted {
-                        $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-                    }
-                    Menu {
-                        if workflowStore.workflows.isEmpty {
-                            Text("No workflows available")
-                        } else {
-                            if !capturedSelectionIds.isEmpty {
-                                Section("On Selection") {
-                                    ForEach(sortedWorkflows, id: \.id) { workflow in
-                                        Menu(workflow.name) {
-                                            Button("Default") {
-                                                runWorkflowOnSelection(
-                                                    workflowId: workflow.id,
-                                                    preselectedIds: capturedSelectionIds
-                                                )
-                                            }
-                                            ForEach(workflowRunProviderCache.providers.filter { $0.available }) { provider in
-                                                if provider.models.isEmpty {
-                                                    Button(provider.name) {
-                                                        runWorkflowOnSelection(
-                                                            workflowId: workflow.id,
-                                                            preselectedIds: capturedSelectionIds,
-                                                            providerOverride: provider.id
-                                                        )
-                                                    }
-                                                } else {
-                                                    Menu(provider.name) {
-                                                        ForEach(provider.models, id: \.self) { model in
-                                                            Button(model) {
-                                                                runWorkflowOnSelection(
-                                                                    workflowId: workflow.id,
-                                                                    preselectedIds: capturedSelectionIds,
-                                                                    providerOverride: provider.id,
-                                                                    modelOverride: model
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if hasCollection {
-                                Section("On Collection (\(collectionFiles.count))") {
-                                    ForEach(sortedWorkflows, id: \.id) { workflow in
-                                        Menu(workflow.name) {
-                                            Button("Default") {
-                                                runWorkflowOnCollection(workflowId: workflow.id)
-                                            }
-                                            ForEach(workflowRunProviderCache.providers.filter { $0.available }) { provider in
-                                                if provider.models.isEmpty {
-                                                    Button(provider.name) {
-                                                        runWorkflowOnCollection(
-                                                            workflowId: workflow.id,
-                                                            providerOverride: provider.id
-                                                        )
-                                                    }
-                                                } else {
-                                                    Menu(provider.name) {
-                                                        ForEach(provider.models, id: \.self) { model in
-                                                            Button(model) {
-                                                                runWorkflowOnCollection(
-                                                                    workflowId: workflow.id,
-                                                                    providerOverride: provider.id,
-                                                                    modelOverride: model
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if capturedSelectionIds.isEmpty && !hasCollection {
-                                Text("Select a document or open a collection")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    } label: {
-                        Label("Run Workflow", systemImage: "play.square.stack")
-                    }
-                    .onAppear {
-                        Task { @MainActor in
-                            await workflowRunProviderCache.ensureLoaded(
-                                chatService: LibraryManager.shared.globalLibrary?.chatServiceGenerated
-                            )
-                        }
-                    }
-                    .help("Run Workflow on Selection or Collection")
-                    .disabled(
-                        workflowStore.workflows.isEmpty
-                        || (capturedSelectionIds.isEmpty && !hasCollection)
-                    )
-                }
-            }
-        }
     }
 
     /// TRAILING zone: inspector toggle. Finder/Notes/Xcode convention (#1229 part 1).
