@@ -69,32 +69,8 @@ final class LibrarySmokeUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground, "App left the foreground after launch.")
     }
 
-    /// Flow 5 — the icons/list/table/map view-mode rail is present and its
-    /// segments switch without crashing.
-    @MainActor
-    func testViewModeRailIsPresentAndSwitches() throws {
-        app.launch()
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30), "App failed to launch.")
-
-        let rail = app.descendants(matching: .any)
-            .matching(identifier: "viewModeRail").firstMatch
-        XCTAssertTrue(
-            rail.waitForExistence(timeout: 15),
-            "View-mode rail not found — expected with FICHERO_ALL_FEATURES=1."
-        )
-
-        // Switch through the segments by their stable identifiers. Each must be
-        // hittable and the app must survive every switch (no crash, still
-        // foregrounded).
-        for mode in ["viewMode-List", "viewMode-Table", "viewMode-Icon"] {
-            let button = app.descendants(matching: .any)
-                .matching(identifier: mode).firstMatch
-            XCTAssertTrue(button.waitForExistence(timeout: 5), "Missing view-mode segment: \(mode)")
-            button.tap()
-            XCTAssertEqual(
-                app.state, .runningForeground,
-                "App left the foreground after switching to \(mode)."
-            )
-        }
-    }
+    // Flow 5 — the in-content view-mode icon rail was removed (#2032):
+    // presentation lives in the View menu (LibraryLayoutSection, ⌘1–4), not in
+    // a floating in-content icon bar, so the former
+    // `testViewModeRailIsPresentAndSwitches` smoke test no longer applies.
 }
