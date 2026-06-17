@@ -69,20 +69,38 @@ extension ContentView {
                 .focusEffectDisabled()
             }
         }
+        // Track the column's live rendered width so each mode's @AppStorage
+        // ideal is updated when the user drags the divider. The GeometryReader
+        // fires on every layout pass — guard with a min-delta to avoid writing
+        // on every pixel during animation.
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onChange(of: geo.size.width) { _, newWidth in
+                        guard newWidth > 0,
+                              abs(newWidth - (sidebarShowsChat ? sidebarChatWidth : sidebarWidth)) > 2
+                        else { return }
+                        if sidebarShowsChat {
+                            sidebarChatWidth = newWidth
+                        } else {
+                            sidebarWidth = newWidth
+                        }
+                    }
+            }
+        )
         // min: 180 lets the sidebar collapse tight enough that the mode
         // icons dominate the column with minimal wasted space (#615).
         // Was 250 — felt bloated on small screens.
         //
         // Chat wants a roomier column than the file/folder sidebar, so the
-        // IDEAL width depends on the active navigator (#2309). max widens too so
-        // the chat ideal isn't clamped.
-        // ponytail: NavigationSplitView keeps ONE drag-resized column width per
-        // window — it can't persist a separate dragged width per navigator mode,
-        // so switching modes resets toward this `ideal`, not the last drag.
+        // IDEAL width depends on the active navigator (#2309). max widens so
+        // chat isn't clamped at 360. Each mode's ideal is persisted separately
+        // in @AppStorage (sidebarWidth / sidebarChatWidth) — updated via the
+        // SidebarWidthReader overlay when the user drags the divider.
         .navigationSplitViewColumnWidth(
             min: ContentView.sidebarMinWidth,
-            ideal: sidebarShowsChat ? 360 : sidebarWidth,
-            max: sidebarShowsChat ? 460 : 360
+            ideal: sidebarShowsChat ? sidebarChatWidth : sidebarWidth,
+            max: 600
         )
         .focusedSceneValue(\.sidebarMode, $sidebarMode)
         // NOTE: \.showInspector is published from the detail column in

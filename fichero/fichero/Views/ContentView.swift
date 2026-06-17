@@ -101,6 +101,7 @@ struct ContentView: View {
 
     // Column visibility persistence
     @AppStorage("sidebarWidth") var sidebarWidth: Double = 280
+    @AppStorage("sidebarChatWidth") var sidebarChatWidth: Double = 360
     @AppStorage("contentWidth") var contentWidth: Double = 600
     @AppStorage("inspectorWidth") var inspectorWidth: Double = 300
     @AppStorage("widescreenContentPaneWidth") var widescreenContentPaneWidth: Double = 320
