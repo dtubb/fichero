@@ -180,17 +180,8 @@ struct LibraryWindow: View {
                 .environmentObject(appState)
                 .environmentObject(appState.mcpService)
         }
-        // Standalone notes browser (#1500) — inject noteStore so the sheet
-        // reads from the per-library store, not a short-lived view-local service.
-        .sheet(isPresented: Binding(
-            get: { appState.showNotesBrowser },
-            set: { appState.showNotesBrowser = $0 }
-        )) {
-            if let library = windowState.library {
-                NotesBrowserView()
-                    .environment(library.noteStore)
-            }
-        }
+        // Notes now live per-document in the inspector's Notes tab
+        // (DocumentNotesTab, #1500) — the standalone browser sheet is retired.
         // Integrations sheets
         .sheet(isPresented: Binding(
             get: { appState.showFolderWatchers },

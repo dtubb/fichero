@@ -201,15 +201,6 @@ struct FicheroApp: App {
 
                 FocusedImportFilesButton()
 
-                Divider()
-
-                // Standalone notes browser (#1500)
-                Button {
-                    appState.showNotesBrowser = true
-                } label: {
-                    Label("Notes Browser…", systemImage: "note.text")
-                }
-
                 if featureManager.isSearchEnabled
                     || featureManager.isChatEnabled
                     || featureManager.isWorkflowsEnabled {

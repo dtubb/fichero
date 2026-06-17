@@ -222,16 +222,24 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(menuSource.contains("icon: \"books.vertical\""))
     }
 
-    func testNotesBrowserIsReachableFromDataMenuAndPresentedAsSheet() throws {
+    func testNotesLiveInDocumentInspectorAndStandaloneBrowserRetired() throws {
+        // Notes moved into the per-document inspector (Notes tab → DocumentNotesTab,
+        // #1500). The standalone library-wide browser sheet and its Data-menu entry
+        // are retired.
         let menuSource = try Self.appSource("FicheroApp.swift")
         let appStateSource = try Self.appSource("App/AppState.swift")
         let windowSource = try Self.appSource("App/LibraryWindow.swift")
+        let inspectorSource = try Self.appSource("Views/Library/DocumentInspector.swift")
 
-        XCTAssertTrue(appStateSource.contains("@Published var showNotesBrowser: Bool = false"))
-        XCTAssertTrue(menuSource.contains("Label(\"Notes Browser…\", systemImage: \"note.text\")"))
-        XCTAssertTrue(menuSource.contains("appState.showNotesBrowser = true"))
-        XCTAssertTrue(windowSource.contains("get: { appState.showNotesBrowser }"))
-        XCTAssertTrue(windowSource.contains("NotesBrowserView()"))
+        // The Notes tab routes to the per-document notes view.
+        XCTAssertTrue(inspectorSource.contains("DocumentNotesTab(document: doc)"))
+
+        // The standalone browser sheet, its menu entry, and its driver are gone.
+        XCTAssertFalse(appStateSource.contains("showNotesBrowser"))
+        XCTAssertFalse(menuSource.contains("Notes Browser…"))
+        XCTAssertFalse(menuSource.contains("showNotesBrowser"))
+        XCTAssertFalse(windowSource.contains("NotesBrowserView()"))
+        XCTAssertFalse(windowSource.contains("showNotesBrowser"))
     }
 
     // MARK: - ActivityChildType
