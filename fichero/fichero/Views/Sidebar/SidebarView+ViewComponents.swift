@@ -38,7 +38,9 @@ extension SidebarView {
                     importFiles: importFiles,
                     createComparison: createNewComparison,
                     createSchedule: createNewSchedule,
-                    createTrigger: createNewTrigger
+                    createTrigger: createNewTrigger,
+                    deleteItem: handleDeleteSelectedItem,
+                    hasSelection: selectedItem != nil
                 )
             }
         }

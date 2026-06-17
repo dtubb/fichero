@@ -8,6 +8,7 @@ private let sidebarExtLogger = Logger(subsystem: "app.fichero.fichero", category
 /// Compact bottom toolbar for sidebar with common actions.
 ///
 /// Modeled after macOS Preview/Finder bottom toolbars with small, icon-only buttons.
+/// Layout: [+new menu] [−delete] [export] [import menu] [workflow] (#2309)
 struct SidebarBottomToolbar: View {
     // Feature manager to hide buttons
     @ObservedObject var featureManager = FeatureManager.shared
@@ -21,6 +22,9 @@ struct SidebarBottomToolbar: View {
     var createComparison: (() -> Void)?
     var createSchedule: (() -> Void)?
     var createTrigger: (() -> Void)?
+    // Selection-dependent actions (#2309)
+    var deleteItem: (() -> Void)?
+    var hasSelection: Bool = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -83,7 +87,33 @@ struct SidebarBottomToolbar: View {
             .fixedSize()
             .help("New Item")
 
+            // Remove / delete selected item
+            Button {
+                deleteItem?()
+            } label: {
+                Image(systemName: "minus")
+                    .font(.system(size: 11))
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .disabled(!hasSelection)
+            .help("Remove selected item")
+
             Spacer()
+
+            // Export — no sidebar-level export handler yet; left disabled (#2309)
+            // TODO #2309 wire export action when a sidebar-scoped export handler exists
+            Button {
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 11))
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .disabled(true)
+            .help("Export (not yet wired)")
 
             // Import menu
             Menu {
@@ -116,6 +146,21 @@ struct SidebarBottomToolbar: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help("Import Files (⌘I)")
+
+            // Run workflow on selection (only shown when workflows feature is enabled)
+            if featureManager.isWorkflowsEnabled {
+                Button {
+                    createWorkflow()
+                } label: {
+                    Image(systemName: "bolt")
+                        .font(.system(size: 11))
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .disabled(!hasSelection)
+                .help("New Workflow")
+            }
         }
         .padding(.horizontal, 8)
         .frame(height: 28)

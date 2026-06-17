@@ -92,6 +92,10 @@ struct SidebarView: View {
     var body: some View {
         sidebarContent
             .sidebarStyle()
+            // Suppress the NavigationSplitView sidebar-column title header (#2309).
+            // The title is now shown centred in the main window toolbar by another
+            // worker; the redundant sidebar column header is removed here.
+            .navigationTitle("")
             .task {
                 // Check cancellation before starting
                 guard !Task.isCancelled else { return }
