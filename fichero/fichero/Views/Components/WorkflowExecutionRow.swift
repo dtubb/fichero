@@ -33,6 +33,10 @@ struct WorkflowExecutionRow: View {
         }
     }
 
+    private var sortedNodeIds: [String] {
+        execution.nodeStates.keys.sorted()
+    }
+
     @ViewBuilder
     private var rowContent: some View {
         // Header with controls
@@ -130,7 +134,7 @@ struct WorkflowExecutionRow: View {
         // Node progress summary (skip in compact mode)
         if !compact && !execution.nodeStates.isEmpty {
             HStack(spacing: 8) {
-                ForEach(Array(execution.nodeStates.keys.sorted()), id: \.self) { nodeId in
+                ForEach(sortedNodeIds, id: \.self) { nodeId in
                     if let state = execution.nodeStates[nodeId] {
                         nodeStatusPill(state)
                     }

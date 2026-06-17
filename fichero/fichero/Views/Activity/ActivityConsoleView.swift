@@ -6,12 +6,15 @@ struct ActivityConsoleView: View {
     let activityItems: [ActivityItem]
     let liveExecution: WorkflowExecution?
 
+    private var sortedNodeStates: [NodeExecutionState] {
+        liveExecution?.nodeStates.values.sorted(by: { $0.nodeId < $1.nodeId }) ?? []
+    }
+
     var body: some View {
         List {
             if let execution = liveExecution {
                 // Live execution - show node progress
-                let sortedStates = execution.nodeStates.values.sorted(by: { $0.nodeId < $1.nodeId })
-                ForEach(Array(sortedStates), id: \.nodeId) { state in
+                ForEach(sortedNodeStates, id: \.nodeId) { state in
                     nodeLogEntry(state)
                         .listRowInsets(EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8))
                         .listRowSeparator(.hidden)

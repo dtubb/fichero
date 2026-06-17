@@ -7,6 +7,10 @@ struct WorkflowPreviewSheet: View {
     let execution: WorkflowExecution
     @Environment(\.dismiss) private var dismiss
 
+    private var sortedNodeIds: [String] {
+        execution.nodeStates.keys.sorted()
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -35,7 +39,7 @@ struct WorkflowPreviewSheet: View {
             // Workflow visualization
             ScrollView([.horizontal, .vertical]) {
                 VStack(alignment: .leading, spacing: 20) {
-                    ForEach(Array(execution.nodeStates.keys.sorted()), id: \.self) { nodeId in
+                    ForEach(sortedNodeIds, id: \.self) { nodeId in
                         if let state = execution.nodeStates[nodeId] {
                             PreviewNodeView(
                                 nodeId: nodeId,
