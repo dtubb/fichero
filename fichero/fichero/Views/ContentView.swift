@@ -324,14 +324,11 @@ struct ContentView: View {
         } detail: {
             centerContent
                 .toolbar {
-                    // Title and inspector in the content section. On macOS NavigationSplitView,
-                    // .toolbar on the detail column view lands items in the content-column
-                    // toolbar section, not the sidebar section (#2309).
-                    ToolbarItem(placement: .principal) {
-                        Label(toolbarTitle, systemImage: toolbarIcon)
-                            .labelStyle(.titleAndIcon)
-                            .font(.headline)
-                    }
+                    // Inspector toggle in the content section. .automatic on the detail
+                    // column view lands in the content-column toolbar section (#2309).
+                    // .principal is intentionally omitted — it always maps to the window
+                    // title position (above the sidebar). Window title is handled by
+                    // .navigationTitle(toolbarTitle) on the NavigationSplitView.
                     trailingToolbarContent
                 }
                 // The detail column carries only a MODEST hard floor — the
@@ -481,10 +478,33 @@ extension ContentView {
     // enough to risk a type-check timeout.
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
-        // NOTE: .principal is on the DETAIL column's .toolbar (contentColumnToolbarContent),
-        // not here. On macOS NavigationSplitView, .principal on the split-view toolbar lands
-        // in the sidebar section; attaching it to the detail column puts it in the content
-        // section where the title belongs (#2309).
+        // Navigator selector: .automatic on the NavigationSplitView toolbar appears in
+        // the sidebar section, left side — empirically confirmed. This puts [list][chat]
+        // to the LEFT of the sidebar, with the collapse button (sidebarColumnToolbarContent
+        // .primaryAction) on the RIGHT (#2309). .principal is not used — it always maps
+        // to the window title area above the sidebar; window title is handled by
+        // .navigationTitle(toolbarTitle) on the NavigationSplitView.
+        ToolbarItemGroup(placement: .automatic) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    showSidebar = true
+                    sidebarShowsChat = false
+                }
+            } label: {
+                toolbarToggleIcon("list.bullet", isActive: showSidebar && !sidebarShowsChat)
+            }
+            .help("Show List")
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    showSidebar = true
+                    sidebarShowsChat = true
+                }
+            } label: {
+                toolbarToggleIcon("wand.and.stars", isActive: showSidebar && sidebarShowsChat)
+            }
+            .help("Show Chat")
+        }
 
         // LEADING zone — back/forward history (content-column toolbar).
         leadingToolbarContent
@@ -525,33 +545,11 @@ extension ContentView {
         }
     }
 
-    /// SIDEBAR COLUMN toolbar: list|chat navigator selector + collapse, all right-aligned
-    /// (.primaryAction) in the sidebar section. .navigation goes to the content-column
-    /// section on macOS NavigationSplitView regardless of which view it's attached to,
-    /// so .primaryAction is the only placement that lands in the sidebar section (#2309).
+    /// SIDEBAR COLUMN toolbar: collapse button only, right-aligned (.primaryAction).
+    /// List|chat navigator selector moved to mainToolbarContent as .automatic so it
+    /// appears LEFT of this button in the sidebar section (#2309).
     @ToolbarContentBuilder
     var sidebarColumnToolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    showSidebar = true
-                    sidebarShowsChat = false
-                }
-            } label: {
-                toolbarToggleIcon("list.bullet", isActive: showSidebar && !sidebarShowsChat)
-            }
-            .help("Show List")
-
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    showSidebar = true
-                    sidebarShowsChat = true
-                }
-            } label: {
-                toolbarToggleIcon("wand.and.stars", isActive: showSidebar && sidebarShowsChat)
-            }
-            .help("Show Chat")
-        }
         ToolbarItem(placement: .primaryAction) {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
