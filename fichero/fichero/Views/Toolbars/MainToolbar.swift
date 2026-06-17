@@ -96,12 +96,13 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// Mail-style display label shown in pickers/menus. `table` → "Column"
-    /// (#1613). `rawValue` deliberately stays "Table" so persisted per-folder
-    /// modes and the XCUITest hooks (`viewMode-Table`) don't churn.
+    /// User-facing label shown in menus/pickers. rawValue is preserved for
+    /// persistence/XCUITest hooks — only label changes here.
     var label: String {
         switch self {
-        case .table: "Column"
+        case .table: "Columns"
+        case .map: "Canvas"
+        case .realitykit: "Space"
         default: rawValue
         }
     }
@@ -123,8 +124,8 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .icon: "Grid of icons"
         case .list: "Linear list"
         case .table: "Column view"
-        case .map: "Visual map"
-        case .realitykit: "Spatial 3D view"
+        case .map: "Canvas / node map"
+        case .realitykit: "3D space view"
         case .spatial: "Spatial collection view"
         case .workspace: "Workspace collection view"
         }

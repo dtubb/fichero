@@ -458,7 +458,7 @@ struct ContentView: View {
 
 extension ContentView {
     @ViewBuilder
-    private func toolbarToggleIcon(_ systemName: String, isActive: Bool) -> some View {
+    func toolbarToggleIcon(_ systemName: String, isActive: Bool) -> some View {
         Image(systemName: systemName)
             .symbolVariant(isActive ? .fill : .none)
             .padding(.horizontal, 5)
@@ -483,37 +483,10 @@ extension ContentView {
     // enough to risk a type-check timeout.
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
-        // SIDEBAR zone — navigator selector (list|chat). .primaryAction on the
-        // NavigationSplitView toolbar lands at the sidebar-section LEFTMOST,
-        // right after the system sidebar toggle. Gated on showSidebar so buttons
-        // disappear when the sidebar is collapsed (#2309).
-        if showSidebar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    sidebarShowsChat = false
-                } label: {
-                    Label {
-                        Text("Navigator")
-                    } icon: {
-                        toolbarToggleIcon("list.bullet", isActive: !sidebarShowsChat)
-                    }
-                }
-                .help(sidebarShowsChat ? "Show Navigator" : "Navigator")
-
-                Button {
-                    sidebarShowsChat = true
-                } label: {
-                    Label {
-                        Text("Research Assistant")
-                    } icon: {
-                        toolbarToggleIcon("bubbles.and.sparkles", isActive: sidebarShowsChat)
-                    }
-                }
-                .help(sidebarShowsChat ? "Research Assistant" : "Show Research Assistant")
-            }
-        }
-
         // LEADING zone — back/forward history (content-column toolbar).
+        // Navigator / Research Assistant buttons moved to sidebarContent.toolbar
+        // so macOS places them in the LEFT sidebar section of the unified toolbar
+        // and hides them automatically when the sidebar collapses (#2309).
         leadingToolbarContent
     }
 
@@ -542,22 +515,27 @@ extension ContentView {
     }
 
 
-    /// TRAILING zone: inspector toggle. Finder/Notes/Xcode convention (#1229 part 1).
-    ///
-    /// The presentation pane toggles (Library Browser / Document Canvas / Reading
-    /// Pane) and the layout / view-mode pickers that previously lived in the
-    /// toolbar have moved OUT of the action toolbar — they are "how it's shown",
-    /// not verbs. Their controls already exist in the View menu
-    /// (ViewMenuCommands.PaneVisibilitySection — ⌘⇧G for the browser; and
-    /// LibraryLayoutSection / PreviewModeSection for the pickers), so removing
-    /// the toolbar duplicates loses nothing (#2032 / #1215).
+    /// TRAILING zone: activity status + inspector toggle (#2309).
     @ToolbarContentBuilder
     private var trailingToolbarContent: some ToolbarContent {
-        // Uses `sidebar.right` to match the View-menu InspectorButton; the
-        // old `info.circle` collided with the inspector's own Info-tab icon.
-        // The ⌘⌥I shortcut is owned by the View-menu command
-        // (ViewMenuCommands.InspectorButton) — not re-bound here to avoid a
-        // duplicate key binding.
+        // Activity / error status — sits between the title and inspector button.
+        ToolbarItem(placement: .automatic) {
+            HStack(spacing: 6) {
+                if isImporting {
+                    ProgressView()
+                        .controlSize(.small)
+                        .help(importProgress ?? "Importing…")
+                }
+                if importError != nil {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(.red)
+                        .help(importError ?? "Import error")
+                        .onTapGesture { importError = nil }
+                }
+            }
+        }
+
+        // Inspector toggle — Finder/Notes/Xcode convention (#1229 part 1).
         if showInspectorToggle {
             ToolbarItem(placement: .automatic) {
                 Button {
@@ -576,17 +554,39 @@ extension ContentView {
         }
     }
 
-    /// PRINCIPAL zone: centred context label, Xcode-style.
-    /// Attached to the detail column so macOS positions it at the visual centre
-    /// of the content section. Shows the mode icon + title from toolbarIcon/toolbarTitle.
+    /// PRINCIPAL zone: breadcrumb context label (#2309).
+    /// Shows "LibraryName > FolderName" when inside a library subfolder,
+    /// plain icon + title otherwise.
     @ToolbarContentBuilder
     private var principalToolbarContent: some ToolbarContent {
         ToolbarItem(placement: .principal) {
-            HStack(spacing: 5) {
+            let libraryName: String? = {
+                guard case .library(let doc) = viewMode, doc != nil else { return nil }
+                return LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName
+            }()
+
+            HStack(spacing: 0) {
+                if let libraryName {
+                    Image(systemName: "books.vertical")
+                        .imageScale(.small)
+                        .foregroundStyle(.secondary)
+                    Text(libraryName)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 4)
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 4)
+                }
+
                 Image(systemName: toolbarIcon)
                     .imageScale(.small)
                 Text(toolbarTitle)
                     .font(.headline)
+                    .lineLimit(1)
+                    .padding(.leading, 4)
             }
             .foregroundStyle(.primary)
         }

@@ -269,7 +269,7 @@ struct LibraryLayoutSection: View {
                 if availableLayouts.contains(.table) {
                     LibraryLayoutButton(
                         layout: .table,
-                        label: "as Column",
+                        label: "as Columns",
                         icon: "tablecells",
                         shortcut: "3",
                         current: viewSettings.libraryLayout
@@ -281,7 +281,7 @@ struct LibraryLayoutSection: View {
                 if availableLayouts.contains(.map) {
                     LibraryLayoutButton(
                         layout: .map,
-                        label: "as Map",
+                        label: "as Canvas",
                         icon: "rectangle.3.group",
                         shortcut: "4",
                         current: viewSettings.libraryLayout
@@ -290,31 +290,26 @@ struct LibraryLayoutSection: View {
                     }
                 }
 
-                if availableSpatialModes.contains(.spatial) || availableSpatialModes.contains(.realitykit) {
+                // Space (⌘5) — 3D RealityKit node view, peer to Canvas.
+                if availableSpatialModes.contains(.realitykit) {
+                    SpatialViewButton(
+                        mode: .realitykit,
+                        label: "as Space",
+                        icon: "cube.transparent",
+                        shortcut: "5",
+                        binding: displayMode
+                    )
+                }
+
+                if availableSpatialModes.contains(.spatial) {
                     Divider()
-
-                    if availableSpatialModes.contains(.spatial) {
-                        SpatialViewButton(
-                            mode: .spatial,
-                            label: "as Spatial (2D)",
-                            icon: "square.3.layers.3d",
-                            // ⌘8 — ⌘1-4 are LibraryLayout, ⌘5-7 are Preview; ⌘8 is free.
-                            shortcut: "8",
-                            binding: displayMode
-                        )
-                    }
-
-                    if availableSpatialModes.contains(.realitykit) {
-                        SpatialViewButton(
-                            mode: .realitykit,
-                            label: "as 3D (RealityKit)",
-                            icon: "cube.transparent",
-                            // No shortcut: ⌘9 is "Zoom to Fit" in the image-preview
-                            // menu, so the 3D entry is menu-only to avoid collision.
-                            shortcut: nil,
-                            binding: displayMode
-                        )
-                    }
+                    SpatialViewButton(
+                        mode: .spatial,
+                        label: "as Spatial (2D)",
+                        icon: "square.3.layers.3d",
+                        shortcut: "8",
+                        binding: displayMode
+                    )
                 }
             }
         }

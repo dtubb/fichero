@@ -108,6 +108,36 @@ extension ContentView {
         // sidebar leaves the hierarchy when collapsed, which disabled ⌘⌥I
         // and the View-menu toggle while the sidebar was hidden (#1513).
         .focusedSceneValue(\.navigateToParentAction, FocusedLibraryAction(isEnabled: true, run: navigateToParent))
+        // SIDEBAR SECTION toolbar — Navigator / Research Assistant selector.
+        // Attaching to the sidebar column (rather than the NavigationSplitView)
+        // places these buttons in the LEFT section of the unified toolbar, right
+        // after the system sidebar-toggle. They are automatically hidden by
+        // NavigationSplitView when the column collapses (#2309).
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    sidebarShowsChat = false
+                } label: {
+                    Label {
+                        Text("Navigator")
+                    } icon: {
+                        toolbarToggleIcon("list.bullet", isActive: !sidebarShowsChat)
+                    }
+                }
+                .help(sidebarShowsChat ? "Show Navigator" : "Navigator")
+
+                Button {
+                    sidebarShowsChat = true
+                } label: {
+                    Label {
+                        Text("Research Assistant")
+                    } icon: {
+                        toolbarToggleIcon("bubbles.and.sparkles", isActive: sidebarShowsChat)
+                    }
+                }
+                .help(sidebarShowsChat ? "Research Assistant" : "Show Research Assistant")
+            }
+        }
     }
 
     // MARK: - Sidebar Chat Column (#2034)
