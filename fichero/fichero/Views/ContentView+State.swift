@@ -525,15 +525,19 @@ extension ContentView {
         }
         kgFocusState.clear()
         // Restore per-folder view mode when switching folders.
-        // Priority: per-folder save > global default > current
-        // SceneStorage value. The global default protects against
-        // the "revert to Icon when no per-folder save exists"
-        // complaint in #943.
+        // Priority: per-folder save > per-scene @SceneStorage value > global default.
+        // The @SceneStorage value holds the user's last choice for this window/tab
+        // and should win for new or unsaved folders so spatial is not forced (#2311).
         if let saved = displayMode(for: newFolderId) {
             viewDisplayMode = normalizedViewDisplayMode(saved)
         } else {
+            let normalizedSceneValue = normalizedViewDisplayMode(viewDisplayMode)
             let normalizedDefault = normalizedViewDisplayMode(defaultLibraryViewDisplayMode)
-            if viewDisplayMode != normalizedDefault {
+            // If the scene value is unset or unavailable for this context, fall
+            // back to the global default rather than forcing a spatial/canvas mode.
+            if normalizedSceneValue != normalizedDefault {
+                viewDisplayMode = normalizedSceneValue
+            } else if viewDisplayMode != normalizedDefault {
                 viewDisplayMode = normalizedDefault
             }
         }
