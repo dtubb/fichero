@@ -80,6 +80,7 @@ struct ContentView: View {
 
     // Workflow state
     @State var editingWorkflow: Workflow = Workflow(name: "New Workflow", description: "")
+    @State private var workflowReloadTask: Task<Void, Never>?
 
     // Chat state (shared between ChatView and ChatInspectorView)
     @State var chatSelectedDocuments: Set<String> = []
@@ -408,7 +409,12 @@ struct ContentView: View {
                 handleViewDisplayModeChange(newMode)
             }
             .onChange(of: workflowStore.changeToken) { _, _ in
-                Task { await workflowStore.loadWorkflows() }
+                workflowReloadTask?.cancel()
+                workflowReloadTask = Task {
+                    try? await Task.sleep(for: .milliseconds(300))
+                    guard !Task.isCancelled else { return }
+                    await workflowStore.loadWorkflows()
+                }
             }
             .modifier(
                 MainContentModifiers(
