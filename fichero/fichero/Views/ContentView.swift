@@ -462,6 +462,7 @@ extension ContentView {
     private func toolbarToggleIcon(_ systemName: String, isActive: Bool) -> some View {
         Image(systemName: systemName)
             .symbolVariant(isActive ? .fill : .none)
+            .foregroundStyle(isActive ? Color.accentColor : Color.primary)
     }
 
     // MARK: Zoned toolbar (Mail-style)
@@ -478,32 +479,35 @@ extension ContentView {
     // enough to risk a type-check timeout.
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
-        // Navigator selector: .automatic on the NavigationSplitView toolbar appears in
-        // the sidebar section, left side — empirically confirmed. This puts [list][chat]
-        // to the LEFT of the sidebar, with the collapse button (sidebarColumnToolbarContent
-        // .primaryAction) on the RIGHT (#2309). .principal is not used — it always maps
-        // to the window title area above the sidebar; window title is handled by
-        // .navigationTitle(toolbarTitle) on the NavigationSplitView.
-        ToolbarItemGroup(placement: .automatic) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    showSidebar = true
-                    sidebarShowsChat = false
+        // Navigator selector: only shown when the sidebar is open. .primaryAction on the
+        // NavigationSplitView toolbar goes LEFTMOST in the sidebar section — empirically
+        // confirmed in the 10:37 session screenshot (#2309). Hiding these when the sidebar
+        // is collapsed prevents them from drifting into the content section near the
+        // inspector toggle. The collapse button (sidebarColumnToolbarContent .primaryAction
+        // on the sidebar column's .toolbar) goes RIGHTMOST — giving the layout:
+        //   sidebar section: [list][chat]  ·····  [⊏ collapse]
+        // .principal is intentionally unused — on macOS with .unified(showsTitle: false)
+        // it maps to the window titlebar area above the sidebar, not the content section.
+        if showSidebar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        sidebarShowsChat = false
+                    }
+                } label: {
+                    toolbarToggleIcon("list.bullet", isActive: !sidebarShowsChat)
                 }
-            } label: {
-                toolbarToggleIcon("list.bullet", isActive: showSidebar && !sidebarShowsChat)
-            }
-            .help("Show List")
+                .help("Show List")
 
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    showSidebar = true
-                    sidebarShowsChat = true
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        sidebarShowsChat = true
+                    }
+                } label: {
+                    toolbarToggleIcon("wand.and.stars", isActive: sidebarShowsChat)
                 }
-            } label: {
-                toolbarToggleIcon("wand.and.stars", isActive: showSidebar && sidebarShowsChat)
+                .help("Show Chat")
             }
-            .help("Show Chat")
         }
 
         // LEADING zone — back/forward history (content-column toolbar).
