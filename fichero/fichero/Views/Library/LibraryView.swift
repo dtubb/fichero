@@ -1,5 +1,6 @@
 import Combine
 import FicheroAPIClient
+import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -42,6 +43,8 @@ struct LibraryView: View {
     var onToolbarSearchSubmit: (String) -> Void = { _ in }
 
     @State var searchText: String = ""
+    /// Bottom-bar file import presenter (#2313).
+    @State var showingFileImporter = false
     /// Text for the toolbar's `.searchable` field. Distinct from
     /// `searchText` (which drives the inline ⌘F filter bar inside the
     /// view) — `toolbarQuery` lives on the window toolbar so users can
@@ -274,9 +277,7 @@ struct LibraryView: View {
             // Revealed on demand by ⌘F / the toolbar filter toggle, matching
             // Xcode's navigator filter field.
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if featureManager.isLibraryFilterToolbarEnabled && showFilterBar {
-                    filterBarView
-                }
+                bottomInsetContent
             }
             .background(
                 Group {
@@ -445,6 +446,167 @@ struct LibraryView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    /// Filter bar + bottom action bar stacked at the bottom of every library view mode.
+    private var bottomInsetContent: some View {
+        VStack(spacing: 0) {
+            if featureManager.isLibraryFilterToolbarEnabled && showFilterBar {
+                filterBarView
+            }
+            libraryBottomActionBar
+        }
+    }
+}
+
+// MARK: - Bottom Action Bar (#2313)
+extension LibraryView {
+    private var bottomBarLogger: Logger {
+        Logger(subsystem: "app.fichero.fichero", category: "LibraryView.BottomBar")
+    }
+
+    /// Finder/Xcode-style bottom toolbar acting on the current library selection.
+    private var libraryBottomActionBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+
+            HStack(spacing: 12) {
+                Button {
+                    handleCreateNewFolder()
+                } label: {
+                    Image(systemName: "plus")
+                        .accessibilityLabel("New Folder")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Create a new folder")
+
+                Button {
+                    promptDeleteSelected()
+                } label: {
+                    Image(systemName: "minus")
+                        .accessibilityLabel("Delete")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Delete selection")
+                .disabled(isShowingEntitiesCollection || selection.isEmpty)
+
+                Spacer()
+
+                Button {
+                    Task { await exportSelectedBibtex() }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .accessibilityLabel("Export BibTeX")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Export selection as BibTeX")
+                .disabled(isShowingEntitiesCollection || selection.isEmpty)
+
+                Button {
+                    showingFileImporter = true
+                } label: {
+                    Image(systemName: "square.and.arrow.down")
+                        .accessibilityLabel("Import")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Import files")
+
+                Button {
+                    selectedDocumentIdsForBatch = Array(selection)
+                    showWorkflowPicker = true
+                } label: {
+                    Image(systemName: "bolt")
+                        .accessibilityLabel("Run Workflow")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Run workflow on selection")
+                .disabled(isShowingEntitiesCollection || selection.isEmpty || !featureManager.isWorkflowRunOnSelectionEnabled)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(.bar)
+        }
+    }
+
+    private func exportSelectedBibtex() async {
+        guard !selection.isEmpty else { return }
+        let documentIds = Array(selection)
+        guard let library = libraryManager.getLibrary(id: windowState.libraryId) else { return }
+
+        do {
+            let request = Components.Schemas.FicheroApiRoutesBibliographyExportRequest(documentIds: documentIds)
+            let response = try await library.ficheroClient.api.exportBibtexApiBibliographyExportBibPost(
+                .init(body: .json(request))
+            )
+            guard case .ok(let success) = response else {
+                throw ExportError.unexpectedResponse
+            }
+            let body = try success.body.plainText
+            let data = try await Data(collecting: body, upTo: 10 * 1024 * 1024)
+            let saveURL = await presentBibtexSavePanel()
+            guard let saveURL else { return }
+            try data.write(to: saveURL, options: .atomic)
+        } catch {
+            bottomBarLogger.error("Failed to export selected BibTeX: \(error.localizedDescription)")
+        }
+    }
+
+    private enum ExportError: Error {
+        case unexpectedResponse
+    }
+
+    private func presentBibtexSavePanel() async -> URL? {
+        await withCheckedContinuation { continuation in
+            let savePanel = NSSavePanel()
+            savePanel.nameFieldStringValue = "selection.bib"
+            if let bibType = UTType(filenameExtension: "bib") {
+                savePanel.allowedContentTypes = [bibType]
+            }
+            savePanel.allowsOtherFileTypes = false
+            savePanel.canCreateDirectories = true
+            savePanel.begin { result in
+                continuation.resume(returning: result == .OK ? savePanel.url : nil)
+            }
+        }
+    }
+
+    private func handleCreateNewFolder() {
+        guard libraryManager.globalLibrary != nil else { return }
+        // Creation lives on the library's document store; no sidebarState here.
+        Task {
+            guard let library = libraryManager.getLibrary(id: windowState.libraryId)
+                ?? libraryManager.globalLibrary else { return }
+            do {
+                _ = try await library.documentStore.createCollection(name: "New Folder")
+                await library.documentStore.refresh()
+            } catch {
+                bottomBarLogger.error("Failed to create folder from bottom bar: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func handleBottomBarImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            Task { @MainActor in
+                guard let library = libraryManager.getLibrary(id: windowState.libraryId)
+                    ?? libraryManager.globalLibrary else { return }
+                do {
+                    _ = try await library.importService.importFiles(urls, mode: .link)
+                    await library.documentStore.refresh()
+                } catch {
+                    bottomBarLogger.error("Bottom-bar import failed: \(error.localizedDescription)")
+                }
+            }
+        case .failure(let error):
+            bottomBarLogger.debug("Bottom-bar import cancelled or failed: \(error.localizedDescription)")
+        }
+    }
+
 }
 
 // MARK: - Spatial projection
