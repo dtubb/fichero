@@ -170,9 +170,18 @@ struct AttributedTextEditor: NSViewRepresentable {
         layoutManager.ensureLayout(for: textContainer)
         let used = layoutManager.usedRect(for: textContainer)
         // marginV is the textContainerInset top+bottom; double it.
-        let height = ceil(used.height) + CGFloat(marginV) * 2
-        // Sensible minimum so an empty editor still shows a line of room.
-        return CGSize(width: proposedWidth, height: max(height, 24))
+        let contentHeight = ceil(used.height) + CGFloat(marginV) * 2
+        // When a finite height is proposed (bounded container, e.g. the
+        // page-content-only inspector pane with no outer ScrollView), honour
+        // the proposal so SwiftUI's layout stays correct and the NSScrollView
+        // handles long content internally. Returning the full content height
+        // here caused the SwiftUI layout to overflow, blocking the inspector
+        // tab bar (#2309). In an unbounded context (nil proposal, e.g. inside
+        // a ScrollView), report actual content height for per-panel sizing (#960).
+        if let ph = proposal.height, ph.isFinite, ph > 0 {
+            return CGSize(width: proposedWidth, height: max(ph, 24))
+        }
+        return CGSize(width: proposedWidth, height: max(contentHeight, 24))
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
