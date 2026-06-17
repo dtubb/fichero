@@ -84,6 +84,12 @@ extension ContentView {
     @ViewBuilder
     var contentWithOptionalModeRail: some View {
         contentView
+            // Publish viewDisplayMode + available modes so the View menu's
+            // SpatialViewSection can read/write them via @FocusedValue.
+            // (#2032 regression: the old icon rail was the only entry point
+            // for .realitykit/.spatial; this restores menu-driven access.)
+            .focusedSceneValue(\.libraryDisplayMode, $viewDisplayMode)
+            .focusedSceneValue(\.availableLibraryDisplayModes, availableViewDisplayModes)
     }
 
     @ViewBuilder

@@ -120,6 +120,20 @@ struct NavigateToParentActionKey: FocusedValueKey {
     typealias Value = () -> Void
 }
 
+/// FocusedValue key for the focused window's library view-display mode binding.
+/// Carries a `Binding<ViewDisplayMode>` so the View menu can both read (checkmark)
+/// and write (switch mode) without coupling directly to ContentView. (#2032 regression)
+struct LibraryDisplayModeKey: FocusedValueKey {
+    typealias Value = Binding<ViewDisplayMode>
+}
+
+/// FocusedValue key for the display modes currently available in the focused
+/// window (driven by sidebar mode + feature flags). The Spatial section in the
+/// View menu hides itself when neither .spatial nor .realitykit is in this list.
+struct AvailableLibraryDisplayModesKey: FocusedValueKey {
+    typealias Value = [ViewDisplayMode]
+}
+
 extension FocusedValues {
     var imageZoomActions: ImageZoomActionsKey.Value? {
         get { self[ImageZoomActionsKey.self] }
@@ -174,6 +188,16 @@ extension FocusedValues {
     var navigateToParentAction: NavigateToParentActionKey.Value? {
         get { self[NavigateToParentActionKey.self] }
         set { self[NavigateToParentActionKey.self] = newValue }
+    }
+
+    var libraryDisplayMode: LibraryDisplayModeKey.Value? {
+        get { self[LibraryDisplayModeKey.self] }
+        set { self[LibraryDisplayModeKey.self] = newValue }
+    }
+
+    var availableLibraryDisplayModes: AvailableLibraryDisplayModesKey.Value? {
+        get { self[AvailableLibraryDisplayModesKey.self] }
+        set { self[AvailableLibraryDisplayModesKey.self] = newValue }
     }
 }
 
