@@ -372,6 +372,17 @@ struct LibraryView: View {
                 // currentDocuments in place and only swaps rows whose
                 // status flipped, so untouched rows keep referential
                 // identity and don't redraw.
+                //
+                // Perf (#2307): the guard below is a fast-path no-op when
+                // idle — hasProcessingDocuments short-circuits before any
+                // async work is queued, so the only cost while nothing is
+                // processing is a single Bool scan of `documents` per tick.
+                // A true lazy-suspend (connect/disconnect via onChange(of:
+                // documents)) would need @State bool machinery and risks
+                // altering poll cadence on reconnect — not worth the
+                // complexity until Instruments shows it matters. Upgrade
+                // path: onChange(of: hasProcessingDocuments) to toggle a
+                // @State isPollingActive, then gate the timer subscription.
                 guard hasProcessingDocuments, let parentId = folderId else { return }
                 Task { await documentStore.refreshPendingStatusesOnly(in: parentId) }
             }
