@@ -117,13 +117,27 @@ private extension FilesNodeConfig {
             } else {
                 List {
                     ForEach(rootFolders, id: \.id) { folder in
-                        folderSection(folder, depth: 0, ancestry: [])
+                        FolderSectionView(
+                            folder: folder,
+                            depth: 0,
+                            ancestry: [],
+                            filesByParentMap: filesByParentMap,
+                            folderChildrenMap: folderChildrenMap,
+                            expandedFolderIds: $expandedFolderIds,
+                            stagedPickerSelection: stagedPickerSelection,
+                            onToggle: togglePickerSelection
+                        )
                     }
 
                     if let rootFiles = filesByParentMap[nil], !rootFiles.isEmpty {
                         Section("Root") {
                             ForEach(rootFiles, id: \.id) { doc in
-                                filePickerRow(doc: doc, depth: 1)
+                                FilePickerRowView(
+                                    doc: doc,
+                                    depth: 1,
+                                    isSelected: stagedPickerSelection.contains(doc.id),
+                                    onToggle: togglePickerSelection
+                                )
                             }
                         }
                     }
@@ -181,19 +195,105 @@ private extension FilesNodeConfig {
         .cornerRadius(4)
     }
 
-    @ViewBuilder
-    func filePickerRow(doc: Document, depth: Int) -> some View {
+}
+
+// MARK: - FolderSectionView
+
+/// Recursive folder-tree row for the file picker.
+/// Extracted as a dedicated View struct so SwiftUI can structurally diff each
+/// level without AnyView type-erasure defeating the diffing engine.
+private struct FolderSectionView: View {
+    let folder: Document
+    let depth: Int
+    let ancestry: Set<String>
+    let filesByParentMap: [String?: [Document]]
+    let folderChildrenMap: [String: [Document]]
+    @Binding var expandedFolderIds: Set<String>
+    let stagedPickerSelection: Set<String>
+    let onToggle: (String) -> Void
+
+    var body: some View {
+        if ancestry.contains(folder.id) {
+            EmptyView()
+        } else {
+            let nextAncestry = ancestry.union([folder.id])
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { expandedFolderIds.contains(folder.id) },
+                    set: { isExpanded in
+                        if isExpanded {
+                            expandedFolderIds.insert(folder.id)
+                        } else {
+                            expandedFolderIds.remove(folder.id)
+                        }
+                    }
+                )
+            ) {
+                if let directFiles = filesByParentMap[folder.id], !directFiles.isEmpty {
+                    ForEach(directFiles, id: \.id) { doc in
+                        FilePickerRowView(
+                            doc: doc,
+                            depth: depth + 1,
+                            isSelected: stagedPickerSelection.contains(doc.id),
+                            onToggle: onToggle
+                        )
+                    }
+                }
+
+                if let children = folderChildrenMap[folder.id] {
+                    ForEach(children, id: \.id) { child in
+                        FolderSectionView(
+                            folder: child,
+                            depth: depth + 1,
+                            ancestry: nextAncestry,
+                            filesByParentMap: filesByParentMap,
+                            folderChildrenMap: folderChildrenMap,
+                            expandedFolderIds: $expandedFolderIds,
+                            stagedPickerSelection: stagedPickerSelection,
+                            onToggle: onToggle
+                        )
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: folder.name == "Inbox" ? "tray.fill" : "folder")
+                        .foregroundStyle(.secondary)
+                    Text(folder.name)
+                        .lineLimit(1)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                }
+                .padding(.vertical, 4)
+                .padding(.leading, 4)
+                .padding(.trailing, 6)
+            }
+            .disclosureGroupStyle(.automatic)
+        }
+    }
+}
+
+// MARK: - FilePickerRowView
+
+/// Single selectable file row for the file picker.
+/// Extracted to give FolderSectionView a concrete (non-AnyView) child type.
+private struct FilePickerRowView: View {
+    let doc: Document
+    let depth: Int
+    let isSelected: Bool
+    let onToggle: (String) -> Void
+
+    var body: some View {
         Button {
-            togglePickerSelection(doc.id)
+            onToggle(doc.id)
         } label: {
             HStack(spacing: 6) {
                 Image(
-                    systemName: stagedPickerSelection.contains(doc.id)
+                    systemName: isSelected
                         ? "checkmark.circle.fill"
                         : "circle"
                 )
                 .foregroundStyle(
-                    stagedPickerSelection.contains(doc.id)
+                    isSelected
                         ? Color.accentColor
                         : Color.secondary
                 )
@@ -212,56 +312,9 @@ private extension FilesNodeConfig {
         .buttonStyle(.plain)
         .background(
             RoundedRectangle(cornerRadius: 4)
-                .fill(stagedPickerSelection.contains(doc.id)
+                .fill(isSelected
                         ? Color.accentColor.opacity(0.12)
                         : Color.clear)
-        )
-    }
-
-    func folderSection(_ folder: Document, depth: Int, ancestry: Set<String>) -> AnyView {
-        guard !ancestry.contains(folder.id) else {
-            return AnyView(EmptyView())
-        }
-
-        let nextAncestry = ancestry.union([folder.id])
-        return AnyView(
-            DisclosureGroup(
-                isExpanded: Binding(
-                    get: { expandedFolderIds.contains(folder.id) },
-                    set: { isExpanded in
-                        if isExpanded {
-                            expandedFolderIds.insert(folder.id)
-                        } else {
-                            expandedFolderIds.remove(folder.id)
-                        }
-                    }
-                )
-            ) {
-                if let directFiles = filesByParentMap[folder.id], !directFiles.isEmpty {
-                    ForEach(directFiles, id: \.id) { doc in
-                        filePickerRow(doc: doc, depth: depth + 1)
-                    }
-                }
-
-                if let children = folderChildrenMap[folder.id] {
-                    ForEach(children, id: \.id) { child in
-                        folderSection(child, depth: depth + 1, ancestry: nextAncestry)
-                    }
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: folder.name == "Inbox" ? "tray.fill" : "folder")
-                        .foregroundStyle(.secondary)
-                    Text(folder.name)
-                        .lineLimit(1)
-                        .foregroundStyle(.primary)
-                    Spacer()
-                }
-                .padding(.vertical, 4)
-                .padding(.leading, 4)
-                .padding(.trailing, 6)
-            }
-            .disclosureGroupStyle(.automatic)
         )
     }
 }
