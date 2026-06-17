@@ -496,27 +496,29 @@ extension ContentView {
     @ToolbarContentBuilder
     private var leadingToolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showSidebar.toggle()
-                }
-            } label: {
-                toolbarToggleIcon("sidebar.left", isActive: showSidebar)
-            }
-            .help(showSidebar ? "Hide Sidebar" : "Show Sidebar")
-
-            // #2034 Xcode-style chat: swap the LEFT column between the sidebar
-            // and a full-height chat (reversible). Lives beside the sidebar
-            // toggle in the leading zone.
+            // #2034 / #2309 — Xcode navigator-style list|chat SELECTOR. These two
+            // buttons SWITCH which navigator the left column shows (they do not
+            // hide it). The Mail-style hide/show-sidebar control lives at the
+            // sidebar↔content boundary (content zone), not here.
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {
-                    sidebarShowsChat.toggle()
-                    if sidebarShowsChat { showSidebar = true }
+                    showSidebar = true
+                    sidebarShowsChat = false
                 }
             } label: {
-                toolbarToggleIcon("bubble.left.and.bubble.right", isActive: sidebarShowsChat)
+                toolbarToggleIcon("sidebar.left", isActive: showSidebar && !sidebarShowsChat)
             }
-            .help(sidebarShowsChat ? "Show Sidebar" : "Show Chat")
+            .help("Show Sidebar")
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    showSidebar = true
+                    sidebarShowsChat = true
+                }
+            } label: {
+                toolbarToggleIcon("bubble.left.and.bubble.right", isActive: showSidebar && sidebarShowsChat)
+            }
+            .help("Show Chat")
 
             Button {
                 navigateBack()
@@ -543,6 +545,22 @@ extension ContentView {
     /// used to sit here have moved to the View menu (#2032).
     @ToolbarContentBuilder
     private var contentToolbarContent: some ToolbarContent {
+        // Mail-style hide/show SIDEBAR at the sidebar↔content boundary (#2309).
+        // Placed at the START of the content zone so macOS renders it just to
+        // the right of the sidebar column (the Mail pattern). The leading-zone
+        // buttons are the list|chat navigator SELECTOR; THIS one collapses the
+        // whole left column.
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showSidebar.toggle()
+                }
+            } label: {
+                toolbarToggleIcon("sidebar.left", isActive: showSidebar)
+            }
+            .help(showSidebar ? "Hide Sidebar" : "Show Sidebar")
+        }
+
         if showNavigationToolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 // Add menu (Plus button) — New / Import.
