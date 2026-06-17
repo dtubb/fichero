@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from fichero.api.main import get_library_database, get_library_database_for_write
@@ -159,6 +160,7 @@ class ExportRequest(BaseModel):
 
 @router.post(
     "/export.bib",
+    response_class=PlainTextResponse,
     summary="Bulk export multiple documents as BibTeX",
     description=(
         "Returns a multi-entry .bib file built from each document's "
@@ -169,8 +171,6 @@ async def export_bibtex(
     request: ExportRequest,
     db: Database = Depends(get_library_database),
 ):
-    from fastapi.responses import PlainTextResponse
-
     from fichero.bibliography.importers import write_bibtex
 
     entries: list[dict[str, Any]] = []
