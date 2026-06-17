@@ -323,6 +323,15 @@ struct ContentView: View {
                 .toolbar { sidebarColumnToolbarContent }
         } detail: {
             centerContent
+                .toolbar {
+                    // Title in the content section: .principal on the detail column view
+                    // lands in the content-column toolbar section on macOS NavigationSplitView (#2309).
+                    ToolbarItem(placement: .principal) {
+                        Label(toolbarTitle, systemImage: toolbarIcon)
+                            .labelStyle(.titleAndIcon)
+                            .font(.headline)
+                    }
+                }
                 // The detail column carries only a MODEST hard floor — the
                 // always-present library-list spine width — NOT the full
                 // per-layout `paneAwareDetailMinWidth`. The full content
@@ -470,13 +479,10 @@ extension ContentView {
     // enough to risk a type-check timeout.
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
-        // Mode icon + title in toolbar center — updates on every sidebar/view-mode change (#323).
-        // @ToolbarContentBuilder has no view-chain budget limit, so Label compiles cleanly here.
-        ToolbarItem(placement: .principal) {
-            Label(toolbarTitle, systemImage: toolbarIcon)
-                .labelStyle(.titleAndIcon)
-                .font(.headline)
-        }
+        // NOTE: .principal is on the DETAIL column's .toolbar (contentColumnToolbarContent),
+        // not here. On macOS NavigationSplitView, .principal on the split-view toolbar lands
+        // in the sidebar section; attaching it to the detail column puts it in the content
+        // section where the title belongs (#2309).
 
         // LEADING zone — back/forward history (content-column toolbar).
         leadingToolbarContent
@@ -517,12 +523,13 @@ extension ContentView {
         }
     }
 
-    /// SIDEBAR COLUMN toolbar: list|chat navigator selector (left-aligned) and
-    /// collapse button (right-aligned). Lives on the sidebar column view so these
-    /// items appear in the sidebar section of the unified toolbar (#2309).
+    /// SIDEBAR COLUMN toolbar: list|chat navigator selector + collapse, all right-aligned
+    /// (.primaryAction) in the sidebar section. .navigation goes to the content-column
+    /// section on macOS NavigationSplitView regardless of which view it's attached to,
+    /// so .primaryAction is the only placement that lands in the sidebar section (#2309).
     @ToolbarContentBuilder
     var sidebarColumnToolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .navigation) {
+        ToolbarItemGroup(placement: .primaryAction) {
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {
                     showSidebar = true
@@ -563,7 +570,9 @@ extension ContentView {
         // can restore it without the View menu. When shown, the sidebar column
         // toolbar owns the collapse control (#2309).
         if !showSidebar {
-            ToolbarItem(placement: .primaryAction) {
+            // .navigation puts this in the content section (right side), which remains
+            // visible when the sidebar is hidden and the sidebar-column toolbar is gone.
+            ToolbarItem(placement: .navigation) {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         showSidebar = true
