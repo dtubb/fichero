@@ -481,36 +481,11 @@ extension ContentView {
     // enough to risk a type-check timeout.
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
-        // Navigator selector: only shown when the sidebar is open. .primaryAction on the
-        // NavigationSplitView toolbar goes LEFTMOST in the sidebar section — empirically
-        // confirmed in the 10:37 session screenshot (#2309). Hiding these when the sidebar
-        // is collapsed prevents them from drifting into the content section near the
-        // inspector toggle. The collapse button (sidebarColumnToolbarContent .primaryAction
-        // on the sidebar column's .toolbar) goes RIGHTMOST — giving the layout:
-        //   sidebar section: [list][chat]  ·····  [⊏ collapse]
-        // .principal is intentionally unused — on macOS with .unified(showsTitle: false)
-        // it maps to the window titlebar area above the sidebar, not the content section.
-        if showSidebar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        sidebarShowsChat = false
-                    }
-                } label: {
-                    toolbarToggleIcon("list.bullet", isActive: !sidebarShowsChat)
-                }
-                .help("Show List")
-
-                Button {
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        sidebarShowsChat = true
-                    }
-                } label: {
-                    toolbarToggleIcon("wand.and.stars", isActive: sidebarShowsChat)
-                }
-                .help("Show Chat")
-            }
-        }
+        // Navigator selector (list|chat) moved to sidebarColumnToolbarContent so
+        // all sidebar-section controls share a single toolbar attachment point.
+        // Splitting them across the NavigationSplitView toolbar AND the sidebar
+        // column toolbar caused macOS to merge both .primaryAction groups into the
+        // same visual cluster, producing two buttons side-by-side (#2309).
 
         // LEADING zone — back/forward history (content-column toolbar).
         leadingToolbarContent
@@ -551,16 +526,37 @@ extension ContentView {
         }
     }
 
-    /// SIDEBAR COLUMN toolbar: collapse button only, right-aligned (.primaryAction).
-    /// List|chat navigator selector moved to mainToolbarContent as .automatic so it
-    /// appears LEFT of this button in the sidebar section (#2309).
+    /// SIDEBAR COLUMN toolbar: all three sidebar-section controls live here so
+    /// macOS treats them as a single toolbar attachment point and keeps them in
+    /// their declared order rather than merging with NavigationSplitView toolbar
+    /// .primaryAction groups (#2309).
+    ///
+    /// Layout: [list][chat]  ·····  [⊏ collapse]
+    ///   .automatic → leading side of the sidebar section
+    ///   .primaryAction → trailing side of the sidebar section
     @ToolbarContentBuilder
     var sidebarColumnToolbarContent: some ToolbarContent {
+        // Navigator selector — leading side
+        ToolbarItemGroup(placement: .automatic) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = false }
+            } label: {
+                toolbarToggleIcon("list.bullet", isActive: !sidebarShowsChat)
+            }
+            .help("Show List")
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = true }
+            } label: {
+                toolbarToggleIcon("wand.and.stars", isActive: sidebarShowsChat)
+            }
+            .help("Show Chat")
+        }
+
+        // Collapse — trailing side
         ToolbarItem(placement: .primaryAction) {
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showSidebar = false
-                }
+                withAnimation(.easeInOut(duration: 0.2)) { showSidebar = false }
             } label: {
                 toolbarToggleIcon("sidebar.left", isActive: true)
             }
