@@ -410,18 +410,6 @@ struct LibraryView: View {
             guard !trimmed.isEmpty else { return }
             onToolbarSearchSubmit(trimmed)
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                // Entity-type filter — toggles which People/Places/Orgs/
-                // Dates/Events/Keywords lozenges show in list rows.
-                // Hidden in non-list modes (icon/table/map) where no
-                // lozenges are rendered, so the button's purpose is clear
-                // (#1473 — Daniel: "not sure why this is here").
-                if displayMode == .list {
-                    entityFilterMenu
-                }
-            }
-        }
     }
     private var connectionErrorState: some View {
         VStack(spacing: 16) {
@@ -492,6 +480,10 @@ extension LibraryView {
                 .disabled(isShowingEntitiesCollection || selection.isEmpty)
 
                 Spacer()
+
+                if displayMode == .list {
+                    entityFilterMenu
+                }
 
                 Button {
                     Task { await exportSelectedBibtex() }
