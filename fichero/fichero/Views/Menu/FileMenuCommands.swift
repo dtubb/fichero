@@ -112,13 +112,13 @@ struct FileMenuCommands: View {
     var body: some View {
         Group {
             Button("New Library...") {
-                newLibraryAction?()
+                newLibraryAction?.run()
             }
             .keyboardShortcut("n", modifiers: [.command])
             .disabled(newLibraryAction == nil)
 
             Button("Open...") {
-                openLibraryAction?()
+                openLibraryAction?.run()
             }
             .keyboardShortcut("o", modifiers: [.command])
             .disabled(openLibraryAction == nil)
@@ -145,7 +145,7 @@ struct FileMenuCommands: View {
             .disabled(registry.libraries.isEmpty)
 
             Button("Close Database") {
-                closeLibraryAction?()
+                closeLibraryAction?.run()
             }
             .keyboardShortcut("w", modifiers: [.command, .control])
             .disabled(closeLibraryAction == nil)
@@ -153,7 +153,7 @@ struct FileMenuCommands: View {
             Divider()
 
             Button("New Window") {
-                newWindowAction?()
+                newWindowAction?.run()
             }
             .keyboardShortcut("t", modifiers: [.command])
             .disabled(newWindowAction == nil)
@@ -163,7 +163,7 @@ struct FileMenuCommands: View {
             // Gated on supportsMultipleWindows so it disables where multiple
             // windows aren't available.
             Button("Duplicate Window") {
-                duplicateWindowAction?()
+                duplicateWindowAction?.run()
             }
             .keyboardShortcut("t", modifiers: [.command, .shift])
             .disabled(duplicateWindowAction == nil || !supportsMultipleWindows)
@@ -171,7 +171,7 @@ struct FileMenuCommands: View {
             Divider()
 
             Button("Save Database As...") {
-                saveLibraryAction?()
+                saveLibraryAction?.run()
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
             .disabled(saveLibraryAction == nil)

@@ -80,33 +80,33 @@ struct SidebarSelectionInfoKey: FocusedValueKey {
 
 /// FocusedValue key for triggering library file picker
 struct OpenLibraryActionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for opening a new window on current library
 struct NewWindowActionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for creating a new library and opening it in a new window
 struct NewLibraryActionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for duplicating the current window — clones its library,
 /// selection, and active lens into a new window via `openWindow(value:)` (#2262).
 struct DuplicateWindowActionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for saving the current library (Save As for Untitled libraries)
 struct SaveLibraryActionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for closing the current library from the active window.
 struct CloseLibraryActionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for running a workflow on selected documents
@@ -117,7 +117,7 @@ struct RunWorkflowOnSelectionKey: FocusedValueKey {
 /// FocusedValue key for navigating to the current folder's parent. Bound to
 /// Cmd+\` so users can ascend the hierarchy when the sidebar is hidden. (#786)
 struct NavigateToParentActionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for the focused window's library view-display mode binding.
@@ -279,7 +279,7 @@ struct FocusedOpenLibraryButton: View {
 
     var body: some View {
         Button("Open Library...") {
-            openLibraryAction?()
+            openLibraryAction?.run()
         }
         .keyboardShortcut("o", modifiers: [.command])
     }
@@ -291,7 +291,7 @@ struct FocusedOpenDatabaseButton: View {
 
     var body: some View {
         Button("Open Database...") {
-            openLibraryAction?()
+            openLibraryAction?.run()
         }
         .keyboardShortcut("o", modifiers: [.command])
     }
@@ -303,7 +303,7 @@ struct FocusedNewWindowButton: View {
 
     var body: some View {
         Button("New Window") {
-            newWindowAction?()
+            newWindowAction?.run()
         }
         .keyboardShortcut("t", modifiers: [.command])
         .disabled(newWindowAction == nil)
@@ -316,7 +316,7 @@ struct FocusedNewLibraryButton: View {
 
     var body: some View {
         Button("New Library") {
-            newLibraryAction?()
+            newLibraryAction?.run()
         }
         .keyboardShortcut("n", modifiers: [.command])
     }
@@ -328,7 +328,7 @@ struct FocusedNewDatabaseButton: View {
 
     var body: some View {
         Button("New Database") {
-            newLibraryAction?()
+            newLibraryAction?.run()
         }
         .keyboardShortcut("n", modifiers: [.command])
         .disabled(newLibraryAction == nil)
@@ -341,7 +341,7 @@ struct FocusedSaveLibraryButton: View {
 
     var body: some View {
         Button("Save As...") {
-            saveLibraryAction?()
+            saveLibraryAction?.run()
         }
         .keyboardShortcut("s", modifiers: [.command, .shift])
         .disabled(saveLibraryAction == nil)
@@ -354,7 +354,7 @@ struct FocusedSaveDatabaseButton: View {
 
     var body: some View {
         Button("Save Database As...") {
-            saveLibraryAction?()
+            saveLibraryAction?.run()
         }
         .keyboardShortcut("s", modifiers: [.command, .shift])
         .disabled(saveLibraryAction == nil)

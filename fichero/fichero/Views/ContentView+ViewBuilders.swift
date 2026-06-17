@@ -71,7 +71,7 @@ extension ContentView {
         // ContentView.navigationSplitColumn (always present), NOT here — the
         // sidebar leaves the hierarchy when collapsed, which disabled ⌘⌥I
         // and the View-menu toggle while the sidebar was hidden (#1513).
-        .focusedSceneValue(\.navigateToParentAction, navigateToParent)
+        .focusedSceneValue(\.navigateToParentAction, FocusedLibraryAction(isEnabled: true, run: navigateToParent))
     }
 
     // MARK: - Center Content (with Layout Modes)

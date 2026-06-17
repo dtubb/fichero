@@ -136,11 +136,11 @@ struct LibraryWindow: View {
         // Plain `.focusedValue` left ⌘N / "New Library…" disabled until some
         // inner control happened to be focused (#2042). Matches the rest of the
         // app's menu plumbing (sidebarMode, showInspector, librarySelectAll…).
-        .focusedSceneValue(\.openLibraryAction, { showingFileImporter = true })
-        .focusedSceneValue(\.newWindowAction, { handleNewWindow() })
+        .focusedSceneValue(\.openLibraryAction, FocusedLibraryAction(isEnabled: true, run: { showingFileImporter = true }))
+        .focusedSceneValue(\.newWindowAction, FocusedLibraryAction(isEnabled: true, run: { handleNewWindow() }))
         .focusedSceneValue(\.duplicateWindowAction, duplicateWindowAction)
-        .focusedSceneValue(\.newLibraryAction, { handleNewLibrary() })
-        .focusedSceneValue(\.saveLibraryAction, { handleSaveLibrary() })
+        .focusedSceneValue(\.newLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleNewLibrary() }))
+        .focusedSceneValue(\.saveLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleSaveLibrary() }))
         .focusedSceneValue(\.closeLibraryAction, closeLibraryAction)
         // Keep titlebar chrome minimal; ContentView manages in-window context.
         .navigationTitle("")
@@ -365,9 +365,9 @@ struct LibraryWindow: View {
     /// into a brand-new window. Reads the live #2273 scene-storage state and
     /// hands it to the value-seeded `WindowGroup(for: WindowSeed.self)` via
     /// `openWindow(value:)`. `nil` when no library is open (menu item disabled).
-    private var duplicateWindowAction: (() -> Void)? {
+    private var duplicateWindowAction: FocusedLibraryAction? {
         guard windowState.library != nil else { return nil }
-        return { handleDuplicateWindow() }
+        return FocusedLibraryAction(isEnabled: true, run: { handleDuplicateWindow() })
     }
 
     private func handleDuplicateWindow() {
@@ -434,15 +434,15 @@ struct LibraryWindow: View {
         }
     }
 
-    private var closeLibraryAction: (() -> Void)? {
+    private var closeLibraryAction: FocusedLibraryAction? {
         guard let library = windowState.library,
               library.id != LibraryManager.globalLibraryId else {
             return nil
         }
 
-        return {
+        return FocusedLibraryAction(isEnabled: true, run: {
             closeLibraryFromCurrentWindow(library)
-        }
+        })
     }
 
     private func closeLibraryFromCurrentWindow(_ library: LibraryManager.LibraryReference) {

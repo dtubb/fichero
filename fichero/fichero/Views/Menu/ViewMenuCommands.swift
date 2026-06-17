@@ -637,7 +637,7 @@ struct NavigateToParentButton: View {
 
     var body: some View {
         Button {
-            action?()
+            action?.run()
         } label: {
             Label("Go Up", systemImage: "arrow.up.to.line.compact")
         }
