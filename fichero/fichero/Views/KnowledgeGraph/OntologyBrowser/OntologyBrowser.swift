@@ -168,18 +168,19 @@ struct OntologyBrowser: View {
         hiddenKindsCSV = set.sorted().joined(separator: ",")
     }
 
-    var filteredEntities: [Components.Schemas.KnowledgeEntity] {
+    // ponytail: recompute inputs — loadState.entities, hiddenKindsCSV, suppressOcrGarbage
+    @State var filteredEntities: [Components.Schemas.KnowledgeEntity] = []
+    @State var nonDateEntities: [Components.Schemas.KnowledgeEntity] = []
+    @State var dateEntities: [Components.Schemas.KnowledgeEntity] = []
+
+    func recomputeFilteredEntities() {
         var result = Self.filterEntities(entities, hidden: hiddenKinds)
         if suppressOcrGarbage {
             result = result.filter { !Self.isOcrGarbage($0.canonicalName) }
         }
-        return result
-    }
-    var nonDateEntities: [Components.Schemas.KnowledgeEntity] {
-        filteredEntities.filter { !Self.isDateEntity($0) }
-    }
-    var dateEntities: [Components.Schemas.KnowledgeEntity] {
-        filteredEntities.filter(Self.isDateEntity)
+        filteredEntities = result
+        nonDateEntities = result.filter { !Self.isDateEntity($0) }
+        dateEntities = result.filter(Self.isDateEntity)
     }
 
     // MARK: - Load-state accessors
@@ -226,6 +227,10 @@ struct OntologyBrowser: View {
         }
         .frame(minWidth: 300, minHeight: 200)
         .modifier(OntologySheetsModifier(browser: self))
+        .onAppear { recomputeFilteredEntities() }
+        .onChange(of: loadState.entities) { _, _ in recomputeFilteredEntities() }
+        .onChange(of: hiddenKindsCSV) { _, _ in recomputeFilteredEntities() }
+        .onChange(of: suppressOcrGarbage) { _, _ in recomputeFilteredEntities() }
         .onChange(of: kgFocusState.focusedEntityId) { _, entityId in
             guard let entityId, selectedEntityId != entityId else { return }
             selectedEntityId = entityId

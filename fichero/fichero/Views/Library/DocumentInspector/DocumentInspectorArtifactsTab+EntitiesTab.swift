@@ -43,12 +43,16 @@ struct DocumentInspectorEntitiesTab: View {
         )
     }
 
-    private var grouped: [(EntityKind, [Components.Schemas.KnowledgeEntity])] {
-        let grouped = Dictionary(grouping: entityStore.entities) { entity in
+    // ponytail: recompute inputs — entityStore.entities, hiddenKindsCSV
+    @State private var grouped: [(EntityKind, [Components.Schemas.KnowledgeEntity])] = []
+
+    private func recomputeGrouped() {
+        let dict = Dictionary(grouping: entityStore.entities) { entity in
             EntityKind(apiType: entity.entityType) ?? .other
         }
-        return EntityKind.displayOrder.compactMap { kind in
-            guard !hiddenKinds.contains(kind), let items = grouped[kind], !items.isEmpty else {
+        let hidden = hiddenKinds
+        grouped = EntityKind.displayOrder.compactMap { kind in
+            guard !hidden.contains(kind), let items = dict[kind], !items.isEmpty else {
                 return nil
             }
             return (kind, items.sorted { lhs, rhs in
@@ -116,9 +120,12 @@ struct DocumentInspectorEntitiesTab: View {
         .padding(.top)
         // The store owns fetching; the view just scopes it to this document.
         .task(id: documentId) { await entityStore.loadEntities(forDocument: documentId) }
-        .onChange(of: entityStore.entities.map(\.stableInspectorId)) { _, _ in
+        .onAppear { recomputeGrouped() }
+        .onChange(of: entityStore.entities) { _, _ in
+            recomputeGrouped()
             syncSelectionToLoadedEntities()
         }
+        .onChange(of: hiddenKindsCSV) { _, _ in recomputeGrouped() }
         .alert(
             pendingMergePlan.map {
                 "Merge \($0.entityCount) entities into \"\($0.survivorName)\"?"
