@@ -532,18 +532,16 @@ extension ContentView {
         // Navigator selector — leading side
         ToolbarItemGroup(placement: .automatic) {
             Button {
-                withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = false }
+                sidebarShowsChat = false
             } label: {
                 toolbarToggleIcon("list.bullet", isActive: !sidebarShowsChat)
             }
             .help("Show List")
 
             Button {
-                withAnimation(.easeInOut(duration: 0.18)) { sidebarShowsChat = true }
+                sidebarShowsChat = true
             } label: {
-                // Chat icon: opacity-only active state — no fill/background change.
-                Image(systemName: "bubbles.and.sparkles.fill")
-                    .opacity(sidebarShowsChat ? 1.0 : 0.4)
+                toolbarToggleIcon("bubbles.and.sparkles", isActive: sidebarShowsChat)
             }
             .help("Show Chat")
         }

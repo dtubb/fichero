@@ -212,10 +212,8 @@ extension ContentView {
     }
 
     func updateColumnVisibility() {
-        withAnimation {
-            // 2-column layout: sidebar + detail (inspector is a panel inside detail).
-            columnVisibility = showSidebar ? .all : .detailOnly
-        }
+        // No animation — instant sidebar show/hide (#2309).
+        columnVisibility = showSidebar ? .all : .detailOnly
     }
 
     // MARK: - Conversations
