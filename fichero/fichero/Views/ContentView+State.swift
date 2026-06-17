@@ -264,12 +264,14 @@ extension ContentView {
 
     var paneAwareWindowMinWidth: Double {
         let sidebarMinWidth = showSidebar ? ContentView.sidebarMinWidth : 0
-        // The inspector is now a native `.inspector()` column (#2033) which
-        // reserves its OWN width via `.inspectorColumnWidth`, so the window-min
-        // only needs to cover sidebar + content. (The old #2263 reserved-width
-        // term existed because the inspector was a fixed-width HStack sibling
-        // that squeezed the split view; native `.inspector()` no longer does.)
-        return sidebarMinWidth + paneAwareDetailMinWidth
+        // The inspector's OWN .inspectorColumnWidth enforces its column width
+        // internally, but the inspector width must ALSO be included in the
+        // window-level minimum. Without it, a narrow window (e.g. 400 px) gives
+        // the NavigationSplitView only 150 px after the inspector takes 250 px —
+        // less than sidebar + content need — causing the split view to switch to
+        // overlay mode and float the sidebar OVER the library content (#2309).
+        let inspectorMinWidth = showInspectorSidebar ? ContentView.inspectorMinWidth : 0
+        return sidebarMinWidth + paneAwareDetailMinWidth + inspectorMinWidth
     }
 
     /// Extracted from the view's `.onAppear` closure to keep `ContentView.body`
