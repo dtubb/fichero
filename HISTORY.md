@@ -2561,3 +2561,14 @@ Multi-lane orchestration across f_gpt, f_codex53, f_gpt_mini, f_opus, f_planner,
 - Shipped 8 backend fixes to origin/0.0.2: #2215 (per-page transcribe, Apple/LLM whole-PDF path), #1657 (SVO date+page), #2219 (parent marked completed), #2216/#2217/#2218 (thumbnail+display artifacts for parents+page children), #2220 (graceful empty-file-list / stale-ID, reconciled with #1060 fail-fast), #2221 (semaphore-bounded vision fan-out = the OOM crash / 2GB fix). Each full-suite gated (5021–5031 passed).
 - Filed #2222 (Transcribe cloud path saves combined transcript to PARENT, not page children — per-page propagation gap in the Gemini single-call path). Confirmed live by Daniel in-app. Distinct code path from #2215.
 - Built fresh ICANH-Clean.fichero; staged 15 ICANH PDFs by date at agent-work/icanh-clean/source/. Daniel running his own backend on :8765 to test.
+
+## 2026-06-17 — Mac shell: chat-swap, toolbar chrome, perf sweep, spatial-persist
+
+- **Perf root-cause + sweep (#2307):** filed the 12-suspect epic; shipped library-list filter/sort memoization (the big lever on "UI feels slow"), inspector/ontology memoization, focused-value churn fixes ×2 (FocusedLibraryAction/FocusedSortField + window actions), streaming-view sort hoist, AnyView→struct folderSection, debounced workflow reload, poll-timer doc. HELD: #3/#4 AppState/LibraryManager @Observable migration (god-node blast radius).
+- **#2034 chat-over-sidebar:** left column SWAPS sidebar⟷chat (reversible), retiring #2274's stacked SidebarChatSurface.
+- **#2309 toolbar chrome:** Xcode list|chat selector (left), Mail-style sidebar hide, per-mode column width; sidebar title removed; bottom action bar extended (−/export/workflow).
+- **#2308:** Spatial/3D view modes grouped with Icons/List/Table in the View menu.
+- **#2310:** sidebar dividers non-interactive.
+- **#2312:** spatial 2D/3D node positions persist on click-out; 3D no longer resets to a circle.
+- ~30 green commits to origin/0.0.2 (e4966ae3). All gated via Xcode MCP (windowtab2); the gate caught cross-file `private`, type-check timeouts, stale-list risk.
+- **Policy change:** ollama/codex workers ONLY going forward (token economy) — no Claude Agent subagents.

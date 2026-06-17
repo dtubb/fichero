@@ -1,31 +1,40 @@
-# STATE — UI REFORM handoff 2026-06-15
+# STATE — Mac shell reform (interactive w/ Daniel) 2026-06-17
 
-Branch `0.0.2`, tracking `origin/0.0.2`. Keep `0.0.2 == origin` (gate before every push). HEAD `84aaa0df`.
+Branch `0.0.2` == `origin/0.0.2`. Keep green: gate EVERY Swift change via **Xcode MCP BuildProject (tab `windowtab2`)** before push — NEVER CLI xcodebuild. HEAD `e4966ae3`.
 
-## ☀️ START HERE — the UI reform is planned; BEGIN Phase 1
-**Master plan:** `docs/architecture/swiftui/reform_masterplan_2026-06.md` (the whole vision + §0 design
-brief + §8 RESOLVED decisions + principle 9 "SwiftUI shows, logic is backend"). **Tracking EPIC #2253**
-(phased breakdown in its comments). ~36 reform issues, all **phase-labelled** (`gh issue list --label phase:1`…`phase:5`,`phase:continuous`). Worktrees cleaned.
+## ☀️ START HERE
+**Role: MANAGER — do NOT implement.** **WORKER POLICY (Daniel 2026-06-17, HARD):** ollama/codex tmux
+workers ONLY (kimi/deepseek) — **NO Claude Agent subagents** (token economy). Drive `f_codex_macshell`
+(`~/code/fichero-worktrees/mac-shell`): `tmux send-keys -t f_codex_macshell "<prompt>" Enter` then a
+**2nd `Enter`** to submit a pasted prompt; **poll** `tmux capture-pane` (no auto-notify); **reset its
+worktree to current 0.0.2 first**; cherry-pick its commit → gate → push. Codex may EDIT-but-NOT-COMMIT
+(check `git -C ~/code/fichero-worktrees/mac-shell status`). **Complex/fiddly → write Daniel a paste-ready
+prompt; he runs codex-in-Xcode himself.** See [[ollama-codex-workers-only-token-economy]].
 
-**Role: you are MANAGER — you do NOT implement.** Dispatch workers; gate + integrate. Model policy
-(Daniel): **haiku** for minor (3–5 issues), **sonnet** for bigger (5–10), **opus** for complex.
+This session shipped ~30 green commits (chat-swap #2034, toolbar chrome #2309, perf sweep #2307,
+spatial-persist #2312, dividers #2310, spatial-menu #2308). Daniel is TESTING live as we go.
 
-**Swift gating (critical):** Swift workers CANNOT build. For EVERY Swift change YOU gate:
-`swiftlint` + Xcode **BuildProject** (tab `windowtab1`) — push only on a clean build. Register every
-new `.swift` with `ruby scripts/add-swift-file.rb <path>` (rule #10) or the compiler can't see it.
-Backend: full pytest gate (`PYTHONPATH=fichero-engine/src .venv/bin/pytest fichero-engine/tests/unit/ --ignore=…_archived`), push only if 0 failed. RunAllTests serial OK (Daniel may not be on the machine — confirm). Keep SwiftUI **folders/files logically organized** (no dumping grounds).
+## In Progress / pending gate
+- **#2313 library bottom bar (codex/kimi):** codex EDITED `~/code/fichero-worktrees/mac-shell`
+  `LibraryView.swift` (uncommitted `M`) but did NOT commit. Next: review its diff, commit, cherry-pick, gate.
+- **#2311 view-mode default (HELD):** library defaults to Canvas/2D-spatial; must follow user + persist
+  per window/tab. Touches ContentView `viewDisplayMode` / LibraryView — was held behind codex's LibraryView edit.
 
-**Target:** latest OS — Tahoe / macOS Golden Gate + iPadOS/iOS latest, **one codebase**, ship **Sept 2026**, newest SwiftUI, no back-deployment.
+## Next Session — Start Here (Daniel's latest toolbar feedback, image #25 — do these)
+1. **Toolbar cleanup (#2309):** remove the redundant FIRST hide/close-sidebar button; the button LEFT of
+   chat = the **list** button (Xcode list icon, not another `sidebar.left`); keep ONE Mail-style sidebar
+   hide on the RIGHT. **Title must center over the CONTENT toolbar, not the sidebar** — current `.principal`
+   (ContentView.swift ~474) centers over the wrong column. Toolbar zones: `leadingToolbarContent` (~497,
+   the selector), `contentToolbarContent` (~547, the Mail hide at `.primaryAction`), `mainToolbarContent`
+   (~471 principal). This is fiddly `.principal` placement → hand Daniel a paste-ready codex-in-Xcode prompt.
+2. **Gate codex #2313** (commit its LibraryView bottom-bar edit, build, push), then dispatch **#2311**.
+3. **#2309 follow-ups:** wire sidebar bottom-bar Export (no handler yet) + make Workflow button RUN on
+   selection (currently creates). Library bottom bar (#2313) wants same +/−/export/import/workflow.
+4. **Perf #2307 HELD #3/#4:** AppState/LibraryManager `ObservableObject`→`@Observable` — biggest remaining
+   slowness, wide blast radius, needs Daniel's explicit go.
 
-**PHASE 1 (start here — `gh issue list --label phase:1`, oldest-first):**
-- **#2097** platform abstraction shims (`PlatformImage`/`PlatformViewRepresentable`/`PlatformPasteboard`/file-picker) — mirror `Models/MindPalaceTheme.swift`'s `#if canImport` pattern. Additive, foundational.
-- **#2098** gate macOS-only code behind `#if os(macOS)` (EmbeddedBackendService engine-spawn, NSWorkspace/NSWindow). Engine is REMOTE-only on iOS.
-- **#1455 / #1569** retire Mind Palace → library 2D map (SceneKit/Spatial2DCanvas) + 3D map (RealityKit/SpatialScene3D) view modes; delete the standalone window + `SidebarMode.mindPalace` (compiler-guided ~14 files); KEEP the projector/scene/theme.
-- Per Daniel's decision: **build BOTH Mac + iPad/iOS now** (stand up the iOS target) to surface design failures early — this is the riskiest Phase-1 piece (Xcode project change; never hand-edit project.pbxproj — use the ruby script / careful target setup).
-Then Phase 2 = shell #2031 + zoned toolbar #2032; Phase 3 inspector/attributes(#2081 full prototypes)/annotation; Phase 4 representations/PDF/maps; Phase 5 table/window/chrome/agents; Continuous = guardrails(#92)/perf/observability/tests/a11y.
-
-**Held (do not touch):** worktrees `entitytable-2020` (#2020), `lan-tls-2157` (#2157), `importers`. #1973
-Swift change-stream fix HELD for Daniel (2 build fails; WIP on `ms/ai-backend-harden` branch). Deps #2248 shipped. ICANH libraries are Daniel's.
+**Held (do not touch):** worktrees `entitytable-2020` (#2020), `lan-tls-2157` (#2157). Dead code:
+`SidebarChatSurface.swift` (folded into #2034 swap — delete in a cleanup pass).
 
 ---
 ## (historical) overnight backend handoff
