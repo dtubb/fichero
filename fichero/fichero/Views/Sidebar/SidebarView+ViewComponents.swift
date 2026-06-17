@@ -19,14 +19,16 @@ extension SidebarView {
             Spacer()
                 .frame(height: 12)
 
-            if sidebarMode == .research {
-                ResearchProjectListView()
-            } else {
-                unifiedContent
-            }
+            // The persistent shell sidebar (the library/folder tree) stays
+            // visible in EVERY mode — Research included. Research no longer
+            // swaps the sidebar out for its project list; that list now renders
+            // in the content column (ContentView+Navigation.contentView), so
+            // switching to Research keeps the shell sidebar like Knowledge Graph,
+            // Activity, etc. (sidebar-persistence fix).
+            unifiedContent
 
-            // Bottom toolbar (not shown for research — ResearchProjectListView has its own)
-            if shouldShowBottomToolbar && sidebarMode != .research {
+            // Bottom toolbar.
+            if shouldShowBottomToolbar {
                 Divider()
                 SidebarBottomToolbar(
                     createSearch: createNewSearch,

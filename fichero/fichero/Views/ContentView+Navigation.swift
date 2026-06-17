@@ -30,17 +30,30 @@ extension ContentView {
             OntologyBrowser()
         } else
         // Research mode intercepts before normal viewMode routing.
+        // The project list lives HERE in the content column (a leading rail),
+        // NOT in the shell sidebar — the persistent library sidebar stays
+        // visible like every other mode (sidebar-persistence fix).
         if sidebarMode == .research {
-            if let project = researchService.projects.first(where: { $0.id == researchService.selectedProjectId })
-                ?? researchService.projects.first {
-                ResearchWorkspaceView(project: project)
+            HStack(spacing: 0) {
+                ResearchProjectListView()
                     .environmentObject(researchService)
-            } else {
-                ContentUnavailableView(
-                    "No Research Project",
-                    systemImage: "flask",
-                    description: Text("Create a project in the sidebar to start researching.")
-                )
+                    .frame(minWidth: 220, maxWidth: 280)
+
+                Divider()
+
+                if let project = researchService.projects.first(where: { $0.id == researchService.selectedProjectId })
+                    ?? researchService.projects.first {
+                    ResearchWorkspaceView(project: project)
+                        .environmentObject(researchService)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    ContentUnavailableView(
+                        "No Research Project",
+                        systemImage: "flask",
+                        description: Text("Create a project in the list to start researching.")
+                    )
+                    .frame(maxWidth: .infinity)
+                }
             }
         } else {
         switch viewMode {
