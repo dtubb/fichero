@@ -337,10 +337,10 @@ struct SortSection: View {
             Section("Sort By") {
                 ForEach(LibrarySortField.allCases) { field in
                     Button {
-                        sortField?.wrappedValue = field.rawValue
+                        sortField?.set(field.rawValue)
                     } label: {
                         Label(field.rawValue, systemImage: field.icon)
-                        if sortField?.wrappedValue == field.rawValue {
+                        if sortField?.value == field.rawValue {
                             Image(systemName: "checkmark")
                         }
                     }

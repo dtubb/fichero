@@ -47,13 +47,27 @@ extension LibraryView {
             .onMoveCommand { direction in
                 handleMoveCommand(direction)
             }
-            .focusedSceneValue(\.librarySelectAll, !(isShowingEntitiesCollection ? filteredEntities.isEmpty : filteredDocuments.isEmpty) ? {
-                selectAll()
-            } : nil)
-            .focusedSceneValue(\.libraryDeleteSelection, !isShowingEntitiesCollection && !selection.isEmpty ? {
-                promptDeleteSelected()
-            } : nil)
-            .focusedSceneValue(\.librarySortField, $libraryToolbar.sortFieldRaw)
+            .focusedSceneValue(
+                \.librarySelectAll,
+                FocusedLibraryAction(
+                    isEnabled: !(isShowingEntitiesCollection ? filteredEntities.isEmpty : filteredDocuments.isEmpty),
+                    run: { selectAll() }
+                )
+            )
+            .focusedSceneValue(
+                \.libraryDeleteSelection,
+                FocusedLibraryAction(
+                    isEnabled: !isShowingEntitiesCollection && !selection.isEmpty,
+                    run: { promptDeleteSelected() }
+                )
+            )
+            .focusedSceneValue(
+                \.librarySortField,
+                FocusedSortField(
+                    value: libraryToolbar.sortFieldRaw,
+                    set: { libraryToolbar.sortFieldRaw = $0 }
+                )
+            )
             .focusedSceneValue(\.librarySortAscending, $libraryToolbar.sortAscending)
             .confirmationDialog(
                 "Delete \(documentsToDelete.count) document\(documentsToDelete.count == 1 ? "" : "s")?",
@@ -316,21 +330,61 @@ extension LibraryView {
     }
 }
 
+// MARK: - FocusedValue Equatable Wrappers
+
+/// Equatable wrapper for a library action (selectAll / deleteSelection).
+///
+/// Closures are non-Equatable, so publishing a raw `() -> Void` via
+/// `focusedSceneValue` causes SwiftUI to see a new value on every `body` pass
+/// → republishes → cascading invalidation ("FocusedValue update tried to update
+/// multiple times per frame"). This wrapper keys equality on `isEnabled` only;
+/// the `run` closure is excluded (closures are non-Equatable). Because the
+/// enable state is the only part readers query for menu-item enable/disable, this
+/// is semantically identical to the old nil-means-disabled pattern while being
+/// stable across re-renders.
+struct FocusedLibraryAction: Equatable {
+    /// Whether the action is currently available (non-empty list or selection).
+    let isEnabled: Bool
+    /// Execute the action.
+    let run: () -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.isEnabled == rhs.isEnabled
+    }
+}
+
+/// Equatable wrapper for the library sort-field focused value.
+///
+/// `Binding<String>` is non-Equatable — publishing it directly via
+/// `focusedSceneValue` causes the same per-frame churn as raw closures.
+/// This wrapper captures the current value (for equality and display) plus a
+/// setter (for mutation), excluding the setter from equality.
+struct FocusedSortField: Equatable {
+    /// The current raw sort-field value (e.g. `LibrarySortField.name.rawValue`).
+    let value: String
+    /// Update the sort field to a new raw value.
+    let set: (String) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.value == rhs.value
+    }
+}
+
 // MARK: - FocusedValue Keys for Library Actions
 
 /// FocusedValue key for selecting all documents in the library
 struct LibrarySelectAllKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
 /// FocusedValue key for deleting selected documents in the library
 struct LibraryDeleteSelectionKey: FocusedValueKey {
-    typealias Value = () -> Void
+    typealias Value = FocusedLibraryAction
 }
 
-/// FocusedValue key for the library sort field binding
+/// FocusedValue key for the library sort field
 struct LibrarySortFieldKey: FocusedValueKey {
-    typealias Value = Binding<String>
+    typealias Value = FocusedSortField
 }
 
 /// FocusedValue key for the library sort direction binding
