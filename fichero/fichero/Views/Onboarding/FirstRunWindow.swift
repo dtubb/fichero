@@ -1,7 +1,10 @@
+// swiftlint:disable file_length
+#if canImport(AppKit)
 import AppKit
+#endif
 import SwiftUI
 
-// swiftlint:disable:next type_body_length
+// swiftlint:disable type_body_length
 struct FirstRunWindow: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
@@ -300,6 +303,7 @@ struct FirstRunWindow: View {
     }
 
     private func openExistingLibraryPanel() {
+        #if os(macOS)
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -308,9 +312,14 @@ struct FirstRunWindow: View {
         if panel.runModal() == .OK, let url = panel.url {
             openLibrary(url)
         }
+        #else
+        // iOS: onboarding uses document picker or a placeholder; no-op for now.
+        documentsPermission = false
+        #endif
     }
 
     private func requestDocumentsAccess() {
+        #if os(macOS)
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -318,6 +327,10 @@ struct FirstRunWindow: View {
         if panel.runModal() == .OK {
             documentsPermission = true
         }
+        #else
+        // iOS: document picker / sandbox access would go here.
+        documentsPermission = true
+        #endif
     }
 
     private func openSettingsPane(_ rawURL: String) {
@@ -351,6 +364,8 @@ struct FirstRunWindow: View {
         dismiss()
     }
 }
+
+// swiftlint:enable type_body_length
 
 private struct FirstRunCardConfig {
     let icon: String

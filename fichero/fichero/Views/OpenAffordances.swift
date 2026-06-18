@@ -1,5 +1,9 @@
+#if canImport(AppKit)
 import AppKit
+#endif
 import SwiftUI
+
+#if os(macOS)
 
 /// Finder-style "Open" affordances shared across library rows, sidebar rows,
 /// and ontology rows (entities / claims). Renders **Open / Open in New Tab /
@@ -143,3 +147,51 @@ enum LibraryWindowOpener {
         return true
     }
 }
+
+#else
+// iOS stubs for the shared open affordances. These keep cross-platform call
+// sites compiling; real iOS behavior (tabs / scene activation) will be added
+// in a later bucket-D pass.
+
+struct OpenInMenuItems: View {
+    var open: (() -> Void)?
+    let openInNewTab: () -> Void
+    let openInNewWindow: () -> Void
+
+    var body: some View {
+        if let open {
+            Button(action: open) {
+                Label("Open", systemImage: "arrow.up.forward.app")
+            }
+        }
+        Button(action: openInNewWindow) {
+            Label("Open in New Window", systemImage: "macwindow.badge.plus")
+        }
+    }
+}
+
+enum WindowOpener {
+    @MainActor
+    static func open(
+        libraryId: UUID,
+        documentId: String? = nil,
+        asTab: Bool,
+        using openWindow: OpenWindowAction
+    ) {
+        // iOS: no native tabs; just open a new window scene.
+        openWindow(id: "main")
+    }
+}
+
+enum LibraryWindowOpener {
+    @MainActor
+    static func openOrFocusLibrary(at url: URL, using openWindow: OpenWindowAction) {
+        // iOS: open the library in a new window scene; focus is scene-based.
+        let manager = LibraryManager.shared
+        let library = manager.openLibraries.first(where: {
+            $0.url.standardizedFileURL == url.standardizedFileURL
+        }) ?? manager.openLibrary(at: url, makeCurrent: false)
+        WindowOpener.open(libraryId: library.id, asTab: false, using: openWindow)
+    }
+}
+#endif

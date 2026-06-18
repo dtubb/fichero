@@ -1,4 +1,6 @@
+#if canImport(AppKit)
 import AppKit
+#endif
 import Foundation
 import OSLog
 
@@ -25,6 +27,9 @@ enum AppInstaller {
     @MainActor
     @discardableResult
     static func promptToMoveToApplicationsIfNeeded() -> Bool {
+        #if !os(macOS)
+        return false
+        #else
         guard shouldOfferMoveToApplications() else { return false }
 
         let targetPath = "/Applications/\(Bundle.main.bundleURL.lastPathComponent)"
@@ -33,6 +38,7 @@ enum AppInstaller {
         alert.messageText = "Fichero Is Not in Applications"
         alert.informativeText = """
         Fichero is not running from the Applications folder. \
+
         It will work best there.
 
         Move to \(targetPath)?
@@ -47,10 +53,12 @@ enum AppInstaller {
         }
 
         return moveCurrentAppToApplicationsAndRelaunch()
+        #endif
     }
 
     // MARK: - Private
 
+    #if os(macOS)
     @MainActor
     private static func moveCurrentAppToApplicationsAndRelaunch() -> Bool {
         let fileManager = FileManager.default
@@ -177,4 +185,5 @@ enum AppInstaller {
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
+    #endif
 }

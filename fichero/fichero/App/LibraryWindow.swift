@@ -1,7 +1,11 @@
 // swiftlint:disable file_length
+#if canImport(AppKit)
 import AppKit
+#endif
 import OSLog
 import SwiftUI
+
+#if os(macOS)
 
 // MARK: - LibraryWindow
 
@@ -515,3 +519,5 @@ private struct WindowAccessor: NSViewRepresentable {
         }
     }
 }
+
+#endif
