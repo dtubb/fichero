@@ -85,7 +85,7 @@ struct NotesBrowserView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
-                    .background(Capsule().fill(Color(.quaternaryLabelColor).opacity(0.3)))
+                    .background(Capsule().fill(Color(platformColor: .platformQuaternaryLabel).opacity(0.3)))
             }
             Spacer()
             Button("Done") { dismiss() }

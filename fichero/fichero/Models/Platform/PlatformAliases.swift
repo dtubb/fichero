@@ -29,9 +29,25 @@ typealias PlatformFont = NSFont
 
 typealias PlatformViewRepresentable = NSViewRepresentable
 
+/// macOS uses SwiftUI's native split views.
+typealias PlatformHSplitView = HSplitView
+typealias PlatformVSplitView = VSplitView
+
 extension Color {
     /// Cross-platform bridge: `Color(nsColor:)` on macOS, `Color(uiColor:)` on iOS.
     init(platformColor color: NSColor) { self.init(nsColor: color) }
+}
+
+extension NSColor {
+    /// Cross-platform name matching UIColor.platformQuaternaryLabel on iOS.
+    /// iOS renamed quaternaryLabelColor -> quaternaryLabel; the older name
+    /// is unavailable, so callers go through this shim.
+    static var platformQuaternaryLabel: NSColor { .quaternaryLabelColor }
+
+    /// Cross-platform name matching UIColor.platformSelectedControl on iOS.
+    /// NSColor.selectedControlColor is unavailable on iOS; iOS UIKit has no
+    /// direct equivalent so we map to the system selection tint.
+    static var platformSelectedControl: NSColor { .selectedControlColor }
 }
 
 extension Image {
@@ -70,6 +86,29 @@ extension UIColor {
     static var textBackgroundColor: UIColor { .systemBackground }
     static var windowBackgroundColor: UIColor { .systemBackground }
     static var separatorColor: UIColor { .separator }
+
+    /// Cross-platform name matching NSColor.quaternaryLabelColor on macOS.
+    /// iOS renamed quaternaryLabelColor -> quaternaryLabel; the older name
+    /// is unavailable, so callers go through this shim.
+    static var platformQuaternaryLabel: UIColor { .quaternaryLabel }
+
+    /// Cross-platform name matching NSColor.selectedControlColor on macOS.
+    /// The macOS AppKit highlight tint maps to iOS's tertiary system fill
+    /// colour for selection-state surfaces.
+    static var platformSelectedControl: UIColor { .tertiarySystemFill }
+}
+
+// iOS / iPadOS / visionOS shim: non-draggable stacks that preserve the same
+// child-layout order as macOS's HSplitView / VSplitView.
+// This is compile-clean; a draggable replacement belongs in the iPad UI pass.
+struct PlatformHSplitView<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+    var body: some View { HStack(spacing: 0, content: content) }
+}
+
+struct PlatformVSplitView<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+    var body: some View { VStack(spacing: 0, content: content) }
 }
 
 #endif

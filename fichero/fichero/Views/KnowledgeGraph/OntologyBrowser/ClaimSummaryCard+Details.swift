@@ -73,11 +73,13 @@ extension ClaimSummaryCard {
             }
             .buttonStyle(.plain)
             .onHover { isHovering in
+                #if os(macOS)
                 if isHovering {
                     NSCursor.pointingHand.set()
                 } else {
                     NSCursor.arrow.set()
                 }
+                #endif
             }
             .help("Open the source document — \(docName)\(pageLabel.map { ", page \($0)" } ?? "")")
         }

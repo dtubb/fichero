@@ -21,7 +21,7 @@ struct ToolBlockView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
-        .background(isHovering ? Color(.selectedControlColor) : Color(.controlBackgroundColor))
+        .background(isHovering ? Color(platformColor: .platformSelectedControl) : Color(.controlBackgroundColor))
         .cornerRadius(6)
         .onHover { hovering in
             isHovering = hovering
@@ -73,7 +73,7 @@ struct MCPToolBlockView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
-        .background(isHovering ? Color(.selectedControlColor) : Color(.controlBackgroundColor))
+        .background(isHovering ? Color(platformColor: .platformSelectedControl) : Color(.controlBackgroundColor))
         .cornerRadius(6)
         .onHover { hovering in
             isHovering = hovering

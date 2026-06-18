@@ -57,8 +57,12 @@ struct ExtractEntitiesNodeConfig: View {
                                             value: .array(entityTypes.sorted().map { .string($0) }))
                             }
                         ))
+                        #if os(macOS)
                         .toggleStyle(.checkbox)
                         .font(.caption)
+                        #else
+                        .font(.caption)
+                        #endif
 
                         if !Self.builtInTypes.contains(type) {
                             Button {

@@ -129,7 +129,9 @@ struct ClaimReviewQueueSheet: View {
                     }
                 )
             )
+            #if os(macOS)
             .toggleStyle(.checkbox)
+            #endif
             .labelsHidden()
             .frame(width: 20)
 

@@ -1,3 +1,8 @@
+#if canImport(AppKit)
+import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import FicheroAPIClient
 import Foundation
 import SwiftUI
@@ -36,6 +41,7 @@ enum DocumentKGPaneRoute {
         """
     }
 
+    #if canImport(AppKit)
     /// CSS that overrides the template's `:root` palette with the live macOS
     /// system colors (background, text, separators, accent) resolved for the
     /// current appearance. The template ships sensible light/dark defaults so
@@ -92,6 +98,13 @@ enum DocumentKGPaneRoute {
         })();
         """
     }
+    #else
+    @MainActor
+    static func systemThemeCSS() -> String { "" }
+
+    @MainActor
+    static func themeInjectionScript() -> String { "" }
+    #endif
 
     static func scrollSyncScript(pageCount: Int?) -> String {
         let count = max(pageCount ?? 0, 0)
@@ -148,6 +161,8 @@ enum DocumentKGPaneRoute {
             .replacingOccurrences(of: "\n", with: "\\n")
     }
 }
+
+#if canImport(AppKit)
 
 /// A `WKWebView` that refuses to be sized with a non-finite or negative frame.
 ///
@@ -469,3 +484,329 @@ struct DocumentKGWebPane: NSViewRepresentable {
         }
     }
 }
+#elseif canImport(UIKit)
+
+/// iOS guarded `WKWebView` that clamps transient non-finite/negative frames.
+final class GuardedWKWebView: WKWebView {
+    override func layoutSubviews() {
+        let width = (bounds.width.isFinite && bounds.width > 0) ? bounds.width : 0
+        let height = (bounds.height.isFinite && bounds.height > 0) ? bounds.height : 0
+        if width != bounds.width || height != bounds.height {
+            bounds = CGRect(origin: bounds.origin, size: CGSize(width: width, height: height))
+        }
+        super.layoutSubviews()
+    }
+}
+
+struct DocumentKGWebPane: UIViewRepresentable {
+    let documentId: String
+    let libraryPath: String
+    var selectedEntityId: String?
+    var selectedClaimId: String?
+    var activeTab: String = KGSurfaceTab.transcript.rawValue
+    var activePageNumber: Int?
+    var pageCount: Int?
+    var onPageSelected: (Int) -> Void = { _ in }
+    var scrollSync: DocumentScrollSyncState
+    var zoom: Double = 1.0
+    @Environment(KGFocusState.self) private var kgFocusState
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> GuardedWKWebView {
+        let config = WKWebViewConfiguration()
+        let controller = config.userContentController
+        controller.add(context.coordinator, name: "ficheroBridge")
+        controller.addUserScript(
+            WKUserScript(
+                source: DocumentKGPaneRoute.bootstrapScript(
+                    token: AuthTokenMiddleware.readTokenFromDisk(),
+                    libraryPath: libraryPath
+                ),
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
+            )
+        )
+        // No live system theme on iOS in this pass; the template defaults apply.
+        controller.addUserScript(
+            WKUserScript(
+                source: DocumentKGPaneRoute.themeInjectionScript(),
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+        )
+        controller.addUserScript(
+            WKUserScript(
+                source: DocumentKGPaneRoute.scrollSyncScript(pageCount: pageCount),
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+        )
+
+        let webView = GuardedWKWebView(frame: .zero, configuration: config)
+        webView.navigationDelegate = context.coordinator
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.isOpaque = false
+        context.coordinator.webView = webView
+        context.coordinator.loadIfNeeded(webView)
+        return webView
+    }
+
+    func updateUIView(_ webView: GuardedWKWebView, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.injectContext(into: webView)
+        context.coordinator.loadIfNeeded(webView)
+        context.coordinator.syncSelection(into: webView)
+        context.coordinator.applyZoom(to: webView, zoom: zoom)
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        var parent: DocumentKGWebPane
+        weak var webView: GuardedWKWebView?
+
+        private var lastLoadedDocumentId: String?
+        private var lastLoadedLibraryPath: String?
+        private var lastSelectedEntityId: String?
+        private var lastSelectedClaimId: String?
+        private var lastSelectedClaimCharStart: Int?
+        private var lastSelectedClaimCharEnd: Int?
+        private var lastActivePageNumber: Int?
+        private var lastActiveTab: String?
+        private var suppressActivePageSyncUntil = Date.distantPast
+        private var lastAppliedZoom: Double = 1.0
+
+        init(parent: DocumentKGWebPane) {
+            self.parent = parent
+        }
+
+        func loadIfNeeded(_ webView: WKWebView) {
+            guard
+                lastLoadedDocumentId != parent.documentId || lastLoadedLibraryPath != parent.libraryPath,
+                let request = DocumentKGPaneRoute.request(
+                    documentId: parent.documentId,
+                    libraryPath: parent.libraryPath
+                )
+            else { return }
+
+            lastLoadedDocumentId = parent.documentId
+            lastLoadedLibraryPath = parent.libraryPath
+            lastActiveTab = nil
+            lastSelectedEntityId = nil
+            lastSelectedClaimId = nil
+            lastSelectedClaimCharStart = nil
+            lastSelectedClaimCharEnd = nil
+            lastActivePageNumber = nil
+            webView.load(request)
+        }
+
+        func injectContext(into webView: WKWebView) {
+            let script = DocumentKGPaneRoute.bootstrapScript(
+                token: AuthTokenMiddleware.readTokenFromDisk(),
+                libraryPath: parent.libraryPath
+            )
+            webView.evaluateJavaScript(script)
+        }
+
+        func syncSelection(into webView: WKWebView) {
+            if lastActiveTab != parent.activeTab {
+                lastActiveTab = parent.activeTab
+                let literal = DocumentKGPaneRoute.jsStringLiteral(parent.activeTab)
+                webView.evaluateJavaScript("window.fichero?.showTab('\(literal)');")
+            }
+
+            if lastSelectedClaimId != parent.selectedClaimId {
+                lastSelectedClaimId = parent.selectedClaimId
+                if let claimId = parent.selectedClaimId {
+                    let literal = DocumentKGPaneRoute.jsStringLiteral(claimId)
+                    webView.evaluateJavaScript("window.fichero?.highlightClaim('\(literal)');")
+                    syncClaimSpan(claimId: claimId, into: webView)
+                } else {
+                    lastSelectedClaimCharStart = nil
+                    lastSelectedClaimCharEnd = nil
+                }
+            }
+
+            if lastSelectedEntityId != parent.selectedEntityId {
+                lastSelectedEntityId = parent.selectedEntityId
+                if let entityId = parent.selectedEntityId {
+                    let literal = DocumentKGPaneRoute.jsStringLiteral(entityId)
+                    webView.evaluateJavaScript("window.fichero?.highlightEntity('\(literal)');")
+                }
+            }
+
+            if lastActivePageNumber != parent.activePageNumber {
+                lastActivePageNumber = parent.activePageNumber
+                if Date() < suppressActivePageSyncUntil {
+                    return
+                }
+                if parent.scrollSync.isDriving(.web) {
+                    return
+                }
+                if let pageNumber = parent.activePageNumber {
+                    webView.evaluateJavaScript("window.fichero?.setActivePage(\(pageNumber));")
+                    if let pageCount = parent.pageCount {
+                        webView.evaluateJavaScript("window.ficheroScrollToPage?.(\(pageNumber), \(pageCount));")
+                    }
+                }
+            }
+        }
+
+        private func syncClaimSpan(claimId: String, into webView: WKWebView) {
+            let focusState = ClaimFocusState.shared
+            guard focusState.selectedClaimId == claimId,
+                  let charStart = focusState.selectedClaimCharStart,
+                  let charEnd = focusState.selectedClaimCharEnd,
+                  charStart != lastSelectedClaimCharStart || charEnd != lastSelectedClaimCharEnd
+            else { return }
+            lastSelectedClaimCharStart = charStart
+            lastSelectedClaimCharEnd = charEnd
+            webView.evaluateJavaScript("window.fichero?.scrollToSpan(null, \(charStart), \(charEnd));")
+        }
+
+        func applyZoom(to webView: WKWebView, zoom: Double) {
+            guard zoom != lastAppliedZoom else { return }
+            lastAppliedZoom = zoom
+            let literal = DocumentKGPaneRoute.jsStringLiteral(String(format: "%.4f", zoom))
+            webView.evaluateJavaScript("""
+            (function() {
+                var el = document.getElementById('fichero-viewport');
+                if (!el) {
+                    el = document.createElement('meta');
+                    el.id = 'fichero-viewport';
+                    el.name = 'viewport';
+                    (document.head || document.documentElement).appendChild(el);
+                }
+                el.content = 'width=device-width, initial-scale=1.0';
+                document.body.style.zoom = '\(literal)';
+            })();
+            """)
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            injectContext(into: webView)
+            webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
+            webView.evaluateJavaScript(DocumentKGPaneRoute.scrollSyncScript(pageCount: parent.pageCount))
+            syncSelection(into: webView)
+            applyZoom(to: webView, zoom: parent.zoom)
+        }
+
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            guard
+                message.name == "ficheroBridge",
+                let body = message.body as? [String: Any],
+                let kind = body["kind"] as? String
+            else { return }
+
+            switch kind {
+            case "entitySelected":
+                guard let entityId = body["entityId"] as? String else { return }
+                Task { @MainActor in
+                    parent.kgFocusState.focusEntity(entityId: entityId)
+                }
+            case "claimSelected":
+                guard let claimId = body["claimId"] as? String else { return }
+                focusKGSource(
+                    documentId: body["sourceDocumentId"] as? String,
+                    entityId: body["entityId"] as? String,
+                    claimId: claimId,
+                    body: body
+                )
+            case "pageSelected":
+                guard let pageNumber = pageNumber(from: body) else { return }
+                if parent.activePageNumber != pageNumber {
+                    suppressActivePageSyncUntil = Date().addingTimeInterval(0.25)
+                }
+                guard parent.scrollSync.beginDriving(.web) else { return }
+                parent.onPageSelected(max(0, pageNumber - 1))
+            default:
+                break
+            }
+        }
+
+        private func focusKGSource(
+            documentId: String?,
+            entityId: String?,
+            claimId: String?,
+            body: [String: Any]
+        ) {
+            let sourceDocumentId = documentId ?? parent.documentId
+            let pageLabel = pageLabel(from: body)
+            postOpenClaimSource(sourceDocumentId: sourceDocumentId, pageLabel: pageLabel, entityId: entityId, claimId: claimId, body: body)
+            Task { @MainActor in
+                if let claimId, !claimId.isEmpty {
+                    parent.kgFocusState.focusClaim(
+                        claimId: claimId,
+                        entityId: entityId,
+                        sourceDocumentId: sourceDocumentId,
+                        sourcePageLabel: pageLabel
+                    )
+                } else {
+                    parent.kgFocusState.focusEntity(
+                        entityId: entityId,
+                        sourceDocumentId: sourceDocumentId,
+                        sourcePageLabel: pageLabel
+                    )
+                }
+            }
+        }
+
+        private func postOpenClaimSource(
+            sourceDocumentId: String, pageLabel: String?, entityId: String?, claimId: String?, body: [String: Any]
+        ) {
+            guard var info = ClaimSummaryCard.openClaimSourceUserInfo(
+                documentId: sourceDocumentId,
+                pageLabel: pageLabel,
+                charStart: body["charStart"] as? Int,
+                charEnd: body["charEnd"] as? Int,
+                claimId: claimId,
+                excerpt: body["excerpt"] as? String
+            ) else { return }
+            if let entityId, !entityId.isEmpty {
+                info["entityId"] = entityId
+            }
+            NotificationCenter.default.post(name: .ficheroOpenClaimSource, object: nil, userInfo: info)
+        }
+
+        private func pageLabel(from body: [String: Any]) -> String? {
+            if let pageLabel = body["pageLabel"] as? String,
+               !pageLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return pageLabel
+            }
+            if let sourcePageLabel = body["sourcePageLabel"] as? String,
+               !sourcePageLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return sourcePageLabel
+            }
+            if let pageNumber = body["pageNumber"] as? Int {
+                return String(pageNumber)
+            }
+            if let pageNumber = body["pageNumber"] as? Double {
+                return String(Int(pageNumber))
+            }
+            if let pageNumber = body["pageNumber"] as? NSNumber {
+                return String(pageNumber.intValue)
+            }
+            return nil
+        }
+
+        private func pageNumber(from body: [String: Any]) -> Int? {
+            if let pageNumber = body["pageNumber"] as? Int {
+                return pageNumber
+            }
+            if let pageNumber = body["pageNumber"] as? Double {
+                return Int(pageNumber)
+            }
+            if let pageNumber = body["pageNumber"] as? NSNumber {
+                return pageNumber.intValue
+            }
+            return nil
+        }
+    }
+}
+
+#endif
+

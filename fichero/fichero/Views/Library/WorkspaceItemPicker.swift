@@ -254,7 +254,7 @@ struct WorkspaceItemPicker: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(.quaternaryLabelColor).opacity(0.12))
+                    .fill(Color(platformColor: .platformQuaternaryLabel).opacity(0.12))
             )
         }
         .buttonStyle(.plain)

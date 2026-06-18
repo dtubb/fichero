@@ -26,11 +26,13 @@ struct ResizableDivider: View {
             )
             .contentShape(Rectangle())
             .onHover { hovering in
+                #if os(macOS)
                 if hovering {
                     NSCursor.resizeLeftRight.set()
                 } else {
                     NSCursor.arrow.set()
                 }
+                #endif
             }
             .gesture(
                 // Use global coordinate space so the delta is stable even when

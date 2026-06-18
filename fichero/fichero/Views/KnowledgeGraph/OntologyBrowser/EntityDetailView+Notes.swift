@@ -97,7 +97,7 @@ struct EntityNotesSection: View {
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color(.quaternaryLabelColor).opacity(0.12))
+                .fill(Color(platformColor: .platformQuaternaryLabel).opacity(0.12))
         )
     }
 

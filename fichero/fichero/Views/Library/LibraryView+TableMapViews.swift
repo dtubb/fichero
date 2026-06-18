@@ -21,7 +21,9 @@ extension LibraryView {
             }
         }
         .tableStyle(.inset)
+        #if os(macOS)
         .alternatingRowBackgrounds()
+        #endif
         .contextMenu(forSelectionType: String.self) { items in
             // Child-group rows carry "<docId>:<type>" ids — drop the
             // suffix so a context-menu on a child still targets its doc.

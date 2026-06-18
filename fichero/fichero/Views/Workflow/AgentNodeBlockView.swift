@@ -36,7 +36,7 @@ struct AgentNodeBlockView: View {
                 .opacity(isHovering ? 1 : 0.5)
         }
         .padding(10)
-        .background(isHovering ? Color(.selectedControlColor) : Color(.controlBackgroundColor))
+        .background(isHovering ? Color(platformColor: .platformSelectedControl) : Color(.controlBackgroundColor))
         .cornerRadius(8)
         .onHover { hovering in
             isHovering = hovering

@@ -1,5 +1,7 @@
 // swiftlint:disable file_length
+#if canImport(AppKit)
 import AppKit
+#endif
 import FicheroAPIClient
 import OSLog
 import SwiftUI
@@ -779,6 +781,7 @@ struct InspectorEntitySelectionModifiers: OptionSet {
         self.rawValue = rawValue
     }
 
+    #if os(macOS)
     init(nsEventFlags: NSEvent.ModifierFlags) {
         var value: Self = []
         if nsEventFlags.contains(.shift) {
@@ -789,6 +792,20 @@ struct InspectorEntitySelectionModifiers: OptionSet {
         }
         self = value
     }
+    #else
+    init(uiEventFlags: UIEvent.ModifierFlags) {
+        var value: Self = []
+        if uiEventFlags.contains(.shift) {
+            value.insert(.shift)
+        }
+        if uiEventFlags.contains(.command) {
+            value.insert(.command)
+        }
+        self = value
+    }
+    #endif
+
+
 }
 
 enum InspectorEntityBulkAction {

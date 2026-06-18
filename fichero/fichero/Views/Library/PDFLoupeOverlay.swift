@@ -1,11 +1,15 @@
-import PDFKit
 import SwiftUI
+#if os(macOS)
+import PDFKit
+#endif
+
 
 /// Magnifier loupe overlay for PDF pages.
 ///
 /// Renders a circular magnified region at the cursor position using a cached
 /// page thumbnail rendered via PDFKit. Takes a PDF path + page index rather
 /// than a live PDFView reference to keep SwiftUI ownership clear.
+#if os(macOS)
 struct PDFLoupeOverlay: NSViewRepresentable {
     let documentId: String
     let pageIndex: Int
@@ -144,4 +148,11 @@ final class PDFLoupeNSView: NSView {
         crosshairPath.lineWidth = 1.0
         crosshairPath.stroke()
     }
+}
+#endif
+
+/// iOS placeholder — the macOS PDF loupe uses NSViewRepresentable;
+/// an iPad-native loupe belongs in the iPad UI pass.
+struct PDFLoupeOverlay: View {
+    var body: some View { Color.clear }
 }

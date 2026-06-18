@@ -204,6 +204,7 @@ extension LibraryView {
         case upDir, down, left, right, pageUp, pageDown
     }
 
+    #if os(macOS)
     func handleMoveCommand(_ direction: MoveCommandDirection) {
         switch direction {
         case .up:
@@ -218,6 +219,7 @@ extension LibraryView {
             break
         }
     }
+    #endif
 
     /// Handle arrow key press for navigating documents.
     /// All four arrows navigate within the content area (like Finder).
@@ -278,6 +280,7 @@ extension LibraryView {
 
     private func applySelection(targetIndex: Int, ids: [String]) {
         let targetId = ids[targetIndex]
+        #if os(macOS)
         if NSEvent.modifierFlags.contains(.shift),
            let anchor = selectionAnchor,
            let anchorIndex = ids.firstIndex(of: anchor) {
@@ -290,6 +293,13 @@ extension LibraryView {
             selection = [targetId]
             selectionAnchor = targetId
         }
+        #else
+        // iOS: keyboard modifier flags aren't available on .onKeyPress;
+        // collapse to plain selection. Modifier-aware keyboard selection
+        // is a separate iPad UI pass.
+        selection = [targetId]
+        selectionAnchor = targetId
+        #endif
     }
 
     // MARK: - Type-to-Select

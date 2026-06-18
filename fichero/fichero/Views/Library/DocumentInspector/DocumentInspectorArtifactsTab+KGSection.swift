@@ -1,4 +1,6 @@
+#if canImport(AppKit)
 import AppKit
+#endif
 import FicheroAPIClient
 import OSLog
 import SwiftUI
@@ -542,7 +544,13 @@ struct KnowledgeGraphInspectorSection: View {
             return
         }
 
-        let modifiers = InspectorEntitySelectionModifiers(nsEventFlags: NSEvent.modifierFlags)
+        let modifiers: InspectorEntitySelectionModifiers = {
+            #if os(macOS)
+            return InspectorEntitySelectionModifiers(nsEventFlags: NSEvent.modifierFlags)
+            #else
+            return InspectorEntitySelectionModifiers()
+            #endif
+        }()
         let reduced = InspectorEntityBulkSelection.reduceTap(
             tappedId: claimId,
             orderedIds: orderedClaimIds,

@@ -86,9 +86,11 @@ extension LibraryView {
                 .onKeyPress(.pageDown, phases: .down) { _ in
                     handleArrowKey(direction: .pageDown)
                 }
+                #if os(macOS)
                 .onMoveCommand { direction in
                     handleMoveCommand(direction)
                 }
+                #endif
                 // .focusable() here so the .onKeyPress handlers above receive
                 // arrow keys (ScrollView would otherwise swallow them). But
                 // the default focus ring draws around this whole scroll area

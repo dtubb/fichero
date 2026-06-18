@@ -332,6 +332,7 @@ extension LibraryView {
 
     func handleEntityTap(_ entity: Components.Schemas.KnowledgeEntity) {
         onRequestFocus()
+        #if os(macOS)
         let modifiers = NSEvent.modifierFlags
         if modifiers.contains(.shift), let anchor = selectionAnchor {
             handleEntityShiftClick(entity, anchor: anchor, commandKeyDown: modifiers.contains(.command))
@@ -340,6 +341,9 @@ extension LibraryView {
         } else {
             handleEntityPlainClick(entity)
         }
+        #else
+        handleEntityPlainClick(entity)
+        #endif
         focusEntityIfPossible(entity)
     }
 
