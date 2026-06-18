@@ -1,4 +1,6 @@
+#if canImport(AppKit)
 import AppKit
+#endif
 import FicheroAPIClient
 import Foundation
 import OpenAPIRuntime
@@ -210,6 +212,9 @@ struct FileMenuCommands: View {
     }
 
     private func exportBibtex() async {
+        #if !os(macOS)
+        logger.info("BibTeX export is macOS-only; document picker needed on iOS.")
+        #else
         guard let library = currentLibrary else { return }
 
         do {
@@ -224,6 +229,7 @@ struct FileMenuCommands: View {
             logger.error("Failed to export BibTeX: \(error.localizedDescription)")
             presentExportError(error)
         }
+        #endif
     }
 
     private func fetchAllDocumentIDs(using library: LibraryManager.LibraryReference) async throws -> [String] {
@@ -259,6 +265,7 @@ struct FileMenuCommands: View {
         }
     }
 
+    #if os(macOS)
     private func presentBibtexSavePanel() async -> URL? {
         await withCheckedContinuation { continuation in
             let savePanel = NSSavePanel()
@@ -282,6 +289,7 @@ struct FileMenuCommands: View {
         alert.alertStyle = .warning
         alert.runModal()
     }
+    #endif
 }
 
 private enum ExportError: Error, LocalizedError {
