@@ -1,6 +1,11 @@
+// swiftlint:disable file_length
+#if canImport(AppKit)
 import AppKit
+#endif
 import OSLog
 import SwiftUI
+
+#if os(macOS)
 
 // MARK: - Zoomable Image Preview (with controls and magnifier)
 
@@ -418,3 +423,30 @@ struct ZoomableImagePreview: View {
         )
     }
 }
+
+#else
+
+// iOS stub: ZoomableImagePreview relies on NSViewRepresentable image tracking that
+// has no cross-platform shim yet. Shared call sites get a placeholder until a
+// UIImage-based viewer replaces it.
+struct ZoomableImagePreview: View {
+    var url: URL?
+    var documentId: String?
+    var renderedImage: PlatformImage?
+
+    init(url: URL? = nil, documentId: String? = nil, renderedImage: PlatformImage? = nil) {
+        self.url = url
+        self.documentId = documentId
+        self.renderedImage = renderedImage
+    }
+
+    var body: some View {
+        ContentUnavailableView(
+            "Image Preview",
+            systemImage: "photo",
+            description: Text("High-resolution image preview is not available on iOS yet.")
+        )
+    }
+}
+
+#endif
