@@ -1,7 +1,13 @@
+#if canImport(AppKit)
 import AppKit
-import OSLog
+#endif
+#if canImport(Quartz)
 import Quartz
+#endif
+import OSLog
 import SwiftUI
+
+#if os(macOS)
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "QuickLookComponents")
 
@@ -218,3 +224,33 @@ struct QuickLookDownloadView: View {
         return name
     }
 }
+
+#else
+
+// iOS fallback: QuickLookDownloadView is referenced by EditorView; provide a
+// placeholder that prompts the user until a native UIDocumentInteractionController
+// or QLPreviewController replacement lands.
+struct QuickLookDownloadView: View {
+    let document: Document
+
+    var body: some View {
+        ContentUnavailableView(
+            document.name,
+            systemImage: docTypeIcon,
+            description: Text("Preview is not available on iOS yet.")
+        )
+    }
+
+    private var docTypeIcon: String {
+        switch document.fileType {
+        case .image: return "photo"
+        case .pdf: return "doc.richtext"
+        case .audio: return "waveform"
+        case .video: return "film"
+        case .text, .json, .csv, .rtf: return "doc.text"
+        default: return "doc"
+        }
+    }
+}
+
+#endif
