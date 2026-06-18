@@ -110,6 +110,7 @@ from fichero.workflows.tools import split_chapters  # noqa: F401  (#1315)
 
 # Output tools
 from fichero.workflows.tools import write_file
+from fichero.workflows.tools import export_documents  # noqa: F401
 
 __all__ = [
     # Source
@@ -195,4 +196,5 @@ __all__ = [
     "split_chapters",
     # Output
     "write_file",
+    "export_documents",
 ]
