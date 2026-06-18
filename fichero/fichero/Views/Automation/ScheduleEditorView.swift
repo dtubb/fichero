@@ -38,7 +38,7 @@ struct ScheduleEditorView: View {
     var isValid: Bool { !name.isEmpty && !selectedWorkflowId.isEmpty }
 
     var body: some View {
-        HSplitView {
+        PlatformHSplitView {
             // Left panel - Form
             formPanel
                 .frame(minWidth: 350, idealWidth: 400, maxWidth: 500)

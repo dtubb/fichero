@@ -37,7 +37,7 @@ struct ArtifactsInspectorPane: View {
             if let actionError {
                 errorBox(actionError)
             }
-            VSplitView {
+            PlatformVSplitView {
                 ArtifactListView(
                     store: store,
                     focused: focused,

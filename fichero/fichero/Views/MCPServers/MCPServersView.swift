@@ -15,7 +15,7 @@ struct MCPServersView: View {
     private var listColumnWidth: Double = 280
 
     var body: some View {
-        HSplitView {
+        PlatformHSplitView {
             // Server list (left)
             VStack(alignment: .leading, spacing: 0) {
                 List(selection: $selectedServer) {

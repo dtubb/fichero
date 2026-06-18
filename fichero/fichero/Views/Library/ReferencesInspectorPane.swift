@@ -36,7 +36,7 @@ struct ReferencesInspectorPane: View {
             if let loadError = store.loadError {
                 errorBox(loadError)
             }
-            VSplitView {
+            PlatformVSplitView {
                 ReferenceListView(
                     store: store,
                     focused: focused,

@@ -54,7 +54,7 @@ struct TriggerEditorView: View {
     }
 
     var body: some View {
-        HSplitView {
+        PlatformHSplitView {
             TriggerEditorFormPanel(
                 name: $name,
                 selectedWorkflowId: $selectedWorkflowId,

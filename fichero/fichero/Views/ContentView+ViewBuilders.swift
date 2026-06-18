@@ -404,7 +404,7 @@ extension ContentView {
 
                 case .standard:
                     if showDocumentGrid {
-                        VSplitView {
+                        PlatformVSplitView {
                             contentWithOptionalModeRail
                                 .overlay { paneFocusIndicator(for: .content) }
                                 .frame(minHeight: 150, idealHeight: 180)

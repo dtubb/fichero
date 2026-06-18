@@ -44,7 +44,7 @@ struct StackedRepresentationPanes<Tab: Hashable, PaneContent: View>: View {
 
     var body: some View {
         if isSplit {
-            VSplitView {
+            PlatformVSplitView {
                 pane(selection: $topSelection, canToggleSplit: true)
                     .frame(minHeight: 120)
                 pane(selection: $bottomSelection, canToggleSplit: false)

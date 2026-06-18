@@ -59,7 +59,7 @@ struct WorkflowDiagramPreview: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                HSplitView {
+                PlatformHSplitView {
                     // Left: Diagram
                     VStack(spacing: 0) {
                         Text("LangGraph Diagram")

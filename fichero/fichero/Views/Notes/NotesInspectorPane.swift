@@ -22,7 +22,7 @@ struct NotesInspectorPane: View {
             if let loadError = noteStore.loadError {
                 errorBox(loadError)
             }
-            VSplitView {
+            PlatformVSplitView {
                 NoteListView(
                     notes: notes,
                     focused: focused,

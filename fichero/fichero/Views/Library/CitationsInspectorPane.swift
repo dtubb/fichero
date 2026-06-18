@@ -33,7 +33,7 @@ struct CitationsInspectorPane: View {
     }
 
     var body: some View {
-        VSplitView {
+        PlatformVSplitView {
             CitationListView(
                 store: store,
                 focused: focused,

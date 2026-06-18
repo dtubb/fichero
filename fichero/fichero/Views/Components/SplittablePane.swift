@@ -161,7 +161,7 @@ struct SplittablePane<Content: View>: View {
             }
         } else if primaryHasHorizontal {
             // Top / Bottom only (no V-split).
-            VSplitView {
+            PlatformVSplitView {
                 content()
                     .frame(maxWidth: .infinity, minHeight: 160, maxHeight: .infinity)
                     .environment(\.splitAxisActions, SplitAxisActions(
@@ -204,7 +204,7 @@ struct SplittablePane<Content: View>: View {
             let maxLeft = max(240, available - 248)
             let topLeft   = CGFloat(max(240, min(topRowLeftWidth,    maxLeft)))
             let bottomLeft = CGFloat(max(240, min(bottomRowLeftWidth, maxLeft)))
-            VSplitView {
+            PlatformVSplitView {
                 // Top row: top-left (primary) | top-right (secondary)
                 HStack(spacing: 0) {
                     content()
@@ -266,7 +266,7 @@ struct SplittablePane<Content: View>: View {
     @ViewBuilder
     private var primaryColumn: some View {
         if primaryHasHorizontal {
-            VSplitView {
+            PlatformVSplitView {
                 content()
                     .frame(maxWidth: .infinity, minHeight: 160, maxHeight: .infinity)
                 secondary()
@@ -281,7 +281,7 @@ struct SplittablePane<Content: View>: View {
     @ViewBuilder
     private var secondaryColumn: some View {
         if secondaryHasHorizontal {
-            VSplitView {
+            PlatformVSplitView {
                 secondary()
                     .frame(maxWidth: .infinity, minHeight: 160, maxHeight: .infinity)
                 secondary()

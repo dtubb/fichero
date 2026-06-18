@@ -88,7 +88,7 @@ struct WorkflowEditor: View {
             )
 
             // Canvas and output log
-            VSplitView {
+            PlatformVSplitView {
                 // Main content area (adapts to displayMode)
                 Group {
                     switch displayMode {
