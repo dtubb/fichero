@@ -19,6 +19,7 @@ private struct ReadingPaneView: View {
     @EnvironmentObject private var apiClient: APIClient
     @Environment(KGFocusState.self) private var kgFocusState
     @EnvironmentObject private var claimFocusState: ClaimFocusState
+    @Environment(\.splitAxisActions) private var splitAxisActions
 
     @State private var isPinned = false
     @State private var pinnedDocument: Document? = nil
@@ -30,19 +31,31 @@ private struct ReadingPaneView: View {
     private var effectivePageNumber: Int? { isPinned ? pinnedActivePageNumber : liveActivePageNumber }
     private var effectivePageCount: Int? { isPinned ? pinnedPageCount : livePageCount }
 
+    /// X button: collapses the active split when inside one,
+    /// otherwise calls onClose to hide the whole reading pane.
+    private func closePane() {
+        if let actions = splitAxisActions {
+            if actions.hasVertical { actions.onToggleVertical(); return }
+            if actions.hasHorizontal { actions.onToggleHorizontal(); return }
+        }
+        onClose?()
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Layout: [× close] [icon] [title] [spacer] | [split buttons] [pin]
             MiniToolbar(content: {
-                if let onClose {
+                // × close: collapses split when inside one, hides whole pane otherwise.
+                let isInSplit = splitAxisActions.map { $0.hasVertical || $0.hasHorizontal } ?? false
+                if onClose != nil || isInSplit {
                     Button {
-                        onClose()
+                        closePane()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Close reading pane")
+                    .help(isInSplit ? "Close this split" : "Close reading pane")
 
                     Divider().frame(height: 16)
                 }

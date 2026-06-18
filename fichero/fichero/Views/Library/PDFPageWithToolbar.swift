@@ -31,6 +31,7 @@ struct PDFPageWithToolbar: View {
     @State private var loupePosition: CGPoint = .init(x: 0.5, y: 0.5)
     @State private var loupeLockedPosition: CGPoint = .init(x: 0.5, y: 0.5)
 
+    @Environment(\.splitAxisActions) private var splitAxisActions
     // Secondary split panes manage their own page index so navigating in one
     // pane doesn't force all other panes to the same page.
     @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
@@ -63,6 +64,16 @@ struct PDFPageWithToolbar: View {
         loupeLocked ? loupeLockedPosition : loupePosition
     }
 
+    /// X button action: collapses the active split when inside one,
+    /// otherwise calls onClose to hide the whole pane.
+    private func closePane() {
+        if let actions = splitAxisActions {
+            if actions.hasVertical { actions.onToggleVertical(); return }
+            if actions.hasHorizontal { actions.onToggleHorizontal(); return }
+        }
+        onClose?()
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Toolbar: zoom controls + loupe toggle. Uses MiniToolbar so the
@@ -70,16 +81,18 @@ struct PDFPageWithToolbar: View {
             // image preview, knowledge surface, and inspector tab strip (#1228).
             // Layout: [× close] [title] [page nav] [spacer] [zoom] [loupe] | [split] [pin]
             MiniToolbar(content: {
-                // × close — far left, only when caller provides onClose.
-                if let onClose {
+                // × close — far left. Collapses active split if one is open;
+                // otherwise hides the whole pane via onClose.
+                let isInSplit = splitAxisActions.map { $0.hasVertical || $0.hasHorizontal } ?? false
+                if onClose != nil || isInSplit {
                     Button {
-                        onClose()
+                        closePane()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Close this pane")
+                    .help(isInSplit ? "Close this split" : "Close this pane")
 
                     Divider().frame(height: 16)
                 }
