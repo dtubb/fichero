@@ -1,6 +1,8 @@
-# STATE — Mac shell reform (interactive w/ Daniel) 2026-06-17
+# STATE — iOS/iPad cross-platform shell drive 2026-06-18
 
-Branch `0.0.2` == `origin/0.0.2`. Keep green: gate EVERY Swift change via **Xcode MCP BuildProject (tab `windowtab2`)** before push — NEVER CLI xcodebuild. HEAD `b18b26ab` (31 green commits this session).
+Branch `0.0.2` is **ahead of `origin/0.0.2` by 6 commits**; Mac compile gate passed; iOS compile gate
+**pending** (auto-mode classifier blocked CLI xcodebuild and Xcode MCP was temporarily unavailable at
+session end). Do NOT push until iOS `generic/platform=iOS Simulator` build is green.
 
 ## ☀️ START HERE
 **Role: MANAGER — do NOT implement.** **WORKER POLICY (Daniel 2026-06-17, HARD):** ollama/codex tmux
@@ -11,30 +13,34 @@ worktree to current 0.0.2 first**; cherry-pick its commit → gate → push. Cod
 (check `git -C ~/code/fichero-worktrees/mac-shell status`). **Complex/fiddly → write Daniel a paste-ready
 prompt; he runs codex-in-Xcode himself.** See [[ollama-codex-workers-only-token-economy]].
 
-This session shipped ~30 green commits (chat-swap #2034, toolbar chrome #2309, perf sweep #2307,
-spatial-persist #2312, dividers #2310, spatial-menu #2308). Daniel is TESTING live as we go.
+Overnight goal was **single SwiftUI codebase for Mac/iPad/iPhone/visionOS** with engine running on Mac only.
+First-step deliverable: **iOS compile errors → 0**. Progress made; final iOS build needs one more run.
 
 ## In Progress / pending gate
-- **#2313 library bottom bar — SHIPPED** (`b18b26ab`, codex/kimi, gated green). NOTE: 165-line diff (heavier
-  than expected for a 5-button bar) — eyeball it next session for over-engineering; trim if kimi bloated it.
-- **#2311 view-mode default (TODO, now unblocked):** library defaults to Canvas/2D-spatial; must follow user
-  + persist per window/tab. Touches ContentView `viewDisplayMode` / LibraryView (now free — codex done).
+- **iOS AppKit blocker sweep (#2098):** 6 files gated behind `#if os(macOS)` and pushed to local 0.0.2:
+  - Bucket C group 1: `AppInstaller`, `LibraryWindow`, `FirstRunWindow`, `OpenAffordances`.
+  - Bucket C group 2: `WorkflowExporter`, `FolderAccessManager`, `FileMenuCommands`.
+  - iOS "Unable to resolve module dependency" siblings: `QuickLookComponents`, `AppleScriptCommands`,
+    `ClaimSummaryCardView`, `ImageViewerComponents`, `AppleScriptSupport`, `QuickLookPreviewViews`.
+- **iOS destinations added (#2099):** iPhone + iPad, iOS 26.0 / macOS 26.0 in `project.pbxproj`.
+- **Sparkle framework restricted to macOS (#2319):** link filter set so iOS no longer fails on missing slice.
+- **AppKit/UIKit audit doc (#2101):** `docs/architecture/swiftui/ios_appkit_audit.md` pushed.
+- **Platform shims started (#2097):** `PlatformAliases.swift` with `PlatformFont` / `PlatformViewRepresentable`.
 
-## Next Session — Start Here (Daniel's latest toolbar feedback, image #25 — do these)
-1. **Toolbar cleanup (#2309):** remove the redundant FIRST hide/close-sidebar button; the button LEFT of
-   chat = the **list** button (Xcode list icon, not another `sidebar.left`); keep ONE Mail-style sidebar
-   hide on the RIGHT. **Title must center over the CONTENT toolbar, not the sidebar** — current `.principal`
-   (ContentView.swift ~474) centers over the wrong column. Toolbar zones: `leadingToolbarContent` (~497,
-   the selector), `contentToolbarContent` (~547, the Mail hide at `.primaryAction`), `mainToolbarContent`
-   (~471 principal). This is fiddly `.principal` placement → hand Daniel a paste-ready codex-in-Xcode prompt.
-2. **Gate codex #2313** (commit its LibraryView bottom-bar edit, build, push), then dispatch **#2311**.
-3. **#2309 follow-ups:** wire sidebar bottom-bar Export (no handler yet) + make Workflow button RUN on
-   selection (currently creates). Library bottom bar (#2313) wants same +/−/export/import/workflow.
-4. **Perf #2307 HELD #3/#4:** AppState/LibraryManager `ObservableObject`→`@Observable` — biggest remaining
-   slowness, wide blast radius, needs Daniel's explicit go.
+## Next Session — Start Here
+1. **Finish iOS compile gate:** with Xcode MCP `BuildProject` (tab `windowtab3`) or CLI xcodebuild if classifier
+   permits, build for `generic/platform=iOS Simulator`. Fix any remaining errors, then `git push origin 0.0.2`.
+2. **visionOS gate (#2321–#2322):** add visionOS destination, gate remaining Mac-only code until visionOS
+   compiles with 0 errors. Queue behind iOS=0.
+3. **Bucket D (SwiftUI/UIKit replacements):** richer iOS-native replacements for the `#if os(macOS)` blocks —
+   `ImageViewerComponents`, `QuickLookPreviewViews`, `FolderAccessManager`, etc.
+4. **#2100 iPhone compact layout:** once compile-clean, design the compact split / sidebar / inspector flow.
 
-**Held (do not touch):** worktrees `entitytable-2020` (#2020), `lan-tls-2157` (#2157). Dead code:
-`SidebarChatSurface.swift` (folded into #2034 swap — delete in a cleanup pass).
+**Held (do not touch):** worktrees `entitytable-2020` (#2020), `lan-tls-2157` (#2157), `importers`.
+Dead code: `SidebarChatSurface.swift` (folded into #2034 swap — delete in a cleanup pass).
+
+**Open issues from this drive:** #2316 WebKit zoom (verify/close), #2317 RTF rendering, #2318 export field/content
+selection for page-based docs.
 
 ---
 ## (historical) overnight backend handoff
