@@ -54,7 +54,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Components/BackendConnectionView.swift": "§6b baseline — AppKit bridge",
     "Views/Components/MacPlainTextEditor.swift": "sanctioned bridge — NSTextView editor",
     "Views/KnowledgeGraph/OntologyBrowser/ClaimSummaryCardView.swift": "§6b baseline — AppKit",
-    "Views/Library/ArtifactRichTextCodec.swift": "sanctioned bridge — NSAttributedString codec",
+    "Views/Library/ArtifactRichTextCodec.swift": "sanctioned bridge — NSAttributedString/NSParagraphStyle RTF codec (#if canImport guard, cross-platform)",
     "Views/Library/DocumentInspector/AttributedTextEditor.swift": "sanctioned bridge — NSTextView",
     "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+EntitiesTab.swift": "§6b baseline",
     "Views/Library/DocumentInspector/DocumentInspectorArtifactsTab+KGSection.swift": "§6b baseline",

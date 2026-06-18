@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import SwiftUI
 
 // swiftlint:disable file_length
@@ -430,7 +434,7 @@ private extension ImageEditorView {
                         let split = max(0, min(1, compareSplit))
                         ZStack(alignment: .topLeading) {
                             // Edited underneath — full size (revealed on the right).
-                            Image(nsImage: edited.image)
+                            Image(platformImage: edited.image)
                                 .resizable()
                                 .interpolation(.high)
                                 .aspectRatio(contentMode: .fit)
@@ -438,7 +442,7 @@ private extension ImageEditorView {
                             // Original on top — clipped to the left split portion,
                             // so left = Before (original), right = After (edited)
                             // and the labels below read correctly (#1538).
-                            Image(nsImage: original.image)
+                            Image(platformImage: original.image)
                                 .resizable()
                                 .interpolation(.high)
                                 .aspectRatio(contentMode: .fit)
@@ -522,7 +526,7 @@ private extension ImageEditorView {
         .background(Color(red: 253/255, green: 253/255, blue: 253/255, opacity: 1))
     }
 
-    private func comparePane(image: NSImage, pixelSize: CGSize, title: String) -> some View {
+    private func comparePane(image: PlatformImage, pixelSize: CGSize, title: String) -> some View {
         VStack(spacing: 6) {
             Text(title)
                 .font(.caption)
@@ -533,7 +537,7 @@ private extension ImageEditorView {
                     in: CGSize(width: geo.size.width - 12, height: geo.size.height - 12)
                 )
                 let frame = fitted.offsetBy(dx: 6, dy: 6)
-                Image(nsImage: image)
+                Image(platformImage: image)
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)

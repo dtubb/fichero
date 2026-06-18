@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import Foundation
 import ImageIO
 import OSLog
@@ -176,7 +180,11 @@ final class ImageEditingServiceGenerated: ObservableObject {
                 throw ImageEditingError.invalidImageData
             }
             let pixelSize = CGSize(width: cgImage.width, height: cgImage.height)
+            #if canImport(AppKit)
             return PreviewImage(image: NSImage(cgImage: cgImage, size: pixelSize), pixelSize: pixelSize)
+            #elseif canImport(UIKit)
+            return PreviewImage(image: UIImage(cgImage: cgImage), pixelSize: pixelSize)
+            #endif
         }.value
     }
 
@@ -323,7 +331,7 @@ final class ImageEditingServiceGenerated: ObservableObject {
 // MARK: - Supporting types
 
 struct PreviewImage {
-    let image: NSImage
+    let image: PlatformImage
     let pixelSize: CGSize
 }
 

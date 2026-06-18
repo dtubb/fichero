@@ -1,5 +1,9 @@
-import AppKit
 import Foundation
+#if canImport(AppKit)
+import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 
 /// Encode/decode helpers for artifact rich-text content, extracted from
 /// `ArtifactPanel` so they can be unit-tested directly (#710).

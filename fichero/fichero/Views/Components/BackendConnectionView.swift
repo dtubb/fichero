@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
+#endif
 import SwiftUI
 
 /// View shown while the embedded engine is booting (or when it failed to start).
@@ -47,14 +51,14 @@ struct BackendConnectionView: View {
 
     /// Engine icon resolved from the bundled Fichero Engine.app.
     /// Falls back to the system server icon if the engine icon isn't found.
-    private var engineIconImage: NSImage {
+    private var engineIconImage: PlatformImage {
         if let resourcePath = Bundle.main.resourcePath {
             let iconPath = "\(resourcePath)/Fichero Engine.app/Contents/Resources/engine.icns"
-            if let image = NSImage(contentsOfFile: iconPath) {
+            if let image = PlatformImage(contentsOfFile: iconPath) {
                 return image
             }
         }
-        return NSImage(systemSymbolName: "server.rack", accessibilityDescription: nil) ?? NSImage()
+        return PlatformImage(systemSymbolName: "server.rack", accessibilityDescription: nil) ?? PlatformImage()
     }
 
     /// Fichero app icon loaded as a flat .icns from the app bundle, NOT
@@ -62,19 +66,23 @@ struct BackendConnectionView: View {
     /// auto-wrapped in the system rounded-squircle treatment. The engine
     /// icon next to it renders flat (loaded the same way), so loading
     /// the Fichero side flat keeps the splash visually consistent (#793).
-    private var ficheroIconImage: NSImage {
+    private var ficheroIconImage: PlatformImage {
         if let resourcePath = Bundle.main.resourcePath {
             // The app's compiled icon catalog produces AppIcon.icns at
-            // the bundle root. Loading it directly via NSImage avoids
+            // the bundle root. Loading it directly via PlatformImage avoids
             // the system squircle that NSApp.applicationIconImage applies.
             let iconPath = "\(resourcePath)/AppIcon.icns"
-            if let image = NSImage(contentsOfFile: iconPath) {
+            if let image = PlatformImage(contentsOfFile: iconPath) {
                 return image
             }
         }
         // Fallback to the Tahoe-treated app icon if the .icns isn't
         // findable (custom builds, dev sandbox).
-        return NSApp.applicationIconImage ?? NSImage()
+        #if canImport(AppKit)
+        return NSApp.applicationIconImage ?? PlatformImage()
+        #else
+        return PlatformImage()
+        #endif
     }
 
     var body: some View {

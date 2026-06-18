@@ -25,6 +25,10 @@ typealias PlatformColor = NSColor
 /// `NSImage` on macOS (and Catalyst). Use `Image(nsImage:)` to lift into SwiftUI.
 typealias PlatformImage = NSImage
 
+typealias PlatformFont = NSFont
+
+typealias PlatformViewRepresentable = NSViewRepresentable
+
 extension Color {
     /// Cross-platform bridge: `Color(nsColor:)` on macOS, `Color(uiColor:)` on iOS.
     init(platformColor color: NSColor) { self.init(nsColor: color) }
@@ -44,6 +48,10 @@ typealias PlatformColor = UIColor
 
 /// `UIImage` on iOS / iPadOS / visionOS. Use `Image(uiImage:)` to lift into SwiftUI.
 typealias PlatformImage = UIImage
+
+typealias PlatformFont = UIFont
+
+typealias PlatformViewRepresentable = UIViewRepresentable
 
 extension Color {
     /// Cross-platform bridge: `Color(nsColor:)` on macOS, `Color(uiColor:)` on iOS.
