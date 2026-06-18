@@ -60,7 +60,7 @@ final class ActionsService: ActionLibraryService {
 
 typealias ActionItem = Components.Schemas.ActionResponse
 
-extension Components.Schemas.ActionResponse: Identifiable {}
+extension Components.Schemas.ActionResponse: @retroactive Identifiable {}
 
 // AnyCodable is defined in Models/Document.swift — do not duplicate
 

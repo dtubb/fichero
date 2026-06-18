@@ -13,7 +13,11 @@ extension ClaimSummaryCard {
     /// claim came from: who authored it, the quotation kind, the
     /// confidence source, and corroboration count.
     static func provenanceBadges(for claim: Components.Schemas.KnowledgeClaim) -> [ProvenanceBadge] {
-        let metadata = claim.metadata?.additionalProperties.value ?? [:]
+        let metadata = Dictionary(
+            uniqueKeysWithValues: (claim.metadata?.additionalProperties.value ?? [:]).map { key, value in
+                (key, value as Any)
+            }
+        )
         return [
             createdByBadge(for: claim),
             quotationKindBadge(from: metadata),

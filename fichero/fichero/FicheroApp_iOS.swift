@@ -17,13 +17,16 @@ struct FicheroAppIOS: App {
                 .environmentObject(appState)
                 .environmentObject(libraryManager)
                 .task {
-                    do {
-                        try await backendService.start()
-                        await KnownLibraryRegistryStore.shared.refresh()
-                        await libraryManager.backendDidBecomeReady()
-                    } catch {
-                        logger.error("Failed to start backend: \(error.localizedDescription)")
+                    await appState.checkBackendHealth()
+                    guard appState.isBackendRunning else {
+                        logger.error(
+                            "External backend is not reachable at \(EngineConfig.host.absoluteString, privacy: .public)"
+                        )
+                        return
                     }
+
+                    await KnownLibraryRegistryStore.shared.refresh()
+                    await libraryManager.backendDidBecomeReady()
                 }
         }
     }

@@ -38,7 +38,7 @@ typealias ActivityItem = Components.Schemas.ActivityResponse
 
 // The hand-rolled ActivityItem was Identifiable (id: String); the generated
 // schema has the same `id`, so opt it into Identifiable for ForEach (#1702).
-extension Components.Schemas.ActivityResponse: Identifiable {}
+extension Components.Schemas.ActivityResponse: @retroactive Identifiable {}
 
 extension Components.Schemas.ActivityResponse {
     var type: String { _type }

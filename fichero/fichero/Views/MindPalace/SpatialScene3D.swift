@@ -1,9 +1,12 @@
+// swiftlint:disable file_length
 import FicheroAPIClient
 import OSLog
 import SwiftUI
 #if canImport(RealityKit)
 import RealityKit
 #endif
+
+// swiftlint:disable type_body_length
 
 /// RealityKit 3D rendering of a Mind Palace room — the `.threeD` render mode,
 /// and the forward path toward streaming the palace to Vision Pro.
@@ -177,9 +180,11 @@ struct SpatialScene3D: View {
         .simultaneousGesture(cameraDragGesture)
         .simultaneousGesture(cameraZoomGesture)
         .simultaneousGesture(nodeDragGesture)
+        #if canImport(AppKit)
         .onModifierKeysChanged(mask: .option) { _, modifiers in
             optionHeld = modifiers.contains(.option)
         }
+        #endif
         .onAppear {
             applyInitialViewportIfNeeded()
         }
@@ -687,6 +692,7 @@ struct SpatialScene3D: View {
     }
     #endif
 }
+// swiftlint:enable type_body_length
 
 // MARK: - Canvas items (#2294)
 
