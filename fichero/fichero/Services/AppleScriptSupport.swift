@@ -1,6 +1,10 @@
+#if os(macOS)
 import Cocoa
+#endif
 import Foundation
 import OSLog
+
+#if os(macOS)
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "AppleScript")
 
@@ -222,3 +226,55 @@ class AppleScriptBridge {
         return try JSONSerialization.jsonObject(with: data) as? [String: any Sendable] ?? [:]
     }
 }
+#else
+
+// iOS stub: AppleScript bridge is macOS-only. These symbols are only referenced
+// from AppleScriptCommands.swift, which is also gated, so minimal no-op stubs
+// keep the module interface consistent on iOS.
+
+final class ResultBox<T>: @unchecked Sendable {
+    private var result: Result<T, Error>?
+    func set(_ newValue: Result<T, Error>) { result = newValue }
+    func get() -> Result<T, Error>? { result }
+}
+
+struct SendableCFRunLoop: @unchecked Sendable {
+    let runLoop: CFRunLoop
+}
+
+func runAsyncWithoutBlocking<T: Sendable>(_ operation: @escaping @Sendable () async throws -> T) throws -> T {
+    let sem = DispatchSemaphore(value: 0)
+    var result: Result<T, Error>?
+    Task { @MainActor in
+        do {
+            result = .success(try await operation())
+        } catch {
+            result = .failure(error)
+        }
+        sem.signal()
+    }
+    sem.wait()
+    switch result! {
+    case .success(let value): return value
+    case .failure(let error): throw error
+    }
+}
+
+@MainActor
+class AppleScriptBridge {
+    static let shared = AppleScriptBridge()
+    private init() {}
+
+    func runWorkflow(workflowId: String, inputs: [String: any Sendable]) async throws -> String { "" }
+    func getWorkflowStatus(threadId: String) async throws -> String { "unknown" }
+    func pauseWorkflow(threadId: String) async throws -> Bool { false }
+    func resumeWorkflow(threadId: String) async throws -> String { "unknown" }
+    func listWorkflows() async throws -> [String] { [] }
+    func runChain(chainId: String, inputs: [String: any Sendable]) async throws -> String { "" }
+    func listDocuments(folderPath: String?, limit: Int) async throws -> [String] { [] }
+    func searchDocuments(query: String, limit: Int) async throws -> [String] { [] }
+    func importFile(filePath: String, folderPath: String?, mode: String) async throws -> String { "" }
+    func getDocumentInfo(documentId: String) async throws -> [String: any Sendable] { [:] }
+}
+
+#endif
