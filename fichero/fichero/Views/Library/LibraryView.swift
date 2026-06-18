@@ -94,6 +94,7 @@ struct LibraryView: View {
     @EnvironmentObject var entityService: EntityServiceGenerated
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
+    @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
     @ObservedObject var featureManager = FeatureManager.shared
     @ObservedObject var workflowRunProviderCache = WorkflowRunProviderCache.shared
 
@@ -400,12 +401,14 @@ struct LibraryView: View {
         // by ContentView), which switches the sidebar to .search mode.
         // Each mode owns its own .searchable to avoid the NSToolbar
         // duplicate-identifier crash we hit when stacking them.
-        .searchable(
+        .conditionalSearchable(
             text: $toolbarQuery,
             placement: .toolbar,
-            prompt: "Search documents…"
+            prompt: "Search documents…",
+            isActive: !isSecondarySplitPane
         )
         .onSubmit(of: .search) {
+            guard !isSecondarySplitPane else { return }
             let trimmed = toolbarQuery.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             onToolbarSearchSubmit(trimmed)

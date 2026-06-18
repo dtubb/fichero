@@ -591,8 +591,8 @@ struct PaneVisibilitySection: View {
             )
             PaneToggleButton(
                 binding: showDocumentCanvas,
-                showLabel: "Show Document Canvas",
-                hideLabel: "Hide Document Canvas",
+                showLabel: "Show Preview",
+                hideLabel: "Hide Preview",
                 icon: "doc.richtext",
                 shortcut: nil
             )

@@ -21,9 +21,9 @@ enum PaneFocus: Hashable {
 // - ContentView+Persistence: State serialization for @SceneStorage
 // swiftlint:disable:next type_body_length
 struct ContentView: View {
-    static let sidebarMinWidth: Double = 180
-    static let inspectorMinWidth: Double = 250
-    static let inspectorMaxWidth: Double = 1000
+    static let sidebarMinWidth: Double = 160
+    static let inspectorMinWidth: Double = 220
+    static let inspectorMaxWidth: Double = 420
     static let contentMinWidth: Double = 520
     static let contentMaxWidth: Double = 2200
     /// Minimum width of the widescreen content-list pane. Clamped to the
@@ -297,6 +297,32 @@ struct ContentView: View {
         decoratedNavigationSplitColumn
             .inspector(isPresented: $showInspectorSidebar) {
                 detailView
+                    // Inspector toggle in the INSPECTOR SECTION (far right).
+                    // Attaching to the inspector panel content (rather than the
+                    // detail column) places the button in the trailing inspector
+                    // section of the unified NSToolbar instead of the content
+                    // section. NavigationSplitView does not auto-remove column
+                    // toolbar contributions when a column is hidden, so the
+                    // toggle remains visible even when the inspector is closed
+                    // — same mechanism as the sidebar-section buttons (#2309).
+                    .toolbar {
+                        if showInspectorToggle {
+                            ToolbarItem(placement: .primaryAction) {
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        showInspectorSidebar.toggle()
+                                    }
+                                } label: {
+                                    Label {
+                                        Text("Inspector")
+                                    } icon: {
+                                        toolbarToggleIcon("sidebar.right", isActive: showInspectorSidebar)
+                                    }
+                                }
+                                .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
+                            }
+                        }
+                    }
                     .inspectorColumnWidth(
                         min: CGFloat(ContentView.inspectorMinWidth),
                         ideal: 300,
@@ -515,10 +541,13 @@ extension ContentView {
     }
 
 
-    /// TRAILING zone: activity status + inspector toggle (#2309).
+    /// TRAILING zone: activity status (#2309).
+    /// The inspector toggle moved to the `.inspector()` panel's toolbar so
+    /// macOS places it in the inspector section (far right) rather than the
+    /// content section (see `mainContentView`).
     @ToolbarContentBuilder
     private var trailingToolbarContent: some ToolbarContent {
-        // Activity / error status — sits between the title and inspector button.
+        // Activity / error status — sits between the title and the inspector section.
         ToolbarItem(placement: .automatic) {
             HStack(spacing: 6) {
                 if isImporting {
@@ -534,29 +563,12 @@ extension ContentView {
                 }
             }
         }
-
-        // Inspector toggle — Finder/Notes/Xcode convention (#1229 part 1).
-        if showInspectorToggle {
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showInspectorSidebar.toggle()
-                    }
-                } label: {
-                    Label {
-                        Text("Inspector")
-                    } icon: {
-                        toolbarToggleIcon("sidebar.right", isActive: showInspectorSidebar)
-                    }
-                }
-                .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
-            }
-        }
     }
 
-    /// PRINCIPAL zone: breadcrumb context label (#2309).
-    /// Shows "LibraryName > FolderName" when inside a library subfolder,
-    /// plain icon + title otherwise.
+    /// PRINCIPAL zone: breadcrumb lozenge (#2309).
+    /// Layout: [📚 Library Name] > [📁 Folder / item icon + title]
+    /// The whole breadcrumb sits in a subtle rounded-rect lozenge with
+    /// extra horizontal padding so it reads as a single interactive label.
     @ToolbarContentBuilder
     private var principalToolbarContent: some ToolbarContent {
         ToolbarItem(placement: .principal) {
@@ -565,30 +577,40 @@ extension ContentView {
                 return LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName
             }()
 
-            HStack(spacing: 0) {
+            HStack(spacing: 4) {
                 if let libraryName {
-                    Image(systemName: "books.vertical")
-                        .imageScale(.small)
-                        .foregroundStyle(.secondary)
-                    Text(libraryName)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 4)
+                    // Library segment
+                    HStack(spacing: 3) {
+                        Image(systemName: "books.vertical")
+                            .imageScale(.small)
+                        Text(libraryName)
+                            .font(.subheadline)
+                    }
+                    .foregroundStyle(.secondary)
 
                     Image(systemName: "chevron.right")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 4)
                 }
 
-                Image(systemName: toolbarIcon)
-                    .imageScale(.small)
-                Text(toolbarTitle)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .padding(.leading, 4)
+                // Current-item segment (folder, file, page, etc.)
+                HStack(spacing: 3) {
+                    Image(systemName: toolbarIcon)
+                        .imageScale(.small)
+                    Text(toolbarTitle)
+                        .font(.headline)
+                        .lineLimit(1)
+                }
+                .foregroundStyle(.primary)
             }
-            .foregroundStyle(.primary)
+            // Lozenge treatment: extra padding + subtle fill so the breadcrumb
+            // reads as one clickable unit rather than floating text (#2309).
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.primary.opacity(0.06))
+            )
         }
     }
 }

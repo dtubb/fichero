@@ -15,12 +15,26 @@ extension ContentView {
         let viewName: String
         switch viewMode {
         case .library(let document):
-            // Window/tab title shows only the document or library name. The
-            // current page ("4 / 31") is document-scoped, so it lives on the
-            // document toolbar over the canvas (PDFPageWithToolbar), not on the
-            // window chrome — keeping window back/forward (navigation history)
-            // and document page-flip on separate toolbars. (#1531, was #1482)
-            viewName = document?.name ?? "Library"
+            // When a PDF page (or multiple pages) is selected in the grid,
+            // reflect that in the window title so the user knows exactly what
+            // is in context. The parent PDF comes from `document` (the sidebar-
+            // selected item). Page count shows when the browser selection has
+            // more than one page document.
+            if let page = inspectorDocument, page.docType == .page {
+                let selectedPageCount = browserSelection.filter { id in
+                    documentStore.currentDocuments.first(where: { $0.id == id })?.docType == .page
+                }.count
+                if selectedPageCount > 1 {
+                    let parentName = document?.name
+                    viewName = parentName.map { "\(selectedPageCount) pages — \($0)" }
+                        ?? "\(selectedPageCount) pages"
+                } else {
+                    let pageLabel = page.sequence.map { "Page \($0)" } ?? page.name
+                    viewName = document.map { "\(pageLabel) — \($0.name)" } ?? pageLabel
+                }
+            } else {
+                viewName = document?.name ?? "Library"
+            }
         case .search(let savedSearch):
             viewName = savedSearch?.name ?? "Search"
         case .chat(let conversation):
@@ -62,7 +76,10 @@ extension ContentView {
         switch viewMode {
         case .library(let document):
             guard let doc = document else { return "books.vertical" }
-            return doc.docType == .folder ? "folder" : "doc.text"
+            if let inspector = inspectorDocument, inspector.docType == .page {
+                return "doc.richtext"
+            }
+            return doc.docType == .folder ? "folder" : (doc.fileType == .pdf ? "doc.richtext" : "doc.text")
         case .search:
             return "magnifyingglass"
         case .chat:
@@ -189,7 +206,9 @@ extension ContentView {
             if isEntityLibrarySelection {
                 return [.list]
             }
-            if let doc = libraryViewDocument, doc.docType == .folder || doc.isWorkspace {
+            if let doc = libraryViewDocument,
+               doc.docType == .folder || doc.isWorkspace ||
+               (doc.docType == .file && doc.fileType.map { [.pdf, .word, .epub, .presentation].contains($0) } ?? false) {
                 var modes: [ViewDisplayMode] = [.icon, .list, .table, .map, .realitykit]
                 if featureManager.isWorkspaceModeEnabled {
                     modes.append(.workspace)

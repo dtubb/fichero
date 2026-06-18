@@ -27,9 +27,15 @@ struct SidebarBottomToolbar: View {
     var hasSelection: Bool = false
 
     var body: some View {
-        HStack(spacing: 0) {
-            // New item menu (dropdown)
-            Menu {
+        PaneFilterBar {
+            actionButtons
+        }
+    }
+
+    @ViewBuilder
+    private var actionButtons: some View {
+        // New item menu (dropdown)
+        Menu {
                 if featureManager.isSearchEnabled {
                     Button(action: createSearch) {
                         Label("New Search", systemImage: "magnifyingglass")
@@ -161,11 +167,6 @@ struct SidebarBottomToolbar: View {
                 .disabled(!hasSelection)
                 .help("New Workflow")
             }
-        }
-        .padding(.horizontal, 8)
-        .frame(height: 28)
-        .frame(maxWidth: .infinity)  // Ensure full width
-        .background(.bar)  // Match mode bar background style
     }
 }
 
