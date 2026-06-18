@@ -1,8 +1,12 @@
+#if os(macOS)
 import Cocoa
+#endif
 import Foundation
 import OSLog
 
-let appleScriptCommandsLogger = Logger(subsystem: "app.fichero.fichero", category: "AppleScript")
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "AppleScript")
+
+#if os(macOS)
 
 // MARK: - Script Object Classes
 
@@ -88,7 +92,7 @@ class FicheroRunWorkflowCommand: NSScriptCommand {
 
         let inputs = evaluatedArguments?["inputs"] as? [String: any Sendable] ?? [:]
 
-        appleScriptCommandsLogger.info("AppleScript: run workflow \(workflowId)")
+        logger.info("AppleScript: run workflow \(workflowId)")
 
         do {
             let threadId = try runAsyncWithoutBlocking {
@@ -113,7 +117,7 @@ class FicheroGetWorkflowStatusCommand: NSScriptCommand {
             return nil
         }
 
-        appleScriptCommandsLogger.info("AppleScript: get workflow status \(threadId)")
+        logger.info("AppleScript: get workflow status \(threadId)")
 
         do {
             let status = try runAsyncWithoutBlocking {
@@ -138,7 +142,7 @@ class FicheroPauseWorkflowCommand: NSScriptCommand {
             return nil
         }
 
-        appleScriptCommandsLogger.info("AppleScript: pause workflow \(threadId)")
+        logger.info("AppleScript: pause workflow \(threadId)")
 
         do {
             let success = try runAsyncWithoutBlocking {
@@ -163,7 +167,7 @@ class FicheroResumeWorkflowCommand: NSScriptCommand {
             return nil
         }
 
-        appleScriptCommandsLogger.info("AppleScript: resume workflow \(threadId)")
+        logger.info("AppleScript: resume workflow \(threadId)")
 
         do {
             _ = try runAsyncWithoutBlocking {
@@ -190,7 +194,7 @@ class FicheroRunChainCommand: NSScriptCommand {
 
         let inputs = evaluatedArguments?["inputs"] as? [String: any Sendable] ?? [:]
 
-        appleScriptCommandsLogger.info("AppleScript: run chain \(chainId)")
+        logger.info("AppleScript: run chain \(chainId)")
 
         do {
             let executionId = try runAsyncWithoutBlocking {
@@ -209,7 +213,7 @@ class FicheroRunChainCommand: NSScriptCommand {
 @objc(FicheroListWorkflowsCommand)
 class FicheroListWorkflowsCommand: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
-        appleScriptCommandsLogger.info("AppleScript: list workflows")
+        logger.info("AppleScript: list workflows")
 
         do {
             let workflows = try runAsyncWithoutBlocking {
@@ -231,7 +235,7 @@ class FicheroListDocumentsCommand: NSScriptCommand {
         let folderPath = evaluatedArguments?["folderPath"] as? String
         let limit = evaluatedArguments?["limit"] as? Int ?? 100
 
-        appleScriptCommandsLogger.info("AppleScript: list documents (folder: \(folderPath ?? "/"), limit: \(limit))")
+        logger.info("AppleScript: list documents (folder: \(folderPath ?? "/"), limit: \(limit))")
 
         do {
             let documents = try runAsyncWithoutBlocking {
@@ -258,7 +262,7 @@ class FicheroSearchDocumentsCommand: NSScriptCommand {
 
         let limit = evaluatedArguments?["limit"] as? Int ?? 50
 
-        appleScriptCommandsLogger.info("AppleScript: search documents '\(query)' (limit: \(limit))")
+        logger.info("AppleScript: search documents '\(query)' (limit: \(limit))")
 
         do {
             let results = try runAsyncWithoutBlocking {
@@ -286,7 +290,7 @@ class FicheroImportFileCommand: NSScriptCommand {
         let folderPath = evaluatedArguments?["folderPath"] as? String
         let mode = evaluatedArguments?["mode"] as? String ?? "link"
 
-        appleScriptCommandsLogger.info("AppleScript: import file '\(filePath)' (mode: \(mode))")
+        logger.info("AppleScript: import file '\(filePath)' (mode: \(mode))")
 
         do {
             let documentId = try runAsyncWithoutBlocking {
@@ -315,7 +319,7 @@ class FicheroGetDocumentInfoCommand: NSScriptCommand {
             return nil
         }
 
-        appleScriptCommandsLogger.info("AppleScript: get document info '\(documentId)'")
+        logger.info("AppleScript: get document info '\(documentId)'")
 
         do {
             let info = try runAsyncWithoutBlocking {
@@ -329,3 +333,5 @@ class FicheroGetDocumentInfoCommand: NSScriptCommand {
         }
     }
 }
+
+#endif
