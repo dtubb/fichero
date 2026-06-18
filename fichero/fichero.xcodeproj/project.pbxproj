@@ -450,7 +450,7 @@
 		BFC56BC755C4B7C58EEAE341 /* LibraryManager+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF91C082286A2B7BB74E438D /* LibraryManager+Persistence.swift */; };
 		C10000010000000000000001 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000001 /* SparkleUpdater.swift */; };
 		C10000010000000000000002 /* AppInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000110000000000000002 /* AppInstaller.swift */; };
-		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = C10000310000000000000001 /* Sparkle */; };
+		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
 		C1C484907B28189E223436BE /* LibraryManager+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE5EBB51D90DE16D32A82FC /* LibraryManager+Helpers.swift */; };
 		C340001000000000PROMPT01 /* PromptPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C340001100000000PROMPT01 /* PromptPreviewPanel.swift */; };
 		C37B1043409A6ED500E30F29 /* BackupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91100495C9D776E200E2F9C0 /* BackupsView.swift */; };
