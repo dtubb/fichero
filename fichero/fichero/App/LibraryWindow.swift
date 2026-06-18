@@ -62,56 +62,7 @@ struct LibraryWindow: View {
     private var libraryWindowContent: some View {
         Group {
             if let library = windowState.library {
-                DocumentTabView(
-                    libraryId: library.id,
-                    document: Binding(
-                        get: { library.document },
-                        set: { library.document = $0 }
-                    ),
-                    documentURL: libraryManager.isTemporaryLibrary(library.url) ? nil : library.url
-                )
-                // Note: Removed .id(library.id) to prevent sidebar flash when switching libraries
-                // Environment objects update automatically when windowState.libraryId changes
-                .environmentObject(windowState)
-                // Inject all library services (one instance per library, shared across tabs)
-                .environment(library.documentStore)
-                .environmentObject(library.savedSearchServiceGenerated)
-                .environmentObject(library.searchService)
-                .environmentObject(library.conversationServiceGenerated)
-                .environmentObject(library.chatServiceGenerated)
-                .environment(library.workflowStore)
-                .environmentObject(library.workflowServiceGenerated)
-                .environmentObject(library.workflowStreamService)
-                .environmentObject(library.importService)
-                .environmentObject(library.documentServiceGenerated)
-                .environmentObject(library.storageService)
-                .environmentObject(library.providerService)
-                .environmentObject(library.modelService)
-                .environmentObject(library.artifactService)
-                .environmentObject(library.entityService)
-                .environmentObject(library.kgCurationService)
-                .environmentObject(library.researchService)
-                .environment(executionObserver)
-                // Observable data layer (#1851 / #1863): inject the per-library
-                // stores and start the change-stream. `start()` is idempotent
-                // across windows; the stream fans mutations back to every window's
-                // stores.
-                .environment(library.entityStore)
-                .environment(library.claimStore)
-                .environment(library.noteStore)
-                .environment(library.annotationStore)
-                .environment(library.actionStore)
-                .environment(library.auditStore)
-                .environment(library.researchStore)
-                .environment(library.searchStore)
-                .environment(library.artifactStore)
-                // Track B (#2004 / #2005): citations + references inspector tabs
-                // read these document-scoped stores via @Environment, the same
-                // way the Artifacts tab reads artifactStore.
-                .environment(library.citationStore)
-                .environment(library.referenceStore)
-                .environment(library.changeStream)
-                .task(id: library.id) { library.changeStream.start() }
+                LibraryWorkspaceRoot(library: library, executionObserver: executionObserver)
             } else {
                 // No library open yet — returning users see a simple create/open prompt.
                 // First-run users are handled by the FirstRunWindow sheet below.
