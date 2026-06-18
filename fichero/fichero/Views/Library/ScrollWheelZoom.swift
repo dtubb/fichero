@@ -1,3 +1,4 @@
+#if canImport(AppKit)
 import AppKit
 import SwiftUI
 
@@ -33,3 +34,17 @@ class ScrollWheelCaptureView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 }
+#else
+import SwiftUI
+
+struct ScrollWheelZoomView: View {
+    @Binding var scale: CGFloat
+    let minScale: CGFloat
+    let maxScale: CGFloat
+
+    var body: some View {
+        EmptyView()
+    }
+}
+#endif
+
