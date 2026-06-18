@@ -205,7 +205,7 @@ private extension ImageEditorView {
         .padding(.horizontal, 12)
         // Single source of truth for top-toolbar height so the image-edit
         // toolbar lines up with every other pane mini-toolbar (#1449/#1460).
-        .frame(height: MiniToolbar<EmptyView>.standardHeight)
+        .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
         .background(Color(.windowBackgroundColor))
     }
 

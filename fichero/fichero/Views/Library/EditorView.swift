@@ -201,7 +201,7 @@ struct EditorView: View {
         // trailing edge so the edit icon sits on the same baseline as the zoom /
         // loupe icons in the mini-toolbar, instead of floating slightly high
         // with its own padding (#1556).
-        .frame(height: MiniToolbar<EmptyView>.standardHeight, alignment: .center)
+        .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight, alignment: .center)
         .padding(.trailing, 12)
     }
 

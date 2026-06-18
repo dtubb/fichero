@@ -1,5 +1,142 @@
 import SwiftUI
 
+// MARK: - ReadingPaneView
+
+/// Self-contained knowledge/WebKit reading surface with its own pin state.
+/// Extracting this to a separate View (rather than inline in widescreenReadingPane)
+/// gives each SplittablePane instance its own independent @State, so left and
+/// right split panes can be pinned/unpinned independently.
+private struct ReadingPaneView: View {
+    // Live values forwarded from ContentView; overridden by pin state when locked.
+    let liveDocument: Document?
+    let liveActivePageNumber: Int?
+    let livePageCount: Int?
+    let scrollSync: DocumentScrollSyncState
+    let onPageSelected: (Int) -> Void
+    /// Called when the user taps the × button. Omit to hide the button.
+    var onClose: (() -> Void)? = nil
+
+    @EnvironmentObject private var apiClient: APIClient
+    @Environment(KGFocusState.self) private var kgFocusState
+    @EnvironmentObject private var claimFocusState: ClaimFocusState
+
+    @State private var isPinned = false
+    @State private var pinnedDocument: Document? = nil
+    @State private var pinnedActivePageNumber: Int? = nil
+    @State private var pinnedPageCount: Int? = nil
+    @State private var webZoom: Double = 1.0
+
+    private var effectiveDocument: Document? { isPinned ? pinnedDocument : liveDocument }
+    private var effectivePageNumber: Int? { isPinned ? pinnedActivePageNumber : liveActivePageNumber }
+    private var effectivePageCount: Int? { isPinned ? pinnedPageCount : livePageCount }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Layout: [× close] [icon] [title] [spacer] | [split buttons] [pin]
+            MiniToolbar(content: {
+                if let onClose {
+                    Button {
+                        onClose()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Close reading pane")
+
+                    Divider().frame(height: 16)
+                }
+
+                Image(systemName: "text.book.closed")
+                    .imageScale(.small)
+                    .foregroundStyle(.secondary)
+                Text(effectiveDocument?.name ?? "Views")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+
+                // WebKit zoom controls (#2316)
+                Button { webZoom = max(0.5, webZoom - 0.1) } label: {
+                    Image(systemName: "minus.magnifyingglass")
+                }
+                .buttonStyle(.plain)
+                .help("Zoom Out")
+
+                Text("\(Int(webZoom * 100))%")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .frame(width: 44)
+
+                Button { webZoom = min(3.0, webZoom + 0.1) } label: {
+                    Image(systemName: "plus.magnifyingglass")
+                }
+                .buttonStyle(.plain)
+                .help("Zoom In")
+
+                Button { webZoom = 1.0 } label: {
+                    Image(systemName: "1.square")
+                }
+                .buttonStyle(.plain)
+                .help("Reset Zoom")
+
+                Spacer(minLength: 0)
+            }, trailing: {
+                // Pin — far right, after split buttons.
+                Divider().frame(height: 16)
+
+                Button {
+                    if isPinned {
+                        isPinned = false
+                    } else {
+                        pinnedDocument = liveDocument
+                        pinnedActivePageNumber = liveActivePageNumber
+                        pinnedPageCount = livePageCount
+                        isPinned = true
+                    }
+                } label: {
+                    Image(systemName: isPinned ? "pin.fill" : "pin")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
+                .help(isPinned ? "Unpin — follow current selection" : "Pin to current document")
+            })
+
+            surfaceView
+
+            PaneFilterBar { Spacer(minLength: 0) }
+        }
+    }
+
+    @ViewBuilder
+    private var surfaceView: some View {
+        if let doc = effectiveDocument,
+           let libraryPath = apiClient.currentLibraryPath, !libraryPath.isEmpty {
+            let kgDocId = (doc.docType == .page && doc.parentId != nil) ? doc.parentId! : doc.id
+            DocumentKGSurface(
+                documentId: kgDocId,
+                documentScope: doc.docType == .page ? .page : .folder,
+                libraryPath: libraryPath,
+                selectedEntityId: kgFocusState.focusedEntityId,
+                selectedClaimId: kgFocusState.focusedClaimId ?? claimFocusState.selectedClaimId,
+                activePageNumber: effectivePageNumber,
+                pageCount: effectivePageCount,
+                onPageSelected: isPinned ? { _ in } : onPageSelected,
+                scrollSync: scrollSync,
+                zoom: webZoom
+            )
+        } else {
+            Text("No selection")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.textBackgroundColor))
+        }
+    }
+}
+
 // MARK: - ContentView View Builders Extension
 // Agent: ViewBuilderAgent
 // Responsibility: Complex view builders for sidebar, content, preview, inspector
@@ -109,33 +246,42 @@ extension ContentView {
         // and the View-menu toggle while the sidebar was hidden (#1513).
         .focusedSceneValue(\.navigateToParentAction, FocusedLibraryAction(isEnabled: true, run: navigateToParent))
         // SIDEBAR SECTION toolbar — Navigator / Research Assistant selector.
-        // Attaching to the sidebar column (rather than the NavigationSplitView)
-        // places these buttons in the LEFT section of the unified toolbar, right
-        // after the system sidebar-toggle. They are automatically hidden by
-        // NavigationSplitView when the column collapses (#2309).
+        // Attaching to the sidebar column places these buttons in the LEFT
+        // section of the unified toolbar, after the system sidebar-toggle.
+        // Two separate ToolbarItems with .automatic placement keep both buttons
+        // in the sidebar section (a ToolbarItemGroup(.primaryAction) splits the
+        // second item to the far-right trailing section — #2309).
+        // Guard with `showSidebar` because NavigationSplitView does NOT
+        // auto-remove a column's toolbar contributions when the column collapses
+        // — without the guard the Navigator icon remains visible even when the
+        // sidebar is hidden (#2309).
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    sidebarShowsChat = false
-                } label: {
-                    Label {
-                        Text("Navigator")
-                    } icon: {
-                        toolbarToggleIcon("list.bullet", isActive: !sidebarShowsChat)
+            if showSidebar {
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        sidebarShowsChat = false
+                    } label: {
+                        Label {
+                            Text("Navigator")
+                        } icon: {
+                            toolbarToggleIcon("list.bullet", isActive: !sidebarShowsChat)
+                        }
                     }
+                    .help(sidebarShowsChat ? "Show Navigator" : "Navigator")
                 }
-                .help(sidebarShowsChat ? "Show Navigator" : "Navigator")
 
-                Button {
-                    sidebarShowsChat = true
-                } label: {
-                    Label {
-                        Text("Research Assistant")
-                    } icon: {
-                        toolbarToggleIcon("bubbles.and.sparkles", isActive: sidebarShowsChat)
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        sidebarShowsChat = true
+                    } label: {
+                        Label {
+                            Text("Research Assistant")
+                        } icon: {
+                            toolbarToggleIcon("bubbles.and.sparkles", isActive: sidebarShowsChat)
+                        }
                     }
+                    .help(sidebarShowsChat ? "Research Assistant" : "Show Research Assistant")
                 }
-                .help(sidebarShowsChat ? "Research Assistant" : "Show Research Assistant")
             }
         }
     }
@@ -289,7 +435,7 @@ extension ContentView {
                                 ResizableDivider(
                                     width: $pageContentPaneWidth,
                                     minWidth: ContentView.readingPaneMinWidth,
-                                    maxWidth: 540,
+                                    maxWidth: 900,
                                     edge: .trailing
                                 )
                                 widescreenReadingPane
@@ -328,7 +474,9 @@ extension ContentView {
                 onPageIndexChange: { index in
                     guard documentScrollSync.beginDriving(.pdf) else { return }
                     syncGridSelectionToPDFPage(index: index)
-                }
+                },
+                documentTitle: detailDocument?.name,
+                onClose: { showDocumentCanvas = false }
             )
             .overlay { paneFocusIndicator(for: .preview) }
             .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
@@ -359,16 +507,16 @@ extension ContentView {
     /// Extracted so it can be conditionally shown/hidden per-window (#1448).
     @ViewBuilder
     var widescreenReadingPane: some View {
-        // Splittable (h/v) WebKit/Knowledge reading surface — #2276.
+        // Each SplittablePane instance renders ReadingPaneView independently,
+        // giving left and right split panes their own @State (including pin).
         SplittablePane(storageKey: "reading") {
-            knowledgeSurface(
-                for: detailDocument,
-                activePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
-                pageCount: pdfDocPages.isEmpty ? nil : pdfDocPages.count,
+            ReadingPaneView(
+                liveDocument: detailDocument,
+                liveActivePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
+                livePageCount: pdfDocPages.isEmpty ? nil : pdfDocPages.count,
                 scrollSync: documentScrollSync,
-                onPageSelected: { index in
-                    syncGridSelectionToPDFPage(index: index)
-                }
+                onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },
+                onClose: { showReadingPane = false }
             )
         }
     }

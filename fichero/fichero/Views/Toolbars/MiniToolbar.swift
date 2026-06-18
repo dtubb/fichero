@@ -14,7 +14,7 @@ import SwiftUI
 ///     // Your content below
 /// }
 /// ```
-struct MiniToolbar<Content: View>: View {
+struct MiniToolbar<Content: View, Trailing: View>: View {
     /// Fixed height for all pane mini-toolbars so the list-view mode strip,
     /// preview pane toolbar, and inspector tab strip line up across the
     /// window. Daniel: 'the height of the toolbar for the list view, the
@@ -24,14 +24,27 @@ struct MiniToolbar<Content: View>: View {
     static var standardHeight: CGFloat { 44 }
 
     let content: Content
+    /// Items appended to the far right, after split-axis buttons.
+    /// Use for the pin button or other trailing actions.
+    let trailing: Trailing
 
-    init(@ViewBuilder content: () -> Content) {
+    // Split controls are injected by SplittablePane via environment so they
+    // live inside the existing toolbar bar rather than requiring a separate
+    // bar on top (#2309).
+    @Environment(\.splitAxisActions) private var splitActions
+
+    init(@ViewBuilder content: () -> Content, @ViewBuilder trailing: () -> Trailing) {
         self.content = content()
+        self.trailing = trailing()
     }
 
     var body: some View {
         HStack(spacing: 12) {
             content
+            if let actions = splitActions {
+                splitButtonsView(for: actions)
+            }
+            trailing
         }
         .padding(.horizontal, 12)
         .frame(height: Self.standardHeight)
@@ -39,6 +52,139 @@ struct MiniToolbar<Content: View>: View {
         // material, so pane headers don't visually float over a darker
         // content area. (#883)
         .background(.bar)
+    }
+
+    @ViewBuilder
+    private func splitButtonsView(for actions: SplitAxisActions) -> some View {
+        HStack(spacing: 4) {
+            Divider().frame(height: 16)
+
+            Button { actions.onToggleVertical() } label: {
+                Image(systemName: "rectangle.split.2x1")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(actions.hasVertical ? Color.accentColor : Color.secondary)
+            .help(actions.hasVertical ? "Remove left/right split" : "Split left / right")
+
+            Button { actions.onToggleHorizontal() } label: {
+                Image(systemName: "rectangle.split.1x2")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(actions.hasHorizontal ? Color.accentColor : Color.secondary)
+            .help(actions.hasHorizontal ? "Remove top/bottom split" : "Split top / bottom")
+        }
+    }
+}
+
+// Backward-compat: callers using `MiniToolbar { ... }` (no trailing) work unchanged.
+extension MiniToolbar where Trailing == EmptyView {
+    init(@ViewBuilder content: () -> Content) {
+        self.init(content: content, trailing: { EmptyView() })
+    }
+}
+
+// MARK: - Conditional searchable (split-pane crash prevention)
+
+extension View {
+    /// Applies `.searchable()` only when `isActive` is true.
+    /// Use this in any view that registers a toolbar search field so that
+    /// secondary split-pane copies don't double-register the NSToolbar item,
+    /// which would crash the toolbar subsystem (#2309).
+    @ViewBuilder
+    func conditionalSearchable(
+        text: Binding<String>,
+        placement: SearchFieldPlacement,
+        prompt: LocalizedStringKey,
+        isActive: Bool
+    ) -> some View {
+        if isActive {
+            self.searchable(text: text, placement: placement, prompt: prompt)
+        } else {
+            self
+        }
+    }
+}
+
+// MARK: - Lozenge Toggle Button (Xcode filter-bar style)
+
+/// A small pill-shaped toggle button matching Xcode's Navigator filter bar.
+/// Active state shows an accent fill; inactive state is borderless and secondary.
+///
+/// Use inside bottom filter bars to let the user toggle visibility of document
+/// categories, entity types, or status filters.
+struct LozengeButton: View {
+    let title: String
+    let icon: String?
+    let isActive: Bool
+    let action: () -> Void
+
+    init(_ title: String, icon: String? = nil, isActive: Bool, action: @escaping () -> Void) {
+        self.title = title
+        self.icon = icon
+        self.isActive = isActive
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 10, weight: .medium))
+                }
+                if !title.isEmpty {
+                    Text(title)
+                        .font(.system(size: 11, weight: .medium))
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(isActive ? Color.accentColor.opacity(0.15) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 4)
+                    .strokeBorder(
+                        isActive ? Color.accentColor.opacity(0.35) : Color.primary.opacity(0.12),
+                        lineWidth: 0.5
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+        .help(title)
+    }
+}
+
+// MARK: - Pane Filter Bar (bottom of content panes)
+
+/// 24pt compact bar — matches Xcode's Navigator filter bar height.
+/// Use at the bottom of sidebar / library / inspector panes in place of
+/// a full `MiniToolbar` when only filter lozenges and small action buttons
+/// are needed.
+struct PaneFilterBar<Content: View>: View {
+    static var height: CGFloat { 24 }
+
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 6) {
+                content
+            }
+            .padding(.horizontal, 8)
+            .frame(height: Self.height)
+            .frame(maxWidth: .infinity)
+            .background(.bar)
+        }
     }
 }
 

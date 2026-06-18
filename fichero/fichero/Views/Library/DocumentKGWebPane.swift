@@ -179,6 +179,8 @@ struct DocumentKGWebPane: NSViewRepresentable {
     var pageCount: Int?
     var onPageSelected: (Int) -> Void = { _ in }
     var scrollSync: DocumentScrollSyncState
+    /// Zoom level applied via WKWebView.pageZoom. 1.0 = 100%. (#2316)
+    var zoom: Double = 1.0
     @Environment(KGFocusState.self) private var kgFocusState
 
     func makeCoordinator() -> Coordinator {
@@ -219,6 +221,9 @@ struct DocumentKGWebPane: NSViewRepresentable {
         let webView = GuardedWKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
+        // Enable trackpad pinch-to-zoom (#2316).
+        webView.allowsMagnification = true
+        context.coordinator.webView = webView
         context.coordinator.loadIfNeeded(webView)
         return webView
     }
@@ -228,10 +233,16 @@ struct DocumentKGWebPane: NSViewRepresentable {
         context.coordinator.injectContext(into: webView)
         context.coordinator.loadIfNeeded(webView)
         context.coordinator.syncSelection(into: webView)
+        // Apply programmatic zoom from toolbar controls.
+        if webView.pageZoom != zoom {
+            webView.pageZoom = zoom
+        }
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var parent: DocumentKGWebPane
+        /// Retained weakly so the Coordinator can apply zoom without a full updateNSView cycle.
+        weak var webView: GuardedWKWebView?
 
         private var lastLoadedDocumentId: String?
         private var lastLoadedLibraryPath: String?

@@ -12,19 +12,45 @@ struct PDFPageWithToolbar: View {
     let documentId: String
     let pageIndex: Int
     var onPageIndexChange: ((Int) -> Void)?
+    /// Display name shown in the toolbar title slot.
+    var documentTitle: String? = nil
+    /// Called when the user taps the × close button. Omit to hide the button.
+    var onClose: (() -> Void)? = nil
 
     @StateObject private var zoom = PDFZoomController()
     @StateObject private var pageNav = PDFPageController()
 
-    // Loupe settings — same AppStorage keys as PDFPageView.Coordinator reads,
-    // so both stay in sync automatically via shared UserDefaults storage.
-    @AppStorage("pdfPreview.loupeEnabled") private var loupeEnabled = false
-    @AppStorage("pdfPreview.loupeMagnification") private var loupeMagnification: Double = 3.0
-    @AppStorage("pdfPreview.loupeSize") private var loupeSize: Double = 150.0
-    @AppStorage("pdfPreview.loupeLocked") private var loupeLocked = false
+    // Each split-pane instance gets its own loupe state so toggling loupe
+    // in one pane doesn't affect sibling panes. (@AppStorage would be shared
+    // across all instances in the same window.)
+    @State private var loupeEnabled = false
+    @State private var loupeMagnification: Double = 3.0
+    @State private var loupeSize: Double = 150.0
+    @State private var loupeLocked = false
 
     @State private var loupePosition: CGPoint = .init(x: 0.5, y: 0.5)
     @State private var loupeLockedPosition: CGPoint = .init(x: 0.5, y: 0.5)
+
+    // Secondary split panes manage their own page index so navigating in one
+    // pane doesn't force all other panes to the same page.
+    @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
+    @State private var localPageIndex: Int = 0
+
+    // Per-pane pin: when pinned, the pane ignores global selection changes
+    // and stays on the document and page that were active at pin time.
+    @State private var isPinned = false
+    @State private var pinnedDocumentId: String? = nil
+
+    /// Document ID to actually render — pinned value when locked, live prop otherwise.
+    private var effectiveDocumentId: String {
+        isPinned ? (pinnedDocumentId ?? documentId) : documentId
+    }
+
+    /// Which page to display: parent-driven for the primary unpinned pane,
+    /// locally tracked for every secondary pane or any pinned pane.
+    private var effectivePageIndex: Int {
+        (isSecondarySplitPane || isPinned) ? localPageIndex : pageIndex
+    }
 
     private var scaleBinding: Binding<CGFloat> {
         Binding(
@@ -42,7 +68,34 @@ struct PDFPageWithToolbar: View {
             // Toolbar: zoom controls + loupe toggle. Uses MiniToolbar so the
             // PDF preview header is the same 44pt height as the list mode rail,
             // image preview, knowledge surface, and inspector tab strip (#1228).
-            MiniToolbar {
+            // Layout: [× close] [title] [page nav] [spacer] [zoom] [loupe] | [split] [pin]
+            MiniToolbar(content: {
+                // × close — far left, only when caller provides onClose.
+                if let onClose {
+                    Button {
+                        onClose()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Close this pane")
+
+                    Divider().frame(height: 16)
+                }
+
+                if let title = documentTitle, !title.isEmpty {
+                    Image(systemName: "doc.richtext")
+                        .imageScale(.small)
+                        .foregroundStyle(.secondary)
+                    Text(title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Divider().frame(height: 16)
+                }
+
                 // Page-within-document navigation (◀ N / M ▶). Document-scoped,
                 // so it lives here on the canvas toolbar rather than the window
                 // toolbar. Only shown for multi-page documents. (#1531)
@@ -154,30 +207,68 @@ struct PDFPageWithToolbar: View {
                 }
 
                 Spacer()
-            }
+            }, trailing: {
+                // Pin — far right, after split buttons. Keeps this pane on its
+                // current document + page while the global selection changes.
+                Divider().frame(height: 16)
+
+                Button {
+                    if isPinned {
+                        isPinned = false
+                    } else {
+                        pinnedDocumentId = documentId
+                        localPageIndex = pageIndex
+                        isPinned = true
+                    }
+                } label: {
+                    Image(systemName: isPinned ? "pin.fill" : "pin")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
+                .help(isPinned ? "Unpin — follow current selection" : "Pin to this document")
+            })
 
             Divider()
 
             ZStack {
                 PDFPageView(
-                    documentId: documentId,
-                    pageIndex: pageIndex,
-                    onPageIndexChange: onPageIndexChange,
+                    documentId: effectiveDocumentId,
+                    pageIndex: effectivePageIndex,
+                    onPageIndexChange: { newIndex in
+                        if isSecondarySplitPane || isPinned {
+                            localPageIndex = newIndex
+                        } else {
+                            onPageIndexChange?(newIndex)
+                        }
+                    },
                     zoomController: zoom,
                     pageController: pageNav,
                     onCursorMoved: { pos in loupePosition = pos }
                 )
+                .onAppear { localPageIndex = pageIndex }
+                .onChange(of: pageIndex) { _, newIndex in
+                    // Primary unpinned pane: keep in step with parent selection.
+                    // Secondary or pinned pane: ignore parent changes.
+                    if !isSecondarySplitPane && !isPinned { localPageIndex = newIndex }
+                }
 
                 if loupeEnabled {
                     PDFLoupeOverlay(
-                        documentId: documentId,
-                        pageIndex: pageIndex,
+                        documentId: effectiveDocumentId,
+                        pageIndex: effectivePageIndex,
                         cursorPosition: effectiveLoupePosition,
                         magnification: loupeMagnification,
                         loupeSize: loupeSize
                     )
                     .allowsHitTesting(false)
                 }
+            }
+
+            // Bottom annotation/editor toolbar — placeholder for tools
+            // (highlight, note, drawing, etc.) that will live here.
+            PaneFilterBar {
+                Spacer(minLength: 0)
             }
         }
     }

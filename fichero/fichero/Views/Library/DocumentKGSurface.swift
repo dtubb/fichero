@@ -146,6 +146,8 @@ struct DocumentKGSurface: View {
     var pageCount: Int?
     var onPageSelected: (Int) -> Void = { _ in }
     var scrollSync: DocumentScrollSyncState
+    /// Zoom level forwarded to the WebKit pane. 1.0 = 100%. (#2316)
+    var zoom: Double = 1.0
 
     @State private var activeTab: KGSurfaceTab = .transcript
     @Environment(KGFocusState.self) private var kgFocusState
@@ -185,7 +187,8 @@ struct DocumentKGSurface: View {
                 activePageNumber: activePageNumber,
                 pageCount: pageCount,
                 onPageSelected: onPageSelected,
-                scrollSync: scrollSync
+                scrollSync: scrollSync,
+                zoom: zoom
             )
             .opacity(activeTab.usesWebKit ? 1 : 0)
             .allowsHitTesting(activeTab.usesWebKit)

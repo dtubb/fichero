@@ -68,7 +68,7 @@ struct DocumentInspector: View {
                 Spacer()
             }
             .padding(.horizontal, 12)
-            .frame(height: MiniToolbar<EmptyView>.standardHeight)
+            .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
             .accessibilityIdentifier("inspectorEntityBackBar")
 
             Divider()
@@ -176,7 +176,7 @@ struct DocumentInspector: View {
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .frame(height: MiniToolbar<EmptyView>.standardHeight)
+        .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight)
         // XCUITest hook for the inspector tab bar (#1230).
         .accessibilityIdentifier("inspectorTabBar")
     }
