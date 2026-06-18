@@ -1,4 +1,6 @@
+#if canImport(AppKit)
 import AppKit
+#endif
 import FicheroAPIClient
 import SwiftUI
 
@@ -164,11 +166,15 @@ struct ClaimSummaryCard: View {
             .onTapGesture {
                 // Cmd-click opens in a new tab, Finder-style (#1685);
                 // plain click focuses the claim in place.
+                #if os(macOS)
                 if NSApp.currentEvent?.modifierFlags.contains(.command) ?? false {
                     openClaimInNewWindow(asTab: true)
                 } else {
                     focusClaim()
                 }
+                #else
+                focusClaim()
+                #endif
             }
             .onTapGesture(count: 2) { isInlineEditing = true }
             .contextMenu {
