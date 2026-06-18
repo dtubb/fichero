@@ -167,11 +167,11 @@ struct DocumentInspector: View {
         // inspector facet selector.
         .background(
             RoundedRectangle(cornerRadius: 7)
-                .fill(Color(nsColor: .quaternaryLabelColor).opacity(0.5))
+                .fill(Color(platformColor: .platformQuaternaryLabel).opacity(0.5))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 7)
-                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+                .strokeBorder(Color(platformColor: .separatorColor), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .padding(.horizontal, 8)
