@@ -159,9 +159,11 @@ struct FicheroApp: App {
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             CommandGroup(after: .appInfo) {
+                #if os(macOS)
                 Button("Check for Updates...") {
                     SparkleUpdater.shared.checkForUpdates()
                 }
+                #endif
             }
 
             // File menu - Database/Library management
