@@ -1,8 +1,8 @@
 # STATE — iOS/iPad cross-platform shell drive 2026-06-18
 
-Branch `0.0.2` is **ahead of `origin/0.0.2` by 6 commits**; Mac compile gate passed; iOS compile gate
-**pending** (auto-mode classifier blocked CLI xcodebuild and Xcode MCP was temporarily unavailable at
-session end). Do NOT push until iOS `generic/platform=iOS Simulator` build is green.
+Branch `0.0.2` is **ahead of `origin/0.0.2` by 9 commits** (7 iOS gating + 1 Xcode settings + 1 handoff doc).
+Mac compile gate passed; iOS compile gate **pending** (auto-mode classifier blocked CLI xcodebuild and Xcode MCP
+at session end). Do NOT push until iOS `generic/platform=iOS Simulator` build is green.
 
 ## ☀️ START HERE
 **Role: MANAGER — do NOT implement.** **WORKER POLICY (Daniel 2026-06-17, HARD):** ollama/codex tmux
@@ -17,15 +17,19 @@ Overnight goal was **single SwiftUI codebase for Mac/iPad/iPhone/visionOS** with
 First-step deliverable: **iOS compile errors → 0**. Progress made; final iOS build needs one more run.
 
 ## In Progress / pending gate
-- **iOS AppKit blocker sweep (#2098):** 6 files gated behind `#if os(macOS)` and pushed to local 0.0.2:
+- **iOS AppKit blocker sweep (#2098):** 7 files gated behind `#if os(macOS)` / `canImport(AppKit)` and ready on
+  local 0.0.2:
   - Bucket C group 1: `AppInstaller`, `LibraryWindow`, `FirstRunWindow`, `OpenAffordances`.
   - Bucket C group 2: `WorkflowExporter`, `FolderAccessManager`, `FileMenuCommands`.
   - iOS "Unable to resolve module dependency" siblings: `QuickLookComponents`, `AppleScriptCommands`,
-    `ClaimSummaryCardView`, `ImageViewerComponents`, `AppleScriptSupport`, `QuickLookPreviewViews`.
+    `ClaimSummaryCardView`, `ImageViewerComponents`, `AppleScriptSupport`, `QuickLookPreviewViews`,
+    `ScrollWheelZoom`.
 - **iOS destinations added (#2099):** iPhone + iPad, iOS 26.0 / macOS 26.0 in `project.pbxproj`.
 - **Sparkle framework restricted to macOS (#2319):** link filter set so iOS no longer fails on missing slice.
 - **AppKit/UIKit audit doc (#2101):** `docs/architecture/swiftui/ios_appkit_audit.md` pushed.
 - **Platform shims started (#2097):** `PlatformAliases.swift` with `PlatformFont` / `PlatformViewRepresentable`.
+- **#2311 view-mode default — DONE:** the `ms/review` worktree commit `19bf1ff2` was already present in
+  `ContentView+State.swift` on 0.0.2 (empty cherry-pick confirmed). No further action needed.
 
 ## Next Session — Start Here
 1. **Finish iOS compile gate:** with Xcode MCP `BuildProject` (tab `windowtab3`) or CLI xcodebuild if classifier
@@ -37,6 +41,8 @@ First-step deliverable: **iOS compile errors → 0**. Progress made; final iOS b
 4. **#2100 iPhone compact layout:** once compile-clean, design the compact split / sidebar / inspector flow.
 
 **Held (do not touch):** worktrees `entitytable-2020` (#2020), `lan-tls-2157` (#2157), `importers`.
+`ms/macos-gating` has uncommitted backend changes (`db_migrations.py`, `spatial_models.py`) + brief files —
+manager did NOT commit because content/status unknown; review before committing.
 Dead code: `SidebarChatSurface.swift` (folded into #2034 swap — delete in a cleanup pass).
 
 **Open issues from this drive:** #2316 WebKit zoom (verify/close), #2317 RTF rendering, #2318 export field/content
