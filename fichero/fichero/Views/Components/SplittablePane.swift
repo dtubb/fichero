@@ -55,7 +55,12 @@ extension EnvironmentValues {
 /// - V button toggles left/right split for the whole pane.
 /// - H button toggles top/bottom for the *specific column* the button lives in.
 ///   Left and right columns can each be split horizontally on their own,
-///   so you can reach 1, 2, or 3 panes without being forced to a full 2×2.
+///   so you can reach 1, 2, 3, or 4 panes.
+///
+/// **Full 2×2 layout:** when both columns are H-split AND the V-split is active,
+/// each row gets its own ResizableDivider so top/bottom rows have independent
+/// left-column widths. Heights are always independent because left and right use
+/// separate VSplitView instances.
 ///
 /// **NSToolbar safety:** The vertical split uses `HStack + ResizableDivider`
 /// rather than `HSplitView` (NSSplitView) so the column separator does NOT
@@ -75,16 +80,13 @@ struct SplittablePane<Content: View>: View {
     /// Top/bottom split for the secondary (right) column. Irrelevant when
     /// `hasVertical` is false.
     @SceneStorage private var secondaryHasHorizontal: Bool
-    /// Width of the primary (left) pane when the vertical split is active.
-    /// Persisted so the divider position survives window re-opens.
+    /// Width of the left pane in the shared-divider (non-2×2) layout.
     @SceneStorage private var verticalSplitLeftWidth: Double
+    /// Width of the left pane in the top row of the full 2×2 layout.
+    @SceneStorage private var topRowLeftWidth: Double
+    /// Width of the left pane in the bottom row of the full 2×2 layout.
+    @SceneStorage private var bottomRowLeftWidth: Double
 
-    /// - Parameters:
-    ///   - storageKey: Stable per-pane key ("library", "canvas", "reading").
-    ///     Used to namespace `@SceneStorage` so each pane's split state is
-    ///     independent within the same window.
-    ///   - content: The pane's view factory, rendered once or multiple times
-    ///     depending on the active split configuration.
     init(storageKey: String, @ViewBuilder content: @escaping () -> Content) {
         self.storageKey = storageKey
         self.content = content
@@ -92,6 +94,8 @@ struct SplittablePane<Content: View>: View {
         self._primaryHasHorizontal = SceneStorage(wrappedValue: false, "splittablePane.\(storageKey).ph")
         self._secondaryHasHorizontal = SceneStorage(wrappedValue: false, "splittablePane.\(storageKey).sh")
         self._verticalSplitLeftWidth = SceneStorage(wrappedValue: 400, "splittablePane.\(storageKey).vsw")
+        self._topRowLeftWidth = SceneStorage(wrappedValue: 400, "splittablePane.\(storageKey).trw")
+        self._bottomRowLeftWidth = SceneStorage(wrappedValue: 400, "splittablePane.\(storageKey).brw")
     }
 
     var body: some View {
@@ -102,7 +106,6 @@ struct SplittablePane<Content: View>: View {
 
     private func toggleVertical() {
         hasVertical.toggle()
-        // Discard the secondary column's H-split state when collapsing V.
         if !hasVertical { secondaryHasHorizontal = false }
     }
 
@@ -114,49 +117,50 @@ struct SplittablePane<Content: View>: View {
     @ViewBuilder
     private var splitContainer: some View {
         if hasVertical {
-            // HStack + ResizableDivider instead of HSplitView so the divider
-            // does NOT bleed into the window title bar (an NSSplitView quirk
-            // that makes NSToolbar appear visually split alongside the content).
-            //
-            // GeometryReader clamps leftWidth so it can never exceed
-            // (available - minSecondary - divider), preventing NSConstraintLoop
-            // crashes from over-constrained fixed-width frames (#2317).
-            GeometryReader { proxy in
-                let available = proxy.size.width > 0
-                    ? Double(proxy.size.width)
-                    : verticalSplitLeftWidth + 248   // 240 min-secondary + 8 divider
-                let maxLeft = max(240, available - 248)
-                let leftWidth = CGFloat(max(240, min(verticalSplitLeftWidth, maxLeft)))
-                HStack(spacing: 0) {
-                    primaryColumn
-                        .frame(width: leftWidth)
-                        .environment(\.splitAxisActions, SplitAxisActions(
-                            hasVertical: true,
-                            hasHorizontal: primaryHasHorizontal,
-                            onToggleVertical: toggleVertical,
-                            onToggleHorizontal: togglePrimaryHorizontal
-                        ))
-                    ResizableDivider(
-                        width: $verticalSplitLeftWidth,
-                        minWidth: 240,
-                        maxWidth: min(900, maxLeft),
-                        edge: .leading
-                    )
-                    secondaryColumn
-                        .frame(minWidth: 240, maxWidth: .infinity)
-                        .environment(\.splitAxisActions, SplitAxisActions(
-                            hasVertical: true,
-                            hasHorizontal: secondaryHasHorizontal,
-                            onToggleVertical: toggleVertical,
-                            onToggleHorizontal: toggleSecondaryHorizontal
-                        ))
+            if primaryHasHorizontal && secondaryHasHorizontal {
+                // Full 2×2: each row has its own ResizableDivider for independent
+                // left-column widths. VSplitView gives an independently draggable
+                // horizontal divider between the two rows.
+                fullQuadSplit
+            } else {
+                // 1, 2, or 3-pane layouts: single shared divider position.
+                // GeometryReader clamps leftWidth to prevent NSConstraintLoop (#2317).
+                GeometryReader { proxy in
+                    let available = proxy.size.width > 0
+                        ? Double(proxy.size.width)
+                        : verticalSplitLeftWidth + 248
+                    let maxLeft = max(240, available - 248)
+                    let leftWidth = CGFloat(max(240, min(verticalSplitLeftWidth, maxLeft)))
+                    HStack(spacing: 0) {
+                        primaryColumn
+                            .frame(width: leftWidth)
+                            .environment(\.splitAxisActions, SplitAxisActions(
+                                hasVertical: true,
+                                hasHorizontal: primaryHasHorizontal,
+                                onToggleVertical: toggleVertical,
+                                onToggleHorizontal: togglePrimaryHorizontal
+                            ))
+                        ResizableDivider(
+                            width: $verticalSplitLeftWidth,
+                            minWidth: 240,
+                            maxWidth: min(900, maxLeft),
+                            edge: .leading
+                        )
+                        secondaryColumn
+                            .frame(minWidth: 240, maxWidth: .infinity)
+                            .environment(\.splitAxisActions, SplitAxisActions(
+                                hasVertical: true,
+                                hasHorizontal: secondaryHasHorizontal,
+                                onToggleVertical: toggleVertical,
+                                onToggleHorizontal: toggleSecondaryHorizontal
+                            ))
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if primaryHasHorizontal {
-            // Top / Bottom (no V-split). VSplitView dividers are horizontal and
-            // do not extend into the title bar, so it's safe to keep here.
+            // Top / Bottom only (no V-split).
             VSplitView {
                 content()
                     .frame(maxWidth: .infinity, minHeight: 160, maxHeight: .infinity)
@@ -187,7 +191,76 @@ struct SplittablePane<Content: View>: View {
         }
     }
 
-    // MARK: Column helpers
+    // MARK: Full 2×2 layout
+
+    /// All four panes active: each row gets its own left-column width so the
+    /// top and bottom rows can have different divider positions.
+    @ViewBuilder
+    private var fullQuadSplit: some View {
+        GeometryReader { proxy in
+            let available = proxy.size.width > 0
+                ? Double(proxy.size.width)
+                : max(topRowLeftWidth, bottomRowLeftWidth) + 248
+            let maxLeft = max(240, available - 248)
+            let topLeft   = CGFloat(max(240, min(topRowLeftWidth,    maxLeft)))
+            let bottomLeft = CGFloat(max(240, min(bottomRowLeftWidth, maxLeft)))
+            VSplitView {
+                // Top row: top-left (primary) | top-right (secondary)
+                HStack(spacing: 0) {
+                    content()
+                        .frame(width: topLeft)
+                        .environment(\.splitAxisActions, SplitAxisActions(
+                            hasVertical: true, hasHorizontal: true,
+                            onToggleVertical: toggleVertical,
+                            onToggleHorizontal: togglePrimaryHorizontal
+                        ))
+                    ResizableDivider(
+                        width: $topRowLeftWidth,
+                        minWidth: 240,
+                        maxWidth: min(900, maxLeft),
+                        edge: .leading
+                    )
+                    secondary()
+                        .frame(minWidth: 240, maxWidth: .infinity)
+                        .environment(\.splitAxisActions, SplitAxisActions(
+                            hasVertical: true, hasHorizontal: true,
+                            onToggleVertical: toggleVertical,
+                            onToggleHorizontal: toggleSecondaryHorizontal
+                        ))
+                }
+                .frame(maxWidth: .infinity, minHeight: 160, maxHeight: .infinity)
+
+                // Bottom row: bottom-left (secondary) | bottom-right (secondary)
+                HStack(spacing: 0) {
+                    secondary()
+                        .frame(width: bottomLeft)
+                        .environment(\.splitAxisActions, SplitAxisActions(
+                            hasVertical: true, hasHorizontal: true,
+                            onToggleVertical: toggleVertical,
+                            onToggleHorizontal: togglePrimaryHorizontal
+                        ))
+                    ResizableDivider(
+                        width: $bottomRowLeftWidth,
+                        minWidth: 240,
+                        maxWidth: min(900, maxLeft),
+                        edge: .leading
+                    )
+                    secondary()
+                        .frame(minWidth: 240, maxWidth: .infinity)
+                        .environment(\.splitAxisActions, SplitAxisActions(
+                            hasVertical: true, hasHorizontal: true,
+                            onToggleVertical: toggleVertical,
+                            onToggleHorizontal: toggleSecondaryHorizontal
+                        ))
+                }
+                .frame(maxWidth: .infinity, minHeight: 160, maxHeight: .infinity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: Column helpers (used in non-2×2 layouts)
 
     /// Primary (left, or only) column — optionally split top/bottom.
     @ViewBuilder

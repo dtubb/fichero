@@ -68,8 +68,10 @@ struct PDFPageWithToolbar: View {
     /// otherwise calls onClose to hide the whole pane.
     private func closePane() {
         if let actions = splitAxisActions {
-            if actions.hasVertical { actions.onToggleVertical(); return }
+            // H-split is more local than V-split; collapse it first so clicking X
+            // on a pane in a row collapses that row, not the whole left/right split.
             if actions.hasHorizontal { actions.onToggleHorizontal(); return }
+            if actions.hasVertical   { actions.onToggleVertical();   return }
         }
         onClose?()
     }

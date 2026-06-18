@@ -148,8 +148,13 @@ struct DocumentKGSurface: View {
     var scrollSync: DocumentScrollSyncState
     /// Zoom level forwarded to the WebKit pane. 1.0 = 100%. (#2316)
     var zoom: Double = 1.0
+    /// Active tab driven by the parent pane. When omitted the surface manages
+    /// tab state internally (backward-compat for non-split usages).
+    var externalActiveTab: KGSurfaceTab? = nil
+    var onTabSelected: ((KGSurfaceTab) -> Void)? = nil
 
-    @State private var activeTab: KGSurfaceTab = .transcript
+    @State private var internalActiveTab: KGSurfaceTab = .transcript
+    private var activeTab: KGSurfaceTab { externalActiveTab ?? internalActiveTab }
     @Environment(KGFocusState.self) private var kgFocusState
     @EnvironmentObject private var entityService: EntityServiceGenerated
     @EnvironmentObject private var artifactService: ArtifactServiceGenerated
@@ -167,9 +172,17 @@ struct DocumentKGSurface: View {
                 \.documentRepresentation,
                 DocumentRepresentationFocus(
                     current: activeTab,
-                    select: { activeTab = $0 }
+                    select: { selectTab($0) }
                 )
             )
+    }
+
+    private func selectTab(_ tab: KGSurfaceTab) {
+        if onTabSelected != nil {
+            onTabSelected?(tab)
+        } else {
+            internalActiveTab = tab
+        }
     }
 
     @ViewBuilder

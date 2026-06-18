@@ -26,6 +26,7 @@ private struct ReadingPaneView: View {
     @State private var pinnedActivePageNumber: Int? = nil
     @State private var pinnedPageCount: Int? = nil
     @State private var webZoom: Double = 1.0
+    @State private var activeTab: KGSurfaceTab = .transcript
 
     private var effectiveDocument: Document? { isPinned ? pinnedDocument : liveDocument }
     private var effectivePageNumber: Int? { isPinned ? pinnedActivePageNumber : liveActivePageNumber }
@@ -35,8 +36,9 @@ private struct ReadingPaneView: View {
     /// otherwise calls onClose to hide the whole reading pane.
     private func closePane() {
         if let actions = splitAxisActions {
-            if actions.hasVertical { actions.onToggleVertical(); return }
+            // H-split is more local; collapse it before the V-split.
             if actions.hasHorizontal { actions.onToggleHorizontal(); return }
+            if actions.hasVertical   { actions.onToggleVertical();   return }
         }
         onClose?()
     }
@@ -67,6 +69,23 @@ private struct ReadingPaneView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+
+                Divider().frame(height: 16)
+
+                // View switcher — Transcript / Digest / Graph / Claims / Timeline / Map
+                HStack(spacing: 2) {
+                    ForEach(KGSurfaceTab.allCases) { tab in
+                        Button {
+                            activeTab = tab
+                        } label: {
+                            Image(systemName: tab.icon)
+                                .font(.system(size: 11))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(activeTab == tab ? Color.accentColor : Color.secondary)
+                        .help(tab.helpText)
+                    }
+                }
 
                 Spacer(minLength: 0)
 
@@ -138,7 +157,9 @@ private struct ReadingPaneView: View {
                 pageCount: effectivePageCount,
                 onPageSelected: isPinned ? { _ in } : onPageSelected,
                 scrollSync: scrollSync,
-                zoom: webZoom
+                zoom: webZoom,
+                externalActiveTab: activeTab,
+                onTabSelected: { activeTab = $0 }
             )
         } else {
             Text("No selection")
