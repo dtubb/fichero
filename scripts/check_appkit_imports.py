@@ -49,6 +49,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Models/Platform/PlatformAliases.swift": "sanctioned cross-platform shim — #if canImport(AppKit/UIKit) (#2097/#2098)",
     "Models/Platform/PlatformPasteboard.swift": "sanctioned cross-platform shim — #if canImport(AppKit/UIKit) (#2097/#2098)",
     "Models/WorkflowExporter.swift": "§6b baseline — NSSavePanel export",
+    "Views/Menu/FileMenuCommands.swift": "§6b baseline — NSSavePanel/NSAlert file-menu; gate behind #if os(macOS) for iOS (#2098/#2101)",
     "Services/ImageEditingServiceGenerated.swift": "§6b baseline — NSImage codec",
     "Views/Components/BackendConnectionView.swift": "§6b baseline — AppKit bridge",
     "Views/Components/MacPlainTextEditor.swift": "sanctioned bridge — NSTextView editor",
