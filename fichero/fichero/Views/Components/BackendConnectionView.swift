@@ -93,7 +93,7 @@ struct BackendConnectionView: View {
             // The dots cycle through three phases on a 0.4s timer; the
             // single "active" dot lights up while the others dim.
             HStack(spacing: 16) {
-                Image(nsImage: ficheroIconImage)
+                Image(platformImage: ficheroIconImage)
                     .resizable()
                     .interpolation(.high)
                     .frame(width: 72, height: 72)
@@ -107,7 +107,7 @@ struct BackendConnectionView: View {
                 }
                 .frame(width: 50)
 
-                Image(nsImage: engineIconImage)
+                Image(platformImage: engineIconImage)
                     .resizable()
                     .interpolation(.high)
                     .frame(width: 72, height: 72)
