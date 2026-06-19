@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 #if canImport(UIKit) && !os(macOS)
@@ -7,6 +8,7 @@ import UIKit
 struct RemoteClientPairingFields: Equatable {
     let remoteURL: String
     let pairCode: String
+    let spkiPin: String
 }
 
 enum RemoteClientPairingError: LocalizedError, Equatable {
@@ -44,13 +46,20 @@ enum RemoteClientPairing {
             allowLocalhost: false,
             requireSecureTransportForRemote: true
         )
+        let validatedSPKIPin = try RemoteCertificatePinning.validatedSPKIPin(payload.spki)
         return RemoteClientPairingFields(
             remoteURL: validatedURL.absoluteString,
-            pairCode: payload.pairCode
+            pairCode: payload.pairCode,
+            spkiPin: validatedSPKIPin
         )
     }
 
-    static func pairDevice(remoteURL: String, pairCode: String, deviceName: String) async throws -> PairingExchangeResult {
+    static func pairDevice(
+        remoteURL: String,
+        pairCode: String,
+        deviceName: String,
+        expectedSPKIPin: String
+    ) async throws -> PairingExchangeResult {
         let code = pairCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -66,21 +75,29 @@ enum RemoteClientPairing {
             allowLocalhost: false,
             requireSecureTransportForRemote: true
         )
-        let response = try await PairingService(apiRoot: url).pairDeviceUnauthenticated(code: code, deviceName: name)
+        let normalizedSPKIPin = try RemoteCertificatePinning.validatedSPKIPin(expectedSPKIPin)
+        let response = try await PairingService(apiRoot: url, expectedSPKIPin: normalizedSPKIPin)
+            .pairDeviceUnauthenticated(code: code, deviceName: name)
         return PairingExchangeResult(apiRoot: url, deviceToken: response.deviceToken)
     }
 
     @MainActor
-    static func persistPairedHost(_ result: PairingExchangeResult) throws {
-        // Remote-client device tokens are host-scoped and must never reuse the
-        // bootstrap localhost token path. Today this persists via the existing
-        // host-scoped token store; signed-app Keychain backing belongs in #2351.
+    static func persistPairedHost(_ result: PairingExchangeResult, expectedSPKIPin: String) throws {
         try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
+        try RemoteCertificatePinning.persistSPKIPin(expectedSPKIPin)
         UserDefaults.standard.set(result.apiRoot.absoluteString, forKey: EngineConfig.userDefaultsKey)
     }
 
-    static func probeRemoteHealth(at apiRoot: URL) async throws {
-        let (data, response) = try await URLSession.shared.data(from: apiRoot.appendingPathComponent("api/health"))
+    static func probeRemoteHealth(at apiRoot: URL, expectedSPKIPin: String? = nil) async throws {
+        let requestURL = apiRoot.appendingPathComponent("api/health")
+        let session: URLSession
+        if let expectedSPKIPin {
+            session = try RemoteCertificatePinning.pinnedSession(expectedSPKIPin: expectedSPKIPin)
+        } else {
+            session = URLSession.shared
+        }
+
+        let (data, response) = try await session.data(from: requestURL)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw APIError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? -1, message: "API returned error status")
         }
@@ -96,9 +113,19 @@ enum RemoteClientPairing {
     }
 
     @MainActor
-    static func pairAndPersistHost(remoteURL: String, pairCode: String, deviceName: String) async throws -> URL {
-        let result = try await pairDevice(remoteURL: remoteURL, pairCode: pairCode, deviceName: deviceName)
-        try persistPairedHost(result)
+    static func pairAndPersistHost(
+        remoteURL: String,
+        pairCode: String,
+        deviceName: String,
+        expectedSPKIPin: String
+    ) async throws -> URL {
+        let result = try await pairDevice(
+            remoteURL: remoteURL,
+            pairCode: pairCode,
+            deviceName: deviceName,
+            expectedSPKIPin: expectedSPKIPin
+        )
+        try persistPairedHost(result, expectedSPKIPin: expectedSPKIPin)
         return result.apiRoot
     }
 }

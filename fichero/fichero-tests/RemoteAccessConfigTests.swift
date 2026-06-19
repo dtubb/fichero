@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import XCTest
 
@@ -5,6 +6,8 @@ import XCTest
 
 @MainActor
 final class RemoteAccessConfigTests: XCTestCase {
+    private let validSPKIPin = Data("spki-value".utf8).base64EncodedString()
+
     func testPairingBackendURLUsesAdvertisedRoot() throws {
         let advertised = "  https://pairing.example.com/  "
         let pairingURL = try XCTUnwrap(RemoteAccessConfig.pairingBackendURL(from: advertised))
@@ -14,11 +17,11 @@ final class RemoteAccessConfigTests: XCTestCase {
             code: "PAIR-1234",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: pairingURL).buildQRCodePayload(from: code, spki: "spki-value")
+        let payload = PairingService(apiRoot: pairingURL).buildQRCodePayload(from: code, spki: validSPKIPin)
 
         XCTAssertEqual(payload.apiURL, "https://pairing.example.com")
         XCTAssertEqual(payload.pairCode, "PAIR-1234")
-        XCTAssertEqual(payload.spki, "spki-value")
+        XCTAssertEqual(payload.spki, validSPKIPin)
         XCTAssertEqual(payload.expiresAt, code.expiresAt)
     }
 
@@ -28,7 +31,7 @@ final class RemoteAccessConfigTests: XCTestCase {
             code: "PAIR-1234",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: "spki-value")
+        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: validSPKIPin)
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -38,7 +41,7 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertEqual(decoded.version, 1)
         XCTAssertEqual(decoded.apiURL, "https://pairing.example.com")
         XCTAssertEqual(decoded.pairCode, code.code)
-        XCTAssertEqual(decoded.spki, "spki-value")
+        XCTAssertEqual(decoded.spki, validSPKIPin)
         XCTAssertEqual(decoded.expiresAt, code.expiresAt)
     }
 
@@ -48,7 +51,7 @@ final class RemoteAccessConfigTests: XCTestCase {
             code: "PAIR-1234",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: "spki-value")
+        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: validSPKIPin)
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -57,6 +60,7 @@ final class RemoteAccessConfigTests: XCTestCase {
 
         XCTAssertEqual(pairingFields.remoteURL, "https://pairing.example.com")
         XCTAssertEqual(pairingFields.pairCode, "PAIR-1234")
+        XCTAssertEqual(pairingFields.spkiPin, validSPKIPin)
     }
 
     func testRemoteClientPairingFieldsRejectLocalhostPayloads() throws {
@@ -65,7 +69,7 @@ final class RemoteAccessConfigTests: XCTestCase {
             code: "PAIR-1234",
             expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: "spki-value")
+        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: validSPKIPin)
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -73,6 +77,23 @@ final class RemoteAccessConfigTests: XCTestCase {
 
         XCTAssertThrowsError(try RemoteClientPairing.pairingFields(from: message)) { error in
             XCTAssertEqual(error as? RemoteURLValidationError, .localhostNotAllowed)
+        }
+    }
+
+    func testRemoteClientPairingFieldsRejectMissingSPKIPayload() throws {
+        let apiRoot = URL(string: "https://pairing.example.com/")!
+        let code = PairingCodeRecord(
+            code: "PAIR-1234",
+            expiresAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let payload = PairingService(apiRoot: apiRoot).buildQRCodePayload(from: code, spki: "")
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let message = try XCTUnwrap(String(bytes: encoder.encode(payload), encoding: .utf8))
+
+        XCTAssertThrowsError(try RemoteClientPairing.pairingFields(from: message)) { error in
+            XCTAssertEqual(error as? RemoteCertificatePinningError, .missingSPKIPin)
         }
     }
 

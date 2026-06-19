@@ -1,8 +1,10 @@
 #if canImport(UIKit) && !os(macOS)
 import AVFoundation
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 import UIKit
+// swiftlint:disable file_length
 
 @main
 struct FicheroAppIOS: App {
@@ -139,6 +141,7 @@ private struct RemoteConnectionSetupView: View {
     @State private var presentedSheet: RemoteConnectionSheet?
     @State private var remoteURL = EngineConfig.usesCustomHost ? EngineConfig.hostString : ""
     @State private var pairCode = ""
+    @State private var spkiPin = ""
     @State private var deviceName = RemoteClientPairing.defaultDeviceName()
     @State private var showAdvancedConnectionOptions = false
     @State private var isPairing = false
@@ -308,6 +311,11 @@ private struct RemoteConnectionSetupView: View {
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
 
+                            TextField("Certificate SPKI pin", text: $spkiPin)
+                                .textFieldStyle(.roundedBorder)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+
                             TextField("Device Name", text: $deviceName)
                                 .textFieldStyle(.roundedBorder)
                                 .autocorrectionDisabled()
@@ -385,11 +393,12 @@ private struct RemoteConnectionSetupView: View {
 
     private func handleScannedMessage(_ message: String) {
         do {
-            let payload = try PairingQRCodePayloadDecoder.decode(message: message)
             let pairingFields = try RemoteClientPairing.pairingFields(from: message)
+            let payload = try PairingQRCodePayloadDecoder.decode(message: message)
             detectedPayload = payload
             remoteURL = pairingFields.remoteURL
             pairCode = pairingFields.pairCode
+            spkiPin = pairingFields.spkiPin
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -405,7 +414,8 @@ private struct RemoteConnectionSetupView: View {
             let url = try await RemoteClientPairing.pairAndPersistHost(
                 remoteURL: remoteURL,
                 pairCode: pairCode,
-                deviceName: deviceName
+                deviceName: deviceName,
+                expectedSPKIPin: spkiPin
             )
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()

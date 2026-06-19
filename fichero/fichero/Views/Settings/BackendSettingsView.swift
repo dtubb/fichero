@@ -1,5 +1,6 @@
 import CoreImage
 import CoreImage.CIFilterBuiltins
+import FicheroAPIClient
 import SwiftUI
 
 // MARK: - Backend Settings
@@ -17,6 +18,7 @@ struct BackendSettingsView: View {
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
     @AppStorage(RemoteAccessConfig.bonjourEnabledKey) private var bonjourEnabled = false
     @AppStorage(RemoteAccessConfig.publicBaseURLKey) private var publicBaseURL = ""
+    @AppStorage(RemoteAccessConfig.spkiPinKey) private var spkiPin = ""
 
     @State private var storageStats: StorageStats?
     @State private var isLoadingStats = false
@@ -73,6 +75,11 @@ struct BackendSettingsView: View {
                     .autocorrectionDisabled()
                     .disabled(!hostingEnabled)
 
+                TextField("Certificate SPKI pin", text: $spkiPin)
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
+                    .disabled(!hostingEnabled)
+
                 Text(
                     "Use a private reachable URL such as your Tailscale HTTPS address. "
                         + "Bonjour only announces that this Mac is available; the QR code "
@@ -100,6 +107,7 @@ struct BackendSettingsView: View {
                         isGeneratingPairingCode
                             || !hostingEnabled
                             || !hasValidReachableURL
+                            || !hasValidSPKIPin
                             || !appState.isBackendRunning
                     )
 
@@ -246,9 +254,16 @@ struct BackendSettingsView: View {
         (try? validatedReachableURL()) != nil
     }
 
+    private var hasValidSPKIPin: Bool {
+        (try? RemoteCertificatePinning.validatedSPKIPin(spkiPin)) != nil
+    }
+
     private var qrCodeImage: PlatformImage? {
         guard let pairingCode, let advertisedPairingService else { return nil }
-        let payload = advertisedPairingService.buildQRCodePayload(from: pairingCode)
+        guard let normalizedSPKIPin = try? RemoteCertificatePinning.validatedSPKIPin(spkiPin) else {
+            return nil
+        }
+        let payload = advertisedPairingService.buildQRCodePayload(from: pairingCode, spki: normalizedSPKIPin)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(payload) else { return nil }
@@ -275,6 +290,7 @@ struct BackendSettingsView: View {
                     return
                 }
                 _ = try validatedReachableURL()
+                _ = try RemoteCertificatePinning.validatedSPKIPin(spkiPin)
             } catch {
                 pairingError = error.localizedDescription
                 return
@@ -305,13 +321,14 @@ struct BackendSettingsView: View {
                 return
             }
             _ = try validatedReachableURL()
+            let normalizedSPKIPin = try RemoteCertificatePinning.validatedSPKIPin(spkiPin)
             guard let ownerPairingService else {
                 pairingError = "Set a reachable private URL before generating a pairing QR code."
                 return
             }
             let code = try await ownerPairingService.createPairingCode()
             pairingCode = code
-            _ = advertisedPairingService?.buildQRCodePayload(from: code)
+            _ = advertisedPairingService?.buildQRCodePayload(from: code, spki: normalizedSPKIPin)
             await refreshPairedDevices()
         } catch {
             pairingError = error.localizedDescription

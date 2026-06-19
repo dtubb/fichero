@@ -55,10 +55,10 @@ public final class FicheroClient: ObservableObject {
         self.api = Client(
             serverURL: baseURL,
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
-            transport: URLSessionTransport(),
+            transport: Self.makeTransport(),
             middlewares: [
                 AuthTokenMiddleware(),
-                libraryPathProvider.createMiddleware(),
+                libraryPathProvider.createMiddleware()
             ]
         )
     }
@@ -68,10 +68,10 @@ public final class FicheroClient: ObservableObject {
         self.api = Client(
             serverURL: baseURL,
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
-            transport: URLSessionTransport(),
+            transport: Self.makeTransport(),
             middlewares: [
                 AuthTokenMiddleware(),
-                libraryPathProvider.createMiddleware(),
+                libraryPathProvider.createMiddleware()
             ]
         )
     }
@@ -85,6 +85,12 @@ public final class FicheroClient: ObservableObject {
     /// Default client pointing to localhost:8765
     public static var localhost: FicheroClient {
         FicheroClient()
+    }
+
+    private static func makeTransport() -> URLSessionTransport {
+        let configuration = URLSessionConfiguration.default
+        let session = RemoteCertificatePinning.configuredSession(configuration: configuration)
+        return URLSessionTransport(configuration: .init(session: session))
     }
 }
 

@@ -1,4 +1,5 @@
 #if canImport(AppKit)
+import FicheroAPIClient
 import SwiftUI
 
 struct MacRemoteClientPairingSection: View {
@@ -10,6 +11,7 @@ struct MacRemoteClientPairingSection: View {
     @State private var clientPairingPayload = ""
     @State private var clientRemoteURL = EngineConfig.usesCustomHost ? EngineConfig.hostString : ""
     @State private var clientPairCode = ""
+    @State private var clientSPKIPin = ""
     @State private var clientDeviceName = RemoteClientPairing.defaultDeviceName()
     @State private var clientPairingError: String?
     @State private var isClientPairing = false
@@ -37,6 +39,10 @@ struct MacRemoteClientPairingSection: View {
                 .autocorrectionDisabled()
 
             TextField("Pairing Code", text: $clientPairCode)
+                .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled()
+
+            TextField("Certificate SPKI pin", text: $clientSPKIPin)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
 
@@ -69,6 +75,7 @@ struct MacRemoteClientPairingSection: View {
             let pairingFields = try RemoteClientPairing.pairingFields(from: clientPairingPayload)
             clientRemoteURL = pairingFields.remoteURL
             clientPairCode = pairingFields.pairCode
+            clientSPKIPin = pairingFields.spkiPin
             clientPairingError = nil
         } catch {
             clientPairingError = error.localizedDescription
@@ -85,10 +92,11 @@ struct MacRemoteClientPairingSection: View {
             let result = try await RemoteClientPairing.pairDevice(
                 remoteURL: clientRemoteURL,
                 pairCode: clientPairCode,
-                deviceName: clientDeviceName
+                deviceName: clientDeviceName,
+                expectedSPKIPin: clientSPKIPin
             )
-            try await RemoteClientPairing.probeRemoteHealth(at: result.apiRoot)
-            try RemoteClientPairing.persistPairedHost(result)
+            try await RemoteClientPairing.probeRemoteHealth(at: result.apiRoot, expectedSPKIPin: clientSPKIPin)
+            try RemoteClientPairing.persistPairedHost(result, expectedSPKIPin: clientSPKIPin)
             backendService.stop()
             engineHost = result.apiRoot.absoluteString
             appState.reconfigureGeneratedClientsForCurrentHost()

@@ -3,6 +3,7 @@ import Foundation
 import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "APIClient")
+// swiftlint:disable file_length
 
 /// HTTP client for communicating with the Fichero Python backend.
 ///
@@ -56,7 +57,7 @@ class APIClient: ObservableObject {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 300
-        self.session = URLSession(configuration: config)
+        self.session = RemoteCertificatePinning.configuredSession(configuration: config)
 
         // Configure decoder
         self.decoder = JSONDecoder()
@@ -388,7 +389,7 @@ extension APIClient {
 
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
-        let session = URLSession(configuration: config)
+        let session = RemoteCertificatePinning.configuredSession(configuration: config)
 
         let (data, response) = try await session.data(for: request)
 

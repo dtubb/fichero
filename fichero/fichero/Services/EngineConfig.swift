@@ -190,6 +190,7 @@ enum RemoteAccessConfig {
     static let hostingEnabledKey = "fichero.remote_access.enabled"
     static let bonjourEnabledKey = "fichero.remote_access.bonjour_enabled"
     static let publicBaseURLKey = "fichero.remote_access.public_base_url"
+    static let spkiPinKey = RemoteCertificatePinning.spkiPinUserDefaultsKey
 
     static var hostingEnabled: Bool {
         UserDefaults.standard.bool(forKey: hostingEnabledKey)
@@ -411,6 +412,35 @@ final class PairingService {
         configuration.timeoutIntervalForRequest = 15
         configuration.timeoutIntervalForResource = 30
         self.session = URLSession(configuration: configuration)
+
+        self.decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            guard let date = parseEngineDate(raw) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Cannot decode engine date: \(raw)"
+                )
+            }
+            return date
+        }
+
+        self.encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+    }
+
+    init(apiRoot: URL, expectedSPKIPin: String) throws {
+        self.apiRoot = apiRoot
+        self.apiBaseURL = apiRoot.appendingPathComponent("api")
+
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 15
+        configuration.timeoutIntervalForResource = 30
+        self.session = try RemoteCertificatePinning.pinnedSession(
+            expectedSPKIPin: expectedSPKIPin,
+            configuration: configuration
+        )
 
         self.decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
