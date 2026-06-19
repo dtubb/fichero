@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import FicheroAPIClient
 import Foundation
 
@@ -337,6 +338,11 @@ struct PairingExchangeResponse: Codable {
     }
 }
 
+struct PairingExchangeResult: Equatable {
+    let apiRoot: URL
+    let deviceToken: String
+}
+
 struct PairedDeviceRecord: Codable, Identifiable {
     let id: String
     let name: String
@@ -425,13 +431,16 @@ final class PairingService {
         _ = try await decode(PairingStatusResponse.self, from: request)
     }
 
-    func pairDevice(code: String, deviceName: String) async throws -> PairingExchangeResponse {
+    func pairDeviceUnauthenticated(code: String, deviceName: String) async throws -> PairingExchangeResponse {
         var request = URLRequest(url: apiBaseURL.appendingPathComponent("pair"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpBody = try encoder.encode(PairingExchangeRequest(code: code, deviceName: deviceName))
-        return try await decode(PairingExchangeResponse.self, from: request)
+        // `/api/pair` is the remote-client bootstrap exchange. Never attach the
+        // caller's current token here: a local/embedded `.api-key` must not be
+        // forwarded to a different remote host.
+        return try await decodeUnauthenticated(PairingExchangeResponse.self, from: request)
     }
 
     func buildQRCodePayload(from code: PairingCodeRecord, spki: String = "") -> PairingQRCodePayload {
@@ -456,6 +465,14 @@ final class PairingService {
 
     private func decode<T: Decodable>(_ type: T.Type, from request: URLRequest) async throws -> T {
         let (data, response) = try await session.data(for: request)
+        try validate(response: response, data: data)
+        return try decoder.decode(type, from: data)
+    }
+
+    private func decodeUnauthenticated<T: Decodable>(_ type: T.Type, from request: URLRequest) async throws -> T {
+        var unauthenticatedRequest = request
+        unauthenticatedRequest.setValue(nil, forHTTPHeaderField: "Authorization")
+        let (data, response) = try await session.data(for: unauthenticatedRequest)
         try validate(response: response, data: data)
         return try decoder.decode(type, from: data)
     }

@@ -81,19 +81,21 @@ struct MacRemoteClientPairingSection: View {
         defer { isClientPairing = false }
 
         do {
-            let url = try await RemoteClientPairing.pairAndPersistHost(
+            let result = try await RemoteClientPairing.pairDevice(
                 remoteURL: clientRemoteURL,
                 pairCode: clientPairCode,
                 deviceName: clientDeviceName
             )
+            try await RemoteClientPairing.probeRemoteHealth(at: result.apiRoot)
+            try RemoteClientPairing.persistPairedHost(result)
             backendService.stop()
-            engineHost = url.absoluteString
+            engineHost = result.apiRoot.absoluteString
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
             try await backendService.start()
             await reconnectToConfiguredRemoteHost()
             if !appState.isBackendRunning {
-                clientPairingError = "Paired successfully, but the host is not responding yet."
+                clientPairingError = "Paired successfully, but the verified remote host is not responding now."
             }
         } catch {
             clientPairingError = error.localizedDescription

@@ -40,6 +40,8 @@
 		049 /* DocumentServiceGenerated.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148 /* DocumentServiceGenerated.swift */; };
 		05B00350827A7FD40C53676B /* FocusedCitation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFF948011DDF9E51FDC3995D /* FocusedCitation.swift */; };
 		079E7B626FA4EE5877BB24B0 /* FicheroApp_iOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29941DE439073B7364322ECF /* FicheroApp_iOS.swift */; };
+		A23260012F90000100000001 /* RemoteClientPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23260032F90000100000001 /* RemoteClientPairing.swift */; };
+		A23260022F90000100000001 /* MacRemoteClientPairingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A23260042F90000100000001 /* MacRemoteClientPairingSection.swift */; };
 		08A233915452687AD06DA9DE /* DocumentInspectorArtifactsTab+Previews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73BB27716102361159F020CD /* DocumentInspectorArtifactsTab+Previews.swift */; };
 		09F7968790ECF62B772D3895 /* NoteListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B5319A472F190E68188ECC /* NoteListView.swift */; };
 		0A0258BFC2C7F4448C8C903A /* CitationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB59736A9E632D7997FA8412 /* CitationDetailView.swift */; };
@@ -697,6 +699,8 @@
 		25FA072769256EDC235A5BD6 /* ArtifactDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ArtifactDetailView.swift; sourceTree = "<group>"; };
 		28B629229088E72B485569FC /* LibraryChangeStream.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LibraryChangeStream.swift; sourceTree = "<group>"; };
 		29941DE439073B7364322ECF /* FicheroApp_iOS.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroApp_iOS.swift; sourceTree = "<group>"; };
+		A23260032F90000100000001 /* RemoteClientPairing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteClientPairing.swift; sourceTree = "<group>"; };
+		A23260042F90000100000001 /* MacRemoteClientPairingSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacRemoteClientPairingSection.swift; sourceTree = "<group>"; };
 		2B320C62BB61F14256AECCF5 /* SpatialModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpatialModels.swift; sourceTree = "<group>"; };
 		2B9987CAE57F0DD5387F6DD2 /* OntologyBrowser+Sheets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "OntologyBrowser+Sheets.swift"; sourceTree = "<group>"; };
 		2CC15CD58C235F143320E172 /* PDFPageWithToolbar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PDFPageWithToolbar.swift; sourceTree = "<group>"; };
@@ -1541,6 +1545,7 @@
 				BC62467E297F09DF404643C1 /* MindPalaceLibraryProjector.swift */,
 				FF58B21F339179A8162AD6C5 /* NoteService.swift */,
 				8C31EBD6243D124565257708 /* EngineConfig.swift */,
+				A23260032F90000100000001 /* RemoteClientPairing.swift */,
 				28B629229088E72B485569FC /* LibraryChangeStream.swift */,
 				6175F28D959ABB4DB0C2F4CD /* ActionInvokeService.swift */,
 			);
@@ -1736,6 +1741,7 @@
 				371A4629B0A6A51DE6D6D872 /* BackendSettingsView.swift */,
 				C0104EC0811F842CAC3CC887 /* GeneralSettingsView.swift */,
 				1F4F4939BDACA726554E086D /* LocalModelsSettingsView.swift */,
+				A23260042F90000100000001 /* MacRemoteClientPairingSection.swift */,
 				A1BFB2DA2F042E5100EAA55A /* SettingsView.swift */,
 				F4189C51250E0B39E05CD87B /* AISettingsView+Tabs.swift */,
 				9195539F44B4ADCA2A3C9974 /* AISettingsView+Helpers.swift */,
@@ -2671,6 +2677,8 @@
 				A50A37D5AD8F631DE19382B6 /* StackedRepresentationPanes.swift in Sources */,
 				7DBC189DE3A7BC27C2B3BEFF /* LibraryOutlineNode.swift in Sources */,
 				079E7B626FA4EE5877BB24B0 /* FicheroApp_iOS.swift in Sources */,
+				A23260022F90000100000001 /* MacRemoteClientPairingSection.swift in Sources */,
+				A23260012F90000100000001 /* RemoteClientPairing.swift in Sources */,
 				B8D4C0037198A3136E49293B /* LibraryWorkspaceRoot.swift in Sources */,
 				D80C598CBAB2817738ECF0CB /* ChatDocumentDropPayload.swift in Sources */,
 			);

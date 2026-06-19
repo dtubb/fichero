@@ -41,8 +41,7 @@ enum RemoteClientPairing {
         )
     }
 
-    @MainActor
-    static func pairAndPersistHost(remoteURL: String, pairCode: String, deviceName: String) async throws -> URL {
+    static func pairDevice(remoteURL: String, pairCode: String, deviceName: String) async throws -> PairingExchangeResult {
         let code = pairCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -54,9 +53,35 @@ enum RemoteClientPairing {
         }
 
         let url = try validatedRemoteURL(from: remoteURL, allowLocalhost: false)
-        let response = try await PairingService(apiRoot: url).pairDevice(code: code, deviceName: name)
-        try PairingService.persistAuthToken(response.deviceToken, for: url)
-        UserDefaults.standard.set(url.absoluteString, forKey: EngineConfig.userDefaultsKey)
-        return url
+        let response = try await PairingService(apiRoot: url).pairDeviceUnauthenticated(code: code, deviceName: name)
+        return PairingExchangeResult(apiRoot: url, deviceToken: response.deviceToken)
+    }
+
+    static func persistPairedHost(_ result: PairingExchangeResult) throws {
+        try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
+        UserDefaults.standard.set(result.apiRoot.absoluteString, forKey: EngineConfig.userDefaultsKey)
+    }
+
+    static func probeRemoteHealth(at apiRoot: URL) async throws {
+        let (data, response) = try await URLSession.shared.data(from: apiRoot.appendingPathComponent("api/health"))
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw APIError.httpError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? -1, message: "API returned error status")
+        }
+
+        struct HealthResponse: Decodable {
+            let status: String
+        }
+
+        let health = try JSONDecoder().decode(HealthResponse.self, from: data)
+        guard health.status.lowercased() == "ok" else {
+            throw APIError.badRequest("Remote host health check failed.")
+        }
+    }
+
+    @MainActor
+    static func pairAndPersistHost(remoteURL: String, pairCode: String, deviceName: String) async throws -> URL {
+        let result = try await pairDevice(remoteURL: remoteURL, pairCode: pairCode, deviceName: deviceName)
+        try persistPairedHost(result)
+        return result.apiRoot
     }
 }
