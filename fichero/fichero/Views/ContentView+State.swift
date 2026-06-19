@@ -248,6 +248,10 @@ extension ContentView {
         selectedSidebarItemId == "entities-browser"
     }
 
+    static func shouldUseCompactNavigationFlow(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
+        horizontalSizeClass == .compact
+    }
+
     static func shouldUseSplittablePane(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
         #if os(macOS)
         true
@@ -393,11 +397,17 @@ extension ContentView {
     var availablePreviewModes: [PreviewMode] {
         switch sidebarMode {
         case .library, .search:
+            if Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
+                return [.none, .standard]
+            }
             if !featureManager.isLibrarySearchSplitLayoutsEnabled {
                 return [.widescreen]
             }
             return [.none, .standard, .widescreen]
         case .chat:
+            if Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
+                return [.none, .standard]
+            }
             return [.none, .standard, .widescreen]
         case .workflows, .automation, .activity, .research, .knowledgeGraph:
             return []

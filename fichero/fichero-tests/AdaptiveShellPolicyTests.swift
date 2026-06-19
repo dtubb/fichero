@@ -48,4 +48,15 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         )
         #endif
     }
+
+    func testCompactNavigationFlowIsCompactOnly() {
+        #if os(macOS)
+        XCTAssertFalse(ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: nil))
+        XCTAssertFalse(ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: .compact))
+        #else
+        XCTAssertFalse(ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: nil))
+        XCTAssertFalse(ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: .regular))
+        XCTAssertTrue(ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: .compact))
+        #endif
+    }
 }
