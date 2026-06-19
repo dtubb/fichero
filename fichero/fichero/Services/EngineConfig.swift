@@ -6,24 +6,67 @@ import Foundation
 /// Every part of the app reads `EngineConfig.host` (engine root, e.g.
 /// `http://127.0.0.1:8765`) or `EngineConfig.apiBaseURL` (the `/api` base)
 /// instead of hardcoding `127.0.0.1:8765`. The host is user-configurable via
-/// Settings -> Backend and falls back to localhost when unset or malformed.
+/// Settings -> Backend and falls back to localhost only when unset or blank.
+/// Malformed non-empty values stay invalid instead of silently resolving to
+/// localhost.
 enum EngineConfig {
     static let userDefaultsKey = "fichero.engine.host"
     static let defaultHostString = "http://127.0.0.1:8765"
 
+    enum HostConfiguration: Equatable {
+        case embeddedLocal
+        case configured(URL)
+        case invalid(String)
+
+        var hostString: String {
+            switch self {
+            case .embeddedLocal:
+                return EngineConfig.defaultHostString
+            case let .configured(url):
+                return url.absoluteString
+            case let .invalid(raw):
+                return raw
+            }
+        }
+
+        var host: URL {
+            switch self {
+            case .embeddedLocal:
+                return EngineConfig.makeDefaultHostURL()
+            case let .configured(url):
+                return url
+            case let .invalid(raw):
+                return EngineConfig.makeInvalidHostURL(raw)
+            }
+        }
+
+        var usesCustomHost: Bool {
+            if case .embeddedLocal = self {
+                return false
+            }
+            return true
+        }
+
+        var engineIsLocal: Bool {
+            switch self {
+            case .embeddedLocal:
+                return true
+            case let .configured(url):
+                return EngineConfig.isLocalHost(url)
+            case .invalid:
+                return false
+            }
+        }
+    }
+
     static var hostString: String {
-        let stored = UserDefaults.standard.string(forKey: userDefaultsKey)
-        let normalized = normalizedHostString(stored) ?? defaultHostString
-        return makeURL(normalized) == nil ? defaultHostString : normalized
+        resolvedHostConfiguration.hostString
     }
 
     /// Engine root — host + port, no `/api`, no trailing slash.
     /// (e.g. `http://127.0.0.1:8765`)
     static var host: URL {
-        guard let url = makeURL(hostString) else {
-            return makeDefaultHostURL()
-        }
-        return url
+        resolvedHostConfiguration.host
     }
 
     /// API base — the engine root with the `/api` prefix.
@@ -33,7 +76,7 @@ enum EngineConfig {
     }
 
     static var usesCustomHost: Bool {
-        hostString != defaultHostString
+        resolvedHostConfiguration.usesCustomHost
     }
 
     /// True when the configured engine host is localhost / 127.0.0.1 / ::1.
@@ -41,8 +84,21 @@ enum EngineConfig {
     /// the engine and the app share a local filesystem. When the engine is
     /// remote these actions must be hidden — local paths are meaningless.
     static var engineIsLocal: Bool {
-        guard let host = URL(string: hostString)?.host else { return true }
-        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+        resolvedHostConfiguration.engineIsLocal
+    }
+
+    static func hostConfiguration(from raw: String?) -> HostConfiguration {
+        guard let normalized = normalizedHostString(raw) else {
+            return .embeddedLocal
+        }
+        guard let url = makeURL(normalized), url.host != nil else {
+            return .invalid(normalized)
+        }
+        return .configured(url)
+    }
+
+    private static var resolvedHostConfiguration: HostConfiguration {
+        hostConfiguration(from: UserDefaults.standard.string(forKey: userDefaultsKey))
     }
 
     private static func normalizedHostString(_ raw: String?) -> String? {
@@ -56,9 +112,25 @@ enum EngineConfig {
         URL(string: string)
     }
 
+    private static func isLocalHost(_ url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+    }
+
     private static func makeDefaultHostURL() -> URL {
         guard let url = URL(string: defaultHostString) else {
             preconditionFailure("EngineConfig: malformed default URL literal '\(defaultHostString)'")
+        }
+        return url
+    }
+
+    private static func makeInvalidHostURL(_ raw: String) -> URL {
+        var components = URLComponents()
+        components.scheme = "invalid"
+        components.host = "configured-engine"
+        components.path = "/" + raw
+        guard let url = components.url else {
+            preconditionFailure("EngineConfig: unable to build invalid host sentinel for '\(raw)'")
         }
         return url
     }
