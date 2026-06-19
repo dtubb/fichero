@@ -190,8 +190,10 @@ extension ContentView {
     }
 
     func savePersistedState() {
-        // Map NavigationSplitViewVisibility to raw integer for @SceneStorage
-        columnVisibilityRaw = Self.persistedColumnVisibilityRaw(for: columnVisibility)
+        if horizontalSizeClass != .compact {
+            // Map NavigationSplitViewVisibility to raw integer for @SceneStorage
+            columnVisibilityRaw = Self.persistedColumnVisibilityRaw(for: columnVisibility)
+        }
 
         if let encoded = try? JSONEncoder().encode(browserSelection) {
             browserSelectionData = encoded
