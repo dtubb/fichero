@@ -108,6 +108,14 @@ struct EditorView: View {
         }
     }
 
+    private static var supportsImageEditingPreview: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
+    }
+
     static func previewRoute(for doc: Document, isEditing: Bool) -> PreviewRoute {
         if doc.docType == .folder {
             return folderPreviewRoute(for: doc, isEditing: isEditing)
@@ -119,7 +127,7 @@ struct EditorView: View {
             return .storageDisplay(documentId: doc.id)
         }
         if doc.fileType == .image {
-            if isEditing {
+            if isEditing && supportsImageEditingPreview {
                 return .imageEditor(documentId: doc.id)
             }
             return .storageDisplay(documentId: doc.id)
@@ -129,7 +137,10 @@ struct EditorView: View {
 
     private static func folderPreviewRoute(for doc: Document, isEditing: Bool) -> PreviewRoute {
         if doc.fileType == .image {
-            return isEditing ? .imageEditor(documentId: doc.id) : .storageDisplay(documentId: doc.id)
+            if isEditing && supportsImageEditingPreview {
+                return .imageEditor(documentId: doc.id)
+            }
+            return .storageDisplay(documentId: doc.id)
         }
         if doc.fileType == .pdf {
             return .storageDisplay(documentId: doc.id)
@@ -153,10 +164,14 @@ struct EditorView: View {
         case .container:
             containerPlaceholder(doc)
         case .storageDisplay(let documentId):
+            #if os(macOS)
             ZStack(alignment: .topTrailing) {
                 DocumentCanvas(content: .imageStorageDisplay(documentId: documentId))
                 editModeToggle
             }
+            #else
+            DocumentCanvas(content: .imageStorageDisplay(documentId: documentId))
+            #endif
         case .imageEditor:
             ImageEditorView(
                 document: doc,
@@ -181,6 +196,7 @@ struct EditorView: View {
     /// Far-corner toggle that flips the image canvas between view and edit
     /// mode. Floats at the top-trailing edge so it is visible whether or not
     /// the document header is shown (the reading surface hides the header). (#1453)
+    #if os(macOS)
     private var editModeToggle: some View {
         Button {
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -204,6 +220,7 @@ struct EditorView: View {
         .frame(height: MiniToolbar<EmptyView, EmptyView>.standardHeight, alignment: .center)
         .padding(.trailing, 12)
     }
+    #endif
 
     // MARK: - Text Preview
 

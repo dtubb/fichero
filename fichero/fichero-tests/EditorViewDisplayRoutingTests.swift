@@ -122,7 +122,12 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
         let editingRoute = EditorView.previewRoute(for: doc, isEditing: true)
 
         XCTAssertEqual(viewingRoute, .storageDisplay(documentId: "image-1"))
+        #if os(macOS)
         XCTAssertEqual(editingRoute, .imageEditor(documentId: "image-1"))
         XCTAssertTrue(editingRoute.usesImageEditingPreviewForViewing)
+        #else
+        XCTAssertEqual(editingRoute, .storageDisplay(documentId: "image-1"))
+        XCTAssertFalse(editingRoute.usesImageEditingPreviewForViewing)
+        #endif
     }
 }
