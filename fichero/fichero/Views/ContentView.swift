@@ -551,7 +551,6 @@ extension ContentView {
         }
     }
 
-
     /// TRAILING zone: activity status (#2309).
     /// The inspector toggle moved to the `.inspector()` panel's toolbar so
     /// macOS places it in the inspector section (far right) rather than the
