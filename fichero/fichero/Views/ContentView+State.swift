@@ -248,8 +248,6 @@ extension ContentView {
         selectedSidebarItemId == "entities-browser"
     }
 
-    static let preferredCompactColumn: NavigationSplitViewColumn = .detail
-
     static func shouldUseSplittablePane(horizontalSizeClass: UserInterfaceSizeClass?) -> Bool {
         #if os(macOS)
         true
