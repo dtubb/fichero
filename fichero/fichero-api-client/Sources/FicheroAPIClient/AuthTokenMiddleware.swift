@@ -163,7 +163,21 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     }
 
     static func remoteTokenKeychainAccount(hostString: String? = nil) -> String {
-        remoteTokenFileName(hostString: hostString)
+        let stored = hostString ?? UserDefaults.standard.string(forKey: engineHostUserDefaultsKey)
+        let trimmed = (stored ?? defaultHostString).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard var components = URLComponents(string: trimmed) else {
+            return "remote-device-token|\(trimmed)"
+        }
+
+        components.scheme = components.scheme?.lowercased()
+        components.host = components.host?.lowercased()
+        components.path = ""
+        components.query = nil
+        components.fragment = nil
+
+        let normalized = components.string ?? trimmed
+        return "remote-device-token|\(normalized)"
     }
 
     /// Reads the token file from disk. Returns nil if the file isn't there

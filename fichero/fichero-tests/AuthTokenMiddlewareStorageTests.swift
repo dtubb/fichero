@@ -44,8 +44,19 @@ struct AuthTokenMiddlewareStorageTests {
         let second = AuthTokenMiddleware.remoteTokenKeychainAccount(hostString: "https://host-two.tailnet.example")
 
         #expect(first != second)
-        #expect(first.hasPrefix(".remote-api-key-"))
-        #expect(second.hasPrefix(".remote-api-key-"))
+        #expect(first.hasPrefix("remote-device-token|https://"))
+        #expect(second.hasPrefix("remote-device-token|https://"))
+    }
+
+    @Test("remote token keychain accounts do not collide on punctuation variants")
+    func remoteTokenKeychainAccountsDoNotCollideOnPunctuationVariants() {
+        let dash = AuthTokenMiddleware.remoteTokenKeychainAccount(hostString: "https://a-b.example")
+        let dot = AuthTokenMiddleware.remoteTokenKeychainAccount(hostString: "https://a.b.example")
+        let underscorePathLike = AuthTokenMiddleware.remoteTokenKeychainAccount(hostString: "https://a_b.example")
+
+        #expect(dash != dot)
+        #expect(dash != underscorePathLike)
+        #expect(dot != underscorePathLike)
     }
 
     @Test("bootstrap file storage and remote keychain routing stay distinct")
@@ -55,7 +66,7 @@ struct AuthTokenMiddlewareStorageTests {
 
         #expect(bootstrap != nil)
         #expect(bootstrap?.lastPathComponent == ".api-key")
-        #expect(remoteAccount == AuthTokenMiddleware.remoteTokenFileName(hostString: "https://host.tailnet.example"))
+        #expect(remoteAccount == "remote-device-token|https://host.tailnet.example")
         #expect(bootstrap?.lastPathComponent != remoteAccount)
     }
 }
