@@ -443,6 +443,18 @@ private struct QRCodeScannerSheet: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
 
+                #if os(visionOS)
+                VStack(spacing: 12) {
+                    Image(systemName: "qrcode.viewfinder")
+                        .font(.largeTitle)
+                    Text("Camera QR scanning is unavailable on visionOS. Use the fallback connection options in the main screen.")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 320)
+                .padding()
+                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 20))
+                #else
                 QRCodeScannerView(
                     onMessage: onMessage,
                     onFailure: { message in
@@ -455,6 +467,7 @@ private struct QRCodeScannerSheet: View {
                     RoundedRectangle(cornerRadius: 20)
                         .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
                 )
+                #endif
 
                 if let errorMessage {
                     Text(errorMessage)
@@ -475,6 +488,7 @@ private struct QRCodeScannerSheet: View {
     }
 }
 
+#if !os(visionOS)
 private struct QRCodeScannerView: UIViewControllerRepresentable {
     let onMessage: (String) -> Void
     let onFailure: (String) -> Void
@@ -588,6 +602,7 @@ private struct QRCodeScannerView: UIViewControllerRepresentable {
         }
     }
 }
+#endif
 
 private struct BonjourHostRecord: Identifiable, Equatable {
     let id: String
