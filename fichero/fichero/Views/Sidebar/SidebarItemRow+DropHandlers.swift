@@ -2,6 +2,16 @@ import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
+func sidebarTemporaryDropDirectories(for urls: [URL]) -> [URL] {
+    Array(
+        Set(
+            urls
+                .filter { $0.path.contains("/fichero-drop-") }
+                .map { $0.deletingLastPathComponent() }
+        )
+    )
+}
+
 extension SidebarItemRow {
     // MARK: - NSItemProvider-based file drop (preserves folder URLs, #587)
 
@@ -224,6 +234,7 @@ extension SidebarItemRow {
             sidebarRowLogger.warning("External drop rejected: no file URLs")
             return false
         }
+        let temporaryDirectories = sidebarTemporaryDropDirectories(for: fileURLs)
 
         var targetFolderId: String?
         if let targetFolder,
@@ -239,6 +250,11 @@ extension SidebarItemRow {
         }
 
         Task {
+            defer {
+                for tempDir in temporaryDirectories {
+                    try? FileManager.default.removeItem(at: tempDir)
+                }
+            }
             do {
                 _ = try await importService.importFiles(
                     fileURLs,
@@ -251,11 +267,6 @@ extension SidebarItemRow {
                     sidebarRowLogger.debug(
                         "Imported \(fileURLs.count) external file(s) to library root (no Inbox found)"
                     )
-                }
-                // Clean up fichero-drop-UUID temp dirs created by loadFileRepresentation.
-                for url in fileURLs where url.path.contains("/fichero-drop-") {
-                    let tempDir = url.deletingLastPathComponent()
-                    try? FileManager.default.removeItem(at: tempDir)
                 }
                 // Refresh twice: once immediately, again after 500ms to catch
                 // the race where the backend hasn't finished indexing new
