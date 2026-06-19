@@ -268,16 +268,21 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testMacBackendSettingsShowsInlinePairingQrAndNoSheetAssumption() throws {
         let settingsSource = try Self.appSource("Views/Settings/BackendSettingsView.swift")
+        let remoteAccessSource = try Self.appSource("Views/Settings/BackendSettingsRemoteAccessSection.swift")
 
-        XCTAssertTrue(settingsSource.contains("Section(\"Remote Access\")"))
-        XCTAssertTrue(settingsSource.contains("Generate Pairing QR"))
-        XCTAssertTrue(settingsSource.contains("Pairing QR code"))
-        XCTAssertTrue(settingsSource.contains("Text(pairingCode.code)"))
-        XCTAssertTrue(settingsSource.contains("Expires \\(pairingCode.expiresAt.formatted"))
-        XCTAssertTrue(settingsSource.contains("Refresh Devices"))
-        XCTAssertTrue(settingsSource.contains("buildQRCodePayload(from: pairingCode)"))
-        XCTAssertFalse(settingsSource.contains(".sheet(isPresented:"))
-        XCTAssertFalse(settingsSource.contains("QRCodeScannerSheet"))
+        XCTAssertTrue(settingsSource.contains("BackendSettingsRemoteAccessSection()"))
+        XCTAssertTrue(remoteAccessSource.contains("Section(\"Remote Access\")"))
+        XCTAssertTrue(remoteAccessSource.contains("Pair a Device"))
+        XCTAssertTrue(remoteAccessSource.contains("Preparing pairing QR"))
+        XCTAssertTrue(remoteAccessSource.contains("Advanced / Debug"))
+        XCTAssertTrue(remoteAccessSource.contains("Pairing QR code"))
+        XCTAssertTrue(remoteAccessSource.contains("Text(pairingCode.code)"))
+        XCTAssertTrue(remoteAccessSource.contains("Expires \\(pairingCode.expiresAt.formatted"))
+        XCTAssertTrue(remoteAccessSource.contains("activePairedDevices(from: pairedDevices)"))
+        XCTAssertFalse(remoteAccessSource.contains("Show Pairing QR"))
+        XCTAssertFalse(remoteAccessSource.contains("Generate Pairing QR"))
+        XCTAssertFalse(remoteAccessSource.contains(".sheet(isPresented:"))
+        XCTAssertFalse(remoteAccessSource.contains("QRCodeScannerSheet"))
     }
 
     func testNotesLiveInDocumentInspectorAndStandaloneBrowserRetired() throws {

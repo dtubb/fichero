@@ -258,7 +258,7 @@ enum RemoteURLValidationError: LocalizedError, Equatable {
         case .missingHost:
             return "Remote URLs must include a host name."
         case .insecureRemoteTransport:
-            return "Remote pairing hosts must use https."
+            return "Secure pairing needs HTTPS. Use an HTTPS URL such as a Tailscale HTTPS address."
         case .localhostNotAllowed:
             return "Remote clients must use a non-localhost host."
         case .pathNotAllowed:

@@ -172,6 +172,38 @@ final class RemoteAccessConfigTests: XCTestCase {
         }
     }
 
+    func testInsecureRemoteTransportExplainsHttpsRequirement() {
+        let message = RemoteURLValidationError.insecureRemoteTransport.errorDescription ?? ""
+
+        XCTAssertTrue(message.contains("HTTPS"))
+        XCTAssertTrue(message.contains("Tailscale HTTPS"))
+    }
+
+    func testActivePairedDevicesFilterHidesRevokedDevices() {
+        let active = PairedDeviceRecord(
+            id: "active",
+            name: "Active Device",
+            userId: "user-1",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            lastSeen: Date(timeIntervalSince1970: 1_700_000_100),
+            expiresAt: Date(timeIntervalSince1970: 1_700_000_200),
+            revoked: false
+        )
+        let revoked = PairedDeviceRecord(
+            id: "revoked",
+            name: "Revoked Device",
+            userId: "user-1",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_300),
+            lastSeen: Date(timeIntervalSince1970: 1_700_000_400),
+            expiresAt: Date(timeIntervalSince1970: 1_700_000_500),
+            revoked: true
+        )
+
+        let visibleDevices = activePairedDevices(from: [revoked, active])
+
+        XCTAssertEqual(visibleDevices.map(\.id), ["active"])
+    }
+
     func testValidatedRemoteURLAllowsLocalhostHTTPWhenExplicitlyAllowed() throws {
         let url = try validatedRemoteURL(
             from: "http://127.0.0.1:8765",
