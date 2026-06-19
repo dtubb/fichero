@@ -493,7 +493,7 @@ struct ContentView: View {
                 detailView
                     .navigationTitle("Inspector")
                     .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
+                        ToolbarItem(placement: .confirmationAction) {
                             Button("Done") {
                                 showInspectorSidebar = false
                             }
@@ -570,11 +570,13 @@ extension ContentView {
     /// content section (see `mainContentView`).
     @ToolbarContentBuilder
     private var trailingToolbarContent: some ToolbarContent {
+        #if !os(macOS)
         if showInspectorToggle && !usesDockedInspector {
             ToolbarItem(placement: .topBarTrailing) {
                 inspectorToggleButton
             }
         }
+        #endif
 
         // Activity / error status — sits between the title and the inspector section.
         ToolbarItem(placement: .automatic) {
