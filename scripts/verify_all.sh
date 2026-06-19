@@ -4,6 +4,8 @@
 #   --fast      Swift lint + cheap guardrails + version-date + OpenAPI model sync
 #   --standard  fast + backend unit tests
 #   --full      standard + macOS build/test + iPhone/iPad simulator builds
+#   VERIFY_ALL_MACOS=1 / VERIFY_ALL_IOS=1 can request platform legs without
+#   changing the tier.
 #
 # Default is --fast so tooling workers can run the cheap gate without kicking off
 # the app build/test suite. Managers/integrators own --full.
@@ -28,8 +30,23 @@ Platforms:
   --macos     run the macOS Xcode build/test leg
   --ios       run the iPhone/iPad simulator build legs (plus visionOS when supported)
 
+Environment overrides:
+  VERIFY_ALL_MACOS=1  request the macOS Xcode build/test leg
+  VERIFY_ALL_IOS=1    request the iPhone/iPad simulator build legs (plus visionOS when supported)
+
 Default: --fast
 EOF
+}
+
+is_truthy() {
+  case "$1" in
+    1|true|TRUE|yes|YES|on|ON)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 for arg in "$@"; do
@@ -55,7 +72,7 @@ for arg in "$@"; do
       ;;
     *)
       echo "Unknown verify tier: $arg" >&2
-      echo "Usage: scripts/verify_all.sh [--fast|--standard|--full] [--macos] [--ios]" >&2
+      echo "Usage: scripts/verify_all.sh [--fast|--standard|--full] [--macos] [--ios] [VERIFY_ALL_MACOS=1] [VERIFY_ALL_IOS=1]" >&2
       exit 2
       ;;
   esac
@@ -63,6 +80,13 @@ done
 
 if [[ $# -eq 0 ]]; then
   tier="fast"
+fi
+
+if is_truthy "${VERIFY_ALL_MACOS:-}"; then
+  run_macos=1
+fi
+if is_truthy "${VERIFY_ALL_IOS:-}"; then
+  run_ios=1
 fi
 
 if [[ "$tier" == "full" && "$run_macos" -eq 0 && "$run_ios" -eq 0 ]]; then

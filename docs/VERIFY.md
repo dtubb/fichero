@@ -40,6 +40,10 @@ but not wired/enforced · ❌ not built yet (issue filed).
 ## Contract / release
 - ✅ **OpenAPI sync** (`validate_model_sync.py`) · ✅ **version↔date** (`check_version_date.sh`, #1923)
 
+## Remote pairing / remote clients
+- ✅ **Manual smoke checklist** — [`docs/remote-pairing-smoke-checklist.md`](./remote-pairing-smoke-checklist.md) covers mac host startup, Remote Access, QR generation, iPad/iPhone pairing, reconnect, remote content load, and the no-localhost fallback check.
+- ✅ **Gate modes stay practical** — `scripts/verify_all.sh` keeps `--fast`, `--standard`, and `--full` distinct, with opt-in `--macos` / `--ios` platform legs and matching `VERIFY_ALL_MACOS=1` / `VERIFY_ALL_IOS=1` overrides.
+
 ## Project hygiene (NEW — the "dump folder" problem)
 - ❌ **Folder organization** — flag Views/ (and backend) folders that are dumping grounds (too many files / mixed concerns / files that belong in a subfolder) → **#1940**
 - ❌ **Xcode registration** — every `.swift` is registered via `add-swift-file.rb` (unregistered files = invisible to the compiler) → **#1941**
