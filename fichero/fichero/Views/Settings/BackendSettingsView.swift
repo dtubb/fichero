@@ -213,9 +213,16 @@ struct BackendSettingsView: View {
     }
 
     #if canImport(AppKit)
+    private var pairingService: PairingService? {
+        guard let publicURL = RemoteAccessConfig.pairingBackendURL(from: publicBaseURL) else {
+            return nil
+        }
+        return PairingService(apiRoot: publicURL)
+    }
+
     private var qrCodeImage: PlatformImage? {
-        guard let pairingCode, let publicURL = RemoteAccessConfig.publicBaseURL else { return nil }
-        let payload = PairingService(apiRoot: publicURL).buildQRCodePayload(from: pairingCode)
+        guard let pairingCode, let pairingService else { return nil }
+        let payload = pairingService.buildQRCodePayload(from: pairingCode)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(payload) else { return nil }
@@ -252,15 +259,15 @@ struct BackendSettingsView: View {
         pairingError = nil
         defer { isGeneratingPairingCode = false }
 
-        guard let reachableURL = RemoteAccessConfig.publicBaseURL else {
+        guard let pairingService else {
             pairingError = "Set a reachable private URL before generating a pairing QR code."
             return
         }
 
         do {
-            let code = try await PairingService(apiRoot: EngineConfig.host).createPairingCode()
+            let code = try await pairingService.createPairingCode()
             pairingCode = code
-            _ = PairingService(apiRoot: reachableURL).buildQRCodePayload(from: code)
+            _ = pairingService.buildQRCodePayload(from: code)
             await refreshPairedDevices()
         } catch {
             pairingError = error.localizedDescription
@@ -271,8 +278,13 @@ struct BackendSettingsView: View {
         isLoadingDevices = true
         defer { isLoadingDevices = false }
 
+        guard let pairingService else {
+            pairingError = "Set a reachable private URL before refreshing paired devices."
+            return
+        }
+
         do {
-            pairedDevices = try await PairingService(apiRoot: EngineConfig.host).listDevices()
+            pairedDevices = try await pairingService.listDevices()
         } catch {
             pairingError = error.localizedDescription
         }
@@ -280,8 +292,12 @@ struct BackendSettingsView: View {
 
     private func revoke(deviceID: String) async {
         pairingError = nil
+        guard let pairingService else {
+            pairingError = "Set a reachable private URL before revoking paired devices."
+            return
+        }
         do {
-            try await PairingService(apiRoot: EngineConfig.host).revokeDevice(id: deviceID)
+            try await pairingService.revokeDevice(id: deviceID)
             await refreshPairedDevices()
         } catch {
             pairingError = error.localizedDescription

@@ -86,6 +86,12 @@ enum RemoteAccessConfig {
         guard !publicBaseURLString.isEmpty else { return nil }
         return URL(string: publicBaseURLString)
     }
+
+    static func pairingBackendURL(from publicBaseURLString: String) -> URL? {
+        let trimmed = publicBaseURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return URL(string: trimmed)
+    }
 }
 
 struct PairingQRCodePayload: Codable {
