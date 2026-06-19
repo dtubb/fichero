@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
+import Security
 
 /// Middleware that adds `Authorization: Bearer <token>` to every request,
 /// reading the token from `~/Library/Application Support/Fichero/.api-key`.
@@ -21,6 +22,7 @@ public struct AuthTokenMiddleware: ClientMiddleware {
     private static let defaultHostString = "http://127.0.0.1:8765"
     private static let bootstrapTokenFileName = ".api-key"
     private static let remoteTokenFilePrefix = ".remote-api-key-"
+    private static let remoteTokenKeychainService = "app.fichero.fichero.remote-device-token"
 
     /// Endpoints the engine accepts unauthenticated. Keep in sync with
     /// `_UNAUTHENTICATED_PATHS` in the Python side.
@@ -160,6 +162,10 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         return "\(remoteTokenFilePrefix)\(identifier)"
     }
 
+    static func remoteTokenKeychainAccount(hostString: String? = nil) -> String {
+        remoteTokenFileName(hostString: hostString)
+    }
+
     /// Reads the token file from disk. Returns nil if the file isn't there
     /// yet (e.g., engine hasn't started). Callers should retry; the engine
     /// writes this on startup before binding the port.
@@ -175,21 +181,68 @@ public struct AuthTokenMiddleware: ClientMiddleware {
             let trimmed = envToken.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { return trimmed }
         }
-        guard let path = tokenFileURL() else { return nil }
-        guard let data = try? Data(contentsOf: path) else { return nil }
-        guard let rawToken = String(data: data, encoding: .utf8) else { return nil }
-        let token = rawToken
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return token.isEmpty ? nil : token
+        switch tokenStorageKind() {
+        case .bootstrap:
+            guard let path = tokenFileURL() else { return nil }
+            guard let data = try? Data(contentsOf: path) else { return nil }
+            guard let rawToken = String(data: data, encoding: .utf8) else { return nil }
+            let token = rawToken
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return token.isEmpty ? nil : token
+        case .remote:
+            return readRemoteTokenFromKeychain()
+        }
     }
 
     public static func persistRemoteToken(_ token: String, hostString: String) throws {
-        guard let tokenURL = remoteTokenFileURL(hostString: hostString) else { return }
-        let parent = tokenURL.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let data = trimmed.data(using: .utf8) else { return }
-        try data.write(to: tokenURL, options: .atomic)
+
+        let query = remoteTokenKeychainQuery(hostString: hostString)
+        let attributes: [String: Any] = [kSecValueData as String: data]
+        let status = SecItemCopyMatching(query as CFDictionary, nil)
+
+        switch status {
+        case errSecSuccess:
+            let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+            guard updateStatus == errSecSuccess else {
+                throw AuthTokenStorageError.keychainWriteFailed(updateStatus)
+            }
+        case errSecItemNotFound:
+            var addQuery = query
+            addQuery[kSecValueData as String] = data
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                throw AuthTokenStorageError.keychainWriteFailed(addStatus)
+            }
+        default:
+            throw AuthTokenStorageError.keychainReadFailed(status)
+        }
+    }
+
+    private static func readRemoteTokenFromKeychain(hostString: String? = nil) -> String? {
+        var query = remoteTokenKeychainQuery(hostString: hostString)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let rawToken = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        let token = rawToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        return token.isEmpty ? nil : token
+    }
+
+    private static func remoteTokenKeychainQuery(hostString: String? = nil) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: remoteTokenKeychainService,
+            kSecAttrAccount as String: remoteTokenKeychainAccount(hostString: hostString)
+        ]
     }
 
     public static func waitForToken(timeout: TimeInterval = 3) async -> String? {
@@ -230,4 +283,9 @@ public struct AuthTokenMiddleware: ClientMiddleware {
 
         return try await next(request, body, baseURL)
     }
+}
+
+enum AuthTokenStorageError: Error, Equatable {
+    case keychainReadFailed(OSStatus)
+    case keychainWriteFailed(OSStatus)
 }

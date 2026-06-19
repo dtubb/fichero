@@ -38,24 +38,24 @@ struct AuthTokenMiddlewareStorageTests {
         #expect(AuthTokenMiddleware.prefersLocalhostEngineToken(hostString: hostString) == false)
     }
 
-    @Test("remote token filenames are host-specific and normalized")
-    func remoteTokenFilenamesAreHostSpecific() {
-        let first = AuthTokenMiddleware.remoteTokenFileName(hostString: "https://host-one.tailnet.example")
-        let second = AuthTokenMiddleware.remoteTokenFileName(hostString: "https://host-two.tailnet.example")
+    @Test("remote token keychain accounts are host-specific and normalized")
+    func remoteTokenKeychainAccountsAreHostSpecific() {
+        let first = AuthTokenMiddleware.remoteTokenKeychainAccount(hostString: "https://host-one.tailnet.example")
+        let second = AuthTokenMiddleware.remoteTokenKeychainAccount(hostString: "https://host-two.tailnet.example")
 
         #expect(first != second)
         #expect(first.hasPrefix(".remote-api-key-"))
         #expect(second.hasPrefix(".remote-api-key-"))
     }
 
-    @Test("bootstrap and remote token paths stay distinct")
-    func bootstrapAndRemoteTokenPathsStayDistinct() {
+    @Test("bootstrap file storage and remote keychain routing stay distinct")
+    func bootstrapFileStorageAndRemoteKeychainRoutingStayDistinct() {
         let bootstrap = AuthTokenMiddleware.bootstrapTokenFileURL()
-        let remote = AuthTokenMiddleware.remoteTokenFileURL(hostString: "https://host.tailnet.example")
+        let remoteAccount = AuthTokenMiddleware.remoteTokenKeychainAccount(hostString: "https://host.tailnet.example")
 
         #expect(bootstrap != nil)
-        #expect(remote != nil)
-        #expect(bootstrap != remote)
-        #expect(remote?.lastPathComponent == AuthTokenMiddleware.remoteTokenFileName(hostString: "https://host.tailnet.example"))
+        #expect(bootstrap?.lastPathComponent == ".api-key")
+        #expect(remoteAccount == AuthTokenMiddleware.remoteTokenFileName(hostString: "https://host.tailnet.example"))
+        #expect(bootstrap?.lastPathComponent != remoteAccount)
     }
 }
