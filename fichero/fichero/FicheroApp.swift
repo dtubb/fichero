@@ -147,6 +147,8 @@ struct FicheroApp: App {
                         try await backendService.start()
                         let backendMs = Date().timeIntervalSince(backendStart) * 1000
                         logger.info("⏱ backendService.start: \(backendMs, format: .fixed(precision: 1))ms")
+                        // Re-check after the backend is up so app window state
+                        // and embedded backend status converge on the same result.
                         await appState.checkBackendHealth()
                         guard appState.isBackendRunning else {
                             backendService.status = .failed

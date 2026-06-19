@@ -213,11 +213,20 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let toolbarSource = try Self.appSource("Views/ContentView.swift")
         let menuSource = try Self.appSource("Views/Menu/ViewMenuCommands.swift")
 
-        XCTAssertTrue(toolbarSource.contains("books.vertical"))
-        XCTAssertTrue(toolbarSource.contains("Hide Library Browser (⌘⇧G)"))
+        XCTAssertTrue(toolbarSource.contains("ToolbarItem(placement: .principal)"))
+        XCTAssertTrue(toolbarSource.contains("LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName"))
+        XCTAssertTrue(toolbarSource.contains("Text(libraryName)"))
         XCTAssertTrue(menuSource.contains("Show Library Browser"))
         XCTAssertTrue(menuSource.contains("Hide Library Browser"))
         XCTAssertTrue(menuSource.contains("icon: \"books.vertical\""))
+    }
+
+    func testMacLaunchResyncsBackendStateAfterEngineStartup() throws {
+        let appSource = try Self.appSource("FicheroApp.swift")
+
+        XCTAssertTrue(appSource.contains("try await backendService.start()"))
+        XCTAssertTrue(appSource.contains("await appState.checkBackendHealth()"))
+        XCTAssertTrue(appSource.contains("await libraryManager.backendDidBecomeReady()"))
     }
 
     func testNotesLiveInDocumentInspectorAndStandaloneBrowserRetired() throws {
