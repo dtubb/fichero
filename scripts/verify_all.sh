@@ -3,7 +3,8 @@
 #
 #   --fast      Swift lint + cheap guardrails + version-date + OpenAPI model sync
 #   --standard  fast + backend unit tests
-#   --full      standard + macOS build/test + iPhone/iPad simulator builds
+#   --full      standard + requested platform legs; defaults to both macOS and
+#               iPhone/iPad simulator legs when no platform flags are given
 #   VERIFY_ALL_MACOS=1 / VERIFY_ALL_IOS=1 can request platform legs without
 #   changing the tier.
 #
@@ -24,17 +25,23 @@ Usage:
 Tiers:
   --fast      swiftlint + ruff + scripts/check_*.py + check_version_date.sh + OpenAPI model sync
   --standard  fast + backend pytest unit tests
-  --full      standard + macOS build/test + iPhone/iPad simulator builds
+  --full      standard + requested platform legs; defaults to both when no
+              platform flags are given
 
 Platforms:
-  --macos     run the macOS Xcode build/test leg
-  --ios       run the iPhone/iPad simulator build legs (plus visionOS when supported)
+  --macos     run only the macOS Xcode build/test leg
+  --ios       run only the iPhone/iPad simulator build legs (plus visionOS when supported)
 
 Environment overrides:
   VERIFY_ALL_MACOS=1  request the macOS Xcode build/test leg
   VERIFY_ALL_IOS=1    request the iPhone/iPad simulator build legs (plus visionOS when supported)
 
 Default: --fast
+
+Manager examples:
+  scripts/verify_all.sh --standard --macos --ios
+  scripts/verify_all.sh --full --macos
+  scripts/verify_all.sh --full --ios
 EOF
 }
 
@@ -228,6 +235,8 @@ run_standard() {
 }
 
 run_platform_checks() {
+  echo "verify_all platform legs: macOS=${run_macos} iOS=${run_ios}"
+
   if [[ "$run_macos" -eq 1 ]]; then
     run_xcode_build "xcodebuild macOS build" \
       -project "${XCODE_PROJECT}" \
