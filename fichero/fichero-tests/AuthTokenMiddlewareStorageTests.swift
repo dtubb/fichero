@@ -59,6 +59,18 @@ struct AuthTokenMiddlewareStorageTests {
         #expect(dot != underscorePathLike)
     }
 
+    @Test("remote token keychain accounts strip path query and fragment")
+    func remoteTokenKeychainAccountsStripPathQueryAndFragment() {
+        let root = AuthTokenMiddleware.remoteTokenKeychainAccount(hostString: "https://host.tailnet.example/")
+        let decorated = AuthTokenMiddleware.remoteTokenKeychainAccount(
+            hostString: "https://host.tailnet.example/api?x=1#frag"
+        )
+        let differentHost = AuthTokenMiddleware.remoteTokenKeychainAccount(hostString: "https://other.tailnet.example/")
+
+        #expect(root == decorated)
+        #expect(root != differentHost)
+    }
+
     @Test("bootstrap file storage and remote keychain routing stay distinct")
     func bootstrapFileStorageAndRemoteKeychainRoutingStayDistinct() {
         let bootstrap = AuthTokenMiddleware.bootstrapTokenFileURL()
