@@ -117,8 +117,7 @@ struct ContentView: View {
     @SceneStorage("showSidebar") var showSidebar: Bool = true
     /// #2034 Xcode-style chat: the LEFT column swaps between the sidebar and a
     /// full-height chat (reversible — a back button returns to the sidebar).
-    /// NOT stacked above the sidebar (that was #2274's SidebarChatSurface, now
-    /// folded into this swap). Persisted per-window.
+    /// Persisted per-window.
     @SceneStorage("sidebarShowsChat") var sidebarShowsChat: Bool = false
     @SceneStorage("showInspectorSidebar") var showInspectorSidebar: Bool = true
     @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool = true

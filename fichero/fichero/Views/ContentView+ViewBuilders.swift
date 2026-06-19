@@ -201,13 +201,10 @@ extension ContentView {
 
     @ViewBuilder
     var sidebarContent: some View {
-        // #2034 Xcode-style chat: the LEFT column SWAPS between the file/folder
-        // sidebar and a full-height chat — a reversible toggle (a back button
-        // returns to the sidebar), like Xcode swapping navigators in the same
-        // column. NOT stacked above the sidebar (that was #2274's
-        // SidebarChatSurface, now folded into this swap). Chat reuses the
-        // existing ChatView → same ChatServiceGenerated path, no second
-        // networking surface.
+        // #2034 Xcode-style chat: the LEFT column swaps between the file/folder
+        // sidebar and a full-height chat, like Xcode swapping navigators in
+        // the same column. Chat reuses the existing ChatView -> same
+        // ChatServiceGenerated path, no second networking surface.
         Group {
             if sidebarShowsChat {
                 sidebarChatColumn
