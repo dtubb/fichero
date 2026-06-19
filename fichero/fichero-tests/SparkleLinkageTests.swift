@@ -4,10 +4,28 @@ import Testing
 struct SparkleLinkageTests {
     @Test("Sparkle is linked only for macOS and updater code is macOS-gated")
     func sparkleLinkageIsMacOnly() throws {
-        let testsURL = URL(fileURLWithPath: #filePath)
-        let repoRoot = testsURL
-            .deletingLastPathComponent() // fichero-tests
-            .deletingLastPathComponent() // repo root
+        func findRepoRoot(startingAt startURL: URL) -> URL {
+            var current = startURL
+            let fileManager = FileManager.default
+
+            while true {
+                let candidate = current.appendingPathComponent("fichero")
+                let project = candidate.appendingPathComponent("fichero.xcodeproj")
+                let pbxproj = project.appendingPathComponent("project.pbxproj")
+                if fileManager.fileExists(atPath: pbxproj.path) {
+                    return current
+                }
+
+                let next = current.deletingLastPathComponent()
+                if next.path == current.path {
+                    return startURL
+                }
+                current = next
+            }
+        }
+
+        let fileURL = URL(fileURLWithPath: #filePath)
+        let repoRoot = findRepoRoot(startingAt: fileURL.deletingLastPathComponent())
 
         let projectURL = repoRoot
             .appendingPathComponent("fichero")
