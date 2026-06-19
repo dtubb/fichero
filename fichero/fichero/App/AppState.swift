@@ -90,6 +90,7 @@ class AppState: ObservableObject {
 
     func reconfigureGeneratedClientsForCurrentHost() {
         ficheroClient.reconfigure(baseURL: EngineConfig.host)
+        NotificationCenter.default.post(name: EngineConfig.engineHostDidChangeNotification, object: nil)
     }
 
     private func pingBackendOnce() async {
@@ -247,5 +248,4 @@ class AppState: ObservableObject {
             throw APIError.invalidResponse
         }
     }
-
 }

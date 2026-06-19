@@ -12,6 +12,7 @@ import Foundation
 enum EngineConfig {
     static let userDefaultsKey = "fichero.engine.host"
     static let defaultHostString = "http://127.0.0.1:8765"
+    static let engineHostDidChangeNotification = Notification.Name("engineHostDidChange")
 
     enum HostConfiguration: Equatable {
         case embeddedLocal

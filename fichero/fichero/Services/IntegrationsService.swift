@@ -18,6 +18,7 @@ import OSLog
 @MainActor
 final class IntegrationsService: ObservableObject {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "IntegrationsService")
+    private nonisolated(unsafe) var hostChangeObservation: NSObjectProtocol?
 
     @Published var integrations: [AppIntegration] = []
     @Published var isLoading = false
@@ -28,6 +29,25 @@ final class IntegrationsService: ObservableObject {
 
     init(client: FicheroClient = FicheroClient(baseURL: EngineConfig.host)) {
         self.client = client
+        hostChangeObservation = NotificationCenter.default.addObserver(
+            forName: EngineConfig.engineHostDidChangeNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.reconfigureBackendHost()
+            }
+        }
+    }
+
+    deinit {
+        if let hostChangeObservation {
+            NotificationCenter.default.removeObserver(hostChangeObservation)
+        }
+    }
+
+    func reconfigureBackendHost() {
+        client.reconfigure(baseURL: EngineConfig.host)
     }
 
     // MARK: - Response Mapping Helpers

@@ -4,7 +4,8 @@ import SwiftUI
 
 // MARK: - Backend Settings
 
-/// Backend connection settings
+// Backend connection settings
+// swiftlint:disable:next type_body_length
 struct BackendSettingsView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var backendService: EmbeddedBackendService
@@ -246,6 +247,7 @@ struct BackendSettingsView: View {
         do {
             try await backendService.start()
             await appState.checkBackendHealth()
+            appState.reconfigureGeneratedClientsForCurrentHost()
             if hostingEnabled {
                 await refreshPairedDevices()
             }

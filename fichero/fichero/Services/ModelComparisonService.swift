@@ -14,6 +14,7 @@ import OSLog
 @MainActor
 final class ModelComparisonService: ObservableObject {
     let logger = Logger(subsystem: "app.fichero.fichero", category: "ModelComparisonService")
+    private nonisolated(unsafe) var hostChangeObservation: NSObjectProtocol?
 
     @Published var isComparing = false
     @Published var lastResult: ComparisonResult?
@@ -29,6 +30,25 @@ final class ModelComparisonService: ObservableObject {
 
     init() {
         self.client = FicheroClient(baseURL: EngineConfig.host)
+        hostChangeObservation = NotificationCenter.default.addObserver(
+            forName: EngineConfig.engineHostDidChangeNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.reconfigureBackendHost()
+            }
+        }
+    }
+
+    deinit {
+        if let hostChangeObservation {
+            NotificationCenter.default.removeObserver(hostChangeObservation)
+        }
+    }
+
+    func reconfigureBackendHost() {
+        client.reconfigure(baseURL: EngineConfig.host)
     }
 }
 

@@ -16,7 +16,7 @@ final class RemoteAccessConfigTests: XCTestCase {
         )
         let payload = PairingService(apiRoot: pairingURL).buildQRCodePayload(from: code, spki: "spki-value")
 
-        XCTAssertEqual(payload.apiURL, "https://pairing.example.com/")
+        XCTAssertEqual(payload.apiURL, "https://pairing.example.com")
         XCTAssertEqual(payload.pairCode, "PAIR-1234")
         XCTAssertEqual(payload.spki, "spki-value")
         XCTAssertEqual(payload.expiresAt, code.expiresAt)
