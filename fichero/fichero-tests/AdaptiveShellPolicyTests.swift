@@ -82,6 +82,43 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertFalse(policy.collapseInspector)
     }
 
+    func testNarrowWindowDropsShellMinWidthToDetailWidth() {
+        let detailWidth = 600.0
+        let narrowWidth = ContentView.sidebarMinWidth + detailWidth - 1
+
+        XCTAssertEqual(
+            ContentView.shellWindowMinWidth(
+                windowWidth: narrowWidth,
+                horizontalSizeClass: .regular,
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: detailWidth
+            ),
+            detailWidth
+        )
+    }
+
+    func testRoomyWindowKeepsFullShellMinWidthForMacAndiPadLayouts() {
+        let detailWidth = 600.0
+        let roomyWidth =
+            ContentView.sidebarMinWidth + detailWidth + ContentView.inspectorMinWidth + 40
+
+        XCTAssertEqual(
+            ContentView.shellWindowMinWidth(
+                windowWidth: roomyWidth,
+                horizontalSizeClass: .regular,
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: detailWidth
+            ),
+            ContentView.windowMinWidth(
+                sidebarVisible: true,
+                inspectorVisible: true,
+                detailMinWidth: detailWidth
+            )
+        )
+    }
+
     func testCompactNavigationFlowIsCompactOnly() {
         #if os(macOS)
         XCTAssertFalse(ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: nil))

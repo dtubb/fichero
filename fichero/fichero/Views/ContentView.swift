@@ -312,8 +312,14 @@ struct ContentView: View {
             .adaptiveInspector(placement: inspectorPlacement, isPresented: inspectorIsPresented) {
                 inspectorContainerView
             }
-            .frame(minWidth: CGFloat(paneAwareWindowMinWidth), maxWidth: .infinity, maxHeight: .infinity)
+            // Measure the real container width before the outer min-width
+            // clamp, otherwise the reader only ever sees the framed width.
             .background(windowWidthReader)
+            .frame(
+                minWidth: CGFloat(shellWindowMinWidth),
+                maxWidth: .infinity,
+                maxHeight: .infinity
+            )
 
         // Listen for claim selection from inspector and sync to other panes
         .onReceive(NotificationCenter.default.publisher(for: .claimSelectedInInspector)) { notification in

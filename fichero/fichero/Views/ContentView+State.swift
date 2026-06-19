@@ -376,6 +376,16 @@ extension ContentView {
         )
     }
 
+    var shellWindowMinWidth: Double {
+        Self.shellWindowMinWidth(
+            windowWidth: measuredWindowWidth,
+            horizontalSizeClass: horizontalSizeClass,
+            sidebarVisible: showSidebar,
+            inspectorVisible: showInspectorSidebar,
+            detailMinWidth: paneAwareDetailMinWidth
+        )
+    }
+
     static func windowMinWidth(
         sidebarVisible: Bool,
         inspectorVisible: Bool,
@@ -394,6 +404,32 @@ extension ContentView {
         #else
         return detailMinWidth
         #endif
+    }
+
+    static func shellWindowMinWidth(
+        windowWidth: Double?,
+        horizontalSizeClass: UserInterfaceSizeClass?,
+        sidebarVisible: Bool,
+        inspectorVisible: Bool,
+        detailMinWidth: Double
+    ) -> Double {
+        let policy = shellCollapsePolicy(
+            windowWidth: windowWidth,
+            horizontalSizeClass: horizontalSizeClass,
+            sidebarVisible: sidebarVisible,
+            inspectorVisible: inspectorVisible,
+            detailMinWidth: detailMinWidth
+        )
+
+        if policy.collapseSidebar {
+            return detailMinWidth
+        }
+
+        return windowMinWidth(
+            sidebarVisible: sidebarVisible,
+            inspectorVisible: inspectorVisible,
+            detailMinWidth: detailMinWidth
+        )
     }
 
     /// Extracted from the view's `.onAppear` closure to keep `ContentView.body`
