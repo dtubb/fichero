@@ -77,6 +77,12 @@ struct BackendSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+                if hostingEnabled && !canHostRemoteAccess {
+                    Text("Remote Access hosting requires the embedded local engine. Clear Engine URL to host from this Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
                 HStack {
                     Button(isRestartingHost ? "Applying..." : "Apply and Restart Engine") {
                         Task { await applyHostingChanges() }
@@ -214,10 +220,17 @@ struct BackendSettingsView: View {
     }
 
     #if canImport(AppKit)
-    private var pairingService: PairingService? {
-        guard let publicURL = try? validatedReachableURL() else {
-            return nil
-        }
+    private var canHostRemoteAccess: Bool {
+        EngineConfig.engineIsLocal
+    }
+
+    private var ownerPairingService: PairingService? {
+        guard canHostRemoteAccess else { return nil }
+        return PairingService(apiRoot: EngineConfig.host)
+    }
+
+    private var advertisedPairingService: PairingService? {
+        guard let publicURL = try? validatedReachableURL() else { return nil }
         return PairingService(apiRoot: publicURL)
     }
 
@@ -226,8 +239,8 @@ struct BackendSettingsView: View {
     }
 
     private var qrCodeImage: PlatformImage? {
-        guard let pairingCode, let pairingService else { return nil }
-        let payload = pairingService.buildQRCodePayload(from: pairingCode)
+        guard let pairingCode, let advertisedPairingService else { return nil }
+        let payload = advertisedPairingService.buildQRCodePayload(from: pairingCode)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(payload) else { return nil }
@@ -249,6 +262,10 @@ struct BackendSettingsView: View {
 
         if hostingEnabled {
             do {
+                guard canHostRemoteAccess else {
+                    pairingError = "Remote Access hosting requires the embedded local engine. Clear Engine URL to host from this Mac."
+                    return
+                }
                 _ = try validatedReachableURL()
             } catch {
                 pairingError = error.localizedDescription
@@ -275,14 +292,18 @@ struct BackendSettingsView: View {
         defer { isGeneratingPairingCode = false }
 
         do {
+            guard canHostRemoteAccess else {
+                pairingError = "Remote Access hosting requires the embedded local engine. Clear Engine URL to host from this Mac."
+                return
+            }
             _ = try validatedReachableURL()
-            guard let pairingService else {
+            guard let ownerPairingService else {
                 pairingError = "Set a reachable private URL before generating a pairing QR code."
                 return
             }
-            let code = try await pairingService.createPairingCode()
+            let code = try await ownerPairingService.createPairingCode()
             pairingCode = code
-            _ = pairingService.buildQRCodePayload(from: code)
+            _ = advertisedPairingService?.buildQRCodePayload(from: code)
             await refreshPairedDevices()
         } catch {
             pairingError = error.localizedDescription
@@ -294,12 +315,16 @@ struct BackendSettingsView: View {
         defer { isLoadingDevices = false }
 
         do {
+            guard canHostRemoteAccess else {
+                pairingError = "Remote Access hosting requires the embedded local engine. Clear Engine URL to host from this Mac."
+                return
+            }
             _ = try validatedReachableURL()
-            guard let pairingService else {
+            guard let ownerPairingService else {
                 pairingError = "Set a reachable private URL before refreshing paired devices."
                 return
             }
-            pairedDevices = try await pairingService.listDevices()
+            pairedDevices = try await ownerPairingService.listDevices()
         } catch {
             pairingError = error.localizedDescription
         }
@@ -308,12 +333,16 @@ struct BackendSettingsView: View {
     private func revoke(deviceID: String) async {
         pairingError = nil
         do {
+            guard canHostRemoteAccess else {
+                pairingError = "Remote Access hosting requires the embedded local engine. Clear Engine URL to host from this Mac."
+                return
+            }
             _ = try validatedReachableURL()
-            guard let pairingService else {
+            guard let ownerPairingService else {
                 pairingError = "Set a reachable private URL before revoking paired devices."
                 return
             }
-            try await pairingService.revokeDevice(id: deviceID)
+            try await ownerPairingService.revokeDevice(id: deviceID)
             await refreshPairedDevices()
         } catch {
             pairingError = error.localizedDescription
