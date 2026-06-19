@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Guardrail for the top-level verification gate and remote pairing smoke doc.
+"""Guardrail for the top-level verification gate and manual smoke docs.
 
 This stays intentionally cheap: it checks that `scripts/verify_all.sh` keeps the
 documented fast/standard/full tiers, exposes opt-in macOS/iOS platform legs, and
 advertises the environment overrides that let callers request those legs without
 switching the whole gate to `--full`.
 
-It also verifies that the manual remote-pairing smoke checklist exists and still
-covers the expected end-to-end steps.
+It also verifies that the manual remote-pairing and capture smoke checklists
+exist and still cover the expected end-to-end steps.
 
 Usage:
     scripts/check_verify_all_modes.py
@@ -22,6 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 VERIFY_ALL = ROOT / "scripts" / "verify_all.sh"
 CHECKLIST = ROOT / "docs" / "remote-pairing-smoke-checklist.md"
+CAPTURE_MATRIX = ROOT / "docs" / "qa" / "CAPTURE_SMOKE_MATRIX.md"
 
 
 def _read(path: Path) -> str:
@@ -73,6 +74,24 @@ def scan() -> dict[str, str]:
                     f"missing checklist step: {phrase}"
                 )
 
+    capture_text = _read(CAPTURE_MATRIX).lower()
+    capture_checks = [
+        "offline photo capture",
+        "reconnect upload",
+        "watched-folder or dslr intake",
+        "provenance",
+        "citation",
+        "no backend at launch",
+    ]
+    if not CAPTURE_MATRIX.exists():
+        issues["docs/qa/CAPTURE_SMOKE_MATRIX.md"] = "capture smoke matrix file is missing"
+    else:
+        for phrase in capture_checks:
+            if phrase not in capture_text:
+                issues[f"docs/qa/CAPTURE_SMOKE_MATRIX.md::{phrase}"] = (
+                    f"missing capture smoke step: {phrase}"
+                )
+
     return issues
 
 
@@ -92,6 +111,7 @@ def main() -> int:
     print("verify_all mode/configuration guardrail")
     print(f"  scripts/verify_all.sh: {VERIFY_ALL.relative_to(ROOT)}")
     print(f"  smoke checklist: {CHECKLIST.relative_to(ROOT)}")
+    print(f"  capture matrix: {CAPTURE_MATRIX.relative_to(ROOT)}")
     print(f"  {len(issues)} issue(s) found.")
 
     if issues:
@@ -100,7 +120,7 @@ def main() -> int:
             print(f"  {key}  <-  {reason}")
         return 1
 
-    print("\nPASS verify_all modes and remote-pairing smoke checklist are present.")
+    print("\nPASS verify_all modes and manual smoke checklists are present.")
     return 0
 
 

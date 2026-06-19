@@ -3,6 +3,16 @@
 Use this checklist when validating mac-hosted QR pairing and remote clients.
 It is the manual end-to-end gate for #2350.
 
+Quick coverage summary:
+- [ ] Mac host app opens, backend connected.
+- [ ] Remote Access enabled.
+- [ ] QR shown directly in Settings.
+- [ ] iPad/iPhone scans QR.
+- [ ] Pairing succeeds.
+- [ ] Reconnect works.
+- [ ] Content loads from configured remote host.
+- [ ] No silent localhost fallback.
+
 ## Manager Build Gates
 - [ ] `scripts/verify_all.sh --standard --macos --ios` run once as the combined manager gate.
 - [ ] If a platform-specific failure needs isolation, rerun only the failing leg:
